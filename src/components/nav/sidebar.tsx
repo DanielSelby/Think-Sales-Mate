@@ -90,15 +90,15 @@ const SETTINGS_CHILDREN: NavChild[] = [
 
 // ── Reusable child list ───────────────────────────────────────
 
-function ChildLinks({ children, sidebar }: {
-  children: NavChild[];
-  sidebar:  { text: string; textMuted: string; borderColor: string };
+function ChildLinks({ items, sidebar }: {
+  items:   NavChild[];
+  sidebar: { text: string; textMuted: string; borderColor: string };
 }) {
   const pathname = usePathname();
   return (
     <div className="ml-6 mt-0.5 mb-0.5 pl-3 space-y-0.5"
       style={{ borderLeft: `1px solid ${sidebar.borderColor}` }}>
-      {children.map(child => {
+      {items.map(child => {
         const Icon        = child.icon;
         const childActive = pathname === child.href;
         return (
@@ -217,7 +217,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
                   )}
                 </button>
                 {isOpen && (
-                  <ChildLinks children={item.children} sidebar={sidebar} />
+                  <ChildLinks items={item.children} sidebar={sidebar} />
                 )}
               </div>
             );
@@ -276,7 +276,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
             )}
           </button>
           {!collapsed && openGroup === "settings" && (
-            <ChildLinks children={SETTINGS_CHILDREN} sidebar={sidebar} />
+            <ChildLinks items={SETTINGS_CHILDREN} sidebar={sidebar} />
           )}
         </div>
 

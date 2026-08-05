@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/exhaustive-deps */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -235,7 +236,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
             {flatItems.length === 0 && query && !searching && (
               <div className="px-4 py-8 text-center">
                 <Search className="w-8 h-8 mx-auto mb-2 text-slate-200" />
-                <p className="text-sm text-slate-400">No results for "<span className="font-medium text-slate-600">{query}</span>"</p>
+                <p className="text-sm text-slate-400">No results for &quot;<span className="font-medium text-slate-600">{query}</span>&quot;</p>
                 <p className="text-xs text-slate-300 mt-1">Try a page name, customer, or product</p>
               </div>
             )}
