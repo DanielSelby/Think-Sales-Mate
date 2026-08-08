@@ -84,7 +84,7 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
       reason: payload.reason?.trim() || null,
       transfer_date: payload.transferDate || new Date().toISOString().slice(0, 10),
       notes: payload.notes?.trim() || null,
-      shipping_charges: Math.max(payload.shippingCharges ?? 0, 0) as never,
+    
       created_by: context.userId
     })
     .select("id")
