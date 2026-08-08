@@ -219,6 +219,7 @@ export interface RecordSaleInput {
   locationId?:     string | null;
   reference?:      string | null;
   note?:           string | null;
+  notes?:          string | null;
   saleDate?:       string | null;
   paymentMethod?:  string | null;
   amountPaid?:     number | null;
