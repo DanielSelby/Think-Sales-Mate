@@ -79,7 +79,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: "All Products",      href: "/inventory",                 icon: List         },
       { label: "Add Product",       href: "/inventory/new",             icon: PlusCircle   },
       { label: "Stock Transfers List",   href: "/inventory/transfers",       icon: Truck        },
-      { label: "Add Transfer",      href: "/inventory/transfers/new",   icon: PlusCircle   },
+      { label: "Add Stock Transfer",      href: "/inventory/transfers/new",   icon: PlusCircle   },
       { label: "Stock Adjustment",  href: "/inventory/adjustments",     icon: ClipboardEdit },
     ],
   },

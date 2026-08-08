@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   Minus,
@@ -134,14 +134,24 @@ export function StockTransferForm({
   currentUserEmail: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const [transferDate, setTransferDate] = useState(todayIso());
   const [referenceNo, setReferenceNo] = useState(suggestedReference());
-  const [fromLocationId, setFromLocationId] = useState(locations[0]?.id ?? "");
-  const [toLocationId, setToLocationId] = useState(locations[1]?.id ?? "");
-  const [reason, setReason] = useState(REASONS[0]);
+  const [fromLocationId, setFromLocationId] = useState(() => {
+    const fromParam = searchParams.get("from");
+    return fromParam && locations.some((l) => l.id === fromParam) ? fromParam : locations[0]?.id ?? "";
+  });
+  const [toLocationId, setToLocationId] = useState(() => {
+    const toParam = searchParams.get("to");
+    return toParam && locations.some((l) => l.id === toParam) ? toParam : locations[1]?.id ?? "";
+  });
+  const [reason, setReason] = useState(() => {
+    const reasonParam = searchParams.get("reason");
+    return reasonParam && REASONS.includes(reasonParam) ? reasonParam : REASONS[0];
+  });
   const [notes, setNotes] = useState("");
   const [shippingCharges, setShippingCharges] = useState(0);
 
@@ -155,6 +165,10 @@ export function StockTransferForm({
   // it's confirmed (see the migration's trigger), so a "draft" must never
   // touch the database.
   useEffect(() => {
+    // Arriving here via "Duplicate" (a `from` param in the URL) means the
+    // person explicitly chose this route/reason just now — don't let a
+    // stale saved draft silently overwrite that.
+    if (searchParams.get("from")) return;
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;

@@ -101,7 +101,8 @@ export function SaleForm({
   reps,
   recentItems,
   currentUserId,
-  currentUserEmail
+  currentUserEmail,
+  orgId,
 }: {
   products: SellableProduct[];
   customers: SaleCustomer[];
@@ -109,6 +110,7 @@ export function SaleForm({
   reps: SalesRep[];
   recentItems: RecentItem[];
   currentUserId: string;
+  orgId: string;
   currentUserEmail: string;
 }) {
   const router = useRouter();
@@ -261,6 +263,9 @@ export function SaleForm({
 
     startTransition(async () => {
       const result = await recordSale({
+        orgId,
+        subtotal,
+        total,
         customerId: selectedCustomerId,
         customerName: selectedCustomer?.name ?? walkInName,
         locationId: locationId || null,

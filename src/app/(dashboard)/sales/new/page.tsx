@@ -110,6 +110,7 @@ export default async function NewSalePage() {
 
   return (
     <SaleForm
+      orgId={context.orgId}
       products={products}
       customers={customers}
       locations={locations}
