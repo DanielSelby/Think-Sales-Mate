@@ -474,9 +474,9 @@ export function AddExpenseForm({ locations, bankAccounts, approvers, currency, c
             </CardHeader>
             <CardContent className="pt-0 text-sm text-ledger-500">
               {budget?.hasBudget && budget.percentUsed >= 90 ? (
-                <p>{category} spending is at {budget.percentUsed}% of this month's budget — this expense may push it over.</p>
+                <p>{category} spending is at {budget.percentUsed}% of this month&apos;s budget &mdash; this expense may push it over.</p>
               ) : recentExpenses.length >= 3 ? (
-                <p>You've logged {recentExpenses.length} {category} expenses recently, averaging {formatCurrency(recentExpenses.reduce((s, e) => s + e.amount, 0) / recentExpenses.length, currency)}.</p>
+                <p>You&apos;ve logged {recentExpenses.length} {category} expenses recently, averaging {formatCurrency(recentExpenses.reduce((s, e) => s + e.amount, 0) / recentExpenses.length, currency)}.</p>
               ) : (
                 <p>Not enough history yet for a useful insight on {category}.</p>
               )}
