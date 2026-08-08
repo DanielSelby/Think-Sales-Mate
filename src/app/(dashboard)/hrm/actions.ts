@@ -1,96 +1,234 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import type { EmploymentType } from "@/types/database";
 
-function redirectWithError(path: string, message: string): never {
-  redirect(`${path}?error=${encodeURIComponent(message)}`);
+export interface SimpleResult {
+  ok: boolean;
+  error?: string;
 }
 
-function parseEmployeeForm(formData: FormData) {
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
-  const jobTitle = String(formData.get("job_title") ?? "").trim();
-  const department = String(formData.get("department") ?? "").trim();
-  const monthlySalary = Number(formData.get("monthly_salary"));
-  const hireDate = String(formData.get("hire_date") ?? "").trim();
-  const status = String(formData.get("status") ?? "active").trim() as "active" | "inactive";
+// ---------------------------------------------------------------------------
+// Employees
+// ---------------------------------------------------------------------------
 
-  return {
-    full_name: fullName,
-    email: email || null,
-    phone: phone || null,
-    job_title: jobTitle || null,
-    department: department || null,
-    monthly_salary: monthlySalary,
-    hire_date: hireDate || new Date().toISOString().slice(0, 10),
-    status
-  };
+export interface CreateEmployeeInput {
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  jobTitle: string | null;
+  department: string | null;
+  employmentType: EmploymentType;
+  monthlySalary: number;
+  hireDate: string;
 }
 
-export async function createEmployee(formData: FormData): Promise<void> {
-  const context = await getCurrentOrgContext();
-  if (!context) redirectWithError("/hrm/new", "Your session expired — please sign in again.");
-  if (!can(context.role, "hrm.manage")) {
-    redirectWithError("/hrm/new", "You don't have permission to add employees.");
-  }
+export interface CreateEmployeeResult extends SimpleResult {
+  employeeId?: string;
+  employeeCode?: string;
+}
 
-  const fields = parseEmployeeForm(formData);
-  if (!fields.full_name) redirectWithError("/hrm/new", "Name is required.");
-  if (Number.isNaN(fields.monthly_salary) || fields.monthly_salary < 0) {
-    redirectWithError("/hrm/new", "Enter a valid monthly salary.");
-  }
+export async function createEmployee(input: CreateEmployeeInput): Promise<CreateEmployeeResult> {
+  if (!input.fullName.trim()) return { ok: false, error: "Employee name is required." };
+  if (input.monthlySalary <= 0) return { ok: false, error: "Enter a valid monthly salary." };
 
   const supabase = createClient();
-  const { error } = await supabase.from("employees").insert({
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+
+  const { data, error } = await supabase
+    .from("employees")
+    .insert({
+      org_id: context.orgId,
+      full_name: input.fullName.trim(),
+      email: input.email,
+      phone: input.phone,
+      job_title: input.jobTitle,
+      department: input.department,
+      employment_type: input.employmentType,
+      monthly_salary: input.monthlySalary,
+      hire_date: input.hireDate,
+      status: "active",
+      created_by: user.id,
+    })
+    .select("id, employee_number")
+    .single();
+
+  if (error || !data) return { ok: false, error: error?.message ?? "Couldn't create the employee." };
+
+  await supabase.from("audit_logs").insert({
     org_id: context.orgId,
-    created_by: context.userId,
-    ...fields
+    actor_id: user.id,
+    action: "employee.created",
+    entity_type: "employees",
+    entity_id: data.id,
+    metadata: { name: input.fullName },
   });
 
-  if (error) redirectWithError("/hrm/new", error.message);
-
   revalidatePath("/hrm");
-  redirect("/hrm");
+  revalidatePath("/hrm/employees");
+  return { ok: true, employeeId: data.id, employeeCode: `EMP-${data.employee_number}` };
 }
 
-export async function updateEmployee(employeeId: string, formData: FormData): Promise<void> {
-  const context = await getCurrentOrgContext();
-  if (!context) redirectWithError(`/hrm/${employeeId}/edit`, "Your session expired — please sign in again.");
-  if (!can(context.role, "hrm.manage")) {
-    redirectWithError(`/hrm/${employeeId}/edit`, "You don't have permission to edit employees.");
-  }
-
-  const fields = parseEmployeeForm(formData);
-  if (!fields.full_name) redirectWithError(`/hrm/${employeeId}/edit`, "Name is required.");
-
+export async function setEmployeeStatus(employeeId: string, status: "active" | "inactive"): Promise<SimpleResult> {
   const supabase = createClient();
-  const { error } = await supabase
+  const { error } = await supabase.from("employees").update({ status, on_leave_until: null }).eq("id", employeeId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/hrm");
+  revalidatePath("/hrm/employees");
+  return { ok: true };
+}
+
+export async function setEmployeeOnLeave(employeeId: string, untilDate: string): Promise<SimpleResult> {
+  const supabase = createClient();
+  const { error } = await supabase.from("employees").update({ on_leave_until: untilDate }).eq("id", employeeId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/hrm");
+  revalidatePath("/hrm/employees");
+  return { ok: true };
+}
+
+export async function deleteEmployee(employeeId: string): Promise<SimpleResult> {
+  const supabase = createClient();
+  const { error } = await supabase.from("employees").delete().eq("id", employeeId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/hrm");
+  revalidatePath("/hrm/employees");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Process Payroll
+// ---------------------------------------------------------------------------
+
+export interface ProcessPayrollInput {
+  payrollType: string;
+  periodStart: string;
+  periodEnd: string;
+  paymentDate: string;
+  /** Flat percentage applied to gross pay. This is NOT a real statutory tax
+   * calculation (PAYE/SSNIT etc.) — just a configurable rate, since correct
+   * tax rules are jurisdiction-specific and shouldn't be guessed at. */
+  deductionRatePercent: number;
+  /** A flat pool added on top of gross pay (bonuses, allowances). */
+  allowancesTotal: number;
+  /** Optional employer-side cost on top of gross (e.g. employer pension
+   * contribution) — left at 0 unless you enter one; not auto-calculated. */
+  employerContribution: number;
+}
+
+export interface ProcessPayrollResult extends SimpleResult {
+  payrollRunId?: string;
+}
+
+export async function processPayroll(input: ProcessPayrollInput): Promise<ProcessPayrollResult> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+
+  const { data: employees, error: employeesError } = await supabase
     .from("employees")
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq("id", employeeId)
-    .eq("org_id", context.orgId);
+    .select("id, full_name, monthly_salary")
+    .eq("org_id", context.orgId)
+    .eq("status", "active");
 
-  if (error) redirectWithError(`/hrm/${employeeId}/edit`, error.message);
+  if (employeesError) return { ok: false, error: employeesError.message };
+  if (!employees || employees.length === 0) return { ok: false, error: "No active employees to pay." };
 
-  revalidatePath("/hrm");
-  redirect("/hrm");
-}
+  const grossPay = employees.reduce((sum, e) => sum + e.monthly_salary, 0);
+  const deductions = Math.round(grossPay * (input.deductionRatePercent / 100) * 100) / 100;
+  const netPay = grossPay - deductions + input.allowancesTotal;
+  const employerCost = grossPay + input.employerContribution;
 
-export async function deleteEmployee(employeeId: string) {
-  const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "hrm.manage")) {
-    return { error: "You don't have permission to remove employees." };
+  const { data: run, error: runError } = await supabase
+    .from("payroll_runs")
+    .insert({
+      org_id: context.orgId,
+      period_label: `${input.periodStart} – ${input.periodEnd}`,
+      period_month: input.periodStart.slice(0, 7),
+      status: "completed",
+      payroll_type: input.payrollType,
+      pay_period_start: input.periodStart,
+      pay_period_end: input.periodEnd,
+      payment_date: input.paymentDate,
+      total_amount: netPay,
+      gross_pay: grossPay,
+      deductions,
+      allowances: input.allowancesTotal,
+      employer_cost: employerCost,
+      net_pay: netPay,
+      employee_count: employees.length,
+      processed_by: user.id,
+      processed_at: new Date().toISOString(),
+      run_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (runError || !run) return { ok: false, error: runError?.message ?? "Couldn't create the payroll run." };
+
+  const items = employees.map((e) => {
+    const share = e.monthly_salary / grossPay;
+    const empDeductions = Math.round(deductions * share * 100) / 100;
+    const empNet = Math.round((e.monthly_salary - empDeductions + input.allowancesTotal * share) * 100) / 100;
+    return {
+      payroll_run_id: run.id,
+      org_id: context.orgId,
+      employee_id: e.id,
+      employee_name: e.full_name,
+      basic_pay: e.monthly_salary,
+      deductions: empDeductions,
+      net_pay: empNet,
+      amount: empNet,
+    };
+  });
+
+  const { error: itemsError } = await supabase.from("payroll_run_items").insert(items);
+  if (itemsError) {
+    await supabase.from("payroll_runs").delete().eq("id", run.id);
+    return { ok: false, error: itemsError.message };
   }
 
-  const supabase = createClient();
-  const { error } = await supabase.from("employees").delete().eq("id", employeeId).eq("org_id", context.orgId);
-  if (error) return { error: error.message };
+  // Post a linked expense so this shows up in Accounting/Expenses too.
+  const { data: expense } = await supabase
+    .from("expenses")
+    .insert({
+      org_id: context.orgId,
+      category: "Salaries",
+      vendor: "Payroll",
+      description: `Payroll — ${input.periodStart} to ${input.periodEnd}`,
+      amount: netPay,
+      expense_date: input.paymentDate,
+      payment_method: "Bank Transfer",
+      status: "approved",
+      payment_status: "unpaid",
+      recorded_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (expense) {
+    await supabase.from("payroll_runs").update({ expense_id: expense.id }).eq("id", run.id);
+  }
+
+  await supabase.from("audit_logs").insert({
+    org_id: context.orgId,
+    actor_id: user.id,
+    action: "payroll.processed",
+    entity_type: "payroll_runs",
+    entity_id: run.id,
+    metadata: { employee_count: employees.length, net_pay: netPay },
+  });
 
   revalidatePath("/hrm");
-  return { success: true };
+  revalidatePath("/expenses");
+  return { ok: true, payrollRunId: run.id };
 }

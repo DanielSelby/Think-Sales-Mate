@@ -1,73 +1,126 @@
-import Link from "next/link";
-import { cookies } from "next/headers";
-import { Plus, Wallet } from "lucide-react";
-import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
-import { can } from "@/lib/rbac";
-import { Button } from "@/components/ui/button";
-import { EmployeesTable, type EmployeeRow } from "@/components/hrm/employees-table";
+import { getCurrentOrgContext } from "@/lib/organizations/current";
+import {
+  HrmDashboardView, type DashboardKpis, type PayrollHistoryPoint, type DistributionSlice,
+  type EmployeePreviewRow, type UpcomingPayment, type HrActivity,
+} from "@/components/hrm/hrm-dashboard-view";
 
-export default async function HrmPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
-  const context = await getCurrentOrgContext(activeOrgId);
+export const metadata = { title: "HRM & Payroll · SalesMate ERP" };
+
+const ACTIVITY_LABEL: Record<string, string> = {
+  "employee.created": "New employee added",
+  "payroll.processed": "Payroll processed",
+};
+
+export default async function HrmDashboardPage() {
+  const context = await getCurrentOrgContext();
   if (!context) return null;
 
-  if (!can(context.role, "hrm.view")) {
-    return (
-      <div className="mx-auto max-w-2xl rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
-        <p className="text-sm text-ledger-500 dark:text-ledger-400">
-          Employee and payroll data is restricted to managers and above.
-        </p>
-      </div>
-    );
-  }
-
+  const orgId = context.orgId;
   const supabase = createClient();
-  const { data: rows } = await supabase
-    .from("employees")
-    .select("id, full_name, job_title, department, monthly_salary, status")
-    .eq("org_id", context.orgId)
-    .order("full_name");
 
-  const employees: EmployeeRow[] = (rows ?? []).map((e) => ({
+  const [{ data: employees }, { data: payrollRuns }] = await Promise.all([
+    supabase.from("employees").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
+    supabase.from("payroll_runs").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(6),
+  ]);
+
+  const rawEmployees = employees ?? [];
+  const rawRuns = payrollRuns ?? [];
+
+  const activeEmployees = rawEmployees.filter((e) => e.status === "active");
+  const grossPayPreview = activeEmployees.reduce((sum, e) => sum + e.monthly_salary, 0);
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const runsThisMonth = rawRuns.filter((r) => r.payment_date && new Date(r.payment_date) >= monthStart);
+
+  const kpis: DashboardKpis = {
+    totalEmployees: rawEmployees.length,
+    totalPayrollThisMonth: runsThisMonth.reduce((sum, r) => sum + r.gross_pay, 0),
+    netPayThisMonth: runsThisMonth.reduce((sum, r) => sum + r.net_pay, 0),
+    deductionsThisMonth: runsThisMonth.reduce((sum, r) => sum + r.deductions, 0),
+    pendingPayments: 0, // filled in below once we have item counts
+  };
+
+  const payrollHistory: PayrollHistoryPoint[] = [...rawRuns]
+    .reverse()
+    .map((r) => ({ label: r.payroll_type ? `${r.pay_period_start?.slice(5) ?? ""}` : r.period_label, gross: r.gross_pay, deductions: r.deductions, net: r.net_pay }));
+
+  const latestRun = rawRuns[0] ?? null;
+  const distribution: DistributionSlice[] = latestRun
+    ? [
+        { name: "Basic Pay", value: latestRun.gross_pay },
+        { name: "Allowances", value: latestRun.allowances },
+        { name: "Deductions", value: latestRun.deductions },
+        { name: "Employer Cost", value: Math.max(0, latestRun.employer_cost - latestRun.gross_pay) },
+      ].filter((d) => d.value > 0)
+    : [];
+
+  const employeesPreview: EmployeePreviewRow[] = rawEmployees.slice(0, 5).map((e) => ({
     id: e.id,
-    fullName: e.full_name,
-    jobTitle: e.job_title,
+    name: e.full_name,
+    email: e.email,
+    employeeNumber: e.employee_number,
     department: e.department,
+    jobTitle: e.job_title,
+    employmentType: e.employment_type,
     monthlySalary: e.monthly_salary,
-    status: e.status
+    status: e.status,
+    onLeaveUntil: e.on_leave_until,
   }));
 
-  const canManage = can(context.role, "hrm.manage");
+  // Upcoming payments: items from the most recent run whose payment date
+  // hasn't arrived yet — the closest honest reading of "pending" available
+  // from this data model.
+  let upcomingPayments: UpcomingPayment[] = [];
+  const upcomingRun = rawRuns.find((r) => r.payment_date && new Date(r.payment_date) >= now);
+  if (upcomingRun) {
+    const { data: items } = await supabase
+      .from("payroll_run_items")
+      .select("id, employee_name, amount")
+      .eq("payroll_run_id", upcomingRun.id)
+      .order("amount", { ascending: false })
+      .limit(3);
+    upcomingPayments = (items ?? []).map((i) => ({
+      id: i.id,
+      employeeName: i.employee_name,
+      amount: i.amount,
+      paymentDate: upcomingRun.payment_date!,
+    }));
+
+    const { count } = await supabase
+      .from("payroll_run_items")
+      .select("id", { count: "exact", head: true })
+      .eq("payroll_run_id", upcomingRun.id);
+    kpis.pendingPayments = count ?? 0;
+  }
+
+  const { data: activityLogs } = await supabase
+    .from("audit_logs")
+    .select("id, action, created_at")
+    .eq("org_id", orgId)
+    .in("entity_type", ["employees", "payroll_runs"])
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  const recentActivity: HrActivity[] = (activityLogs ?? []).map((l) => ({
+    id: l.id,
+    label: ACTIVITY_LABEL[l.action] ?? l.action,
+    createdAt: l.created_at,
+  }));
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Employees</h1>
-          <p className="text-sm text-ledger-500 dark:text-ledger-400">
-            {employees.length} employee{employees.length === 1 ? "" : "s"} at {context.orgName}.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/hrm/payroll">
-            <Button variant="outline">
-              <Wallet className="h-4 w-4" />
-              Payroll
-            </Button>
-          </Link>
-          {canManage && (
-            <Link href="/hrm/new">
-              <Button>
-                <Plus className="h-4 w-4" />
-                Add employee
-              </Button>
-            </Link>
-          )}
-        </div>
-      </div>
-
-      <EmployeesTable employees={employees} canManage={canManage} />
-    </div>
+    <HrmDashboardView
+      kpis={kpis}
+      payrollHistory={payrollHistory}
+      distribution={distribution}
+      employeesPreview={employeesPreview}
+      totalEmployeeCount={rawEmployees.length}
+      activeEmployeeCount={activeEmployees.length}
+      grossPayPreview={grossPayPreview}
+      currency={context.currency}
+      upcomingPayments={upcomingPayments}
+      recentActivity={recentActivity}
+    />
   );
 }

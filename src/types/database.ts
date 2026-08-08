@@ -13,6 +13,8 @@ export type PurchaseReturnStatus = "draft" | "submitted" | "approved" | "rejecte
 export type ExpenseStatus = "pending_approval" | "approved" | "rejected";
 export type ExpensePaymentStatus = "unpaid" | "paid";
 export type ExpenseCategoryStatus = "active" | "inactive";
+export type EmploymentType = "full_time" | "part_time" | "contract" | "intern";
+export type PayrollRunStatus = "draft" | "processing" | "completed" | "failed";
 
 export interface Database {
   public: {
@@ -1136,14 +1138,17 @@ export interface Database {
         Row: {
           id: string;
           org_id: string;
+          employee_number: number;
           full_name: string;
           email: string | null;
           phone: string | null;
           job_title: string | null;
           department: string | null;
+          employment_type: EmploymentType;
           monthly_salary: number;
           hire_date: string;
           status: "active" | "inactive";
+          on_leave_until: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -1151,14 +1156,17 @@ export interface Database {
         Insert: {
           id?: string;
           org_id: string;
+          employee_number?: number;
           full_name: string;
           email?: string | null;
           phone?: string | null;
           job_title?: string | null;
           department?: string | null;
+          employment_type?: EmploymentType;
           monthly_salary: number;
           hire_date?: string;
           status?: "active" | "inactive";
+          on_leave_until?: string | null;
           created_by: string;
           created_at?: string;
           updated_at?: string;
@@ -1172,9 +1180,21 @@ export interface Database {
           org_id: string;
           period_label: string;
           period_month: string;
+          status: PayrollRunStatus;
+          payroll_type: string | null;
+          pay_period_start: string | null;
+          pay_period_end: string | null;
+          payment_date: string | null;
           total_amount: number;
+          gross_pay: number;
+          deductions: number;
+          allowances: number;
+          employer_cost: number;
+          net_pay: number;
           employee_count: number;
           expense_id: string | null;
+          processed_by: string | null;
+          processed_at: string | null;
           run_by: string;
           created_at: string;
         };
@@ -1183,9 +1203,21 @@ export interface Database {
           org_id: string;
           period_label: string;
           period_month: string;
+          status?: PayrollRunStatus;
+          payroll_type?: string | null;
+          pay_period_start?: string | null;
+          pay_period_end?: string | null;
+          payment_date?: string | null;
           total_amount: number;
+          gross_pay?: number;
+          deductions?: number;
+          allowances?: number;
+          employer_cost?: number;
+          net_pay?: number;
           employee_count: number;
           expense_id?: string | null;
+          processed_by?: string | null;
+          processed_at?: string | null;
           run_by: string;
           created_at?: string;
         };
@@ -1199,6 +1231,9 @@ export interface Database {
           org_id: string;
           employee_id: string | null;
           employee_name: string;
+          basic_pay: number;
+          deductions: number;
+          net_pay: number;
           amount: number;
           created_at: string;
         };
@@ -1208,6 +1243,9 @@ export interface Database {
           org_id: string;
           employee_id?: string | null;
           employee_name: string;
+          basic_pay?: number;
+          deductions?: number;
+          net_pay?: number;
           amount: number;
           created_at?: string;
         };
