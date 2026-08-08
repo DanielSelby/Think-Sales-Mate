@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
+import { getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
+import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency, formatDateTime, formatInvoiceNumber,
@@ -51,6 +53,7 @@ interface SalesListViewProps {
   currency: string;
   locations: string[];
   salesReps: string[];
+  orgName: string;
 }
 
 const STATUS_TABS: { key: "all" | SaleStatus; label: string }[] = [
@@ -74,7 +77,8 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
-export function SalesListView({ sales, kpis, currency, locations, salesReps }: SalesListViewProps) {
+export function SalesListView({ sales, kpis, currency, locations, salesReps, orgName }: SalesListViewProps) {
+  const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | SaleStatus>("all");
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("all");
@@ -122,33 +126,34 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps }: S
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  function handlePrint(sale: SaleListRow) {
-    const win = window.open("", "_blank", "width=700,height=800");
-    if (!win) return;
-    const { date, time } = formatDateTime(sale.saleDate);
-    win.document.write(`
-      <html><head><title>${formatInvoiceNumber(sale.saleNumber)}</title>
-      <style>body{font-family:sans-serif;padding:24px}table{width:100%;border-collapse:collapse;margin-top:16px}
-      th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;font-size:13px}
-      h2{margin-bottom:4px}.muted{color:#888;font-size:12px}</style></head>
-      <body>
-      <h2>${formatInvoiceNumber(sale.saleNumber)}</h2>
-      <p class="muted">${date} ${time}</p>
-      <table>
-        <tr><th>Customer</th><td>${sale.customerName}</td></tr>
-        <tr><th>Sold by</th><td>${sale.soldByName}</td></tr>
-        <tr><th>Branch</th><td>${sale.locationName ?? "—"}</td></tr>
-        <tr><th>Items</th><td>${sale.itemCount}</td></tr>
-        <tr><th>Payment method</th><td>${sale.paymentMethod ?? "—"}</td></tr>
-        <tr><th>Payment status</th><td>${PAYMENT_STATUS_LABEL[sale.paymentStatus]}</td></tr>
-        <tr><th>Total</th><td>${formatCurrency(sale.total, currency)}</td></tr>
-      </table>
-      <p style="font-size:11px;color:#888;margin-top:16px">Use your browser's print dialog to save this as a PDF.</p>
-      </body></html>
-    `);
-    win.document.close();
-    win.focus();
-    win.print();
+  async function handlePrint(sale: SaleListRow) {
+    setPrintingId(sale.id);
+    try {
+      const items = await getSaleInvoiceItems(sale.id);
+      const html = buildInvoiceHtml({
+        orgName,
+        saleNumber: sale.saleNumber,
+        saleDate: sale.saleDate,
+        customerName: sale.customerName,
+        soldByName: sale.soldByName,
+        locationName: sale.locationName,
+        paymentMethod: sale.paymentMethod,
+        paymentStatus: sale.paymentStatus,
+        subtotal: sale.total - (sale.total - sale.amountPaid > sale.total ? 0 : 0) /* placeholder, replaced below */,
+        total: sale.total,
+        amountPaid: sale.amountPaid,
+        currency,
+        items
+      });
+      const win = window.open("", "_blank", "width=800,height=900");
+      if (!win) return;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } finally {
+      setPrintingId(null);
+    }
   }
 
   function resetFilters() {

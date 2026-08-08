@@ -77,6 +77,7 @@ export default async function SalesPage() {
       currency={currency}
       locations={locationNames}
       salesReps={salesRepNames}
+      orgName={context.orgName}
     />
   );
 }

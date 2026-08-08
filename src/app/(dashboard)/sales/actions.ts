@@ -66,6 +66,39 @@ export async function getSaleReturnableItems(saleId: string): Promise<Returnable
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Fetch line items for the printable invoice
+// ---------------------------------------------------------------------------
+
+export interface InvoiceItemRow {
+  productName: string;
+  sku: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export async function getSaleInvoiceItems(saleId: string): Promise<InvoiceItemRow[]> {
+  const supabase = createClient();
+
+  const { data: items } = await supabase
+    .from("sale_items")
+    .select("quantity, unit_price, line_total, product:products ( name, sku )")
+    .eq("sale_id", saleId);
+
+  return (items ?? []).map((item) => {
+    const product = item.product as { name: string; sku: string } | null;
+    return {
+      productName: product?.name ?? "Deleted product",
+      sku: product?.sku ?? null,
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+      lineTotal: item.line_total
+    };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Update sale status (+ restock / reverse restock as needed)
 // ---------------------------------------------------------------------------
