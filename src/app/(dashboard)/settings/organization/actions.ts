@@ -193,3 +193,23 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
   revalidatePath("/settings/organization");
   return { invited, skipped };
 }
+
+
+export async function updateCurrency(currency: string) {
+  const context = await getCurrentOrgContext();
+  if (!context) return { error: "Session expired." };
+  if (!can(context.role, "org.manage_members")) {
+    return { error: "You don't have permission to update currency." };
+  }
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("organizations")
+    .update({ currency })
+    .eq("id", context.orgId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings/organization");
+  return { success: true };
+}
