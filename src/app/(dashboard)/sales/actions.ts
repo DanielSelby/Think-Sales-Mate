@@ -167,7 +167,7 @@ export async function updateSaleStatus({
     }
 
     if (status === "completed" && sale.status !== "completed") {
-      // Restoring to Completed reverses any stock this sale previously put
+      // Restoring to Completed reverses any stock this sale previously put h
       // back, then clears the return trail.
       const { data: existingReturns } = await supabase
         .from("sale_return_items")
@@ -206,4 +206,80 @@ export async function updateSaleStatus({
   revalidatePath("/sales");
   revalidatePath("/inventory");
   return { ok: true };
+}
+
+
+// ---------------------------------------------------------------------------
+// Record a new sale
+// ---------------------------------------------------------------------------
+export interface RecordSaleInput {
+  orgId:        string;
+  customerName?: string;
+  lines: {
+    productId:  string;
+    quantity:   number;
+    unitPrice:  number;
+    lineTotal:  number;
+  }[];
+  subtotal:     number;
+  total:        number;
+  note?:        string;
+}
+
+export interface RecordSaleResult {
+  ok:      boolean;
+  saleId?: string;
+  error?:  string;
+}
+
+export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  try {
+    // Insert sale header
+    const { data: sale, error: saleError } = await supabase
+      .from("sales")
+      .insert({
+        org_id:        input.orgId,
+        customer_name: input.customerName ?? null,
+        subtotal:      input.subtotal,
+        total:         input.total,
+        status:        "completed",
+        sold_by:       user.id,
+      })
+      .select("id")
+      .single();
+
+    if (saleError || !sale) throw new Error(saleError?.message ?? "Failed to create sale.");
+
+    // Insert line items
+    const { error: itemsError } = await supabase.from("sale_items").insert(
+      input.lines.map(l => ({
+        sale_id:    sale.id,
+        org_id:     input.orgId,
+        product_id: l.productId,
+        quantity:   l.quantity,
+        unit_price: l.unitPrice,
+        line_total: l.lineTotal,
+      }))
+    );
+    if (itemsError) throw new Error(itemsError.message);
+
+    // Deduct stock for each line
+    for (const l of input.lines) {
+      await (supabase as any).rpc("adjust_product_stock", {
+        p_product_id: l.productId,
+        p_delta:      -l.quantity,
+      });
+    }
+
+    revalidatePath("/sales");
+    revalidatePath("/inventory");
+    return { ok: true, saleId: sale.id };
+
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
+  }
 }
