@@ -9,7 +9,7 @@ import {
   BarChart3, Settings, Sparkles, Lock,
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
-  PlusCircle, List,
+  PlusCircle, List, ShoppingBag, LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -55,6 +55,20 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── Purchases group ───────────────────────────────────────
+  {
+    label: "Purchases",
+    href:  "/purchases",
+    icon:  ShoppingBag,
+    status: "live",
+    children: [
+      { label: "All Purchases", href: "/purchases",         icon: List       },
+      { label: "Add Purchase",  href: "/purchases/new",     icon: PlusCircle },
+      { label: "Suppliers",     href: "/purchases/suppliers", icon: Truck    },
+      { label: "Purchase Returns", href: "/purchases/returns/new", icon: FileText },
+    ],
+  },
+
   // ── Inventory group ───────────────────────────────────────
   {
     label: "Inventory",
@@ -71,6 +85,17 @@ const NAV_ITEMS: NavItem[] = [
   },
 
   { label: "CRM",           href: "/crm",        icon: Contact,      status: "live" },
+  {
+    label: "Expenses",
+    href: "/expenses",
+    icon: Tag,
+    status: "live",
+    children: [
+      { label: "All Expenses", href: "/expenses",     icon: List       },
+      { label: "Add Expense",  href: "/expenses/new", icon: PlusCircle },
+      { label: "Expense Categories", href: "/expenses/categories", icon: LayoutGrid },
+    ],
+  },
   { label: "HRM & Payroll", href: "/hrm",        icon: Users,        status: "live" },
   { label: "Accounting",    href: "/accounting", icon: Wallet,       status: "live" },
   { label: "Banking",       href: "/banking",    icon: Landmark,     status: "live" },

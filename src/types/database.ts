@@ -8,6 +8,11 @@ export type TransferStatus = "pending" | "in_transit" | "completed" | "cancelled
 export type LocationType = "warehouse" | "branch" | "store" | "distribution_center" | "mobile_van";
 export type SaleStatus = "completed" | "returned" | "cancelled";
 export type PurchaseStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
+export type SupplierStatus = "active" | "inactive" | "blacklisted";
+export type PurchaseReturnStatus = "draft" | "submitted" | "approved" | "rejected";
+export type ExpenseStatus = "pending_approval" | "approved" | "rejected";
+export type ExpensePaymentStatus = "unpaid" | "paid";
+export type ExpenseCategoryStatus = "active" | "inactive";
 
 export interface Database {
   public: {
@@ -530,6 +535,7 @@ export interface Database {
           product_id: string;
           quantity: number;
           unit_cost: number | null;
+          location_id: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -541,6 +547,7 @@ export interface Database {
           product_id: string;
           quantity: number;
           unit_cost?: number | null;
+          location_id?: string | null;
           created_by?: string | null;
           created_at?: string;
         };
@@ -580,6 +587,9 @@ export interface Database {
           payment_terms: string | null;
           currency: string;
           address: string | null;
+          category: string | null;
+          country: string | null;
+          status: SupplierStatus;
           is_active: boolean;
           created_by: string;
           created_at: string;
@@ -594,6 +604,9 @@ export interface Database {
           payment_terms?: string | null;
           currency?: string;
           address?: string | null;
+          category?: string | null;
+          country?: string | null;
+          status?: SupplierStatus;
           is_active?: boolean;
           created_by: string;
           created_at?: string;
@@ -621,6 +634,7 @@ export interface Database {
           tax_amount: number;
           shipping_cost: number;
           total: number;
+          paid_amount: number;
           payment_method: string | null;
           payment_account: string | null;
           pay_from_account: string | null;
@@ -650,6 +664,7 @@ export interface Database {
           tax_amount?: number;
           shipping_cost?: number;
           total?: number;
+          paid_amount?: number;
           payment_method?: string | null;
           payment_account?: string | null;
           pay_from_account?: string | null;
@@ -732,30 +747,333 @@ export interface Database {
           }
         ];
       };
+      purchase_returns: {
+        Row: {
+          id: string;
+          org_id: string;
+          return_number: number;
+          purchase_id: string;
+          supplier_id: string;
+          location_id: string;
+          status: PurchaseReturnStatus;
+          return_date: string;
+          return_reason: string | null;
+          invoice_number: string | null;
+          reference: string | null;
+          notes: string | null;
+          internal_notes: string | null;
+          payment_status: string | null;
+          refund_method: string | null;
+          payment_account: string | null;
+          refund_status: string;
+          restocking_fee: number;
+          tax_adjustment: number;
+          total_return_value: number;
+          refund_amount: number;
+          approved_at: string | null;
+          approved_by: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          return_number?: number;
+          purchase_id: string;
+          supplier_id: string;
+          location_id: string;
+          status?: PurchaseReturnStatus;
+          return_date?: string;
+          return_reason?: string | null;
+          invoice_number?: string | null;
+          reference?: string | null;
+          notes?: string | null;
+          internal_notes?: string | null;
+          payment_status?: string | null;
+          refund_method?: string | null;
+          payment_account?: string | null;
+          refund_status?: string;
+          restocking_fee?: number;
+          tax_adjustment?: number;
+          total_return_value?: number;
+          refund_amount?: number;
+          approved_at?: string | null;
+          approved_by?: string | null;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["purchase_returns"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "purchase_returns_purchase_id_fkey";
+            columns: ["purchase_id"];
+            isOneToOne: false;
+            referencedRelation: "purchases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "purchase_returns_supplier_id_fkey";
+            columns: ["supplier_id"];
+            isOneToOne: false;
+            referencedRelation: "suppliers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "purchase_returns_location_id_fkey";
+            columns: ["location_id"];
+            isOneToOne: false;
+            referencedRelation: "business_locations";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      purchase_return_items: {
+        Row: {
+          id: string;
+          return_id: string;
+          org_id: string;
+          purchase_item_id: string;
+          product_id: string;
+          batch_serial: string | null;
+          purchased_qty: number;
+          return_qty: number;
+          unit_cost: number;
+          return_value: number;
+          return_reason: string | null;
+          condition: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          return_id: string;
+          org_id: string;
+          purchase_item_id: string;
+          product_id: string;
+          batch_serial?: string | null;
+          purchased_qty: number;
+          return_qty: number;
+          unit_cost?: number;
+          return_value?: number;
+          return_reason?: string | null;
+          condition?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["purchase_return_items"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "purchase_return_items_return_id_fkey";
+            columns: ["return_id"];
+            isOneToOne: false;
+            referencedRelation: "purchase_returns";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "purchase_return_items_purchase_item_id_fkey";
+            columns: ["purchase_item_id"];
+            isOneToOne: false;
+            referencedRelation: "purchase_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "purchase_return_items_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       expenses: {
         Row: {
           id: string;
           org_id: string;
+          expense_number: number;
           category: string;
           vendor: string | null;
           description: string | null;
           amount: number;
           expense_date: string;
+          payment_method: string | null;
+          status: ExpenseStatus;
+          payment_status: ExpensePaymentStatus;
+          paid_on: string | null;
+          due_date: string | null;
+          department: string | null;
+          location_id: string | null;
+          approved_by: string | null;
+          approved_at: string | null;
+          is_recurring: boolean;
+          recurring_frequency: string | null;
+          next_recurrence_date: string | null;
+          parent_expense_id: string | null;
+          reference_number: string | null;
+          purchase_order_id: string | null;
+          currency: string | null;
+          tags: string[];
+          expense_type: string | null;
+          approver_id: string | null;
+          approval_required: boolean;
+          transaction_reference: string | null;
+          discount_amount: number;
           recorded_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          expense_number?: number;
+          category: string;
+          vendor?: string | null;
+          description?: string | null;
+          amount: number;
+          expense_date?: string;
+          payment_method?: string | null;
+          status?: ExpenseStatus;
+          payment_status?: ExpensePaymentStatus;
+          paid_on?: string | null;
+          due_date?: string | null;
+          department?: string | null;
+          location_id?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          is_recurring?: boolean;
+          recurring_frequency?: string | null;
+          next_recurrence_date?: string | null;
+          parent_expense_id?: string | null;
+          reference_number?: string | null;
+          purchase_order_id?: string | null;
+          currency?: string | null;
+          tags?: string[];
+          expense_type?: string | null;
+          approver_id?: string | null;
+          approval_required?: boolean;
+          transaction_reference?: string | null;
+          discount_amount?: number;
+          recorded_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["expenses"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "expenses_location_id_fkey";
+            columns: ["location_id"];
+            isOneToOne: false;
+            referencedRelation: "business_locations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expenses_parent_expense_id_fkey";
+            columns: ["parent_expense_id"];
+            isOneToOne: false;
+            referencedRelation: "expenses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expenses_purchase_order_id_fkey";
+            columns: ["purchase_order_id"];
+            isOneToOne: false;
+            referencedRelation: "purchases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expenses_approver_id_fkey";
+            columns: ["approver_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      expense_items: {
+        Row: {
+          id: string;
+          expense_id: string;
+          org_id: string;
+          description: string;
+          category: string | null;
+          quantity: number;
+          unit_cost: number;
+          tax_amount: number;
+          line_total: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          expense_id: string;
+          org_id: string;
+          description: string;
+          category?: string | null;
+          quantity?: number;
+          unit_cost?: number;
+          tax_amount?: number;
+          line_total?: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["expense_items"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "expense_items_expense_id_fkey";
+            columns: ["expense_id"];
+            isOneToOne: false;
+            referencedRelation: "expenses";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      expense_categories: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          icon: string;
+          color: string;
+          description: string | null;
+          department: string | null;
+          budget_limit: number | null;
+          status: ExpenseCategoryStatus;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          icon?: string;
+          color?: string;
+          description?: string | null;
+          department?: string | null;
+          budget_limit?: number | null;
+          status?: ExpenseCategoryStatus;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["expense_categories"]["Row"]>;
+        Relationships: [];
+      };
+      expense_budgets: {
+        Row: {
+          id: string;
+          org_id: string;
+          category: string;
+          monthly_limit: number;
+          created_by: string;
           created_at: string;
         };
         Insert: {
           id?: string;
           org_id: string;
           category: string;
-          vendor?: string | null;
-          description?: string | null;
-          amount: number;
-          expense_date?: string;
-          recorded_by: string;
+          monthly_limit: number;
+          created_by: string;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["expenses"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["expense_budgets"]["Row"]>;
         Relationships: [];
       };
       invoices: {
@@ -1057,8 +1375,8 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
-      adjust_product_stock: {
-        Args: { p_product_id: string; p_delta: number };
+      adjust_product_stock_at_location: {
+        Args: { p_product_id: string; p_location_id: string; p_org_id: string; p_delta: number };
         Returns: void;
       };
     };
@@ -1071,6 +1389,11 @@ export interface Database {
       bank_transaction_type: BankTransactionType;
       sale_status: SaleStatus;
       purchase_status: PurchaseStatus;
+      supplier_status: SupplierStatus;
+      purchase_return_status: PurchaseReturnStatus;
+      expense_status: ExpenseStatus;
+      expense_payment_status: ExpensePaymentStatus;
+      expense_category_status: ExpenseCategoryStatus;
     };
     CompositeTypes: Record<string, never>;
   };

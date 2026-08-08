@@ -18,6 +18,7 @@ export interface CreateTransferPayload {
   reason?: string;
   transferDate?: string;
   notes?: string;
+  shippingCharges?: number;
   items: TransferItemInput[];
 }
 
@@ -83,6 +84,7 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
       reason: payload.reason?.trim() || null,
       transfer_date: payload.transferDate || new Date().toISOString().slice(0, 10),
       notes: payload.notes?.trim() || null,
+      shipping_charges: Math.max(payload.shippingCharges ?? 0, 0),
       created_by: context.userId
     })
     .select("id")
@@ -173,4 +175,75 @@ export async function getTransferItems(transferId: string): Promise<TransferItem
       unitCost: row.unit_cost
     };
   });
+}
+
+export async function deleteTransfer(transferId: string) {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "inventory.manage")) {
+    return { error: "You don't have permission to delete transfers." };
+  }
+
+  const supabase = createClient();
+
+  const { data: transfer, error: fetchError } = await supabase
+    .from("stock_transfers")
+    .select("status, from_location_id, to_location_id")
+    .eq("id", transferId)
+    .eq("org_id", context.orgId)
+    .single();
+
+  if (fetchError || !transfer) {
+    return { error: fetchError?.message ?? "Transfer not found." };
+  }
+
+  // Deleting must never silently corrupt real inventory — first reverse
+  // whatever stock movement this transfer already caused, exactly like
+  // cancelling would, then remove the record.
+  if (transfer.status === "pending" || transfer.status === "in_transit") {
+    // Stock already left the source; restore it there (same effect as
+    // the "cancelled" trigger, reused by going through that path).
+    const { error: cancelError } = await supabase
+      .from("stock_transfers")
+      .update({ status: "cancelled" })
+      .eq("id", transferId)
+      .eq("org_id", context.orgId);
+    if (cancelError) return { error: cancelError.message };
+  } else if (transfer.status === "completed") {
+    // Stock already arrived at the destination; take it back out before
+    // deleting the record so company-wide inventory stays correct.
+    const { data: items } = await supabase
+      .from("stock_transfer_items")
+      .select("product_id, quantity")
+      .eq("transfer_id", transferId);
+
+    for (const item of items ?? []) {
+      const { data: level } = await supabase
+        .from("product_stock_levels")
+        .select("quantity")
+        .eq("product_id", item.product_id)
+        .eq("location_id", transfer.to_location_id)
+        .maybeSingle();
+
+      const newQuantity = Math.max((level?.quantity ?? 0) - item.quantity, 0);
+      const { error: updateError } = await supabase
+        .from("product_stock_levels")
+        .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+        .eq("product_id", item.product_id)
+        .eq("location_id", transfer.to_location_id);
+      if (updateError) return { error: updateError.message };
+    }
+  }
+  // If already 'cancelled', stock was already restored — nothing more to reverse.
+
+  const { error: deleteError } = await supabase
+    .from("stock_transfers")
+    .delete()
+    .eq("id", transferId)
+    .eq("org_id", context.orgId);
+
+  if (deleteError) return { error: deleteError.message };
+
+  revalidatePath("/inventory/transfers");
+  revalidatePath("/inventory");
+  return { success: true };
 }

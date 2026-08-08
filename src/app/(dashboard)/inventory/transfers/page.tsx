@@ -33,7 +33,7 @@ export default async function StockTransferHistoryPage() {
     supabase
       .from("stock_transfers")
       .select(
-        "id, transfer_number, reference_no, status, reason, notes, transfer_date, created_at, completed_at, created_by, from:from_location_id(id, name), to:to_location_id(id, name)"
+        "id, transfer_number, reference_no, status, reason, notes, shipping_charges, transfer_date, created_at, completed_at, created_by, from:from_location_id(id, name), to:to_location_id(id, name)"
       )
       .eq("org_id", context.orgId)
       .order("created_at", { ascending: false }),
@@ -71,6 +71,7 @@ export default async function StockTransferHistoryPage() {
       status: t.status,
       reason: t.reason,
       notes: t.notes,
+      shippingCharges: t.shipping_charges,
       transferDate: t.transfer_date,
       createdAt: t.created_at,
       completedAt: t.completed_at,

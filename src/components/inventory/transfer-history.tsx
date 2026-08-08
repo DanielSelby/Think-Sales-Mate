@@ -14,7 +14,6 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  MoreVertical,
   Eye,
   Copy,
   Ban,
@@ -24,7 +23,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { updateTransferStatus, getTransferItems, type TransferItemDetail } from "@/app/(dashboard)/inventory/transfers/actions";
+import {
+  updateTransferStatus,
+  getTransferItems,
+  deleteTransfer,
+  type TransferItemDetail
+} from "@/app/(dashboard)/inventory/transfers/actions";
 import { TransferStatusBadge } from "@/components/inventory/transfer-status-badge";
 import type { TransferStatus, LocationType } from "@/types/database";
 
@@ -34,6 +38,7 @@ export interface TransferRow {
   status: TransferStatus;
   reason: string | null;
   notes: string | null;
+  shippingCharges: number;
   transferDate: string;
   createdAt: string;
   completedAt: string | null;
@@ -75,7 +80,7 @@ interface Kpis {
 }
 
 type SortKey = "date-desc" | "date-asc" | "value-desc" | "value-asc" | "qty-desc" | "qty-asc";
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const STATUS_COLORS: Record<TransferStatus, string> = {
   pending: "#94a3b8",
   in_transit: "#d97706",
@@ -87,15 +92,12 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-function KpiCard({ label, value, change, suffix }: { label: string; value: string; change: number; suffix?: string }) {
+function KpiCard({ label, value, change }: { label: string; value: string; change: number }) {
   const positive = change >= 0;
   return (
     <div className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
       <p className="text-xs text-ledger-400">{label}</p>
-      <p className="figure mt-1 text-xl font-semibold text-ink-900 dark:text-white">
-        {value}
-        {suffix && <span className="ml-1 text-xs font-normal text-ledger-400">{suffix}</span>}
-      </p>
+      <p className="figure mt-1 text-xl font-semibold text-ink-900 dark:text-white">{value}</p>
       <p className={cn("mt-1 flex items-center gap-1 text-xs font-medium", positive ? "text-signal" : "text-alert")}>
         {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
         {Math.abs(change)}% vs last month
@@ -187,10 +189,10 @@ export function TransferHistory({
   const [productFilter, setProductFilter] = useState("all");
 
   const [sortKey, setSortKey] = useState<SortKey>("date-desc");
+  const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const reasons = useMemo(() => [...new Set(transfers.map((t) => t.reason).filter(Boolean) as string[])].sort(), [transfers]);
   const requesters = useMemo(() => [...new Set(transfers.map((t) => t.requestedByEmail).filter((e) => e !== "—"))].sort(), [transfers]);
@@ -239,9 +241,9 @@ export function TransferHistory({
     }
   }, [filtered, sortKey]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageItems = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageItems = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const statusBreakdown = useMemo(() => {
     const order: TransferStatus[] = ["completed", "pending", "in_transit", "cancelled"];
@@ -306,14 +308,6 @@ export function TransferHistory({
     });
   }
 
-  function handleCancel(transfer: TransferRow) {
-    if (!confirm(`Cancel transfer ${transfer.label}? Any stock already deducted from the source will be restored.`)) return;
-    startTransition(async () => {
-      const result = await updateTransferStatus(transfer.id, "cancelled");
-      if (result?.error) setError(result.error);
-    });
-  }
-
   function handleBulkCancel() {
     const cancellable = transfers.filter((t) => selectedIds.has(t.id) && (t.status === "pending" || t.status === "in_transit"));
     if (cancellable.length === 0) {
@@ -338,8 +332,30 @@ export function TransferHistory({
     router.push(`/inventory/transfers/new?${params.toString()}`);
   }
 
+  function handleCancel(transfer: TransferRow) {
+    if (!confirm(`Cancel transfer ${transfer.label}? Any stock already deducted from the source will be restored.`)) return;
+    startTransition(async () => {
+      const result = await updateTransferStatus(transfer.id, "cancelled");
+      if (result?.error) setError(result.error);
+    });
+  }
+
+  function handleDelete(transfer: TransferRow) {
+    const warning =
+      transfer.status === "completed"
+        ? `Delete transfer ${transfer.label}? This permanently removes the record and reverses the stock it added to ${transfer.toLocationName}.`
+        : transfer.status === "in_transit" || transfer.status === "pending"
+          ? `Delete transfer ${transfer.label}? This permanently removes the record and restores the stock deducted from ${transfer.fromLocationName}.`
+          : `Delete transfer ${transfer.label}? This permanently removes the record.`;
+    if (!confirm(warning)) return;
+    startTransition(async () => {
+      const result = await deleteTransfer(transfer.id);
+      if (result?.error) setError(result.error);
+    });
+  }
+
   function handleExport() {
-    const headers = ["Transfer", "Date", "Source", "Destination", "Products", "Qty", "Value", "Requested by", "Status"];
+    const headers = ["Transfer", "Date", "From", "To", "Products", "Qty", "Shipping", "Total Amount", "Requested by", "Status", "Notes"];
     const rows = sorted.map((t) =>
       [
         t.label,
@@ -348,10 +364,14 @@ export function TransferHistory({
         t.toLocationName,
         String(t.productCount),
         String(t.totalQuantity),
+        t.shippingCharges.toFixed(2),
         t.totalValue.toFixed(2),
         t.requestedByEmail,
-        t.status
-      ].join(",")
+        t.status,
+        t.notes ?? ""
+      ]
+        .map((v) => (v.includes(",") ? `"${v.replace(/"/g, '""')}"` : v))
+        .join(",")
     );
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -370,7 +390,7 @@ export function TransferHistory({
     const body = rows
       .map(
         (t) =>
-          `<tr><td>${t.label}</td><td>${t.transferDate}</td><td>${t.fromLocationName} → ${t.toLocationName}</td><td>${t.productCount}</td><td>${t.totalQuantity}</td><td>$${formatMoney(t.totalValue)}</td><td>${t.status}</td></tr>`
+          `<tr><td>${t.label}</td><td>${t.transferDate}</td><td>${t.fromLocationName}</td><td>${t.toLocationName}</td><td>${t.status}</td><td>$${formatMoney(t.shippingCharges)}</td><td>$${formatMoney(t.totalValue)}</td></tr>`
       )
       .join("");
     win.document.write(`
@@ -378,7 +398,7 @@ export function TransferHistory({
       <style>body{font-family:sans-serif;padding:16px}table{width:100%;border-collapse:collapse}
       th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;font-size:12px}</style></head>
       <body><h2>Stock Transfer History</h2>
-      <table><thead><tr><th>Transfer</th><th>Date</th><th>Route</th><th>Products</th><th>Qty</th><th>Value</th><th>Status</th></tr></thead>
+      <table><thead><tr><th>Transfer</th><th>Date</th><th>From</th><th>To</th><th>Status</th><th>Shipping</th><th>Total</th></tr></thead>
       <tbody>${body}</tbody></table>
       <p style="font-size:11px;color:#888;margin-top:12px">Use your browser's print dialog to save this as a PDF.</p>
       </body></html>
@@ -440,6 +460,80 @@ export function TransferHistory({
         <KpiCard label="Cancelled" value={kpis.cancelled.value.toLocaleString()} change={kpis.cancelled.change} />
         <KpiCard label="Qty transferred" value={kpis.totalQuantity.value.toLocaleString()} change={kpis.totalQuantity.change} />
         <KpiCard label="Value transferred" value={`$${formatMoney(kpis.totalValue.value)}`} change={kpis.totalValue.change} />
+      </div>
+
+      {/* Analytics row — moved above the search bar */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {statusBreakdown.length > 0 && (
+          <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Transfer overview</h3>
+            <div className="mt-3 flex items-center gap-4">
+              <div className="h-28 w-28 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusBreakdown} dataKey="count" nameKey="status" innerRadius={30} outerRadius={50} paddingAngle={2}>
+                      {statusBreakdown.map((s) => (
+                        <Cell key={s.status} fill={STATUS_COLORS[s.status]} stroke="none" />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="flex-1 space-y-1.5">
+                {statusBreakdown.map((s) => (
+                  <li key={s.status} className="flex items-center gap-2 text-xs">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLORS[s.status] }} />
+                    <span className="flex-1 truncate capitalize text-ledger-600 dark:text-ledger-300">{s.status.replace("_", " ")}</span>
+                    <span className="figure text-ledger-400">{s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {topRoutes.length > 0 && (
+          <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Top transfer routes</h3>
+            <ul className="mt-3 space-y-2.5">
+              {topRoutes.map((r) => (
+                <li key={r.key}>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="truncate text-ledger-600 dark:text-ledger-300">
+                      {r.from} → {r.to}
+                    </span>
+                    <span className="text-ledger-400">{r.count}</span>
+                  </div>
+                  <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-ledger-100 dark:bg-white/[0.06]">
+                    <div className="h-full bg-signal" style={{ width: `${r.pct}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {reasonBreakdown.length > 0 && (
+          <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Transfer reasons</h3>
+            <ul className="mt-3 space-y-2.5">
+              {reasonBreakdown.map((r) => (
+                <li key={r.reason}>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-ledger-600 dark:text-ledger-300">{r.reason}</span>
+                    <span className="text-ledger-400">
+                      {r.count} ({r.pct}%)
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-ledger-100 dark:bg-white/[0.06]">
+                    <div className="h-full bg-signal" style={{ width: `${r.pct}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Search + quick filters */}
@@ -574,252 +668,193 @@ export function TransferHistory({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-4">
-        {/* Table column */}
-        <div className="space-y-4 lg:col-span-3">
-          {selectedIds.size > 0 && canManage && (
-            <div className="flex items-center justify-between rounded-md bg-signal-soft px-3 py-2 text-sm">
-              <span className="text-signal">{selectedIds.size} selected</span>
-              <Button size="sm" variant="destructive" onClick={handleBulkCancel} disabled={isPending}>
-                <Ban className="h-3.5 w-3.5" />
-                Cancel selected
-              </Button>
-            </div>
-          )}
-
-          {pageItems.length === 0 ? (
-            <div className="rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
-              <p className="text-sm text-ledger-500 dark:text-ledger-400">No transfers match these filters.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-[1] border-b border-ledger-100 bg-white text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700 dark:bg-ink-900">
-                  <tr>
-                    <th className="w-8 px-3 py-3">
-                      <input type="checkbox" checked={pageItems.every((t) => selectedIds.has(t.id))} onChange={toggleSelectAllOnPage} />
-                    </th>
-                    <th className="px-2 py-3">Transfer</th>
-                    <th className="px-2 py-3">
-                      <button
-                        className="flex items-center gap-1"
-                        onClick={() => setSortKey(sortKey === "date-desc" ? "date-asc" : "date-desc")}
-                      >
-                        Date {sortKey === "date-desc" ? <ChevronDown className="h-3 w-3" /> : sortKey === "date-asc" ? <ChevronUp className="h-3 w-3" /> : null}
-                      </button>
-                    </th>
-                    <th className="px-2 py-3">Route</th>
-                    <th className="px-2 py-3 text-right">Products</th>
-                    <th className="px-2 py-3 text-right">
-                      <button
-                        className="ml-auto flex items-center gap-1"
-                        onClick={() => setSortKey(sortKey === "qty-desc" ? "qty-asc" : "qty-desc")}
-                      >
-                        Qty {sortKey === "qty-desc" ? <ChevronDown className="h-3 w-3" /> : sortKey === "qty-asc" ? <ChevronUp className="h-3 w-3" /> : null}
-                      </button>
-                    </th>
-                    <th className="px-2 py-3 text-right">
-                      <button
-                        className="ml-auto flex items-center gap-1"
-                        onClick={() => setSortKey(sortKey === "value-desc" ? "value-asc" : "value-desc")}
-                      >
-                        Value {sortKey === "value-desc" ? <ChevronDown className="h-3 w-3" /> : sortKey === "value-asc" ? <ChevronUp className="h-3 w-3" /> : null}
-                      </button>
-                    </th>
-                    <th className="px-2 py-3">Requested by</th>
-                    <th className="px-2 py-3">Status</th>
-                    <th className="w-10 px-2 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageItems.map((t) => (
-                    <Fragment key={t.id}>
-                      <tr className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
-                        <td className="px-3 py-3">
-                          <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} />
-                        </td>
-                        <td className="px-2 py-3">
-                          <button
-                            onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
-                            className="flex items-center gap-1 font-medium text-signal hover:underline"
-                          >
-                            {expandedId === t.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                            {t.label}
-                          </button>
-                        </td>
-                        <td className="px-2 py-3 text-xs text-ledger-500 dark:text-ledger-400">
-                          {new Date(t.createdAt).toLocaleDateString()}
-                          <br />
-                          {new Date(t.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </td>
-                        <td className="px-2 py-3 text-xs text-ledger-600 dark:text-ledger-300">
-                          {t.fromLocationName} → {t.toLocationName}
-                        </td>
-                        <td className="px-2 py-3 text-right figure text-ledger-500 dark:text-ledger-400">{t.productCount}</td>
-                        <td className="px-2 py-3 text-right figure text-ledger-500 dark:text-ledger-400">{t.totalQuantity}</td>
-                        <td className="px-2 py-3 text-right figure font-medium text-ink-900 dark:text-white">
-                          ${formatMoney(t.totalValue)}
-                        </td>
-                        <td className="px-2 py-3 text-xs text-ledger-500 dark:text-ledger-400">{t.requestedByEmail}</td>
-                        <td className="px-2 py-3">
-                          <TransferStatusBadge status={t.status} />
-                        </td>
-                        <td className="px-2 py-3">
-                          <div className="relative flex justify-end">
-                            <button
-                              onClick={() => setOpenMenuId(openMenuId === t.id ? null : t.id)}
-                              className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
-                              aria-label="More actions"
-                            >
-                              <MoreVertical className="h-3.5 w-3.5" />
-                            </button>
-                            {openMenuId === t.id && (
-                              <div className="absolute right-0 top-6 z-10 w-40 rounded-md border border-ledger-100 bg-white py-1 text-left shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-                                <Link
-                                  href={`/inventory/transfers/${t.id}`}
-                                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
-                                >
-                                  <Eye className="h-3.5 w-3.5" /> View
-                                </Link>
-                                <button
-                                  onClick={() => handlePrint(t)}
-                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
-                                >
-                                  <Printer className="h-3.5 w-3.5" /> Print / Save as PDF
-                                </button>
-                                {canManage && (
-                                  <button
-                                    onClick={() => handleDuplicate(t)}
-                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
-                                  >
-                                    <Copy className="h-3.5 w-3.5" /> Duplicate
-                                  </button>
-                                )}
-                                {canManage && (t.status === "pending" || t.status === "in_transit") && (
-                                  <button
-                                    onClick={() => handleCancel(t)}
-                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-alert hover:bg-alert-soft"
-                                  >
-                                    <Ban className="h-3.5 w-3.5" /> Cancel
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      {expandedId === t.id && (
-                        <tr>
-                          <td colSpan={9} className="p-0">
-                            <TransferRowDetails transferId={t.id} />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 disabled:opacity-30 dark:border-ledger-700"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-sm text-ledger-500 dark:text-ledger-400">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 disabled:opacity-30 dark:border-ledger-700"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Analytics sidebar */}
-        <div className="space-y-5">
-          {statusBreakdown.length > 0 && (
-            <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Transfer overview</h3>
-              <div className="mt-3 flex items-center gap-4">
-                <div className="h-28 w-28 shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={statusBreakdown} dataKey="count" nameKey="status" innerRadius={30} outerRadius={50} paddingAngle={2}>
-                        {statusBreakdown.map((s) => (
-                          <Cell key={s.status} fill={STATUS_COLORS[s.status]} stroke="none" />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <ul className="flex-1 space-y-1.5">
-                  {statusBreakdown.map((s) => (
-                    <li key={s.status} className="flex items-center gap-2 text-xs">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLORS[s.status] }} />
-                      <span className="flex-1 truncate capitalize text-ledger-600 dark:text-ledger-300">{s.status.replace("_", " ")}</span>
-                      <span className="figure text-ledger-400">{s.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {topRoutes.length > 0 && (
-            <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Top transfer routes</h3>
-              <ul className="mt-3 space-y-2.5">
-                {topRoutes.map((r) => (
-                  <li key={r.key}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="truncate text-ledger-600 dark:text-ledger-300">
-                        {r.from} → {r.to}
-                      </span>
-                      <span className="text-ledger-400">{r.count}</span>
-                    </div>
-                    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-ledger-100 dark:bg-white/[0.06]">
-                      <div className="h-full bg-signal" style={{ width: `${r.pct}%` }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {reasonBreakdown.length > 0 && (
-            <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Transfer reasons</h3>
-              <ul className="mt-3 space-y-2.5">
-                {reasonBreakdown.map((r) => (
-                  <li key={r.reason}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-ledger-600 dark:text-ledger-300">{r.reason}</span>
-                      <span className="text-ledger-400">
-                        {r.count} ({r.pct}%)
-                      </span>
-                    </div>
-                    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-ledger-100 dark:bg-white/[0.06]">
-                      <div className="h-full bg-signal" style={{ width: `${r.pct}%` }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+      {/* Show entries + table */}
+      <div className="flex items-center justify-between text-sm text-ledger-500 dark:text-ledger-400">
+        <label className="flex items-center gap-2">
+          Show
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="h-8 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          entries
+        </label>
+        <span>
+          {sorted.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, sorted.length)} of{" "}
+          {sorted.length}
+        </span>
       </div>
+
+      {selectedIds.size > 0 && canManage && (
+        <div className="flex items-center justify-between rounded-md bg-signal-soft px-3 py-2 text-sm">
+          <span className="text-signal">{selectedIds.size} selected</span>
+          <Button size="sm" variant="destructive" onClick={handleBulkCancel} disabled={isPending}>
+            <Ban className="h-3.5 w-3.5" />
+            Cancel selected
+          </Button>
+        </div>
+      )}
+
+      {pageItems.length === 0 ? (
+        <div className="rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
+          <p className="text-sm text-ledger-500 dark:text-ledger-400">No transfers match these filters.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-[1] border-b border-ledger-100 bg-white text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700 dark:bg-ink-900">
+              <tr>
+                <th className="w-8 px-3 py-3">
+                  <input type="checkbox" checked={pageItems.every((t) => selectedIds.has(t.id))} onChange={toggleSelectAllOnPage} />
+                </th>
+                <th className="px-3 py-3">
+                  <button
+                    className="flex items-center gap-1"
+                    onClick={() => setSortKey(sortKey === "date-desc" ? "date-asc" : "date-desc")}
+                  >
+                    Date {sortKey === "date-desc" ? <ChevronDown className="h-3 w-3" /> : sortKey === "date-asc" ? <ChevronUp className="h-3 w-3" /> : null}
+                  </button>
+                </th>
+                <th className="px-2 py-3">Reference No</th>
+                <th className="px-2 py-3">Location (From)</th>
+                <th className="px-2 py-3">Location (To)</th>
+                <th className="px-2 py-3">Status</th>
+                <th className="px-2 py-3 text-right">Shipping Charges</th>
+                <th className="px-2 py-3 text-right">
+                  <button
+                    className="ml-auto flex items-center gap-1"
+                    onClick={() => setSortKey(sortKey === "value-desc" ? "value-asc" : "value-desc")}
+                  >
+                    Total Amount {sortKey === "value-desc" ? <ChevronDown className="h-3 w-3" /> : sortKey === "value-asc" ? <ChevronUp className="h-3 w-3" /> : null}
+                  </button>
+                </th>
+                <th className="px-2 py-3">Additional Notes</th>
+                <th className="px-2 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((t) => (
+                <Fragment key={t.id}>
+                  <tr className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
+                    <td className="px-3 py-3">
+                      <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} />
+                    </td>
+                    <td className="px-3 py-3 text-xs text-ledger-500 dark:text-ledger-400">
+                      {new Date(t.createdAt).toLocaleDateString()}
+                      <br />
+                      {new Date(t.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                    <td className="px-2 py-3">
+                      <button
+                        onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
+                        className="flex items-center gap-1 font-medium text-signal hover:underline"
+                      >
+                        {expandedId === t.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        {t.label}
+                      </button>
+                    </td>
+                    <td className="px-2 py-3 text-xs text-ledger-600 dark:text-ledger-300">{t.fromLocationName}</td>
+                    <td className="px-2 py-3 text-xs text-ledger-600 dark:text-ledger-300">{t.toLocationName}</td>
+                    <td className="px-2 py-3">
+                      <TransferStatusBadge status={t.status} />
+                    </td>
+                    <td className="px-2 py-3 text-right figure text-ledger-500 dark:text-ledger-400">
+                      ${formatMoney(t.shippingCharges)}
+                    </td>
+                    <td className="px-2 py-3 text-right figure font-medium text-ink-900 dark:text-white">
+                      ${formatMoney(t.totalValue)}
+                    </td>
+                    <td className="max-w-[10rem] truncate px-2 py-3 text-xs text-ledger-500 dark:text-ledger-400">
+                      {t.notes ?? "—"}
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Link
+                          href={`/inventory/transfers/${t.id}`}
+                          className="flex items-center gap-1 rounded-full border border-signal px-2.5 py-1 text-xs font-medium text-signal hover:bg-signal-soft"
+                        >
+                          <Eye className="h-3 w-3" /> View
+                        </Link>
+                        <button
+                          onClick={() => handlePrint(t)}
+                          className="flex items-center gap-1 rounded-full border border-signal px-2.5 py-1 text-xs font-medium text-signal hover:bg-signal-soft"
+                        >
+                          <Printer className="h-3 w-3" /> Print
+                        </button>
+                        {canManage && (
+                          <button
+                            onClick={() => handleDuplicate(t)}
+                            className="flex items-center gap-1 rounded-full border border-ledger-300 px-2.5 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
+                          >
+                            <Copy className="h-3 w-3" /> Duplicate
+                          </button>
+                        )}
+                        {canManage && (t.status === "pending" || t.status === "in_transit") && (
+                          <button
+                            onClick={() => handleCancel(t)}
+                            disabled={isPending}
+                            className="flex items-center gap-1 rounded-full border border-amber px-2.5 py-1 text-xs font-medium text-amber hover:bg-amber-soft"
+                          >
+                            <Ban className="h-3 w-3" /> Cancel
+                          </button>
+                        )}
+                        {canManage && (
+                          <button
+                            onClick={() => handleDelete(t)}
+                            disabled={isPending}
+                            className="flex items-center gap-1 rounded-full border border-alert px-2.5 py-1 text-xs font-medium text-alert hover:bg-alert-soft"
+                          >
+                            <X className="h-3 w-3" /> Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedId === t.id && (
+                    <tr>
+                      <td colSpan={10} className="p-0">
+                        <TransferRowDetails transferId={t.id} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 disabled:opacity-30 dark:border-ledger-700"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm text-ledger-500 dark:text-ledger-400">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 disabled:opacity-30 dark:border-ledger-700"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

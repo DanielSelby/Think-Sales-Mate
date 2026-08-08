@@ -4,6 +4,20 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { SaleStatus } from "@/types/database";
 
+type SupabaseClient = ReturnType<typeof createClient>;
+
+async function getPrimaryLocationId(supabase: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("business_locations")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .order("is_primary", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Fetch line items for the "Mark as Returned" picker
 // ---------------------------------------------------------------------------
@@ -86,10 +100,15 @@ export async function updateSaleStatus({
 
   const { data: sale, error: fetchError } = await supabase
     .from("sales")
-    .select("id, org_id, total, status")
+    .select("id, org_id, total, status, location_id")
     .eq("id", saleId)
     .single();
   if (fetchError || !sale) return { ok: false, error: "Sale not found." };
+
+  const restockLocationId = sale.location_id ?? (await getPrimaryLocationId(supabase, sale.org_id));
+  if (!restockLocationId) {
+    return { ok: false, error: "This sale has no location and the org has no active location to restock to." };
+  }
 
   const nextRefundedAmount = status === "returned" ? Math.max(0, refundedAmount ?? 0) : 0;
   if (nextRefundedAmount > sale.total) {
@@ -106,12 +125,15 @@ export async function updateSaleStatus({
           sale_item_id: line.saleItemId,
           product_id: line.productId,
           quantity: line.quantity,
+          location_id: restockLocationId,
           created_by: user.id,
         });
         if (insertError) throw new Error(insertError.message);
 
-        const { error: rpcError } = await supabase.rpc("adjust_product_stock", {
+        const { error: rpcError } = await supabase.rpc("adjust_product_stock_at_location", {
           p_product_id: line.productId,
+          p_location_id: restockLocationId,
+          p_org_id: sale.org_id,
           p_delta: line.quantity,
         });
         if (rpcError) throw new Error(rpcError.message);
@@ -129,12 +151,15 @@ export async function updateSaleStatus({
           sale_item_id: line.saleItemId,
           product_id: line.productId,
           quantity: line.remaining,
+          location_id: restockLocationId,
           created_by: user.id,
         });
         if (insertError) throw new Error(insertError.message);
 
-        const { error: rpcError } = await supabase.rpc("adjust_product_stock", {
+        const { error: rpcError } = await supabase.rpc("adjust_product_stock_at_location", {
           p_product_id: line.productId,
+          p_location_id: restockLocationId,
+          p_org_id: sale.org_id,
           p_delta: line.remaining,
         });
         if (rpcError) throw new Error(rpcError.message);
@@ -146,12 +171,15 @@ export async function updateSaleStatus({
       // back, then clears the return trail.
       const { data: existingReturns } = await supabase
         .from("sale_return_items")
-        .select("product_id, quantity")
+        .select("product_id, quantity, location_id")
         .eq("sale_id", saleId);
 
       for (const r of existingReturns ?? []) {
-        const { error: rpcError } = await supabase.rpc("adjust_product_stock", {
+        const reversalLocationId = r.location_id ?? restockLocationId;
+        const { error: rpcError } = await supabase.rpc("adjust_product_stock_at_location", {
           p_product_id: r.product_id,
+          p_location_id: reversalLocationId,
+          p_org_id: sale.org_id,
           p_delta: -r.quantity,
         });
         if (rpcError) throw new Error(rpcError.message);

@@ -143,6 +143,7 @@ export function StockTransferForm({
   const [toLocationId, setToLocationId] = useState(locations[1]?.id ?? "");
   const [reason, setReason] = useState(REASONS[0]);
   const [notes, setNotes] = useState("");
+  const [shippingCharges, setShippingCharges] = useState(0);
 
   const [search, setSearch] = useState("");
   const [lines, setLines] = useState<LineItem[]>([]);
@@ -164,6 +165,7 @@ export function StockTransferForm({
       if (draft.toLocationId) setToLocationId(draft.toLocationId);
       if (draft.reason) setReason(draft.reason);
       if (draft.notes) setNotes(draft.notes);
+      if (draft.shippingCharges) setShippingCharges(draft.shippingCharges);
     } catch {
       // ignore malformed/missing draft
     }
@@ -237,6 +239,7 @@ export function StockTransferForm({
     setReferenceNo(suggestedReference());
     setReason(REASONS[0]);
     setNotes("");
+    setShippingCharges(0);
     setSearch("");
     setLines([]);
     setError(null);
@@ -246,7 +249,7 @@ export function StockTransferForm({
   function saveDraft() {
     window.localStorage.setItem(
       DRAFT_KEY,
-      JSON.stringify({ lines, referenceNo, fromLocationId, toLocationId, reason, notes })
+      JSON.stringify({ lines, referenceNo, fromLocationId, toLocationId, reason, notes, shippingCharges })
     );
     setError(null);
   }
@@ -275,6 +278,7 @@ export function StockTransferForm({
         reason,
         transferDate,
         notes,
+        shippingCharges,
         items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity }))
       });
 
@@ -411,19 +415,16 @@ export function StockTransferForm({
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
-                  Reason <span className="font-normal text-ledger-400">(optional)</span>
+                  Shipping charges <span className="font-normal text-ledger-400">(optional)</span>
                 </label>
-                <select
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                >
-                  {REASONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={shippingCharges}
+                  onChange={(e) => setShippingCharges(Math.max(0, Number(e.target.value)))}
+                  placeholder="0.00"
+                />
               </div>
               {!locationsDiffer && fromLocationId && toLocationId && (
                 <p className="sm:col-span-2 lg:col-span-3 flex items-center gap-1.5 text-xs text-alert">
