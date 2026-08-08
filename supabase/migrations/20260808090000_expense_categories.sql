@@ -23,7 +23,7 @@ create table if not exists public.expense_categories (
   department text,
   budget_limit numeric(12, 2),
   status expense_category_status not null default 'active',
-  created_by uuid not null references public.profiles (id),
+  created_by uuid references public.profiles (id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -65,9 +65,10 @@ select distinct
   e.org_id,
   e.category,
   b.monthly_limit,
-  e.recorded_by
+  p.id
 from public.expenses e
 left join public.expense_budgets b on b.org_id = e.org_id and b.category = e.category
+left join public.profiles p on p.id = e.recorded_by
 on conflict (org_id, name) do nothing;
 
 commit;

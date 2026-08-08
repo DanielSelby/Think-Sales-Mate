@@ -24,7 +24,7 @@ export default async function ExpenseCategoriesPage() {
   const rawCategories = categories ?? [];
   const rawExpenses = expenses ?? [];
 
-  const creatorIds = Array.from(new Set(rawCategories.map((c) => c.created_by)));
+  const creatorIds = Array.from(new Set(rawCategories.map((c) => c.created_by).filter((id): id is string => Boolean(id))));
   const { data: staff } = creatorIds.length
     ? await supabase.from("profiles").select("id, full_name").in("id", creatorIds)
     : { data: [] as { id: string; full_name: string | null }[] };
@@ -51,7 +51,7 @@ export default async function ExpenseCategoriesPage() {
       totalExpenses: spend.total,
       transactions: spend.count,
       status: c.status,
-      createdByName: staffNameById.get(c.created_by) ?? "—",
+      createdByName: c.created_by ? staffNameById.get(c.created_by) ?? "—" : "—",
       updatedAt: c.updated_at,
     };
   });

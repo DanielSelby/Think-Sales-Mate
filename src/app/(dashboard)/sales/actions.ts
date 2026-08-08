@@ -213,20 +213,28 @@ export async function updateSaleStatus({
 // Record a new sale
 // ---------------------------------------------------------------------------
 export interface RecordSaleInput {
-  orgId:         string;
-  customerId?:   string | null;
-  customerName?: string | null;
-  locationId?:   string | null;
-  reference?:    string | null;
-  note?:         string | null;
+  orgId:           string;
+  customerId?:     string | null;
+  customerName?:   string | null;
+  locationId?:     string | null;
+  reference?:      string | null;
+  note?:           string | null;
+  saleDate?:       string | null;
+  paymentMethod?:  string | null;
+  amountPaid?:     number | null;
+  shippingAmount?: number | null;
+  discountAmount?: number | null;
+  taxAmount?:      number | null;
   lines: {
-    productId:   string;
-    quantity:    number;
-    unitPrice:   number;
-    lineTotal:   number;
+    productId:     string;
+    quantity:      number;
+    unitPrice:     number;
+    lineTotal:     number;
+    discountAmount?: number | null;
+    taxAmount?:    number | null;
   }[];
-  subtotal:      number;
-  total:         number;
+  subtotal:        number;
+  total:           number;
 }
 
 export interface RecordSaleResult {

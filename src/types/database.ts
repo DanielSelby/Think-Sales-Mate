@@ -1035,7 +1035,7 @@ export interface Database {
           department: string | null;
           budget_limit: number | null;
           status: ExpenseCategoryStatus;
-          created_by: string;
+          created_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1049,7 +1049,7 @@ export interface Database {
           department?: string | null;
           budget_limit?: number | null;
           status?: ExpenseCategoryStatus;
-          created_by: string;
+          created_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
