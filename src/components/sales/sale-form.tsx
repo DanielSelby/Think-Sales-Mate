@@ -487,17 +487,17 @@ export function SaleForm({
 
           {/* Products */}
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Products ({lines.length} items)</h2>
-              <div className="flex items-center gap-2">
-                <div className="relative">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-sm font-semibold text-ink-900 dark:text-white shrink-0">Products ({lines.length} items)</h2>
+              <div className="flex flex-1 items-center gap-2">
+                <div className="relative flex-1">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
                   <input
                     ref={searchRef}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search product by name, SKU, or scan barcode…"
-                    className="h-9 w-64 rounded-md border border-ledger-200 bg-white pl-8 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    className="h-9 w-full min-w-[240px] rounded-md border border-ledger-200 bg-white pl-8 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                   />
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={() => searchRef.current?.focus()}>
