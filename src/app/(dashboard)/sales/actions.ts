@@ -226,13 +226,25 @@ export interface RecordSaleInput {
   shippingAmount?: number | null;
   discountAmount?: number | null;
   taxAmount?:      number | null;
-  lines: {
-    productId:     string;
-    quantity:      number;
-    unitPrice:     number;
-    lineTotal:     number;
-    discountAmount?: number | null;
-    taxAmount?:    number | null;
+  lines?: {
+    productId:        string;
+    quantity:         number;
+    unitPrice:        number;
+    lineTotal:        number;
+    discountAmount?:  number | null;
+    taxAmount?:       number | null;
+  }[];
+  items?: {
+    productId:        string;
+    quantity:         number;
+    unitPrice?:       number;
+    unitPriceOverride?: number | null;
+    discountPercent?: number;
+    discountAmount?:  number | null;
+    taxPercent?:      number;
+    taxAmount?:       number | null;
+    lineTotal?:       number;
+    notes?:           string | null;
   }[];
   subtotal:        number;
   total:           number;
@@ -266,21 +278,33 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
 
     if (saleError || !sale) throw new Error(saleError?.message ?? "Failed to create sale.");
 
-    // Insert line items
-    const { error: itemsError } = await supabase.from("sale_items").insert(
-      input.lines.map(l => ({
+    // Insert line items — support both `lines` and `items` field names
+    const allLines = [
+      ...(input.lines ?? []).map(l => ({
         sale_id:    sale.id,
         org_id:     input.orgId,
         product_id: l.productId,
         quantity:   l.quantity,
-        unit_price: l.unitPrice,
-        line_total: l.lineTotal,
-      }))
-    );
-    if (itemsError) throw new Error(itemsError.message);
+        unit_price: l.unitPrice ?? 0,
+        line_total: l.lineTotal ?? 0,
+      })),
+      ...(input.items ?? []).map(l => ({
+        sale_id:    sale.id,
+        org_id:     input.orgId,
+        product_id: l.productId,
+        quantity:   l.quantity,
+        unit_price: l.unitPriceOverride ?? l.unitPrice ?? 0,
+        line_total: l.lineTotal ?? 0,
+      })),
+    ];
+
+    if (allLines.length > 0) {
+      const { error: itemsError } = await supabase.from("sale_items").insert(allLines);
+      if (itemsError) throw new Error(itemsError.message);
+    }
 
     // Deduct stock for each line
-    for (const l of input.lines) {
+    for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
       await (supabase as any).rpc("adjust_product_stock", {
         p_product_id: l.productId,
         p_delta:      -l.quantity,
