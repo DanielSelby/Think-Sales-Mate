@@ -120,4 +120,4 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="font-medium text-ink-900 dark:text-white">{value}</span>
     </div>
   );
-}
+} 
