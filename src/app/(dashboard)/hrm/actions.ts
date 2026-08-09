@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { EmploymentType } from "@/types/database";
@@ -234,38 +235,32 @@ export async function processPayroll(input: ProcessPayrollInput): Promise<Proces
 }
 
 
-export interface UpdateEmployeeInput {
-  employeeId:  string;
-  fullName?:   string;
-  email?:      string;
-  phone?:      string;
-  jobTitle?:   string;
-  department?: string;
-  baseSalary?: number;
-  startDate?:  string;
-}
-
-export async function updateEmployee(input: UpdateEmployeeInput): Promise<SimpleResult> {
+export async function updateEmployee(employeeId: string, formData: FormData) {
   const context = await getCurrentOrgContext();
-  if (!context) return { ok: false, error: "Session expired." };
+  if (!context) {
+    redirect("/hrm?error=Session+expired");
+  }
 
   const supabase = createClient();
   const { error } = await supabase
     .from("employees")
     .update({
-      full_name:       input.fullName,
-      email:           input.email,
-      phone:           input.phone,
-      job_title:       input.jobTitle,
-      department:      input.department,
-      monthly_salary:  input.baseSalary,
-      hire_date:       input.startDate,
+      full_name:      String(formData.get("full_name") ?? "").trim(),
+      email:          String(formData.get("email") ?? "").trim() || null,
+      phone:          String(formData.get("phone") ?? "").trim() || null,
+      job_title:      String(formData.get("job_title") ?? "").trim() || null,
+      department:     String(formData.get("department") ?? "").trim() || null,
+      monthly_salary: Number(formData.get("monthly_salary") ?? 0),
+      hire_date:      String(formData.get("hire_date") ?? ""),
+      status:         (formData.get("status") as "active" | "inactive") ?? "active",
     })
-    .eq("id", input.employeeId)
+    .eq("id", employeeId)
     .eq("org_id", context.orgId);
 
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    redirect(`/hrm/${employeeId}/edit?error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath("/hrm");
-  return { ok: true };
+  redirect("/hrm");
 }
