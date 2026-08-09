@@ -59,7 +59,7 @@ export function ProcessPayrollDialog({ open, onClose, activeEmployeeCount, gross
       <div className="space-y-3">
         <div className="flex items-start gap-2 rounded-md border border-amber/30 bg-amber-soft px-3 py-2 text-xs text-ink-900 dark:bg-amber/10 dark:text-white">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" />
-          The deduction rate below is a flat percentage you set — it's not a real PAYE/SSNIT calculation. Enter your own statutory rate, or leave at 0% and record actual deductions separately.
+          The deduction rate below is a flat percentage you set &mdash; it&apos;s not a real PAYE/SSNIT calculation. Enter your own statutory rate, or leave at 0% and record actual deductions separately.
         </div>
 
         <div className="grid grid-cols-2 gap-3">

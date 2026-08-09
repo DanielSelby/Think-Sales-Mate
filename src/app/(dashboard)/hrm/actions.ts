@@ -232,3 +232,40 @@ export async function processPayroll(input: ProcessPayrollInput): Promise<Proces
   revalidatePath("/expenses");
   return { ok: true, payrollRunId: run.id };
 }
+
+
+export interface UpdateEmployeeInput {
+  employeeId:  string;
+  fullName?:   string;
+  email?:      string;
+  phone?:      string;
+  jobTitle?:   string;
+  department?: string;
+  baseSalary?: number;
+  startDate?:  string;
+}
+
+export async function updateEmployee(input: UpdateEmployeeInput): Promise<SimpleResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "Session expired." };
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("employees")
+    .update({
+      full_name:       input.fullName,
+      email:           input.email,
+      phone:           input.phone,
+      job_title:       input.jobTitle,
+      department:      input.department,
+      monthly_salary:  input.baseSalary,
+      hire_date:       input.startDate,
+    })
+    .eq("id", input.employeeId)
+    .eq("org_id", context.orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/hrm");
+  return { ok: true };
+}
