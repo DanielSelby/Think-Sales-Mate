@@ -38,15 +38,23 @@ export function AddEmployeeForm({ departments }: { departments: string[] }) {
     const finalDepartment = department === "__custom__" ? customDepartment : department;
 
     startTransition(async () => {
-      const result = await createEmployee({
-        fullName, email: email || null, phone: phone || null, jobTitle: jobTitle || null,
-        department: finalDepartment || null, employmentType, monthlySalary: salary, hireDate,
-      });
-      if (!result.ok) {
-        setError(result.error ?? "Something went wrong.");
-        return;
+      const formData = new FormData();
+      formData.set("full_name", fullName);
+      formData.set("email", email || "");
+      formData.set("phone", phone || "");
+      formData.set("job_title", jobTitle || "");
+      formData.set("department", finalDepartment || "");
+      formData.set("monthly_salary", String(salary));
+      formData.set("hire_date", hireDate);
+      formData.set("status", "active");
+
+      try {
+        await createEmployee(formData);
+        router.push("/hrm");
+      } catch {
+        // redirect throws — if we get here it's a real error
+        setError("Something went wrong. Please try again.");
       }
-      router.push("/hrm/employees");
     });
   }
 

@@ -15,6 +15,9 @@ export type ExpensePaymentStatus = "unpaid" | "paid";
 export type ExpenseCategoryStatus = "active" | "inactive";
 export type EmploymentType = "full_time" | "part_time" | "contract" | "intern";
 export type PayrollRunStatus = "draft" | "processing" | "completed" | "failed";
+export type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "on_leave";
+export type LeaveStatus = "pending" | "approved" | "rejected";
+export type HeldSaleKind = "hold" | "draft";
 
 export interface Database {
   public: {
@@ -337,6 +340,36 @@ export interface Database {
       };
 
 
+      product_import_batches: {
+        Row: {
+          id: string;
+          org_id: string;
+          file_name: string;
+          total_rows: number;
+          imported_count: number;
+          updated_count: number;
+          skipped_count: number;
+          error_count: number;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          file_name: string;
+          total_rows?: number;
+          imported_count?: number;
+          updated_count?: number;
+          skipped_count?: number;
+          error_count?: number;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["product_import_batches"]["Row"]>;
+        Relationships: [];
+      };
+
+
       audit_logs: {
         Row: {
           id: string;
@@ -361,6 +394,7 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Row"]>;
         Relationships: [];
       };
+
      products: {
         Row: {
           id: string;
@@ -377,6 +411,7 @@ export interface Database {
           cost_price: number | null;
           stock_quantity: number;
           low_stock_threshold: number;
+          unit: string;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -384,7 +419,7 @@ export interface Database {
         Insert: {
           id?: string;
           org_id: string;
-          sku: string;
+          sku?: string;
           name: string;
           description?: string | null;
           category?: string | null;
@@ -396,6 +431,7 @@ export interface Database {
           cost_price?: number | null;
           stock_quantity?: number;
           low_stock_threshold?: number;
+          unit?: string;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -1260,6 +1296,195 @@ export interface Database {
           }
         ];
       };
+      attendance_records: {
+        Row: {
+          id: string;
+          org_id: string;
+          employee_id: string;
+          work_date: string;
+          check_in: string | null;
+          check_out: string | null;
+          status: AttendanceStatus;
+          work_type: string;
+          total_hours: number;
+          overtime_hours: number;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          employee_id: string;
+          work_date: string;
+          check_in?: string | null;
+          check_out?: string | null;
+          status?: AttendanceStatus;
+          work_type?: string;
+          total_hours?: number;
+          overtime_hours?: number;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["attendance_records"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      leave_types: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          color: string;
+          is_paid: boolean;
+          default_annual_days: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          color?: string;
+          is_paid?: boolean;
+          default_annual_days?: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["leave_types"]["Row"]>;
+        Relationships: [];
+      };
+      leave_requests: {
+        Row: {
+          id: string;
+          org_id: string;
+          employee_id: string;
+          leave_type_id: string;
+          start_date: string;
+          end_date: string;
+          duration_days: number;
+          reason: string | null;
+          status: LeaveStatus;
+          applied_on: string;
+          decided_by: string | null;
+          decided_at: string | null;
+          decision_note: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          employee_id: string;
+          leave_type_id: string;
+          start_date: string;
+          end_date: string;
+          duration_days: number;
+          reason?: string | null;
+          status?: LeaveStatus;
+          applied_on?: string;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          decision_note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["leave_requests"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_requests_leave_type_id_fkey";
+            columns: ["leave_type_id"];
+            isOneToOne: false;
+            referencedRelation: "leave_types";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      leave_balances: {
+        Row: {
+          id: string;
+          org_id: string;
+          employee_id: string;
+          year: number;
+          allocated_days: number;
+          used_days: number;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          employee_id: string;
+          year: number;
+          allocated_days?: number;
+          used_days?: number;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["leave_balances"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "leave_balances_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      held_sales: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string | null;
+          kind: HeldSaleKind;
+          customer_id: string | null;
+          customer_name: string | null;
+          customer_phone: string | null;
+          order_note: string | null;
+          items: unknown;
+          subtotal: number;
+          discount_amount: number;
+          tax_amount: number;
+          total: number;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id?: string | null;
+          kind?: HeldSaleKind;
+          customer_id?: string | null;
+          customer_name?: string | null;
+          customer_phone?: string | null;
+          order_note?: string | null;
+          items?: unknown;
+          subtotal?: number;
+          discount_amount?: number;
+          tax_amount?: number;
+          total?: number;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["held_sales"]["Row"]>;
+        Relationships: [];
+      };
       bank_accounts: {
         Row: {
           id: string;
@@ -1417,6 +1642,10 @@ export interface Database {
         Args: { p_product_id: string; p_location_id: string; p_org_id: string; p_delta: number };
         Returns: void;
       };
+      peek_product_sku_seq: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
     };
     Enums: {
       org_plan: OrgPlan;
@@ -1432,6 +1661,9 @@ export interface Database {
       expense_status: ExpenseStatus;
       expense_payment_status: ExpensePaymentStatus;
       expense_category_status: ExpenseCategoryStatus;
+      attendance_status: AttendanceStatus;
+      leave_status: LeaveStatus;
+      held_sale_kind: HeldSaleKind;
     };
     CompositeTypes: Record<string, never>;
   };

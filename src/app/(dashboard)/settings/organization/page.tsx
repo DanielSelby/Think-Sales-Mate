@@ -7,7 +7,7 @@ import { SettingsTabs } from "@/components/nav/settings-tabs";
 import { UserManagement, type ManagedUser, type UserBranch } from "@/components/dashboard/user-management";
 
 export default async function OrganizationSettingsPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

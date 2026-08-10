@@ -23,7 +23,7 @@ function pctChange(current: number, previous: number) {
 }
 
 export default async function StockTransferHistoryPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

@@ -15,65 +15,57 @@ export interface SimpleResult {
 // Employees
 // ---------------------------------------------------------------------------
 
-export interface CreateEmployeeInput {
-  fullName: string;
-  email: string | null;
-  phone: string | null;
-  jobTitle: string | null;
-  department: string | null;
-  employmentType: EmploymentType;
-  monthlySalary: number;
-  hireDate: string;
-}
+export async function createEmployee(formData: FormData) {
+  const fullName      = String(formData.get("full_name") ?? "").trim();
+  const email         = String(formData.get("email") ?? "").trim() || null;
+  const phone         = String(formData.get("phone") ?? "").trim() || null;
+  const jobTitle      = String(formData.get("job_title") ?? "").trim() || null;
+  const department    = String(formData.get("department") ?? "").trim() || null;
+  const monthlySalary = Number(formData.get("monthly_salary") ?? 0);
+  const hireDate      = String(formData.get("hire_date") ?? new Date().toISOString().slice(0, 10));
+  const status        = (formData.get("status") as "active" | "inactive") ?? "active";
 
-export interface CreateEmployeeResult extends SimpleResult {
-  employeeId?: string;
-  employeeCode?: string;
-}
-
-export async function createEmployee(input: CreateEmployeeInput): Promise<CreateEmployeeResult> {
-  if (!input.fullName.trim()) return { ok: false, error: "Employee name is required." };
-  if (input.monthlySalary <= 0) return { ok: false, error: "Enter a valid monthly salary." };
+  if (!fullName) redirect("/hrm/new?error=Employee+name+is+required");
+  if (monthlySalary <= 0) redirect("/hrm/new?error=Enter+a+valid+monthly+salary");
 
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "You must be signed in." };
+  if (!user) redirect("/hrm/new?error=You+must+be+signed+in");
 
   const context = await getCurrentOrgContext();
-  if (!context) return { ok: false, error: "No active organization." };
+  if (!context) redirect("/hrm/new?error=No+active+organization");
 
   const { data, error } = await supabase
     .from("employees")
     .insert({
-      org_id: context.orgId,
-      full_name: input.fullName.trim(),
-      email: input.email,
-      phone: input.phone,
-      job_title: input.jobTitle,
-      department: input.department,
-      employment_type: input.employmentType,
-      monthly_salary: input.monthlySalary,
-      hire_date: input.hireDate,
-      status: "active",
-      created_by: user.id,
+      org_id:          context.orgId,
+      full_name:       fullName,
+      email,
+      phone,
+      job_title:       jobTitle,
+      department,
+      employment_type: "full_time",
+      monthly_salary:  monthlySalary,
+      hire_date:       hireDate,
+      status,
+      created_by:      user.id,
     })
     .select("id, employee_number")
     .single();
 
-  if (error || !data) return { ok: false, error: error?.message ?? "Couldn't create the employee." };
+  if (error || !data) redirect(`/hrm/new?error=${encodeURIComponent(error?.message ?? "Could not create employee")}`);
 
   await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: user.id,
-    action: "employee.created",
+    org_id:      context.orgId,
+    actor_id:    user.id,
+    action:      "employee.created",
     entity_type: "employees",
-    entity_id: data.id,
-    metadata: { name: input.fullName },
+    entity_id:   data.id,
+    metadata:    { name: fullName },
   });
 
   revalidatePath("/hrm");
-  revalidatePath("/hrm/employees");
-  return { ok: true, employeeId: data.id, employeeCode: `EMP-${data.employee_number}` };
+  redirect("/hrm");
 }
 
 export async function setEmployeeStatus(employeeId: string, status: "active" | "inactive"): Promise<SimpleResult> {

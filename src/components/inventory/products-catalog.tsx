@@ -419,10 +419,12 @@ export function ProductsCatalog({
         </div>
         {canManage && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleImportClick} disabled={isPending}>
-              <Upload className="h-3.5 w-3.5" />
-              Import
+            <Link href="/inventory/import">
+            <Button variant="outline">
+             <Upload className="h-3.5 w-3.5" />
+               Import Products
             </Button>
+           </Link>
             <Button variant="outline" onClick={handleExport}>
               <Download className="h-3.5 w-3.5" />
               Export

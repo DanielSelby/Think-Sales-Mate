@@ -9,7 +9,7 @@ import {
   BarChart3, Settings, Sparkles, Lock,
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
-  PlusCircle, List, ShoppingBag, LayoutGrid,
+  PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -36,10 +36,10 @@ const NAV_ITEMS: NavItem[] = [
     status: "live",
   },
   {
-    label: "Point of Sale",
+    label: "POS",
     href:  "/pos",
     icon:  ShoppingCart,
-    status: "soon",
+    status: "live",
   },
 
   // ── Sales group ───────────────────────────────────────────
@@ -76,7 +76,7 @@ const NAV_ITEMS: NavItem[] = [
     icon:  Boxes,
     status: "live",
     children: [
-      { label: "All Products",      href: "/inventory",                 icon: List         },
+      { label: "All Products",      href: "/inventor",                 icon: List         },
       { label: "Add Product",       href: "/inventory/new",             icon: PlusCircle   },
       { label: "Stock Transfers List",   href: "/inventory/transfers",       icon: Truck        },
       { label: "Add Transfer",      href: "/inventory/transfers/new",   icon: PlusCircle   },
@@ -104,6 +104,8 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { label: "Dashboard", href: "/hrm", icon: LayoutDashboard },
       { label: "Employees", href: "/hrm/employees", icon: Users2 },
+      { label: "Attendance", href: "/hrm/attendance", icon: CalendarClock },
+      { label: "Leave Management", href: "/hrm/leave", icon: ClipboardEdit },
     ],
   },
   { label: "Accounting",    href: "/accounting", icon: Wallet,       status: "live" },

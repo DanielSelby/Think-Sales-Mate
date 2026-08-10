@@ -7,7 +7,7 @@ import { SalesListView, type SaleListRow, type SalesKpis } from "@/components/sa
 export const metadata = { title: "Sales · SalesMate ERP" };
 
 export default async function SalesPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null; // layout already redirects to /onboarding when there's no org
 
