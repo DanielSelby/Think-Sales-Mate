@@ -207,3 +207,123 @@ export async function updateSaleStatus({
   revalidatePath("/inventory");
   return { ok: true };
 }
+// ---------------------------------------------------------------------------
+// Record a new sale
+// ---------------------------------------------------------------------------
+export interface RecordSaleInput {
+  orgId:           string;
+  customerId?:     string | null;
+  customerName?:   string | null;
+  locationId?:     string | null;
+  reference?:      string | null;
+  note?:           string | null;
+  notes?:          string | null;
+  saleDate?:       string | null;
+  paymentMethod?:  string | null;
+  amountPaid?:     number | null;
+  shippingAmount?: number | null;
+  discountAmount?: number | null;
+  taxAmount?:      number | null;
+  subtotal:        number;
+  total:           number;
+  lines?: {
+    productId:        string;
+    quantity:         number;
+    unitPrice:        number;
+    lineTotal:        number;
+    discountAmount?:  number | null;
+    taxAmount?:       number | null;
+  }[];
+  items?: {
+    productId:          string;
+    quantity:           number;
+    unitPrice?:         number;
+    unitPriceOverride?: number | null;
+    discountPercent?:   number;
+    discountAmount?:    number | null;
+    taxPercent?:        number;
+    taxAmount?:         number | null;
+    lineTotal?:         number;
+    notes?:             string | null;
+  }[];
+}
+
+export interface RecordSaleResult {
+  ok:      boolean;
+  saleId?: string;
+  error?:  string;
+}
+
+export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  try {
+    const { data: sale, error: saleError } = await supabase
+      .from("sales")
+      .insert({
+        org_id:          input.orgId,
+        customer_name:   input.customerName ?? null,
+        customer_id:     input.customerId ?? null,
+        location_id:     input.locationId ?? null,
+        reference:       input.reference ?? null,
+        sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
+        subtotal:        input.subtotal,
+        discount_amount: input.discountAmount ?? 0,
+        tax_amount:      input.taxAmount ?? 0,
+        shipping_amount: input.shippingAmount ?? 0,
+        total:           input.total,
+        payment_method:  input.paymentMethod ?? null,
+        amount_paid:     input.amountPaid ?? null,
+        sold_by:         user.id,
+        status:          "completed",
+      })
+      .select("id")
+      .single();
+
+    if (saleError || !sale) throw new Error(saleError?.message ?? "Failed to create sale.");
+
+    const allLines = [
+      ...(input.lines ?? []).map(l => ({
+        sale_id:          sale.id,
+        org_id:           input.orgId,
+        product_id:       l.productId,
+        quantity:         l.quantity,
+        unit_price:       l.unitPrice ?? 0,
+        discount_percent: 0,
+        tax_percent:      0,
+        line_total:       l.lineTotal ?? 0,
+      })),
+      ...(input.items ?? []).map(l => ({
+        sale_id:          sale.id,
+        org_id:           input.orgId,
+        product_id:       l.productId,
+        quantity:         l.quantity,
+        unit_price:       l.unitPriceOverride ?? l.unitPrice ?? 0,
+        discount_percent: l.discountPercent ?? 0,
+        tax_percent:      l.taxPercent ?? 0,
+        line_total:       l.lineTotal ?? 0,
+      })),
+    ];
+
+    if (allLines.length > 0) {
+      const { error: itemsError } = await supabase.from("sale_items").insert(allLines);
+      if (itemsError) throw new Error(itemsError.message);
+    }
+
+    for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
+      await (supabase as any).rpc("adjust_product_stock", {
+        p_product_id: l.productId,
+        p_delta:      -l.quantity,
+      });
+    }
+
+    revalidatePath("/sales");
+    revalidatePath("/inventory");
+    return { ok: true, saleId: sale.id };
+
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
+  }
+}
