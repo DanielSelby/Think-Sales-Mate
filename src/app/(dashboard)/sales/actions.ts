@@ -327,3 +327,36 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Fetch line items for invoice display
+// ---------------------------------------------------------------------------
+export interface SaleInvoiceLine {
+  productId:   string;
+  productName: string;
+  quantity:    number;
+  unitPrice:   number;
+  discount:    number;
+  tax:         number;
+  lineTotal:   number;
+}
+
+export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLine[]> {
+  const supabase = createClient();
+  const { data: items } = await supabase
+    .from("sale_items")
+    .select("id, product_id, quantity, unit_price, discount_percent, tax_percent, line_total, product:products(name)")
+    .eq("sale_id", saleId);
+
+  if (!items || items.length === 0) return [];
+
+  return items.map((item) => ({
+    productId:   item.product_id,
+    productName: (item.product as { name: string } | null)?.name ?? "Unknown product",
+    quantity:    item.quantity,
+    unitPrice:   item.unit_price,
+    discount:    item.discount_percent,
+    tax:         item.tax_percent,
+    lineTotal:   item.line_total,
+  }));
+}
