@@ -19,7 +19,7 @@ export async function getImportReferenceData(): Promise<ImportReferenceData> {
   const context = await getCurrentOrgContext();
   if (!context) return { categories: [], brands: [], suppliers: [], locations: [], existingSkus: [], existingBarcodes: [] };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const [{ data: products }, { data: suppliers }, { data: locations }] = await Promise.all([
     supabase.from("products").select("category, brand, sku, barcode").eq("org_id", context.orgId),
     supabase.from("suppliers").select("name").eq("org_id", context.orgId).eq("is_active", true),
@@ -84,7 +84,7 @@ export async function commitProductImport(fileName: string, rows: ImportRowInput
     };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const results: ImportRowResult[] = [];
   const reservedSkus = new Set<string>();
 
@@ -202,7 +202,7 @@ export async function getImportHistory(): Promise<ImportBatchRow[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("product_import_batches")
     .select("id, file_name, total_rows, imported_count, skipped_count, error_count, created_at")

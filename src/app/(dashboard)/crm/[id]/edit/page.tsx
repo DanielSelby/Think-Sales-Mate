@@ -14,11 +14,11 @@ export default async function EditCustomerPage({
   params: { id: string };
   searchParams: { error?: string };
 }) {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: customer } = await supabase
     .from("customers")
     .select("id, name, email, phone, company, notes")

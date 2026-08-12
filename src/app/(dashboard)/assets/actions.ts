@@ -45,7 +45,7 @@ export async function createAsset(formData: FormData): Promise<void> {
     redirectWithError("/assets/new", "Enter a valid purchase cost.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("assets").insert({
     org_id: context.orgId,
     created_by: context.userId,
@@ -68,7 +68,7 @@ export async function updateAsset(assetId: string, formData: FormData): Promise<
   const fields = parseAssetForm(formData);
   if (!fields.name) redirectWithError(`/assets/${assetId}/edit`, "Name is required.");
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("assets")
     .update({ ...fields, updated_at: new Date().toISOString() })
@@ -87,7 +87,7 @@ export async function deleteAsset(assetId: string) {
     return { error: "You don't have permission to remove assets." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("assets").delete().eq("id", assetId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 

@@ -21,7 +21,7 @@ export async function searchEligiblePurchases(query: string): Promise<EligiblePu
   const context = await getCurrentOrgContext();
   if (!context) return [];
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("purchases")
     .select("id, purchase_number, purchase_date, supplier:suppliers ( id, name )")
@@ -74,7 +74,7 @@ export interface PurchaseForReturn {
 }
 
 export async function getPurchaseForReturn(purchaseId: string): Promise<PurchaseForReturn | null> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: purchase } = await supabase
     .from("purchases")
@@ -188,7 +188,7 @@ export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Pr
     }
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -272,7 +272,7 @@ export interface ApprovePurchaseReturnResult {
 }
 
 export async function approvePurchaseReturn(returnId: string): Promise<ApprovePurchaseReturnResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

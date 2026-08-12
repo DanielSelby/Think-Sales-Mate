@@ -27,7 +27,7 @@ export async function createInvoice(formData: FormData): Promise<void> {
   }
   if (!dueDate) redirectWithError("/accounting/invoices/new", "Due date is required.");
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("invoices").insert({
     org_id: context.orgId,
     customer_name: customerName,
@@ -51,7 +51,7 @@ export async function markInvoicePaid(invoiceId: string) {
     return { error: "You don't have permission to update invoices." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("invoices")
     .update({ status: "paid", paid_at: new Date().toISOString() })
@@ -72,7 +72,7 @@ export async function voidInvoice(invoiceId: string) {
     return { error: "You don't have permission to update invoices." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("invoices")
     .update({ status: "void" })

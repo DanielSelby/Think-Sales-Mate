@@ -13,7 +13,7 @@ export default async function EmployeesPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: employees } = await supabase.from("employees").select("*").eq("org_id", orgId).order("full_name");
   const rows = (employees ?? []).map((e) => ({

@@ -16,7 +16,7 @@ export default async function InventoryPage() {
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 

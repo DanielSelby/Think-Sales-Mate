@@ -78,7 +78,7 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
     }
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -200,7 +200,7 @@ export interface ReceivableLine {
 }
 
 export async function getPurchaseReceivableItems(purchaseId: string): Promise<ReceivableLine[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: items } = await supabase
     .from("purchase_items")
     .select("id, product_id, quantity, quantity_received, product:products ( name )")
@@ -235,7 +235,7 @@ export async function receivePurchaseItems({
   const toReceive = lines.filter((l) => l.quantity > 0);
   if (toReceive.length === 0) return { ok: false, error: "Enter a quantity for at least one item." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -325,7 +325,7 @@ export interface DuplicatePurchaseResult {
 }
 
 export async function duplicatePurchase(purchaseId: string): Promise<DuplicatePurchaseResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -420,7 +420,7 @@ export async function recordPurchasePayment(
 ): Promise<RecordPurchasePaymentResult> {
   if (amount <= 0) return { ok: false, error: "Enter an amount greater than zero." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

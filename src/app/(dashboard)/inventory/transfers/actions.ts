@@ -42,7 +42,7 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
     return { error: "Add at least one product to the transfer." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Re-check real, current per-location stock server-side — never trust
   // whatever the browser last rendered, since it can be stale.
@@ -128,7 +128,7 @@ export async function updateTransferStatus(transferId: string, status: TransferS
     return { error: "You don't have permission to update transfers." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("stock_transfers")
     .update({
@@ -158,7 +158,7 @@ export async function getTransferItems(transferId: string): Promise<TransferItem
   const context = await getCurrentOrgContext();
   if (!context) return [];
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("stock_transfer_items")
     .select("product_id, quantity, unit_cost, products(name, sku)")
@@ -183,7 +183,7 @@ export async function deleteTransfer(transferId: string) {
     return { error: "You don't have permission to delete transfers." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: transfer, error: fetchError } = await supabase
     .from("stock_transfers")

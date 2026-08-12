@@ -28,7 +28,7 @@ export async function createExpense(formData: FormData): Promise<void> {
     redirectWithError("/accounting/expenses/new", "Enter a valid amount.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("expenses").insert({
     org_id: context.orgId,
     category,
@@ -53,7 +53,7 @@ export async function deleteExpense(expenseId: string) {
     return { error: "You don't have permission to remove expenses." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("expenses").delete().eq("id", expenseId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 

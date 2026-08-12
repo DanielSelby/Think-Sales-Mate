@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { InvoicesTable, type InvoiceRow } from "@/components/accounting/invoices-table";
 
 export default async function InvoicesPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: rows } = await supabase
     .from("invoices")
     .select("id, invoice_number, customer_name, amount, status, due_date")

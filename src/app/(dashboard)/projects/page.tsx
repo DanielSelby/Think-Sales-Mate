@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { ProjectsTable, type ProjectRow } from "@/components/projects/projects-table";
 
 export default async function ProjectsPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: rows } = await supabase
     .from("projects")
     .select("id, name, status, budget, end_date, customers(name)")

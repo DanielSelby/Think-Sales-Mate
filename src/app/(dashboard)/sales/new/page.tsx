@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { createClient } from "@/lib/supabase/server";
+import { createClient} from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   SaleForm,
@@ -16,7 +16,7 @@ export default async function NewSalePage() {
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [
     { data: productRows },

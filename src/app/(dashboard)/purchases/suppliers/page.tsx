@@ -19,7 +19,7 @@ export default async function SuppliersPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: suppliers }, { data: purchases }] = await Promise.all([
     supabase.from("suppliers").select("id, name, contact_person, phone, email, category, country, payment_terms, status").eq("org_id", orgId).order("name"),
@@ -117,4 +117,3 @@ export default async function SuppliersPage() {
     />
   );
 }
-

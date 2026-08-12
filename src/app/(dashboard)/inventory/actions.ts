@@ -55,7 +55,7 @@ export async function createProduct(formData: FormData): Promise<void> {
     redirectWithError("/inventory/new", "Enter a valid selling price.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("products").insert({
     org_id: context.orgId,
     ...fields
@@ -82,7 +82,7 @@ export async function updateProduct(productId: string, formData: FormData): Prom
     redirectWithError(`/inventory/${productId}/edit`, "Name and SKU are required.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("products")
     .update({ ...fields, updated_at: new Date().toISOString() })
@@ -104,7 +104,7 @@ export async function deleteProduct(productId: string) {
     return { error: "You don't have permission to remove products." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("products").delete().eq("id", productId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 
@@ -118,7 +118,7 @@ export async function toggleProductActive(productId: string, isActive: boolean) 
     return { error: "You don't have permission to update products." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("products")
     .update({ is_active: isActive, updated_at: new Date().toISOString() })
@@ -137,7 +137,7 @@ export async function duplicateProduct(productId: string) {
     return { error: "You don't have permission to add products." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: original, error: fetchError } = await supabase
     .from("products")
     .select("*")
@@ -208,7 +208,7 @@ export async function bulkImportProducts(rows: BulkImportRow[]): Promise<BulkImp
     return { imported: 0, skipped: rows.map((_, i) => ({ row: i + 1, reason: "Not permitted" })) };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const skipped: { row: number; reason: string }[] = [];
   let imported = 0;
 

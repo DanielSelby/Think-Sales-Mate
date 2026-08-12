@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { generateInsights } from "@/app/(dashboard)/ai/actions";
 
 export default async function AiAssistantPage({ searchParams }: { searchParams: { error?: string } }) {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: insights } = await supabase
     .from("ai_insights")
     .select("id, content, created_at")

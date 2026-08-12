@@ -27,7 +27,7 @@ export default async function StockTransferHistoryPage() {
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: transferRows }, { data: itemRows }, { data: locationRows }, { data: productRows }] = await Promise.all([
     supabase

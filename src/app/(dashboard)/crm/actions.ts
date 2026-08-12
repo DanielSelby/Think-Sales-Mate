@@ -36,7 +36,7 @@ export async function createCustomer(formData: FormData): Promise<void> {
   const fields = parseCustomerForm(formData);
   if (!fields.name) redirectWithError("/crm/new", "Name is required.");
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("customers").insert({
     org_id: context.orgId,
     created_by: context.userId,
@@ -59,7 +59,7 @@ export async function updateCustomer(customerId: string, formData: FormData): Pr
   const fields = parseCustomerForm(formData);
   if (!fields.name) redirectWithError(`/crm/${customerId}/edit`, "Name is required.");
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("customers")
     .update({ ...fields, updated_at: new Date().toISOString() })
@@ -78,7 +78,7 @@ export async function deleteCustomer(customerId: string) {
     return { error: "You don't have permission to remove customers." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("customers").delete().eq("id", customerId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 

@@ -18,7 +18,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const date = dateParam ?? new Date().toISOString().slice(0, 10);
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: employees }, { data: records }, currentEmployee] = await Promise.all([
     supabase.from("employees").select("id, full_name, department, job_title, status").eq("org_id", orgId).eq("status", "active").order("full_name"),

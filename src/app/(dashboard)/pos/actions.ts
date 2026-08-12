@@ -34,7 +34,7 @@ export interface CustomerOption {
 export async function searchCustomers(query: string): Promise<CustomerOption[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
-  const supabase = createClient();
+  const supabase = await createClient();
   const q = query.trim();
   if (!q) {
     const { data } = await supabase.from("customers").select("id, name, phone, email").eq("org_id", context.orgId).order("name").limit(8);
@@ -53,7 +53,7 @@ export async function quickAddCustomer(name: string, phone: string | null, email
   if (!name.trim()) return { ok: false, error: "Name is required." };
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -88,7 +88,7 @@ export async function parkSale(input: HeldSaleInput): Promise<SimpleResult> {
   if (input.items.length === 0) return { ok: false, error: "Cart is empty." };
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -124,7 +124,7 @@ export interface HeldSaleSummary {
 export async function listHeldSales(kind: HeldSaleKind): Promise<HeldSaleSummary[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("held_sales")
     .select("id, customer_name, items, total, created_at")
@@ -151,7 +151,7 @@ export interface ResumedSale {
 }
 
 export async function resumeHeldSale(id: string): Promise<ResumedSale | null> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase.from("held_sales").select("*").eq("id", id).single();
   if (!data) return null;
   await supabase.from("held_sales").delete().eq("id", id);
@@ -167,7 +167,7 @@ export async function resumeHeldSale(id: string): Promise<ResumedSale | null> {
 }
 
 export async function deleteHeldSale(id: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("held_sales").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/pos");
@@ -202,7 +202,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
 
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 

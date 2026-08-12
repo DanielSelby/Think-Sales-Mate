@@ -69,7 +69,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
   const total = Math.max(0, subtotal + taxAmount - input.discountAmount);
   if (total <= 0) return { ok: false, error: "Total amount must be greater than zero." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -160,7 +160,7 @@ export interface ApproverOption {
 export async function getApprovers(): Promise<ApproverOption[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: members } = await supabase
     .from("organization_members")
@@ -186,7 +186,7 @@ export interface PurchaseOrderOption {
 export async function searchPurchaseOrdersForExpense(query: string): Promise<PurchaseOrderOption[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("purchases")
     .select("id, purchase_number, supplier:suppliers ( name )")
@@ -216,7 +216,7 @@ export async function getBudgetStatus(category: string): Promise<BudgetStatus> {
   const context = await getCurrentOrgContext();
   if (!context) return { hasBudget: false, monthlyLimit: 0, spentThisMonth: 0, remaining: 0, percentUsed: 0 };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: categoryRow } = await supabase
     .from("expense_categories")
     .select("budget_limit")
@@ -256,7 +256,7 @@ export interface RecentExpenseSummary {
 export async function getRecentExpensesForCategory(category: string): Promise<RecentExpenseSummary[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("expenses")
     .select("id, expense_number, category, amount, expense_date")
@@ -280,12 +280,12 @@ export interface SimpleResult {
 }
 
 async function logExpenseAction(orgId: string, actorId: string, action: string, expenseId: string, metadata: Record<string, unknown>) {
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.from("audit_logs").insert({ org_id: orgId, actor_id: actorId, action, entity_type: "expenses", entity_id: expenseId, metadata });
 }
 
 export async function approveExpense(expenseId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -301,7 +301,7 @@ export async function approveExpense(expenseId: string): Promise<SimpleResult> {
 }
 
 export async function rejectExpense(expenseId: string, reason?: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -317,7 +317,7 @@ export async function rejectExpense(expenseId: string, reason?: string): Promise
 }
 
 export async function markExpensePaid(expenseId: string, paidOn?: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -334,7 +334,7 @@ export async function markExpensePaid(expenseId: string, paidOn?: string): Promi
 }
 
 export async function deleteExpense(expenseId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("expenses").delete().eq("id", expenseId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/expenses");
@@ -353,7 +353,7 @@ export interface BulkResult {
 
 export async function bulkApproveExpenses(ids: string[]): Promise<BulkResult> {
   if (ids.length === 0) return { ok: false, error: "No expenses selected." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -365,7 +365,7 @@ export async function bulkApproveExpenses(ids: string[]): Promise<BulkResult> {
 
 export async function bulkDeleteExpenses(ids: string[]): Promise<BulkResult> {
   if (ids.length === 0) return { ok: false, error: "No expenses selected." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("expenses").delete().in("id", ids);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/expenses");
@@ -386,7 +386,7 @@ export interface GenerateRecurringResult {
 }
 
 export async function generateDueRecurringExpenses(): Promise<GenerateRecurringResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 

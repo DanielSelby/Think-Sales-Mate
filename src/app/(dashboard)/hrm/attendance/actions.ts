@@ -26,7 +26,7 @@ export interface CurrentEmployeeMatch {
 export async function getCurrentEmployeeMatch(): Promise<CurrentEmployeeMatch | null> {
   const context = await getCurrentOrgContext();
   if (!context) return null;
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("employees")
     .select("id, full_name")
@@ -39,7 +39,7 @@ export async function getCurrentEmployeeMatch(): Promise<CurrentEmployeeMatch | 
 export async function checkIn(employeeId: string, workType: string): Promise<SimpleResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -60,7 +60,7 @@ export async function checkIn(employeeId: string, workType: string): Promise<Sim
 }
 
 export async function checkOut(recordId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: record, error: fetchError } = await supabase
     .from("attendance_records")
     .select("check_in, status")
@@ -103,7 +103,7 @@ export interface MarkAttendanceInput {
 export async function markAttendance(input: MarkAttendanceInput): Promise<SimpleResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -144,7 +144,7 @@ export async function markAttendance(input: MarkAttendanceInput): Promise<Simple
 }
 
 export async function deleteAttendanceRecord(recordId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("attendance_records").delete().eq("id", recordId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/hrm/attendance");
@@ -154,7 +154,7 @@ export async function deleteAttendanceRecord(recordId: string): Promise<SimpleRe
 export async function bulkMarkAbsent(workDate: string): Promise<SimpleResult & { marked?: number }> {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 

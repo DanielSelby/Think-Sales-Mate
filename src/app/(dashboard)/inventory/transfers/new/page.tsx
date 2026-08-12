@@ -10,11 +10,11 @@ import {
 } from "@/components/inventory/stock-transfer-form";
 
 export default async function NewStockTransferPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: locationRows }, { data: productRows }, { data: stockLevelRows }, { data: recentRows }] = await Promise.all([
     supabase

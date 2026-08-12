@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 
-type SupabaseClient = ReturnType<typeof createClient>;
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
  * SalesMate ERP has no pre-existing SKU auto-generation — the current

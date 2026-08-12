@@ -14,7 +14,7 @@ export default async function LeaveManagementPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
   const leaveTypes = await ensureLeaveTypes();
 
   const [{ data: employees }, { data: requests }] = await Promise.all([

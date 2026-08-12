@@ -24,7 +24,7 @@ export interface LeaveTypeOption {
 export async function ensureLeaveTypes(): Promise<LeaveTypeOption[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: existing } = await supabase.from("leave_types").select("id, name, color, is_paid").eq("org_id", context.orgId);
   if (existing && existing.length > 0) return existing.map((t) => ({ id: t.id, name: t.name, color: t.color, isPaid: t.is_paid }));
@@ -66,7 +66,7 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
 
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -104,7 +104,7 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
 }
 
 export async function approveLeaveRequest(requestId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -138,7 +138,7 @@ export async function approveLeaveRequest(requestId: string): Promise<SimpleResu
 }
 
 export async function rejectLeaveRequest(requestId: string, note?: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -169,7 +169,7 @@ export async function rejectLeaveRequest(requestId: string, note?: string): Prom
 }
 
 export async function deleteLeaveRequest(requestId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: request, error: fetchError } = await supabase
     .from("leave_requests")
     .select("org_id, employee_id, duration_days, status")
@@ -191,7 +191,7 @@ export async function deleteLeaveRequest(requestId: string): Promise<SimpleResul
 }
 
 async function adjustBalance(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   orgId: string,
   employeeId: string,
   deltaDays: number

@@ -11,7 +11,7 @@ export default async function NewPurchaseReturnPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: locations }, { data: bankAccounts }, { data: returnItems }, { data: returns }] = await Promise.all([
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),

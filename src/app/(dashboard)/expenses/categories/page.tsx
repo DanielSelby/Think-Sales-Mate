@@ -14,7 +14,7 @@ export default async function ExpenseCategoriesPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: categories }, { data: expenses }] = await Promise.all([
     supabase.from("expense_categories").select("*").eq("org_id", orgId).order("name"),

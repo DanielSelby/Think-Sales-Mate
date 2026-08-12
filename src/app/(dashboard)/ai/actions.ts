@@ -23,7 +23,7 @@ export async function generateInsights(): Promise<void> {
     redirectWithError("AI Assistant isn't configured yet — add ANTHROPIC_API_KEY to your environment.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const summary = await getFinancialSummary(context.orgId);
 
   const { data: lowStockProducts } = await supabase

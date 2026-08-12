@@ -26,7 +26,7 @@ export async function createAccount(formData: FormData): Promise<void> {
     redirectWithError("/banking/new", "Enter a valid opening balance.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("bank_accounts").insert({
     org_id: context.orgId,
     name,
@@ -61,7 +61,7 @@ export async function recordTransaction(accountId: string, formData: FormData): 
     redirectWithError(`/banking/${accountId}`, "Enter a valid amount.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("bank_transactions").insert({
     org_id: context.orgId,
     account_id: accountId,
@@ -85,7 +85,7 @@ export async function deleteAccount(accountId: string) {
     return { error: "You don't have permission to remove accounts." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("bank_accounts").delete().eq("id", accountId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 

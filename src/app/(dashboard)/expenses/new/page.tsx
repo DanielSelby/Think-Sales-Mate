@@ -9,7 +9,7 @@ export default async function AddExpensePage() {
   const context = await getCurrentOrgContext();
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const [{ data: locations }, { data: bankAccounts }, approvers] = await Promise.all([
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true),
     supabase.from("bank_accounts").select("id, name").eq("org_id", context.orgId),

@@ -40,7 +40,7 @@ export async function createStockAdjustment(payload: CreateAdjustmentPayload): P
     return { error: "Adjust at least one product's counted stock before confirming." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: adjustment, error: adjustmentError } = await supabase
     .from("stock_adjustments")

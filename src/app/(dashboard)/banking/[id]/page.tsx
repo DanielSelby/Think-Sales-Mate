@@ -28,11 +28,11 @@ export default async function AccountDetailPage({
   params: { id: string };
   searchParams: { error?: string };
 }) {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context || !can(context.role, "banking.view")) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: account } = await supabase
     .from("bank_accounts")
     .select("id, name, account_type, current_balance")

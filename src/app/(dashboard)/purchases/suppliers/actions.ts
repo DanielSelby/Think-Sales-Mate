@@ -26,7 +26,7 @@ export interface CreateSupplierResult {
 export async function createSupplier(input: CreateSupplierInput): Promise<CreateSupplierResult> {
   if (!input.name.trim()) return { ok: false, error: "Supplier name is required." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -74,7 +74,7 @@ export interface UpdateSupplierStatusResult {
 }
 
 export async function updateSupplierStatus(supplierId: string, status: SupplierStatus): Promise<UpdateSupplierStatusResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -112,7 +112,7 @@ export interface BulkUpdateSupplierStatusResult {
 export async function bulkUpdateSupplierStatus(supplierIds: string[], status: SupplierStatus): Promise<BulkUpdateSupplierStatusResult> {
   if (supplierIds.length === 0) return { ok: false, error: "No suppliers selected." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -151,7 +151,7 @@ export interface BulkDeleteSuppliersResult {
 export async function bulkDeleteSuppliers(supplierIds: string[]): Promise<BulkDeleteSuppliersResult> {
   if (supplierIds.length === 0) return { ok: false, error: "No suppliers selected." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Suppliers with purchase history shouldn't be hard-deleted — blacklist
   // instead so the purchase records they're attached to stay intact.
@@ -202,7 +202,7 @@ export async function importSuppliers(rows: ImportSupplierRow[]): Promise<Import
   const valid = rows.filter((r) => r.name?.trim());
   if (valid.length === 0) return { ok: false, error: "No valid rows found — every row needs at least a supplier name." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

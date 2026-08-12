@@ -22,7 +22,7 @@ export async function createLocation(formData: FormData) {
   }
   if (!name) return { error: "Location name is required." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Only one branch can be primary — clear any existing one first so the
   // partial unique index on is_primary never trips.
@@ -66,7 +66,7 @@ export async function updateLocation(
     return { error: "You don't have permission to edit locations." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("business_locations")
     .update(fields)
@@ -85,7 +85,7 @@ export async function setPrimaryLocation(locationId: string) {
     return { error: "You don't have permission to change the primary location." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   await supabase.from("business_locations").update({ is_primary: false }).eq("org_id", context.orgId);
   const { error } = await supabase
@@ -106,7 +106,7 @@ export async function deleteLocation(locationId: string) {
     return { error: "You don't have permission to remove locations." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("business_locations")
     .delete()

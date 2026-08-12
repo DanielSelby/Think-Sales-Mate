@@ -6,11 +6,11 @@ import { LocationsManager, type LocationRow } from "@/components/dashboard/locat
 import { SettingsTabs } from "@/components/nav/settings-tabs";
 
 export default async function LocationsSettingsPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("business_locations")
     .select("id, name, location_type, address, city, region, country, phone, is_primary, is_active")

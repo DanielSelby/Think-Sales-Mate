@@ -23,7 +23,7 @@ export default async function SalesReportPage({
 }: {
   searchParams: { start?: string; end?: string };
 }) {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
@@ -31,7 +31,7 @@ export default async function SalesReportPage({
   const start = searchParams.start || defaults.start;
   const end = searchParams.end || defaults.end;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: sales } = await supabase
     .from("sales")
     .select("sale_number, customer_name, subtotal, total, created_at")

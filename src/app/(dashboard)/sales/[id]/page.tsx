@@ -15,7 +15,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: sale } = await supabase
     .from("sales")
     .select("id, sale_number, customer_name, subtotal, total, created_at")

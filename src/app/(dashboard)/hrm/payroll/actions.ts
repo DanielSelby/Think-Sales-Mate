@@ -24,7 +24,7 @@ export async function runPayroll(): Promise<void> {
     redirectWithError("You don't have permission to run payroll.");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { periodMonth, periodLabel } = currentPeriod();
 
   const { data: existingRun } = await supabase

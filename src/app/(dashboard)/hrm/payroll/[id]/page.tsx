@@ -12,11 +12,11 @@ function formatMoney(value: number) {
 }
 
 export default async function PayrollRunDetailPage({ params }: { params: { id: string } }) {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context || !can(context.role, "hrm.view")) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: run } = await supabase
     .from("payroll_runs")
     .select("id, period_label, total_amount, employee_count, created_at")

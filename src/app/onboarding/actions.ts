@@ -23,7 +23,7 @@ export async function createOrganization(formData: FormData): Promise<void> {
   // Verify the caller with the request-scoped (cookie-based) client — this
   // cannot be spoofed by the browser, since it re-validates the session
   // against Supabase Auth on every call.
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

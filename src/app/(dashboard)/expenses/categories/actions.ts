@@ -24,7 +24,7 @@ export interface SimpleResult {
 export async function createExpenseCategory(input: CategoryInput): Promise<SimpleResult> {
   if (!input.name.trim()) return { ok: false, error: "Category name is required." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -67,7 +67,7 @@ export async function createExpenseCategory(input: CategoryInput): Promise<Simpl
 export async function updateExpenseCategory(categoryId: string, input: CategoryInput): Promise<SimpleResult> {
   if (!input.name.trim()) return { ok: false, error: "Category name is required." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("expense_categories")
     .update({
@@ -90,7 +90,7 @@ export async function updateExpenseCategory(categoryId: string, input: CategoryI
 }
 
 export async function toggleExpenseCategoryStatus(categoryId: string, status: ExpenseCategoryStatus): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("expense_categories").update({ status }).eq("id", categoryId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/expenses/categories");
@@ -98,7 +98,7 @@ export async function toggleExpenseCategoryStatus(categoryId: string, status: Ex
 }
 
 export async function deleteExpenseCategory(categoryId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: category } = await supabase.from("expense_categories").select("org_id, name").eq("id", categoryId).single();
   if (!category) return { ok: false, error: "Category not found." };

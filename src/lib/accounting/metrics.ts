@@ -58,7 +58,7 @@ export interface FinancialSummary {
  * dashboard and the Accounting overview can never silently disagree.
  */
 export async function getFinancialSummary(orgId: string): Promise<FinancialSummary> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const since30d = daysAgo(30).toISOString();
   const todayStart = startOfToday().toISOString();
 

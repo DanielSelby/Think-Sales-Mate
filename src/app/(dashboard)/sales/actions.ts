@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { SaleStatus } from "@/types/database";
 
-type SupabaseClient = ReturnType<typeof createClient>;
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 async function getPrimaryLocationId(supabase: SupabaseClient, orgId: string): Promise<string | null> {
   const { data } = await supabase
@@ -33,7 +33,7 @@ export interface ReturnableLine {
 }
 
 export async function getSaleReturnableItems(saleId: string): Promise<ReturnableLine[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: items } = await supabase
     .from("sale_items")
@@ -66,39 +66,6 @@ export async function getSaleReturnableItems(saleId: string): Promise<Returnable
   });
 }
 
-
-// ---------------------------------------------------------------------------
-// Fetch line items for the printable invoice
-// ---------------------------------------------------------------------------
-
-export interface InvoiceItemRow {
-  productName: string;
-  sku: string | null;
-  quantity: number;
-  unitPrice: number;
-  lineTotal: number;
-}
-
-export async function getSaleInvoiceItems(saleId: string): Promise<InvoiceItemRow[]> {
-  const supabase = createClient();
-
-  const { data: items } = await supabase
-    .from("sale_items")
-    .select("quantity, unit_price, line_total, product:products ( name, sku )")
-    .eq("sale_id", saleId);
-
-  return (items ?? []).map((item) => {
-    const product = item.product as { name: string; sku: string } | null;
-    return {
-      productName: product?.name ?? "Deleted product",
-      sku: product?.sku ?? null,
-      quantity: item.quantity,
-      unitPrice: item.unit_price,
-      lineTotal: item.line_total
-    };
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Update sale status (+ restock / reverse restock as needed)
 // ---------------------------------------------------------------------------
@@ -124,7 +91,7 @@ export async function updateSaleStatus({
   note,
   returnLines,
 }: UpdateSaleStatusInput): Promise<UpdateSaleStatusResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -200,7 +167,7 @@ export async function updateSaleStatus({
     }
 
     if (status === "completed" && sale.status !== "completed") {
-      // Restoring to Completed reverses any stock this sale previously put h
+      // Restoring to Completed reverses any stock this sale previously put
       // back, then clears the return trail.
       const { data: existingReturns } = await supabase
         .from("sale_return_items")
@@ -239,116 +206,4 @@ export async function updateSaleStatus({
   revalidatePath("/sales");
   revalidatePath("/inventory");
   return { ok: true };
-}
-
-
-// ---------------------------------------------------------------------------
-// Record a new sale
-// ---------------------------------------------------------------------------
-export interface RecordSaleInput {
-  orgId:           string;
-  customerId?:     string | null;
-  customerName?:   string | null;
-  locationId?:     string | null;
-  reference?:      string | null;
-  note?:           string | null;
-  notes?:          string | null;
-  saleDate?:       string | null;
-  paymentMethod?:  string | null;
-  amountPaid?:     number | null;
-  shippingAmount?: number | null;
-  discountAmount?: number | null;
-  taxAmount?:      number | null;
-  lines?: {
-    productId:        string;
-    quantity:         number;
-    unitPrice:        number;
-    lineTotal:        number;
-    discountAmount?:  number | null;
-    taxAmount?:       number | null;
-  }[];
-  items?: {
-    productId:        string;
-    quantity:         number;
-    unitPrice?:       number;
-    unitPriceOverride?: number | null;
-    discountPercent?: number;
-    discountAmount?:  number | null;
-    taxPercent?:      number;
-    taxAmount?:       number | null;
-    lineTotal?:       number;
-    notes?:           string | null;
-  }[];
-  subtotal:        number;
-  total:           number;
-}
-
-export interface RecordSaleResult {
-  ok:      boolean;
-  saleId?: string;
-  error?:  string;
-}
-
-export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Not signed in." };
-
-  try {
-    // Insert sale header
-    const { data: sale, error: saleError } = await supabase
-      .from("sales")
-      .insert({
-        org_id:        input.orgId,
-        customer_name: input.customerName ?? null,
-        subtotal:      input.subtotal,
-        total:         input.total,
-        status:        "completed",
-        sold_by:       user.id,
-      })
-      .select("id")
-      .single();
-
-    if (saleError || !sale) throw new Error(saleError?.message ?? "Failed to create sale.");
-
-    // Insert line items — support both `lines` and `items` field names
-    const allLines = [
-      ...(input.lines ?? []).map(l => ({
-        sale_id:    sale.id,
-        org_id:     input.orgId,
-        product_id: l.productId,
-        quantity:   l.quantity,
-        unit_price: l.unitPrice ?? 0,
-        line_total: l.lineTotal ?? 0,
-      })),
-      ...(input.items ?? []).map(l => ({
-        sale_id:    sale.id,
-        org_id:     input.orgId,
-        product_id: l.productId,
-        quantity:   l.quantity,
-        unit_price: l.unitPriceOverride ?? l.unitPrice ?? 0,
-        line_total: l.lineTotal ?? 0,
-      })),
-    ];
-
-    if (allLines.length > 0) {
-      const { error: itemsError } = await supabase.from("sale_items").insert(allLines);
-      if (itemsError) throw new Error(itemsError.message);
-    }
-
-    // Deduct stock for each line
-    for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
-      await (supabase as any).rpc("adjust_product_stock", {
-        p_product_id: l.productId,
-        p_delta:      -l.quantity,
-      });
-    }
-
-    revalidatePath("/sales");
-    revalidatePath("/inventory");
-    return { ok: true, saleId: sale.id };
-
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
-  }
 }

@@ -21,7 +21,7 @@ export default async function PurchasesPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: purchases }, { data: suppliers }, { data: locations }] = await Promise.all([
     supabase

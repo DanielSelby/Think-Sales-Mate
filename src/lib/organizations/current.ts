@@ -17,7 +17,7 @@ export interface CurrentOrgContext {
  * see components/nav/org-switcher.tsx); falls back to the first membership.
  */
 export async function getCurrentOrgContext(activeOrgId?: string): Promise<CurrentOrgContext | null> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user }

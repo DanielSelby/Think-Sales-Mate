@@ -18,7 +18,7 @@ export default async function EditEmployeePage({
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: employee } = await supabase
     .from("employees")
     .select("id, full_name, email, phone, job_title, department, monthly_salary, hire_date, status")

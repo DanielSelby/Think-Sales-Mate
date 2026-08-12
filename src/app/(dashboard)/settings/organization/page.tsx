@@ -11,7 +11,7 @@ export default async function OrganizationSettingsPage() {
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const [{ data: memberRows }, { data: locationRows }] = await Promise.all([
     supabase
       .from("organization_members")

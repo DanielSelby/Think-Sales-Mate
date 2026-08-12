@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { ExpensesTable, type ExpenseRow } from "@/components/accounting/expenses-table";
 
 export default async function ExpensesPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: rows } = await supabase
     .from("expenses")
     .select("id, category, vendor, description, amount, expense_date")

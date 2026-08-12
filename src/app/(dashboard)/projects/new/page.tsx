@@ -7,11 +7,11 @@ import { ProjectForm, type CustomerOption } from "@/components/projects/project-
 import { createProject } from "@/app/(dashboard)/projects/actions";
 
 export default async function NewProjectPage({ searchParams }: { searchParams: { error?: string } }) {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: rows } = await supabase.from("customers").select("id, name").eq("org_id", context.orgId).order("name");
   const customers: CustomerOption[] = rows ?? [];
 

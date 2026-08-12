@@ -7,11 +7,11 @@ import { DashboardContent } from "@/components/charts/dashboard-content";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context     = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const summary  = await getFinancialSummary(context.orgId);
 
   const [

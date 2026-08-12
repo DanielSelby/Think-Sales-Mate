@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AccountsTable, type AccountRow } from "@/components/banking/accounts-table";
 
 export default async function BankingPage() {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
@@ -20,7 +20,7 @@ export default async function BankingPage() {
     );
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: rows } = await supabase
     .from("bank_accounts")
     .select("id, name, account_type, current_balance")

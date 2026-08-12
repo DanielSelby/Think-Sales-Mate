@@ -9,7 +9,7 @@ export default async function AddPurchasePage() {
   if (!context) return null; // layout redirects when there's no org
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [
     { data: suppliers },

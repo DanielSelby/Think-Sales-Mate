@@ -8,7 +8,7 @@ export default async function AddEmployeePage() {
   const context = await getCurrentOrgContext();
   if (!context) return null;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: employees } = await supabase.from("employees").select("department").eq("org_id", context.orgId);
   const departments = Array.from(new Set((employees ?? []).map((e) => e.department).filter(Boolean))) as string[];
 

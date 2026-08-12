@@ -28,7 +28,7 @@ export async function createEmployee(formData: FormData) {
   if (!fullName) redirect("/hrm/new?error=Employee+name+is+required");
   if (monthlySalary <= 0) redirect("/hrm/new?error=Enter+a+valid+monthly+salary");
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/hrm/new?error=You+must+be+signed+in");
 
@@ -69,7 +69,7 @@ export async function createEmployee(formData: FormData) {
 }
 
 export async function setEmployeeStatus(employeeId: string, status: "active" | "inactive"): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("employees").update({ status, on_leave_until: null }).eq("id", employeeId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/hrm");
@@ -78,7 +78,7 @@ export async function setEmployeeStatus(employeeId: string, status: "active" | "
 }
 
 export async function setEmployeeOnLeave(employeeId: string, untilDate: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("employees").update({ on_leave_until: untilDate }).eq("id", employeeId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/hrm");
@@ -87,7 +87,7 @@ export async function setEmployeeOnLeave(employeeId: string, untilDate: string):
 }
 
 export async function deleteEmployee(employeeId: string): Promise<SimpleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("employees").delete().eq("id", employeeId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/hrm");
@@ -120,7 +120,7 @@ export interface ProcessPayrollResult extends SimpleResult {
 }
 
 export async function processPayroll(input: ProcessPayrollInput): Promise<ProcessPayrollResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -233,7 +233,7 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
     redirect("/hrm?error=Session+expired");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("employees")
     .update({

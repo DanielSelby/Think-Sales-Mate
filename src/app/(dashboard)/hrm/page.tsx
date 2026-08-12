@@ -17,7 +17,7 @@ export default async function HrmDashboardPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: employees }, { data: payrollRuns }] = await Promise.all([
     supabase.from("employees").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),

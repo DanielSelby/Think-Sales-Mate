@@ -19,7 +19,7 @@ export async function inviteMember(formData: FormData) {
   }
   if (!email) return { error: "Email is required." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const admin = createAdminClient();
 
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
@@ -49,7 +49,7 @@ export async function updateMemberRole(memberId: string, role: MemberRole) {
     return { error: "You don't have permission to change roles." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("organization_members").update({ role }).eq("id", memberId);
   if (error) return { error: error.message };
 
@@ -63,7 +63,7 @@ export async function updateMemberBranch(memberId: string, locationId: string | 
     return { error: "You don't have permission to reassign members." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("organization_members")
     .update({ location_id: locationId })
@@ -82,7 +82,7 @@ export async function updateMemberStatus(memberId: string, status: "active" | "s
     return { error: "You don't have permission to change member status." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("organization_members")
     .update({ status })
@@ -101,7 +101,7 @@ export async function resendInvite(memberId: string) {
     return { error: "You don't have permission to resend invites." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: member } = await supabase
     .from("organization_members")
     .select("invited_email, status")
@@ -127,7 +127,7 @@ export async function removeMember(memberId: string) {
     return { error: "You don't have permission to remove members." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("organization_members").delete().eq("id", memberId);
   if (error) return { error: error.message };
 
@@ -152,7 +152,7 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
     return { invited: 0, skipped: rows.map((_, i) => ({ row: i + 1, reason: "Not permitted" })) };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const admin = createAdminClient();
   const skipped: { row: number; reason: string }[] = [];
   let invited = 0;
@@ -202,7 +202,7 @@ export async function updateCurrency(currency: string) {
     return { error: "You don't have permission to update currency." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("organizations")
     .update({ currency })

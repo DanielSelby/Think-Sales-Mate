@@ -45,7 +45,7 @@ export async function createProject(formData: FormData): Promise<void> {
   const fields = parseProjectForm(formData);
   if (!fields.name) redirectWithError("/projects/new", "Name is required.");
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("projects").insert({
     org_id: context.orgId,
     created_by: context.userId,
@@ -68,7 +68,7 @@ export async function updateProject(projectId: string, formData: FormData): Prom
   const fields = parseProjectForm(formData);
   if (!fields.name) redirectWithError(`/projects/${projectId}/edit`, "Name is required.");
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("projects")
     .update({ ...fields, updated_at: new Date().toISOString() })
@@ -87,7 +87,7 @@ export async function deleteProject(projectId: string) {
     return { error: "You don't have permission to remove projects." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("projects").delete().eq("id", projectId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 

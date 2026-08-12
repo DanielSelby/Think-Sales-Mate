@@ -12,7 +12,7 @@ function formatMoney(value: number) {
 }
 
 export default async function PayrollPage({ searchParams }: { searchParams: { error?: string } }) {
-  const activeOrgId = cookies().get("active_org_id")?.value;
+  const activeOrgId = await cookies().get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
@@ -24,7 +24,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: { er
     );
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: runs } = await supabase
     .from("payroll_runs")
     .select("id, period_label, total_amount, employee_count, created_at")

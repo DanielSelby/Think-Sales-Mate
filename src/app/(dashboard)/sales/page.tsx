@@ -13,7 +13,7 @@ export default async function SalesPage() {
 
   const orgId = context.orgId;
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: sales }, { data: locations }] = await Promise.all([
     supabase

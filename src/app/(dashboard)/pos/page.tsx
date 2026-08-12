@@ -9,7 +9,7 @@ export default async function PosPage() {
   if (!context) return null;
 
   const orgId = context.orgId;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: products }, { data: locations }] = await Promise.all([
     supabase
