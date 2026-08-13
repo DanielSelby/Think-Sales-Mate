@@ -255,7 +255,7 @@ export interface RecordSaleResult {
 }
 
 export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
 
@@ -342,7 +342,7 @@ export interface SaleInvoiceLine {
 }
 
 export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLine[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: items } = await supabase
     .from("sale_items")
     .select("id, product_id, quantity, unit_price, discount_percent, tax_percent, line_total, product:products(name)")
@@ -360,6 +360,3 @@ export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLi
     lineTotal:   item.line_total,
   }));
 }
-/ /   r e b u i l d  
- / /   r e b u i l d  
- 
