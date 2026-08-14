@@ -15,7 +15,7 @@ async function requireAdmin() {
 }
 
 export async function ensureCurrencySettings(orgId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: existing } = await supabase.from("currency_settings").select("org_id").eq("org_id", orgId).maybeSingle();
   if (!existing) {
     await supabase.from("currency_settings").insert({ org_id: orgId });
@@ -35,7 +35,7 @@ export async function updateCurrencySettings(fields: {
   const check = await requireAdmin();
   if ("error" in check) return check;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   await ensureCurrencySettings(check.context.orgId);
 
   const { error } = await supabase
@@ -67,7 +67,7 @@ export async function createCurrency(input: { code: string; name: string; symbol
   if (!input.name.trim()) return { error: "Currency name is required." };
   if (Number.isNaN(input.exchangeRate) || input.exchangeRate <= 0) return { error: "Enter a valid exchange rate." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("currencies").insert({
     org_id: check.context.orgId,
     code,
@@ -90,7 +90,7 @@ export async function updateCurrency(
   const check = await requireAdmin();
   if ("error" in check) return check;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("currencies")
     .update({
@@ -112,7 +112,7 @@ export async function setDefaultCurrency(id: string) {
   const check = await requireAdmin();
   if ("error" in check) return check;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.from("currencies").update({ is_default: false }).eq("org_id", check.context.orgId);
   const { error } = await supabase
     .from("currencies")
@@ -129,7 +129,7 @@ export async function setBaseCurrency(id: string) {
   const check = await requireAdmin();
   if ("error" in check) return check;
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: target } = await supabase.from("currencies").select("code").eq("id", id).single();
   if (!target) return { error: "Currency not found." };
@@ -154,7 +154,7 @@ export async function deleteCurrency(id: string) {
   const check = await requireAdmin();
   if ("error" in check) return check;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: currency } = await supabase.from("currencies").select("is_base").eq("id", id).single();
   if (currency?.is_base) return { error: "You can't remove the base currency." };
 
@@ -171,7 +171,7 @@ export async function refreshExchangeRates() {
   const check = await requireAdmin();
   if ("error" in check) return check;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: base } = await supabase
     .from("currencies")
     .select("code")
