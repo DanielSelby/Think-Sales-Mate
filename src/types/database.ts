@@ -103,12 +103,15 @@ export interface Database {
           id: string;
           org_id: string;
           name: string;
+          code: string | null;
           location_type: LocationType;
+          manager_name: string | null;
           address: string | null;
           city: string | null;
           region: string | null;
           country: string | null;
           phone: string | null;
+          email: string | null;
           is_primary: boolean;
           is_active: boolean;
           created_by: string;
@@ -118,12 +121,15 @@ export interface Database {
           id?: string;
           org_id: string;
           name: string;
+          code?: string | null;
           location_type?: LocationType;
+          manager_name?: string | null;
           address?: string | null;
           city?: string | null;
           region?: string | null;
           country?: string | null;
           phone?: string | null;
+          email?: string | null;
           is_primary?: boolean;
           is_active?: boolean;
           created_by: string;
@@ -366,6 +372,131 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["product_import_batches"]["Row"]>;
+        Relationships: [];
+      };
+
+      currencies: {
+        Row: {
+          id: string;
+          org_id: string;
+          code: string;
+          name: string;
+          symbol: string;
+          exchange_rate_to_base: number;
+          is_active: boolean;
+          is_default: boolean;
+          is_base: boolean;
+          last_updated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          code: string;
+          name: string;
+          symbol: string;
+          exchange_rate_to_base?: number;
+          is_active?: boolean;
+          is_default?: boolean;
+          is_base?: boolean;
+          last_updated_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["currencies"]["Row"]>;
+        Relationships: [];
+      };
+      currency_settings: {
+        Row: {
+          org_id: string;
+          exchange_rate_source: "manual" | "frankfurter";
+          rate_update_frequency: "manual" | "hourly" | "daily" | "weekly";
+          decimal_places: number;
+          rounding_mode: "none" | "nearest_1" | "nearest_5" | "nearest_10" | "nearest_100";
+          multi_currency_enabled: boolean;
+          home_currency_display: boolean;
+          exchange_rate_on_transaction: boolean;
+          revaluation_enabled: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          exchange_rate_source?: "manual" | "frankfurter";
+          rate_update_frequency?: "manual" | "hourly" | "daily" | "weekly";
+          decimal_places?: number;
+          rounding_mode?: "none" | "nearest_1" | "nearest_5" | "nearest_10" | "nearest_100";
+          multi_currency_enabled?: boolean;
+          home_currency_display?: boolean;
+          exchange_rate_on_transaction?: boolean;
+          revaluation_enabled?: boolean;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["currency_settings"]["Row"]>;
+        Relationships: [];
+      };
+
+
+      company_profile: {
+        Row: {
+          org_id: string;
+          company_name: string | null;
+          registration_no: string | null;
+          business_email: string | null;
+          business_phone: string | null;
+          website: string | null;
+          tin: string | null;
+          description: string | null;
+          logo_url: string | null;
+          country: string | null;
+          address_line1: string | null;
+          address_line2: string | null;
+          city: string | null;
+          postcode: string | null;
+          region: string | null;
+          contact_name: string | null;
+          contact_designation: string | null;
+          contact_email: string | null;
+          contact_phone: string | null;
+          default_sales_tax_percent: number;
+          show_logo_on_invoices: boolean;
+          show_info_on_receipts: boolean;
+          enable_barcode_on_documents: boolean;
+          facebook_url: string | null;
+          twitter_url: string | null;
+          linkedin_url: string | null;
+          youtube_url: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          company_name?: string | null;
+          registration_no?: string | null;
+          business_email?: string | null;
+          business_phone?: string | null;
+          website?: string | null;
+          tin?: string | null;
+          description?: string | null;
+          logo_url?: string | null;
+          country?: string | null;
+          address_line1?: string | null;
+          address_line2?: string | null;
+          city?: string | null;
+          postcode?: string | null;
+          region?: string | null;
+          contact_name?: string | null;
+          contact_designation?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          default_sales_tax_percent?: number;
+          show_logo_on_invoices?: boolean;
+          show_info_on_receipts?: boolean;
+          enable_barcode_on_documents?: boolean;
+          facebook_url?: string | null;
+          twitter_url?: string | null;
+          linkedin_url?: string | null;
+          youtube_url?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["company_profile"]["Row"]>;
         Relationships: [];
       };
 
