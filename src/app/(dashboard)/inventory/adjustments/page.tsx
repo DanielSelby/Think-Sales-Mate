@@ -10,7 +10,7 @@ import {
 } from "@/components/inventory/stock-adjustment-form";
 
 export default async function StockAdjustmentPage() {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

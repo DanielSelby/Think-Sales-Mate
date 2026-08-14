@@ -6,7 +6,7 @@ import { LocationsManager, type LocationRow } from "@/components/dashboard/locat
 import { SettingsTabs } from "@/components/nav/settings-tabs";
 
 export default async function LocationsSettingsPage() {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

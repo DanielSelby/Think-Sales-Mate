@@ -7,7 +7,7 @@ import { ProjectForm, type CustomerOption } from "@/components/projects/project-
 import { createProject } from "@/app/(dashboard)/projects/actions";
 
 export default async function NewProjectPage({ searchParams }: { searchParams: { error?: string } }) {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

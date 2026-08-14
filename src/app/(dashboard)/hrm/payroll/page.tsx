@@ -12,7 +12,7 @@ function formatMoney(value: number) {
 }
 
 export default async function PayrollPage({ searchParams }: { searchParams: { error?: string } }) {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

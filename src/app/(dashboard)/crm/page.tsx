@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CustomersTable, type CustomerRow } from "@/components/crm/customers-table";
 
 export default async function CrmPage() {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

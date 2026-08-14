@@ -7,7 +7,7 @@ import { DashboardContent } from "@/components/charts/dashboard-content";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context     = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

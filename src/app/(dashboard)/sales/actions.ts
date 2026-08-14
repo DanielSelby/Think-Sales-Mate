@@ -334,6 +334,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
 export interface SaleInvoiceLine {
   productId:   string;
   productName: string;
+  sku:         string;
   quantity:    number;
   unitPrice:   number;
   discount:    number;
@@ -345,14 +346,15 @@ export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLi
   const supabase = await createClient();
   const { data: items } = await supabase
     .from("sale_items")
-    .select("id, product_id, quantity, unit_price, discount_percent, tax_percent, line_total, product:products(name)")
+    .select("id, product_id, quantity, unit_price, discount_percent, tax_percent, line_total, product:products(name, sku)")
     .eq("sale_id", saleId);
 
   if (!items || items.length === 0) return [];
 
   return items.map((item) => ({
     productId:   item.product_id,
-    productName: (item.product as { name: string } | null)?.name ?? "Unknown product",
+    productName: (item.product as { name: string; sku: string } | null)?.name ?? "Unknown product",
+    sku:         (item.product as { name: string; sku: string } | null)?.sku ?? "",
     quantity:    item.quantity,
     unitPrice:   item.unit_price,
     discount:    item.discount_percent,

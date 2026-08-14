@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ProjectsTable, type ProjectRow } from "@/components/projects/projects-table";
 
 export default async function ProjectsPage() {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
