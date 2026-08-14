@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ExpensesTable, type ExpenseRow } from "@/components/accounting/expenses-table";
 
 export default async function ExpensesPage() {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 

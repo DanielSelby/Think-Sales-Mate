@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { InvoicesTable, type InvoiceRow } from "@/components/accounting/invoices-table";
 
 export default async function InvoicesPage() {
-  const activeOrgId = await cookies().get("active_org_id")?.value;
+  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
