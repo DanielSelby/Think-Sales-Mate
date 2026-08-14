@@ -119,9 +119,13 @@ const NAV_ITEMS: NavItem[] = [
 
 const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Users",         href: "/settings/organization" },
-  { label: "Team (soon)",   href: "/settings/team"         },
+  { label: "Team",          href: "/settings/team"         },
   { label: "Locations",     href: "/settings/locations"    },
   { label: "Billing",       href: "/settings/billing"      },
+  { label: "Currencies",    href: "/settings/curremcies"   },
+  { label: "Company",       href: "/settings/company"      },
+  { label: "Members",       href: "/settings/members"      },
+  { label: "Integreations",       href: "/settings/integrations"      },
 ];
 
 // ── Reusable child list ───────────────────────────────────────
