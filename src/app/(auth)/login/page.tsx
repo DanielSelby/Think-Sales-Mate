@@ -332,7 +332,7 @@ function LoginForm() {
             </h1>
 
             <p className="mt-6 max-w-[450px] text-[15px] leading-6 text-white/60">
-              ThinkSales Pro helps you manage your sales, inventory,
+              Think-SalesMate ERP helps you manage your sales, inventory,
               customers and reports in one powerful platform.
             </p>
           </div>
@@ -511,7 +511,7 @@ function LoginForm() {
                 </h2>
 
                 <p className="mt-2 text-[13px] text-[#858a83]">
-                  Sign in to continue to ThinkSales Pro
+                  Sign in to continue to Think-SalesMate ERP
                 </p>
               </div>
 
@@ -679,7 +679,7 @@ function LoginForm() {
             </div>
 
             <p className="mt-5 text-center text-[10px] text-[#a2a69f]">
-              © {new Date().getFullYear()} ThinkSales Pro. All rights reserved.
+              © {new Date().getFullYear()} Think-SalesMate ERP. All rights reserved.
             </p>
           </div>
         </section>
