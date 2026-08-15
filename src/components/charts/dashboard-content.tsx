@@ -3,138 +3,146 @@ import {
   DollarSign,
   TrendingUp,
   PiggyBank,
+  ShoppingCart,
   Receipt,
   Wallet,
-  FileWarning,
   Boxes,
   AlertTriangle,
-  Trophy,
   Sparkles,
   Plus,
   ArrowRight
 } from "lucide-react";
-import type { FinancialSummary } from "@/lib/accounting/metrics";
-import { formatMoney } from "@/lib/currency";
+import type { FinancialSummary, ActivityItem } from "@/lib/accounting/metrics";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TiltKpiCard, type TiltCardColor } from "@/components/charts/tilt-kpi-card";
+import { KpiFlipCard, type KpiFlipColor } from "@/components/charts/kpi-flip-card";
 import { RevenueExpenseChart } from "@/components/charts/revenue-expense-chart";
 import { RevenueByProductChart } from "@/components/charts/revenue-by-product-chart";
-
-interface LowStockItem {
-  name: string;
-  stock_quantity: number;
-  low_stock_threshold: number;
-}
-
-interface RecentSale {
-  id: string;
-  total: number;
-  created_at: string;
-  customer_name: string | null;
-}
+import { SalesOverviewChart } from "@/components/charts/sales-overview-chart";
+import { BusinessHealthCard } from "@/components/charts/business-health-card";
+import { CashFlowSection } from "@/components/charts/cash-flow-section";
+import { TopSellingTable } from "@/components/charts/top-selling-table";
+import { InventorySummaryCard } from "@/components/charts/inventory-summary-card";
+import { RecentActivityFeed } from "@/components/charts/recent-activity-feed";
+import { ProfitOverviewChart } from "@/components/charts/profit-overview-chart";
+import { DateRangeFilter } from "@/components/charts/date-range-filter";
+import { formatMoney } from "@/lib/currency";
 
 interface Kpi {
   label: string;
   value: string;
-  note: string;
-  color: TiltCardColor;
+  color: KpiFlipColor;
   icon: React.ReactNode;
+  trend?: FinancialSummary["trends"]["revenue"];
+  detail: string;
 }
 
 export function DashboardContent({
   summary,
   orgName,
   currency,
-  lowStockItems,
   latestInsight,
-  recentSales
+  recentActivity
 }: {
   summary: FinancialSummary;
   orgName: string;
   currency: string;
-  lowStockItems: LowStockItem[];
   latestInsight: { content: string; created_at: string } | null;
-  recentSales: RecentSale[];
+  recentActivity: ActivityItem[];
 }) {
+  const insightLines = latestInsight
+    ? latestInsight.content
+        .split(/\n+/)
+        .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[A-Z])/))
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 5)
+    : [];
+
   const kpis: Kpi[] = [
     {
       label: "Sales today",
       value: formatMoney(summary.salesToday, currency),
-      note: "Live",
       color: "blue",
-      icon: <DollarSign className="h-full w-full" />
+      icon: <DollarSign className="h-full w-full" />,
+      detail: `Total recorded so far today, live from your Sales module.`
     },
     {
-      label: "Revenue (30d)",
+      label: "Total sales",
       value: formatMoney(summary.revenue30d, currency),
-      note: `${summary.saleCount30d} sale${summary.saleCount30d === 1 ? "" : "s"}`,
+      color: "blue",
+      icon: <TrendingUp className="h-full w-full" />,
+      trend: summary.trends.revenue,
+      detail: `Revenue across ${summary.saleCount30d} sale${summary.saleCount30d === 1 ? "" : "s"} in ${summary.periodLabel}.`
+    },
+    {
+      label: "Gross profit",
+      value: formatMoney(summary.grossProfit30d, currency),
       color: "green",
-      icon: <TrendingUp className="h-full w-full" />
+      icon: <PiggyBank className="h-full w-full" />,
+      trend: summary.trends.grossProfit,
+      detail: summary.hasCostData
+        ? "Revenue minus cost of goods sold for this period."
+        : "Incomplete — add cost prices in Inventory for full accuracy."
     },
     {
-      label: "Profit (30d)",
-      value: formatMoney(summary.netProfit30d, currency),
-      note: summary.hasCostData ? "Net of COGS & expenses" : "Add cost prices for full accuracy",
-      color: summary.netProfit30d >= 0 ? "purple" : "red",
-      icon: <PiggyBank className="h-full w-full" />
+      label: "Total orders",
+      value: String(summary.saleCount30d),
+      color: "purple",
+      icon: <ShoppingCart className="h-full w-full" />,
+      trend: summary.trends.orders,
+      detail: `Average order value: ${formatMoney(summary.avgOrderValue, currency)}.`
     },
     {
-      label: "Expenses (30d)",
+      label: "Total expenses",
       value: formatMoney(summary.expenses30d, currency),
-      note: "Live",
-      color: "red",
-      icon: <Receipt className="h-full w-full" />
-    },
-    {
-      label: "Cash flow (30d)",
-      value: formatMoney(summary.cashFlow30d, currency),
-      note: "Live",
-      color: summary.cashFlow30d >= 0 ? "teal" : "red",
-      icon: <Wallet className="h-full w-full" />
-    },
-    {
-      label: "Outstanding invoices",
-      value: formatMoney(summary.outstandingInvoicesTotal, currency),
-      note: `${summary.outstandingInvoicesCount} unpaid`,
       color: "amber",
-      icon: <FileWarning className="h-full w-full" />
+      icon: <Receipt className="h-full w-full" />,
+      trend: summary.trends.expenses,
+      detail: `Recorded across the Accounting module for ${summary.periodLabel}.`
+    },
+    {
+      label: "Net profit",
+      value: formatMoney(summary.netProfit30d, currency),
+      color: summary.netProfit30d >= 0 ? "green" : "red",
+      icon: <Wallet className="h-full w-full" />,
+      trend: summary.trends.netProfit,
+      detail: "Gross profit minus expenses for this period."
     },
     {
       label: "Inventory value",
       value: formatMoney(summary.inventoryValue, currency),
-      note: "Live",
       color: "teal",
-      icon: <Boxes className="h-full w-full" />
+      icon: <Boxes className="h-full w-full" />,
+      detail: `${summary.totalActiveProducts} active product${summary.totalActiveProducts === 1 ? "" : "s"} on hand.`
     },
     {
       label: "Low stock alerts",
       value: String(summary.lowStockCount),
-      note: summary.lowStockCount > 0 ? "Needs attention" : "All stocked",
       color: summary.lowStockCount > 0 ? "red" : "green",
-      icon: <AlertTriangle className="h-full w-full" />
+      icon: <AlertTriangle className="h-full w-full" />,
+      detail:
+        summary.lowStockCount > 0
+          ? `${summary.outOfStockCount} of these are completely out of stock.`
+          : "Everything is above its reorder threshold."
     }
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ledger-400">Executive overview</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold text-ink-900 dark:text-white">{orgName}</h1>
-          <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Last 30 days, updated live.</p>
+          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">{orgName}</h1>
+          <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">
+            Welcome back — here&apos;s what&apos;s happening with your business, {summary.periodLabel}.
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangeFilter currentDays={summary.periodDays} />
           <Link href="/sales/new">
-            <Button>
+            <Button size="sm">
               <Plus className="h-4 w-4" />
               New sale
-            </Button>
-          </Link>
-          <Link href="/accounting/invoices/new">
-            <Button variant="outline">
-              <Plus className="h-4 w-4" />
-              New invoice
             </Button>
           </Link>
         </div>
@@ -142,14 +150,113 @@ export function DashboardContent({
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {kpis.map((kpi) => (
-          <TiltKpiCard key={kpi.label} color={kpi.color} label={kpi.label} value={kpi.value} note={kpi.note} icon={kpi.icon} />
+          <KpiFlipCard
+            key={kpi.label}
+            color={kpi.color}
+            label={kpi.label}
+            value={kpi.value}
+            icon={kpi.icon}
+            trend={kpi.trend}
+            trendSuffix={kpi.trend ? `vs prior period` : undefined}
+            detail={kpi.detail}
+          />
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle>Revenue vs expenses (30d)</CardTitle>
+            <CardTitle>Sales overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SalesOverviewChart
+              data={summary.dailySeries30d}
+              currency={currency}
+              totalRevenue={summary.revenue30d}
+              trend={summary.trends.revenue}
+              avgDailySales={summary.avgDailySales}
+              bestDay={summary.bestDay}
+              orderCount={summary.saleCount30d}
+              avgOrderValue={summary.avgOrderValue}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Sales by product</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {summary.revenueByProduct30d.length > 0 ? (
+              <RevenueByProductChart data={summary.revenueByProduct30d} currency={currency} />
+            ) : (
+              <div className="flex h-44 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-ledger-200 text-center dark:border-ledger-700">
+                <p className="text-sm text-ledger-400">No sales in this period yet.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Business health</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BusinessHealthCard summary={summary} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Cash flow</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CashFlowSection
+              data={summary.dailySeries30d}
+              currency={currency}
+              cashIn={summary.cashIn30d}
+              cashOut={summary.cashOut30d}
+              netCashFlow={summary.cashFlow30d}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Top selling products</CardTitle>
+              <Link href="/reports/sales" className="text-xs font-medium text-signal hover:underline">
+                View all
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <TopSellingTable products={summary.bestSellers30d} currency={currency} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Inventory summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <InventorySummaryCard
+              totalProducts={summary.totalActiveProducts}
+              lowStockCount={summary.lowStockCount}
+              outOfStockCount={summary.outOfStockCount}
+              inventoryValue={summary.inventoryValue}
+              currency={currency}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Sales vs expenses vs profit</CardTitle>
           </CardHeader>
           <CardContent>
             <RevenueExpenseChart data={summary.dailySeries30d} currency={currency} />
@@ -158,14 +265,42 @@ export function DashboardContent({
 
         <Card>
           <CardHeader>
-            <CardTitle>AI insights</CardTitle>
+            <CardTitle>Profit overview (cumulative)</CardTitle>
           </CardHeader>
           <CardContent>
-            {latestInsight ? (
+            <ProfitOverviewChart data={summary.dailySeries30d} currency={currency} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RecentActivityFeed items={recentActivity} currency={currency} />
+          </CardContent>
+        </Card>
+
+        <Card accent="signal">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>AI insights</CardTitle>
+              <Sparkles className="h-4 w-4 text-signal" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {insightLines.length > 0 ? (
               <div className="space-y-3">
-                <p className="line-clamp-6 whitespace-pre-line text-sm leading-relaxed text-ledger-600 dark:text-ledger-300">
-                  {latestInsight.content}
-                </p>
+                <ul className="space-y-2">
+                  {insightLines.map((line, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-ledger-600 dark:text-ledger-300">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-signal" />
+                      {line}
+                    </li>
+                  ))}
+                </ul>
                 <Link href="/ai" className="inline-flex items-center gap-1 text-sm font-medium text-signal hover:underline">
                   View all insights
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -183,85 +318,6 @@ export function DashboardContent({
           </CardContent>
         </Card>
       </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Revenue by product (30d)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {summary.revenueByProduct30d.length > 0 ? (
-              <RevenueByProductChart data={summary.revenueByProduct30d} currency={currency} />
-            ) : (
-              <div className="flex h-44 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-ledger-200 text-center dark:border-ledger-700">
-                <Trophy className="h-5 w-5 text-ledger-300" />
-                <p className="text-sm text-ledger-400">Connect Inventory to rank products by revenue.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card accent={lowStockItems.length > 0 ? "alert" : "neutral"}>
-          <CardHeader>
-            <CardTitle>Low stock alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {lowStockItems.length > 0 ? (
-              <ul className="space-y-2">
-                {lowStockItems.map((item, i) => (
-                  <li key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-ink-900 dark:text-white">{item.name}</span>
-                    <span className="figure rounded-full bg-alert-soft px-2 py-0.5 text-xs font-semibold text-alert">
-                      {item.stock_quantity} left
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-ledger-200 text-center dark:border-ledger-700">
-                <Boxes className="h-5 w-5 text-signal" />
-                <p className="text-sm text-ledger-400">Everything is well stocked.</p>
-              </div>
-            )}
-            <Link href="/inventory" className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-signal hover:underline">
-              Go to Inventory
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent sales</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentSales.length > 0 ? (
-            <ul className="divide-y divide-ledger-50 dark:divide-ledger-700/50">
-              {recentSales.map((sale) => (
-                <li key={sale.id}>
-                  <Link
-                    href={`/sales/${sale.id}`}
-                    className="flex items-center justify-between py-2.5 text-sm hover:text-signal"
-                  >
-                    <span className="text-ink-900 dark:text-white">{sale.customer_name ?? "Walk-in customer"}</span>
-                    <span className="flex items-center gap-3 text-ledger-400">
-                      <span>{new Date(sale.created_at).toLocaleDateString()}</span>
-                      <span className="figure font-medium text-ink-900 dark:text-white">
-                        {formatMoney(sale.total, currency)}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="flex h-24 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-ledger-200 text-center dark:border-ledger-700">
-              <p className="text-sm text-ledger-400">No sales recorded yet.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -76,7 +76,7 @@ const NAV_ITEMS: NavItem[] = [
     icon:  Boxes,
     status: "live",
     children: [
-      { label: "All Products",      href: "/inventor",                 icon: List         },
+      { label: "All Products",      href: "/inventory",                icon: List         },
       { label: "Add Product",       href: "/inventory/new",             icon: PlusCircle   },
       { label: "Stock Transfers List",   href: "/inventory/transfers",       icon: Truck        },
       { label: "Add Transfer",      href: "/inventory/transfers/new",   icon: PlusCircle   },
@@ -122,10 +122,10 @@ const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Team",          href: "/settings/team"         },
   { label: "Locations",     href: "/settings/locations"    },
   { label: "Billing",       href: "/settings/billing"      },
-  { label: "Currencies",    href: "/settings/curremcies"   },
+  { label: "Currencies",    href: "/settings/currencies"   },
   { label: "Company",       href: "/settings/company"      },
   { label: "Members",       href: "/settings/members"      },
-  { label: "Integreations",       href: "/settings/integrations"      },
+  { label: "Integreations", href: "/settings/integrations" },
 ];
 
 // ── Reusable child list ───────────────────────────────────────
