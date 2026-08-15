@@ -44,6 +44,14 @@ const config: Config = {
         amber: {
           DEFAULT: "#a8781f",
           soft: "#f6efdd"
+        },
+        accentPurple: {
+          DEFAULT: "#6d5bd0",
+          soft: "#ece9fa"
+        },
+        accentTeal: {
+          DEFAULT: "#1a8f8f",
+          soft: "#e2f4f4"
         }
       },
       fontFamily: {

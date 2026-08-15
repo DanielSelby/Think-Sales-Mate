@@ -2,47 +2,39 @@ import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
-import { LocationsManager, type LocationRow } from "@/components/dashboard/locations-manager";
-import { SettingsTabs } from "@/components/nav/settings-tabs";
+import { LocationsManager, type LocationRow } from "@/components/settings/locations-manager";
 
 export default async function LocationsSettingsPage() {
-  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
   const supabase = await createClient();
   const { data } = await supabase
     .from("business_locations")
-    .select("id, name, location_type, address, city, region, country, phone, is_primary, is_active")
+    .select(
+      "id, name, code, location_type, manager_name, address, city, region, country, phone, email, is_primary, is_active, created_at"
+    )
     .eq("org_id", context.orgId)
     .order("is_primary", { ascending: false })
-    .order("name", { ascending: true });
+    .order("name");
 
   const locations: LocationRow[] = (data ?? []).map((row) => ({
     id: row.id,
     name: row.name,
+    code: row.code,
     locationType: row.location_type,
+    managerName: row.manager_name,
     address: row.address,
     city: row.city,
     region: row.region,
     country: row.country,
     phone: row.phone,
+    email: row.email,
     isPrimary: row.is_primary,
-    isActive: row.is_active
+    isActive: row.is_active,
+    createdAt: row.created_at
   }));
 
-  return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-ledger-900 dark:text-white">Business locations</h1>
-        <p className="text-sm text-ledger-500 dark:text-ledger-400">
-          Manage the branches, shops, or warehouses {context.orgName} operates.
-        </p>
-      </div>
-
-      <SettingsTabs active="locations" />
-
-      <LocationsManager locations={locations} canManage={can(context.role, "locations.manage")} />
-    </div>
-  );
+  return <LocationsManager locations={locations} canManage={can(context.role, "locations.manage")} orgName={context.orgName} />;
 }

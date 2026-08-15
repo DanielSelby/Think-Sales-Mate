@@ -26,6 +26,7 @@ import { InventorySummaryCard } from "@/components/charts/inventory-summary-card
 import { RecentActivityFeed } from "@/components/charts/recent-activity-feed";
 import { ProfitOverviewChart } from "@/components/charts/profit-overview-chart";
 import { DateRangeFilter } from "@/components/charts/date-range-filter";
+import { DashboardFilters, type FilterOption } from "@/components/charts/dashboard-filters";
 import { formatMoney } from "@/lib/currency";
 
 interface Kpi {
@@ -42,13 +43,17 @@ export function DashboardContent({
   orgName,
   currency,
   latestInsight,
-  recentActivity
+  recentActivity,
+  branches,
+  categories
 }: {
   summary: FinancialSummary;
   orgName: string;
   currency: string;
   latestInsight: { content: string; created_at: string } | null;
   recentActivity: ActivityItem[];
+  branches: FilterOption[];
+  categories: FilterOption[];
 }) {
   const insightLines = latestInsight
     ? latestInsight.content
@@ -139,6 +144,7 @@ export function DashboardContent({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeFilter currentDays={summary.periodDays} />
+          <DashboardFilters branches={branches} categories={categories} />
           <Link href="/sales/new">
             <Button size="sm">
               <Plus className="h-4 w-4" />
