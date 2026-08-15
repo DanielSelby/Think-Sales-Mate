@@ -355,7 +355,7 @@ export default function SignupPage() {
               <span className="font-medium text-[#30372d]">
                 {email}
               </span>
-              . Follow the link to finish setting up your ThinkSales Pro
+              . Follow the link to finish setting up your Think-SalesMate ERP
               workspace.
             </p>
 
@@ -420,7 +420,7 @@ export default function SignupPage() {
               </h1>
 
               <p className="mt-6 max-w-[460px] text-[15px] leading-7 text-[#b9c2b4]">
-                ThinkSales Pro helps you manage your sales, inventory,
+                Think-SalesMate ERP helps you manage your sales, inventory,
                 customers and reports in one powerful platform.
               </p>
             </div>
@@ -675,7 +675,7 @@ export default function SignupPage() {
               </h2>
 
               <p className="mt-2 text-sm text-[#747a72]">
-                Join ThinkSales Pro and grow your business
+                Join Think-SalesMate ERP and grow your business
               </p>
             </div>
 
