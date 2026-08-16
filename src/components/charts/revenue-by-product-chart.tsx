@@ -35,7 +35,7 @@ export function RevenueByProductChart({ data, currency = "USD" }: { data: Revenu
 
       {chartType === "donut" ? (
         <div className="flex items-center gap-5">
-          <div className="relative shrink-0" style={{ width: 130, height: 130 }}>
+          <div className="relative shrink-0" style={{ width: 190, height: 190 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={data} dataKey="value" cx="50%" cy="50%"
@@ -66,10 +66,10 @@ export function RevenueByProductChart({ data, currency = "USD" }: { data: Revenu
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
                 {hovered !== null ? "Selected" : "Total"}
               </p>
-              <p className="text-sm font-bold" style={{ color: theme.colors.primary }}>
+              <p className="text-base font-bold" style={{ color: theme.colors.primary }}>
                 {formatMoney(hovered !== null ? (data[hovered]?.value ?? 0) : total, currency)}
               </p>
             </div>

@@ -174,7 +174,7 @@ export function DashboardContent({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Sales overview</CardTitle>
@@ -216,9 +216,43 @@ export function DashboardContent({
             <BusinessHealthCard summary={summary} />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Receivables</CardTitle>
+              <Link href="/accounting/invoices" className="text-xs font-medium text-signal hover:underline">
+                View all
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {summary.outstandingInvoicesCount > 0 ? (
+              <div className="flex h-44 flex-col items-center justify-center gap-1 text-center">
+                <p className="figure text-2xl font-semibold text-ink-900 dark:text-white">
+                  {formatMoney(summary.outstandingInvoicesTotal, currency)}
+                </p>
+                <p className="text-sm text-ledger-500 dark:text-ledger-400">
+                  {summary.outstandingInvoicesCount} unpaid invoice{summary.outstandingInvoicesCount === 1 ? "" : "s"}
+                </p>
+                <Link
+                  href="/accounting/invoices"
+                  className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-signal hover:underline"
+                >
+                  Follow up
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ) : (
+              <div className="flex h-44 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-ledger-200 text-center dark:border-ledger-700">
+                <p className="text-sm text-ledger-400">No outstanding invoices — you&apos;re all caught up.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Cash flow</CardTitle>
