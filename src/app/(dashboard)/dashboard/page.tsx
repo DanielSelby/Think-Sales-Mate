@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { getFinancialSummary, getRecentActivity } from "@/lib/accounting/metrics";
+import { getFinancialSummary, getRecentActivity, defaultDateRange, type DateRange } from "@/lib/accounting/metrics";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardContent } from "@/components/charts/dashboard-content";
 import type { FilterOption } from "@/components/charts/dashboard-filters";
@@ -10,22 +10,31 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({
   searchParams
 }: {
-  searchParams: { days?: string; branch?: string; category?: string };
+  // Next 16: searchParams is a Promise on the server — reading it
+  // synchronously silently returns undefined for every field, which was
+  // why branch/category filters never actually changed anything below.
+  searchParams: Promise<{ from?: string; to?: string; branch?: string; category?: string }>;
 }) {
+  const params = await searchParams;
+
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
-  const days = Number(searchParams.days) || 30;
-  const locationId = searchParams.branch || null;
-  const category = searchParams.category || null;
+  const fallback = defaultDateRange();
+  const range: DateRange = {
+    from: params.from || fallback.from,
+    to: params.to || fallback.to
+  };
+  const locationId = params.branch || null;
+  const category = params.category || null;
   const filters = { locationId, category };
 
   const supabase = await createClient();
 
   const [summary, recentActivity, { data: latestInsight }, { data: locationRows }, { data: categoryRows }] =
     await Promise.all([
-      getFinancialSummary(context.orgId, days, filters),
+      getFinancialSummary(context.orgId, range, filters),
       getRecentActivity(context.orgId, 8, filters),
       supabase
         .from("ai_insights")
@@ -54,6 +63,7 @@ export default async function DashboardPage({
       recentActivity={recentActivity}
       branches={branches}
       categories={categories}
+      currentRange={range}
     />
   );
 }

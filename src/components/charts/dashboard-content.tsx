@@ -12,7 +12,7 @@ import {
   Plus,
   ArrowRight
 } from "lucide-react";
-import type { FinancialSummary, ActivityItem } from "@/lib/accounting/metrics";
+import type { FinancialSummary, ActivityItem, DateRange } from "@/lib/accounting/metrics";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { KpiFlipCard, type KpiFlipColor } from "@/components/charts/kpi-flip-card";
@@ -36,6 +36,7 @@ interface Kpi {
   icon: React.ReactNode;
   trend?: FinancialSummary["trends"]["revenue"];
   detail: string;
+  featured?: boolean;
 }
 
 export function DashboardContent({
@@ -45,7 +46,8 @@ export function DashboardContent({
   latestInsight,
   recentActivity,
   branches,
-  categories
+  categories,
+  currentRange
 }: {
   summary: FinancialSummary;
   orgName: string;
@@ -54,6 +56,7 @@ export function DashboardContent({
   recentActivity: ActivityItem[];
   branches: FilterOption[];
   categories: FilterOption[];
+  currentRange: DateRange;
 }) {
   const insightLines = latestInsight
     ? latestInsight.content
@@ -68,7 +71,8 @@ export function DashboardContent({
     {
       label: "Sales today",
       value: formatMoney(summary.salesToday, currency),
-      color: "blue",
+      color: "green",
+      featured: true,
       icon: <DollarSign className="h-full w-full" />,
       detail: `Total recorded so far today, live from your Sales module.`
     },
@@ -143,7 +147,7 @@ export function DashboardContent({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <DateRangeFilter currentDays={summary.periodDays} />
+          <DateRangeFilter from={currentRange.from} to={currentRange.to} />
           <DashboardFilters branches={branches} categories={categories} />
           <Link href="/sales/new">
             <Button size="sm">
@@ -165,6 +169,7 @@ export function DashboardContent({
             trend={kpi.trend}
             trendSuffix={kpi.trend ? `vs prior period` : undefined}
             detail={kpi.detail}
+            featured={kpi.featured}
           />
         ))}
       </div>

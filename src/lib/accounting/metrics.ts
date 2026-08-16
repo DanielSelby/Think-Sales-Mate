@@ -1,19 +1,36 @@
 import { createClient } from "@/lib/supabase/server";
 
-function daysAgo(days: number, from: Date = new Date()) {
-  const d = new Date(from);
-  d.setDate(d.getDate() - days);
-  return d;
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function addDays(d: Date, n: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
 }
 
 function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfDay(new Date());
 }
 
 function dateKey(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+/** Parses a 'YYYY-MM-DD' search-param string as a local calendar date (not UTC). */
+function parseDateParam(value: string): Date {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+export interface DateRange {
+  /** Inclusive, 'YYYY-MM-DD' */
+  from: string;
+  /** Inclusive, 'YYYY-MM-DD' */
+  to: string;
 }
 
 export interface BestSeller {
@@ -101,15 +118,40 @@ export interface DashboardFilters {
   category?: string | null;
 }
 
+function localDateKey(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Last-30-days-including-today, used when a caller doesn't pass an explicit range. */
+export function defaultDateRange(): DateRange {
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - 29);
+  return { from: localDateKey(start), to: localDateKey(today) };
+}
+
 export async function getFinancialSummary(
   orgId: string,
-  days: number = 30,
+  range: DateRange = defaultDateRange(),
   filters: DashboardFilters = {}
 ): Promise<FinancialSummary> {
   const { locationId, category } = filters;
   const supabase = await createClient();
-  const periodStart = daysAgo(days).toISOString();
-  const prevPeriodStart = daysAgo(days * 2).toISOString();
+
+  const periodStartDate = startOfDay(parseDateParam(range.from));
+  // 'to' is inclusive, so the exclusive upper bound is the start of the next day.
+  const periodEndExclusiveDate = addDays(startOfDay(parseDateParam(range.to)), 1);
+  const days = Math.max(1, Math.round((periodEndExclusiveDate.getTime() - periodStartDate.getTime()) / 86400000));
+  const prevPeriodStartDate = addDays(periodStartDate, -days);
+
+  const periodStart = periodStartDate.toISOString();
+  const periodEndExclusive = periodEndExclusiveDate.toISOString();
+  const prevPeriodStart = prevPeriodStartDate.toISOString();
+  // "Sales today" is always the real current day, independent of whatever
+  // historical range is selected — it's a live counter, not a period figure.
   const todayStart = startOfToday().toISOString();
 
   // sale_items has no location_id of its own — it only reaches a branch via
@@ -124,14 +166,24 @@ export async function getFinancialSummary(
   const salesJoin = locationId ? ", sales!inner(location_id)" : "";
   const itemsSelect = `quantity, unit_price, line_total, created_at, product_id, sale_id, ${productsJoin}${salesJoin}`;
 
-  let salesQuery = supabase.from("sales").select("total, created_at").eq("org_id", orgId).gte("created_at", periodStart);
+  let salesQuery = supabase
+    .from("sales")
+    .select("total, created_at")
+    .eq("org_id", orgId)
+    .gte("created_at", periodStart)
+    .lt("created_at", periodEndExclusive);
   let salesPrevQuery = supabase
     .from("sales")
     .select("total, created_at")
     .eq("org_id", orgId)
     .gte("created_at", prevPeriodStart)
     .lt("created_at", periodStart);
-  let itemsQuery = supabase.from("sale_items").select(itemsSelect).eq("org_id", orgId).gte("created_at", periodStart);
+  let itemsQuery = supabase
+    .from("sale_items")
+    .select(itemsSelect)
+    .eq("org_id", orgId)
+    .gte("created_at", periodStart)
+    .lt("created_at", periodEndExclusive);
   // Only needed to recompute revenue/order-count trends when a category
   // filter is active (see note below on why sales.total can't be reused).
   let itemsPrevQuery = supabase
@@ -148,7 +200,8 @@ export async function getFinancialSummary(
     .from("expenses")
     .select("amount, expense_date")
     .eq("org_id", orgId)
-    .gte("expense_date", periodStart.slice(0, 10));
+    .gte("expense_date", periodStart.slice(0, 10))
+    .lt("expense_date", periodEndExclusive.slice(0, 10));
   let expensePrevQuery = supabase
     .from("expenses")
     .select("amount, expense_date")
@@ -267,7 +320,9 @@ export async function getFinancialSummary(
 
   // invoices has no location_id or category column, so receivables figures
   // stay org-wide even when a branch/category filter is active.
-  const paidInvoicesPeriod = (invoiceRows ?? []).filter((i) => i.status === "paid" && i.paid_at && i.paid_at >= periodStart);
+  const paidInvoicesPeriod = (invoiceRows ?? []).filter(
+    (i) => i.status === "paid" && i.paid_at && i.paid_at >= periodStart && i.paid_at < periodEndExclusive
+  );
   const invoicePayments30d = paidInvoicesPeriod.reduce((sum, i) => sum + Number(i.amount), 0);
   const cashIn30d = revenue30d + invoicePayments30d;
   const cashOut30d = expenses30d;
@@ -282,8 +337,8 @@ export async function getFinancialSummary(
   const outOfStockCount = activeProducts.filter((p) => p.stock_quantity === 0).length;
 
   const dayBuckets = new Map<string, DailyPoint>();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = daysAgo(i);
+  for (let i = 0; i < days; i++) {
+    const d = addDays(periodStartDate, i);
     const key = dateKey(d);
     dayBuckets.set(key, {
       date: key,
@@ -326,7 +381,7 @@ export async function getFinancialSummary(
   const revenueByProduct30d: RevenueSlice[] = top5.map((s) => ({ name: s.name, value: s.revenue }));
   if (otherTotal > 0) revenueByProduct30d.push({ name: "Other", value: otherTotal });
 
-  const periodLabel = `${new Date(periodStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+  const periodLabel = `${periodStartDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${addDays(periodEndExclusiveDate, -1).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
 
   return {
     periodDays: days,
