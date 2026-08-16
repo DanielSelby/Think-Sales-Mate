@@ -5,6 +5,52 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { HeldSaleKind } from "@/types/database";
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+type AuthUser = { id: string; user_metadata?: { full_name?: string | null } | null };
+
+// held_sales.created_by (and a handful of other created_by columns) has a
+// foreign key to profiles(id), which is normally populated by a trigger the
+// moment someone signs up. Any account that predates that trigger — or
+// otherwise never got a profiles row — hits a FK violation on the very
+// first insert that references it. This makes that self-healing instead of
+// a hard failure: see the 20260816090000 migration for the permanent fix.
+async function ensureProfile(supabase: SupabaseClient, user: AuthUser) {
+  await supabase
+    .from("profiles")
+    .upsert({ id: user.id, full_name: user.user_metadata?.full_name ?? null }, { onConflict: "id", ignoreDuplicates: true });
+}
+
+export interface RecentSale {
+  id: string;
+  saleNumber: number;
+  customerName: string | null;
+  total: number;
+  paymentMethod: string | null;
+  createdAt: string;
+}
+
+export async function getRecentPosSales(locationId: string | null, limit: number = 10): Promise<RecentSale[]> {
+  const context = await getCurrentOrgContext();
+  if (!context) return [];
+  const supabase = await createClient();
+  let q = supabase
+    .from("sales")
+    .select("id, sale_number, customer_name, total, payment_method, created_at")
+    .eq("org_id", context.orgId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (locationId) q = q.eq("location_id", locationId);
+  const { data } = await q;
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    saleNumber: s.sale_number,
+    customerName: s.customer_name,
+    total: s.total,
+    paymentMethod: s.payment_method,
+    createdAt: s.created_at
+  }));
+}
+
 export interface CartItemInput {
   productId: string;
   name: string;
@@ -91,6 +137,7 @@ export async function parkSale(input: HeldSaleInput): Promise<SimpleResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  await ensureProfile(supabase, user);
 
   const { error } = await supabase.from("held_sales").insert({
     org_id: context.orgId,
@@ -187,6 +234,7 @@ export interface CompleteSaleInput {
   orderNote: string | null;
   items: CartItemInput[];
   discountAmount: number;
+  shippingAmount: number;
   paymentMethod: string;
 }
 
@@ -207,16 +255,38 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   if (!user) return { ok: false, error: "You must be signed in." };
 
   // Re-check stock at time of sale — the grid the cashier was looking at
-  // may be a few seconds stale.
-  const { data: stockRows } = await supabase
-    .from("products")
-    .select("id, name, stock_quantity")
-    .in("id", input.items.map((i) => i.productId));
-  const stockById = new Map((stockRows ?? []).map((p) => [p.id, p.stock_quantity]));
+  // may be a few seconds stale. IMPORTANT: this must check the SELECTED
+  // BRANCH's stock, not products.stock_quantity (that's an org-wide total
+  // across every branch now — see 20260805110000_product_stock_source_of_truth).
+  // Checking the org-wide number let a sale go through when the org had
+  // enough stock overall but not at this specific location, and the
+  // location-scoped RPC below would then try to take that branch's row
+  // negative and hit the DB's quantity >= 0 check constraint.
+  //
+  // A product with no product_stock_levels rows anywhere has never been
+  // assigned to a branch (see the "untracked" note in that migration) — for
+  // those only, fall back to the org-wide total rather than treating them
+  // as zero-stock everywhere.
+  const productIds = input.items.map((i) => i.productId);
+  const [{ data: allStockRows }, { data: productRows }] = await Promise.all([
+    supabase.from("product_stock_levels").select("product_id, location_id, quantity").in("product_id", productIds),
+    supabase.from("products").select("id, stock_quantity").in("id", productIds)
+  ]);
+  const orgWideById = new Map((productRows ?? []).map((p) => [p.id, p.stock_quantity]));
+  const rowsByProduct = new Map<string, { location_id: string; quantity: number }[]>();
+  for (const row of allStockRows ?? []) {
+    const list = rowsByProduct.get(row.product_id) ?? [];
+    list.push(row);
+    rowsByProduct.set(row.product_id, list);
+  }
+
   for (const item of input.items) {
-    const available = stockById.get(item.productId) ?? 0;
+    const rows = rowsByProduct.get(item.productId);
+    const available = rows
+      ? (rows.find((r) => r.location_id === input.locationId)?.quantity ?? 0)
+      : (orgWideById.get(item.productId) ?? 0);
     if (item.quantity > available) {
-      return { ok: false, error: `Only ${available} unit(s) of "${item.name}" left in stock.` };
+      return { ok: false, error: `Only ${available} unit(s) of "${item.name}" available at this branch.` };
     }
   }
 
@@ -232,7 +302,8 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const itemsDiscount = lines.reduce((sum, l) => sum + (l.gross * l.discountPercent) / 100, 0);
   const tax = lines.reduce((sum, l) => sum + l.lineTax, 0);
   const totalDiscount = itemsDiscount + Math.max(0, input.discountAmount);
-  const total = Math.max(0, subtotal - totalDiscount + tax);
+  const shipping = Math.max(0, input.shippingAmount);
+  const total = Math.max(0, subtotal - totalDiscount + tax + shipping);
 
   const { data: sale, error: saleError } = await supabase
     .from("sales")
@@ -245,7 +316,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       subtotal,
       discount_amount: totalDiscount,
       tax_amount: tax,
-      shipping_amount: 0,
+      shipping_amount: shipping,
       total,
       payment_method: input.paymentMethod,
       amount_paid: total, // POS sales are paid in full at the point of sale
@@ -272,6 +343,24 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   if (itemsError) {
     await supabase.from("sales").delete().eq("id", sale.id);
     return { ok: false, error: itemsError.message };
+  }
+
+  // Untracked products (no product_stock_levels row anywhere) were validated
+  // above against their org-wide total, but adjust_product_stock_at_location
+  // does a plain upsert — for a product with zero rows, that would insert a
+  // fresh row at exactly -quantity, hitting the same check constraint this
+  // whole fix is for. Seed each untracked product at this location with its
+  // org-wide total first, so the decrement below has something real to
+  // subtract from. on conflict do nothing so a concurrent sale can't double-seed.
+  const untrackedIds = productIds.filter((id) => !rowsByProduct.has(id));
+  if (untrackedIds.length > 0) {
+    const seedRows = untrackedIds.map((id) => ({
+      org_id: context.orgId,
+      product_id: id,
+      location_id: input.locationId,
+      quantity: orgWideById.get(id) ?? 0
+    }));
+    await supabase.from("product_stock_levels").upsert(seedRows, { onConflict: "product_id,location_id", ignoreDuplicates: true });
   }
 
   for (const item of input.items) {

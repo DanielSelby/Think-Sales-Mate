@@ -11,7 +11,7 @@ export default async function PosPage() {
   const orgId = context.orgId;
   const supabase = await createClient();
 
-  const [{ data: products }, { data: locations }] = await Promise.all([
+  const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }] = await Promise.all([
     supabase
       .from("products")
       .select("id, name, sku, barcode, category, unit_price, stock_quantity")
@@ -19,6 +19,10 @@ export default async function PosPage() {
       .eq("is_active", true)
       .order("name"),
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
+    // Per-branch stock — the product grid needs this to only show/allow
+    // what's actually at the selected branch, not the org-wide total.
+    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId),
+    supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle()
   ]);
 
   const rawProducts = products ?? [];
@@ -37,8 +41,10 @@ export default async function PosPage() {
       }))}
       categories={categories}
       locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name }))}
+      stockLevels={(stockLevels ?? []).map((s) => ({ productId: s.product_id, locationId: s.location_id, quantity: s.quantity }))}
       currency={context.currency}
       taxRatePercent={15}
+      cashierName={profile?.full_name || context.userEmail}
     />
   );
 }
