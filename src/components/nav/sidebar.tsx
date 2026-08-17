@@ -206,6 +206,23 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       )}
       style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
     >
+
+     {/* Top collapse toggle — floating pill on the sidebar's edge */}
+  <button
+    title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+    onClick={toggleSidebar}
+    className="absolute -right-3 top-6 z-20 flex h-7 w-6 items-center justify-center rounded-full border shadow-card"
+    style={{
+      background: theme.colors.surface,
+      borderColor: sidebar.borderColor,
+      color: sidebar.textMuted,
+    }}
+    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = theme.colors.text; }}
+    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = sidebar.textMuted; }}
+  >
+    {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+  </button>
+   
       {/* ── Logo ── */}
       <div className="flex h-14 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
