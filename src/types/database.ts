@@ -1282,6 +1282,10 @@ export interface Database {
           phone: string | null;
           company: string | null;
           notes: string | null;
+          contact_type: string;
+          alternate_phone: string | null;
+          landline: string | null;
+          contact_id: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -1294,6 +1298,10 @@ export interface Database {
           phone?: string | null;
           company?: string | null;
           notes?: string | null;
+          contact_type?: string;
+          alternate_phone?: string | null;
+          landline?: string | null;
+          contact_id?: string | null;
           created_by: string;
           created_at?: string;
           updated_at?: string;
@@ -1301,6 +1309,7 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["customers"]["Row"]>;
         Relationships: [];
       };
+      
       employees: {
         Row: {
           id: string;

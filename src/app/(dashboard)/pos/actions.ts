@@ -35,9 +35,9 @@ export async function getRecentPosSales(locationId: string | null, limit: number
   const supabase = await createClient();
   let q = supabase
     .from("sales")
-    .select("id, sale_number, customer_name, total, payment_method, created_at")
+    .select("id, sale_number, customer_name, total, payment_method, sale_date")
     .eq("org_id", context.orgId)
-    .order("created_at", { ascending: false })
+    .order("sale_date", { ascending: false })
     .limit(limit);
   if (locationId) q = q.eq("location_id", locationId);
   const { data } = await q;
@@ -47,7 +47,7 @@ export async function getRecentPosSales(locationId: string | null, limit: number
     customerName: s.customer_name,
     total: s.total,
     paymentMethod: s.payment_method,
-    createdAt: s.created_at
+    createdAt: s.sale_date
   }));
 }
 
@@ -95,6 +95,45 @@ export async function searchCustomers(query: string): Promise<CustomerOption[]> 
   return data ?? [];
 }
 
+export interface NewContactInput {
+  name: string;
+  contactType: "individual" | "business";
+  contactId: string | null;
+  phone: string; // required — "Mobile*" in the form
+  alternatePhone: string | null;
+  landline: string | null;
+  email: string | null;
+}
+
+export async function addCustomer(input: NewContactInput): Promise<{ ok: boolean; error?: string; customer?: CustomerOption }> {
+  if (!input.name.trim()) return { ok: false, error: "Name is required." };
+  if (!input.phone.trim()) return { ok: false, error: "Mobile number is required." };
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const { data, error } = await supabase
+    .from("customers")
+    .insert({
+      org_id: context.orgId,
+      name: input.name.trim(),
+      phone: input.phone.trim(),
+      email: input.email,
+      contact_type: input.contactType,
+      contact_id: input.contactId,
+      alternate_phone: input.alternatePhone,
+      landline: input.landline,
+      created_by: user.id,
+    })
+    .select("id, name, phone, email")
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? "Couldn't add customer." };
+  return { ok: true, customer: data };
+}
+
+// Kept for anywhere still using the old 3-field quick-add.
 export async function quickAddCustomer(name: string, phone: string | null, email: string | null): Promise<{ ok: boolean; error?: string; customer?: CustomerOption }> {
   if (!name.trim()) return { ok: false, error: "Name is required." };
   const context = await getCurrentOrgContext();
@@ -236,6 +275,7 @@ export interface CompleteSaleInput {
   discountAmount: number;
   shippingAmount: number;
   paymentMethod: string;
+  saleDate: string; // ISO datetime — lets a cashier record a sale under a different date/time
 }
 
 export interface CompleteSaleResult {
@@ -322,6 +362,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       amount_paid: total, // POS sales are paid in full at the point of sale
       sold_by: user.id,
       status: "completed",
+      sale_date: input.saleDate || new Date().toISOString(),
     })
     .select("id, sale_number")
     .single();
@@ -371,7 +412,14 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       p_delta: -item.quantity,
     });
     if (rpcError) {
-      return { ok: false, error: `Sale saved, but stock update failed for one item: ${rpcError.message}`, saleId: sale.id };
+      // The RPC now locks the row and checks sufficiency itself (see the
+      // 20260817090000 migration) — if this still fires, someone else's
+      // sale took the remaining stock in the moment between this sale's
+      // precheck above and this decrement. That's a real race, not a bug.
+      const friendly = rpcError.message.includes("insufficient_stock")
+        ? `Someone just sold the last unit(s) of "${item.name}" at this branch. Adjust the quantity and try again.`
+        : `Sale saved, but stock update failed for one item: ${rpcError.message}`;
+      return { ok: false, error: friendly, saleId: sale.id };
     }
   }
 

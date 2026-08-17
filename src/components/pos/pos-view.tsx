@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
   X, Trash2, Inbox, ChevronsLeft, XCircle, Briefcase, Calculator as CalculatorIcon,
-  RotateCcw, Keyboard, PlusCircle, Delete, History, Layers, Tag,
+  RotateCcw, Keyboard, PlusCircle, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
+import { useAppStore } from "@/store/useAppStore";
 import {
-  completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, quickAddCustomer,
+  completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
   getRecentPosSales,
-  type CartItemInput, type CustomerOption, type HeldSaleSummary, type RecentSale,
+  type CartItemInput, type CustomerOption, type HeldSaleSummary, type RecentSale, type NewContactInput,
 } from "@/app/(dashboard)/pos/actions";
 import type { HeldSaleKind } from "@/types/database";
 
@@ -49,8 +50,25 @@ interface CartLine extends CartItemInput {
   maxStock: number;
 }
 
+function isoToLocalInput(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function PosView({ products, categories, locations, stockLevels, currency, taxRatePercent, cashierName }: PosViewProps) {
   const router = useRouter();
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+
+  // The POS screen needs the full width — collapse the nav sidebar on
+  // entry and restore whatever it was set to when leaving.
+  React.useEffect(() => {
+    const wasCollapsed = useAppStore.getState().sidebarCollapsed;
+    setSidebarCollapsed(true);
+    return () => setSidebarCollapsed(wasCollapsed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [browseTab, setBrowseTab] = React.useState<"category" | "brands">("category");
   const [query, setQuery] = React.useState("");
   const [activeCategory, setActiveCategory] = React.useState("all");
@@ -62,6 +80,8 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [customerQuery, setCustomerQuery] = React.useState("");
   const [customerResults, setCustomerResults] = React.useState<CustomerOption[]>([]);
   const [customerOpen, setCustomerOpen] = React.useState(false);
+  const [addContactOpen, setAddContactOpen] = React.useState(false);
+  const [saleDate, setSaleDate] = React.useState(() => isoToLocalInput(new Date().toISOString()));
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [shippingAmount, setShippingAmount] = React.useState(0);
   const [paymentMethod, setPaymentMethod] = React.useState("Cash");
@@ -76,7 +96,9 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [heldLoading, setHeldLoading] = React.useState(false);
 
   const [recentOpen, setRecentOpen] = React.useState(false);
-  const [recentList, setRecentList] = React.useState<RecentSale[]>([]);
+  const [recentTab, setRecentTab] = React.useState<HeldSaleKind | "final">("final");
+  const [recentFinal, setRecentFinal] = React.useState<RecentSale[]>([]);
+  const [recentDrafts, setRecentDrafts] = React.useState<HeldSaleSummary[]>([]);
   const [recentLoading, setRecentLoading] = React.useState(false);
 
   const [calcOpen, setCalcOpen] = React.useState(false);
@@ -144,7 +166,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
           setError(`Only ${product.stockQuantity} unit(s) of ${product.name} available.`);
           return prev;
         }
-        return prev.map((l) => (l.productId === product.id ? { ...l, quantity: l.quantity + 1 } : l));
+        return prev.map((l) => (l.productId === product.id ? { ...l, quantity: l.quantity + 1, maxStock: product.stockQuantity } : l));
       }
       return [
         ...prev,
@@ -183,6 +205,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
     setCustomer(null);
     setDiscountAmount(0);
     setShippingAmount(0);
+    setSaleDate(isoToLocalInput(new Date().toISOString()));
   }
   function handleVoid() {
     if (cart.length === 0) return;
@@ -205,16 +228,6 @@ export function PosView({ products, categories, locations, stockLevels, currency
     return () => clearTimeout(t);
   }, [customerQuery, customerOpen]);
 
-  async function handleQuickAddCustomer() {
-    if (!customerQuery.trim()) return;
-    const result = await quickAddCustomer(customerQuery.trim(), null, null);
-    if (result.ok && result.customer) {
-      setCustomer(result.customer);
-      setCustomerOpen(false);
-      setCustomerQuery("");
-    }
-  }
-
   function buildCartInput(): CartItemInput[] {
     return cart.map((l) => ({ productId: l.productId, name: l.name, sku: l.sku, unitPrice: l.unitPrice, quantity: l.quantity, discountPercent: l.discountPercent, taxPercent: l.taxPercent }));
   }
@@ -232,6 +245,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
       const result = await completeSale({
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
         orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method,
+        saleDate: new Date(saleDate).toISOString(),
       });
       if (!result.ok) {
         setError(result.error ?? "Something went wrong.");
@@ -283,6 +297,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
       setCustomer(resumed.customerId ? { id: resumed.customerId, name: resumed.customerName ?? "", phone: resumed.customerPhone, email: null } : null);
       if (resumed.locationId) setLocationId(resumed.locationId);
       setHeldOpen(false);
+      setRecentOpen(false);
       router.refresh();
     });
   }
@@ -294,8 +309,17 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
   function openRecentTransactions() {
     setRecentOpen(true);
+    setRecentTab("final");
+    loadRecentTab("final");
+  }
+  function loadRecentTab(tab: HeldSaleKind | "final") {
+    setRecentTab(tab);
     setRecentLoading(true);
-    getRecentPosSales(locationId).then((list) => { setRecentList(list); setRecentLoading(false); });
+    if (tab === "final") {
+      getRecentPosSales(locationId).then((list) => { setRecentFinal(list); setRecentLoading(false); });
+    } else {
+      listHeldSales(tab).then((list) => { setRecentDrafts(list); setRecentLoading(false); });
+    }
   }
 
   const multiPayTotal = multiPay.cash + multiPay.card + multiPay.momo;
@@ -320,24 +344,24 @@ export function PosView({ products, categories, locations, stockLevels, currency
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ledger-100 bg-white p-2 dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium text-ledger-500">Location:</span>
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="h-10 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
             {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
-        <span className="flex h-9 items-center gap-1.5 rounded-md bg-ink-900 px-3 text-xs font-semibold text-white dark:bg-white dark:text-ink-900">{dateLabel}</span>
+        <span className="flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-3 text-xs font-semibold text-white dark:bg-white dark:text-ink-900">{dateLabel}</span>
 
-        <div className="flex items-center gap-1.5">
-          <button title="Back" onClick={() => router.back()} className="flex h-9 w-9 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
-          <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-9 w-9 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
-          <Link href="/sales" title="Register / all sales" className="flex h-9 w-9 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
-          <button title="Calculator" onClick={() => setCalcOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><CalculatorIcon className="h-4 w-4" /></button>
-          <button title="Refresh stock" onClick={() => router.refresh()} className="flex h-9 w-9 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><RotateCcw className="h-4 w-4" /></button>
-          <button title="Focus search / scan" onClick={() => searchInputRef.current?.focus()} className="flex h-9 w-9 items-center justify-center rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50"><Keyboard className="h-4 w-4" /></button>
-          <button title="Suspended sales" onClick={() => openHeldList("hold")} className="flex h-9 w-9 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><Pause className="h-4 w-4" /></button>
+        <div className="flex flex-1 items-center justify-center gap-2">
+          <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
+          <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
+          <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
+          <button title="Calculator" onClick={() => setCalcOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><CalculatorIcon className="h-4 w-4" /></button>
+          <button title="Refresh stock" onClick={() => router.refresh()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><RotateCcw className="h-4 w-4" /></button>
+          <button title="Focus search / scan" onClick={() => searchInputRef.current?.focus()} className="flex h-10 w-10 items-center justify-center rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50"><Keyboard className="h-4 w-4" /></button>
+          <button title="Suspended sales" onClick={() => openHeldList("hold")} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><Pause className="h-4 w-4" /></button>
         </div>
 
-        <div className="ml-auto">
+        <div>
           <Link href="/accounting/expenses/new">
             <Button variant="outline" size="sm"><PlusCircle className="h-3.5 w-3.5" /> Add Expense</Button>
           </Link>
@@ -382,14 +406,16 @@ export function PosView({ products, categories, locations, stockLevels, currency
                 key={p.id}
                 onClick={() => addToCart(p)}
                 disabled={p.stockQuantity <= 0}
-                className="flex flex-col items-start rounded-md border border-ledger-100 bg-white p-3 text-left transition-all hover:border-signal hover:shadow-card-hover disabled:opacity-40 dark:border-ledger-700 dark:bg-ink-900"
+                className="flex flex-col items-center rounded-md border border-ledger-100 bg-white p-2.5 text-center transition-all hover:border-signal hover:shadow-card-hover disabled:opacity-40 dark:border-ledger-700 dark:bg-ink-900"
               >
-                <div className="mb-2 flex h-16 w-full items-center justify-center rounded-md bg-ledger-100 dark:bg-white/[0.06]">
-                  <Package className="h-6 w-6 text-ledger-400" />
+                <div className="mb-2 flex h-14 w-full items-center justify-center rounded-md bg-ledger-100 dark:bg-white/[0.06]">
+                  <Package className="h-5 w-5 text-ledger-400" />
                 </div>
-                <p className="line-clamp-2 text-sm font-medium text-ink-900 dark:text-white">{p.name}</p>
-                <p className="mt-1 font-mono text-sm text-ink-900 dark:text-white">{formatCurrency(p.unitPrice, currency)}</p>
-                <p className={cn("text-xs", p.stockQuantity > 0 ? "text-signal" : "text-alert")}>In Stock ({p.stockQuantity})</p>
+                <p className="line-clamp-2 text-[11px] font-medium leading-tight text-ink-900 dark:text-white">{p.name}</p>
+                <div className="mt-1 flex w-full items-center justify-between gap-1">
+                  <span className="font-mono text-xs text-ink-900 dark:text-white">{formatCurrency(p.unitPrice, currency)}</span>
+                  <span className={cn("text-[10px] font-medium", p.stockQuantity > 0 ? "text-signal" : "text-alert")}>({p.stockQuantity})</span>
+                </div>
               </button>
             ))}
           </div>
@@ -407,8 +433,8 @@ export function PosView({ products, categories, locations, stockLevels, currency
                   </div>
                 ) : (
                   <div className="flex gap-1">
-                    <Input value={customerQuery} onFocus={() => setCustomerOpen(true)} onChange={(e) => { setCustomerQuery(e.target.value); setCustomerOpen(true); }} placeholder="Walk-In Customer" />
-                    <Button variant="outline" size="md" onClick={handleQuickAddCustomer} title="Quick add"><UserPlus className="h-4 w-4" /></Button>
+                    <Input value={customerQuery} onFocus={() => setCustomerOpen(true)} onChange={(e) => { setCustomerQuery(e.target.value); setCustomerOpen(true); }} placeholder="Walk-In Customer" className="h-10" />
+                    <Button variant="outline" size="md" onClick={() => setAddContactOpen(true)} title="Add a new contact"><UserPlus className="h-4 w-4" /></Button>
                   </div>
                 )}
                 {customerOpen && !customer && customerResults.length > 0 && (
@@ -424,7 +450,18 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
-                <Input ref={searchInputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onBarcodeEnter} placeholder="Product name / SKU / scan barcode" className="pl-9" />
+                <Input ref={searchInputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onBarcodeEnter} placeholder="Product name / SKU / scan barcode" className="h-10 pl-9" />
+              </div>
+
+              {/* Select date — under the Walk-In Customer field */}
+              <div className="relative col-span-1">
+                <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
+                <input
+                  type="datetime-local"
+                  value={saleDate}
+                  onChange={(e) => setSaleDate(e.target.value)}
+                  className="h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                />
               </div>
             </div>
 
@@ -529,7 +566,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
         </div>
       </div>
 
-      {/* Held / draft sales */}
+      {/* Held / draft sales (Pause icon shortcut) */}
       <Dialog open={heldOpen} onClose={() => setHeldOpen(false)} title={heldKind === "hold" ? "Suspended Sales" : "Draft Sales"}>
         <div className="max-h-80 space-y-2 overflow-y-auto">
           {heldLoading && <p className="py-6 text-center text-sm text-ledger-400">Loading...</p>}
@@ -553,24 +590,57 @@ export function PosView({ products, categories, locations, stockLevels, currency
         </div>
       </Dialog>
 
-      {/* Recent transactions */}
+      {/* Recent transactions: Final / Draft tabs, numbered rows, Edit + Print */}
       <Dialog open={recentOpen} onClose={() => setRecentOpen(false)} title="Recent Transactions">
-        <div className="max-h-80 space-y-2 overflow-y-auto">
-          {recentLoading && <p className="py-6 text-center text-sm text-ledger-400">Loading...</p>}
-          {!recentLoading && recentList.length === 0 && (
-            <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-ledger-400">
-              <Inbox className="h-6 w-6" /> No sales yet at this branch.
-            </div>
-          )}
-          {recentList.map((s) => (
-            <Link key={s.id} href={`/sales/${s.id}`} className="flex items-center justify-between rounded-md border border-ledger-100 p-3 text-sm hover:border-signal dark:border-ledger-700">
-              <div>
-                <p className="text-ink-900 dark:text-white">{s.saleNumber} · {s.customerName ?? "Walk-in"}</p>
-                <p className="text-xs text-ledger-400">{s.paymentMethod} · {new Date(s.createdAt).toLocaleString()}</p>
+        <div className="space-y-3">
+          <div className="flex gap-4 border-b border-ledger-100 dark:border-ledger-700">
+            <button
+              onClick={() => loadRecentTab("final")}
+              className={cn("flex items-center gap-1.5 border-b-2 pb-2 text-sm font-medium", recentTab === "final" ? "border-signal text-signal" : "border-transparent text-ledger-400 hover:text-ledger-600")}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" /> Final
+            </button>
+            <button
+              onClick={() => loadRecentTab("draft")}
+              className={cn("flex items-center gap-1.5 border-b-2 pb-2 text-sm font-medium", recentTab === "draft" ? "border-signal text-signal" : "border-transparent text-ledger-400 hover:text-ledger-600")}
+            >
+              <FileText className="h-3.5 w-3.5" /> Draft
+            </button>
+          </div>
+
+          <div className="max-h-80 space-y-1 overflow-y-auto">
+            {recentLoading && <p className="py-6 text-center text-sm text-ledger-400">Loading...</p>}
+
+            {!recentLoading && recentTab === "final" && recentFinal.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-ledger-400"><Inbox className="h-6 w-6" /> No sales yet at this branch.</div>
+            )}
+            {!recentLoading && recentTab === "final" && recentFinal.map((s, i) => (
+              <div key={s.id} className="flex items-center justify-between border-b border-ledger-50 py-2.5 text-sm dark:border-white/5">
+                <span className="w-6 shrink-0 text-ledger-400">{i + 1}.</span>
+                <span className="flex-1 truncate text-ink-900 dark:text-white">{s.saleNumber} <span className="text-ledger-400">({s.customerName ?? "Walk-In Customer"})</span></span>
+                <span className="w-20 shrink-0 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(s.total, currency)}</span>
+                <span className="ml-3 flex shrink-0 gap-1.5">
+                  <Link href={`/sales/${s.id}`} className="flex items-center gap-1 rounded-md border border-signal/40 px-2 py-1 text-xs font-medium text-signal hover:bg-signal-soft"><Pencil className="h-3 w-3" /> Edit</Link>
+                  <Link href={`/sales/${s.id}`} target="_blank" className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Printer className="h-3 w-3" /> Print</Link>
+                </span>
               </div>
-              <span className="font-mono font-semibold text-ink-900 dark:text-white">{formatCurrency(s.total, currency)}</span>
-            </Link>
-          ))}
+            ))}
+
+            {!recentLoading && recentTab === "draft" && recentDrafts.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-ledger-400"><Inbox className="h-6 w-6" /> No drafts saved.</div>
+            )}
+            {!recentLoading && recentTab === "draft" && recentDrafts.map((h, i) => (
+              <div key={h.id} className="flex items-center justify-between border-b border-ledger-50 py-2.5 text-sm dark:border-white/5">
+                <span className="w-6 shrink-0 text-ledger-400">{i + 1}.</span>
+                <span className="flex-1 truncate text-ink-900 dark:text-white">{h.customerName ?? "Walk-In Customer"} <span className="text-ledger-400">· {h.itemCount} item(s)</span></span>
+                <span className="w-20 shrink-0 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(h.total, currency)}</span>
+                <span className="ml-3 flex shrink-0 gap-1.5">
+                  <button onClick={() => handleResume(h.id)} className="flex items-center gap-1 rounded-md border border-signal/40 px-2 py-1 text-xs font-medium text-signal hover:bg-signal-soft"><Pencil className="h-3 w-3" /> Resume</button>
+                  <button onClick={() => handleDeleteHeld(h.id)} className="flex items-center gap-1 rounded-md border border-alert/30 px-2 py-1 text-xs font-medium text-alert hover:bg-alert-soft"><Trash2 className="h-3 w-3" /> Delete</button>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </Dialog>
 
@@ -604,7 +674,111 @@ export function PosView({ products, categories, locations, stockLevels, currency
           </Button>
         </div>
       </Dialog>
+
+      {/* Add a new contact */}
+      <AddContactDialog
+        open={addContactOpen}
+        onClose={() => setAddContactOpen(false)}
+        onSaved={(c) => { setCustomer(c); setAddContactOpen(false); }}
+      />
     </div>
+  );
+}
+
+function AddContactDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: (c: CustomerOption) => void }) {
+  const [contactType, setContactType] = React.useState<"individual" | "business">("individual");
+  const [name, setName] = React.useState("");
+  const [contactId, setContactId] = React.useState("");
+  const [mobile, setMobile] = React.useState("");
+  const [alternatePhone, setAlternatePhone] = React.useState("");
+  const [landline, setLandline] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [more, setMore] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  function reset() {
+    setContactType("individual"); setName(""); setContactId(""); setMobile("");
+    setAlternatePhone(""); setLandline(""); setEmail(""); setMore(false); setErr(null);
+  }
+
+  async function handleSave() {
+    setErr(null);
+    if (!name.trim()) return setErr("Name is required.");
+    setSaving(true);
+    const input: NewContactInput = {
+      name, contactType, contactId: contactId || null, phone: mobile,
+      alternatePhone: alternatePhone || null, landline: landline || null, email: email || null,
+    };
+    const result = await addCustomer(input);
+    setSaving(false);
+    if (!result.ok || !result.customer) { setErr(result.error ?? "Couldn't save contact."); return; }
+    onSaved(result.customer);
+    reset();
+  }
+
+  return (
+    <Dialog open={open} onClose={() => { onClose(); reset(); }} title="Add a new contact" className="max-w-2xl">
+      <div className="space-y-4">
+        {err && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{err}</div>}
+
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-sm text-ledger-600 dark:text-ledger-300">
+            <input type="radio" checked={contactType === "individual"} onChange={() => setContactType("individual")} /> Individual
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-ledger-600 dark:text-ledger-300">
+            <input type="radio" checked={contactType === "business"} onChange={() => setContactType("business")} /> Business
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ledger-500">{contactType === "business" ? "Business name*" : "Name*"}</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={contactType === "business" ? "Business name" : "Full name"} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ledger-500">Contact ID</label>
+            <Input value={contactId} onChange={(e) => setContactId(e.target.value)} placeholder="Contact ID (optional)" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ledger-500">Mobile*</label>
+            <Input value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Mobile" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ledger-500">Alternate contact number</label>
+            <Input value={alternatePhone} onChange={(e) => setAlternatePhone(e.target.value)} placeholder="Alternate contact number" />
+          </div>
+        </div>
+
+        {more && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ledger-500">Landline</label>
+              <Input value={landline} onChange={(e) => setLandline(e.target.value)} placeholder="Landline" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ledger-500">Email</label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+            </div>
+          </div>
+        )}
+
+        <button onClick={() => setMore((v) => !v)} className="text-sm font-medium text-signal hover:underline">
+          {more ? "Fewer information" : "More Information"} {more ? "▲" : "▼"}
+        </button>
+        <p className="text-xs text-ledger-400">
+          Customer Group and Assigned-To aren't available yet — those need their own setup (a customer-group list, a staff picker) that this catalog doesn't have.
+        </p>
+
+        <div className="flex justify-end gap-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+          <Button variant="primary" onClick={handleSave} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Save</Button>
+          <Button variant="outline" onClick={() => { onClose(); reset(); }}>Close</Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 
