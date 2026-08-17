@@ -201,7 +201,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   return (
     <aside
       className={cn(
-        "flex h-screen flex-col transition-[width] duration-200 shrink-0",
+        "relative flex h-screen flex-col transition-[width] duration-200 shrink-0",
         collapsed ? "w-16" : "w-60"
       )}
       style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
@@ -222,7 +222,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   >
     {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
   </button>
-   
+
       {/* ── Logo ── */}
       <div className="flex h-14 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
