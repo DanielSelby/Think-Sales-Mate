@@ -27,6 +27,7 @@ export interface RecentSale {
   total: number;
   paymentMethod: string | null;
   createdAt: string;
+  itemsSummary: string;
 }
 
 export async function getRecentPosSales(locationId: string | null, limit: number = 10): Promise<RecentSale[]> {
@@ -41,14 +42,34 @@ export async function getRecentPosSales(locationId: string | null, limit: number
     .limit(limit);
   if (locationId) q = q.eq("location_id", locationId);
   const { data } = await q;
-  return (data ?? []).map((s) => ({
-    id: s.id,
-    saleNumber: s.sale_number,
-    customerName: s.customer_name,
-    total: s.total,
-    paymentMethod: s.payment_method,
-    createdAt: s.sale_date
-  }));
+  const sales = data ?? [];
+  if (sales.length === 0) return [];
+
+  const { data: itemRows } = await supabase
+    .from("sale_items")
+    .select("sale_id, quantity, products(name)")
+    .in("sale_id", sales.map((s) => s.id));
+  const namesBySale = new Map<string, string[]>();
+  for (const row of itemRows ?? []) {
+    const product = Array.isArray(row.products) ? row.products[0] : row.products;
+    const list = namesBySale.get(row.sale_id) ?? [];
+    list.push(product?.name ? `${product.name}${row.quantity > 1 ? ` ×${row.quantity}` : ""}` : "Unknown item");
+    namesBySale.set(row.sale_id, list);
+  }
+
+  return sales.map((s) => {
+    const names = namesBySale.get(s.id) ?? [];
+    const itemsSummary = names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ") || "No items";
+    return {
+      id: s.id,
+      saleNumber: s.sale_number,
+      customerName: s.customer_name,
+      total: s.total,
+      paymentMethod: s.payment_method,
+      createdAt: s.sale_date,
+      itemsSummary
+    };
+  });
 }
 
 export interface CartItemInput {
@@ -275,7 +296,7 @@ export interface CompleteSaleInput {
   discountAmount: number;
   shippingAmount: number;
   paymentMethod: string;
-  saleDate: string; // ISO datetime — lets a cashier record a sale under a different date/time
+  saleDate: string; // 'YYYY-MM-DD' — sales.sale_date is a DATE column, no time component
 }
 
 export interface CompleteSaleResult {
@@ -362,7 +383,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       amount_paid: total, // POS sales are paid in full at the point of sale
       sold_by: user.id,
       status: "completed",
-      sale_date: input.saleDate || new Date().toISOString(),
+      sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
     })
     .select("id, sale_number")
     .single();
@@ -427,4 +448,199 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   revalidatePath("/sales");
   revalidatePath("/inventory");
   return { ok: true, saleId: sale.id };
+}
+
+// ---------------------------------------------------------------------------
+// Edit an existing sale from the Recent Transactions list — loads it back
+// into the POS cart panel, and posts an update (reconciling stock) instead
+// of creating a new sale.
+// ---------------------------------------------------------------------------
+
+export interface EditableSale {
+  locationId: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  paymentMethod: string;
+  discountAmount: number;
+  shippingAmount: number;
+  saleDate: string;
+  items: CartItemInput[];
+}
+
+export async function getSaleForEdit(saleId: string): Promise<EditableSale | null> {
+  const supabase = await createClient();
+  const { data: sale } = await supabase
+    .from("sales")
+    .select("location_id, customer_id, customer_name, payment_method, discount_amount, shipping_amount, sale_date")
+    .eq("id", saleId)
+    .single();
+  if (!sale) return null;
+
+  const { data: items } = await supabase
+    .from("sale_items")
+    .select("product_id, quantity, unit_price, discount_percent, tax_percent, products(name, sku)")
+    .eq("sale_id", saleId);
+
+  return {
+    locationId: sale.location_id,
+    customerId: sale.customer_id,
+    customerName: sale.customer_name,
+    paymentMethod: sale.payment_method ?? "Cash",
+    // The item-level discount/tax split from the original sale isn't
+    // reconstructible from the stored total alone, so on edit the whole
+    // discount_amount is treated as the cart's flat discount field — same
+    // simplification the POS cart already uses for a fresh sale.
+    discountAmount: sale.discount_amount ?? 0,
+    shippingAmount: sale.shipping_amount ?? 0,
+    saleDate: sale.sale_date,
+    items: (items ?? []).map((i) => {
+      const product = Array.isArray(i.products) ? i.products[0] : i.products;
+      return {
+        productId: i.product_id,
+        name: product?.name ?? "Unknown product",
+        sku: product?.sku ?? "",
+        unitPrice: i.unit_price,
+        quantity: i.quantity,
+        discountPercent: i.discount_percent,
+        taxPercent: i.tax_percent,
+      };
+    }),
+  };
+}
+
+export async function updateSale(saleId: string, input: CompleteSaleInput): Promise<CompleteSaleResult> {
+  if (input.items.length === 0) return { ok: false, error: "Cart is empty." };
+  if (!input.locationId) return { ok: false, error: "Select a branch/location." };
+
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const { data: oldSale } = await supabase.from("sales").select("location_id").eq("id", saleId).single();
+  if (!oldSale) return { ok: false, error: "Sale not found." };
+  const { data: oldItems } = await supabase.from("sale_items").select("product_id, quantity").eq("sale_id", saleId);
+
+  // Same branch-aware precheck as a fresh sale, but the OLD quantities are
+  // effectively "available again" first — someone editing a sale down
+  // shouldn't be blocked by the very stock their own original sale used.
+  const productIds = input.items.map((i) => i.productId);
+  const [{ data: allStockRows }, { data: productRows }] = await Promise.all([
+    supabase.from("product_stock_levels").select("product_id, location_id, quantity").in("product_id", productIds),
+    supabase.from("products").select("id, stock_quantity").in("id", productIds)
+  ]);
+  const orgWideById = new Map((productRows ?? []).map((p) => [p.id, p.stock_quantity]));
+  const rowsByProduct = new Map<string, { location_id: string; quantity: number }[]>();
+  for (const row of allStockRows ?? []) {
+    const list = rowsByProduct.get(row.product_id) ?? [];
+    list.push(row);
+    rowsByProduct.set(row.product_id, list);
+  }
+  const oldQtyByProduct = new Map((oldItems ?? []).map((i) => [i.product_id, i.quantity]));
+
+  for (const item of input.items) {
+    const rows = rowsByProduct.get(item.productId);
+    const rawAvailable = rows
+      ? (rows.find((r) => r.location_id === input.locationId)?.quantity ?? 0)
+      : (orgWideById.get(item.productId) ?? 0);
+    // Only add back the old quantity if it was reserved at the SAME
+    // location this edit is now posting to — otherwise it'll be returned
+    // to the old location separately below, not this one.
+    const reclaimable = oldSale.location_id === input.locationId ? (oldQtyByProduct.get(item.productId) ?? 0) : 0;
+    const available = rawAvailable + reclaimable;
+    if (item.quantity > available) {
+      return { ok: false, error: `Only ${available} unit(s) of "${item.name}" available at this branch.` };
+    }
+  }
+
+  // Reverse the original deduction at wherever it was originally sold from.
+  if (oldSale.location_id) {
+    for (const oldItem of oldItems ?? []) {
+      await supabase.rpc("adjust_product_stock_at_location", {
+        p_product_id: oldItem.product_id,
+        p_location_id: oldSale.location_id,
+        p_org_id: context.orgId,
+        p_delta: oldItem.quantity,
+      });
+    }
+  }
+
+  const lines = input.items.map((item) => {
+    const gross = item.quantity * item.unitPrice;
+    const lineDiscount = gross * (item.discountPercent / 100);
+    const taxable = gross - lineDiscount;
+    const lineTax = taxable * (item.taxPercent / 100);
+    return { ...item, gross, lineTax, lineTotal: taxable + lineTax };
+  });
+  const subtotal = lines.reduce((sum, l) => sum + l.gross, 0);
+  const itemsDiscount = lines.reduce((sum, l) => sum + (l.gross * l.discountPercent) / 100, 0);
+  const tax = lines.reduce((sum, l) => sum + l.lineTax, 0);
+  const totalDiscount = itemsDiscount + Math.max(0, input.discountAmount);
+  const shipping = Math.max(0, input.shippingAmount);
+  const total = Math.max(0, subtotal - totalDiscount + tax + shipping);
+
+  const { error: updateError } = await supabase
+    .from("sales")
+    .update({
+      customer_name: input.customerName,
+      customer_id: input.customerId,
+      location_id: input.locationId,
+      subtotal,
+      discount_amount: totalDiscount,
+      tax_amount: tax,
+      shipping_amount: shipping,
+      total,
+      payment_method: input.paymentMethod,
+      amount_paid: total,
+      sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
+    })
+    .eq("id", saleId);
+  if (updateError) return { ok: false, error: updateError.message };
+
+  await supabase.from("sale_items").delete().eq("sale_id", saleId);
+  const { error: itemsError } = await supabase.from("sale_items").insert(
+    lines.map((l) => ({
+      sale_id: saleId,
+      product_id: l.productId,
+      org_id: context.orgId,
+      quantity: l.quantity,
+      unit_price: l.unitPrice,
+      discount_percent: l.discountPercent,
+      tax_percent: l.taxPercent,
+      line_total: l.lineTotal,
+    }))
+  );
+  if (itemsError) return { ok: false, error: itemsError.message };
+
+  const untrackedIds = productIds.filter((id) => !rowsByProduct.has(id));
+  if (untrackedIds.length > 0) {
+    const seedRows = untrackedIds.map((id) => ({
+      org_id: context.orgId,
+      product_id: id,
+      location_id: input.locationId,
+      quantity: orgWideById.get(id) ?? 0
+    }));
+    await supabase.from("product_stock_levels").upsert(seedRows, { onConflict: "product_id,location_id", ignoreDuplicates: true });
+  }
+
+  for (const item of input.items) {
+    const { error: rpcError } = await supabase.rpc("adjust_product_stock_at_location", {
+      p_product_id: item.productId,
+      p_location_id: input.locationId,
+      p_org_id: context.orgId,
+      p_delta: -item.quantity,
+    });
+    if (rpcError) {
+      const friendly = rpcError.message.includes("insufficient_stock")
+        ? `Someone just sold the last unit(s) of "${item.name}" at this branch. Adjust the quantity and try again.`
+        : `Sale updated, but stock adjustment failed for one item: ${rpcError.message}`;
+      return { ok: false, error: friendly, saleId };
+    }
+  }
+
+  revalidatePath("/pos");
+  revalidatePath("/sales");
+  revalidatePath("/inventory");
+  return { ok: true, saleId };
 }

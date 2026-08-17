@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
   X, Trash2, Inbox, ChevronsLeft, XCircle, Briefcase, Calculator as CalculatorIcon,
-  RotateCcw, Keyboard, PlusCircle, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar,
+  RotateCcw, Keyboard, PlusCircle, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar, ChevronsRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { formatCurrency } from "@/lib/sales/format";
 import { useAppStore } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
-  getRecentPosSales,
+  getRecentPosSales, getSaleForEdit, updateSale,
   type CartItemInput, type CustomerOption, type HeldSaleSummary, type RecentSale, type NewContactInput,
 } from "@/app/(dashboard)/pos/actions";
 import type { HeldSaleKind } from "@/types/database";
@@ -50,10 +50,10 @@ interface CartLine extends CartItemInput {
   maxStock: number;
 }
 
-function isoToLocalInput(iso: string) {
+function isoToLocalDate(iso: string) {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export function PosView({ products, categories, locations, stockLevels, currency, taxRatePercent, cashierName }: PosViewProps) {
@@ -70,7 +70,9 @@ export function PosView({ products, categories, locations, stockLevels, currency
   }, []);
 
   const [browseTab, setBrowseTab] = React.useState<"category" | "brands">("category");
+  const [cartExpanded, setCartExpanded] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
   const [activeCategory, setActiveCategory] = React.useState("all");
   const [cart, setCart] = React.useState<CartLine[]>([]);
   const [locationId, setLocationId] = React.useState(locations[0]?.id ?? "");
@@ -81,10 +83,11 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [customerResults, setCustomerResults] = React.useState<CustomerOption[]>([]);
   const [customerOpen, setCustomerOpen] = React.useState(false);
   const [addContactOpen, setAddContactOpen] = React.useState(false);
-  const [saleDate, setSaleDate] = React.useState(() => isoToLocalInput(new Date().toISOString()));
+  const [saleDate, setSaleDate] = React.useState(() => isoToLocalDate(new Date().toISOString()));
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [shippingAmount, setShippingAmount] = React.useState(0);
   const [paymentMethod, setPaymentMethod] = React.useState("Cash");
+  const [editingSaleId, setEditingSaleId] = React.useState<string | null>(null);
 
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
@@ -205,7 +208,8 @@ export function PosView({ products, categories, locations, stockLevels, currency
     setCustomer(null);
     setDiscountAmount(0);
     setShippingAmount(0);
-    setSaleDate(isoToLocalInput(new Date().toISOString()));
+    setSaleDate(isoToLocalDate(new Date().toISOString()));
+    setEditingSaleId(null);
   }
   function handleVoid() {
     if (cart.length === 0) return;
@@ -245,7 +249,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
       const result = await completeSale({
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
         orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method,
-        saleDate: new Date(saleDate).toISOString(),
+        saleDate,
       });
       if (!result.ok) {
         setError(result.error ?? "Something went wrong.");
@@ -254,6 +258,61 @@ export function PosView({ products, categories, locations, stockLevels, currency
       showNotice(`Sale completed — ${method}`);
       clearCart();
       router.refresh();
+    });
+  }
+
+  function handleUpdateSale() {
+    setError(null);
+    if (!editingSaleId) return;
+    if (cart.length === 0) return setError("Cart is empty.");
+    if (!locationId) return setError("Select a branch/location.");
+    startTransition(async () => {
+      const result = await updateSale(editingSaleId, {
+        locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
+        orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod,
+        saleDate,
+      });
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      showNotice("Sale updated");
+      clearCart();
+      setRecentOpen(false);
+      router.refresh();
+    });
+  }
+
+  function handleCancelEdit() {
+    clearCart();
+  }
+
+  function handleEditSale(id: string) {
+    startTransition(async () => {
+      const sale = await getSaleForEdit(id);
+      if (!sale) {
+        setError("Couldn't load that sale for editing.");
+        return;
+      }
+      const targetLocationId = sale.locationId ?? locationId;
+      setCart(
+        sale.items.map((i) => {
+          const rows = stockByProduct.get(i.productId);
+          // The item's own quantity in this sale is "available again" for
+          // this edit, since updateSale reclaims it before re-validating.
+          const rawStock = rows ? (rows.get(targetLocationId) ?? 0) : products.find((p) => p.id === i.productId)?.stockQuantity ?? i.quantity;
+          return { key: crypto.randomUUID(), ...i, maxStock: rawStock + i.quantity };
+        })
+      );
+      setCustomer(sale.customerId ? { id: sale.customerId, name: sale.customerName ?? "", phone: null, email: null } : null);
+      if (sale.locationId) setLocationId(sale.locationId);
+      setPaymentMethod(sale.paymentMethod);
+      setDiscountAmount(sale.discountAmount);
+      setShippingAmount(sale.shippingAmount);
+      setSaleDate(sale.saleDate);
+      setEditingSaleId(id);
+      setRecentOpen(false);
+      showNotice("Editing sale — update the cart, then press Update Sale.");
     });
   }
 
@@ -296,6 +355,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
       );
       setCustomer(resumed.customerId ? { id: resumed.customerId, name: resumed.customerName ?? "", phone: resumed.customerPhone, email: null } : null);
       if (resumed.locationId) setLocationId(resumed.locationId);
+      setEditingSaleId(null);
       setHeldOpen(false);
       setRecentOpen(false);
       router.refresh();
@@ -368,8 +428,13 @@ export function PosView({ products, categories, locations, stockLevels, currency
         </div>
       </div>
 
-      {/* Main: product grid (left) + cart panel (right) */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[1fr_420px]">
+      {/* Main: product grid (left) + cart panel (right). Right column width
+          is dynamic (toggled by the expand button on the cart panel) since
+          Tailwind can't interpolate an arbitrary grid-template from state. */}
+      <div
+        className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[var(--pos-left)_var(--pos-right)]"
+        style={{ "--pos-left": "1fr", "--pos-right": cartExpanded ? "640px" : "420px" } as React.CSSProperties}
+      >
         {/* LEFT: images/grid */}
         <div className="flex min-h-0 flex-col gap-3">
           <div className="flex gap-2">
@@ -422,7 +487,14 @@ export function PosView({ products, categories, locations, stockLevels, currency
         </div>
 
         {/* RIGHT: customer + search + cart table + totals */}
-        <Card accent="signal" className="flex min-h-0 flex-col">
+        <Card accent="signal" className="relative flex min-h-0 flex-col">
+          <button
+            title={cartExpanded ? "Narrow the cart panel" : "Widen the cart panel"}
+            onClick={() => setCartExpanded((v) => !v)}
+            className="absolute -left-3 top-1/2 z-20 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-md border border-ledger-200 bg-white text-ledger-500 shadow-card hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300"
+          >
+            {cartExpanded ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
+          </button>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pt-5">
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
@@ -450,14 +522,42 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
-                <Input ref={searchInputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onBarcodeEnter} placeholder="Product name / SKU / scan barcode" className="h-10 pl-9" />
+                <Input
+                  ref={searchInputRef}
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setSearchDropdownOpen(true); }}
+                  onFocus={() => setSearchDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
+                  onKeyDown={onBarcodeEnter}
+                  placeholder="Product name / SKU / scan barcode"
+                  className="h-10 pl-9"
+                />
+                {searchDropdownOpen && query.trim() && filteredProducts.length > 0 && (
+                  <div className="absolute left-0 right-0 top-11 z-30 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+                    {filteredProducts.slice(0, 10).map((p) => (
+                      <button
+                        key={p.id}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { addToCart(p); setQuery(""); setSearchDropdownOpen(false); }}
+                        disabled={p.stockQuantity <= 0}
+                        className="block w-full px-3 py-2 text-left hover:bg-ledger-50 disabled:opacity-50 dark:hover:bg-white/[0.06]"
+                      >
+                        <p className="truncate text-sm font-medium text-ink-900 dark:text-white">{p.name}</p>
+                        <p className="text-xs text-ledger-400">
+                          Price: {formatCurrency(p.unitPrice, currency)} · {p.stockQuantity > 0 ? `${p.stockQuantity}Pc(s)` : "Out of stock"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Select date — under the Walk-In Customer field */}
+              {/* Select date — under the Walk-In Customer field. sale_date is a
+                  DATE column (no time component), so this is date-only. */}
               <div className="relative col-span-1">
                 <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
                 <input
-                  type="datetime-local"
+                  type="date"
                   value={saleDate}
                   onChange={(e) => setSaleDate(e.target.value)}
                   className="h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
@@ -530,31 +630,45 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
       {/* Bottom action bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ledger-100 bg-white p-2 dark:border-ledger-700 dark:bg-ink-900">
-        <button onClick={() => handlePark("draft")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
-          <FileText className="h-4 w-4" /> Draft
-        </button>
-        <button onClick={() => handlePark("hold")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
-          <Pause className="h-4 w-4" /> Suspend
-        </button>
-        <button onClick={() => handleCompleteSale("Credit")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
-          <FileText className="h-4 w-4" /> Credit Sale
-        </button>
-        <button onClick={() => handleCompleteSale("Card")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
-          <CreditCard className="h-4 w-4" /> Card
-        </button>
+        {editingSaleId ? (
+          <>
+            <div className="flex items-center gap-1.5 rounded-md bg-signal-soft px-2.5 py-1.5 text-xs font-semibold text-signal">
+              <Pencil className="h-3.5 w-3.5" /> Editing a saved sale
+            </div>
+            <Button variant="primary" className="bg-signal hover:bg-signal/90" onClick={handleUpdateSale} disabled={isPending || cart.length === 0}>
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Update Sale
+            </Button>
+            <Button variant="outline" onClick={handleCancelEdit} disabled={isPending}>Cancel Edit</Button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => handlePark("draft")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
+              <FileText className="h-4 w-4" /> Draft
+            </button>
+            <button onClick={() => handlePark("hold")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
+              <Pause className="h-4 w-4" /> Suspend
+            </button>
+            <button onClick={() => handleCompleteSale("Credit")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
+              <FileText className="h-4 w-4" /> Credit Sale
+            </button>
+            <button onClick={() => handleCompleteSale("Card")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
+              <CreditCard className="h-4 w-4" /> Card
+            </button>
 
-        <Button variant="primary" className="bg-ink-900 hover:bg-ink-900/90" onClick={() => setMultiPayOpen(true)} disabled={isPending || cart.length === 0}>
-          {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Multiple Pay
-        </Button>
-        <Button variant="primary" className="bg-signal hover:bg-signal/90" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
-          <Banknote className="h-4 w-4" /> Cash
-        </Button>
-        <Button variant="primary" className="bg-amber hover:bg-amber/90" onClick={() => handleCompleteSale("Mobile Money")} disabled={isPending || cart.length === 0}>
-          <Smartphone className="h-4 w-4" /> MOMO
-        </Button>
-        <Button variant="primary" className="bg-alert hover:bg-alert/90" onClick={handleVoid} disabled={cart.length === 0}>
-          <X className="h-4 w-4" /> Cancel
-        </Button>
+            <Button variant="primary" className="bg-ink-900 hover:bg-ink-900/90" onClick={() => setMultiPayOpen(true)} disabled={isPending || cart.length === 0}>
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Multiple Pay
+            </Button>
+            <Button variant="primary" className="bg-signal hover:bg-signal/90" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
+              <Banknote className="h-4 w-4" /> Cash
+            </Button>
+            <Button variant="primary" className="bg-amber hover:bg-amber/90" onClick={() => handleCompleteSale("Mobile Money")} disabled={isPending || cart.length === 0}>
+              <Smartphone className="h-4 w-4" /> MOMO
+            </Button>
+            <Button variant="primary" className="bg-alert hover:bg-alert/90" onClick={handleVoid} disabled={cart.length === 0}>
+              <X className="h-4 w-4" /> Cancel
+            </Button>
+          </>
+        )}
 
         <div className="ml-2">
           <p className="text-xs font-semibold text-ledger-500">Total Payable:</p>
@@ -615,12 +729,15 @@ export function PosView({ products, categories, locations, stockLevels, currency
               <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-ledger-400"><Inbox className="h-6 w-6" /> No sales yet at this branch.</div>
             )}
             {!recentLoading && recentTab === "final" && recentFinal.map((s, i) => (
-              <div key={s.id} className="flex items-center justify-between border-b border-ledger-50 py-2.5 text-sm dark:border-white/5">
+              <div key={s.id} className="flex items-center justify-between gap-2 border-b border-ledger-50 py-2.5 text-sm dark:border-white/5">
                 <span className="w-6 shrink-0 text-ledger-400">{i + 1}.</span>
-                <span className="flex-1 truncate text-ink-900 dark:text-white">{s.saleNumber} <span className="text-ledger-400">({s.customerName ?? "Walk-In Customer"})</span></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-ink-900 dark:text-white">{s.saleNumber} <span className="text-ledger-400">({s.customerName ?? "Walk-In Customer"})</span></p>
+                  <p className="truncate text-xs text-ledger-400">{s.itemsSummary}</p>
+                </div>
                 <span className="w-20 shrink-0 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(s.total, currency)}</span>
                 <span className="ml-3 flex shrink-0 gap-1.5">
-                  <Link href={`/sales/${s.id}`} className="flex items-center gap-1 rounded-md border border-signal/40 px-2 py-1 text-xs font-medium text-signal hover:bg-signal-soft"><Pencil className="h-3 w-3" /> Edit</Link>
+                  <button onClick={() => handleEditSale(s.id)} className="flex items-center gap-1 rounded-md border border-signal/40 px-2 py-1 text-xs font-medium text-signal hover:bg-signal-soft"><Pencil className="h-3 w-3" /> Edit</button>
                   <Link href={`/sales/${s.id}`} target="_blank" className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Printer className="h-3 w-3" /> Print</Link>
                 </span>
               </div>
