@@ -100,6 +100,16 @@ export function AddPurchaseForm({
   const [expectedDeliveryDate, setExpectedDeliveryDate] = React.useState("");
   const [reference, setReference] = React.useState("");
   const [invoiceNumber, setInvoiceNumber] = React.useState("");
+  const [purchaseStatus, setPurchaseStatus] = React.useState<"" | "received" | "pending" | "ordered">("");
+
+  // "Pending" in the dropdown maps to the same "draft" action your
+  // Save as Draft button already uses — there's no separate "pending"
+  // value in the purchases.status enum.
+  const STATUS_TO_ACTION: Record<"received" | "pending" | "ordered", "draft" | "ordered" | "received"> = {
+    received: "received",
+    pending: "draft",
+    ordered: "ordered",
+  };
   const [shippingMethod, setShippingMethod] = React.useState<string>(SHIPPING_METHODS[0]);
   const [projectId, setProjectId] = React.useState("");
 
@@ -332,6 +342,14 @@ export function AddPurchaseForm({
                     placeholder="Enter notes (optional)"
                     className="flex w-full resize-none rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                   />
+                </Field>
+                <Field label="Purchase Status:" required hint="Pending saves as a draft, Ordered records the purchase, Received also receives the items and updates stock.">
+                  <Select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value as typeof purchaseStatus)}>
+                    <option value="">Please Select</option>
+                    <option value="received">Received</option>
+                    <option value="pending">Pending</option>
+                    <option value="ordered">Ordered</option>
+                  </Select>
                 </Field>
               </div>
 
@@ -669,6 +687,18 @@ export function AddPurchaseForm({
             Cancel
           </Button>
           <div className="flex items-center gap-2">
+            {purchaseStatus && (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => submit(STATUS_TO_ACTION[purchaseStatus])}
+                disabled={isPending}
+                className="bg-signal hover:bg-signal/90 dark:bg-signal dark:hover:bg-signal/90"
+              >
+                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save as {purchaseStatus === "pending" ? "Draft" : purchaseStatus === "ordered" ? "Ordered" : "Received"}
+              </Button>
+            )}
             <Button variant="secondary" size="md" onClick={() => submit("draft")} disabled={isPending}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Save as Draft
@@ -705,11 +735,16 @@ function StepBadge({ n }: { n: number }) {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-ledger-500">
+      <span className="mb-1 flex items-center gap-1 text-xs font-medium text-ledger-500">
         {label} {required && <span className="text-alert">*</span>}
+        {hint && (
+          <span title={hint} className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-signal text-white">
+            <Info className="h-2.5 w-2.5" />
+          </span>
+        )}
       </span>
       {children}
     </label>

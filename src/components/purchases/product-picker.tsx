@@ -78,7 +78,7 @@ export function ProductPicker({ products, onSelect, className }: ProductPickerPr
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder="Enter Product name / SKU / Scan bar code"
-        className="h-11 w-full rounded-md border border-signal/30 bg-signal-soft pl-9 pr-3 text-sm font-medium text-emerald-900 placeholder:text-emerald-700/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-signal/60"
+        className="h-11 w-full rounded-md border border-signal/30 bg-signal-soft pl-9 pr-3 text-sm font-medium text-emerald-950 placeholder:text-emerald-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-signal/60"
       />
 
       {open && (
