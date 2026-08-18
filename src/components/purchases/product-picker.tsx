@@ -68,7 +68,7 @@ export function ProductPicker({ products, onSelect, className }: ProductPickerPr
 
   return (
     <div className={cn("relative w-full max-w-sm", className)} ref={containerRef}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" />
       <input
         value={query}
         onChange={(e) => {
@@ -78,7 +78,7 @@ export function ProductPicker({ products, onSelect, className }: ProductPickerPr
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder="Enter Product name / SKU / Scan bar code"
-        className="h-11 w-full rounded-md border border-emerald-900 bg-emerald-800 pl-9 pr-3 text-sm text-white placeholder:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-emerald-400"
+        className="h-11 w-full rounded-md border border-signal/30 bg-signal-soft pl-9 pr-3 text-sm font-medium text-emerald-900 placeholder:text-emerald-700/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-signal/60"
       />
 
       {open && (

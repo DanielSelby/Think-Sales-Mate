@@ -411,17 +411,17 @@ export function AddPurchaseForm({
               <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-400 dark:border-ledger-700 dark:bg-white/[0.03]">
-                      <th className="w-8 px-3 py-2 font-medium">#</th>
-                      <th className="px-3 py-2 font-medium">Product</th>
-                      <th className="px-3 py-2 font-medium">SKU</th>
-                      <th className="px-3 py-2 font-medium">Barcode</th>
-                      <th className="w-28 px-3 py-2 text-right font-medium">Unit Price</th>
-                      <th className="w-20 px-3 py-2 text-right font-medium">Qty</th>
-                      <th className="w-24 px-3 py-2 font-medium">Unit</th>
-                      <th className="w-24 px-3 py-2 text-right font-medium">Disc. (%)</th>
-                      <th className="w-20 px-3 py-2 text-right font-medium">Tax (%)</th>
-                      <th className="w-28 px-3 py-2 text-right font-medium">Total</th>
+                    <tr className="border-b border-emerald-900 bg-emerald-800 text-xs font-semibold text-white">
+                      <th className="w-8 px-3 py-2 font-semibold">#</th>
+                      <th className="px-3 py-2 font-semibold">Product</th>
+                      <th className="px-3 py-2 font-semibold">SKU</th>
+                      <th className="px-3 py-2 font-semibold">Barcode</th>
+                      <th className="w-28 px-3 py-2 text-right font-semibold">Unit Price</th>
+                      <th className="w-20 px-3 py-2 text-right font-semibold">Qty</th>
+                      <th className="w-24 px-3 py-2 font-semibold">Unit</th>
+                      <th className="w-24 px-3 py-2 text-right font-semibold">Disc. (%)</th>
+                      <th className="w-20 px-3 py-2 text-right font-semibold">Tax (%)</th>
+                      <th className="w-28 px-3 py-2 text-right font-semibold">Total</th>
                       <th className="w-10 px-3 py-2" />
                     </tr>
                   </thead>
