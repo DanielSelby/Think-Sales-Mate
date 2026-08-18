@@ -139,7 +139,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
         locationName: sale.locationName,
         paymentMethod: sale.paymentMethod,
         paymentStatus: sale.paymentStatus,
-        subtotal: sale.total - (sale.total - sale.amountPaid > sale.total ? 0 : 0) /* placeholder, replaced below */,
+        subtotal: sale.total,
         total: sale.total,
         amountPaid: sale.amountPaid,
         currency,

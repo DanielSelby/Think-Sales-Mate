@@ -73,7 +73,7 @@ function formatDateTime(value: string): { date: string; time: string } {
 }
 
 function formatInvoiceNumber(saleNumber: number): string {
-  return `INV-${String(saleNumber).padStart(6, "0")}`;
+  return `INV-${new Date().getFullYear()}-${String(saleNumber).padStart(5, "0")}`;
 }
 
 export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
@@ -249,4 +249,69 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   </div>
 </body>
 </html>`;
+}
+
+// ---------------------------------------------------------------------------
+// Sales list invoice builder
+// Compatibility wrapper used by sales-list-view.tsx
+// ---------------------------------------------------------------------------
+
+export interface InvoiceItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  tax: number;
+  lineTotal: number;
+}
+
+export interface InvoiceData {
+  orgName: string;
+  saleNumber: number;
+  saleDate: string;
+  customerName: string;
+  soldByName: string;
+  locationName: string | null;
+  paymentMethod: string | null;
+  paymentStatus: string;
+  subtotal: number;
+  total: number;
+  amountPaid: number;
+  currency: string;
+  items: InvoiceItem[];
+}
+
+export function buildInvoiceHtml(data: InvoiceData): string {
+  const discountAmount = Math.max(0, data.subtotal - data.total);
+
+  const items: BrandedInvoiceItem[] = data.items.map((item) => ({
+    productName: item.productName,
+    sku: item.sku || null,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    discountAmount: item.discount ?? 0,
+    lineTotal: item.lineTotal,
+  }));
+
+  return buildBrandedInvoiceHtml({
+    orgName: data.orgName,
+    locationName: data.locationName,
+    locationAddress: null,
+    locationPhone: null,
+    locationEmail: null,
+    saleNumber: data.saleNumber,
+    saleDate: data.saleDate,
+    cashierName: data.soldByName,
+    customerName: data.customerName,
+    paymentMethod: data.paymentMethod,
+    subtotal: data.subtotal,
+    discountAmount,
+    taxAmount: 0,
+    total: data.total,
+    amountPaid: data.amountPaid,
+    currency: data.currency,
+    items,
+  });
 }
