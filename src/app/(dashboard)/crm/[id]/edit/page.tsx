@@ -11,9 +11,11 @@ export default async function EditCustomerPage({
   params,
   searchParams
 }: {
-  params: { id: string };
-  searchParams: { error?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -22,7 +24,7 @@ export default async function EditCustomerPage({
   const { data: customer } = await supabase
     .from("customers")
     .select("id, name, email, phone, company, notes")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 
@@ -40,7 +42,7 @@ export default async function EditCustomerPage({
         <h1 className="mt-2 font-display text-2xl font-semibold text-ink-900 dark:text-white">Edit {customer.name}</h1>
       </div>
 
-      <CustomerForm action={boundUpdate} initialValues={customer} error={searchParams.error} submitLabel="Save changes" />
+      <CustomerForm action={boundUpdate} initialValues={customer} error={resolvedSearchParams.error} submitLabel="Save changes" />
     </div>
   );
 }

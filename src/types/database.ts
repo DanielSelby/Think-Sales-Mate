@@ -1309,7 +1309,7 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["customers"]["Row"]>;
         Relationships: [];
       };
-      
+
       employees: {
         Row: {
           id: string;
@@ -1623,6 +1623,50 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["held_sales"]["Row"]>;
+        Relationships: [];
+      };
+      register_closures: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string | null;
+          scope: "all" | "individual";
+          cashier_id: string | null;
+          cashier_name: string | null;
+          period_start: string;
+          period_end: string;
+          sales_count: number;
+          sales_total: number;
+          cash_total: number;
+          card_total: number;
+          momo_total: number;
+          other_total: number;
+          expenses_total: number;
+          net_total: number;
+          closed_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id?: string | null;
+          scope?: "all" | "individual";
+          cashier_id?: string | null;
+          cashier_name?: string | null;
+          period_start: string;
+          period_end: string;
+          sales_count?: number;
+          sales_total?: number;
+          cash_total?: number;
+          card_total?: number;
+          momo_total?: number;
+          other_total?: number;
+          expenses_total?: number;
+          net_total?: number;
+          closed_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["register_closures"]["Row"]>;
         Relationships: [];
       };
       bank_accounts: {

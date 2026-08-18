@@ -7,6 +7,7 @@ import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
   X, Trash2, Inbox, ChevronsLeft, XCircle, Briefcase, Calculator as CalculatorIcon,
   RotateCcw, Keyboard, PlusCircle, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar, ChevronsRight,
+  Lock, Download, Users, User,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,11 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
+import { buildBrandedInvoiceHtml } from "@/lib/sales/invoice-template";
 import { useAppStore } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
-  getRecentPosSales, getSaleForEdit, updateSale,
+  getRecentPosSales, getSaleForEdit, updateSale, getInvoiceData,
+  getCashiersToday, getRegisterSummary, closeRegister, listRegisterClosures,
   type CartItemInput, type CustomerOption, type HeldSaleSummary, type RecentSale, type NewContactInput,
+  type CashierOption, type RegisterSummary, type RegisterClosureRecord,
 } from "@/app/(dashboard)/pos/actions";
 import type { HeldSaleKind } from "@/types/database";
 
@@ -107,6 +111,17 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [calcOpen, setCalcOpen] = React.useState(false);
   const [multiPayOpen, setMultiPayOpen] = React.useState(false);
   const [multiPay, setMultiPay] = React.useState({ cash: 0, card: 0, momo: 0 });
+
+  const [registerOpen, setRegisterOpen] = React.useState(false);
+  const [registerTab, setRegisterTab] = React.useState<"close" | "history">("close");
+  const [registerScope, setRegisterScope] = React.useState<"all" | "individual">("all");
+  const [registerCashierId, setRegisterCashierId] = React.useState<string | null>(null);
+  const [cashiersToday, setCashiersToday] = React.useState<CashierOption[]>([]);
+  const [registerSummary, setRegisterSummary] = React.useState<RegisterSummary | null>(null);
+  const [registerLoading, setRegisterLoading] = React.useState(false);
+  const [registerClosing, setRegisterClosing] = React.useState(false);
+  const [historyList, setHistoryList] = React.useState<RegisterClosureRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
 
   const [now, setNow] = React.useState(() => new Date());
   React.useEffect(() => {
@@ -239,6 +254,24 @@ export function PosView({ products, categories, locations, stockLevels, currency
   // Accepts an explicit method so quick-pay buttons (Cash/Card/MOMO/Credit)
   // don't race React's async state batching — setPaymentMethod(x) followed
   // immediately by handleCompleteSale() would still read the OLD value.
+  async function printInvoice(saleId: string) {
+    const data = await getInvoiceData(saleId);
+    if (!data) {
+      setError("Couldn't load the invoice for that sale.");
+      return;
+    }
+    const html = buildBrandedInvoiceHtml(data);
+    const win = window.open("", "_blank", "width=850,height=950");
+    if (!win) {
+      setError("Your browser blocked the receipt window — allow pop-ups for this site to print receipts.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
   function handleCompleteSale(methodOverride?: string) {
     setError(null);
     if (cart.length === 0) return setError("Cart is empty.");
@@ -256,6 +289,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
         return;
       }
       showNotice(`Sale completed — ${method}`);
+      if (result.saleId) printInvoice(result.saleId);
       clearCart();
       router.refresh();
     });
@@ -382,6 +416,128 @@ export function PosView({ products, categories, locations, stockLevels, currency
     }
   }
 
+  function openRegisterDialog() {
+    setRegisterOpen(true);
+    setRegisterTab("close");
+    setRegisterScope("all");
+    setRegisterCashierId(null);
+    setRegisterSummary(null);
+    reloadRegisterSummary("all", null);
+    getCashiersToday(locationId).then(setCashiersToday);
+  }
+
+  function reloadRegisterSummary(scope: "all" | "individual", cashierId: string | null) {
+    setRegisterLoading(true);
+    getRegisterSummary(locationId, scope === "individual" ? cashierId : null).then((s) => {
+      setRegisterSummary(s);
+      setRegisterLoading(false);
+    });
+  }
+
+  function handleRegisterScopeChange(scope: "all" | "individual") {
+    setRegisterScope(scope);
+    if (scope === "all") {
+      setRegisterCashierId(null);
+      reloadRegisterSummary("all", null);
+    } else if (registerCashierId) {
+      reloadRegisterSummary("individual", registerCashierId);
+    } else {
+      setRegisterSummary(null);
+    }
+  }
+
+  function handleRegisterCashierChange(cashierId: string) {
+    setRegisterCashierId(cashierId);
+    reloadRegisterSummary("individual", cashierId);
+  }
+
+  function handleCloseRegister() {
+    if (registerScope === "individual" && !registerCashierId) {
+      setError("Select which cashier to close.");
+      return;
+    }
+    setRegisterClosing(true);
+    const cashierName = cashiersToday.find((c) => c.id === registerCashierId)?.name ?? null;
+    startTransition(async () => {
+      const result = await closeRegister({ locationId, scope: registerScope, cashierId: registerCashierId, cashierName });
+      setRegisterClosing(false);
+      if (!result.ok) {
+        setError(result.error ?? "Couldn't close the register.");
+        return;
+      }
+      showNotice("Register closed — recorded in history.");
+      loadRegisterHistory();
+      setRegisterTab("history");
+    });
+  }
+
+  function loadRegisterHistory() {
+    setHistoryLoading(true);
+    listRegisterClosures(locationId).then((list) => { setHistoryList(list); setHistoryLoading(false); });
+  }
+
+  function switchRegisterTab(tab: "close" | "history") {
+    setRegisterTab(tab);
+    if (tab === "history" && historyList.length === 0) loadRegisterHistory();
+  }
+
+  function summaryCsv(s: RegisterSummary, label: string) {
+    const rows = [
+      ["Register Close Report", label],
+      ["Period", `${new Date(s.periodStart).toLocaleString()} - ${new Date(s.periodEnd).toLocaleString()}`],
+      [],
+      ["Metric", "Amount"],
+      ["Sales count", String(s.salesCount)],
+      ["Sales total", s.salesTotal.toFixed(2)],
+      ["Cash", s.cashTotal.toFixed(2)],
+      ["Card", s.cardTotal.toFixed(2)],
+      ["Mobile Money", s.momoTotal.toFixed(2)],
+      ["Other (credit/split)", s.otherTotal.toFixed(2)],
+      ["Expenses", s.expensesTotal.toFixed(2)],
+      ["Net", s.netTotal.toFixed(2)],
+    ];
+    return rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  }
+
+  function exportSummaryCsv(s: RegisterSummary, label: string) {
+    const csv = summaryCsv(s, label);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `register-close-${new Date(s.periodStart).toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printSummary(s: RegisterSummary, label: string) {
+    const win = window.open("", "_blank", "width=500,height=700");
+    if (!win) {
+      setError("Your browser blocked the report window — allow pop-ups for this site.");
+      return;
+    }
+    const rowHtml = (k: string, v: string, bold = false) =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;font-weight:${bold ? 700 : 400};${bold ? "border-top:1px solid #ddd;margin-top:6px;padding-top:10px;" : ""}"><span>${k}</span><span>${v}</span></div>`;
+    win.document.write(`
+      <!DOCTYPE html><html><head><meta charset="utf-8" /><title>Register Close Report</title>
+      <style>body{font-family:-apple-system,sans-serif;padding:24px;max-width:420px;margin:0 auto;color:#14210f;}
+      h1{font-size:18px;margin-bottom:2px;}p{color:#667;font-size:12px;margin-top:0;}</style></head><body>
+      <h1>Register Close Report</h1>
+      <p>${label} · ${new Date(s.periodStart).toLocaleDateString()}</p>
+      ${rowHtml("Sales count", String(s.salesCount))}
+      ${rowHtml("Sales total", formatCurrency(s.salesTotal, currency))}
+      ${rowHtml("Cash", formatCurrency(s.cashTotal, currency))}
+      ${rowHtml("Card", formatCurrency(s.cardTotal, currency))}
+      ${rowHtml("Mobile Money", formatCurrency(s.momoTotal, currency))}
+      ${rowHtml("Other (credit/split)", formatCurrency(s.otherTotal, currency))}
+      ${rowHtml("Expenses", formatCurrency(s.expensesTotal, currency))}
+      ${rowHtml("Net", formatCurrency(s.netTotal, currency), true)}
+      </body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
   const multiPayTotal = multiPay.cash + multiPay.card + multiPay.momo;
   function handleMultiPayConfirm() {
     const parts: string[] = [];
@@ -419,6 +575,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
           <button title="Refresh stock" onClick={() => router.refresh()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><RotateCcw className="h-4 w-4" /></button>
           <button title="Focus search / scan" onClick={() => searchInputRef.current?.focus()} className="flex h-10 w-10 items-center justify-center rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50"><Keyboard className="h-4 w-4" /></button>
           <button title="Suspended sales" onClick={() => openHeldList("hold")} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><Pause className="h-4 w-4" /></button>
+          <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
         </div>
 
         <div>
@@ -566,12 +723,12 @@ export function PosView({ products, categories, locations, stockLevels, currency
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-xs text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.04]">
+              <table className="w-full text-[15px]">
+                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
                   <tr>
-                    <th className="px-2 py-2 text-left font-semibold">Product</th>
-                    <th className="px-2 py-2 text-center font-semibold">Quantity</th>
-                    <th className="px-2 py-2 text-right font-semibold">Subtotal</th>
+                    <th className="px-2 py-2 text-left font-bold">Product</th>
+                    <th className="px-2 py-2 text-center font-bold">Quantity</th>
+                    <th className="px-2 py-2 text-right font-bold">Subtotal</th>
                     <th className="w-7 px-2 py-2" />
                   </tr>
                 </thead>
@@ -582,8 +739,8 @@ export function PosView({ products, categories, locations, stockLevels, currency
                   {cart.map((l) => (
                     <tr key={l.key} className="border-b border-ledger-50 last:border-0 dark:border-white/5">
                       <td className="px-2 py-2">
-                        <p className="truncate font-medium text-ink-900 dark:text-white">{l.name}</p>
-                        <p className="text-xs text-ledger-400">{formatCurrency(l.unitPrice, currency)}</p>
+                        <p className="truncate font-bold text-ink-900 dark:text-white">{l.name}</p>
+                        <p className="text-xs font-medium text-ledger-400">{formatCurrency(l.unitPrice, currency)}</p>
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center justify-center gap-1">
@@ -592,12 +749,12 @@ export function PosView({ products, categories, locations, stockLevels, currency
                             type="number"
                             value={l.quantity}
                             onChange={(e) => setQtyDirect(l.key, Number(e.target.value))}
-                            className="h-7 w-12 rounded border border-ledger-200 bg-white text-center text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            className="h-7 w-12 rounded border border-ledger-200 bg-white text-center text-sm font-bold dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                           />
                           <button onClick={() => updateQty(l.key, 1)} className="rounded border border-ledger-200 px-1.5 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700">+</button>
                         </div>
                       </td>
-                      <td className="px-2 py-2 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
+                      <td className="px-2 py-2 text-right font-mono font-bold text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
                       <td className="px-2 py-2 text-center">
                         <button onClick={() => removeLine(l.key)} className="text-alert/70 hover:text-alert"><X className="h-3.5 w-3.5" /></button>
                       </td>
@@ -607,21 +764,29 @@ export function PosView({ products, categories, locations, stockLevels, currency
               </table>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-ledger-400">
-              <span>Cashier: <span className="text-ledger-600 dark:text-ledger-300">{cashierName}</span></span>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-ledger-500">Cashier</span>
+              <span className="rounded-full bg-signal px-3 py-1 text-xs font-bold text-white">{cashierName}</span>
             </div>
 
-            <div className="space-y-1.5 border-t border-ledger-100 pt-3 text-sm dark:border-ledger-700">
-              <div className="flex items-center justify-between"><span className="font-semibold text-ledger-500">Items:</span><span className="font-medium text-ink-900 dark:text-white">{itemCount.toFixed(2)}</span></div>
-              <div className="flex items-center justify-between"><span className="font-semibold text-ledger-500">Total:</span><span className="font-semibold text-ink-900 dark:text-white">{formatCurrency(subtotal - itemsDiscount + taxTotal, currency)}</span></div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-ledger-500">Discount (-):</span>
-                <input type="number" min={0} step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(Number(e.target.value))} className="h-7 w-24 rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+            <div className="space-y-2 border-t border-ledger-100 pt-3 text-[15px] font-semibold dark:border-ledger-700">
+              <div className="grid grid-cols-2 gap-x-4">
+                <div className="flex items-baseline justify-between"><span className="text-ledger-500">Items:</span><span className="font-bold text-ink-900 dark:text-white">{itemCount.toFixed(2)}</span></div>
+                <div className="flex items-baseline justify-between"><span className="text-ledger-500">Total:</span><span className="font-bold text-ink-900 dark:text-white">{formatCurrency(subtotal - itemsDiscount + taxTotal, currency)}</span></div>
               </div>
-              <div className="flex items-center justify-between"><span className="font-semibold text-ledger-500">Order Tax(+):</span><span className="font-medium text-ink-900 dark:text-white">{formatCurrency(taxTotal, currency)}</span></div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-ledger-500">Shipping(+):</span>
-                <input type="number" min={0} step="0.01" value={shippingAmount} onChange={(e) => setShippingAmount(Number(e.target.value))} className="h-7 w-24 rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+              <div className="grid grid-cols-3 gap-x-2 text-xs">
+                <div>
+                  <span className="text-ledger-500">Discount (-):</span>
+                  <input type="number" min={0} step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(Number(e.target.value))} className="mt-1 h-7 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm font-bold dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                </div>
+                <div>
+                  <span className="text-ledger-500">Order Tax(+):</span>
+                  <div className="mt-1 flex h-7 items-center justify-end rounded border border-transparent px-2 font-bold text-ink-900 dark:text-white">{formatCurrency(taxTotal, currency)}</div>
+                </div>
+                <div>
+                  <span className="text-ledger-500">Shipping(+):</span>
+                  <input type="number" min={0} step="0.01" value={shippingAmount} onChange={(e) => setShippingAmount(Number(e.target.value))} className="mt-1 h-7 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm font-bold dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                </div>
               </div>
             </div>
           </CardContent>
@@ -738,7 +903,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
                 <span className="w-20 shrink-0 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(s.total, currency)}</span>
                 <span className="ml-3 flex shrink-0 gap-1.5">
                   <button onClick={() => handleEditSale(s.id)} className="flex items-center gap-1 rounded-md border border-signal/40 px-2 py-1 text-xs font-medium text-signal hover:bg-signal-soft"><Pencil className="h-3 w-3" /> Edit</button>
-                  <Link href={`/sales/${s.id}`} target="_blank" className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Printer className="h-3 w-3" /> Print</Link>
+                  <button onClick={() => printInvoice(s.id)} className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Printer className="h-3 w-3" /> Print</button>
                 </span>
               </div>
             ))}
@@ -789,6 +954,119 @@ export function PosView({ products, categories, locations, stockLevels, currency
           <Button variant="primary" className="w-full" disabled={Math.abs(multiPayTotal - total) >= 0.01 || isPending} onClick={handleMultiPayConfirm}>
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Confirm Split Payment
           </Button>
+        </div>
+      </Dialog>
+
+      {/* Close Register — Close tab + History tab (the persistent register-details button) */}
+      <Dialog open={registerOpen} onClose={() => setRegisterOpen(false)} title="Register" className="max-w-lg">
+        <div className="space-y-4">
+          <div className="flex gap-4 border-b border-ledger-100 dark:border-ledger-700">
+            <button
+              onClick={() => switchRegisterTab("close")}
+              className={cn("flex items-center gap-1.5 border-b-2 pb-2 text-sm font-medium", registerTab === "close" ? "border-amber text-amber" : "border-transparent text-ledger-400 hover:text-ledger-600")}
+            >
+              <Lock className="h-3.5 w-3.5" /> Close Register
+            </button>
+            <button
+              onClick={() => switchRegisterTab("history")}
+              className={cn("flex items-center gap-1.5 border-b-2 pb-2 text-sm font-medium", registerTab === "history" ? "border-amber text-amber" : "border-transparent text-ledger-400 hover:text-ledger-600")}
+            >
+              <History className="h-3.5 w-3.5" /> History
+            </button>
+          </div>
+
+          {registerTab === "close" && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleRegisterScopeChange("all")}
+                  className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold", registerScope === "all" ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                >
+                  <Users className="h-3.5 w-3.5" /> All cashiers
+                </button>
+                <button
+                  onClick={() => handleRegisterScopeChange("individual")}
+                  className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold", registerScope === "individual" ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                >
+                  <User className="h-3.5 w-3.5" /> Individual
+                </button>
+              </div>
+
+              {registerScope === "individual" && (
+                cashiersToday.length === 0 ? (
+                  <p className="rounded-md border border-dashed border-ledger-200 py-4 text-center text-xs text-ledger-400 dark:border-ledger-700">No one has sold anything at this branch today yet.</p>
+                ) : (
+                  <select
+                    value={registerCashierId ?? ""}
+                    onChange={(e) => handleRegisterCashierChange(e.target.value)}
+                    className="h-10 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  >
+                    <option value="" disabled>Select a cashier...</option>
+                    {cashiersToday.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                )
+              )}
+
+              {registerLoading && <p className="py-6 text-center text-sm text-ledger-400">Loading summary...</p>}
+
+              {!registerLoading && registerSummary && (registerScope === "all" || registerCashierId) && (
+                <>
+                  <div className="rounded-md border border-ledger-100 dark:border-ledger-700">
+                    <div className="flex items-center justify-between border-b border-ledger-100 px-3 py-2 text-sm dark:border-ledger-700">
+                      <span className="text-ledger-500">Sales ({registerSummary.salesCount})</span>
+                      <span className="font-bold text-ink-900 dark:text-white">{formatCurrency(registerSummary.salesTotal, currency)}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Cash</span><span>{formatCurrency(registerSummary.cashTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Card</span><span>{formatCurrency(registerSummary.cardTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Mobile Money</span><span>{formatCurrency(registerSummary.momoTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Other (credit/split)</span><span>{formatCurrency(registerSummary.otherTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between border-t border-ledger-100 px-3 py-2 text-xs text-alert dark:border-ledger-700"><span>Expenses</span><span>−{formatCurrency(registerSummary.expensesTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between border-t border-ledger-100 bg-signal-soft px-3 py-2 text-sm font-bold text-signal dark:border-ledger-700"><span>Net</span><span>{formatCurrency(registerSummary.netTotal, currency)}</span></div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => exportSummaryCsv(registerSummary, registerScope === "all" ? "All cashiers" : (cashiersToday.find((c) => c.id === registerCashierId)?.name ?? ""))}>
+                      <Download className="h-3.5 w-3.5" /> Export CSV
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => printSummary(registerSummary, registerScope === "all" ? "All cashiers" : (cashiersToday.find((c) => c.id === registerCashierId)?.name ?? ""))}>
+                      <Printer className="h-3.5 w-3.5" /> Print / Save as PDF
+                    </Button>
+                  </div>
+
+                  <Button variant="primary" className="w-full bg-amber hover:bg-amber/90" onClick={handleCloseRegister} disabled={registerClosing}>
+                    {registerClosing && <Loader2 className="h-4 w-4 animate-spin" />} Close Register
+                  </Button>
+                  <p className="text-center text-[11px] text-ledger-400">This records today's totals as a close-out — it doesn't stop new sales from being made.</p>
+                </>
+              )}
+            </div>
+          )}
+
+          {registerTab === "history" && (
+            <div className="max-h-96 space-y-2 overflow-y-auto">
+              {historyLoading && <p className="py-6 text-center text-sm text-ledger-400">Loading...</p>}
+              {!historyLoading && historyList.length === 0 && (
+                <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-ledger-400"><Inbox className="h-6 w-6" /> No register closures recorded yet.</div>
+              )}
+              {historyList.map((h) => (
+                <div key={h.id} className="rounded-md border border-ledger-100 p-3 text-sm dark:border-ledger-700">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-ink-900 dark:text-white">
+                      {h.scope === "all" ? "All cashiers" : (h.cashierName ?? "Individual")} · {h.locationName ?? "—"}
+                    </p>
+                    <span className="font-bold text-signal">{formatCurrency(h.netTotal, currency)}</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-ledger-400">
+                    {new Date(h.closedAt).toLocaleString()} · {h.salesCount} sale(s) · {formatCurrency(h.salesTotal, currency)} sales, {formatCurrency(h.expensesTotal, currency)} expenses
+                  </p>
+                  <div className="mt-2 flex gap-1.5">
+                    <button onClick={() => exportSummaryCsv(h, h.scope === "all" ? "All cashiers" : (h.cashierName ?? ""))} className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Download className="h-3 w-3" /> CSV</button>
+                    <button onClick={() => printSummary(h, h.scope === "all" ? "All cashiers" : (h.cashierName ?? ""))} className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Printer className="h-3 w-3" /> Print</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Dialog>
 

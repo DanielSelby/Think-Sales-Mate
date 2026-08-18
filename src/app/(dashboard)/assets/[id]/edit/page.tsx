@@ -11,9 +11,11 @@ export default async function EditAssetPage({
   params,
   searchParams
 }: {
-  params: { id: string };
-  searchParams: { error?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -22,7 +24,7 @@ export default async function EditAssetPage({
   const { data: asset } = await supabase
     .from("assets")
     .select("id, name, category, purchase_date, purchase_cost, current_value, status, location, notes")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 
@@ -40,7 +42,7 @@ export default async function EditAssetPage({
         <h1 className="mt-2 font-display text-2xl font-semibold text-ink-900 dark:text-white">Edit {asset.name}</h1>
       </div>
 
-      <AssetForm action={boundUpdate} initialValues={asset} error={searchParams.error} submitLabel="Save changes" />
+      <AssetForm action={boundUpdate} initialValues={asset} error={resolvedSearchParams.error} submitLabel="Save changes" />
     </div>
   );
 }

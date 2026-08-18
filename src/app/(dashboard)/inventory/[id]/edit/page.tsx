@@ -11,9 +11,11 @@ export default async function EditProductPage({
   params,
   searchParams
 }: {
-  params: { id: string };
-  searchParams: { error?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -25,7 +27,7 @@ export default async function EditProductPage({
       .select(
         "id, sku, name, description, category, brand, supplier, barcode, location_id, unit_price, cost_price, stock_quantity, low_stock_threshold"
       )
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("org_id", context.orgId)
       .single(),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name")
@@ -49,7 +51,7 @@ export default async function EditProductPage({
         action={boundUpdate}
         initialValues={product}
         locations={(locationRows ?? []).map((l) => ({ id: l.id, name: l.name }))}
-        error={searchParams.error}
+        error={resolvedSearchParams.error}
         submitLabel="Save changes"
       />
     </div>

@@ -10,7 +10,8 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(value));
 }
 
-export default async function StockAdjustmentDetailPage({ params }: { params: { id: string } }) {
+export default async function StockAdjustmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -21,7 +22,7 @@ export default async function StockAdjustmentDetailPage({ params }: { params: { 
     .select(
       "id, adjustment_number, reference_no, adjustment_date, reason, note, created_at, business_locations(name)"
     )
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 

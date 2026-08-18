@@ -11,7 +11,8 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-export default async function PayrollRunDetailPage({ params }: { params: { id: string } }) {
+export default async function PayrollRunDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context || !can(context.role, "hrm.view")) return null;
@@ -20,7 +21,7 @@ export default async function PayrollRunDetailPage({ params }: { params: { id: s
   const { data: run } = await supabase
     .from("payroll_runs")
     .select("id, period_label, total_amount, employee_count, created_at")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 

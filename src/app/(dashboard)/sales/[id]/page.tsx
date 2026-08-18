@@ -10,7 +10,8 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-export default async function SaleDetailPage({ params }: { params: { id: string } }) {
+export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -19,7 +20,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
   const { data: sale } = await supabase
     .from("sales")
     .select("id, sale_number, customer_name, subtotal, total, created_at")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 

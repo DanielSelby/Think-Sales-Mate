@@ -72,6 +72,307 @@ export async function getRecentPosSales(locationId: string | null, limit: number
   });
 }
 
+// ---------------------------------------------------------------------------
+// Branded receipt data — feeds buildBrandedInvoiceHtml (see lib/sales/invoice-template).
+// ---------------------------------------------------------------------------
+
+export interface PosInvoiceItem {
+  productName: string;
+  sku: string | null;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  lineTotal: number;
+}
+
+export interface PosInvoiceData {
+  orgName: string;
+  locationName: string | null;
+  locationAddress: string | null;
+  locationPhone: string | null;
+  locationEmail: string | null;
+  saleNumber: number;
+  saleDate: string;
+  cashierName: string;
+  customerName: string;
+  paymentMethod: string | null;
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  total: number;
+  amountPaid: number;
+  currency: string;
+  items: PosInvoiceItem[];
+}
+
+export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | null> {
+  const context = await getCurrentOrgContext();
+  if (!context) return null;
+  const supabase = await createClient();
+
+  const { data: sale } = await supabase
+    .from("sales")
+    .select("sale_number, customer_name, subtotal, discount_amount, tax_amount, total, amount_paid, payment_method, sale_date, created_at, location_id, sold_by")
+    .eq("id", saleId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (!sale) return null;
+
+  const [{ data: items }, locationResult, cashierResult] = await Promise.all([
+    supabase.from("sale_items").select("quantity, unit_price, discount_percent, line_total, products(name, sku)").eq("sale_id", saleId),
+    sale.location_id
+      ? supabase.from("business_locations").select("name, address, city, region, country, phone, email").eq("id", sale.location_id).single()
+      : Promise.resolve({ data: null }),
+    sale.sold_by
+      ? supabase.from("profiles").select("full_name").eq("id", sale.sold_by).single()
+      : Promise.resolve({ data: null }),
+  ]);
+  const location = locationResult.data;
+  const cashierProfile = cashierResult.data;
+
+  const locationAddress = location ? [location.address, location.city, location.region, location.country].filter(Boolean).join(", ") : null;
+
+  // sale_date is a DATE column (no time-of-day) — the receipt's date comes
+  // from it (it's the field the "select date" picker controls), but the
+  // time comes from created_at, the only field that actually has one.
+  const dateOnly = sale.sale_date; // 'YYYY-MM-DD'
+  const timeOnly = new Date(sale.created_at).toISOString().slice(11, 16);
+  const combined = `${dateOnly}T${timeOnly}:00`;
+
+  return {
+    orgName: context.orgName,
+    locationName: location?.name ?? null,
+    locationAddress: locationAddress || null,
+    locationPhone: location?.phone ?? null,
+    locationEmail: location?.email ?? null,
+    saleNumber: sale.sale_number,
+    saleDate: combined,
+    cashierName: cashierProfile?.full_name || "—",
+    customerName: sale.customer_name || "Walk-In Customer",
+    paymentMethod: sale.payment_method,
+    subtotal: sale.subtotal,
+    discountAmount: sale.discount_amount,
+    taxAmount: sale.tax_amount,
+    total: sale.total,
+    amountPaid: sale.amount_paid ?? sale.total,
+    currency: context.currency,
+    items: (items ?? []).map((i) => {
+      const product = Array.isArray(i.products) ? i.products[0] : i.products;
+      const gross = i.quantity * i.unit_price;
+      const discountAmount = gross * (i.discount_percent / 100);
+      return {
+        productName: product?.name ?? "Unknown product",
+        sku: product?.sku ?? null,
+        quantity: i.quantity,
+        unitPrice: i.unit_price,
+        discountAmount,
+        lineTotal: i.line_total,
+      };
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Close Register (Z-report) — snapshots today's sales/expenses for a branch,
+// either across every cashier or one specific cashier, and records it as a
+// permanent register_closures row. This is a close-out report, not a hard
+// gate on future sales — this app has no "register must be open to sell"
+// concept, and building one is a much bigger feature than this.
+// ---------------------------------------------------------------------------
+
+export interface CashierOption {
+  id: string;
+  name: string;
+}
+
+function startEndOfToday() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+export async function getCashiersToday(locationId: string | null): Promise<CashierOption[]> {
+  const context = await getCurrentOrgContext();
+  if (!context) return [];
+  const supabase = await createClient();
+  const { start, end } = startEndOfToday();
+
+  let q = supabase
+    .from("sales")
+    .select("sold_by")
+    .eq("org_id", context.orgId)
+    .gte("created_at", start)
+    .lt("created_at", end);
+  if (locationId) q = q.eq("location_id", locationId);
+  const { data: soldByRows } = await q;
+  const ids = Array.from(new Set((soldByRows ?? []).map((r) => r.sold_by).filter(Boolean))) as string[];
+  if (ids.length === 0) return [];
+
+  const { data: profileRows } = await supabase.from("profiles").select("id, full_name").in("id", ids);
+  const nameById = new Map((profileRows ?? []).map((p) => [p.id, p.full_name]));
+  return ids.map((id) => ({ id, name: nameById.get(id) || "Unknown user" }));
+}
+
+export interface RegisterSummary {
+  periodStart: string;
+  periodEnd: string;
+  salesCount: number;
+  salesTotal: number;
+  cashTotal: number;
+  cardTotal: number;
+  momoTotal: number;
+  otherTotal: number;
+  expensesTotal: number;
+  netTotal: number;
+}
+
+function bucketPaymentMethod(method: string | null): "cash" | "card" | "momo" | "other" {
+  const m = (method ?? "").toLowerCase();
+  if (m.startsWith("cash")) return "cash";
+  if (m.startsWith("card")) return "card";
+  if (m.includes("mobile money") || m.includes("momo")) return "momo";
+  return "other"; // Credit, Split(...), or unset
+}
+
+export async function getRegisterSummary(locationId: string | null, cashierId: string | null): Promise<RegisterSummary> {
+  const context = await getCurrentOrgContext();
+  const { start, end } = startEndOfToday();
+  const empty: RegisterSummary = {
+    periodStart: start, periodEnd: end, salesCount: 0, salesTotal: 0,
+    cashTotal: 0, cardTotal: 0, momoTotal: 0, otherTotal: 0, expensesTotal: 0, netTotal: 0
+  };
+  if (!context) return empty;
+  const supabase = await createClient();
+
+  let salesQuery = supabase
+    .from("sales")
+    .select("total, payment_method")
+    .eq("org_id", context.orgId)
+    .gte("created_at", start)
+    .lt("created_at", end);
+  if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
+  if (cashierId) salesQuery = salesQuery.eq("sold_by", cashierId);
+
+  let expensesQuery = supabase
+    .from("expenses")
+    .select("amount")
+    .eq("org_id", context.orgId)
+    .gte("expense_date", start.slice(0, 10))
+    .lte("expense_date", end.slice(0, 10));
+  if (locationId) expensesQuery = expensesQuery.eq("location_id", locationId);
+  // Expenses have no cashier attribution in this schema, so an
+  // individual-cashier close still shows the branch's whole expense total
+  // for the day — there's no way to split it by person.
+
+  const [{ data: salesRows }, { data: expenseRows }] = await Promise.all([salesQuery, expensesQuery]);
+
+  const totals = { cash: 0, card: 0, momo: 0, other: 0 };
+  let salesTotal = 0;
+  for (const s of salesRows ?? []) {
+    salesTotal += s.total;
+    totals[bucketPaymentMethod(s.payment_method)] += s.total;
+  }
+  const expensesTotal = (expenseRows ?? []).reduce((sum, e) => sum + e.amount, 0);
+
+  return {
+    periodStart: start,
+    periodEnd: end,
+    salesCount: (salesRows ?? []).length,
+    salesTotal,
+    cashTotal: totals.cash,
+    cardTotal: totals.card,
+    momoTotal: totals.momo,
+    otherTotal: totals.other,
+    expensesTotal,
+    netTotal: salesTotal - expensesTotal,
+  };
+}
+
+export interface CloseRegisterInput {
+  locationId: string | null;
+  scope: "all" | "individual";
+  cashierId: string | null;
+  cashierName: string | null;
+}
+
+export async function closeRegister(input: CloseRegisterInput): Promise<SimpleResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const summary = await getRegisterSummary(input.locationId, input.scope === "individual" ? input.cashierId : null);
+
+  const { error } = await supabase.from("register_closures").insert({
+    org_id: context.orgId,
+    location_id: input.locationId,
+    scope: input.scope,
+    cashier_id: input.scope === "individual" ? input.cashierId : null,
+    cashier_name: input.scope === "individual" ? input.cashierName : null,
+    period_start: summary.periodStart,
+    period_end: summary.periodEnd,
+    sales_count: summary.salesCount,
+    sales_total: summary.salesTotal,
+    cash_total: summary.cashTotal,
+    card_total: summary.cardTotal,
+    momo_total: summary.momoTotal,
+    other_total: summary.otherTotal,
+    expenses_total: summary.expensesTotal,
+    net_total: summary.netTotal,
+    closed_by: user.id,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/pos");
+  return { ok: true };
+}
+
+export interface RegisterClosureRecord extends RegisterSummary {
+  id: string;
+  scope: "all" | "individual";
+  cashierName: string | null;
+  locationName: string | null;
+  closedAt: string;
+}
+
+export async function listRegisterClosures(locationId: string | null, limit: number = 20): Promise<RegisterClosureRecord[]> {
+  const context = await getCurrentOrgContext();
+  if (!context) return [];
+  const supabase = await createClient();
+
+  let q = supabase
+    .from("register_closures")
+    .select("id, scope, cashier_name, period_start, period_end, sales_count, sales_total, cash_total, card_total, momo_total, other_total, expenses_total, net_total, created_at, business_locations(name)")
+    .eq("org_id", context.orgId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (locationId) q = q.eq("location_id", locationId);
+  const { data } = await q;
+
+  return (data ?? []).map((r) => {
+    const location = Array.isArray(r.business_locations) ? r.business_locations[0] : r.business_locations;
+    return {
+      id: r.id,
+      scope: r.scope,
+      cashierName: r.cashier_name,
+      locationName: location?.name ?? null,
+      periodStart: r.period_start,
+      periodEnd: r.period_end,
+      salesCount: r.sales_count,
+      salesTotal: r.sales_total,
+      cashTotal: r.cash_total,
+      cardTotal: r.card_total,
+      momoTotal: r.momo_total,
+      otherTotal: r.other_total,
+      expensesTotal: r.expenses_total,
+      netTotal: r.net_total,
+      closedAt: r.created_at,
+    };
+  });
+}
+
 export interface CartItemInput {
   productId: string;
   name: string;

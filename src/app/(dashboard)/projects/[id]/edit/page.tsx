@@ -11,9 +11,11 @@ export default async function EditProjectPage({
   params,
   searchParams
 }: {
-  params: { id: string };
-  searchParams: { error?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -22,7 +24,7 @@ export default async function EditProjectPage({
   const { data: project } = await supabase
     .from("projects")
     .select("id, name, customer_id, status, start_date, end_date, budget, description")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 
@@ -47,7 +49,7 @@ export default async function EditProjectPage({
         action={boundUpdate}
         initialValues={project}
         customers={customers}
-        error={searchParams.error}
+        error={resolvedSearchParams.error}
         submitLabel="Save changes"
       />
     </div>

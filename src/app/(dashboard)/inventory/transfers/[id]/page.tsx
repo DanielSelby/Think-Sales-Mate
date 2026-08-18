@@ -14,7 +14,8 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-export default async function StockTransferDetailPage({ params }: { params: { id: string } }) {
+export default async function StockTransferDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -25,7 +26,7 @@ export default async function StockTransferDetailPage({ params }: { params: { id
     .select(
       "id, transfer_number, reference_no, status, reason, notes, created_at, completed_at, created_by, from:from_location_id(name), to:to_location_id(name)"
     )
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 

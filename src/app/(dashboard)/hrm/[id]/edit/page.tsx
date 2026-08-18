@@ -11,9 +11,11 @@ export default async function EditEmployeePage({
   params,
   searchParams
 }: {
-  params: { id: string };
-  searchParams: { error?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -22,7 +24,7 @@ export default async function EditEmployeePage({
   const { data: employee } = await supabase
     .from("employees")
     .select("id, full_name, email, phone, job_title, department, monthly_salary, hire_date, status")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 
@@ -40,7 +42,7 @@ export default async function EditEmployeePage({
         <h1 className="mt-2 font-display text-2xl font-semibold text-ink-900 dark:text-white">Edit {employee.full_name}</h1>
       </div>
 
-      <EmployeeForm action={boundUpdate} initialValues={employee} error={searchParams.error} submitLabel="Save changes" />
+      <EmployeeForm action={boundUpdate} initialValues={employee} error={resolvedSearchParams.error} submitLabel="Save changes" />
     </div>
   );
 }

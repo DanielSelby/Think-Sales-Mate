@@ -25,9 +25,11 @@ export default async function AccountDetailPage({
   params,
   searchParams
 }: {
-  params: { id: string };
-  searchParams: { error?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context || !can(context.role, "banking.view")) return null;
@@ -36,7 +38,7 @@ export default async function AccountDetailPage({
   const { data: account } = await supabase
     .from("bank_accounts")
     .select("id, name, account_type, current_balance")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 
@@ -74,8 +76,8 @@ export default async function AccountDetailPage({
           action={boundRecord}
           className="flex flex-wrap items-end gap-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900"
         >
-          {searchParams.error && (
-            <p className="w-full rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{searchParams.error}</p>
+          {resolvedSearchParams.error && (
+            <p className="w-full rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{resolvedSearchParams.error}</p>
           )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-ledger-700 dark:text-ledger-200">Type</label>
