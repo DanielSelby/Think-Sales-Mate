@@ -793,6 +793,7 @@ export interface Database {
           purchase_date: string;
           expected_delivery_date: string | null;
           reference: string | null;
+          invoice_number: string | null;
           shipping_method: string | null;
           project_id: string | null;
           location_id: string;

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2,
+  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2, ClipboardList,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/sales/format";
 import { SHIPPING_METHODS, UNIT_OPTIONS } from "@/lib/purchases/format";
 import { createPurchase, type PurchaseItemInput } from "@/app/(dashboard)/purchases/actions";
 import { ProductPicker, type PickableProduct } from "@/components/purchases/product-picker";
+import { ProductRowCell } from "@/components/purchases/product-row-cell";
 import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/attachments-dropzone";
 
 export interface SupplierOption {
@@ -64,6 +65,7 @@ interface LineItem {
   productId: string;
   name: string;
   sku: string;
+  barcode: string | null;
   unit: string;
   quantity: number;
   unitPrice: number;
@@ -97,6 +99,7 @@ export function AddPurchaseForm({
   const [purchaseDate, setPurchaseDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [expectedDeliveryDate, setExpectedDeliveryDate] = React.useState("");
   const [reference, setReference] = React.useState("");
+  const [invoiceNumber, setInvoiceNumber] = React.useState("");
   const [shippingMethod, setShippingMethod] = React.useState<string>(SHIPPING_METHODS[0]);
   const [projectId, setProjectId] = React.useState("");
 
@@ -137,6 +140,7 @@ export function AddPurchaseForm({
           productId: product.id,
           name: product.name,
           sku: product.sku,
+          barcode: product.barcode,
           unit: "pcs",
           quantity: 1,
           unitPrice: product.costPrice,
@@ -145,6 +149,39 @@ export function AddPurchaseForm({
         },
       ];
     });
+  }
+
+  // "Add Row" — a blank line the user fills in via the row's own inline
+  // Product cell, independent of the long search bar above the table.
+  function addEmptyRow() {
+    setItems((prev) => [
+      ...prev,
+      {
+        key: crypto.randomUUID(),
+        productId: "",
+        name: "",
+        sku: "",
+        barcode: null,
+        unit: "pcs",
+        quantity: 1,
+        unitPrice: 0,
+        discountPercent: 0,
+        taxPercent: 15,
+      },
+    ]);
+  }
+
+  // Selecting a product from a row's inline dropdown replaces that row only
+  // — Auto SKU, cost price, and barcode update immediately; quantity,
+  // discount %, and tax % the user already set are preserved.
+  function selectProductForLine(key: string, product: PickableProduct) {
+    setItems((prev) =>
+      prev.map((l) =>
+        l.key === key
+          ? { ...l, productId: product.id, name: product.name, sku: product.sku, barcode: product.barcode, unitPrice: product.costPrice }
+          : l
+      )
+    );
   }
 
   function updateLine(key: string, patch: Partial<LineItem>) {
@@ -177,6 +214,7 @@ export function AddPurchaseForm({
       purchaseDate,
       expectedDeliveryDate: expectedDeliveryDate || null,
       reference: reference || null,
+      invoiceNumber: invoiceNumber || null,
       shippingMethod: shippingMethod || null,
       projectId: projectId || null,
       locationId,
@@ -237,17 +275,16 @@ export function AddPurchaseForm({
         {/* Main column */}
         {/* ------------------------------------------------------------- */}
         <div className="space-y-5">
-          {/* Top info grid */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {/* 1. Supplier information */}
-            <Card accent="neutral">
-              <CardHeader className="flex-row items-center gap-2 pb-3">
-                <StepBadge n={1} />
-                <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                  Supplier Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+          {/* Supplier & Purchase Details — merged card, matching the reference layout */}
+          <Card accent="neutral">
+            <CardHeader className="flex-row items-center gap-2 pb-3">
+              <ClipboardList className="h-4 w-4 text-ledger-400" />
+              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
+                Supplier &amp; Purchase Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-3">
                 <Field label="Supplier" required>
                   <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                     <option value="" disabled>Select supplier</option>
@@ -256,77 +293,10 @@ export function AddPurchaseForm({
                     ))}
                   </Select>
                 </Field>
-                <Field label="Contact Person">
-                  <Input value={selectedSupplier?.contactPerson ?? ""} disabled className="opacity-70" />
+                <Field label="Purchase Reference">
+                  <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter reference (optional)" />
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Phone">
-                    <Input value={selectedSupplier?.phone ?? ""} disabled className="opacity-70" />
-                  </Field>
-                  <Field label="Email">
-                    <Input value={selectedSupplier?.email ?? ""} disabled className="opacity-70" />
-                  </Field>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Payment Terms">
-                    <Input value={selectedSupplier?.paymentTerms ?? "—"} disabled className="opacity-70" />
-                  </Field>
-                  <Field label="Currency">
-                    <Input value={selectedSupplier?.currency ?? currency} disabled className="opacity-70" />
-                  </Field>
-                </div>
-                <p className="text-xs text-ledger-400">Pulled from the supplier profile — edit it there to update these.</p>
-              </CardContent>
-            </Card>
-
-            {/* 2. Purchase details */}
-            <Card accent="neutral">
-              <CardHeader className="flex-row items-center gap-2 pb-3">
-                <StepBadge n={2} />
-                <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                  Purchase Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0">
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Purchase Date" required>
-                    <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
-                  </Field>
-                  <Field label="Delivery Date">
-                    <Input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} />
-                  </Field>
-                </div>
-                <Field label="Reference / Memo">
-                  <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Restocking — May 2025" />
-                </Field>
-                <Field label="Shipping Method">
-                  <Select value={shippingMethod} onChange={(e) => setShippingMethod(e.target.value)}>
-                    {SHIPPING_METHODS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Project (Optional)">
-                  <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                    <option value="">Select project</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-              </CardContent>
-            </Card>
-
-            {/* 3. Delivery information */}
-            <Card accent="neutral">
-              <CardHeader className="flex-row items-center gap-2 pb-3">
-                <StepBadge n={3} />
-                <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                  Delivery Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0">
-                <Field label="Receive At (Warehouse)" required>
+                <Field label="Location" required>
                   <Select value={locationId} onChange={(e) => onLocationChange(e.target.value)}>
                     <option value="" disabled>Select location</option>
                     {locations.map((l) => (
@@ -334,37 +304,96 @@ export function AddPurchaseForm({
                     ))}
                   </Select>
                 </Field>
-                <Field label="Address">
+
+                <Field label="Invoice No.">
+                  <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="Enter invoice number" />
+                </Field>
+                <Field label="Payment Terms">
+                  <Input value={selectedSupplier?.paymentTerms ?? "—"} disabled className="opacity-70" />
+                </Field>
+                <Field label="Currency" required>
+                  <Input value={selectedSupplier?.currency ?? currency} disabled className="opacity-70" />
+                </Field>
+
+                <Field label="Purchase Date" required>
+                  <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
+                </Field>
+                <Field label="Due Date">
+                  <Input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} />
+                </Field>
+                <Field label="Notes">
                   <textarea
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    rows={2}
-                    className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    value={purchaseNote}
+                    onChange={(e) => setPurchaseNote(e.target.value)}
+                    rows={1}
+                    placeholder="Enter notes (optional)"
+                    className="flex w-full resize-none rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                   />
                 </Field>
-                <Field label="Notes (Optional)">
-                  <textarea
-                    value={deliveryNotes}
-                    onChange={(e) => setDeliveryNotes(e.target.value)}
-                    rows={2}
-                    placeholder="Please deliver during working hours."
-                    className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+
+              <details className="mt-4 rounded-md border border-ledger-100 px-3 py-2 dark:border-ledger-700">
+                <summary className="cursor-pointer text-xs font-medium text-ledger-500">
+                  More options — shipping method, project, delivery address
+                </summary>
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <Field label="Shipping Method">
+                    <Select value={shippingMethod} onChange={(e) => setShippingMethod(e.target.value)}>
+                      {SHIPPING_METHODS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Project (Optional)">
+                    <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                      <option value="">Select project</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Contact Person">
+                    <Input value={selectedSupplier?.contactPerson ?? ""} disabled className="opacity-70" />
+                  </Field>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Field label="Delivery Address">
+                    <textarea
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      rows={2}
+                      className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    />
+                  </Field>
+                  <Field label="Delivery Notes">
+                    <textarea
+                      value={deliveryNotes}
+                      onChange={(e) => setDeliveryNotes(e.target.value)}
+                      rows={2}
+                      placeholder="Please deliver during working hours."
+                      className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    />
+                  </Field>
+                </div>
+              </details>
+            </CardContent>
+          </Card>
 
           {/* 4. Product table */}
           <Card accent="neutral">
             <CardHeader className="flex-row items-center justify-between gap-2 pb-3">
               <div className="flex items-center gap-2">
-                <StepBadge n={4} />
+                <StepBadge n={2} />
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
                   Products
                 </CardTitle>
               </div>
-              <ProductPicker products={products} onSelect={addProduct} />
+              <div className="flex items-center gap-2">
+                <ProductPicker products={products} onSelect={addProduct} />
+                <Button variant="outline" size="sm" onClick={addEmptyRow}>
+                  <Plus className="h-3.5 w-3.5" /> Add Row
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
@@ -374,6 +403,7 @@ export function AddPurchaseForm({
                       <th className="w-8 px-3 py-2 font-medium">#</th>
                       <th className="px-3 py-2 font-medium">Product</th>
                       <th className="px-3 py-2 font-medium">SKU</th>
+                      <th className="px-3 py-2 font-medium">Barcode</th>
                       <th className="w-28 px-3 py-2 text-right font-medium">Unit Price</th>
                       <th className="w-20 px-3 py-2 text-right font-medium">Qty</th>
                       <th className="w-24 px-3 py-2 font-medium">Unit</th>
@@ -386,7 +416,7 @@ export function AddPurchaseForm({
                   <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={10} className="px-4 py-10 text-center text-ledger-400">
+                        <td colSpan={11} className="px-4 py-10 text-center text-ledger-400">
                           No products added yet. Search above to add your first line.
                         </td>
                       </tr>
@@ -394,8 +424,15 @@ export function AddPurchaseForm({
                     {computedLines.map(({ line, total }, i) => (
                       <tr key={line.key}>
                         <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
-                        <td className="px-3 py-2 text-ink-900 dark:text-white">{line.name}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.sku}</td>
+                        <td className="px-3 py-2">
+                          <ProductRowCell
+                            products={products}
+                            currentName={line.name}
+                            onSelect={(p) => selectProductForLine(line.key, p)}
+                          />
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.sku || "—"}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.barcode ?? "—"}</td>
                         <td className="px-3 py-2">
                           <input
                             type="number"
@@ -465,24 +502,16 @@ export function AddPurchaseForm({
             </CardContent>
           </Card>
 
-          {/* Notes + Attachments */}
+          {/* Internal note + Attachments — the supplier-facing note now
+              lives in the merged Supplier & Purchase Details card above. */}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <Card accent="neutral">
               <CardHeader className="pb-2">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                  Notes
+                  Internal Note
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
-                <Field label="Purchase Note (visible to supplier)">
-                  <textarea
-                    value={purchaseNote}
-                    onChange={(e) => setPurchaseNote(e.target.value)}
-                    rows={3}
-                    placeholder="Add a note for this purchase order..."
-                    className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                  />
-                </Field>
+              <CardContent className="pt-0">
                 <Field label="Internal Note (team only)">
                   <textarea
                     value={internalNote}
