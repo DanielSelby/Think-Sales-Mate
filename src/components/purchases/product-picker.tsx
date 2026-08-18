@@ -16,9 +16,10 @@ export interface PickableProduct {
 interface ProductPickerProps {
   products: PickableProduct[];
   onSelect: (product: PickableProduct) => void;
+  className?: string;
 }
 
-export function ProductPicker({ products, onSelect }: ProductPickerProps) {
+export function ProductPicker({ products, onSelect, className }: ProductPickerProps) {
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -66,8 +67,8 @@ export function ProductPicker({ products, onSelect }: ProductPickerProps) {
   }
 
   return (
-    <div className="relative w-full max-w-sm" ref={containerRef}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
+    <div className={cn("relative w-full max-w-sm", className)} ref={containerRef}>
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200" />
       <input
         value={query}
         onChange={(e) => {
@@ -76,8 +77,8 @@ export function ProductPicker({ products, onSelect }: ProductPickerProps) {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Scan barcode or search product by name / SKU"
-        className="h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-3 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+        placeholder="Enter Product name / SKU / Scan bar code"
+        className="h-11 w-full rounded-md border border-emerald-900 bg-emerald-800 pl-9 pr-3 text-sm text-white placeholder:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-emerald-400"
       />
 
       {open && (

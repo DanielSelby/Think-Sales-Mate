@@ -184,6 +184,13 @@ export function AddPurchaseForm({
     );
   }
 
+  // Placeholder until the Add Product component is provided — it should
+  // open that flow and, on save, likely call addProduct() so the new
+  // product is inserted as a line here too.
+  function handleAddProduct() {
+    setFormError("Add Product isn't wired up yet — send the component and I'll connect it.");
+  }
+
   function updateLine(key: string, patch: Partial<LineItem>) {
     setItems((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
@@ -270,11 +277,7 @@ export function AddPurchaseForm({
         All fields marked with <span className="font-semibold">*</span> are required.
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
-        {/* ------------------------------------------------------------- */}
-        {/* Main column */}
-        {/* ------------------------------------------------------------- */}
-        <div className="space-y-5">
+      <div className="space-y-5">
           {/* Supplier & Purchase Details — merged card, matching the reference layout */}
           <Card accent="neutral">
             <CardHeader className="flex-row items-center gap-2 pb-3">
@@ -381,18 +384,27 @@ export function AddPurchaseForm({
 
           {/* 4. Product table */}
           <Card accent="neutral">
-            <CardHeader className="flex-row items-center justify-between gap-2 pb-3">
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <StepBadge n={2} />
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
                   Products
                 </CardTitle>
               </div>
-              <div className="flex items-center gap-2">
-                <ProductPicker products={products} onSelect={addProduct} />
-                <Button variant="outline" size="sm" onClick={addEmptyRow}>
-                  <Plus className="h-3.5 w-3.5" /> Add Row
-                </Button>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <ProductPicker products={products} onSelect={addProduct} className="max-w-none flex-1" />
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={addEmptyRow}>
+                    <Plus className="h-3.5 w-3.5" /> Add Row
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleAddProduct}
+                    className="bg-emerald-700 text-white hover:bg-emerald-800"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Product
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
@@ -538,115 +550,111 @@ export function AddPurchaseForm({
               </CardContent>
             </Card>
           </div>
-        </div>
 
-        {/* ------------------------------------------------------------- */}
-        {/* Sidebar */}
-        {/* ------------------------------------------------------------- */}
-        <div className="space-y-5">
-          {/* Purchase summary */}
-          <Card accent="signal">
-            <CardHeader className="pb-2">
-              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                Purchase Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2.5 pt-0 text-sm">
-              <SummaryRow label={`Total Items (${items.length})`} value="" muted />
-              <SummaryRow label="Subtotal" value={formatCurrency(subtotal, currency)} />
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-ledger-500">Discount</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={discountAmount}
-                  onChange={(e) => setDiscountAmount(Number(e.target.value))}
-                  className="h-8 w-28 rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                />
-              </div>
-              <SummaryRow label="Tax" value={formatCurrency(tax, currency)} />
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-ledger-500">Shipping Cost</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={shippingCost}
-                  onChange={(e) => setShippingCost(Number(e.target.value))}
-                  className="h-8 w-28 rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-between border-t border-ledger-100 pt-3 dark:border-ledger-700">
-                <span className="font-medium text-ink-900 dark:text-white">Total Amount</span>
-                <span className="font-display text-lg font-semibold text-signal">
-                  {formatCurrency(Math.max(0, grandTotal), currency)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Payment info */}
-          <Card accent="neutral">
-            <CardHeader className="pb-2">
-              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                Payment Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              <Field label="Payment Method">
-                <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                  {["Bank Transfer", "Cash", "Mobile Money", "Cheque", "Credit"].map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Account">
-                <Select value={paymentAccount} onChange={(e) => setPaymentAccount(e.target.value)}>
-                  <option value="">Select account</option>
-                  {bankAccounts.map((a) => (
-                    <option key={a.id} value={a.name}>{a.name}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Pay From">
-                <Select value={payFromAccount} onChange={(e) => setPayFromAccount(e.target.value)}>
-                  <option value="">Select account</option>
-                  {bankAccounts.map((a) => (
-                    <option key={a.id} value={a.name}>{a.name}</option>
-                  ))}
-                </Select>
-              </Field>
-              <p className="rounded-md bg-ledger-50 px-3 py-2 text-xs text-ledger-500 dark:bg-white/[0.04]">
-                Payment will be recorded when you choose <strong>Save &amp; Receive Items</strong>, or later from the purchase detail page.
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* AI recommendations */}
-          {recommendations.length > 0 && (
-            <Card accent="amber">
-              <CardHeader className="flex-row items-center gap-2 pb-2">
-                <Sparkles className="h-4 w-4 text-amber" />
+          {/* Purchase Summary, Payment Info & AI recommendations — moved
+              down here so Products above gets the full page width instead
+              of being squeezed against a narrow sidebar. */}
+          <div className="mt-3 grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <Card accent="signal">
+              <CardHeader className="pb-2">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                  AI Purchase Recommendations
+                  Purchase Summary
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2.5 pt-0">
-                <p className="text-xs text-ledger-400">Based on your purchase history and sales trends.</p>
-                {recommendations.slice(0, 4).map((r, i) => (
-                  <div key={i} className="flex items-start gap-2 text-sm">
-                    <Sparkles className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", RECOMMENDATION_ICON_TONE[r.kind])} />
-                    <p className="text-ledger-600 dark:text-ledger-300">
-                      <span className="font-medium text-ink-900 dark:text-white">{r.productName}</span> — {r.suggestion}
-                    </p>
-                  </div>
-                ))}
+              <CardContent className="space-y-2.5 pt-0 text-sm">
+                <SummaryRow label={`Total Items (${items.length})`} value="" muted />
+                <SummaryRow label="Subtotal" value={formatCurrency(subtotal, currency)} />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-ledger-500">Discount</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                    className="h-8 w-28 rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  />
+                </div>
+                <SummaryRow label="Tax" value={formatCurrency(tax, currency)} />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-ledger-500">Shipping Cost</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={shippingCost}
+                    onChange={(e) => setShippingCost(Number(e.target.value))}
+                    className="h-8 w-28 rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between border-t border-ledger-100 pt-3 dark:border-ledger-700">
+                  <span className="font-medium text-ink-900 dark:text-white">Total Amount</span>
+                  <span className="font-display text-lg font-semibold text-signal">
+                    {formatCurrency(Math.max(0, grandTotal), currency)}
+                  </span>
+                </div>
               </CardContent>
             </Card>
-          )}
+
+            <Card accent="neutral">
+              <CardHeader className="pb-2">
+                <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
+                  Payment Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <Field label="Payment Method">
+                  <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                    {["Bank Transfer", "Cash", "Mobile Money", "Cheque", "Credit"].map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Account">
+                  <Select value={paymentAccount} onChange={(e) => setPaymentAccount(e.target.value)}>
+                    <option value="">Select account</option>
+                    {bankAccounts.map((a) => (
+                      <option key={a.id} value={a.name}>{a.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Pay From">
+                  <Select value={payFromAccount} onChange={(e) => setPayFromAccount(e.target.value)}>
+                    <option value="">Select account</option>
+                    {bankAccounts.map((a) => (
+                      <option key={a.id} value={a.name}>{a.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <p className="rounded-md bg-ledger-50 px-3 py-2 text-xs text-ledger-500 dark:bg-white/[0.04]">
+                  Payment will be recorded when you choose <strong>Save &amp; Receive Items</strong>, or later from the purchase detail page.
+                </p>
+              </CardContent>
+            </Card>
+
+            {recommendations.length > 0 && (
+              <Card accent="amber">
+                <CardHeader className="flex-row items-center gap-2 pb-2">
+                  <Sparkles className="h-4 w-4 text-amber" />
+                  <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
+                    AI Purchase Recommendations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2.5 pt-0">
+                  <p className="text-xs text-ledger-400">Based on your purchase history and sales trends.</p>
+                  {recommendations.slice(0, 4).map((r, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <Sparkles className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", RECOMMENDATION_ICON_TONE[r.kind])} />
+                      <p className="text-ledger-600 dark:text-ledger-300">
+                        <span className="font-medium text-ink-900 dark:text-white">{r.productName}</span> — {r.suggestion}
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
-      </div>
 
       {formError && (
         <div className="rounded-md border border-alert/30 bg-alert-soft px-4 py-2.5 text-sm text-alert">
