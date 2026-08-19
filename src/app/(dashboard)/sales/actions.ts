@@ -329,6 +329,144 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
 }
 
 // ---------------------------------------------------------------------------
+// Edit an existing sale — load + save
+// ---------------------------------------------------------------------------
+export interface SaleEditData {
+  id:            string;
+  customerId:    string | null;
+  customerName:  string | null;
+  locationId:    string | null;
+  reference:     string | null;
+  saleDate:      string;
+  paymentMethod: string | null;
+  amountPaid:    number | null;
+  shippingAmount: number;
+  discountAmount: number;
+  taxAmount:      number;
+  items: { productId: string; quantity: number; unitPrice: number; discountPercent: number; taxPercent: number }[];
+}
+
+export async function getSaleForEdit(saleId: string): Promise<SaleEditData | null> {
+  const supabase = await createClient();
+
+  const { data: sale } = await supabase
+    .from("sales")
+    .select("id, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
+    .eq("id", saleId)
+    .single();
+  if (!sale) return null;
+
+  const { data: items } = await supabase
+    .from("sale_items")
+    .select("product_id, quantity, unit_price, discount_percent, tax_percent")
+    .eq("sale_id", saleId);
+
+  return {
+    id: sale.id,
+    customerId: sale.customer_id,
+    customerName: sale.customer_name,
+    locationId: sale.location_id,
+    reference: sale.reference,
+    saleDate: sale.sale_date,
+    paymentMethod: sale.payment_method,
+    amountPaid: sale.amount_paid,
+    shippingAmount: sale.shipping_amount ?? 0,
+    discountAmount: sale.discount_amount ?? 0,
+    taxAmount: sale.tax_amount ?? 0,
+    items: (items ?? []).map((i) => ({
+      productId: i.product_id,
+      quantity: i.quantity,
+      unitPrice: i.unit_price,
+      discountPercent: i.discount_percent,
+      taxPercent: i.tax_percent,
+    })),
+  };
+}
+
+export interface UpdateSaleInput {
+  saleId:          string;
+  customerId?:     string | null;
+  customerName?:   string | null;
+  locationId?:     string | null;
+  reference?:      string | null;
+  saleDate?:       string | null;
+  paymentMethod?:  string | null;
+  amountPaid?:     number | null;
+  shippingAmount?: number | null;
+  discountAmount?: number | null;
+  taxAmount?:      number | null;
+  subtotal:        number;
+  total:           number;
+  items: { productId: string; quantity: number; unitPrice: number; discountPercent?: number; taxPercent?: number; lineTotal: number }[];
+}
+
+export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  try {
+    const { data: existingSale } = await supabase.from("sales").select("org_id").eq("id", input.saleId).single();
+    if (!existingSale) throw new Error("Sale not found.");
+
+    // Reverse the old line items' stock impact before applying the new
+    // ones — same rpc recordSale uses for the initial deduction.
+    const { data: existingItems } = await supabase.from("sale_items").select("product_id, quantity").eq("sale_id", input.saleId);
+    for (const item of existingItems ?? []) {
+      await (supabase as any).rpc("adjust_product_stock", { p_product_id: item.product_id, p_delta: item.quantity });
+    }
+
+    const { error: deleteError } = await supabase.from("sale_items").delete().eq("sale_id", input.saleId);
+    if (deleteError) throw new Error(deleteError.message);
+
+    const { error: updateError } = await supabase
+      .from("sales")
+      .update({
+        customer_name:   input.customerName ?? null,
+        customer_id:     input.customerId ?? null,
+        location_id:     input.locationId ?? null,
+        reference:       input.reference ?? null,
+        sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
+        subtotal:        input.subtotal,
+        discount_amount: input.discountAmount ?? 0,
+        tax_amount:      input.taxAmount ?? 0,
+        shipping_amount: input.shippingAmount ?? 0,
+        total:           input.total,
+        payment_method:  input.paymentMethod ?? null,
+        amount_paid:     input.amountPaid ?? null,
+      })
+      .eq("id", input.saleId);
+    if (updateError) throw new Error(updateError.message);
+
+    if (input.items.length > 0) {
+      const rows = input.items.map((l) => ({
+        sale_id:          input.saleId,
+        org_id:           existingSale.org_id,
+        product_id:       l.productId,
+        quantity:         l.quantity,
+        unit_price:       l.unitPrice,
+        discount_percent: l.discountPercent ?? 0,
+        tax_percent:      l.taxPercent ?? 0,
+        line_total:       l.lineTotal,
+      }));
+      const { error: itemsError } = await supabase.from("sale_items").insert(rows);
+      if (itemsError) throw new Error(itemsError.message);
+    }
+
+    for (const l of input.items) {
+      await (supabase as any).rpc("adjust_product_stock", { p_product_id: l.productId, p_delta: -l.quantity });
+    }
+
+    revalidatePath("/sales");
+    revalidatePath(`/sales/${input.saleId}`);
+    revalidatePath("/inventory");
+    return { ok: true, saleId: input.saleId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Fetch line items for invoice display
 // ---------------------------------------------------------------------------
 export interface SaleInvoiceLine {

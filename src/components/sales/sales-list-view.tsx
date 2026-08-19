@@ -75,7 +75,7 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
   cancelled: "neutral",
 };
 
-const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
+const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
 export function SalesListView({ sales, kpis, currency, locations, salesReps, orgName }: SalesListViewProps) {
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
   const [paymentStatus, setPaymentStatus] = useState<"all" | PaymentStatus>("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState<number | "all">(10);
 
   const counts = useMemo(() => {
     const c: Record<"all" | SaleStatus, number> = { all: sales.length, completed: 0, returned: 0, cancelled: 0 };
@@ -109,9 +109,10 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
     });
   }, [sales, activeTab, paymentStatus, location, salesRep, query]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+  const effectiveRowsPerPage = rowsPerPage === "all" ? Math.max(1, filtered.length) : rowsPerPage;
+  const totalPages = rowsPerPage === "all" ? 1 : Math.max(1, Math.ceil(filtered.length / effectiveRowsPerPage));
   const clampedPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
+  const pageRows = rowsPerPage === "all" ? filtered : filtered.slice((clampedPage - 1) * effectiveRowsPerPage, clampedPage * effectiveRowsPerPage);
   const allChecked = pageRows.length > 0 && pageRows.every((r) => selected.includes(r.id));
 
   function toggleAll() {
@@ -364,17 +365,18 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
         {/* Pagination */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ledger-100 px-4 py-3 dark:border-ledger-700">
           <p className="text-sm text-ledger-500">
-            Showing {pageRows.length === 0 ? 0 : (clampedPage - 1) * rowsPerPage + 1}–
-            {(clampedPage - 1) * rowsPerPage + pageRows.length} of {filtered.length} sales
+            Showing {pageRows.length === 0 ? 0 : (clampedPage - 1) * effectiveRowsPerPage + 1}–
+            {(clampedPage - 1) * effectiveRowsPerPage + pageRows.length} of {filtered.length} sales
           </p>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-ledger-500">
               Rows per page
               <Select
                 value={rowsPerPage}
-                onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
-                className="h-8 w-20"
+                onChange={(e) => { setRowsPerPage(e.target.value === "all" ? "all" : Number(e.target.value)); setPage(1); }}
+                className="h-8 w-24"
               >
+                <option value="all">Show All</option>
                 {ROWS_PER_PAGE_OPTIONS.map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}

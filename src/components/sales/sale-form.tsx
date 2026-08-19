@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
-import { recordSale } from "@/app/(dashboard)/sales/actions";
+import { recordSale, updateSale } from "@/app/(dashboard)/sales/actions";
 
 
 export interface SellableProduct {
@@ -61,6 +61,21 @@ export interface SaleStockLevel {
   productId: string;
   locationId: string;
   quantity: number;
+}
+
+export interface InitialSaleData {
+  id: string;
+  customerId: string | null;
+  customerName: string | null;
+  locationId: string | null;
+  reference: string | null;
+  saleDate: string;
+  paymentMethod: string | null;
+  amountPaid: number | null;
+  shippingAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  items: { productId: string; quantity: number; unitPrice: number; discountPercent: number; taxPercent: number }[];
 }
 
 export interface RecentItem {
@@ -115,6 +130,7 @@ export function SaleForm({
   reps,
   recentItems,
   stockLevels,
+  initialSale,
   currentUserId,
   currentUserEmail,
   orgId,
@@ -125,6 +141,7 @@ export function SaleForm({
   reps: SalesRep[];
   recentItems: RecentItem[];
   stockLevels?: SaleStockLevel[];
+  initialSale?: InitialSaleData;
   currentUserId: string;
   orgId: string;
   currentUserEmail: string;
@@ -133,6 +150,7 @@ export function SaleForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
 
   // Customer
   const [customerList, setCustomerList] = useState<SaleCustomer[]>(customers);
@@ -249,6 +267,30 @@ export function SaleForm({
 
   // Restore a locally-saved draft on first load, if one exists.
   useEffect(() => {
+    // Editing an existing sale takes priority over any locally-saved draft
+    // — pre-fill from the DB record instead.
+    if (initialSale) {
+      if (initialSale.customerId) setSelectedCustomerId(initialSale.customerId);
+      else if (initialSale.customerName) setWalkInName(initialSale.customerName);
+      setSaleDate(initialSale.saleDate);
+      if (initialSale.locationId) setLocationId(initialSale.locationId);
+      setReference(initialSale.reference ?? "");
+      setPaymentMethod(initialSale.paymentMethod ?? PAYMENT_METHODS[0]);
+      setAmountPaid(initialSale.amountPaid ?? 0);
+      setShippingAmount(initialSale.shippingAmount);
+      setAdditionalDiscountAmount(initialSale.discountAmount);
+      setLines(
+        initialSale.items.map((i) => ({
+          key: crypto.randomUUID(),
+          productId: i.productId,
+          quantity: i.quantity,
+          discountPercent: i.discountPercent,
+          taxPercent: i.taxPercent,
+        }))
+      );
+      return;
+    }
+
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -274,6 +316,7 @@ export function SaleForm({
     } catch {
       // ignore malformed/missing draft
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function updateLine(key: string, patch: Partial<LineItem>) {
@@ -394,6 +437,50 @@ export function SaleForm({
     setError(null);
 
     startTransition(async () => {
+      if (editingSaleId) {
+        const result = await updateSale({
+          saleId: editingSaleId,
+          subtotal,
+          total,
+          customerId: selectedCustomerId,
+          customerName: selectedCustomer?.name ?? walkInName,
+          locationId: locationId || null,
+          reference,
+          saleDate,
+          paymentMethod,
+          amountPaid,
+          shippingAmount,
+          discountAmount: discountTotal + additionalDiscountAmount,
+          taxAmount: taxTotal + additionalTaxAmount,
+          items: lines
+            .filter((l) => l.productId)
+            .map((l) => {
+              const product = productById.get(l.productId);
+              const unitPrice = product?.unitPrice ?? 0;
+              const gross = unitPrice * l.quantity;
+              const disc = gross * (l.discountPercent / 100);
+              const lineTotal = gross - disc + (gross - disc) * (l.taxPercent / 100);
+              return {
+                productId: l.productId,
+                quantity: l.quantity,
+                unitPrice,
+                discountPercent: l.discountPercent,
+                taxPercent: l.taxPercent,
+                lineTotal,
+              };
+            }),
+        });
+
+        if (!result.ok) {
+          setError(result.error ?? "Something went wrong.");
+          return;
+        }
+
+        window.localStorage.removeItem(DRAFT_KEY);
+        router.push(`/sales/${editingSaleId}`);
+        return;
+      }
+
       const result = await recordSale({
         orgId,
         subtotal,
@@ -406,8 +493,10 @@ export function SaleForm({
         paymentMethod,
         amountPaid,
         shippingAmount,
+        discountAmount: discountTotal + additionalDiscountAmount,
+        taxAmount: taxTotal + additionalTaxAmount,
         notes: note,
-        items: lines.map((l) => ({
+        items: lines.filter((l) => l.productId).map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
           discountPercent: l.discountPercent,
@@ -430,8 +519,12 @@ export function SaleForm({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">New sale</h1>
-          <p className="text-sm text-ledger-500 dark:text-ledger-400">Create a new sales transaction.</p>
+          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">
+            {editingSaleId ? "Edit sale" : "New sale"}
+          </h1>
+          <p className="text-sm text-ledger-500 dark:text-ledger-400">
+            {editingSaleId ? "Update this sale's details, then save your changes." : "Create a new sales transaction."}
+          </p>
         </div>
         <Button variant="outline" type="button" onClick={clearSale}>
           <RotateCcw className="h-3.5 w-3.5" />
@@ -1137,7 +1230,7 @@ export function SaleForm({
               {isPending ? "Saving…" : "Save Sale"}
             </Button>
             <Button type="button" disabled={isPending} onClick={handleConfirm}>
-              {isPending ? "Recording sale…" : "Complete Sale"}
+              {isPending ? "Saving…" : editingSaleId ? "Update Sale" : "Complete Sale"}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
