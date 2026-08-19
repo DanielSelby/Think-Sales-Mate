@@ -7,6 +7,8 @@ import {
   Plus,
   Minus,
   Trash2,
+  Pencil,
+  Check,
   ScanLine,
   StickyNote,
   Paperclip,
@@ -21,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
 import { recordSale } from "@/app/(dashboard)/sales/actions";
 
 export interface SellableProduct {
@@ -57,6 +60,7 @@ export interface RecentItem {
 }
 
 interface LineItem {
+  key: string;
   productId: string;
   quantity: number;
   discountPercent: number;
@@ -126,20 +130,40 @@ export function SaleForm({
 
   // Sale details
   const [saleDate, setSaleDate] = useState(todayIso());
+  const [saleTime, setSaleTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [salesRepId, setSalesRepId] = useState(currentUserId);
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [reference, setReference] = useState("");
+  const [paymentTerm, setPaymentTerm] = useState(PAYMENT_METHODS[0]);
+  const [docStatus, setDocStatus] = useState<"" | "draft" | "quotation" | "proforma" | "final">("");
+  const [invoiceScheme, setInvoiceScheme] = useState("Default");
 
   // Products
   const [search, setSearch] = useState("");
   const [lines, setLines] = useState<LineItem[]>([]);
 
-  // Quick actions
-  const [showNote, setShowNote] = useState(false);
+  // Additional information / charges — always visible now (the reference
+  // shows Notes, Attach Document, Shipping, Other Charges, Discount, and
+  // Tax as permanent fields rather than toggled quick-actions).
   const [note, setNote] = useState("");
-  const [showShipping, setShowShipping] = useState(false);
   const [shippingAmount, setShippingAmount] = useState(0);
+  const [otherChargesAmount, setOtherChargesAmount] = useState(0);
+  const [additionalDiscountAmount, setAdditionalDiscountAmount] = useState(0);
+  const [additionalTaxPercent, setAdditionalTaxPercent] = useState(0);
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
+
+  // "Additional Options" checkboxes — printReceipt/updateStockOption
+  // reflect what recordSale already does today (stock always adjusts), so
+  // they're currently display-only. addToCustomerCredit/addToSalesQuotation
+  // aren't backed by any table yet — flagging rather than inventing one.
+  const [printReceipt, setPrintReceipt] = useState(true);
+  const [updateStockOption, setUpdateStockOption] = useState(true);
+  const [addToCustomerCredit, setAddToCustomerCredit] = useState(false);
+  const [addToSalesQuotation, setAddToSalesQuotation] = useState(false);
+
+  // Inline per-row product replacement — independent of the long search
+  // bar's `search`/filteredProducts state above the table.
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
@@ -176,7 +200,8 @@ export function SaleForm({
   const subtotal = computedLines.reduce((sum, c) => sum + c.lineSubtotal, 0);
   const discountTotal = computedLines.reduce((sum, c) => sum + c.lineDiscount, 0);
   const taxTotal = computedLines.reduce((sum, c) => sum + c.lineTax, 0);
-  const total = subtotal - discountTotal + taxTotal + shippingAmount;
+  const additionalTaxAmount = Math.max(0, (subtotal - discountTotal - additionalDiscountAmount) * (additionalTaxPercent / 100));
+  const total = subtotal - discountTotal - additionalDiscountAmount + taxTotal + additionalTaxAmount + shippingAmount + otherChargesAmount;
   const changeOrDue = amountPaid - total;
 
   // Restore a locally-saved draft on first load, if one exists.
@@ -185,13 +210,22 @@ export function SaleForm({
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
       const draft = JSON.parse(raw);
-      if (draft.lines?.length) setLines(draft.lines);
+      if (draft.lines?.length) {
+        setLines(
+          draft.lines.map((l: Partial<LineItem>) => ({
+            key: l.key ?? crypto.randomUUID(),
+            productId: l.productId ?? "",
+            quantity: l.quantity ?? 1,
+            discountPercent: l.discountPercent ?? 0,
+            taxPercent: l.taxPercent ?? 0,
+          }))
+        );
+      }
       if (draft.walkInName) setWalkInName(draft.walkInName);
       if (draft.selectedCustomerId) setSelectedCustomerId(draft.selectedCustomerId);
       if (draft.reference) setReference(draft.reference);
       if (draft.note) {
         setNote(draft.note);
-        setShowNote(true);
       }
       if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
     } catch {
@@ -199,17 +233,33 @@ export function SaleForm({
     }
   }, []);
 
-  function updateLine(productId: string, patch: Partial<LineItem>) {
-    setLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, ...patch } : l)));
+  function updateLine(key: string, patch: Partial<LineItem>) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
   function addProduct(productId: string) {
     if (lines.some((l) => l.productId === productId)) return;
-    setLines((prev) => [...prev, { productId, quantity: 1, discountPercent: 0, taxPercent: 0 }]);
+    setLines((prev) => [...prev, { key: crypto.randomUUID(), productId, quantity: 1, discountPercent: 0, taxPercent: 0 }]);
   }
 
-  function removeLine(productId: string) {
-    setLines((prev) => prev.filter((l) => l.productId !== productId));
+  // A blank row the user fills in via that row's own inline Product cell —
+  // independent of the long search bar above the table.
+  function addEmptyRow() {
+    setLines((prev) => [...prev, { key: crypto.randomUUID(), productId: "", quantity: 1, discountPercent: 0, taxPercent: 0 }]);
+  }
+
+  // Selecting a replacement from a row's inline dropdown swaps productId
+  // only — unitPrice/sku/stock all re-derive from productById on the next
+  // render (computedLines already looks them up fresh), so nothing else
+  // needs to change here.
+  function selectReplacement(key: string, product: SellableProduct) {
+    updateLine(key, { productId: product.id });
+    setEditingLineId(null);
+  }
+
+  function removeLine(key: string) {
+    setLines((prev) => prev.filter((l) => l.key !== key));
+    if (editingLineId === key) setEditingLineId(null);
   }
 
   function selectCustomer(customer: SaleCustomer) {
@@ -224,13 +274,18 @@ export function SaleForm({
     setWalkInName("");
     setCustomerQuery("");
     setSaleDate(todayIso());
+    setSaleTime(new Date().toTimeString().slice(0, 5));
     setReference("");
+    setPaymentTerm(PAYMENT_METHODS[0]);
+    setDocStatus("");
     setLines([]);
     setSearch("");
-    setShowNote(false);
+    setEditingLineId(null);
     setNote("");
-    setShowShipping(false);
     setShippingAmount(0);
+    setOtherChargesAmount(0);
+    setAdditionalDiscountAmount(0);
+    setAdditionalTaxPercent(0);
     setAttachedFileName(null);
     setPaymentMethod(PAYMENT_METHODS[0]);
     setAmountPaid(0);
@@ -244,6 +299,17 @@ export function SaleForm({
       JSON.stringify({ lines, walkInName, selectedCustomerId, reference, note, paymentMethod })
     );
     setError(null);
+  }
+
+  // Maps the Status dropdown onto the two real save paths: Draft /
+  // Quotation / Proforma all go through the existing localStorage draft;
+  // Final routes through the same handleConfirm() "Complete Sale" uses.
+  function handleSaveByStatus() {
+    if (docStatus === "final") {
+      handleConfirm();
+      return;
+    }
+    saveDraft();
   }
 
   function validate(): string | null {
@@ -323,116 +389,114 @@ export function SaleForm({
       <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Main column */}
         <div className="space-y-5 lg:col-span-2">
-          {/* Customer information */}
+          {/* Customer & Sale Details — merged, matching the reference layout */}
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Customer information</h2>
-              <button
-                type="button"
-                onClick={() => setShowCustomerPicker((s) => !s)}
-                className="text-xs font-medium text-signal hover:underline"
-              >
-                Select customer
-              </button>
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-ledger-400" />
+              <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Customer &amp; Sale Details</h2>
             </div>
 
-            {showCustomerPicker && (
-              <div className="mt-3 rounded-md border border-ledger-100 p-2 dark:border-ledger-700">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
-                  <input
-                    autoFocus
-                    value={customerQuery}
-                    onChange={(e) => setCustomerQuery(e.target.value)}
-                    placeholder="Search customers by name, phone, or email…"
-                    className="h-9 w-full rounded-md border border-ledger-200 bg-white pl-8 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                  />
-                </div>
-                <div className="mt-2 max-h-40 space-y-0.5 overflow-y-auto">
-                  {filteredCustomers.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => selectCustomer(c)}
-                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.04]"
-                    >
-                      <span className="text-ink-900 dark:text-white">{c.name}</span>
-                      <span className="text-xs text-ledger-400">{c.phone ?? c.email ?? ""}</span>
-                    </button>
-                  ))}
-                  {filteredCustomers.length === 0 && (
-                    <p className="px-2 py-2 text-center text-xs text-ledger-400">No matching customers.</p>
-                  )}
-                </div>
-                <div className="mt-2 border-t border-ledger-100 pt-2 dark:border-ledger-700">
-                  <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
-                    Or enter a walk-in customer name
-                  </label>
-                  <Input
-                    value={walkInName}
-                    onChange={(e) => {
-                      setWalkInName(e.target.value);
-                      setSelectedCustomerId(null);
-                    }}
-                    placeholder="Walk-in customer"
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="mt-3 flex items-start gap-3 rounded-md bg-ledger-50 p-3 dark:bg-white/[0.04]">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-ledger-400 dark:bg-ink-900">
-                <User className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                {selectedCustomer ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-ink-900 dark:text-white">{selectedCustomer.name}</span>
-                      {selectedCustomer.isReturning && (
-                        <span className="rounded-full bg-signal-soft px-2 py-0.5 text-[11px] font-semibold text-signal">
-                          Returning customer
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-ledger-500 dark:text-ledger-400">
-                      {selectedCustomer.email && (
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" /> {selectedCustomer.email}
-                        </span>
-                      )}
-                      {selectedCustomer.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {selectedCustomer.phone}
-                        </span>
-                      )}
-                    </div>
-                    {selectedCustomer.outstanding > 0 && (
-                      <p className="mt-1 text-xs font-medium text-alert">
-                        Outstanding: ${formatMoney(selectedCustomer.outstanding)}
-                      </p>
-                    )}
-                  </>
-                ) : walkInName ? (
-                  <span className="font-medium text-ink-900 dark:text-white">{walkInName} (walk-in)</span>
-                ) : (
-                  <span className="text-sm text-ledger-400">No customer selected yet — choose one above.</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Sale details */}
-          <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Sale details</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Sale date</label>
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
+                  Customer <span className="text-alert">*</span>
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomerPicker((s) => !s)}
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-ledger-200 bg-white px-3 text-left text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  >
+                    <span className="truncate">
+                      {selectedCustomer ? selectedCustomer.name : walkInName ? `${walkInName} (walk-in)` : "Walk-in Customer"}
+                    </span>
+                    <Plus className="h-3.5 w-3.5 shrink-0 text-ledger-400" />
+                  </button>
+                  {showCustomerPicker && (
+                    <div className="absolute left-0 right-0 top-11 z-30 rounded-md border border-ledger-100 bg-white p-2 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
+                        <input
+                          autoFocus
+                          value={customerQuery}
+                          onChange={(e) => setCustomerQuery(e.target.value)}
+                          placeholder="Search customers by name, phone, or email…"
+                          className="h-9 w-full rounded-md border border-ledger-200 bg-white pl-8 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                        />
+                      </div>
+                      <div className="mt-2 max-h-40 space-y-0.5 overflow-y-auto">
+                        {filteredCustomers.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => selectCustomer(c)}
+                            className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.04]"
+                          >
+                            <span className="text-ink-900 dark:text-white">{c.name}</span>
+                            <span className="text-xs text-ledger-400">{c.phone ?? c.email ?? ""}</span>
+                          </button>
+                        ))}
+                        {filteredCustomers.length === 0 && (
+                          <p className="px-2 py-2 text-center text-xs text-ledger-400">No matching customers.</p>
+                        )}
+                      </div>
+                      <div className="mt-2 border-t border-ledger-100 pt-2 dark:border-ledger-700">
+                        <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
+                          Or enter a walk-in customer name
+                        </label>
+                        <Input
+                          value={walkInName}
+                          onChange={(e) => {
+                            setWalkInName(e.target.value);
+                            setSelectedCustomerId(null);
+                          }}
+                          placeholder="Walk-in customer"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {selectedCustomer && (
+                  <div className="flex flex-wrap gap-3 text-xs text-ledger-500 dark:text-ledger-400">
+                    {selectedCustomer.email && (
+                      <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {selectedCustomer.email}</span>
+                    )}
+                    {selectedCustomer.phone && (
+                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedCustomer.phone}</span>
+                    )}
+                    {selectedCustomer.outstanding > 0 && (
+                      <span className="font-medium text-alert">Outstanding: ${formatMoney(selectedCustomer.outstanding)}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
+                  Sale Date <span className="text-alert">*</span>
+                </label>
                 <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Sales rep</label>
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Sale Time</label>
+                <Input type="time" value={saleTime} onChange={(e) => setSaleTime(e.target.value)} />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Payment Term</label>
+                <select
+                  value={paymentTerm}
+                  onChange={(e) => setPaymentTerm(e.target.value)}
+                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                >
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Salesperson</label>
                 <select
                   value={salesRepId}
                   onChange={(e) => setSalesRepId(e.target.value)}
@@ -442,11 +506,42 @@ export function SaleForm({
                     <option value={currentUserId}>{currentUserEmail}</option>
                   ) : (
                     reps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.email}
-                      </option>
+                      <option key={r.id} value={r.id}>{r.email}</option>
                     ))
                   )}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
+                  Reference <span className="font-normal text-ledger-400">(optional)</span>
+                </label>
+                <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter reference" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
+                  Status <span className="text-alert">*</span>
+                </label>
+                <select
+                  value={docStatus}
+                  onChange={(e) => setDocStatus(e.target.value as typeof docStatus)}
+                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                >
+                  <option value="">Please Select</option>
+                  <option value="draft">Draft</option>
+                  <option value="quotation">Quotation</option>
+                  <option value="proforma">Proforma</option>
+                  <option value="final">Final</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Invoice Scheme</label>
+                <select
+                  value={invoiceScheme}
+                  onChange={(e) => setInvoiceScheme(e.target.value)}
+                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                >
+                  <option>Default</option>
                 </select>
               </div>
               <div className="space-y-1.5">
@@ -460,35 +555,18 @@ export function SaleForm({
                     <option value="">No branches yet</option>
                   ) : (
                     locations.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name}
-                      </option>
+                      <option key={l.id} value={l.id}>{l.name}</option>
                     ))
                   )}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Price list</label>
-                <select
-                  disabled
-                  className="h-10 w-full rounded-md border border-ledger-200 bg-ledger-50 px-3 text-sm text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03] dark:text-ledger-400"
-                >
-                  <option>Default price list</option>
-                </select>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">
-                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
-                  Reference <span className="font-normal text-ledger-400">(optional)</span>
-                </label>
-                <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter reference" />
-              </div>
             </div>
           </div>
 
-          {/* Products */}
+          {/* Sale Items */}
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-sm font-semibold text-ink-900 dark:text-white shrink-0">Products ({lines.length} items)</h2>
+              <h2 className="text-sm font-semibold text-ink-900 dark:text-white shrink-0">Sale Items ({lines.length} items)</h2>
               <div className="flex flex-1 items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
@@ -553,21 +631,32 @@ export function SaleForm({
                     </thead>
                     <tbody>
                       {computedLines.map(({ line, product, rowTotal }) => {
-                        if (!product) return null;
+                        const isEditing = editingLineId === line.key || !product;
                         return (
-                          <tr key={line.productId} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
+                          <tr key={line.key} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
                             <td className="py-2 pr-2">
-                              <span className="font-medium text-ink-900 dark:text-white">{product.name}</span>
-                              <span className="ml-2 font-mono text-xs text-ledger-400">{product.sku}</span>
+                              {isEditing ? (
+                                <SaleProductRowCell
+                                  products={products}
+                                  currentName={product?.name ?? ""}
+                                  onSelect={(p) => selectReplacement(line.key, p)}
+                                  onClose={() => setEditingLineId(null)}
+                                />
+                              ) : (
+                                <>
+                                  <span className="font-medium text-ink-900 dark:text-white">{product!.name}</span>
+                                  <span className="ml-2 font-mono text-xs text-ledger-400">{product!.sku}</span>
+                                </>
+                              )}
                             </td>
                             <td className="px-2 py-2 text-right figure text-ledger-500 dark:text-ledger-400">
-                              ${formatMoney(product.unitPrice)}
+                              ${formatMoney(product?.unitPrice ?? 0)}
                             </td>
                             <td className="px-2 py-2">
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => updateLine(line.productId, { quantity: Math.max(1, line.quantity - 1) })}
+                                  onClick={() => updateLine(line.key, { quantity: Math.max(1, line.quantity - 1) })}
                                   className="flex h-6 w-6 items-center justify-center rounded border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]"
                                 >
                                   <Minus className="h-3 w-3" />
@@ -575,18 +664,18 @@ export function SaleForm({
                                 <input
                                   type="number"
                                   min={1}
-                                  max={product.stockQuantity}
+                                  max={product?.stockQuantity}
                                   value={line.quantity}
                                   onChange={(e) =>
-                                    updateLine(line.productId, { quantity: Math.max(1, Number(e.target.value)) })
+                                    updateLine(line.key, { quantity: Math.max(1, Number(e.target.value)) })
                                   }
                                   className="h-6 w-10 rounded border border-ledger-200 bg-white text-center text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                                 />
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    updateLine(line.productId, {
-                                      quantity: Math.min(product.stockQuantity, line.quantity + 1)
+                                    updateLine(line.key, {
+                                      quantity: Math.min(product?.stockQuantity ?? line.quantity, line.quantity + 1)
                                     })
                                   }
                                   className="flex h-6 w-6 items-center justify-center rounded border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]"
@@ -602,7 +691,7 @@ export function SaleForm({
                                   min={0}
                                   max={100}
                                   value={line.discountPercent}
-                                  onChange={(e) => updateLine(line.productId, { discountPercent: Number(e.target.value) })}
+                                  onChange={(e) => updateLine(line.key, { discountPercent: Number(e.target.value) })}
                                   className="h-8 w-14 rounded-md border border-ledger-200 bg-white px-1 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                                 />
                                 <span className="text-xs text-ledger-400">%</span>
@@ -611,7 +700,7 @@ export function SaleForm({
                             <td className="px-2 py-2 text-right">
                               <select
                                 value={line.taxPercent}
-                                onChange={(e) => updateLine(line.productId, { taxPercent: Number(e.target.value) })}
+                                onChange={(e) => updateLine(line.key, { taxPercent: Number(e.target.value) })}
                                 className="h-8 rounded-md border border-ledger-200 bg-white px-1 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                               >
                                 {TAX_RATES.map((rate) => (
@@ -625,14 +714,36 @@ export function SaleForm({
                               ${formatMoney(rowTotal)}
                             </td>
                             <td className="px-2 py-2 text-right">
-                              <button
-                                type="button"
-                                onClick={() => removeLine(line.productId)}
-                                className="text-ledger-400 hover:text-alert"
-                                aria-label="Remove item"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {product && !isEditing && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingLineId(line.key)}
+                                    className="text-ledger-400 hover:text-signal"
+                                    aria-label="Edit product"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                {editingLineId === line.key && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingLineId(null)}
+                                    className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
+                                    aria-label="Done editing"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => removeLine(line.key)}
+                                  className="text-ledger-400 hover:text-alert"
+                                  aria-label="Remove item"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -646,62 +757,12 @@ export function SaleForm({
                   )}
                 </div>
 
-                {/* Quick actions */}
-                <div className="mt-3 flex flex-wrap gap-4 border-t border-ledger-100 pt-3 dark:border-ledger-700">
-                  <button
-                    type="button"
-                    onClick={() => setShowNote((s) => !s)}
-                    className="flex items-center gap-1 text-xs font-medium text-signal hover:underline"
-                  >
-                    <StickyNote className="h-3.5 w-3.5" />
-                    {showNote ? "Hide note" : "Add note"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowShipping((s) => !s)}
-                    className="flex items-center gap-1 text-xs font-medium text-signal hover:underline"
-                  >
-                    <Building2 className="h-3.5 w-3.5" />
-                    {showShipping ? "Hide shipping" : "Add shipping"}
-                  </button>
-                  <label className="flex cursor-pointer items-center gap-1 text-xs font-medium text-signal hover:underline">
-                    <Paperclip className="h-3.5 w-3.5" />
-                    {attachedFileName ?? "Attach document"}
-                    <input
-                      type="file"
-                      className="hidden"
-                      onChange={(e) => setAttachedFileName(e.target.files?.[0]?.name ?? null)}
-                    />
-                  </label>
+                <div className="mt-2 flex items-center justify-between">
+                  <Button type="button" variant="outline" size="sm" onClick={addEmptyRow}>
+                    <Plus className="h-3.5 w-3.5" /> Add Row
+                  </Button>
+                  <span className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Total Items: {lines.length}</span>
                 </div>
-
-                {showNote && (
-                  <textarea
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    rows={2}
-                    placeholder="Note for this sale…"
-                    className="mt-2 w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                  />
-                )}
-                {showShipping && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Shipping fee</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={shippingAmount}
-                      onChange={(e) => setShippingAmount(Math.max(0, Number(e.target.value)))}
-                      className="h-8 w-28 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                    />
-                  </div>
-                )}
-                {attachedFileName && (
-                  <p className="mt-1 text-[11px] text-ledger-400">
-                    &ldquo;{attachedFileName}&rdquo; is attached to this form only &mdash; file storage isn&rsquo;t wired
-                    up yet, so it won&rsquo;t be saved with the sale.
-                  </p>
-                )}
 
                 {/* Footer stat strip */}
                 <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-ledger-50 p-3 text-center text-xs sm:grid-cols-4 dark:bg-white/[0.04]">
@@ -725,31 +786,149 @@ export function SaleForm({
               </>
             )}
           </div>
+
+          {/* Additional Information + Additional Charges */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+              <div className="flex items-center gap-2">
+                <StickyNote className="h-4 w-4 text-ledger-400" />
+                <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Additional Information</h2>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Notes (Optional)</label>
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={3}
+                    placeholder="Enter notes here…"
+                    className="w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Attach Document (Optional)</label>
+                  <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-ledger-200 px-4 py-4 text-center text-xs text-ledger-400 hover:border-signal dark:border-ledger-700">
+                    <Paperclip className="h-4 w-4" />
+                    {attachedFileName ? (
+                      <span className="text-ink-900 dark:text-white">{attachedFileName}</span>
+                    ) : (
+                      <span>Drag &amp; drop files here or <span className="font-medium text-signal">browse</span></span>
+                    )}
+                    <span>Supports: PDF, JPG, PNG (Max 5MB)</span>
+                    <input type="file" className="hidden" onChange={(e) => setAttachedFileName(e.target.files?.[0]?.name ?? null)} />
+                  </label>
+                  {attachedFileName && (
+                    <p className="text-[11px] text-ledger-400">
+                      Attached to this form only — file storage isn&rsquo;t wired up yet, so it won&rsquo;t be saved with the sale.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-ledger-400" />
+                <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Additional Charges</h2>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Shipping</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={shippingAmount}
+                    onChange={(e) => setShippingAmount(Math.max(0, Number(e.target.value)))}
+                    className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Other Charges</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={otherChargesAmount}
+                    onChange={(e) => setOtherChargesAmount(Math.max(0, Number(e.target.value)))}
+                    className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Discount</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={additionalDiscountAmount}
+                    onChange={(e) => setAdditionalDiscountAmount(Math.max(0, Number(e.target.value)))}
+                    className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Tax (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={additionalTaxPercent}
+                    onChange={(e) => setAdditionalTaxPercent(Math.max(0, Number(e.target.value)))}
+                    className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Options */}
+          <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-ledger-400" />
+              <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Additional Options</h2>
+            </div>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={printReceipt} onChange={(e) => setPrintReceipt(e.target.checked)} className="h-4 w-4 rounded accent-signal" />
+                Print sale receipt after saving
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={updateStockOption} onChange={(e) => setUpdateStockOption(e.target.checked)} className="h-4 w-4 rounded accent-signal" />
+                Update stock
+              </label>
+              <label className="flex items-center gap-2 text-ledger-400">
+                <input type="checkbox" checked={addToCustomerCredit} onChange={(e) => setAddToCustomerCredit(e.target.checked)} className="h-4 w-4 rounded accent-signal" disabled />
+                Add to customer credit <span className="text-[11px]">(not wired up yet)</span>
+              </label>
+              <label className="flex items-center gap-2 text-ledger-400">
+                <input type="checkbox" checked={addToSalesQuotation} onChange={(e) => setAddToSalesQuotation(e.target.checked)} className="h-4 w-4 rounded accent-signal" disabled />
+                Add to sales quotation <span className="text-[11px]">(not wired up yet)</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-5">
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Order summary</h3>
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Sale Summary</h3>
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between">
-                <dt className="text-ledger-500 dark:text-ledger-400">Sub total</dt>
+                <dt className="text-ledger-500 dark:text-ledger-400">Sub total ({lines.length} items)</dt>
                 <dd className="figure text-ink-900 dark:text-white">${formatMoney(subtotal)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Discount</dt>
-                <dd className="figure text-alert">-${formatMoney(discountTotal)}</dd>
+                <dd className="figure text-alert">-${formatMoney(discountTotal + additionalDiscountAmount)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Tax</dt>
-                <dd className="figure text-ink-900 dark:text-white">+${formatMoney(taxTotal)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">+${formatMoney(taxTotal + additionalTaxAmount)}</dd>
               </div>
-              {shippingAmount > 0 && (
-                <div className="flex items-center justify-between">
-                  <dt className="text-ledger-500 dark:text-ledger-400">Shipping</dt>
-                  <dd className="figure text-ink-900 dark:text-white">+${formatMoney(shippingAmount)}</dd>
-                </div>
-              )}
+              <div className="flex items-center justify-between">
+                <dt className="text-ledger-500 dark:text-ledger-400">Shipping</dt>
+                <dd className="figure text-ink-900 dark:text-white">+${formatMoney(shippingAmount)}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-ledger-500 dark:text-ledger-400">Other Charges</dt>
+                <dd className="figure text-ink-900 dark:text-white">+${formatMoney(otherChargesAmount)}</dd>
+              </div>
               <div className="flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-ledger-700">
                 <dt className="font-medium text-ledger-600 dark:text-ledger-300">Total ({lines.length} items)</dt>
                 <dd className="figure text-lg font-semibold text-signal">${formatMoney(total)}</dd>
@@ -850,14 +1029,22 @@ export function SaleForm({
 
       {/* Sticky footer action bar */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-ledger-100 bg-white/95 backdrop-blur dark:border-ledger-700 dark:bg-ink-900/95">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-end gap-2 px-4 py-3 lg:pl-[calc(15rem+1rem)]">
-          <Button type="button" variant="outline" onClick={saveDraft}>
-            Save as draft
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 lg:pl-[calc(15rem+1rem)]">
+          <Button type="button" variant="outline" onClick={clearSale}>
+            Cancel
           </Button>
-          <Button type="button" disabled={isPending} onClick={handleConfirm}>
-            {isPending ? "Recording sale…" : "Review & confirm"}
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={saveDraft}>
+              Save as Draft
+            </Button>
+            <Button type="button" variant="outline" disabled={isPending} onClick={handleSaveByStatus}>
+              {isPending ? "Saving…" : "Save Sale"}
+            </Button>
+            <Button type="button" disabled={isPending} onClick={handleConfirm}>
+              {isPending ? "Recording sale…" : "Complete Sale"}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
