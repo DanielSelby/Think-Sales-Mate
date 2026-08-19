@@ -19,14 +19,23 @@ import {
   Building2,
   Package2,
   User,
+  Users,
   Mail,
-  Phone
+  Phone,
+  Smartphone,
+  IdCard,
+  MapPin,
+  Globe,
+  Banknote,
+  Info,
+  AlertTriangle
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
-import { recordSale, updateSale } from "@/app/(dashboard)/sales/actions";
+import { recordSale, updateSale, addCustomer } from "@/app/(dashboard)/sales/actions";
 
 
 export interface SellableProduct {
@@ -149,6 +158,7 @@ export function SaleForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [stockWarning, setStockWarning] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
 
@@ -360,22 +370,36 @@ export function SaleForm({
     setCustomerQuery("");
   }
 
-  // Adds the contact to this form's local customer list only — there's no
-  // addCustomer server action in sales/actions.ts yet (the POS module has
-  // one; sales doesn't). This needs that action added before new contacts
-  // actually persist to the customers table.
-  function handleSaveContact(contact: { name: string; email: string | null; phone: string | null }) {
-    const newCustomer: SaleCustomer = {
-      id: crypto.randomUUID(),
-      name: contact.name,
-      email: contact.email,
-      phone: contact.phone,
-      outstanding: 0,
-      isReturning: false,
-    };
+  async function handleSaveContact(contact: {
+    name: string;
+    contactType: "individual" | "business";
+    contactId: string | null;
+    phone: string;
+    alternatePhone: string | null;
+    landline: string | null;
+    email: string | null;
+  }): Promise<{ ok: boolean; error?: string }> {
+    const result = await addCustomer(orgId, contact);
+    if (!result.ok || !result.customer) {
+      return { ok: false, error: result.error ?? "Couldn't save contact." };
+    }
+    const newCustomer: SaleCustomer = { ...result.customer, outstanding: 0, isReturning: false };
     setCustomerList((prev) => [newCustomer, ...prev]);
     selectCustomer(newCustomer);
     setAddContactOpen(false);
+    return { ok: true };
+  }
+
+  // Flags a line whose quantity exceeds available stock — shown as a
+  // dismissing top banner plus a red Qty input, rather than silently
+  // clamping the value the user typed.
+  function warnIfOverstock(quantity: number, stockQuantity: number | undefined, name: string) {
+    if (stockQuantity === undefined) return;
+    if (quantity > stockQuantity) {
+      setStockWarning(`Only ${stockQuantity} unit(s) of "${name}" in stock — you entered ${quantity}.`);
+      window.clearTimeout((warnIfOverstock as any)._t);
+      (warnIfOverstock as any)._t = window.setTimeout(() => setStockWarning(null), 4000);
+    }
   }
 
   function clearSale() {
@@ -544,6 +568,12 @@ export function SaleForm({
       </div>
 
       {error && <p className="mt-4 rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
+      {stockWarning && (
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {stockWarning}
+        </div>
+      )}
 
       <div className="mt-5 space-y-5">
           {/* Customer & Sale Details — merged, matching the reference layout */}
@@ -856,12 +886,18 @@ export function SaleForm({
                                 <input
                                   type="number"
                                   min={1}
-                                  max={product?.stockQuantity}
                                   value={line.quantity}
-                                  onChange={(e) =>
-                                    updateLine(line.key, { quantity: Math.max(1, Number(e.target.value)) })
-                                  }
-                                  className="h-6 w-10 rounded border border-ledger-200 bg-white text-center text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                                  onChange={(e) => {
+                                    const next = Math.max(1, Number(e.target.value));
+                                    updateLine(line.key, { quantity: next });
+                                    if (product) warnIfOverstock(next, product.stockQuantity, product.name);
+                                  }}
+                                  className={cn(
+                                    "h-6 w-10 rounded border bg-white text-center text-xs dark:bg-ink-900 dark:text-white",
+                                    product && line.quantity > product.stockQuantity
+                                      ? "border-alert text-alert focus-visible:ring-alert/40"
+                                      : "border-ledger-200 dark:border-ledger-700"
+                                  )}
                                 />
                                 <button
                                   type="button"

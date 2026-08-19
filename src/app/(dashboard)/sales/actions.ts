@@ -467,6 +467,55 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
 }
 
 // ---------------------------------------------------------------------------
+// Add a customer from the Add Sale screen
+// ---------------------------------------------------------------------------
+export interface AddCustomerInput {
+  name: string;
+  contactType: "individual" | "business";
+  contactId: string | null;
+  phone: string;
+  alternatePhone: string | null;
+  landline: string | null;
+  email: string | null;
+}
+
+export interface AddCustomerResult {
+  ok: boolean;
+  customer?: { id: string; name: string; email: string | null; phone: string | null };
+  error?: string;
+}
+
+export async function addCustomer(orgId: string, input: AddCustomerInput): Promise<AddCustomerResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  try {
+    const { data, error } = await supabase
+      .from("customers")
+      .insert({
+        org_id: orgId,
+        name: input.name,
+        phone: input.phone || null,
+        alternate_phone: input.alternatePhone || null,
+        landline: input.landline || null,
+        email: input.email || null,
+        contact_type: input.contactType,
+        contact_id: input.contactId || null,
+        created_by: user.id,
+      })
+      .select("id, name, email, phone")
+      .single();
+    if (error || !data) throw new Error(error?.message ?? "Failed to add customer.");
+
+    revalidatePath("/sales/new");
+    return { ok: true, customer: { id: data.id, name: data.name, email: data.email, phone: data.phone } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Fetch line items for invoice display
 // ---------------------------------------------------------------------------
 export interface SaleInvoiceLine {
