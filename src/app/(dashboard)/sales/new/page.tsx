@@ -25,7 +25,8 @@ export default async function NewSalePage() {
     { data: memberRows },
     { data: openInvoices },
     { data: pastSaleRows },
-    { data: recentItemRows }
+    { data: recentItemRows },
+    { data: stockLevelRows }
   ] = await Promise.all([
     supabase
       .from("products")
@@ -54,7 +55,8 @@ export default async function NewSalePage() {
       .select("product_id, created_at, products(id, name, unit_price)")
       .eq("org_id", context.orgId)
       .order("created_at", { ascending: false })
-      .limit(20)
+      .limit(20),
+    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId)
   ]);
 
   // Best-effort outstanding balance per customer — invoices only store a
@@ -87,6 +89,12 @@ export default async function NewSalePage() {
 
   const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
 
+  const memberUserIds = (memberRows ?? []).map((m) => m.user_id).filter(Boolean) as string[];
+  const { data: memberProfiles } = memberUserIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", memberUserIds)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  const nameByUserId = new Map((memberProfiles ?? []).map((p) => [p.id, p.full_name]));
+
   const admin = createAdminClient();
   const reps: SalesRep[] = [];
   for (const m of memberRows ?? []) {
@@ -95,7 +103,7 @@ export default async function NewSalePage() {
       const { data } = await admin.auth.admin.getUserById(m.user_id);
       email = data.user?.email ?? email;
     }
-    if (m.user_id) reps.push({ id: m.user_id, email });
+    if (m.user_id) reps.push({ id: m.user_id, email, name: nameByUserId.get(m.user_id) ?? null });
   }
 
   const seenProducts = new Set<string>();
@@ -108,6 +116,12 @@ export default async function NewSalePage() {
     if (recentItems.length === 3) break;
   }
 
+  const stockLevels = (stockLevelRows ?? []).map((s) => ({
+    productId: s.product_id,
+    locationId: s.location_id,
+    quantity: s.quantity,
+  }));
+
   return (
     <SaleForm
       orgId={context.orgId}
@@ -116,6 +130,7 @@ export default async function NewSalePage() {
       locations={locations}
       reps={reps}
       recentItems={recentItems}
+      stockLevels={stockLevels}
       currentUserId={context.userId}
       currentUserEmail={context.userEmail}
     />

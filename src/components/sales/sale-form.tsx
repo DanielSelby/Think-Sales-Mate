@@ -9,7 +9,8 @@ import {
   Trash2,
   Pencil,
   Check,
-  ScanLine,
+  ChevronDown,
+  ChevronUp,
   StickyNote,
   Paperclip,
   RotateCcw,
@@ -24,7 +25,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
+import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { recordSale } from "@/app/(dashboard)/sales/actions";
+
 
 export interface SellableProduct {
   id: string;
@@ -51,6 +54,13 @@ export interface SaleLocation {
 export interface SalesRep {
   id: string;
   email: string;
+  name: string | null;
+}
+
+export interface SaleStockLevel {
+  productId: string;
+  locationId: string;
+  quantity: number;
 }
 
 export interface RecentItem {
@@ -104,6 +114,7 @@ export function SaleForm({
   locations,
   reps,
   recentItems,
+  stockLevels,
   currentUserId,
   currentUserEmail,
   orgId,
@@ -113,6 +124,7 @@ export function SaleForm({
   locations: SaleLocation[];
   reps: SalesRep[];
   recentItems: RecentItem[];
+  stockLevels?: SaleStockLevel[];
   currentUserId: string;
   orgId: string;
   currentUserEmail: string;
@@ -123,10 +135,13 @@ export function SaleForm({
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Customer
+  const [customerList, setCustomerList] = useState<SaleCustomer[]>(customers);
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [walkInName, setWalkInName] = useState("");
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [addContactOpen, setAddContactOpen] = useState(false);
+  const [customerSectionCollapsed, setCustomerSectionCollapsed] = useState(false);
 
   // Sale details
   const [saleDate, setSaleDate] = useState(todayIso());
@@ -140,6 +155,7 @@ export function SaleForm({
 
   // Products
   const [search, setSearch] = useState("");
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([]);
 
   // Additional information / charges — always visible now (the reference
@@ -170,21 +186,48 @@ export function SaleForm({
   const [amountPaid, setAmountPaid] = useState(0);
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? null;
+  const selectedCustomer = customerList.find((c) => c.id === selectedCustomerId) ?? null;
 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
-    if (!q) return customers.slice(0, 8);
-    return customers
+    if (!q) return customerList.slice(0, 8);
+    return customerList
       .filter((c) => c.name.toLowerCase().includes(q) || c.phone?.includes(q) || c.email?.toLowerCase().includes(q))
       .slice(0, 8);
-  }, [customers, customerQuery]);
+  }, [customerList, customerQuery]);
+
+  // product_id -> location_id -> quantity — same pattern as the POS screen.
+  const stockByProduct = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    for (const s of stockLevels ?? []) {
+      if (!map.has(s.productId)) map.set(s.productId, new Map());
+      map.get(s.productId)!.set(s.locationId, s.quantity);
+    }
+    return map;
+  }, [stockLevels]);
+
+  // Only products stocked at the selected branch are searchable/addable.
+  // A product never tracked per-location shows everywhere with its
+  // org-wide total.
+  const locationProducts = useMemo(() => {
+    if (!locationId || !stockLevels || stockLevels.length === 0) return products;
+    return products
+      .map((p) => {
+        const rows = stockByProduct.get(p.id);
+        if (!rows) return p;
+        return { ...p, stockQuantity: rows.get(locationId) ?? 0 };
+      })
+      .filter((p) => {
+        const rows = stockByProduct.get(p.id);
+        return !rows || rows.has(locationId);
+      });
+  }, [products, stockByProduct, locationId, stockLevels]);
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
-  }, [products, search]);
+    if (!q) return locationProducts;
+    return locationProducts.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+  }, [locationProducts, search]);
 
   const computedLines = lines.map((line) => {
     const product = productById.get(line.productId);
@@ -248,6 +291,11 @@ export function SaleForm({
     setLines((prev) => [...prev, { key: crypto.randomUUID(), productId: "", quantity: 1, discountPercent: 0, taxPercent: 0 }]);
   }
 
+  // Placeholder until a "create new product from here" flow exists.
+  function handleAddProduct() {
+    setError("Add Product isn't wired up yet — tell me what it should do and I'll build it.");
+  }
+
   // Selecting a replacement from a row's inline dropdown swaps productId
   // only — unitPrice/sku/stock all re-derive from productById on the next
   // render (computedLines already looks them up fresh), so nothing else
@@ -267,6 +315,24 @@ export function SaleForm({
     setWalkInName("");
     setShowCustomerPicker(false);
     setCustomerQuery("");
+  }
+
+  // Adds the contact to this form's local customer list only — there's no
+  // addCustomer server action in sales/actions.ts yet (the POS module has
+  // one; sales doesn't). This needs that action added before new contacts
+  // actually persist to the customers table.
+  function handleSaveContact(contact: { name: string; email: string | null; phone: string | null }) {
+    const newCustomer: SaleCustomer = {
+      id: crypto.randomUUID(),
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      outstanding: 0,
+      isReturning: false,
+    };
+    setCustomerList((prev) => [newCustomer, ...prev]);
+    selectCustomer(newCustomer);
+    setAddContactOpen(false);
   }
 
   function clearSale() {
@@ -386,76 +452,95 @@ export function SaleForm({
 
       {error && <p className="mt-4 rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
 
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Main column */}
-        <div className="space-y-5 lg:col-span-2">
+      <div className="mt-5 space-y-5">
           {/* Customer & Sale Details — merged, matching the reference layout */}
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-ledger-400" />
-              <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Customer &amp; Sale Details</h2>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-ledger-400" />
+                <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Customer &amp; Sale Details</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomerSectionCollapsed((v) => !v)}
+                className="flex items-center gap-1 text-xs font-medium text-ledger-500 hover:text-ink-900 dark:hover:text-white"
+              >
+                {customerSectionCollapsed ? "Show" : "Hide"}
+                {customerSectionCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+              </button>
             </div>
 
+            {!customerSectionCollapsed && (
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
                   Customer <span className="text-alert">*</span>
                 </label>
-                <div className="relative">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomerPicker((s) => !s)}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-ledger-200 bg-white px-3 text-left text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    >
+                      <span className="truncate">
+                        {selectedCustomer ? selectedCustomer.name : walkInName ? `${walkInName} (walk-in)` : "Walk-in Customer"}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ledger-400" />
+                    </button>
+                    {showCustomerPicker && (
+                      <div className="absolute left-0 right-0 top-11 z-30 rounded-md border border-ledger-100 bg-white p-2 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
+                          <input
+                            autoFocus
+                            value={customerQuery}
+                            onChange={(e) => setCustomerQuery(e.target.value)}
+                            placeholder="Search customers by name, phone, or email…"
+                            className="h-9 w-full rounded-md border border-ledger-200 bg-white pl-8 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                          />
+                        </div>
+                        <div className="mt-2 max-h-40 space-y-0.5 overflow-y-auto">
+                          {filteredCustomers.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => selectCustomer(c)}
+                              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.04]"
+                            >
+                              <span className="text-ink-900 dark:text-white">{c.name}</span>
+                              <span className="text-xs text-ledger-400">{c.phone ?? c.email ?? ""}</span>
+                            </button>
+                          ))}
+                          {filteredCustomers.length === 0 && (
+                            <p className="px-2 py-2 text-center text-xs text-ledger-400">No matching customers.</p>
+                          )}
+                        </div>
+                        <div className="mt-2 border-t border-ledger-100 pt-2 dark:border-ledger-700">
+                          <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
+                            Or enter a walk-in customer name
+                          </label>
+                          <Input
+                            value={walkInName}
+                            onChange={(e) => {
+                              setWalkInName(e.target.value);
+                              setSelectedCustomerId(null);
+                            }}
+                            placeholder="Walk-in customer"
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setShowCustomerPicker((s) => !s)}
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-ledger-200 bg-white px-3 text-left text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    onClick={() => setAddContactOpen(true)}
+                    title="Add a new contact"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
                   >
-                    <span className="truncate">
-                      {selectedCustomer ? selectedCustomer.name : walkInName ? `${walkInName} (walk-in)` : "Walk-in Customer"}
-                    </span>
-                    <Plus className="h-3.5 w-3.5 shrink-0 text-ledger-400" />
+                    <Plus className="h-4 w-4" />
                   </button>
-                  {showCustomerPicker && (
-                    <div className="absolute left-0 right-0 top-11 z-30 rounded-md border border-ledger-100 bg-white p-2 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
-                        <input
-                          autoFocus
-                          value={customerQuery}
-                          onChange={(e) => setCustomerQuery(e.target.value)}
-                          placeholder="Search customers by name, phone, or email…"
-                          className="h-9 w-full rounded-md border border-ledger-200 bg-white pl-8 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                        />
-                      </div>
-                      <div className="mt-2 max-h-40 space-y-0.5 overflow-y-auto">
-                        {filteredCustomers.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => selectCustomer(c)}
-                            className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.04]"
-                          >
-                            <span className="text-ink-900 dark:text-white">{c.name}</span>
-                            <span className="text-xs text-ledger-400">{c.phone ?? c.email ?? ""}</span>
-                          </button>
-                        ))}
-                        {filteredCustomers.length === 0 && (
-                          <p className="px-2 py-2 text-center text-xs text-ledger-400">No matching customers.</p>
-                        )}
-                      </div>
-                      <div className="mt-2 border-t border-ledger-100 pt-2 dark:border-ledger-700">
-                        <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
-                          Or enter a walk-in customer name
-                        </label>
-                        <Input
-                          value={walkInName}
-                          onChange={(e) => {
-                            setWalkInName(e.target.value);
-                            setSelectedCustomerId(null);
-                          }}
-                          placeholder="Walk-in customer"
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
                 {selectedCustomer && (
                   <div className="flex flex-wrap gap-3 text-xs text-ledger-500 dark:text-ledger-400">
@@ -466,7 +551,7 @@ export function SaleForm({
                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedCustomer.phone}</span>
                     )}
                     {selectedCustomer.outstanding > 0 && (
-                      <span className="font-medium text-alert">Outstanding: ${formatMoney(selectedCustomer.outstanding)}</span>
+                      <span className="font-medium text-alert">Outstanding: GHC {formatMoney(selectedCustomer.outstanding)}</span>
                     )}
                   </div>
                 )}
@@ -506,7 +591,7 @@ export function SaleForm({
                     <option value={currentUserId}>{currentUserEmail}</option>
                   ) : (
                     reps.map((r) => (
-                      <option key={r.id} value={r.id}>{r.email}</option>
+                      <option key={r.id} value={r.id}>{r.name ?? r.email}</option>
                     ))
                   )}
                 </select>
@@ -561,26 +646,68 @@ export function SaleForm({
                 </select>
               </div>
             </div>
+            )}
           </div>
 
           {/* Sale Items */}
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-sm font-semibold text-ink-900 dark:text-white shrink-0">Sale Items ({lines.length} items)</h2>
-              <div className="flex flex-1 items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
-                  <input
-                    ref={searchRef}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search product by name, SKU, or scan barcode…"
-                    className="h-9 w-full min-w-[240px] rounded-md border border-ledger-200 bg-white pl-8 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                  />
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => searchRef.current?.focus()}>
-                  <ScanLine className="h-3.5 w-3.5" />
-                  Scan barcode
+            <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Sale Items ({lines.length} items)</h2>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" />
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setSearchDropdownOpen(true); }}
+                  onFocus={() => setSearchDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
+                  placeholder="Enter Product name / SKU / Scan bar code"
+                  className="h-11 w-full rounded-md border border-signal/30 bg-signal-soft pl-9 pr-3 text-sm font-medium text-emerald-950 placeholder:text-emerald-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-signal/60"
+                />
+                {searchDropdownOpen && search.trim() && (
+                  <div className="absolute left-0 right-0 top-12 z-40 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+                    {filteredProducts.length === 0 && (
+                      <p className="px-3 py-3 text-sm text-ledger-400">No matching products.</p>
+                    )}
+                    {filteredProducts.map((p) => {
+                      const alreadyAdded = lines.some((l) => l.productId === p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          disabled={alreadyAdded}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { addProduct(p.id); setSearch(""); setSearchDropdownOpen(false); }}
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-ledger-50 disabled:cursor-default disabled:opacity-40 dark:hover:bg-white/[0.06]"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
+                            <Package2 className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm text-ink-900 dark:text-white">{p.name}</span>
+                            <span className="block text-xs text-ledger-400">{p.sku} · stock {p.stockQuantity}</span>
+                          </span>
+                          <span className="shrink-0 font-mono text-sm text-ledger-600 dark:text-ledger-300">
+                            {alreadyAdded ? "Added" : `GHC ${formatMoney(p.unitPrice)}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={addEmptyRow}>
+                  <Plus className="h-3.5 w-3.5" /> Add Row
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddProduct}
+                  className="bg-emerald-700 text-white hover:bg-emerald-800"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Product
                 </Button>
               </div>
             </div>
@@ -589,44 +716,18 @@ export function SaleForm({
               <p className="mt-6 text-center text-sm text-ledger-400">Add a product to Inventory to start selling.</p>
             ) : (
               <>
-                <div className="mt-4 max-h-40 space-y-1 overflow-y-auto rounded-md border border-ledger-100 p-1.5 dark:border-ledger-700">
-                  {filteredProducts.map((p) => {
-                    const alreadyAdded = lines.some((l) => l.productId === p.id);
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        disabled={alreadyAdded}
-                        onClick={() => addProduct(p.id)}
-                        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-ledger-50 disabled:cursor-default disabled:opacity-40 dark:hover:bg-white/[0.04]"
-                      >
-                        <span className="flex items-center gap-2 truncate">
-                          <Package2 className="h-3.5 w-3.5 shrink-0 text-ledger-400" />
-                          <span className="truncate text-ink-900 dark:text-white">{p.name}</span>
-                          <span className="shrink-0 font-mono text-xs text-ledger-400">{p.sku}</span>
-                        </span>
-                        <span className="shrink-0 text-xs text-ledger-400">
-                          {alreadyAdded ? "Added" : `$${formatMoney(p.unitPrice)}`}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {filteredProducts.length === 0 && (
-                    <p className="px-2 py-3 text-center text-xs text-ledger-400">No matching products.</p>
-                  )}
-                </div>
-
-                <div className="mt-4 overflow-x-auto">
+                <div className="mt-4 overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                   <table className="w-full text-sm">
-                    <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
-                      <tr>
-                        <th className="py-2 pr-2">Product</th>
-                        <th className="px-2 py-2 text-right">Unit price</th>
+                    <thead>
+                      <tr className="border-b border-emerald-900 bg-emerald-800 text-left text-xs font-semibold text-white">
+                        <th className="py-2 pl-3 pr-2">Product</th>
+                        <th className="px-2 py-2">SKU</th>
+                        <th className="px-2 py-2 text-right">Unit Price</th>
                         <th className="px-2 py-2 text-center">Qty</th>
-                        <th className="px-2 py-2 text-right">Discount</th>
-                        <th className="px-2 py-2 text-right">Tax</th>
+                        <th className="px-2 py-2 text-right">Disc. (%)</th>
+                        <th className="px-2 py-2 text-right">Tax (%)</th>
                         <th className="px-2 py-2 text-right">Total</th>
-                        <th className="w-8 py-2" />
+                        <th className="w-16 py-2 pr-3" />
                       </tr>
                     </thead>
                     <tbody>
@@ -634,23 +735,21 @@ export function SaleForm({
                         const isEditing = editingLineId === line.key || !product;
                         return (
                           <tr key={line.key} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
-                            <td className="py-2 pr-2">
+                            <td className="py-2 pl-3 pr-2">
                               {isEditing ? (
                                 <SaleProductRowCell
-                                  products={products}
+                                  products={locationProducts}
                                   currentName={product?.name ?? ""}
                                   onSelect={(p) => selectReplacement(line.key, p)}
                                   onClose={() => setEditingLineId(null)}
                                 />
                               ) : (
-                                <>
-                                  <span className="font-medium text-ink-900 dark:text-white">{product!.name}</span>
-                                  <span className="ml-2 font-mono text-xs text-ledger-400">{product!.sku}</span>
-                                </>
+                                <span className="font-medium text-ink-900 dark:text-white">{product!.name}</span>
                               )}
                             </td>
+                            <td className="px-2 py-2 font-mono text-xs text-ledger-500">{product?.sku ?? "—"}</td>
                             <td className="px-2 py-2 text-right figure text-ledger-500 dark:text-ledger-400">
-                              ${formatMoney(product?.unitPrice ?? 0)}
+                              GHC {formatMoney(product?.unitPrice ?? 0)}
                             </td>
                             <td className="px-2 py-2">
                               <div className="flex items-center justify-center gap-1">
@@ -711,9 +810,9 @@ export function SaleForm({
                               </select>
                             </td>
                             <td className="px-2 py-2 text-right figure font-medium text-ink-900 dark:text-white">
-                              ${formatMoney(rowTotal)}
+                              GHC {formatMoney(rowTotal)}
                             </td>
-                            <td className="px-2 py-2 text-right">
+                            <td className="px-2 py-2 pr-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 {product && !isEditing && (
                                   <button
@@ -775,11 +874,11 @@ export function SaleForm({
                     <p className="text-ledger-400">Total qty</p>
                   </div>
                   <div>
-                    <p className="figure text-sm font-semibold text-ink-900 dark:text-white">${formatMoney(subtotal)}</p>
+                    <p className="figure text-sm font-semibold text-ink-900 dark:text-white">GHC {formatMoney(subtotal)}</p>
                     <p className="text-ledger-400">Sub total</p>
                   </div>
                   <div>
-                    <p className="figure text-sm font-semibold text-alert">-${formatMoney(discountTotal)}</p>
+                    <p className="figure text-sm font-semibold text-alert">-GHC {formatMoney(discountTotal)}</p>
                     <p className="text-ledger-400">Discount</p>
                   </div>
                 </div>
@@ -902,43 +1001,40 @@ export function SaleForm({
               </label>
             </div>
           </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Sale Summary</h3>
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Sub total ({lines.length} items)</dt>
-                <dd className="figure text-ink-900 dark:text-white">${formatMoney(subtotal)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">GHC {formatMoney(subtotal)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Discount</dt>
-                <dd className="figure text-alert">-${formatMoney(discountTotal + additionalDiscountAmount)}</dd>
+                <dd className="figure text-alert">-GHC {formatMoney(discountTotal + additionalDiscountAmount)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Tax</dt>
-                <dd className="figure text-ink-900 dark:text-white">+${formatMoney(taxTotal + additionalTaxAmount)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">+GHC {formatMoney(taxTotal + additionalTaxAmount)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Shipping</dt>
-                <dd className="figure text-ink-900 dark:text-white">+${formatMoney(shippingAmount)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">+GHC {formatMoney(shippingAmount)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Other Charges</dt>
-                <dd className="figure text-ink-900 dark:text-white">+${formatMoney(otherChargesAmount)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">+GHC {formatMoney(otherChargesAmount)}</dd>
               </div>
               <div className="flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-ledger-700">
                 <dt className="font-medium text-ledger-600 dark:text-ledger-300">Total ({lines.length} items)</dt>
-                <dd className="figure text-lg font-semibold text-signal">${formatMoney(total)}</dd>
+                <dd className="figure text-lg font-semibold text-signal">GHC {formatMoney(total)}</dd>
               </div>
               {discountTotal > 0 && (
                 <div className="flex items-center justify-between rounded-md bg-signal-soft px-2 py-1.5">
                   <dt className="flex items-center gap-1 text-xs font-medium text-signal">
                     <Star className="h-3 w-3" /> You save
                   </dt>
-                  <dd className="figure text-xs font-semibold text-signal">${formatMoney(discountTotal)}</dd>
+                  <dd className="figure text-xs font-semibold text-signal">GHC {formatMoney(discountTotal)}</dd>
                 </div>
               )}
             </dl>
@@ -961,7 +1057,7 @@ export function SaleForm({
             <div className="mt-3 space-y-1.5">
               <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Amount paid</label>
               <div className="flex items-center rounded-md border border-ledger-200 dark:border-ledger-700">
-                <span className="px-3 text-sm text-ledger-400">$</span>
+                <span className="px-3 text-sm text-ledger-400">GHC</span>
                 <input
                   type="number"
                   min={0}
@@ -991,7 +1087,7 @@ export function SaleForm({
             <div className="mt-3 flex items-center justify-between rounded-md bg-ledger-50 px-3 py-2 text-sm dark:bg-white/[0.04]">
               <span className="text-ledger-500 dark:text-ledger-400">{changeOrDue >= 0 ? "Change" : "Balance due"}</span>
               <span className={changeOrDue >= 0 ? "figure font-semibold text-signal" : "figure font-semibold text-alert"}>
-                ${formatMoney(Math.abs(changeOrDue))}
+                GHC {formatMoney(Math.abs(changeOrDue))}
               </span>
             </div>
           </div>
@@ -1017,7 +1113,7 @@ export function SaleForm({
                         <Package2 className="h-3.5 w-3.5 shrink-0 text-ledger-400" />
                         <span className="truncate text-ink-900 dark:text-white">{item.name}</span>
                       </span>
-                      <span className="shrink-0 figure text-xs text-ledger-400">${formatMoney(item.unitPrice)}</span>
+                      <span className="shrink-0 figure text-xs text-ledger-400">GHC {formatMoney(item.unitPrice)}</span>
                     </button>
                   </li>
                 ))}
@@ -1047,6 +1143,8 @@ export function SaleForm({
           </div>
         </div>
       </div>
+
+      <AddContactDialog open={addContactOpen} onClose={() => setAddContactOpen(false)} onSave={handleSaveContact} />
     </div>
   );
 }
