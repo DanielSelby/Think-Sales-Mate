@@ -21,7 +21,7 @@ export default async function EditProductPage({
   if (!context) return null;
 
   const supabase = await createClient();
-  const [{ data: product }, { data: locationRows }, { categories, brands }] = await Promise.all([
+  const [{ data: product, error: productError }, { data: locationRows }, { categories, brands }] = await Promise.all([
     supabase
       .from("products")
       .select(
@@ -34,6 +34,23 @@ export default async function EditProductPage({
     getCategoryAndBrandOptions()
   ]);
 
+  if (productError) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-3">
+        <Link href="/inventory" className="inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to inventory
+        </Link>
+        <div className="rounded-md border border-alert/30 bg-alert-soft px-4 py-3 text-sm text-alert">
+          <p className="font-semibold">Couldn't load this product for editing.</p>
+          <p className="mt-1 font-mono text-xs">{productError.message}</p>
+          <p className="mt-2 text-xs text-ledger-500">
+            If this mentions a column that "does not exist", the 20260818090000 migration (product form fields) hasn't been run against this database yet.
+          </p>
+        </div>
+      </div>
+    );
+  }
   if (!product) notFound();
 
   const boundUpdate = updateProduct.bind(null, product.id);

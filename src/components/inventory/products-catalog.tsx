@@ -123,6 +123,7 @@ export function ProductsCatalog({
   const [view, setView] = useState<"table" | "grid">("table");
   const [sortKey, setSortKey] = useState<SortKey>("name-asc");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -179,9 +180,9 @@ export function ProductsCatalog({
     }
   }, [filtered, sortKey]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageItems = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageItems = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const categoryValues = useMemo(() => {
     const map = new Map<string, number>();
@@ -640,9 +641,21 @@ export function ProductsCatalog({
 
         <div className="flex items-center gap-3 text-sm text-ledger-500 dark:text-ledger-400">
           <span>
-            {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of{" "}
+            {sorted.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, sorted.length)} of{" "}
             {sorted.length}
           </span>
+          <label className="flex items-center gap-1.5">
+            Show
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="h-8 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            >
+              {[25, 50, 100, 200, 500, 1000].map((n) => <option key={n} value={n}>{n}</option>)}
+              <option value={sorted.length || 1}>All</option>
+            </select>
+            entries
+          </label>
           <select
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
