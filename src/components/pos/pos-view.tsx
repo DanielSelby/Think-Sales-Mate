@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
@@ -34,6 +35,7 @@ export interface PosProduct {
   category: string | null;
   unitPrice: number;
   stockQuantity: number;
+  imageUrl?: string | null;
 }
 
 export interface LocationOption { id: string; name: string; }
@@ -630,8 +632,12 @@ export function PosView({ products, categories, locations, stockLevels, currency
                 disabled={p.stockQuantity <= 0}
                 className="flex flex-col items-center rounded-md border border-ledger-100 bg-white p-2.5 text-center transition-all hover:border-signal hover:shadow-card-hover disabled:opacity-40 dark:border-ledger-700 dark:bg-ink-900"
               >
-                <div className="mb-2 flex h-14 w-full items-center justify-center rounded-md bg-ledger-100 dark:bg-white/[0.06]">
-                  <Package className="h-5 w-5 text-ledger-400" />
+                <div className="relative mb-2 flex h-14 w-full items-center justify-center overflow-hidden rounded-md bg-ledger-100 dark:bg-white/[0.06]">
+                  {p.imageUrl ? (
+                    <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
+                  ) : (
+                    <Package className="h-5 w-5 text-ledger-400" />
+                  )}
                 </div>
                 <p className="line-clamp-2 text-[11px] font-medium leading-tight text-ink-900 dark:text-white">{p.name}</p>
                 <div className="mt-1 flex w-full items-center justify-between gap-1">

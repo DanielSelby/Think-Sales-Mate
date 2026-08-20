@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Boxes,
   PackageX,
@@ -46,6 +47,7 @@ export interface CatalogProduct {
   stockQuantity: number;
   lowStockThreshold: number;
   isActive: boolean;
+  imageUrl?: string | null;
 }
 
 export interface CatalogLocation {
@@ -712,8 +714,12 @@ export function ProductsCatalog({
                     </td>
                     <td className="px-2 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
-                          <Package className="h-4 w-4" />
+                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
+                          {p.imageUrl ? (
+                            <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
+                          ) : (
+                            <Package className="h-4 w-4" />
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="truncate font-medium text-ink-900 dark:text-white">{p.name}</p>
@@ -824,8 +830,12 @@ export function ProductsCatalog({
             return (
               <div key={p.id} className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
                 <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
-                    <Package className="h-5 w-5" />
+                  <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
+                    {p.imageUrl ? (
+                      <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
+                    ) : (
+                      <Package className="h-5 w-5" />
+                    )}
                   </div>
                   {canManage && (
                     <Link href={`/inventory/${p.id}/edit`} className="text-ledger-400 hover:text-ink-900 dark:hover:text-white">

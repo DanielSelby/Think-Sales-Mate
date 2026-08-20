@@ -24,7 +24,7 @@ export default async function InventoryPage() {
     supabase
       .from("products")
       .select(
-        "id, sku, name, description, category, brand, supplier, barcode, location_id, unit_price, cost_price, stock_quantity, low_stock_threshold, is_active, business_locations(name)"
+        "id, sku, name, description, category, brand, supplier, barcode, location_id, unit_price, cost_price, stock_quantity, low_stock_threshold, is_active, image_urls, business_locations(name)"
       )
       .eq("org_id", context.orgId)
       .order("name"),
@@ -53,7 +53,8 @@ export default async function InventoryPage() {
       costPrice: p.cost_price,
       stockQuantity: p.stock_quantity,
       lowStockThreshold: p.low_stock_threshold,
-      isActive: p.is_active
+      isActive: p.is_active,
+      imageUrl: p.image_urls?.[0] ?? null
     };
   });
 

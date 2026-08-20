@@ -14,7 +14,7 @@ export default async function PosPage() {
   const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, category, unit_price, stock_quantity")
+      .select("id, name, sku, barcode, category, unit_price, stock_quantity, image_urls")
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
@@ -38,6 +38,7 @@ export default async function PosPage() {
         category: p.category,
         unitPrice: p.unit_price,
         stockQuantity: p.stock_quantity,
+        imageUrl: p.image_urls?.[0] ?? null,
       }))}
       categories={categories}
       locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name }))}

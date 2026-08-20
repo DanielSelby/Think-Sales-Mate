@@ -133,6 +133,8 @@ export default async function NewSalePage() {
       stockLevels={stockLevels}
       currentUserId={context.userId}
       currentUserEmail={context.userEmail}
+      orgName={context.orgName}
+      currency={context.currency}
     />
   );
 }
