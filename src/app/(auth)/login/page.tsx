@@ -271,6 +271,30 @@ function LoginForm() {
     router.refresh();
   }
 
+  async function handleOAuth(provider: "google" | "azure") {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const supabase = await createClient();
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${searchParams.get("next") ?? "/dashboard"}`,
+        },
+      });
+
+      if (oauthError) {
+        setError(oauthError.message);
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to continue with this provider.");
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#f7f8f6]">
       <div className="grid min-h-screen lg:grid-cols-[50%_50%]">
@@ -647,11 +671,13 @@ function LoginForm() {
                 <div className="h-px flex-1 bg-[#e6e7e4]" />
               </div>
 
-              {/* OAuth visual buttons */}
+              {/* OAuth buttons — wired to real Supabase OAuth */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  className="flex h-11 items-center justify-center gap-2.5 rounded-xl border border-[#dedfdb] bg-white text-sm font-medium text-[#333731] transition hover:bg-[#f8f9f7]"
+                  disabled={loading}
+                  onClick={() => handleOAuth("google")}
+                  className="flex h-11 items-center justify-center gap-2.5 rounded-xl border border-[#dedfdb] bg-white text-sm font-medium text-[#333731] transition hover:bg-[#f8f9f7] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <GoogleIcon />
                   Google
@@ -659,7 +685,9 @@ function LoginForm() {
 
                 <button
                   type="button"
-                  className="flex h-11 items-center justify-center gap-2.5 rounded-xl border border-[#dedfdb] bg-white text-sm font-medium text-[#333731] transition hover:bg-[#f8f9f7]"
+                  disabled={loading}
+                  onClick={() => handleOAuth("azure")}
+                  className="flex h-11 items-center justify-center gap-2.5 rounded-xl border border-[#dedfdb] bg-white text-sm font-medium text-[#333731] transition hover:bg-[#f8f9f7] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <MicrosoftIcon />
                   Microsoft
