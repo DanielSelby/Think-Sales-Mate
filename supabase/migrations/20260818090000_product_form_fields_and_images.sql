@@ -5,7 +5,12 @@
 
 begin;
 
+-- products.unit was assumed to already exist (it's a column on the
+-- unrelated purchase_items table, from 20260805090000_purchases_module —
+-- easy to mix up, and that's exactly what happened here) but was never
+-- actually added to products until now.
 alter table public.products
+  add column if not exists unit text not null default 'pcs',
   add column if not exists product_type text not null default 'standard' check (product_type in ('standard', 'service', 'digital')),
   add column if not exists hsn_code text,
   add column if not exists tax_rate numeric(5, 2),
