@@ -19,13 +19,33 @@ export const SUPPORTED_CURRENCIES: CurrencyOption[] = [
 ];
 
 /**
- * Formats an amount using the organization's chosen currency — every
- * money display in the app should go through this rather than
- * hand-rolling a "$" prefix, so switching currency in Settings updates
- * every page at once.
+ * Formats an amount using the organization's chosen currency.
+ *
+ * GHS is displayed as GH₵ instead of the browser's default
+ * Ghanaian Cedi formatting.
  */
-export function formatMoney(value: number, currency: string = "USD"): string {
+export function formatMoney(
+  value: number,
+  currency: string = "USD"
+): string {
   try {
+    // Keep GHS as the real ISO currency code for Intl.NumberFormat,
+    // but replace its displayed symbol with GH₵.
+    if (currency === "GHS") {
+      const formatted = new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "GHS",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(value);
+
+      // Different browsers/locales can render GHS differently.
+      // Normalize the symbol to GH₵.
+      return formatted
+        .replace(/GHS/g, "GH₵")
+        .replace(/GH₵\s*/g, "GH₵");
+    }
+
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
@@ -33,7 +53,6 @@ export function formatMoney(value: number, currency: string = "USD"): string {
       maximumFractionDigits: 2
     }).format(value);
   } catch {
-    // Fall back gracefully if an unrecognized currency code ever sneaks in.
     return `${currency} ${value.toFixed(2)}`;
   }
 }
