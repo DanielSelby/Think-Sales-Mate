@@ -54,7 +54,7 @@ function esc(value: string | number | null | undefined): string {
 function formatCurrency(amount: number, currency: string): string {
   return new Intl.NumberFormat("en-GH", {
     style: "currency",
-    currency: currency || "GHS",
+    currency: currency || "GH₵",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(amount) || 0);
