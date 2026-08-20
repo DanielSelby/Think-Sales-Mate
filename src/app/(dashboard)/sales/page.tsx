@@ -19,10 +19,10 @@ export default async function SalesPage() {
     supabase
       .from("sales")
       .select(`
-        id, sale_number, customer_name, sale_date, total, amount_paid,
+        id, sale_number, customer_name, sale_date, created_at, total, amount_paid,
         payment_method, sold_by, status, refunded_amount,
         location:business_locations ( name ),
-        items:sale_items ( quantity )
+        items:sale_items ( quantity, products ( name ) )
       `)
       .eq("org_id", orgId)
       .order("sale_date", { ascending: false }),
@@ -44,10 +44,18 @@ export default async function SalesPage() {
     id: s.id,
     saleNumber: s.sale_number,
     customerName: s.customer_name ?? "Walk-in Customer",
-    saleDate: s.sale_date,
+    // sale_date is a DATE column with no time component — every row would
+    // otherwise render midnight. created_at has the real timestamp.
+    saleDate: s.created_at,
     locationName: (s.location as { name: string } | null)?.name ?? null,
     soldByName: staffNameById.get(s.sold_by) ?? "—",
     itemCount: (s.items as { quantity: number }[] | null)?.reduce((sum, i) => sum + i.quantity, 0) ?? 0,
+    primaryProductName: (() => {
+      const first = (s.items as { products: { name: string } | { name: string }[] | null }[] | null)?.[0];
+      const product = Array.isArray(first?.products) ? first?.products[0] : first?.products;
+      return product?.name ?? null;
+    })(),
+    productLineCount: (s.items as unknown[] | null)?.length ?? 0,
     total: s.total,
     amountPaid: s.amount_paid ?? 0,
     paymentMethod: s.payment_method,

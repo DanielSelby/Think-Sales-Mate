@@ -27,6 +27,8 @@ export interface SaleListRow {
   saleDate: string; // ISO
   locationName: string | null;
   soldByName: string;
+  primaryProductName: string | null;
+  productLineCount: number;
   itemCount: number;
   total: number;
   amountPaid: number;
@@ -285,6 +287,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
                 <th className="px-3 py-3 font-medium">Date &amp; Time</th>
                 <th className="px-3 py-3 font-medium">Customer</th>
                 <th className="px-3 py-3 font-medium">Sold By</th>
+                <th className="px-3 py-3 font-medium">Product</th>
                 <th className="px-3 py-3 text-right font-medium">Items</th>
                 <th className="px-3 py-3 text-right font-medium">Total</th>
                 <th className="px-3 py-3 font-medium">Payment Method</th>
@@ -297,7 +300,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center text-ledger-400">
+                  <td colSpan={13} className="px-4 py-12 text-center text-ledger-400">
                     No sales match your filters.
                   </td>
                 </tr>
@@ -325,6 +328,10 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
                     </td>
                     <td className="px-3 py-3 text-ink-900 dark:text-white">{s.customerName}</td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.soldByName}</td>
+                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
+                      {s.primaryProductName ?? "—"}
+                      {s.productLineCount > 1 && <span className="text-ledger-400"> +{s.productLineCount - 1} more</span>}
+                    </td>
                     <td className="px-3 py-3 text-right text-ledger-600 dark:text-ledger-300">{s.itemCount}</td>
                     <td className="px-3 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">
                       {formatCurrency(s.total, currency)}

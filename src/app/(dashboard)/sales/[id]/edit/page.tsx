@@ -145,6 +145,8 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       initialSale={initialSale}
       currentUserId={context.userId}
       currentUserEmail={context.userEmail}
+      orgName={context.orgName}
+      currency={context.currency}
     />
   );
 }

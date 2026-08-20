@@ -35,7 +35,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
-import { recordSale, updateSale, addCustomer } from "@/app/(dashboard)/sales/actions";
+import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
+import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
+import { derivePaymentStatus } from "@/lib/sales/format";
 
 
 export interface SellableProduct {
@@ -74,6 +76,7 @@ export interface SaleStockLevel {
 
 export interface InitialSaleData {
   id: string;
+  saleNumber: number;
   customerId: string | null;
   customerName: string | null;
   locationId: string | null;
@@ -143,6 +146,8 @@ export function SaleForm({
   currentUserId,
   currentUserEmail,
   orgId,
+  orgName,
+  currency,
 }: {
   products: SellableProduct[];
   customers: SaleCustomer[];
@@ -153,6 +158,8 @@ export function SaleForm({
   initialSale?: InitialSaleData;
   currentUserId: string;
   orgId: string;
+  orgName: string;
+  currency: string;
   currentUserEmail: string;
 }) {
   const router = useRouter();
@@ -161,6 +168,7 @@ export function SaleForm({
   const [stockWarning, setStockWarning] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
+  const [confirmZeroPayment, setConfirmZeroPayment] = useState(false);
 
   // Customer
   const [customerList, setCustomerList] = useState<SaleCustomer[]>(customers);
@@ -414,6 +422,7 @@ export function SaleForm({
     setLines([]);
     setSearch("");
     setEditingLineId(null);
+    setConfirmZeroPayment(false);
     setNote("");
     setShippingAmount(0);
     setOtherChargesAmount(0);
@@ -452,12 +461,48 @@ export function SaleForm({
     return null;
   }
 
+  async function printSaleReceipt(saleId: string, saleNumber: number) {
+    try {
+      const items = await getSaleInvoiceItems(saleId);
+      const html = buildInvoiceHtml({
+        orgName,
+        saleNumber,
+        saleDate,
+        customerName: selectedCustomer?.name || walkInName || "Walk-in Customer",
+        soldByName: reps.find((r) => r.id === salesRepId)?.name ?? currentUserEmail,
+        locationName: locations.find((l) => l.id === locationId)?.name ?? null,
+        paymentMethod,
+        paymentStatus: derivePaymentStatus(total, amountPaid),
+        subtotal,
+        total,
+        amountPaid,
+        currency,
+        items,
+      });
+      const win = window.open("", "_blank", "width=800,height=900");
+      if (!win) return;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch {
+      // Printing is best-effort — a failed print shouldn't undo an
+      // already-saved sale.
+    }
+  }
+
   function handleConfirm() {
     const validationError = validate();
     if (validationError) {
       setError(validationError);
       return;
     }
+    if (amountPaid <= 0 && !confirmZeroPayment) {
+      setError("No amount paid entered — this sale will be recorded as unpaid (Pending). Click Complete Sale again to confirm, or enter an amount paid.");
+      setConfirmZeroPayment(true);
+      return;
+    }
+    setConfirmZeroPayment(false);
     setError(null);
 
     startTransition(async () => {
@@ -501,6 +546,7 @@ export function SaleForm({
         }
 
         window.localStorage.removeItem(DRAFT_KEY);
+        if (printReceipt && initialSale) await printSaleReceipt(editingSaleId, initialSale.saleNumber);
         router.push(`/sales/${editingSaleId}`);
         return;
       }
@@ -534,6 +580,9 @@ export function SaleForm({
       }
 
       window.localStorage.removeItem(DRAFT_KEY);
+      if (printReceipt && result.saleId && result.saleNumber) {
+        await printSaleReceipt(result.saleId, result.saleNumber);
+      }
       router.push(`/sales/${result.saleId}`);
     });
   }

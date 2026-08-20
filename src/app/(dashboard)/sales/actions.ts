@@ -249,9 +249,10 @@ export interface RecordSaleInput {
 }
 
 export interface RecordSaleResult {
-  ok:      boolean;
-  saleId?: string;
-  error?:  string;
+  ok:         boolean;
+  saleId?:    string;
+  saleNumber?: number;
+  error?:     string;
 }
 
 export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
@@ -279,7 +280,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         sold_by:         user.id,
         status:          "completed",
       })
-      .select("id")
+      .select("id, sale_number")
       .single();
 
     if (saleError || !sale) throw new Error(saleError?.message ?? "Failed to create sale.");
@@ -321,7 +322,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
 
     revalidatePath("/sales");
     revalidatePath("/inventory");
-    return { ok: true, saleId: sale.id };
+    return { ok: true, saleId: sale.id, saleNumber: sale.sale_number };
 
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
@@ -329,10 +330,13 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
 }
 
 // ---------------------------------------------------------------------------
+// Fetch line items for invoice display
+// ---------------------------------------------------------------------------
 // Edit an existing sale — load + save
 // ---------------------------------------------------------------------------
 export interface SaleEditData {
   id:            string;
+  saleNumber:    number;
   customerId:    string | null;
   customerName:  string | null;
   locationId:    string | null;
@@ -351,7 +355,7 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
 
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
+    .select("id, sale_number, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
     .eq("id", saleId)
     .single();
   if (!sale) return null;
@@ -363,6 +367,7 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
 
   return {
     id: sale.id,
+    saleNumber: sale.sale_number,
     customerId: sale.customer_id,
     customerName: sale.customer_name,
     locationId: sale.location_id,
@@ -416,8 +421,20 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
       await (supabase as any).rpc("adjust_product_stock", { p_product_id: item.product_id, p_delta: item.quantity });
     }
 
-    const { error: deleteError } = await supabase.from("sale_items").delete().eq("sale_id", input.saleId);
+    // Explicitly org-scoped, and count-checked — if this silently deleted
+    // fewer rows than existingItems had, the next insert would leave
+    // duplicates behind, inflating item counts/totals on every future edit.
+    const { error: deleteError, count: deletedCount } = await supabase
+      .from("sale_items")
+      .delete({ count: "exact" })
+      .eq("sale_id", input.saleId)
+      .eq("org_id", existingSale.org_id);
     if (deleteError) throw new Error(deleteError.message);
+    if ((deletedCount ?? 0) !== (existingItems?.length ?? 0)) {
+      throw new Error(
+        `Expected to remove ${existingItems?.length ?? 0} old line item(s) but removed ${deletedCount ?? 0} — aborting to avoid duplicate rows. Check sale_items' RLS delete policy.`
+      );
+    }
 
     const { error: updateError } = await supabase
       .from("sales")
