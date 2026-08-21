@@ -277,19 +277,20 @@ export function RevenueByProductChart({
 
                     return (
                       <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-xl">
-                        <p className="font-semibold text-slate-700">
+                        <p className="figure font-semibold text-ink-900">
                           {item.name}
                         </p>
 
                         <p
-                          style={{
-                            color:
-                              COLORS[
-                                index %
-                                  COLORS.length
-                              ],
-                          }}
-                        >
+                        className="figure font-semibold tabular-nums"
+                         style={{
+                             color:
+                               COLORS[
+                                 index %
+                            COLORS.length
+                               ],
+                               }}
+                          >
                           {formatMoney(
                             item.value,
                             currency
@@ -313,7 +314,7 @@ export function RevenueByProductChart({
 
             {/* DONUT CENTER */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <p className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums">
                 {selected !== null
                   ? view === "product"
                     ? "Product"
@@ -322,7 +323,7 @@ export function RevenueByProductChart({
               </p>
 
               <p
-                className="mt-1 text-base font-bold tracking-tight tabular-nums"
+                className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums"
                 style={{
                   color: theme.colors.primary,
                 }}
@@ -467,9 +468,10 @@ export function RevenueByProductChart({
             <XAxis
               type="number"
               tick={{
-                fontSize: 10,
-                fill: "#94a3b8",
-              }}
+              fontSize: 11,
+              fontWeight: 600,
+              fill: "#64748b",
+            }}
               tickFormatter={shortFmt}
               axisLine={false}
               tickLine={false}
@@ -479,9 +481,10 @@ export function RevenueByProductChart({
               type="category"
               dataKey="name"
               tick={{
-                fontSize: 10,
-                fill: "#64748b",
-              }}
+              fontSize: 11,
+              fontWeight: 600,
+              fill: "#64748b",
+            }}
               width={90}
               axisLine={false}
               tickLine={false}
@@ -505,7 +508,7 @@ export function RevenueByProductChart({
 
                 return (
                   <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-xl">
-                    <p className="font-semibold">
+                    <p className="figure font-semibold text-ink-900">
                       {
                         payload[0]?.payload
                           ?.name
@@ -513,13 +516,14 @@ export function RevenueByProductChart({
                     </p>
 
                     <p
-                      style={{
-                        color:
-                          COLORS[
-                            index %
-                              COLORS.length
-                          ],
-                      }}
+                   className="figure font-semibold tabular-nums"
+                  style={{
+                     color:
+                      COLORS[
+                         index %
+                          COLORS.length
+                            ],
+                         }}
                     >
                       {formatMoney(
                         Number(

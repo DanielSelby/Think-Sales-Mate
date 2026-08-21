@@ -85,8 +85,10 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={4} />
-            <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11,
+fontWeight: 600, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={4} />
+            <YAxis tick={{ fontSize: 11,
+fontWeight: 600, fill: "#94a3b8" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
             <Tooltip content={<CustomTooltip />} />
             {series !== "expenses" && <Area type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} fill="url(#revG)" dot={false} />}
             {series !== "revenue" && <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#expG)" dot={false} />}
@@ -94,8 +96,10 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
         ) : chartType === "bar" ? (
           <BarChart data={enriched} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={4} />
-            <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11,
+fontWeight: 600, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={4} />
+            <YAxis tick={{ fontSize: 11,
+fontWeight: 600, fill: "#94a3b8" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
             <Tooltip content={<CustomTooltip />} />
             {series !== "expenses" && <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={20} />}
             {series !== "revenue" && <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={20} />}
@@ -109,8 +113,10 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={4} />
-            <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11,
+fontWeight: 600, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={4} />
+            <YAxis tick={{ fontSize: 11,
+fontWeight: 600, fill: "#94a3b8" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
             <ReferenceLine y={0} stroke="#e2e8f0" strokeWidth={1.5} />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={16} opacity={0.7} />
