@@ -314,7 +314,7 @@ export function RevenueByProductChart({
 
             {/* DONUT CENTER */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums">
+              <p className="mt-1 text-base font-bold tracking-tight tabular-nums">
                 {selected !== null
                   ? view === "product"
                     ? "Product"
@@ -323,7 +323,7 @@ export function RevenueByProductChart({
               </p>
 
               <p
-                className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums"
+                className="mt-1 text-base font-bold tracking-tight tabular-nums"
                 style={{
                   color: theme.colors.primary,
                 }}
