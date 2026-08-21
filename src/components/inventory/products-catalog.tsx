@@ -714,7 +714,7 @@ export function ProductsCatalog({
                     </td>
                     <td className="px-2 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
+                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white text-ledger-400 dark:border-ledger-700 dark:bg-ink-900">
                           {p.imageUrl ? (
                             <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
                           ) : (
@@ -830,7 +830,7 @@ export function ProductsCatalog({
             return (
               <div key={p.id} className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
                 <div className="flex items-start justify-between">
-                  <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
+                  <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white text-ledger-400 dark:border-ledger-700 dark:bg-ink-900">
                     {p.imageUrl ? (
                       <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
                     ) : (

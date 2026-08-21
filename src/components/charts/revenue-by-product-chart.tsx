@@ -404,13 +404,13 @@ export function RevenueByProductChart({
                         }}
                       />
 
-                      <span className="truncate text-[11px] font-medium text-slate-600">
+                      <span className="truncate text-[11px] font-semibold tracking-wide text-ink-900">
                         {item.name}
                       </span>
                     </span>
 
                     <span
-                      className="shrink-0 text-[11px] font-semibold tabular-nums"
+                      className="shrink-0 text-[11px] font-semibold tracking-wide tabular-nums"
                       style={{
                         color:
                           COLORS[

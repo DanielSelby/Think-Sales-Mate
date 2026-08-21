@@ -632,7 +632,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
                 disabled={p.stockQuantity <= 0}
                 className="flex flex-col items-center rounded-md border border-ledger-100 bg-white p-2.5 text-center transition-all hover:border-signal hover:shadow-card-hover disabled:opacity-40 dark:border-ledger-700 dark:bg-ink-900"
               >
-                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-ledger-100 p-1.5 dark:bg-white/[0.06]">
+                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white p-1.5 dark:border-ledger-700 dark:bg-ink-900">
                   {p.imageUrl ? (
                     <Image src={p.imageUrl} alt={p.name} fill className="object-contain" unoptimized />
                   ) : (
@@ -729,7 +729,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-              <table className="w-full text-[15px]">
+             <table className="w-full text-[15px]">
                 <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
                   <tr>
                     <th className="px-2 py-2 text-left font-bold">Product</th>
@@ -745,8 +745,8 @@ export function PosView({ products, categories, locations, stockLevels, currency
                   {cart.map((l) => (
                     <tr key={l.key} className="border-b border-ledger-50 last:border-0 dark:border-white/5">
                       <td className="px-2 py-2">
-                        <p className="truncate font-bold text-ink-900 dark:text-white">{l.name}</p>
-                        <p className="text-xs font-medium text-ledger-400">{formatCurrency(l.unitPrice, currency)}</p>
+                        <p className="truncate font-medium text-ink-900 dark:text-white">{l.name}</p>
+                        <p className="text-xs text-ledger-400">{formatCurrency(l.unitPrice, currency)}</p>
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center justify-center gap-1">
@@ -755,12 +755,12 @@ export function PosView({ products, categories, locations, stockLevels, currency
                             type="number"
                             value={l.quantity}
                             onChange={(e) => setQtyDirect(l.key, Number(e.target.value))}
-                            className="h-7 w-12 rounded border border-ledger-200 bg-white text-center text-sm font-bold dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            className="h-7 w-12 rounded border border-ledger-200 bg-white text-center text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                           />
                           <button onClick={() => updateQty(l.key, 1)} className="rounded border border-ledger-200 px-1.5 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700">+</button>
                         </div>
                       </td>
-                      <td className="px-2 py-2 text-right font-mono font-bold text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
+                      <td className="px-2 py-2 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
                       <td className="px-2 py-2 text-center">
                         <button onClick={() => removeLine(l.key)} className="text-alert/70 hover:text-alert"><X className="h-3.5 w-3.5" /></button>
                       </td>
