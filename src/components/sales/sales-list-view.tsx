@@ -257,21 +257,36 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
       </Card>
 
       {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-2">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => { setActiveTab(tab.key); setPage(1); setSelected([]); }}
-            className={cn(
-              "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
-              activeTab === tab.key
-                ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900"
-                : "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
-            )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setPage(1); setSelected([]); }}
+              className={cn(
+                "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+                activeTab === tab.key
+                  ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900"
+                  : "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
+              )}
+            >
+              {tab.label} ({counts[tab.key]})
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-sm text-ledger-500">
+          Rows per page
+          <Select
+            value={rowsPerPage}
+            onChange={(e) => { setRowsPerPage(e.target.value === "all" ? "all" : Number(e.target.value)); setPage(1); }}
+            className="h-8 w-24"
           >
-            {tab.label} ({counts[tab.key]})
-          </button>
-        ))}
+            <option value="all">Show All</option>
+            {ROWS_PER_PAGE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {/* Table */}
@@ -376,19 +391,6 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
             {(clampedPage - 1) * effectiveRowsPerPage + pageRows.length} of {filtered.length} sales
           </p>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-ledger-500">
-              Rows per page
-              <Select
-                value={rowsPerPage}
-                onChange={(e) => { setRowsPerPage(e.target.value === "all" ? "all" : Number(e.target.value)); setPage(1); }}
-                className="h-8 w-24"
-              >
-                <option value="all">Show All</option>
-                {ROWS_PER_PAGE_OPTIONS.map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </Select>
-            </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}

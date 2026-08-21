@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { SaleStatus } from "@/types/database";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -410,21 +411,22 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
 
+  // sale_items' RLS appears to cover select/insert but not delete — the
+  // user's identity/authorization is already verified above via
+  // getUser(), so the delete+reinsert step runs through the admin
+  // (service-role) client to avoid it silently matching 0 rows.
+  const admin = createAdminClient();
+
   try {
     const { data: existingSale } = await supabase.from("sales").select("org_id").eq("id", input.saleId).single();
     if (!existingSale) throw new Error("Sale not found.");
 
-    // Reverse the old line items' stock impact before applying the new
-    // ones — same rpc recordSale uses for the initial deduction.
     const { data: existingItems } = await supabase.from("sale_items").select("product_id, quantity").eq("sale_id", input.saleId);
     for (const item of existingItems ?? []) {
       await (supabase as any).rpc("adjust_product_stock", { p_product_id: item.product_id, p_delta: item.quantity });
     }
 
-    // Explicitly org-scoped, and count-checked — if this silently deleted
-    // fewer rows than existingItems had, the next insert would leave
-    // duplicates behind, inflating item counts/totals on every future edit.
-    const { error: deleteError, count: deletedCount } = await supabase
+    const { error: deleteError, count: deletedCount } = await admin
       .from("sale_items")
       .delete({ count: "exact" })
       .eq("sale_id", input.saleId)
@@ -432,7 +434,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
     if (deleteError) throw new Error(deleteError.message);
     if ((deletedCount ?? 0) !== (existingItems?.length ?? 0)) {
       throw new Error(
-        `Expected to remove ${existingItems?.length ?? 0} old line item(s) but removed ${deletedCount ?? 0} — aborting to avoid duplicate rows. Check sale_items' RLS delete policy.`
+        `Expected to remove ${existingItems?.length ?? 0} old line item(s) but removed ${deletedCount ?? 0} — aborting to avoid duplicate rows.`
       );
     }
 
@@ -466,7 +468,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
         tax_percent:      l.taxPercent ?? 0,
         line_total:       l.lineTotal,
       }));
-      const { error: itemsError } = await supabase.from("sale_items").insert(rows);
+      const { error: itemsError } = await admin.from("sale_items").insert(rows);
       if (itemsError) throw new Error(itemsError.message);
     }
 

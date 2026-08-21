@@ -28,7 +28,8 @@ import {
   Globe,
   Banknote,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -169,6 +170,8 @@ export function SaleForm({
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
   const [confirmZeroPayment, setConfirmZeroPayment] = useState(false);
+  const [payBalanceOpen, setPayBalanceOpen] = useState(false);
+  const [payBalanceInput, setPayBalanceInput] = useState("");
 
   // Customer
   const [customerList, setCustomerList] = useState<SaleCustomer[]>(customers);
@@ -282,6 +285,7 @@ export function SaleForm({
   const additionalTaxAmount = Math.max(0, (subtotal - discountTotal - additionalDiscountAmount) * (additionalTaxPercent / 100));
   const total = subtotal - discountTotal - additionalDiscountAmount + taxTotal + additionalTaxAmount + shippingAmount + otherChargesAmount;
   const changeOrDue = amountPaid - total;
+  const balanceDue = Math.max(0, total - amountPaid);
 
   // Restore a locally-saved draft on first load, if one exists.
   useEffect(() => {
@@ -461,7 +465,7 @@ export function SaleForm({
     return null;
   }
 
-  async function printSaleReceipt(saleId: string, saleNumber: number) {
+  async function printSaleReceipt(saleId: string, saleNumber: number, paidAmount: number) {
     try {
       const items = await getSaleInvoiceItems(saleId);
       const html = buildInvoiceHtml({
@@ -472,10 +476,10 @@ export function SaleForm({
         soldByName: reps.find((r) => r.id === salesRepId)?.name ?? currentUserEmail,
         locationName: locations.find((l) => l.id === locationId)?.name ?? null,
         paymentMethod,
-        paymentStatus: derivePaymentStatus(total, amountPaid),
+        paymentStatus: derivePaymentStatus(total, paidAmount),
         subtotal,
         total,
-        amountPaid,
+        amountPaid: paidAmount,
         currency,
         items,
       });
@@ -491,13 +495,15 @@ export function SaleForm({
     }
   }
 
-  function handleConfirm() {
+  function handleConfirm(amountPaidOverride?: number) {
+    const paidAmount = amountPaidOverride ?? amountPaid;
+
     const validationError = validate();
     if (validationError) {
       setError(validationError);
       return;
     }
-    if (amountPaid <= 0 && !confirmZeroPayment) {
+    if (paidAmount <= 0 && !confirmZeroPayment) {
       setError("No amount paid entered — this sale will be recorded as unpaid (Pending). Click Complete Sale again to confirm, or enter an amount paid.");
       setConfirmZeroPayment(true);
       return;
@@ -517,7 +523,7 @@ export function SaleForm({
           reference,
           saleDate,
           paymentMethod,
-          amountPaid,
+          amountPaid: paidAmount,
           shippingAmount,
           discountAmount: discountTotal + additionalDiscountAmount,
           taxAmount: taxTotal + additionalTaxAmount,
@@ -546,7 +552,7 @@ export function SaleForm({
         }
 
         window.localStorage.removeItem(DRAFT_KEY);
-        if (printReceipt && initialSale) await printSaleReceipt(editingSaleId, initialSale.saleNumber);
+        if (printReceipt && initialSale) await printSaleReceipt(editingSaleId, initialSale.saleNumber, paidAmount);
         router.push(`/sales/${editingSaleId}`);
         return;
       }
@@ -561,7 +567,7 @@ export function SaleForm({
         reference,
         saleDate,
         paymentMethod,
-        amountPaid,
+        amountPaid: paidAmount,
         shippingAmount,
         discountAmount: discountTotal + additionalDiscountAmount,
         taxAmount: taxTotal + additionalTaxAmount,
@@ -581,10 +587,23 @@ export function SaleForm({
 
       window.localStorage.removeItem(DRAFT_KEY);
       if (printReceipt && result.saleId && result.saleNumber) {
-        await printSaleReceipt(result.saleId, result.saleNumber);
+        await printSaleReceipt(result.saleId, result.saleNumber, paidAmount);
       }
       router.push(`/sales/${result.saleId}`);
     });
+  }
+
+  // "Pay Balance" — fills (or tops up) Amount Paid, and if this is an
+  // existing sale being edited, saves immediately so the payment actually
+  // reconciles (rather than just sitting in the field unsaved).
+  function handlePayBalance() {
+    const amount = Number(payBalanceInput);
+    if (Number.isNaN(amount) || amount <= 0) return;
+    const newAmountPaid = Math.min(total, amountPaid + amount);
+    setAmountPaid(Number(newAmountPaid.toFixed(2)));
+    setPayBalanceOpen(false);
+    setPayBalanceInput("");
+    if (editingSaleId) handleConfirm(newAmountPaid);
   }
 
   return (
@@ -1217,6 +1236,44 @@ export function SaleForm({
               )}
             </dl>
 
+            {balanceDue > 0.004 && (
+              <div className="mt-3 space-y-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-alert">Balance Due</span>
+                  <span className="figure text-sm font-semibold text-alert">GHC {formatMoney(balanceDue)}</span>
+                </div>
+                {!payBalanceOpen ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => { setPayBalanceInput(balanceDue.toFixed(2)); setPayBalanceOpen(true); }}
+                  >
+                    Pay Balance
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={balanceDue}
+                      step="0.01"
+                      value={payBalanceInput}
+                      onChange={(e) => setPayBalanceInput(e.target.value)}
+                      className="h-9 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    />
+                    <Button type="button" size="sm" disabled={isPending} onClick={handlePayBalance}>
+                      Confirm
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setPayBalanceOpen(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="mt-4 space-y-1.5 border-t border-ledger-100 pt-4 dark:border-ledger-700">
               <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Payment method</label>
               <select
@@ -1314,7 +1371,7 @@ export function SaleForm({
             <Button type="button" variant="outline" disabled={isPending} onClick={handleSaveByStatus}>
               {isPending ? "Saving…" : "Save Sale"}
             </Button>
-            <Button type="button" disabled={isPending} onClick={handleConfirm}>
+            <Button type="button" disabled={isPending} onClick={() => handleConfirm()}>
               {isPending ? "Saving…" : editingSaleId ? "Update Sale" : "Complete Sale"}
               <ArrowRight className="h-4 w-4" />
             </Button>

@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useState } from "react";
@@ -14,6 +16,8 @@ import {
   Banknote,
   MapPin,
   Globe,
+  Building2,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,9 +50,21 @@ export function AddContactDialog({
     email: string | null;
   }) => Promise<{ ok: boolean; error?: string }>;
 }) {
+
   const [contactType, setContactType] = useState<"individual" | "business">("individual");
   const [contactId, setContactId] = useState("");
   const [customerGroup, setCustomerGroup] = useState("none");
+
+  // Individual
+  const [prefix, setPrefix] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [dob, setDob] = useState("");
+
+  // Business
+  const [businessName, setBusinessName] = useState("");
+
   const [mobile, setMobile] = useState("");
   const [alternatePhone, setAlternatePhone] = useState("");
   const [landline, setLandline] = useState("");
@@ -57,9 +73,7 @@ export function AddContactDialog({
   const [more, setMore] = useState(false);
 
   // "More Information" fields below aren't backed by any column on the
-  // customers table yet — they're captured here but not sent to
-  // addCustomer. Say the word if you want these persisted (needs a
-  // migration) and I'll wire them through.
+  // customers table yet — captured here but not sent to addCustomer.
   const [taxNumber, setTaxNumber] = useState("");
   const [openingBalance, setOpeningBalance] = useState("0");
   const [payTerm, setPayTerm] = useState("");
@@ -83,6 +97,12 @@ export function AddContactDialog({
     setContactType("individual");
     setContactId("");
     setCustomerGroup("none");
+    setPrefix("");
+    setFirstName("");
+    setMiddleName("");
+    setLastName("");
+    setDob("");
+    setBusinessName("");
     setMobile("");
     setAlternatePhone("");
     setLandline("");
@@ -108,14 +128,28 @@ export function AddContactDialog({
   }
 
   async function handleSave() {
+    const name =
+      contactType === "business"
+        ? businessName.trim()
+        : [prefix.trim(), firstName.trim(), middleName.trim(), lastName.trim()].filter(Boolean).join(" ");
+
+    if (contactType === "business" && !businessName.trim()) {
+      setErr("Business Name is required.");
+      return;
+    }
+    if (contactType === "individual" && !firstName.trim()) {
+      setErr("First Name is required.");
+      return;
+    }
     if (!mobile.trim()) {
       setErr("Mobile is required.");
       return;
     }
+
     setErr(null);
     setSaving(true);
     const result = await onSave({
-      name: contactId.trim() || mobile.trim(),
+      name,
       contactType,
       contactId: contactId || null,
       phone: mobile,
@@ -190,6 +224,40 @@ export function AddContactDialog({
           </div>
         </div>
 
+        {contactType === "individual" ? (
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-ink-900 dark:text-white">Prefix:</label>
+              <Input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="Mr / Mrs / Miss" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-ink-900 dark:text-white">First Name:*</label>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First Name" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-ink-900 dark:text-white">Middle name:</label>
+              <Input value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="Middle name" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-ink-900 dark:text-white">Last Name:</label>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last Name" />
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 max-w-sm space-y-1.5">
+            <label className="text-sm font-semibold text-ink-900 dark:text-white">Business Name:*</label>
+            <div className="flex items-center gap-2 rounded-md border border-ledger-200 px-3 dark:border-ledger-700">
+              <Building2 className="h-4 w-4 shrink-0 text-ledger-400" />
+              <input
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="Business Name"
+                className="h-10 w-full border-0 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ledger-400 dark:text-white"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-ink-900 dark:text-white">Mobile:*</label>
@@ -242,17 +310,45 @@ export function AddContactDialog({
           </div>
         </div>
 
-        <div className="mt-4 max-w-xs space-y-1.5">
-          <label className="text-sm font-semibold text-ink-900 dark:text-white">Assigned to:</label>
-          <div className="flex items-center gap-2 rounded-md border border-ledger-200 px-3 dark:border-ledger-700">
-            <User className="h-4 w-4 shrink-0 text-ledger-400" />
-            <input
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className="h-10 w-full border-0 bg-transparent text-sm text-ink-900 outline-none dark:text-white"
-            />
+        {contactType === "individual" ? (
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-ink-900 dark:text-white">Date of birth:</label>
+              <div className="flex items-center gap-2 rounded-md border border-ledger-200 px-3 dark:border-ledger-700">
+                <Calendar className="h-4 w-4 shrink-0 text-ledger-400" />
+                <input
+                  type="date"
+                  value={dob}
+                  onChange={(e) => setDob(e.target.value)}
+                  className="h-10 w-full border-0 bg-transparent text-sm text-ink-900 outline-none dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-ink-900 dark:text-white">Assigned to:</label>
+              <div className="flex items-center gap-2 rounded-md border border-ledger-200 px-3 dark:border-ledger-700">
+                <User className="h-4 w-4 shrink-0 text-ledger-400" />
+                <input
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  className="h-10 w-full border-0 bg-transparent text-sm text-ink-900 outline-none dark:text-white"
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-4 max-w-xs space-y-1.5">
+            <label className="text-sm font-semibold text-ink-900 dark:text-white">Assigned to:</label>
+            <div className="flex items-center gap-2 rounded-md border border-ledger-200 px-3 dark:border-ledger-700">
+              <User className="h-4 w-4 shrink-0 text-ledger-400" />
+              <input
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="h-10 w-full border-0 bg-transparent text-sm text-ink-900 outline-none dark:text-white"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="mt-5 flex justify-center border-t border-ledger-100 pt-5 dark:border-ledger-700">
           <button

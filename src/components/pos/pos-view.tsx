@@ -632,11 +632,11 @@ export function PosView({ products, categories, locations, stockLevels, currency
                 disabled={p.stockQuantity <= 0}
                 className="flex flex-col items-center rounded-md border border-ledger-100 bg-white p-2.5 text-center transition-all hover:border-signal hover:shadow-card-hover disabled:opacity-40 dark:border-ledger-700 dark:bg-ink-900"
               >
-                <div className="relative mb-2 flex h-14 w-full items-center justify-center overflow-hidden rounded-md bg-ledger-100 dark:bg-white/[0.06]">
+                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-ledger-100 p-1.5 dark:bg-white/[0.06]">
                   {p.imageUrl ? (
-                    <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
+                    <Image src={p.imageUrl} alt={p.name} fill className="object-contain" unoptimized />
                   ) : (
-                    <Package className="h-5 w-5 text-ledger-400" />
+                    <Package className="h-6 w-6 text-ledger-400" />
                   )}
                 </div>
                 <p className="line-clamp-2 text-[11px] font-medium leading-tight text-ink-900 dark:text-white">{p.name}</p>

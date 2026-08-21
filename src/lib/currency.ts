@@ -29,28 +29,24 @@ export function formatMoney(
   currency: string = "USD"
 ): string {
   try {
-    // Keep GHS as the real ISO currency code for Intl.NumberFormat,
-    // but replace its displayed symbol with GH₵.
     if (currency === "GHS") {
       const formatted = new Intl.NumberFormat(undefined, {
         style: "currency",
         currency: "GHS",
         minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        maximumFractionDigits: 2,
       }).format(value);
 
-      // Different browsers/locales can render GHS differently.
-      // Normalize the symbol to GH₵.
       return formatted
         .replace(/GHS/g, "GH₵")
-        .replace(/GH₵\s*/g, "GH₵");
+        .replace(/GH₵\s*/g, "GH₵ ");
     }
 
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value);
   } catch {
     return `${currency} ${value.toFixed(2)}`;
