@@ -93,14 +93,14 @@ export function BusinessHealthCard({ summary }: { summary: FinancialSummary }) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="figure text-2xl font-bold text-ink-900 dark:text-white">{score}</span>
-          <span className="text-[10px] font-medium text-ledger-400">{label}</span>
+          <span className="figure text-2xl font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{score}</span>
+          <span className="text-[10px] font-semibold tracking-wide text-ledger-400">{label}</span>
         </div>
       </div>
 
       <ul className="w-full space-y-2">
         {signals.map((signal, i) => (
-          <li key={i} className="flex items-start gap-2 text-xs">
+          <li key={i} className="flex items-start gap-2 text-xs font-medium">
             {signal.ok === true && <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-signal" />}
             {signal.ok === "warn" && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" />}
             {signal.ok === false && <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-alert" />}

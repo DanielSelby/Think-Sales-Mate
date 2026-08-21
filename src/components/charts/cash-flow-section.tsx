@@ -35,21 +35,21 @@ export function CashFlowSection({
         <div className="rounded-xl bg-signal-soft p-3">
           <div className="flex items-center gap-1.5 text-signal">
             <ArrowUpCircle className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">Cash In</span>
+            <span className="text-xs font-semibold tracking-wide">Cash In</span>
           </div>
-          <p className="figure mt-1 figure text-sm font-semibold text-ink-900 dark:text-ink-900">{formatMoney(cashIn, currency)}</p>
+          <p className={`figure mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>{formatMoney(cashIn, currency)}</p>
         </div>
         <div className="rounded-xl bg-alert-soft p-3">
           <div className="flex items-center gap-1.5 text-alert">
             <ArrowDownCircle className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">Cash Out</span>
+            <span className="text-xs font-semibold tracking-wide">Cash Out</span>
           </div>
-          <p className="figure mt-1 figure text-sm font-semibold text-ink-900 dark:text-ink-900">{formatMoney(cashOut, currency)}</p>
+          <p className={`figure mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>{formatMoney(cashOut, currency)}</p>
         </div>
         <div className="rounded-xl bg-ledger-50 p-3 dark:bg-ink-950">
           <div className="flex items-center gap-1.5 text-ledger-500 dark:text-ledger-400">
             <Wallet className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">Net</span>
+            <span className="text-xs font-semibold tracking-wide">Net</span>
           </div>
           <p className={`figure mt-1 figure text-sm font-semibold ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>
             {formatMoney(netCashFlow, currency)}
@@ -60,8 +60,7 @@ export function CashFlowSection({
       <div className="h-40">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-            <XAxis dataKey="label" tick={{ fontSize: 11,
-fontWeight: 600, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={Math.ceil(data.length / 6)} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={Math.ceil(data.length / 6)} />
             <Tooltip content={<CustomTooltip currency={currency} />} />
             <Bar dataKey="revenue" fill="#1d8f5e" radius={[3, 3, 0, 0]} maxBarSize={14} />
             <Bar dataKey="expenses" fill="#b8402f" radius={[3, 3, 0, 0]} maxBarSize={14} />

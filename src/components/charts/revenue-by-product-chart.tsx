@@ -314,7 +314,7 @@ export function RevenueByProductChart({
 
             {/* DONUT CENTER */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p className="mt-1 text-base font-bold tracking-tight tabular-nums">
+              <p className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums">
                 {selected !== null
                   ? view === "product"
                     ? "Product"
@@ -323,7 +323,7 @@ export function RevenueByProductChart({
               </p>
 
               <p
-                className="mt-1 text-base font-bold tracking-tight tabular-nums"
+                className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums"
                 style={{
                   color: theme.colors.primary,
                 }}
@@ -405,13 +405,13 @@ export function RevenueByProductChart({
                         }}
                       />
 
-                      <span className="truncate text-[11px] font-semibold tracking-wide text-ink-900">
+                      <span className="truncate figure text-[11px] font-semibold tracking-tight text-ink-900">
                         {item.name}
                       </span>
                     </span>
 
                     <span
-                      className="shrink-0 text-[11px] font-semibold tracking-wide tabular-nums"
+                      className="shrink-0 figure text-[11px] font-semibold tracking-tight tabular-nums"
                       style={{
                         color:
                           COLORS[
@@ -471,7 +471,8 @@ export function RevenueByProductChart({
               fontSize: 11,
               fontWeight: 600,
               fill: "#64748b",
-            }}
+              fontFamily: "inherit",
+              }}
               tickFormatter={shortFmt}
               axisLine={false}
               tickLine={false}
@@ -480,10 +481,11 @@ export function RevenueByProductChart({
             <YAxis
               type="category"
               dataKey="name"
-              tick={{
-              fontSize: 11,
-              fontWeight: 600,
-              fill: "#64748b",
+             tick={{
+            fontSize: 11,
+            fontWeight: 600,
+            fill: "#64748b",
+            fontFamily: "inherit",
             }}
               width={90}
               axisLine={false}
