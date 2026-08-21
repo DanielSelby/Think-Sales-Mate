@@ -182,7 +182,7 @@ export function RevenueByProductChart({
             <p className="text-sm font-medium text-slate-500">
               No category sales data
             </p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="figure text-[9px] font-semibold uppercase tracking-wide text-slate-300">
               Category sales will appear here once available.
             </p>
           </div>
@@ -314,7 +314,7 @@ export function RevenueByProductChart({
 
             {/* DONUT CENTER */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums">
+              <p className="figure mt-1 text-base font-semibold tracking-tight tabular-nums">
                 {selected !== null
                   ? view === "product"
                     ? "Product"
@@ -323,7 +323,7 @@ export function RevenueByProductChart({
               </p>
 
               <p
-                className="figure mt-1 text-xl font-semibold tracking-tight tabular-nums"
+                className="figure mt-1 text-base font-semibold tracking-tight tabular-nums"
                 style={{
                   color: theme.colors.primary,
                 }}
@@ -338,7 +338,7 @@ export function RevenueByProductChart({
               </p>
 
               {selected !== null && (
-                <p className="mt-1 text-[9px] text-slate-400">
+                <p className="figure text-[9px] font-semibold uppercase tracking-wide text-slate-300">
                   Click again to reset
                 </p>
               )}

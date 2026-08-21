@@ -11,15 +11,15 @@ export function TopSellingTable({ products, currency }: { products: BestSeller[]
   }
 
   return (
-       <table className="w-full text-sm">
-      <thead>
-       <tr>
-          <th className="pb-2">#</th>
-          <th className="pb-2">Product</th>
-          <th className="pb-2 text-right">Qty sold</th>
-          <th className="pb-2 text-right">Revenue</th>
-        </tr>
-      </thead>
+      <table className="w-full text-sm">
+        <thead className="border-b border-ledger-100 text-left text-xs font-semibold uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
+          <tr>
+            <th className="pb-2">#</th>
+            <th className="pb-2">Product</th>
+            <th className="pb-2 text-right">Qty sold</th>
+            <th className="pb-2 text-right">Revenue</th>
+          </tr>
+        </thead>
       <tbody>
         {products.map((product, i) => (
           <tr key={product.name} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
