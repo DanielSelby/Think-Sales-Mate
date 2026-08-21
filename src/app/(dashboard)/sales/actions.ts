@@ -99,6 +99,12 @@ export async function updateSaleStatus({
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in to change a sale's status." };
 
+  // Same pattern as updateSale: writes here go through the admin
+  // (service-role) client, since the regular client's UPDATE on `sales`
+  // can silently match 0 rows under RLS with no error — the dialog would
+  // close as if it worked while nothing actually changed.
+  const admin = createAdminClient();
+
   const { data: sale, error: fetchError } = await supabase
     .from("sales")
     .select("id, org_id, total, status, location_id")
@@ -120,7 +126,7 @@ export async function updateSaleStatus({
     if (status === "returned") {
       const lines = (returnLines ?? []).filter((l) => l.quantity > 0);
       for (const line of lines) {
-        const { error: insertError } = await supabase.from("sale_return_items").insert({
+        const { error: insertError } = await admin.from("sale_return_items").insert({
           org_id: sale.org_id,
           sale_id: saleId,
           sale_item_id: line.saleItemId,
@@ -142,11 +148,9 @@ export async function updateSaleStatus({
     }
 
     if (status === "cancelled") {
-      // Cancelling voids the sale outright — restock whatever hasn't
-      // already been returned across every line.
       const lines = await getSaleReturnableItems(saleId);
       for (const line of lines.filter((l) => l.remaining > 0)) {
-        const { error: insertError } = await supabase.from("sale_return_items").insert({
+        const { error: insertError } = await admin.from("sale_return_items").insert({
           org_id: sale.org_id,
           sale_id: saleId,
           sale_item_id: line.saleItemId,
@@ -168,8 +172,6 @@ export async function updateSaleStatus({
     }
 
     if (status === "completed" && sale.status !== "completed") {
-      // Restoring to Completed reverses any stock this sale previously put
-      // back, then clears the return trail.
       const { data: existingReturns } = await supabase
         .from("sale_return_items")
         .select("product_id, quantity, location_id")
@@ -186,20 +188,23 @@ export async function updateSaleStatus({
         if (rpcError) throw new Error(rpcError.message);
       }
 
-      const { error: deleteError } = await supabase.from("sale_return_items").delete().eq("sale_id", saleId);
+      const { error: deleteError } = await admin.from("sale_return_items").delete().eq("sale_id", saleId);
       if (deleteError) throw new Error(deleteError.message);
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError, count: updatedCount } = await admin
       .from("sales")
       .update({
         status,
         refunded_amount: nextRefundedAmount,
         status_note: note?.trim() || null,
         status_changed_by: user.id,
-      })
+      }, { count: "exact" })
       .eq("id", saleId);
     if (updateError) throw new Error(updateError.message);
+    if ((updatedCount ?? 0) === 0) {
+      throw new Error("The status update didn't apply to any row — check the sales table's UPDATE policy.");
+    }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong. Try again." };
   }

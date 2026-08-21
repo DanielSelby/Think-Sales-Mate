@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Search, Filter, Plus, Download, Eye, Pencil, Printer,
-  ChevronLeft, ChevronRight, ShoppingCart, Wallet, Clock3, CheckCircle2, Undo2, Gem,
+  ChevronLeft, ChevronRight, ShoppingCart, Wallet, Clock3, CheckCircle2, Undo2, Gem, XCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardValue, type CardAccent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -333,9 +333,21 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
                       />
                     </td>
                     <td className="px-3 py-3">
-                      <Link href={`/sales/${s.id}`} className="font-mono text-[13px] font-medium text-signal hover:underline">
-                        {formatInvoiceNumber(s.saleNumber)}
-                      </Link>
+                      <span className="flex items-center gap-1.5">
+                        <Link href={`/sales/${s.id}`} className="font-mono text-[13px] font-medium text-signal hover:underline">
+                          {formatInvoiceNumber(s.saleNumber)}
+                        </Link>
+                        {s.status === "returned" && (
+  <span title="Returned">
+    <Undo2 className="h-3.5 w-3.5 text-amber" />
+  </span>
+)}
+{s.status === "cancelled" && (
+  <span title="Cancelled">
+    <XCircle className="h-3.5 w-3.5 text-alert" />
+  </span>
+)}
+                      </span>
                     </td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
                       {date}
