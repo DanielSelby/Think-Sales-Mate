@@ -182,7 +182,7 @@ export function RevenueByProductChart({
             <p className="text-sm font-medium text-slate-500">
               No category sales data
             </p>
-            <p className="figure text-[9px] font-semibold uppercase tracking-wide text-slate-300">
+            <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-300">
               Category sales will appear here once available.
             </p>
           </div>
@@ -277,12 +277,12 @@ export function RevenueByProductChart({
 
                     return (
                       <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-xl">
-                        <p className="figure font-semibold tracking-tight text-ink-900">
+                        <p className="font-semibold tracking-tight text-ink-900">
                           {item.name}
                         </p>
 
                         <p
-                        className="figure font-semibold tracking-tight"
+                        className="font-semibold tracking-tight"
                          style={{
                              color:
                                COLORS[
@@ -314,7 +314,7 @@ export function RevenueByProductChart({
 
             {/* DONUT CENTER */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p  className="figure mt-1 text-base font-bold tracking-tight">
+              <p  className="mt-1 text-base font-bold tracking-tight">
                 {selected !== null
                   ? view === "product"
                     ? "Product"
@@ -323,7 +323,7 @@ export function RevenueByProductChart({
               </p>
 
               <p
-                 className="figure mt-1 text-base font-bold tracking-tight"
+                 className="mt-1 text-base font-bold tracking-tight"
                 style={{
                   color: theme.colors.primary,
                 }}
@@ -338,7 +338,7 @@ export function RevenueByProductChart({
               </p>
 
               {selected !== null && (
-                <p className="figure text-[9px] font-semibold uppercase tracking-wide text-slate-300">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-300">
                   Click again to reset
                 </p>
               )}
@@ -405,13 +405,13 @@ export function RevenueByProductChart({
                         }}
                       />
 
-                      <span className="figure truncate text-[11px] font-medium text-slate-600">
+                      <span className="truncate text-[11px] font-medium text-slate-600">
                       {item.name}
                       </span>
                     </span>
 
                     <span
-                      className="shrink-0 figure text-[11px] font-semibold tracking-tight"
+                      className="shrink-0 text-[11px] font-semibold tracking-tight"
                       style={{
                         color:
                           COLORS[
@@ -510,7 +510,7 @@ export function RevenueByProductChart({
 
                 return (
                   <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-xl">
-                   <p className="figure font-semibold tracking-tight text-ink-900">
+                   <p className="font-semibold tracking-tight text-ink-900">
                       {
                         payload[0]?.payload
                           ?.name
@@ -518,7 +518,7 @@ export function RevenueByProductChart({
                     </p>
 
                     <p
-                   className="figure font-semibold tracking-tight"
+                   className="font-semibold tracking-tight"
                   style={{
                      color:
                       COLORS[
