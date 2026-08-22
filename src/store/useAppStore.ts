@@ -33,6 +33,12 @@ export const THEMES = {
     sidebar: { background: "#153361", text: "#FFFFFF", textMuted: "rgba(255,255,255,0.6)", activeBackground: "rgba(201,154,50,0.20)", activeText: "#C99A32", borderColor: "rgba(255,255,255,0.10)", hoverBackground: "rgba(255,255,255,0.08)" },
     topbar: { background: "#153361", text: "#FFFFFF" },
   },
+  harvest: {
+    name: "Harvest",
+    colors: { primary: "#283618", primaryMid: "#344a20", primaryLight: "#405d28", primaryPale: "#f5f7ee", accent: "#FEFAE0", accentLight: "rgba(254,250,224,0.40)", background: "#F7F8F2", surface: "#FFFFFF", text: "#1a2410", textMuted: "#4a5c35" },
+    sidebar: { background: "#283618", text: "#FFFFFF", textMuted: "rgba(255,255,255,0.6)", activeBackground: "rgba(254,250,224,0.18)", activeText: "#FEFAE0", borderColor: "rgba(255,255,255,0.10)", hoverBackground: "rgba(255,255,255,0.08)" },
+    topbar: { background: "#283618", text: "#FFFFFF" },
+  },
   eclipse: {
     name: "Eclipse",
     colors: { primary: "#1b4332", primaryMid: "#2d6a4f", primaryLight: "#40916c", primaryPale: "#eef5f0", accent: "#95b8a0", accentLight: "rgba(149,184,160,0.20)", background: "#F3F6F4", surface: "#FFFFFF", text: "#0E2A1F", textMuted: "#4A6B57" },
