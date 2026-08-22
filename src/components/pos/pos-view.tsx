@@ -17,7 +17,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
 import { buildBrandedInvoiceHtml } from "@/lib/sales/invoice-template";
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
   getRecentPosSales, getSaleForEdit, updateSale, getInvoiceData,
@@ -64,7 +64,8 @@ function isoToLocalDate(iso: string) {
 
 export function PosView({ products, categories, locations, stockLevels, currency, taxRatePercent, cashierName }: PosViewProps) {
   const router = useRouter();
-  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const { activeTheme, setSidebarCollapsed } = useAppStore();
+  const theme = THEMES[activeTheme];
 
   // The POS screen needs the full width — collapse the nav sidebar on
   // entry and restore whatever it was set to when leaving.
@@ -567,7 +568,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
-        <span className="flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-3 text-xs font-semibold text-white dark:bg-white dark:text-ink-900">{dateLabel}</span>
+        <span className="flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white" style={{ background: theme.colors.primary }}>{dateLabel}</span>
 
         <div className="flex flex-1 items-center justify-center gap-2">
           <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
@@ -582,7 +583,15 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
         <div>
           <Link href="/accounting/expenses/new">
-            <Button variant="outline" size="sm"><PlusCircle className="h-3.5 w-3.5" /> Add Expense</Button>
+            <Button
+              size="sm"
+              className="text-white transition-colors"
+              style={{ background: theme.colors.primary }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
+            >
+              <PlusCircle className="h-3.5 w-3.5" /> Add Expense
+            </Button>
           </Link>
         </div>
       </div>
@@ -599,13 +608,15 @@ export function PosView({ products, categories, locations, stockLevels, currency
           <div className="flex gap-2">
             <button
               onClick={() => setBrowseTab("category")}
-              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab === "category" ? "bg-signal" : "bg-ledger-300 dark:bg-ledger-700")}
+              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab !== "category" && "bg-ledger-300 dark:bg-ledger-700")}
+              style={browseTab === "category" ? { background: theme.colors.primary } : undefined}
             >
               <Layers className="h-4 w-4" /> Category
             </button>
             <button
               onClick={() => setBrowseTab("brands")}
-              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab === "brands" ? "bg-signal" : "bg-ledger-300 dark:bg-ledger-700")}
+              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab !== "brands" && "bg-ledger-300 dark:bg-ledger-700")}
+              style={browseTab === "brands" ? { background: theme.colors.primary } : undefined}
             >
               <Tag className="h-4 w-4" /> Brands
             </button>
@@ -613,9 +624,22 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
           {browseTab === "category" && (
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => setActiveCategory("all")} className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory === "all" ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}>All</button>
+              <button
+                onClick={() => setActiveCategory("all")}
+                className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory !== "all" && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                style={activeCategory === "all" ? { background: theme.colors.primary, color: "#fff" } : undefined}
+              >
+                All
+              </button>
               {categories.map((c) => (
-                <button key={c} onClick={() => setActiveCategory(c)} className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory === c ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}>{c}</button>
+                <button
+                  key={c}
+                  onClick={() => setActiveCategory(c)}
+                  className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory !== c && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                  style={activeCategory === c ? { background: theme.colors.primary, color: "#fff" } : undefined}
+                >
+                  {c}
+                </button>
               ))}
             </div>
           )}
@@ -650,7 +674,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
         </div>
 
         {/* RIGHT: customer + search + cart table + totals */}
-        <Card accent="signal" className="relative flex min-h-0 flex-col">
+        <Card accent="signal" className="relative flex min-h-0 flex-col" style={{ borderLeftColor: theme.colors.primary }}>
           <button
             title={cartExpanded ? "Narrow the cart panel" : "Widen the cart panel"}
             onClick={() => setCartExpanded((v) => !v)}
@@ -772,7 +796,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-ledger-500">Cashier</span>
-              <span className="rounded-full bg-signal px-3 py-1 text-xs font-bold text-white">{cashierName}</span>
+              <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: theme.colors.primary }}>{cashierName}</span>
             </div>
 
             <div className="space-y-2 border-t border-ledger-100 pt-3 text-[15px] font-semibold dark:border-ledger-700">
@@ -843,7 +867,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
         <div className="ml-2">
           <p className="text-xs font-semibold text-ledger-500">Total Payable:</p>
-          <p className="font-display text-xl font-bold text-signal">{formatCurrency(total, currency)}</p>
+          <p className="font-display text-xl font-bold" style={{ color: theme.colors.primary }}>{formatCurrency(total, currency)}</p>
         </div>
 
         <div className="ml-auto">

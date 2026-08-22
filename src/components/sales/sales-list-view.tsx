@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ export interface SaleListRow {
   id: string;
   saleNumber: number;
   customerName: string;
+  customerPhone: string | null;
   saleDate: string; // ISO
   locationName: string | null;
   soldByName: string;
@@ -80,6 +82,8 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
 export function SalesListView({ sales, kpis, currency, locations, salesReps, orgName }: SalesListViewProps) {
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | SaleStatus>("all");
   const [query, setQuery] = useState("");
@@ -265,10 +269,9 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
               onClick={() => { setActiveTab(tab.key); setPage(1); setSelected([]); }}
               className={cn(
                 "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
-                activeTab === tab.key
-                  ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900"
-                  : "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
+                activeTab !== tab.key && "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
               )}
+              style={activeTab === tab.key ? { background: theme.colors.primary, color: "#fff" } : undefined}
             >
               {tab.label} ({counts[tab.key]})
             </button>
@@ -294,28 +297,29 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-ledger-100 text-ledger-400 dark:border-ledger-700">
+              <tr className="border-b border-ledger-100 text-ink-900 dark:border-ledger-700 dark:text-white">
                 <th className="w-10 px-4 py-3">
                   <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" />
                 </th>
-                <th className="px-3 py-3 font-medium">Invoice</th>
-                <th className="px-3 py-3 font-medium">Date &amp; Time</th>
-                <th className="px-3 py-3 font-medium">Customer</th>
-                <th className="px-3 py-3 font-medium">Sold By</th>
-                <th className="px-3 py-3 font-medium">Product</th>
-                <th className="px-3 py-3 text-right font-medium">Items</th>
-                <th className="px-3 py-3 text-right font-medium">Total</th>
-                <th className="px-3 py-3 font-medium">Payment Method</th>
-                <th className="px-3 py-3 font-medium">Payment Status</th>
-                <th className="px-3 py-3 font-medium">Sales Status</th>
-                <th className="px-3 py-3 font-medium">Branch</th>
-                <th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
+                <th className="px-3 py-3 font-semibold">Invoice</th>
+                <th className="px-3 py-3 font-semibold">Date &amp; Time</th>
+                <th className="px-3 py-3 font-semibold">Customer</th>
+                <th className="px-3 py-3 font-semibold">Customer #</th>
+                <th className="px-3 py-3 font-semibold">Sold By</th>
+                <th className="px-3 py-3 font-semibold">Product</th>
+                <th className="px-3 py-3 text-right font-semibold">Items</th>
+                <th className="px-3 py-3 text-right font-semibold">Total</th>
+                <th className="px-3 py-3 font-semibold">Payment Method</th>
+                <th className="px-3 py-3 font-semibold">Payment Status</th>
+                <th className="px-3 py-3 font-semibold">Sales Status</th>
+                <th className="px-3 py-3 font-semibold">Branch</th>
+                <th className="px-3 py-3 pr-4 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-ledger-400">
+                  <td colSpan={14} className="px-4 py-12 text-center text-ledger-400">
                     No sales match your filters.
                   </td>
                 </tr>
@@ -338,15 +342,23 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
                           {formatInvoiceNumber(s.saleNumber)}
                         </Link>
                         {s.status === "returned" && (
-  <span title="Returned">
-    <Undo2 className="h-3.5 w-3.5 text-amber" />
-  </span>
-)}
-{s.status === "cancelled" && (
-  <span title="Cancelled">
-    <XCircle className="h-3.5 w-3.5 text-alert" />
-  </span>
-)}
+                       <span
+                         title="Returned"
+                         className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white"
+                         style={{ background: "#dd2d4a" }}
+                       >
+                       <Undo2 className="h-3 w-3" />
+                        </span>
+                            )}
+                        {s.status === "cancelled" && (
+                      <span
+                        title="Cancelled"
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white"
+                        style={{ background: "#bc6c25" }}
+                      >
+                   <XCircle className="h-3 w-3" />
+                       </span>
+                        )}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
@@ -354,6 +366,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
                       <div className="text-xs text-ledger-400">{time}</div>
                     </td>
                     <td className="px-3 py-3 text-ink-900 dark:text-white">{s.customerName}</td>
+                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.customerPhone ?? "—"}</td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.soldByName}</td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
                       {s.primaryProductName ?? "—"}

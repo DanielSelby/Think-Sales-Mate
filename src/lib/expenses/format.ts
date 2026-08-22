@@ -54,4 +54,4 @@ export const RECURRING_FREQUENCIES = ["Weekly", "Monthly", "Quarterly", "Yearly"
 
 export const EXPENSE_TYPES = ["Operational Expense", "Capital Expense", "Reimbursable", "Petty Cash"] as const;
 
-export const CURRENCIES = ["GHS", "USD", "EUR", "GBP", "NGN"] as const;
+export const CURRENCIES = ["GH₵", "USD", "EUR", "GBP", "NGN"] as const;

@@ -32,6 +32,7 @@ import {
   Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
@@ -164,6 +165,8 @@ export function SaleForm({
   currentUserEmail: string;
 }) {
   const router = useRouter();
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [stockWarning, setStockWarning] = useState<string | null>(null);
@@ -728,7 +731,10 @@ export function SaleForm({
                     type="button"
                     onClick={() => setAddContactOpen(true)}
                     title="Add a new contact"
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-white transition-colors"
+                    style={{ background: theme.colors.primary }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -846,7 +852,10 @@ export function SaleForm({
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" />
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: theme.colors.primary }}
+                />
                 <input
                   ref={searchRef}
                   value={search}
@@ -854,7 +863,8 @@ export function SaleForm({
                   onFocus={() => setSearchDropdownOpen(true)}
                   onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
                   placeholder="Enter Product name / SKU / Scan bar code"
-                  className="h-11 w-full rounded-md border border-signal/30 bg-signal-soft pl-9 pr-3 text-sm font-medium text-emerald-950 placeholder:text-emerald-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-signal/60"
+                  className="h-11 w-full rounded-md border pl-9 pr-3 text-sm font-medium outline-none"
+                  style={{ background: theme.colors.primaryPale, borderColor: `${theme.colors.primary}4D`, color: theme.colors.primary }}
                 />
                 {searchDropdownOpen && search.trim() && (
                   <div className="absolute left-0 right-0 top-12 z-40 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
@@ -896,7 +906,10 @@ export function SaleForm({
                   type="button"
                   size="sm"
                   onClick={handleAddProduct}
-                  className="bg-emerald-700 text-white hover:bg-emerald-800"
+                  className="text-white transition-colors"
+                  style={{ background: theme.colors.primary }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Product
                 </Button>
@@ -910,7 +923,10 @@ export function SaleForm({
                 <div className="mt-4 overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-emerald-900 bg-emerald-800 text-left text-xs font-semibold text-white">
+                      <tr
+                        className="text-left text-xs font-semibold text-white"
+                        style={{ background: theme.colors.primaryMid, borderBottom: `1px solid ${theme.colors.primary}` }}
+                      >
                         <th className="py-2 pl-3 pr-2">Product</th>
                         <th className="px-2 py-2">SKU</th>
                         <th className="px-2 py-2 text-right">Unit Price</th>

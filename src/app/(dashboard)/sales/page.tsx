@@ -22,7 +22,8 @@ export default async function SalesPage() {
         id, sale_number, customer_name, sale_date, created_at, total, amount_paid,
         payment_method, sold_by, status, refunded_amount,
         location:business_locations ( name ),
-        items:sale_items ( quantity, products ( name ) )
+        items:sale_items ( quantity, products ( name ) ),
+        customer:customers ( phone )
       `)
       .eq("org_id", orgId)
       .order("sale_date", { ascending: false }),
@@ -40,10 +41,11 @@ export default async function SalesPage() {
     : { data: [] as { id: string; full_name: string | null }[] };
   const staffNameById = new Map((staff ?? []).map((p) => [p.id, p.full_name ?? "Unknown"]));
 
-  const rows: SaleListRow[] = rawSales.map((s) => ({
+   const rows: SaleListRow[] = rawSales.map((s) => ({
     id: s.id,
     saleNumber: s.sale_number,
     customerName: s.customer_name ?? "Walk-in Customer",
+    customerPhone: (s.customer as { phone: string | null } | null)?.phone ?? null,
     // sale_date is a DATE column with no time component — every row would
     // otherwise render midnight. created_at has the real timestamp.
     saleDate: s.created_at,

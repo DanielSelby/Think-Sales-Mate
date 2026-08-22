@@ -512,7 +512,7 @@ export default function SignupPage() {
                     {/* KPIs */}
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {[
-                        ["Total Sales", "GHS 154,890", "+18.2%"],
+                        ["Total Sales", "GH₵ 154,890", "+18.2%"],
                         ["Orders", "1,245", "+15.6%"],
                         ["Customers", "856", "+8.7%"],
                       ].map(([title, value, growth]) => (
@@ -600,9 +600,9 @@ export default function SignupPage() {
 
                         <div className="mt-3 space-y-3">
                           {[
-                            ["Wireless Earbuds", "GHS 12,450"],
-                            ["4K LED TV", "GHS 9,870"],
-                            ["Smartwatch", "GHS 6,230"],
+                            ["Wireless Earbuds", "GH₵ 12,450"],
+                            ["4K LED TV", "GH₵ 9,870"],
+                            ["Smartwatch", "GH₵ 6,230"],
                           ].map(([name, price]) => (
                             <div
                               key={name}

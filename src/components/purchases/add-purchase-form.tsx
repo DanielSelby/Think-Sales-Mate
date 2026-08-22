@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { formatCurrency } from "@/lib/sales/format";
 import { SHIPPING_METHODS, UNIT_OPTIONS } from "@/lib/purchases/format";
 import { createPurchase, type PurchaseItemInput } from "@/app/(dashboard)/purchases/actions";
@@ -92,6 +93,8 @@ export function AddPurchaseForm({
   suppliers, locations, projects, products, bankAccounts, currency, recommendations,
 }: AddPurchaseFormProps) {
   const router = useRouter();
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [isPending, startTransition] = React.useTransition();
   const [formError, setFormError] = React.useState<string | null>(null);
 
@@ -410,7 +413,7 @@ export function AddPurchaseForm({
                 </CardTitle>
               </div>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <ProductPicker products={products} onSelect={addProduct} className="max-w-none flex-1" />
+                <ProductPicker products={products} onSelect={addProduct} className="max-w-none flex-1" theme={theme} />
                 <div className="flex shrink-0 items-center gap-2">
                   <Button variant="outline" size="sm" onClick={addEmptyRow}>
                     <Plus className="h-3.5 w-3.5" /> Add Row
@@ -418,7 +421,10 @@ export function AddPurchaseForm({
                   <Button
                     size="sm"
                     onClick={handleAddProduct}
-                    className="bg-emerald-700 text-white hover:bg-emerald-800"
+                    className="text-white transition-colors"
+                    style={{ background: theme.colors.primary }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
                   >
                     <Plus className="h-3.5 w-3.5" /> Add Product
                   </Button>
@@ -429,7 +435,10 @@ export function AddPurchaseForm({
               <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-emerald-900 bg-emerald-800 text-xs font-semibold text-white">
+                    <tr
+                      className="text-xs font-semibold text-white"
+                      style={{ background: theme.colors.primaryMid, borderBottom: `1px solid ${theme.colors.primary}` }}
+                    >
                       <th className="w-8 px-3 py-2 font-semibold">#</th>
                       <th className="px-3 py-2 font-semibold">Product</th>
                       <th className="px-3 py-2 font-semibold">SKU</th>

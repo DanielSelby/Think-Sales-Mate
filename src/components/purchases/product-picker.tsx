@@ -17,9 +17,10 @@ interface ProductPickerProps {
   products: PickableProduct[];
   onSelect: (product: PickableProduct) => void;
   className?: string;
+  theme?: { colors: { primary: string; primaryPale: string } };
 }
 
-export function ProductPicker({ products, onSelect, className }: ProductPickerProps) {
+export function ProductPicker({ products, onSelect, className, theme }: ProductPickerProps) {
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -68,7 +69,10 @@ export function ProductPicker({ products, onSelect, className }: ProductPickerPr
 
   return (
     <div className={cn("relative w-full max-w-sm", className)} ref={containerRef}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" />
+      <Search
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+        style={{ color: theme?.colors.primary }}
+      />
       <input
         value={query}
         onChange={(e) => {
@@ -78,7 +82,12 @@ export function ProductPicker({ products, onSelect, className }: ProductPickerPr
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder="Enter Product name / SKU / Scan bar code"
-        className="h-11 w-full rounded-md border border-signal/30 bg-signal-soft pl-9 pr-3 text-sm font-medium text-emerald-950 placeholder:text-emerald-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:border-signal/60"
+        className="h-11 w-full rounded-md border pl-9 pr-3 text-sm font-medium outline-none"
+        style={{
+          background: theme?.colors.primaryPale ?? undefined,
+          borderColor: theme ? `${theme.colors.primary}4D` : undefined,
+          color: theme?.colors.primary,
+        }}
       />
 
       {open && (

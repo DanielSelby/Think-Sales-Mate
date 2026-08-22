@@ -79,7 +79,7 @@ export function SaleProductRowCell({ products, currentName, onSelect, onClose }:
               </span>
             </span>
             <span className="shrink-0 font-mono text-sm text-ledger-600 dark:text-ledger-300">
-              ${p.unitPrice.toLocaleString()}
+              GHC {p.unitPrice.toLocaleString()}
             </span>
           </button>
         ))}
