@@ -11,7 +11,7 @@ export function TopSellingTable({ products, currency }: { products: BestSeller[]
   }
 
   return (
-      <table className="w-full text-sm">
+      <table className="figure w-full text-sm">
         <thead className="border-b border-ledger-100 text-left text-xs font-semibold uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
           <tr>
             <th className="pb-2">#</th>

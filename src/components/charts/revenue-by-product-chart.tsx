@@ -282,7 +282,7 @@ export function RevenueByProductChart({
                         </p>
 
                         <p
-                        className="figure font-semibold tracking-tight tabular-nums"
+                        className="figure font-semibold tracking-tight"
                          style={{
                              color:
                                COLORS[
@@ -314,7 +314,7 @@ export function RevenueByProductChart({
 
             {/* DONUT CENTER */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p className="figure mt-1 text-base font-semibold tracking-tight tabular-nums">
+              <p  className="figure mt-1 text-base font-bold tracking-tight">
                 {selected !== null
                   ? view === "product"
                     ? "Product"
@@ -323,7 +323,7 @@ export function RevenueByProductChart({
               </p>
 
               <p
-                className="figure mt-1 text-base font-semibold tracking-tight tabular-nums"
+                 className="figure mt-1 text-base font-bold tracking-tight"
                 style={{
                   color: theme.colors.primary,
                 }}
@@ -405,13 +405,13 @@ export function RevenueByProductChart({
                         }}
                       />
 
-                      <span className="truncate figure text-[11px] font-semibold tracking-tight text-ink-900">
-                        {item.name}
+                      <span className="figure truncate text-[11px] font-medium text-slate-600">
+                      {item.name}
                       </span>
                     </span>
 
                     <span
-                      className="shrink-0 figure text-[11px] font-semibold tracking-tight tabular-nums"
+                      className="shrink-0 figure text-[11px] font-semibold tracking-tight"
                       style={{
                         color:
                           COLORS[
@@ -518,7 +518,7 @@ export function RevenueByProductChart({
                     </p>
 
                     <p
-                   className="figure font-semibold tracking-tight tabular-nums"
+                   className="figure font-semibold tracking-tight"
                   style={{
                      color:
                       COLORS[

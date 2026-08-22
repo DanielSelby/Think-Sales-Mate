@@ -36,7 +36,7 @@ export function SalesOverviewChart({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
       <div className="md:col-span-2">
-        <p className="text-xs font-semibold tracking-wide text-ledger-500 dark:text-ledger-400">Total sales</p>
+        <p className="figure text-xs font-medium text-ledger-500 dark:text-ledger-400">Total sales</p>
         <div className="mt-1 flex items-baseline gap-2">
           <p className="figure text-3xl font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(totalRevenue, currency)}</p>
           {trend.pct !== null && (
@@ -48,7 +48,7 @@ export function SalesOverviewChart({
         <div className="mt-4 h-40">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-              <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={Math.ceil(data.length / 6)} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#94a3b8", fontFamily: "var(--font-mono)" }} tickLine={false} axisLine={false} interval={Math.ceil(data.length / 6)} />
               <Tooltip content={<CustomTooltip currency={currency} />} />
               <Line type="monotone" dataKey="revenue" stroke="#1d8f5e" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
             </LineChart>
@@ -58,21 +58,21 @@ export function SalesOverviewChart({
 
       <div className="space-y-4">
         <div>
-          <p className="text-xs font-medium tracking-wide text-ledger-400">Average daily sales</p>
+          <p className="figure text-xs text-ledger-400">Average daily sales</p>
           <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(avgDailySales, currency)}</p>
         </div>
         <div>
-          <p className="text-xs font-medium tracking-wide text-ledger-400">Best day</p>
+          <p className="figure text-xs text-ledger-400">Best day</p>
           <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">
             {bestDay ? `${bestDay.label} · ${formatMoney(bestDay.revenue, currency)}` : "—"}
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium tracking-wide text-ledger-400">Orders</p>
+          <p className="figure text-xs text-ledger-400">Orders</p>
           <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{orderCount}</p>
         </div>
         <div>
-          <p className="text-xs font-medium tracking-wide text-ledger-400">Average order value</p>
+          <p className="figure text-xs text-ledger-400">Average order value</p>
           <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(avgOrderValue, currency)}</p>
         </div>
       </div>

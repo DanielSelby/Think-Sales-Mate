@@ -20,7 +20,7 @@ export function InventorySummaryCard({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3 text-center">
+      <div className="figure grid grid-cols-3 gap-3 text-center">
         <div>
           <p className="figure text-lg font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{totalProducts}</p>
           <p className="text-xs text-ledger-400">Total items</p>
@@ -36,7 +36,7 @@ export function InventorySummaryCard({
       </div>
 
       <div>
-        <div className="flex items-center justify-between text-xs text-ledger-500 dark:text-ledger-400">
+        <div className="figure flex items-center justify-between text-xs text-ledger-500 dark:text-ledger-400">
           <span>Inventory value</span>
           <span className="figure font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(inventoryValue, currency)}</span>
         </div>

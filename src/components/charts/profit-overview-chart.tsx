@@ -10,8 +10,8 @@ function CustomTooltip({ active, payload, label, currency }: any) {
   const value = Number(payload[0]?.value ?? 0);
   return (
     <div className="rounded-lg border border-ledger-100 bg-white px-3 py-2 text-xs shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-      <p className="figure mb-1 font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{label}</p>
-      <p className={`figure font-semibold tracking-tight tabular-nums ${value >= 0 ? "text-signal" : "text-alert"}`}>Cumulative: {formatMoney(value, currency)}</p>
+      <p className="figure mb-1 font-semibold text-ink-900 dark:text-white">{label}</p>
+      <p className={`figure ${value >= 0 ? "text-signal" : "text-alert"}`}>Cumulative: {formatMoney(value, currency)}</p>
     </div>
   );
 }
@@ -38,7 +38,7 @@ export function ProfitOverviewChart({ data, currency }: { data: DailyPoint[]; cu
               <stop offset="100%" stopColor={positive ? "#1d8f5e" : "#b8402f"} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={Math.ceil(cumulative.length / 6)} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#64748b", fontFamily: "var(--font-mono)" }} tickLine={false} axisLine={false} interval={Math.ceil(cumulative.length / 6)} />
           <Tooltip content={<CustomTooltip currency={currency} />} />
           <Area
             type="monotone"

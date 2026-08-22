@@ -94,7 +94,7 @@ export function BusinessHealthCard({ summary }: { summary: FinancialSummary }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="figure text-2xl font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{score}</span>
-          <span className="text-[10px] font-semibold tracking-wide text-ledger-400">{label}</span>
+          <span className="figure text-[10px] font-medium text-ledger-400">{label}</span>
         </div>
       </div>
 
