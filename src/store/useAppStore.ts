@@ -33,6 +33,12 @@ export const THEMES = {
     sidebar: { background: "#153361", text: "#FFFFFF", textMuted: "rgba(255,255,255,0.6)", activeBackground: "rgba(201,154,50,0.20)", activeText: "#C99A32", borderColor: "rgba(255,255,255,0.10)", hoverBackground: "rgba(255,255,255,0.08)" },
     topbar: { background: "#153361", text: "#FFFFFF" },
   },
+  royal: {
+    name: "Royal Blue",
+    colors: { primary: "#003fbd", primaryMid: "#0048d4", primaryLight: "#0052eb", primaryPale: "#eef2ff", accent: "#FFFFFF", accentLight: "rgba(255,255,255,0.15)", background: "#F5F7FF", surface: "#FFFFFF", text: "#001a57", textMuted: "#4a5a8a" },
+    sidebar: { background: "#003fbd", text: "#FFFFFF", textMuted: "rgba(255,255,255,0.6)", activeBackground: "rgba(255,255,255,0.18)", activeText: "#FFFFFF", borderColor: "rgba(255,255,255,0.12)", hoverBackground: "rgba(255,255,255,0.10)" },
+    topbar: { background: "#003fbd", text: "#FFFFFF" },
+  },
   harvest: {
     name: "Harvest",
     colors: { primary: "#283618", primaryMid: "#344a20", primaryLight: "#405d28", primaryPale: "#f5f7ee", accent: "#FEFAE0", accentLight: "rgba(254,250,224,0.40)", background: "#F7F8F2", surface: "#FFFFFF", text: "#1a2410", textMuted: "#4a5c35" },

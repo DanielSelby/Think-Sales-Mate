@@ -16,6 +16,7 @@ const THEME_OPTIONS: { key: ThemeKey; label: string }[] = [
   { key: "plum",    label: "Plum & Blush" },
   { key: "eclipse", label: "Eclipse"      },
   { key: "harvest", label: "Harvest"      },
+  { key: "royal",   label: "Royal Blue"   },
 ];
 
 export function TopNav() {
