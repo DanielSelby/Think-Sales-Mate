@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { Search, Filter, Plus, Download, Upload, X, RefreshCw, Users, UserCheck, CalendarOff, Building2, UserPlus2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -15,6 +15,7 @@ import {
   deriveEmployeeStatus, formatEmployeeCode, type EmployeeDisplayStatus,
 } from "@/lib/hrm/format";
 import { EmployeeRowMenu } from "@/components/hrm/employees/employee-row-menu";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import type { EmploymentType } from "@/types/database";
 
 export interface EmployeeRow {
@@ -95,6 +96,17 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
     });
   }, [withDisplayStatus, query, department, employmentType, status]);
 
+  const filteredKpis = React.useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const totalEmployees = filtered.length;
+    const activeEmployees = filtered.filter((e) => e.displayStatus === "active").length;
+    const onLeave = filtered.filter((e) => e.displayStatus === "on_leave").length;
+    const departmentCount = new Set(filtered.map((e) => e.department).filter(Boolean)).size;
+    const newHiresThisMonth = filtered.filter((e) => new Date(e.hireDate) >= startOfMonth).length;
+    return { totalEmployees, activeEmployees, onLeave, departmentCount, newHiresThisMonth };
+  }, [filtered]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const clampedPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
@@ -157,11 +169,11 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <Kpi icon={Users} accent="neutral" label="Total Employees" value={`${kpis.totalEmployees}`} />
-            <Kpi icon={UserCheck} accent="signal" label="Active Employees" value={`${kpis.activeEmployees}`} />
-            <Kpi icon={CalendarOff} accent="amber" label="On Leave" value={`${kpis.onLeave}`} />
-            <Kpi icon={Building2} accent="neutral" label="Departments" value={`${kpis.departmentCount}`} />
-            <Kpi icon={UserPlus2} accent="signal" label="New Hires (This Month)" value={`${kpis.newHiresThisMonth}`} />
+            <KpiFlipCard color="blue" label="Total Employees" value={`${filteredKpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Number of employees matching the current filters." />
+            <KpiFlipCard color="green" label="Active Employees" value={`${filteredKpis.activeEmployees}`} icon={<UserCheck className="h-full w-full" />} detail="Filtered employees currently Active." featured />
+            <KpiFlipCard color="amber" label="On Leave" value={`${filteredKpis.onLeave}`} icon={<CalendarOff className="h-full w-full" />} detail="Filtered employees currently on leave." />
+            <KpiFlipCard color="purple" label="Departments" value={`${filteredKpis.departmentCount}`} icon={<Building2 className="h-full w-full" />} detail="Distinct departments represented in the filtered set." />
+            <KpiFlipCard color="teal" label="New Hires (This Month)" value={`${filteredKpis.newHiresThisMonth}`} icon={<UserPlus2 className="h-full w-full" />} detail="Filtered employees hired from the 1st of this month onward." />
           </div>
 
           {/* Filters */}
@@ -352,11 +364,3 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
   );
 }
 
-function Kpi({ icon: Icon, accent, label, value }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-ledger-400" /><CardTitle>{label}</CardTitle></div></CardHeader>
-      <CardContent className="pt-0"><CardValue className="text-xl">{value}</CardValue></CardContent>
-    </Card>
-  );
-}

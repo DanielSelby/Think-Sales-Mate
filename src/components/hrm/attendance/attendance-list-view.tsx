@@ -7,7 +7,7 @@ import {
   Search, Filter, ChevronLeft, ChevronRight, Calendar, Download, LogIn, X, RefreshCw,
   Users, CheckCircle2, XCircle, Clock3, LogOut as LogOutIcon, Plus, Settings, Upload, FileBarChart,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ATTENDANCE_STATUS_LABEL, ATTENDANCE_STATUS_TONE, WORK_TYPES, formatTime } from "@/lib/hrm/attendance";
 import { AttendanceRowMenu } from "@/components/hrm/attendance/attendance-row-menu";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { MarkAttendanceDialog, type EmployeeOption, type EditingAttendance } from "@/components/hrm/attendance/mark-attendance-dialog";
 import { checkIn, bulkMarkAbsent } from "@/app/(dashboard)/hrm/attendance/actions";
 import type { AttendanceStatus } from "@/types/database";
@@ -131,6 +132,15 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
     });
   }, [rows, query, department, status]);
 
+  const filteredKpis = React.useMemo(() => {
+    const totalEmployees = filtered.length;
+    const present = filtered.filter((r) => r.status === "present").length;
+    const absent = filtered.filter((r) => r.status === "absent").length;
+    const late = filtered.filter((r) => r.status === "late").length;
+    const earlyLeave = filtered.filter((r) => r.status === "early_leave").length;
+    return { totalEmployees, present, absent, late, earlyLeave };
+  }, [filtered]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const clampedPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
@@ -200,11 +210,11 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <Kpi icon={Users} accent="neutral" label="Total Employees" value={`${kpis.totalEmployees}`} />
-            <Kpi icon={CheckCircle2} accent="signal" label="Present Today" value={`${kpis.present} (${donutTotal ? Math.round((kpis.present / kpis.totalEmployees) * 100) : 0}%)`} />
-            <Kpi icon={XCircle} accent="alert" label="Absent Today" value={`${kpis.absent} (${kpis.totalEmployees ? Math.round((kpis.absent / kpis.totalEmployees) * 100) : 0}%)`} />
-            <Kpi icon={Clock3} accent="amber" label="Late Today" value={`${kpis.late} (${kpis.totalEmployees ? Math.round((kpis.late / kpis.totalEmployees) * 100) : 0}%)`} />
-            <Kpi icon={LogOutIcon} accent="alert" label="Early Leave" value={`${kpis.earlyLeave} (${kpis.totalEmployees ? Math.round((kpis.earlyLeave / kpis.totalEmployees) * 100) : 0}%)`} />
+            <KpiFlipCard color="blue" label="Total Employees" value={`${filteredKpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Number of attendance rows matching the current filters." />
+            <KpiFlipCard color="green" label="Present Today" value={`${filteredKpis.present} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.present / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<CheckCircle2 className="h-full w-full" />} detail="Filtered employees marked Present today." featured />
+            <KpiFlipCard color="red" label="Absent Today" value={`${filteredKpis.absent} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.absent / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<XCircle className="h-full w-full" />} detail="Filtered employees marked Absent today." />
+            <KpiFlipCard color="amber" label="Late Today" value={`${filteredKpis.late} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.late / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<Clock3 className="h-full w-full" />} detail="Filtered employees marked Late today." />
+            <KpiFlipCard color="purple" label="Early Leave" value={`${filteredKpis.earlyLeave} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.earlyLeave / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<LogOutIcon className="h-full w-full" />} detail="Filtered employees who left early today." />
           </div>
 
           {/* Filters */}
@@ -380,14 +390,6 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
   );
 }
 
-function Kpi({ icon: Icon, accent, label, value }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-ledger-400" /><CardTitle>{label}</CardTitle></div></CardHeader>
-      <CardContent className="pt-0"><CardValue className="text-xl">{value}</CardValue></CardContent>
-    </Card>
-  );
-}
 
 function QuickAction({ icon: Icon, label, onClick, disabled }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick?: () => void; disabled?: boolean }) {
   return (

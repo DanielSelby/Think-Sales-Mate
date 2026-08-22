@@ -8,7 +8,7 @@ import {
   Search, Filter, Plus, Download, Upload, X, RefreshCw, Wallet, CalendarDays,
   CalendarClock, Clock3, AlertTriangle,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -19,6 +19,7 @@ import {
   DISPLAY_STATUS_LABEL, DISPLAY_STATUS_TONE, deriveDisplayStatus, formatExpenseNumber, type DisplayStatus,
 } from "@/lib/expenses/format";
 import { ExpenseRowMenu } from "@/components/expenses/expense-row-menu";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { bulkApproveExpenses, bulkDeleteExpenses } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 
@@ -123,6 +124,19 @@ export function ExpenseListView({
     });
   }, [withDisplayStatus, activeTab, category, paymentMethod, department, query]);
 
+  const filteredKpis = React.useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - 6);
+    const totalExpenses = filtered.reduce((sum, e) => sum + e.amount, 0);
+    const thisMonth = filtered.filter((e) => new Date(e.date) >= startOfMonth).reduce((sum, e) => sum + e.amount, 0);
+    const thisWeek = filtered.filter((e) => new Date(e.date) >= startOfWeek).reduce((sum, e) => sum + e.amount, 0);
+    const pendingApproval = filtered.filter((e) => e.displayStatus === "pending_approval").reduce((sum, e) => sum + e.amount, 0);
+    const overdue = filtered.filter((e) => e.displayStatus === "overdue").reduce((sum, e) => sum + e.amount, 0);
+    return { totalExpenses, thisMonth, thisWeek, pendingApproval, overdue };
+  }, [filtered]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const clampedPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
@@ -208,11 +222,11 @@ export function ExpenseListView({
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <Kpi icon={Wallet} accent="neutral" label="Total Expenses" value={formatCurrency(kpis.totalExpenses, currency)} />
-            <Kpi icon={CalendarDays} accent="signal" label="This Month" value={formatCurrency(kpis.thisMonth, currency)} />
-            <Kpi icon={CalendarClock} accent="amber" label="This Week" value={formatCurrency(kpis.thisWeek, currency)} />
-            <Kpi icon={Clock3} accent="amber" label="Pending Approval" value={formatCurrency(kpis.pendingApproval, currency)} />
-            <Kpi icon={AlertTriangle} accent="alert" label="Overdue" value={formatCurrency(kpis.overdue, currency)} />
+            <KpiFlipCard color="green" label="Total Expenses" value={formatCurrency(filteredKpis.totalExpenses, currency)} icon={<Wallet className="h-full w-full" />} detail="Sum of every expense matching the current filters." featured />
+            <KpiFlipCard color="blue" label="This Month" value={formatCurrency(filteredKpis.thisMonth, currency)} icon={<CalendarDays className="h-full w-full" />} detail="Filtered expenses dated from the 1st of this month onward." />
+            <KpiFlipCard color="teal" label="This Week" value={formatCurrency(filteredKpis.thisWeek, currency)} icon={<CalendarClock className="h-full w-full" />} detail="Filtered expenses dated within the last 7 days." />
+            <KpiFlipCard color="amber" label="Pending Approval" value={formatCurrency(filteredKpis.pendingApproval, currency)} icon={<Clock3 className="h-full w-full" />} detail="Filtered expenses still awaiting approval." />
+            <KpiFlipCard color="red" label="Overdue" value={formatCurrency(filteredKpis.overdue, currency)} icon={<AlertTriangle className="h-full w-full" />} detail="Filtered expenses past their due date and still unpaid." />
           </div>
 
           {/* Filters */}
@@ -412,11 +426,3 @@ export function ExpenseListView({
   );
 }
 
-function Kpi({ icon: Icon, accent, label, value }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-ledger-400" /><CardTitle>{label}</CardTitle></div></CardHeader>
-      <CardContent className="pt-0"><CardValue className="text-xl">{value}</CardValue></CardContent>
-    </Card>
-  );
-}

@@ -7,7 +7,7 @@ import {
   Users, Banknote, TrendingUp, TrendingDown, Clock3, Plus, PlayCircle, FileBarChart,
   Settings, CalendarClock, UserPlus, ClipboardCheck, Wallet, Receipt,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/sales/format";
@@ -16,6 +16,7 @@ import {
   deriveEmployeeStatus, formatEmployeeCode,
 } from "@/lib/hrm/format";
 import { ProcessPayrollDialog } from "@/components/hrm/process-payroll-dialog";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import type { EmploymentType } from "@/types/database";
 
 export interface DashboardKpis {
@@ -105,11 +106,11 @@ export function HrmDashboardView({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-        <Kpi icon={Users} accent="neutral" label="Total Employees" value={`${kpis.totalEmployees}`} />
-        <Kpi icon={Banknote} accent="signal" label="Total Payroll (This Month)" value={formatCurrency(kpis.totalPayrollThisMonth, currency)} />
-        <Kpi icon={TrendingUp} accent="signal" label="Net Pay (This Month)" value={formatCurrency(kpis.netPayThisMonth, currency)} />
-        <Kpi icon={TrendingDown} accent="amber" label="Deductions (This Month)" value={formatCurrency(kpis.deductionsThisMonth, currency)} />
-        <Kpi icon={Clock3} accent="alert" label="Pending Payments" value={`${kpis.pendingPayments}`} />
+        <KpiFlipCard color="blue" label="Total Employees" value={`${kpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Total employee headcount across the organization." />
+        <KpiFlipCard color="green" label="Total Payroll (This Month)" value={formatCurrency(kpis.totalPayrollThisMonth, currency)} icon={<Banknote className="h-full w-full" />} detail="Combined payroll cost recorded so far this month." featured />
+        <KpiFlipCard color="teal" label="Net Pay (This Month)" value={formatCurrency(kpis.netPayThisMonth, currency)} icon={<TrendingUp className="h-full w-full" />} detail="Total net pay disbursed to employees this month, after deductions." />
+        <KpiFlipCard color="amber" label="Deductions (This Month)" value={formatCurrency(kpis.deductionsThisMonth, currency)} icon={<TrendingDown className="h-full w-full" />} detail="Total deductions withheld across this month's payroll." />
+        <KpiFlipCard color="red" label="Pending Payments" value={`${kpis.pendingPayments}`} icon={<Clock3 className="h-full w-full" />} detail="Payroll payments still awaiting disbursement." />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_360px]">
@@ -280,14 +281,6 @@ export function HrmDashboardView({
   );
 }
 
-function Kpi({ icon: Icon, accent, label, value }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-ledger-400" /><CardTitle>{label}</CardTitle></div></CardHeader>
-      <CardContent className="pt-0"><CardValue className="text-xl">{value}</CardValue></CardContent>
-    </Card>
-  );
-}
 
 function Row({ label, value }: { label: string; value: string }) {
   return (

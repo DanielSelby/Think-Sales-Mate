@@ -5,7 +5,7 @@ import {
   Search, Filter, Plus, Download, Upload, X, RefreshCw, Building2, CheckCircle2,
   Banknote, Wallet, Timer, ChevronRight, ArrowRight,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
 import { SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/format";
 import { SupplierRowMenu } from "@/components/suppliers/supplier-row-menu";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
 import { ImportSuppliersDialog } from "@/components/suppliers/import-suppliers-dialog";
 import { bulkUpdateSupplierStatus, bulkDeleteSuppliers } from "@/app/(dashboard)/purchases/suppliers/actions";
@@ -124,6 +125,14 @@ export function SupplierListView({
     });
   }, [suppliers, query, category, status, country, paymentTerms]);
 
+  const filteredKpis = React.useMemo(() => {
+    const totalSuppliers = filtered.length;
+    const activeSuppliers = filtered.filter((s) => s.status === "active").length;
+    const totalPurchaseValue = filtered.reduce((sum, s) => sum + s.totalPurchases, 0);
+    const outstandingPayables = filtered.reduce((sum, s) => sum + s.outstanding, 0);
+    return { totalSuppliers, activeSuppliers, totalPurchaseValue, outstandingPayables };
+  }, [filtered]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const clampedPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
@@ -212,11 +221,11 @@ export function SupplierListView({
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <Kpi icon={Building2} accent="neutral" label="Total Suppliers" value={`${kpis.totalSuppliers}`} />
-            <Kpi icon={CheckCircle2} accent="signal" label="Active Suppliers" value={`${kpis.activeSuppliers}`} />
-            <Kpi icon={Banknote} accent="amber" label="Total Purchases" value={formatCurrency(kpis.totalPurchaseValue, currency)} />
-            <Kpi icon={Wallet} accent="alert" label="Outstanding Payables" value={formatCurrency(kpis.outstandingPayables, currency)} />
-            <Kpi icon={Timer} accent="signal" label="On-Time Delivery" value={kpis.onTimeDeliveryRate === null ? "—" : `${kpis.onTimeDeliveryRate}%`} />
+            <KpiFlipCard color="blue" label="Total Suppliers" value={`${filteredKpis.totalSuppliers}`} icon={<Building2 className="h-full w-full" />} detail="Number of suppliers matching the current filters." />
+            <KpiFlipCard color="green" label="Active Suppliers" value={`${filteredKpis.activeSuppliers}`} icon={<CheckCircle2 className="h-full w-full" />} detail="Filtered suppliers currently marked Active." featured />
+            <KpiFlipCard color="amber" label="Total Purchases" value={formatCurrency(filteredKpis.totalPurchaseValue, currency)} icon={<Banknote className="h-full w-full" />} detail="Sum of total purchase value across the filtered suppliers." />
+            <KpiFlipCard color="red" label="Outstanding Payables" value={formatCurrency(filteredKpis.outstandingPayables, currency)} icon={<Wallet className="h-full w-full" />} detail="Total still owed to the filtered suppliers." />
+            <KpiFlipCard color="purple" label="On-Time Delivery" value={kpis.onTimeDeliveryRate === null ? "—" : `${kpis.onTimeDeliveryRate}%`} icon={<Timer className="h-full w-full" />} detail="Org-wide rate — SupplierRow doesn't carry delivery-timing data to scope this per-filter." />
           </div>
 
           {/* Filters */}
@@ -413,14 +422,6 @@ export function SupplierListView({
   );
 }
 
-function Kpi({ icon: Icon, accent, label, value }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-ledger-400" /><CardTitle>{label}</CardTitle></div></CardHeader>
-      <CardContent className="pt-0"><CardValue className="text-xl">{value}</CardValue></CardContent>
-    </Card>
-  );
-}
 
 function QuickAction({ label, onClick }: { label: string; onClick: () => void }) {
   return (

@@ -22,6 +22,7 @@ import {
   X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { cn } from "@/lib/utils";
 import {
   updateTransferStatus,
@@ -92,19 +93,6 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-function KpiCard({ label, value, change }: { label: string; value: string; change: number }) {
-  const positive = change >= 0;
-  return (
-    <div className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-      <p className="text-xs text-ledger-400">{label}</p>
-      <p className="figure mt-1 text-xl font-semibold text-ink-900 dark:text-white">{value}</p>
-      <p className={cn("mt-1 flex items-center gap-1 text-xs font-medium", positive ? "text-signal" : "text-alert")}>
-        {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-        {Math.abs(change)}% vs last month
-      </p>
-    </div>
-  );
-}
 
 function TransferRowDetails({ transferId }: { transferId: string }) {
   const [items, setItems] = useState<TransferItemDetail[] | null>(null);
@@ -454,12 +442,12 @@ export function TransferHistory({
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <KpiCard label="Total transfers" value={kpis.total.value.toLocaleString()} change={kpis.total.change} />
-        <KpiCard label="Completed" value={kpis.completed.value.toLocaleString()} change={kpis.completed.change} />
-        <KpiCard label="Pending / in transit" value={kpis.pending.value.toLocaleString()} change={kpis.pending.change} />
-        <KpiCard label="Cancelled" value={kpis.cancelled.value.toLocaleString()} change={kpis.cancelled.change} />
-        <KpiCard label="Qty transferred" value={kpis.totalQuantity.value.toLocaleString()} change={kpis.totalQuantity.change} />
-        <KpiCard label="Value transferred" value={`$${formatMoney(kpis.totalValue.value)}`} change={kpis.totalValue.change} />
+        <KpiFlipCard color="blue" label="Total transfers" value={kpis.total.value.toLocaleString()} icon={<ArrowUpRight className="h-full w-full" />} detail={`${Math.abs(kpis.total.change)}% vs last month. Org-wide — not scoped to the filters/tabs below (no source formula available to recompute this per-filter).`} />
+        <KpiFlipCard color="green" label="Completed" value={kpis.completed.value.toLocaleString()} icon={<ArrowUpRight className="h-full w-full" />} detail={`${Math.abs(kpis.completed.change)}% vs last month.`} featured />
+        <KpiFlipCard color="amber" label="Pending / in transit" value={kpis.pending.value.toLocaleString()} icon={<ArrowDownRight className="h-full w-full" />} detail={`${Math.abs(kpis.pending.change)}% vs last month.`} />
+        <KpiFlipCard color="red" label="Cancelled" value={kpis.cancelled.value.toLocaleString()} icon={<ArrowDownRight className="h-full w-full" />} detail={`${Math.abs(kpis.cancelled.change)}% vs last month.`} />
+        <KpiFlipCard color="purple" label="Qty transferred" value={kpis.totalQuantity.value.toLocaleString()} icon={<ArrowUpRight className="h-full w-full" />} detail={`${Math.abs(kpis.totalQuantity.change)}% vs last month.`} />
+        <KpiFlipCard color="teal" label="Value transferred" value={`$${formatMoney(kpis.totalValue.value)}`} icon={<ArrowUpRight className="h-full w-full" />} detail={`${Math.abs(kpis.totalValue.change)}% vs last month.`} />
       </div>
 
       {/* Analytics row — moved above the search bar */}

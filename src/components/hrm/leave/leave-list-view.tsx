@@ -6,8 +6,7 @@ import {
   Search, Filter, Plus, Download, X, RefreshCw, Users, CalendarOff, Clock3, CheckCircle2, XCircle,
   ChevronLeft, ChevronRight, Settings,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +15,7 @@ import {
   LEAVE_STATUS_LABEL, LEAVE_STATUS_TONE, BALANCE_BUCKET_LABEL, BALANCE_BUCKET_COLOR, type BalanceBucket,
 } from "@/lib/hrm/leave";
 import { LeaveRowMenu } from "@/components/hrm/leave/leave-row-menu";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { NewLeaveRequestDialog, type EmployeeOption } from "@/components/hrm/leave/new-leave-request-dialog";
 import type { LeaveTypeOption } from "@/app/(dashboard)/hrm/leave/actions";
 import type { LeaveStatus } from "@/types/database";
@@ -88,6 +88,17 @@ export function LeaveListView({
     });
   }, [requests, query, department, leaveType, status]);
 
+  const filteredKpis = React.useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const todayIso = now.toISOString().slice(0, 10);
+    const onLeaveToday = filtered.filter((r) => r.status === "approved" && r.startDate <= todayIso && r.endDate >= todayIso).length;
+    const pendingRequests = filtered.filter((r) => r.status === "pending").length;
+    const approvedThisMonth = filtered.filter((r) => r.status === "approved" && new Date(r.appliedOn) >= startOfMonth).length;
+    const rejectedThisMonth = filtered.filter((r) => r.status === "rejected" && new Date(r.appliedOn) >= startOfMonth).length;
+    return { onLeaveToday, pendingRequests, approvedThisMonth, rejectedThisMonth };
+  }, [filtered]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const clampedPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
@@ -143,11 +154,11 @@ export function LeaveListView({
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <Kpi icon={Users} accent="neutral" label="Total Employees" value={`${kpis.totalEmployees}`} />
-            <Kpi icon={CalendarOff} accent="signal" label="On Leave Today" value={`${kpis.onLeaveToday}`} />
-            <Kpi icon={Clock3} accent="amber" label="Pending Requests" value={`${kpis.pendingRequests}`} />
-            <Kpi icon={CheckCircle2} accent="signal" label="Approved (This Month)" value={`${kpis.approvedThisMonth}`} />
-            <Kpi icon={XCircle} accent="alert" label="Rejected (This Month)" value={`${kpis.rejectedThisMonth}`} />
+            <KpiFlipCard color="blue" label="Total Employees" value={`${kpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Org-wide employee headcount — not scoped to these leave filters." />
+            <KpiFlipCard color="green" label="On Leave Today" value={`${filteredKpis.onLeaveToday}`} icon={<CalendarOff className="h-full w-full" />} detail="Filtered, approved requests covering today's date." featured />
+            <KpiFlipCard color="amber" label="Pending Requests" value={`${filteredKpis.pendingRequests}`} icon={<Clock3 className="h-full w-full" />} detail="Filtered requests awaiting a decision." />
+            <KpiFlipCard color="teal" label="Approved (This Month)" value={`${filteredKpis.approvedThisMonth}`} icon={<CheckCircle2 className="h-full w-full" />} detail="Filtered requests approved since the 1st of this month." />
+            <KpiFlipCard color="red" label="Rejected (This Month)" value={`${filteredKpis.rejectedThisMonth}`} icon={<XCircle className="h-full w-full" />} detail="Filtered requests rejected since the 1st of this month." />
           </div>
 
           <Card accent="neutral">
@@ -356,11 +367,3 @@ export function LeaveListView({
   );
 }
 
-function Kpi({ icon: Icon, accent, label, value }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-ledger-400" /><CardTitle>{label}</CardTitle></div></CardHeader>
-      <CardContent className="pt-0"><CardValue className="text-xl">{value}</CardValue></CardContent>
-    </Card>
-  );
-}

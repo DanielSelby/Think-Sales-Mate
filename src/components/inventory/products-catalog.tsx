@@ -29,6 +29,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { deleteProduct, toggleProductActive, duplicateProduct, bulkImportProducts } from "@/app/(dashboard)/inventory/actions";
 
 export interface CatalogProduct {
@@ -139,14 +140,6 @@ export function ProductsCatalog({
     [products]
   );
 
-  // KPI stats — computed from the full catalog, independent of filters.
-  const totalProducts = products.length;
-  const activeProducts = products.filter((p) => p.isActive).length;
-  const activePct = totalProducts > 0 ? Math.round((activeProducts / totalProducts) * 100) : 0;
-  const lowStockCount = products.filter((p) => p.isActive && getStatus(p) === "low").length;
-  const outOfStockCount = products.filter((p) => p.isActive && getStatus(p) === "out").length;
-  const inventoryValue = products.filter((p) => p.isActive).reduce((sum, p) => sum + p.unitPrice * p.stockQuantity, 0);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((p) => {
@@ -163,6 +156,14 @@ export function ProductsCatalog({
       return true;
     });
   }, [products, search, category, brand, supplier, warehouse, stockStatus, minPrice, maxPrice]);
+
+  // Now computed from `filtered` — search/category/brand/etc. actually change these.
+  const totalProducts = filtered.length;
+  const activeProducts = filtered.filter((p) => p.isActive).length;
+  const activePct = totalProducts > 0 ? Math.round((activeProducts / totalProducts) * 100) : 0;
+  const lowStockCount = filtered.filter((p) => p.isActive && getStatus(p) === "low").length;
+  const outOfStockCount = filtered.filter((p) => p.isActive && getStatus(p) === "out").length;
+  const inventoryValue = filtered.filter((p) => p.isActive).reduce((sum, p) => sum + p.unitPrice * p.stockQuantity, 0);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -465,26 +466,11 @@ export function ProductsCatalog({
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {[
-          { label: "Total products", value: totalProducts.toLocaleString(), note: "Active products", icon: Boxes, color: "text-signal", bg: "bg-signal-soft" },
-          { label: "Low stock", value: lowStockCount.toLocaleString(), note: "Products", icon: AlertTriangle, color: "text-amber", bg: "bg-amber-soft" },
-          { label: "Out of stock", value: outOfStockCount.toLocaleString(), note: "Products", icon: PackageX, color: "text-alert", bg: "bg-alert-soft" },
-          { label: "Inventory value", value: `$${formatMoney(inventoryValue)}`, note: "Total value", icon: Wallet, color: "text-signal", bg: "bg-signal-soft" },
-          { label: "Active products", value: activeProducts.toLocaleString(), note: `${activePct}% of total`, icon: Sparkles, color: "text-ledger-500", bg: "bg-ledger-100 dark:bg-white/[0.06]" }
-        ].map((kpi) => (
-          <div key={kpi.label} className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex items-center gap-3">
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${kpi.bg} ${kpi.color}`}>
-                <kpi.icon className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="figure text-lg font-semibold text-ink-900 dark:text-white">{kpi.value}</p>
-                <p className="truncate text-xs text-ledger-400">{kpi.label}</p>
-              </div>
-            </div>
-            <p className="mt-1 text-[11px] text-ledger-400">{kpi.note}</p>
-          </div>
-        ))}
+        <KpiFlipCard color="blue" label="Total products" value={totalProducts.toLocaleString()} icon={<Boxes className="h-full w-full" />} detail="Number of products matching the current search/filters." />
+        <KpiFlipCard color="amber" label="Low stock" value={lowStockCount.toLocaleString()} icon={<AlertTriangle className="h-full w-full" />} detail="Active, filtered products at or below their low-stock threshold." />
+        <KpiFlipCard color="red" label="Out of stock" value={outOfStockCount.toLocaleString()} icon={<PackageX className="h-full w-full" />} detail="Active, filtered products with zero units on hand." />
+        <KpiFlipCard color="green" label="Inventory value" value={`$${formatMoney(inventoryValue)}`} icon={<Wallet className="h-full w-full" />} detail="Selling price × stock, summed across active filtered products." featured />
+        <KpiFlipCard color="purple" label="Active products" value={activeProducts.toLocaleString()} icon={<Sparkles className="h-full w-full" />} detail={`${activePct}% of the filtered set is currently active.`} />
       </div>
 
       {/* Toolbar */}

@@ -8,7 +8,7 @@ import {
   Search, Filter, Plus, Download, Printer, ShoppingBag, Clock3, PackageCheck,
   AlertTriangle, Wallet, Banknote, X, RefreshCw,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, formatDateTime, PAYMENT_STATUS_LABEL, type PaymentStatus } from "@/lib/sales/format";
 import { PURCHASE_STATUS_LABEL, PURCHASE_STATUS_TONE, formatPurchaseNumber } from "@/lib/purchases/format";
 import { PurchaseRowMenu } from "@/components/purchases/purchase-row-menu";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import type { PurchaseStatus } from "@/types/database";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 
@@ -147,6 +148,18 @@ export function PurchaseListView({
     });
   }, [purchases, activeTab, supplier, location, paymentStatus, query]);
 
+  const filteredKpis = React.useMemo(() => {
+    const totalPurchases = filtered.length;
+    const totalValue = filtered.reduce((sum, p) => sum + p.total, 0);
+    const pendingOrders = filtered.filter((p) => p.status === "draft" || p.status === "ordered" || p.status === "partially_received").length;
+    const receivedOrders = filtered.filter((p) => p.status === "received").length;
+    const overdueDeliveries = filtered.filter(
+      (p) => p.expectedDeliveryDate && new Date(p.expectedDeliveryDate) < new Date() && p.status !== "received" && p.status !== "cancelled"
+    ).length;
+    const outstandingPayments = filtered.reduce((sum, p) => sum + Math.max(0, p.total - p.paidAmount), 0);
+    return { totalPurchases, totalValue, pendingOrders, receivedOrders, overdueDeliveries, outstandingPayments };
+  }, [filtered]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const clampedPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
@@ -217,12 +230,12 @@ export function PurchaseListView({
         <div className="space-y-5">
           {/* KPI cards */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-            <Kpi icon={ShoppingBag} accent="neutral" label="Total Purchases" value={`${kpis.totalPurchases}`} />
-            <Kpi icon={Banknote} accent="signal" label="Total Value" value={formatCurrency(kpis.totalValue, currency)} />
-            <Kpi icon={Clock3} accent="amber" label="Pending Orders" value={`${kpis.pendingOrders}`} />
-            <Kpi icon={PackageCheck} accent="signal" label="Received Orders" value={`${kpis.receivedOrders}`} />
-            <Kpi icon={AlertTriangle} accent="alert" label="Overdue Deliveries" value={`${kpis.overdueDeliveries}`} />
-            <Kpi icon={Wallet} accent="amber" label="Outstanding Payments" value={formatCurrency(kpis.outstandingPayments, currency)} />
+            <KpiFlipCard color="blue" label="Total Purchases" value={`${filteredKpis.totalPurchases}`} icon={<ShoppingBag className="h-full w-full" />} detail="Number of purchase orders matching the current filters." />
+            <KpiFlipCard color="green" label="Total Value" value={formatCurrency(filteredKpis.totalValue, currency)} icon={<Banknote className="h-full w-full" />} detail="Combined total across every purchase order matching the current filters." featured />
+            <KpiFlipCard color="amber" label="Pending Orders" value={`${filteredKpis.pendingOrders}`} icon={<Clock3 className="h-full w-full" />} detail="Orders still in Draft, Ordered, or Partially Received status." />
+            <KpiFlipCard color="green" label="Received Orders" value={`${filteredKpis.receivedOrders}`} icon={<PackageCheck className="h-full w-full" />} detail="Orders fully marked as Received." />
+            <KpiFlipCard color="red" label="Overdue Deliveries" value={`${filteredKpis.overdueDeliveries}`} icon={<AlertTriangle className="h-full w-full" />} detail="Orders past their expected delivery date that haven't been received or cancelled." />
+            <KpiFlipCard color="purple" label="Outstanding Payments" value={formatCurrency(filteredKpis.outstandingPayments, currency)} icon={<Wallet className="h-full w-full" />} detail="Total still owed across these purchase orders." />
           </div>
 
           {/* Filters */}
@@ -518,18 +531,3 @@ export function PurchaseListView({
   );
 }
 
-function Kpi({ icon: Icon, accent, label, value }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-ledger-400" />
-          <CardTitle>{label}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <CardValue className="text-xl">{value}</CardValue>
-      </CardContent>
-    </Card>
-  );
-}
