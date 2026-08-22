@@ -50,7 +50,7 @@ export function RecentActivityFeed({ items, currency }: { items: ActivityItem[];
               <p className="text-xs text-ledger-400">{timeAgo(item.createdAt)}</p>
             </div>
             {item.amount !== null && (
-              <span className={`figure shrink-0 text-sm font-medium ${item.amount >= 0 ? "text-signal" : "text-alert"}`}>
+              <span className={`shrink-0 text-sm font-medium ${item.amount >= 0 ? "text-signal" : "text-alert"}`}>
                 {item.amount >= 0 ? "+" : "−"}
                 {formatMoney(Math.abs(item.amount), currency)}
               </span>

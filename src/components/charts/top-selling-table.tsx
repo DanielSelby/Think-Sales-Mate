@@ -11,7 +11,7 @@ export function TopSellingTable({ products, currency }: { products: BestSeller[]
   }
 
   return (
-      <table className="figure w-full text-sm">
+      <table className="w-full text-sm">
         <thead className="border-b border-ledger-100 text-left text-xs font-semibold uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
           <tr>
             <th className="pb-2">#</th>
@@ -25,8 +25,8 @@ export function TopSellingTable({ products, currency }: { products: BestSeller[]
           <tr key={product.name} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
             <td className="py-2.5 text-ledger-400">{i + 1}</td>
             <td className="py-2.5 text-ink-900 dark:text-white">{product.name}</td>
-            <td className="py-2.5 text-right figure font-semibold tracking-tight tabular-nums text-ledger-600 dark:text-ledger-300">{product.quantity}</td>
-            <td className="py-2.5 text-right figure font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">
+            <td className="py-2.5 text-right font-semibold tracking-tight tabular-nums text-ledger-600 dark:text-ledger-300">{product.quantity}</td>
+            <td className="py-2.5 text-right font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">
               {formatMoney(product.revenue, currency)}
             </td>
           </tr>

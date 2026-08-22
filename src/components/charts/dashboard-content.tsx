@@ -229,7 +229,7 @@ export function DashboardContent({
           <CardContent>
             {summary.outstandingInvoicesCount > 0 ? (
               <div className="flex h-44 flex-col items-center justify-center gap-1 text-center">
-                <p className="figure text-2xl font-semibold text-ink-900 dark:text-white">
+                <p className="text-2xl font-semibold text-ink-900 dark:text-white">
                   {formatMoney(summary.outstandingInvoicesTotal, currency)}
                 </p>
                 <p className="text-sm text-ledger-500 dark:text-ledger-400">

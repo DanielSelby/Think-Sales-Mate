@@ -8,8 +8,8 @@ function CustomTooltip({ active, payload, label, currency }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-ledger-100 bg-white px-3 py-2 text-xs shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-      <p className="figure mb-1 font-semibold tracking-tight text-ink-900 dark:text-white">{label}</p>
-      <p className="figure font-semibold tracking-tight tabular-nums text-signal">{formatMoney(Number(payload[0]?.value ?? 0), currency)}</p>
+      <p className="mb-1 font-semibold tracking-tight text-ink-900 dark:text-white">{label}</p>
+      <p className="font-semibold tracking-tight tabular-nums text-signal">{formatMoney(Number(payload[0]?.value ?? 0), currency)}</p>
     </div>
   );
 }
@@ -36,11 +36,11 @@ export function SalesOverviewChart({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
       <div className="md:col-span-2">
-        <p className="figure text-xs font-medium text-ledger-500 dark:text-ledger-400">Total sales</p>
+        <p className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Total sales</p>
         <div className="mt-1 flex items-baseline gap-2">
-          <p className="figure text-3xl font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(totalRevenue, currency)}</p>
+          <p className="text-3xl font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(totalRevenue, currency)}</p>
           {trend.pct !== null && (
-            <span className={trend.direction === "up" ? "figure text-sm font-semibold tracking-tight tabular-nums text-signal" : "figure text-sm font-semibold tracking-tight tabular-nums text-alert"}>
+            <span className={trend.direction === "up" ? "text-sm font-semibold tracking-tight tabular-nums text-signal" : "text-sm font-semibold tracking-tight tabular-nums text-alert"}>
               {trend.direction === "up" ? "↑" : "↓"} {Math.abs(trend.pct).toFixed(1)}%
             </span>
           )}
@@ -58,22 +58,22 @@ export function SalesOverviewChart({
 
       <div className="space-y-4">
         <div>
-          <p className="figure text-xs text-ledger-400">Average daily sales</p>
-          <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(avgDailySales, currency)}</p>
+          <p className="text-xs text-ledger-400">Average daily sales</p>
+          <p className="text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(avgDailySales, currency)}</p>
         </div>
         <div>
-          <p className="figure text-xs text-ledger-400">Best day</p>
-          <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">
+          <p className="text-xs text-ledger-400">Best day</p>
+          <p className="text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">
             {bestDay ? `${bestDay.label} · ${formatMoney(bestDay.revenue, currency)}` : "—"}
           </p>
         </div>
         <div>
-          <p className="figure text-xs text-ledger-400">Orders</p>
-          <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{orderCount}</p>
+          <p className="text-xs text-ledger-400">Orders</p>
+          <p className="text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{orderCount}</p>
         </div>
         <div>
-          <p className="figure text-xs text-ledger-400">Average order value</p>
-          <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(avgOrderValue, currency)}</p>
+          <p className="text-xs text-ledger-400">Average order value</p>
+          <p className="text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(avgOrderValue, currency)}</p>
         </div>
       </div>
     </div>

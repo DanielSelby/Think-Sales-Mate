@@ -27,14 +27,14 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
     if (!active || !payload?.length) return null;
     return (
       <div className="bg-white border border-slate-100 rounded-xl shadow-xl p-3 text-xs min-w-[160px]" style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>
-        <p className="figure font-semibold tracking-tight text-ink-900 mb-2">{label}</p>
+        <p className="font-semibold tracking-tight text-ink-900 mb-2">{label}</p>
         {payload.map((p: any) => (
           <div key={p.dataKey} className="flex items-center justify-between gap-4 mb-1">
             <span className="flex items-center gap-1.5 text-slate-500">
               <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
               <span className="capitalize">{p.dataKey}</span>
             </span>
-            <span className="figure font-semibold tracking-tight tabular-nums" style={{ color: p.color }}>{formatMoney(Number(p.value ?? 0), currency)}</span>
+            <span className="font-semibold tracking-tight tabular-nums" style={{ color: p.color }}>{formatMoney(Number(p.value ?? 0), currency)}</span>
           </div>
         ))}
       </div>

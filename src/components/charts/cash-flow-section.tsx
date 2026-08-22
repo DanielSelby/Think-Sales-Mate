@@ -10,8 +10,8 @@ function CustomTooltip({ active, payload, label, currency }: any) {
   return (
     <div className="rounded-lg border border-ledger-100 bg-white px-3 py-2 text-xs shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
       <p className="mb-1 font-semibold text-ink-900 dark:text-white">{label}</p>
-      <p className="figure font-semibold tracking-tight tabular-nums text-signal">In: {formatMoney(payload.find((p: any) => p.dataKey === "revenue")?.value ?? 0, currency)}</p>
-      <p className="figure font-semibold tracking-tight tabular-nums text-alert">Out: {formatMoney(payload.find((p: any) =>  p.dataKey === "expenses")?.value ?? 0, currency)}</p>
+      <p className="font-semibold tracking-tight tabular-nums text-signal">In: {formatMoney(payload.find((p: any) => p.dataKey === "revenue")?.value ?? 0, currency)}</p>
+      <p className="font-semibold tracking-tight tabular-nums text-alert">Out: {formatMoney(payload.find((p: any) =>  p.dataKey === "expenses")?.value ?? 0, currency)}</p>
     </div>
   );
 }
@@ -37,21 +37,21 @@ export function CashFlowSection({
             <ArrowUpCircle className="h-3.5 w-3.5" />
             <span className="text-xs font-semibold tracking-wide">Cash In</span>
           </div>
-          <p className={`figure mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>{formatMoney(cashIn, currency)}</p>
+          <p className={`mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>{formatMoney(cashIn, currency)}</p>
         </div>
         <div className="rounded-xl bg-alert-soft p-3">
           <div className="flex items-center gap-1.5 text-alert">
             <ArrowDownCircle className="h-3.5 w-3.5" />
             <span className="text-xs font-semibold tracking-wide">Cash Out</span>
           </div>
-          <p className={`figure mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>{formatMoney(cashOut, currency)}</p>
+          <p className={`mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>{formatMoney(cashOut, currency)}</p>
         </div>
         <div className="rounded-xl bg-ledger-50 p-3 dark:bg-ink-950">
           <div className="flex items-center gap-1.5 text-ledger-500 dark:text-ledger-400">
             <Wallet className="h-3.5 w-3.5" />
             <span className="text-xs font-semibold tracking-wide">Net</span>
           </div>
-          <p className={`figure mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>
+          <p className={`mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>
             {formatMoney(netCashFlow, currency)}
           </p>
         </div>

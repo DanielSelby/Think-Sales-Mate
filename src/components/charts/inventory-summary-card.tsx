@@ -20,25 +20,25 @@ export function InventorySummaryCard({
 
   return (
     <div className="space-y-4">
-      <div className="figure grid grid-cols-3 gap-3 text-center">
+      <div className="grid grid-cols-3 gap-3 text-center">
         <div>
-          <p className="figure text-lg font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{totalProducts}</p>
+          <p className="text-lg font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{totalProducts}</p>
           <p className="text-xs text-ledger-400">Total items</p>
         </div>
         <div>
-          <p className="figure text-lg font-semibold tracking-tight tabular-nums text-amber">{lowStockCount}</p>
+          <p className="text-lg font-semibold tracking-tight tabular-nums text-amber">{lowStockCount}</p>
           <p className="text-xs text-ledger-400">Low stock</p>
         </div>
         <div>
-          <p className="figure text-lg font-semibold tracking-tight tabular-nums text-alert">{outOfStockCount}</p>
+          <p className="text-lg font-semibold tracking-tight tabular-nums text-alert">{outOfStockCount}</p>
           <p className="text-xs text-ledger-400">Out of stock</p>
         </div>
       </div>
 
       <div>
-        <div className="figure flex items-center justify-between text-xs text-ledger-500 dark:text-ledger-400">
+        <div className="flex items-center justify-between text-xs text-ledger-500 dark:text-ledger-400">
           <span>Inventory value</span>
-          <span className="figure font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(inventoryValue, currency)}</span>
+          <span className="font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{formatMoney(inventoryValue, currency)}</span>
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ledger-100 dark:bg-ledger-800">
           <div className="h-full rounded-full bg-signal transition-all duration-500" style={{ width: `${healthyPct}%` }} />
