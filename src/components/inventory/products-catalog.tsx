@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
+import { formatMoney } from "@/lib/currency";
 import { deleteProduct, toggleProductActive, duplicateProduct, bulkImportProducts } from "@/app/(dashboard)/inventory/actions";
 
 export interface CatalogProduct {
@@ -68,9 +69,6 @@ type SortKey = "name-asc" | "name-desc" | "stock-desc" | "stock-asc" | "price-de
 const PAGE_SIZE = 8;
 const CATEGORY_COLORS = ["#2563eb", "#16a34a", "#7c3aed", "#d97706", "#0d9488", "#94a3b8"];
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
 
 function getStatus(p: CatalogProduct): StockStatus {
   if (p.stockQuantity <= 0) return "out";
@@ -101,12 +99,14 @@ export function ProductsCatalog({
   products,
   locations,
   bestSellers,
-  canManage
+  canManage,
+  currency = "GHS"
 }: {
   products: CatalogProduct[];
   locations: CatalogLocation[];
   bestSellers: BestSellerRow[];
   canManage: boolean;
+  currency?: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -371,7 +371,7 @@ export function ProductsCatalog({
           <div class="name">${p.name}</div>
           <div class="sku">${p.sku}</div>
           <div class="barcode">${p.barcode ?? ""}</div>
-          <div class="price">$${formatMoney(p.unitPrice)}</div>
+          <div class="price">${formatMoney(p.unitPrice, currency)}</div>
         </div>`
       )
       .join("");
@@ -469,7 +469,7 @@ export function ProductsCatalog({
         <KpiFlipCard color="blue" label="Total products" value={totalProducts.toLocaleString()} icon={<Boxes className="h-full w-full" />} detail="Number of products matching the current search/filters." />
         <KpiFlipCard color="amber" label="Low stock" value={lowStockCount.toLocaleString()} icon={<AlertTriangle className="h-full w-full" />} detail="Active, filtered products at or below their low-stock threshold." />
         <KpiFlipCard color="red" label="Out of stock" value={outOfStockCount.toLocaleString()} icon={<PackageX className="h-full w-full" />} detail="Active, filtered products with zero units on hand." />
-        <KpiFlipCard color="green" label="Inventory value" value={`$${formatMoney(inventoryValue)}`} icon={<Wallet className="h-full w-full" />} detail="Selling price × stock, summed across active filtered products." featured />
+        <KpiFlipCard color="green" label="Inventory value" value={formatMoney(inventoryValue, currency)} icon={<Wallet className="h-full w-full" />} detail="Selling price × stock, summed across active filtered products." featured />
         <KpiFlipCard color="purple" label="Active products" value={activeProducts.toLocaleString()} icon={<Sparkles className="h-full w-full" />} detail={`${activePct}% of the filtered set is currently active.`} />
       </div>
 
@@ -725,9 +725,9 @@ export function ProductsCatalog({
                       )}
                     </td>
                     <td className="px-2 py-3 text-right figure text-ledger-500 dark:text-ledger-400">
-                      {p.costPrice != null ? `$${formatMoney(p.costPrice)}` : "—"}
+                      {p.costPrice != null ? formatMoney(p.costPrice, currency) : "—"}
                     </td>
-                    <td className="px-2 py-3 text-right figure text-ink-900 dark:text-white">${formatMoney(p.unitPrice)}</td>
+                    <td className="px-2 py-3 text-right figure text-ink-900 dark:text-white">{formatMoney(p.unitPrice, currency)}</td>
                     <td className="px-2 py-3">
                       <div className="text-right">
                         <span
@@ -832,7 +832,7 @@ export function ProductsCatalog({
                 <p className="mt-2 truncate font-medium text-ink-900 dark:text-white">{p.name}</p>
                 <p className="font-mono text-xs text-ledger-400">{p.sku}</p>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="figure font-semibold text-ink-900 dark:text-white">${formatMoney(p.unitPrice)}</span>
+                  <span className="figure font-semibold text-ink-900 dark:text-white">{formatMoney(p.unitPrice, currency)}</span>
                   <span
                     className={`figure text-xs font-semibold ${status === "out" ? "text-alert" : status === "low" ? "text-amber" : "text-signal"}`}
                   >

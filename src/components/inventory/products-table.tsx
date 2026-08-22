@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
+import { formatMoney } from "@/lib/currency";
 import { deleteProduct } from "@/app/(dashboard)/inventory/actions";
 
 export interface ProductRow {
@@ -15,11 +16,8 @@ export interface ProductRow {
   isActive: boolean;
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
 
-export function ProductsTable({ products, canManage }: { products: ProductRow[]; canManage: boolean }) {
+export function ProductsTable({ products, canManage, currency = "GHS" }: { products: ProductRow[]; canManage: boolean; currency?: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
@@ -65,7 +63,7 @@ export function ProductsTable({ products, canManage }: { products: ProductRow[];
                 <tr key={product.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
                   <td className="px-4 py-3 font-mono text-xs text-ledger-500 dark:text-ledger-400">{product.sku}</td>
                   <td className="px-4 py-3 text-ink-900 dark:text-white">{product.name}</td>
-                  <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">${formatMoney(product.unitPrice)}</td>
+                  <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">{formatMoney(product.unitPrice, currency)}</td>
                   <td className="px-4 py-3 text-right">
                     <span
                       className={

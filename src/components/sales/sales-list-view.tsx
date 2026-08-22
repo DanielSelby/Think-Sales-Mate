@@ -116,6 +116,16 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
     });
   }, [sales, activeTab, paymentStatus, location, salesRep, query]);
 
+  const filteredKpis = useMemo(() => {
+    const totalOrders = filtered.length;
+    const totalRevenue = filtered.reduce((sum, s) => sum + s.total, 0);
+    const outstandingBalance = filtered.reduce((sum, s) => sum + Math.max(0, s.total - s.amountPaid), 0);
+    const completedOrders = filtered.filter((s) => s.status === "completed").length;
+    const returnedAmount = filtered.filter((s) => s.status === "returned").reduce((sum, s) => sum + s.refundedAmount, 0);
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    return { totalOrders, totalRevenue, outstandingBalance, completedOrders, returnedAmount, averageOrderValue };
+  }, [filtered]);
+
   const effectiveRowsPerPage = rowsPerPage === "all" ? Math.max(1, filtered.length) : rowsPerPage;
   const totalPages = rowsPerPage === "all" ? 1 : Math.max(1, Math.ceil(filtered.length / effectiveRowsPerPage));
   const clampedPage = Math.min(page, totalPages);
@@ -204,45 +214,45 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
         <KpiFlipCard
           color="blue"
           label="Total Sales"
-          value={`${kpis.totalOrders} orders`}
+          value={`${filteredKpis.totalOrders} orders`}
           icon={<ShoppingCart className="h-full w-full" />}
-          detail="Total number of sales recorded across every status — completed, returned, and cancelled — for the current filter."
+          detail="Total number of sales matching the current filters — across every status: completed, returned, and cancelled."
         />
         <KpiFlipCard
           color="green"
           label="Total Revenue"
-          value={formatCurrency(kpis.totalRevenue, currency)}
+          value={formatCurrency(filteredKpis.totalRevenue, currency)}
           icon={<Wallet className="h-full w-full" />}
-          detail="Sum of the total on every sale shown, regardless of how much of it has actually been paid so far."
+          detail="Sum of the total on every filtered sale, regardless of how much of it has actually been paid so far."
           featured
         />
         <KpiFlipCard
           color="amber"
           label="Outstanding Balance"
-          value={formatCurrency(kpis.outstandingBalance, currency)}
+          value={formatCurrency(filteredKpis.outstandingBalance, currency)}
           icon={<Clock3 className="h-full w-full" />}
-          detail="Total still owed across all sales — each sale's total minus whatever amount has been paid toward it."
+          detail="Total still owed across the filtered sales — each sale's total minus whatever amount has been paid toward it."
         />
         <KpiFlipCard
           color="green"
           label="Completed Orders"
-          value={`${kpis.completedOrders}`}
+          value={`${filteredKpis.completedOrders}`}
           icon={<CheckCircle2 className="h-full w-full" />}
-          detail="Sales currently marked Completed — excludes any that have since been returned or cancelled."
+          detail="Filtered sales currently marked Completed — excludes any that have since been returned or cancelled."
         />
         <KpiFlipCard
           color="red"
           label="Returns"
-          value={formatCurrency(kpis.returnedAmount, currency)}
+          value={formatCurrency(filteredKpis.returnedAmount, currency)}
           icon={<Undo2 className="h-full w-full" />}
-          detail="Total refunded amount across sales marked as Returned."
+          detail="Total refunded amount across filtered sales marked as Returned."
         />
         <KpiFlipCard
           color="purple"
           label="Average Order Value"
-          value={formatCurrency(kpis.averageOrderValue, currency)}
+          value={formatCurrency(filteredKpis.averageOrderValue, currency)}
           icon={<Gem className="h-full w-full" />}
-          detail="Total revenue divided by the number of sales — the typical size of a single transaction."
+          detail="Filtered total revenue divided by the number of filtered sales — the typical size of a single transaction."
         />
       </div>
 

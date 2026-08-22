@@ -79,6 +79,7 @@ export default async function InventoryPage() {
       locations={locations}
       bestSellers={bestSellers}
       canManage={can(context.role, "inventory.manage")}
+      currency={context.currency}
     />
   );
 }
