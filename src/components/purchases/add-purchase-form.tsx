@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2, ClipboardList,
+  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2, ClipboardList, Eye, EyeOff,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { createPurchase, type PurchaseItemInput } from "@/app/(dashboard)/purcha
 import { ProductPicker, type PickableProduct } from "@/components/purchases/product-picker";
 import { ProductRowCell } from "@/components/purchases/product-row-cell";
 import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/attachments-dropzone";
+import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
 
 export interface SupplierOption {
   id: string;
@@ -131,6 +132,24 @@ export function AddPurchaseForm({
   const [purchaseNote, setPurchaseNote] = React.useState("");
   const [internalNote, setInternalNote] = React.useState("");
   const [attachments, setAttachments] = React.useState<StagedFile[]>([]);
+
+  // Hide/show toggle for the Supplier & Purchase Details card.
+  const [detailsVisible, setDetailsVisible] = React.useState(true);
+
+  // Inline "Add Supplier" — opens a dialog without leaving this page;
+  // once saved, the new supplier is auto-selected as soon as the
+  // refreshed `suppliers` prop includes it.
+  const [addSupplierOpen, setAddSupplierOpen] = React.useState(false);
+  const [pendingSupplierName, setPendingSupplierName] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!pendingSupplierName) return;
+    const match = suppliers.find((s) => s.name === pendingSupplierName);
+    if (match) {
+      setSupplierId(match.id);
+      setPendingSupplierName(null);
+    }
+  }, [suppliers, pendingSupplierName]);
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
 
@@ -293,114 +312,143 @@ export function AddPurchaseForm({
       <div className="space-y-5">
           {/* Supplier & Purchase Details — merged card, matching the reference layout */}
           <Card accent="neutral">
-            <CardHeader className="flex-row items-center gap-2 pb-3">
-              <ClipboardList className="h-4 w-4 text-ledger-400" />
-              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
-                Supplier &amp; Purchase Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-3">
-                <Field label="Supplier" required>
-                  <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                    <option value="" disabled>Select supplier</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Purchase Reference">
-                  <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter reference (optional)" />
-                </Field>
-                <Field label="Location" required>
-                  <Select value={locationId} onChange={(e) => onLocationChange(e.target.value)}>
-                    <option value="" disabled>Select location</option>
-                    {locations.map((l) => (
-                      <option key={l.id} value={l.id}>{l.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-
-                <Field label="Invoice No.">
-                  <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="Enter invoice number" />
-                </Field>
-                <Field label="Payment Terms">
-                  <Input value={selectedSupplier?.paymentTerms ?? "—"} disabled className="opacity-70" />
-                </Field>
-                <Field label="Currency" required>
-                  <Input value={selectedSupplier?.currency ?? currency} disabled className="opacity-70" />
-                </Field>
-
-                <Field label="Purchase Date" required>
-                  <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
-                </Field>
-                <Field label="Due Date">
-                  <Input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} />
-                </Field>
-                <Field label="Notes">
-                  <textarea
-                    value={purchaseNote}
-                    onChange={(e) => setPurchaseNote(e.target.value)}
-                    rows={1}
-                    placeholder="Enter notes (optional)"
-                    className="flex w-full resize-none rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                  />
-                </Field>
-                <Field label="Purchase Status:" required hint="Pending saves as a draft, Ordered records the purchase, Received also receives the items and updates stock.">
-                  <Select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value as typeof purchaseStatus)}>
-                    <option value="">Please Select</option>
-                    <option value="received">Received</option>
-                    <option value="pending">Pending</option>
-                    <option value="ordered">Ordered</option>
-                  </Select>
-                </Field>
+            <CardHeader className="flex-row items-center justify-between gap-2 pb-3">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-ledger-400" />
+                <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
+                  Supplier &amp; Purchase Details
+                </CardTitle>
               </div>
+              <button
+                type="button"
+                onClick={() => setDetailsVisible((v) => !v)}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-ledger-500 hover:bg-ledger-100 dark:text-ledger-400 dark:hover:bg-white/[0.06]"
+              >
+                {detailsVisible ? (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5" /> Hide
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-3.5 w-3.5" /> Show
+                  </>
+                )}
+              </button>
+            </CardHeader>
+            {detailsVisible && (
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-3">
+                  <Field label="Supplier" required>
+                    <div className="flex items-center gap-2">
+                      <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="flex-1">
+                        <option value="" disabled>Select supplier</option>
+                        {suppliers.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </Select>
+                      <button
+                        type="button"
+                        onClick={() => setAddSupplierOpen(true)}
+                        title="Add new supplier"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 transition-colors hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-400 dark:hover:bg-white/[0.06]"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </Field>
+                  <Field label="Purchase Reference">
+                    <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter reference (optional)" />
+                  </Field>
+                  <Field label="Location" required>
+                    <Select value={locationId} onChange={(e) => onLocationChange(e.target.value)}>
+                      <option value="" disabled>Select location</option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>{l.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
 
-              <details className="mt-4 rounded-md border border-ledger-100 px-3 py-2 dark:border-ledger-700">
-                <summary className="cursor-pointer text-xs font-medium text-ledger-500">
-                  More options — shipping method, project, delivery address
-                </summary>
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <Field label="Shipping Method">
-                    <Select value={shippingMethod} onChange={(e) => setShippingMethod(e.target.value)}>
-                      {SHIPPING_METHODS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </Select>
+                  <Field label="Invoice No.">
+                    <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="Enter invoice number" />
                   </Field>
-                  <Field label="Project (Optional)">
-                    <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                      <option value="">Select project</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </Select>
+                  <Field label="Payment Terms">
+                    <Input value={selectedSupplier?.paymentTerms ?? "—"} disabled className="opacity-70" />
                   </Field>
-                  <Field label="Contact Person">
-                    <Input value={selectedSupplier?.contactPerson ?? ""} disabled className="opacity-70" />
+                  <Field label="Currency" required>
+                    <Input value={selectedSupplier?.currency ?? currency} disabled className="opacity-70" />
                   </Field>
-                </div>
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <Field label="Delivery Address">
+
+                  <Field label="Purchase Date" required>
+                    <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
+                  </Field>
+                  <Field label="Due Date">
+                    <Input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} />
+                  </Field>
+                  <Field label="Notes">
                     <textarea
-                      value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value)}
-                      rows={2}
-                      className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                      value={purchaseNote}
+                      onChange={(e) => setPurchaseNote(e.target.value)}
+                      rows={1}
+                      placeholder="Enter notes (optional)"
+                      className="flex w-full resize-none rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                     />
                   </Field>
-                  <Field label="Delivery Notes">
-                    <textarea
-                      value={deliveryNotes}
-                      onChange={(e) => setDeliveryNotes(e.target.value)}
-                      rows={2}
-                      placeholder="Please deliver during working hours."
-                      className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                    />
+                  <Field label="Purchase Status:" required hint="Pending saves as a draft, Ordered records the purchase, Received also receives the items and updates stock.">
+                    <Select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value as typeof purchaseStatus)}>
+                      <option value="">Please Select</option>
+                      <option value="received">Received</option>
+                      <option value="pending">Pending</option>
+                      <option value="ordered">Ordered</option>
+                    </Select>
                   </Field>
                 </div>
-              </details>
-            </CardContent>
+
+                <details className="mt-4 rounded-md border border-ledger-100 px-3 py-2 dark:border-ledger-700">
+                  <summary className="cursor-pointer text-xs font-medium text-ledger-500">
+                    More options — shipping method, project, delivery address
+                  </summary>
+                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <Field label="Shipping Method">
+                      <Select value={shippingMethod} onChange={(e) => setShippingMethod(e.target.value)}>
+                        {SHIPPING_METHODS.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Project (Optional)">
+                      <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                        <option value="">Select project</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Contact Person">
+                      <Input value={selectedSupplier?.contactPerson ?? ""} disabled className="opacity-70" />
+                    </Field>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <Field label="Delivery Address">
+                      <textarea
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        rows={2}
+                        className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                      />
+                    </Field>
+                    <Field label="Delivery Notes">
+                      <textarea
+                        value={deliveryNotes}
+                        onChange={(e) => setDeliveryNotes(e.target.value)}
+                        rows={2}
+                        placeholder="Please deliver during working hours."
+                        className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                      />
+                    </Field>
+                  </div>
+                </details>
+              </CardContent>
+            )}
           </Card>
 
           {/* 4. Product table */}
@@ -730,6 +778,13 @@ export function AddPurchaseForm({
           </div>
         </div>
       </div>
+
+      <AddSupplierDialog
+        open={addSupplierOpen}
+        onClose={() => setAddSupplierOpen(false)}
+        currency={currency}
+        onCreated={(name) => setPendingSupplierName(name)}
+      />
     </div>
   );
 }
