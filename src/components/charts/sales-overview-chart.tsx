@@ -8,8 +8,8 @@ function CustomTooltip({ active, payload, label, currency }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-ledger-100 bg-white px-3 py-2 text-xs shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-      <p className="mb-1 font-semibold text-ink-900 dark:text-white">{label}</p>
-      <p className="text-signal">{formatMoney(Number(payload[0]?.value ?? 0), currency)}</p>
+      <p className="figure mb-1 font-semibold tracking-tight text-ink-900 dark:text-white">{label}</p>
+      <p className="figure font-semibold tracking-tight tabular-nums text-signal">{formatMoney(Number(payload[0]?.value ?? 0), currency)}</p>
     </div>
   );
 }
@@ -63,7 +63,7 @@ export function SalesOverviewChart({
         </div>
         <div>
           <p className="text-xs font-medium tracking-wide text-ledger-400">Best day</p>
-          <p className="figure text-sm font-semibold text-ink-900 dark:text-white">
+          <p className="figure text-sm font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">
             {bestDay ? `${bestDay.label} · ${formatMoney(bestDay.revenue, currency)}` : "—"}
           </p>
         </div>

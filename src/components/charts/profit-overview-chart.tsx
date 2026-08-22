@@ -10,8 +10,8 @@ function CustomTooltip({ active, payload, label, currency }: any) {
   const value = Number(payload[0]?.value ?? 0);
   return (
     <div className="rounded-lg border border-ledger-100 bg-white px-3 py-2 text-xs shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-      <p className="figure mb-1 font-semibold tracking-tight text-ink-900 dark:text-white">{label}</p>
-      <p className={`figure font-semibold tabular-nums ${value >= 0 ? "text-signal" : "text-alert"}`}>Cumulative: {formatMoney(value, currency)}</p>
+      <p className="figure mb-1 font-semibold tracking-tight tabular-nums text-ink-900 dark:text-white">{label}</p>
+      <p className={`figure font-semibold tracking-tight tabular-nums ${value >= 0 ? "text-signal" : "text-alert"}`}>Cumulative: {formatMoney(value, currency)}</p>
     </div>
   );
 }

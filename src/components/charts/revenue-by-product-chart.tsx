@@ -277,12 +277,12 @@ export function RevenueByProductChart({
 
                     return (
                       <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-xl">
-                        <p className="figure font-semibold text-ink-900">
+                        <p className="figure font-semibold tracking-tight text-ink-900">
                           {item.name}
                         </p>
 
                         <p
-                        className="figure font-semibold tabular-nums"
+                        className="figure font-semibold tracking-tight tabular-nums"
                          style={{
                              color:
                                COLORS[
@@ -510,7 +510,7 @@ export function RevenueByProductChart({
 
                 return (
                   <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-xl">
-                    <p className="figure font-semibold text-ink-900">
+                   <p className="figure font-semibold tracking-tight text-ink-900">
                       {
                         payload[0]?.payload
                           ?.name
@@ -518,7 +518,7 @@ export function RevenueByProductChart({
                     </p>
 
                     <p
-                   className="figure font-semibold tabular-nums"
+                   className="figure font-semibold tracking-tight tabular-nums"
                   style={{
                      color:
                       COLORS[

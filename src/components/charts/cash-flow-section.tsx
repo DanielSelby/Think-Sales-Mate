@@ -10,8 +10,8 @@ function CustomTooltip({ active, payload, label, currency }: any) {
   return (
     <div className="rounded-lg border border-ledger-100 bg-white px-3 py-2 text-xs shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
       <p className="mb-1 font-semibold text-ink-900 dark:text-white">{label}</p>
-      <p className="text-signal">In: {formatMoney(payload.find((p: any) => p.dataKey === "revenue")?.value ?? 0, currency)}</p>
-      <p className="text-alert">Out: {formatMoney(payload.find((p: any) => p.dataKey === "expenses")?.value ?? 0, currency)}</p>
+      <p className="figure font-semibold tracking-tight tabular-nums text-signal">In: {formatMoney(payload.find((p: any) => p.dataKey === "revenue")?.value ?? 0, currency)}</p>
+      <p className="figure font-semibold tracking-tight tabular-nums text-alert">Out: {formatMoney(payload.find((p: any) =>  p.dataKey === "expenses")?.value ?? 0, currency)}</p>
     </div>
   );
 }
@@ -51,7 +51,7 @@ export function CashFlowSection({
             <Wallet className="h-3.5 w-3.5" />
             <span className="text-xs font-semibold tracking-wide">Net</span>
           </div>
-          <p className={`figure mt-1 figure text-sm font-semibold ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>
+          <p className={`figure mt-1 text-sm font-semibold tracking-tight tabular-nums ${netCashFlow >= 0 ? "text-signal" : "text-alert"}`}>
             {formatMoney(netCashFlow, currency)}
           </p>
         </div>
