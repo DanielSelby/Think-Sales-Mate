@@ -6,7 +6,8 @@ import {
   Search, Filter, Plus, Download, Eye, Pencil, Printer,
   ChevronLeft, ChevronRight, ShoppingCart, Wallet, Clock3, CheckCircle2, Undo2, Gem, XCircle,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardValue, type CardAccent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -187,7 +188,10 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
           </Button>
           <Link
             href="/sales/new"
-            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-ink-900 px-4 text-sm font-medium text-white shadow-sm transition-all hover:bg-ink-950 active:scale-[0.98] dark:bg-white dark:text-ink-900 dark:hover:bg-ledger-100"
+            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium text-white shadow-sm transition-all active:scale-[0.98]"
+            style={{ background: theme.colors.primary }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
           >
             <Plus className="h-4 w-4" />
             New Sale
@@ -197,12 +201,49 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <Kpi icon={ShoppingCart} accent="neutral" label="Total Sales" value={`${kpis.totalOrders} orders`} />
-        <Kpi icon={Wallet} accent="signal" label="Total Revenue" value={formatCurrency(kpis.totalRevenue, currency)} />
-        <Kpi icon={Clock3} accent="amber" label="Outstanding Balance" value={formatCurrency(kpis.outstandingBalance, currency)} />
-        <Kpi icon={CheckCircle2} accent="signal" label="Completed Orders" value={`${kpis.completedOrders}`} />
-        <Kpi icon={Undo2} accent="alert" label="Returns" value={formatCurrency(kpis.returnedAmount, currency)} />
-        <Kpi icon={Gem} accent="neutral" label="Average Order Value" value={formatCurrency(kpis.averageOrderValue, currency)} />
+        <KpiFlipCard
+          color="blue"
+          label="Total Sales"
+          value={`${kpis.totalOrders} orders`}
+          icon={<ShoppingCart className="h-full w-full" />}
+          detail="Total number of sales recorded across every status — completed, returned, and cancelled — for the current filter."
+        />
+        <KpiFlipCard
+          color="green"
+          label="Total Revenue"
+          value={formatCurrency(kpis.totalRevenue, currency)}
+          icon={<Wallet className="h-full w-full" />}
+          detail="Sum of the total on every sale shown, regardless of how much of it has actually been paid so far."
+          featured
+        />
+        <KpiFlipCard
+          color="amber"
+          label="Outstanding Balance"
+          value={formatCurrency(kpis.outstandingBalance, currency)}
+          icon={<Clock3 className="h-full w-full" />}
+          detail="Total still owed across all sales — each sale's total minus whatever amount has been paid toward it."
+        />
+        <KpiFlipCard
+          color="green"
+          label="Completed Orders"
+          value={`${kpis.completedOrders}`}
+          icon={<CheckCircle2 className="h-full w-full" />}
+          detail="Sales currently marked Completed — excludes any that have since been returned or cancelled."
+        />
+        <KpiFlipCard
+          color="red"
+          label="Returns"
+          value={formatCurrency(kpis.returnedAmount, currency)}
+          icon={<Undo2 className="h-full w-full" />}
+          detail="Total refunded amount across sales marked as Returned."
+        />
+        <KpiFlipCard
+          color="purple"
+          label="Average Order Value"
+          value={formatCurrency(kpis.averageOrderValue, currency)}
+          icon={<Gem className="h-full w-full" />}
+          detail="Total revenue divided by the number of sales — the typical size of a single transaction."
+        />
       </div>
 
       {/* Filter bar */}
@@ -442,20 +483,3 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
   );
 }
 
-function Kpi({
-  icon: Icon, accent, label, value,
-}: { icon: React.ComponentType<{ className?: string }>; accent: CardAccent; label: string; value: string }) {
-  return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-ledger-400" />
-          <CardTitle>{label}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <CardValue className="text-xl">{value}</CardValue>
-      </CardContent>
-    </Card>
-  );
-}

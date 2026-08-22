@@ -1387,7 +1387,15 @@ export function SaleForm({
             <Button type="button" variant="outline" disabled={isPending} onClick={handleSaveByStatus}>
               {isPending ? "Saving…" : "Save Sale"}
             </Button>
-            <Button type="button" disabled={isPending} onClick={() => handleConfirm()}>
+            <Button
+              type="button"
+              disabled={isPending}
+              onClick={() => handleConfirm()}
+              className="text-white transition-colors"
+              style={{ background: theme.colors.primary }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
+            >
               {isPending ? "Saving…" : editingSaleId ? "Update Sale" : "Complete Sale"}
               <ArrowRight className="h-4 w-4" />
             </Button>

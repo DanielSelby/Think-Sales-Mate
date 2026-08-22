@@ -18,6 +18,7 @@ import { formatCurrency, formatDateTime, PAYMENT_STATUS_LABEL, type PaymentStatu
 import { PURCHASE_STATUS_LABEL, PURCHASE_STATUS_TONE, formatPurchaseNumber } from "@/lib/purchases/format";
 import { PurchaseRowMenu } from "@/components/purchases/purchase-row-menu";
 import type { PurchaseStatus } from "@/types/database";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 
 export interface PurchaseRow {
   id: string;
@@ -101,6 +102,8 @@ const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 export function PurchaseListView({
   purchases, kpis, currency, suppliers, locations, overview, topSuppliers, categories, recentActivity,
 }: PurchaseListViewProps) {
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = React.useState<"all" | PurchaseStatus>("all");
   const [query, setQuery] = React.useState("");
@@ -185,7 +188,10 @@ export function PurchaseListView({
           </Button>
           <Link
             href="/purchases/new"
-            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-ink-900 px-4 text-sm font-medium text-white shadow-sm transition-all hover:bg-ink-950 active:scale-[0.98] dark:bg-white dark:text-ink-900 dark:hover:bg-ledger-100"
+            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium text-white shadow-sm transition-all active:scale-[0.98]"
+            style={{ background: theme.colors.primary }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
           >
             <Plus className="h-4 w-4" /> New Purchase
           </Link>
@@ -278,10 +284,9 @@ export function PurchaseListView({
                   onClick={() => { setActiveTab(tab.key); setPage(1); setSelected([]); }}
                   className={cn(
                     "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
-                    activeTab === tab.key
-                      ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900"
-                      : "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
+                    activeTab !== tab.key && "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
                   )}
+                  style={activeTab === tab.key ? { background: theme.colors.primary, color: "#fff" } : undefined}
                 >
                   {tab.label} ({counts[tab.key]})
                 </button>
