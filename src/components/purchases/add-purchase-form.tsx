@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2, ClipboardList, Eye, EyeOff,
+  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2, ClipboardList, Eye, EyeOff, Lock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,13 @@ import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { formatCurrency } from "@/lib/sales/format";
-import { SHIPPING_METHODS, UNIT_OPTIONS } from "@/lib/purchases/format";
-import { createPurchase, type PurchaseItemInput } from "@/app/(dashboard)/purchases/actions";
+import { SHIPPING_METHODS, UNIT_OPTIONS, PURCHASE_STATUS_LABEL } from "@/lib/purchases/format";
+import { createPurchase, updatePurchase, type PurchaseItemInput } from "@/app/(dashboard)/purchases/actions";
 import { ProductPicker, type PickableProduct } from "@/components/purchases/product-picker";
 import { ProductRowCell } from "@/components/purchases/product-row-cell";
 import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/attachments-dropzone";
 import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
+import type { PurchaseStatus } from "@/types/database";
 
 export interface SupplierOption {
   id: string;
@@ -52,6 +53,42 @@ export interface Recommendation {
   kind: "reorder" | "frequent" | "supplier" | "saving";
 }
 
+// Pre-fill shape for edit mode — one line per existing purchase_items row,
+// plus quantityReceived so the form can lock already-received quantities.
+export interface PurchaseEditInitialValues {
+  status: PurchaseStatus;
+  supplierId: string;
+  purchaseDate: string;
+  expectedDeliveryDate: string;
+  reference: string;
+  invoiceNumber: string;
+  shippingMethod: string;
+  projectId: string;
+  locationId: string;
+  deliveryAddress: string;
+  deliveryNotes: string;
+  discountAmount: number;
+  shippingCost: number;
+  paymentMethod: string;
+  paymentAccount: string;
+  payFromAccount: string;
+  purchaseNote: string;
+  internalNote: string;
+  items: {
+    itemId: string;
+    productId: string;
+    name: string;
+    sku: string;
+    barcode: string | null;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    discountPercent: number;
+    taxPercent: number;
+    quantityReceived: number;
+  }[];
+}
+
 interface AddPurchaseFormProps {
   suppliers: SupplierOption[];
   locations: LocationOption[];
@@ -60,10 +97,16 @@ interface AddPurchaseFormProps {
   bankAccounts: BankAccountOption[];
   currency: string;
   recommendations: Recommendation[];
+  /** Defaults to "create". Pass "edit" + purchaseId + initialValues to edit an existing purchase. */
+  mode?: "create" | "edit";
+  purchaseId?: string;
+  initialValues?: PurchaseEditInitialValues;
 }
 
 interface LineItem {
   key: string;
+  /** Existing purchase_items.id in edit mode, or null for a line that doesn't exist in the DB yet. */
+  itemId: string | null;
   productId: string;
   name: string;
   sku: string;
@@ -73,6 +116,8 @@ interface LineItem {
   unitPrice: number;
   discountPercent: number;
   taxPercent: number;
+  /** How many units of this line have already been received — 0 in create mode. */
+  quantityReceived: number;
 }
 
 const RECOMMENDATION_ICON_TONE: Record<Recommendation["kind"], string> = {
@@ -92,6 +137,7 @@ function lineTotal(line: LineItem) {
 
 export function AddPurchaseForm({
   suppliers, locations, projects, products, bankAccounts, currency, recommendations,
+  mode = "create", purchaseId, initialValues,
 }: AddPurchaseFormProps) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -99,11 +145,15 @@ export function AddPurchaseForm({
   const [isPending, startTransition] = React.useTransition();
   const [formError, setFormError] = React.useState<string | null>(null);
 
-  const [supplierId, setSupplierId] = React.useState(suppliers[0]?.id ?? "");
-  const [purchaseDate, setPurchaseDate] = React.useState(() => new Date().toISOString().slice(0, 10));
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = React.useState("");
-  const [reference, setReference] = React.useState("");
-  const [invoiceNumber, setInvoiceNumber] = React.useState("");
+  const isEdit = mode === "edit" && !!purchaseId && !!initialValues;
+
+  const [supplierId, setSupplierId] = React.useState(initialValues?.supplierId ?? suppliers[0]?.id ?? "");
+  const [purchaseDate, setPurchaseDate] = React.useState(
+    initialValues?.purchaseDate ?? (() => new Date().toISOString().slice(0, 10))()
+  );
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = React.useState(initialValues?.expectedDeliveryDate ?? "");
+  const [reference, setReference] = React.useState(initialValues?.reference ?? "");
+  const [invoiceNumber, setInvoiceNumber] = React.useState(initialValues?.invoiceNumber ?? "");
   const [purchaseStatus, setPurchaseStatus] = React.useState<"" | "received" | "pending" | "ordered">("");
 
   // "Pending" in the dropdown maps to the same "draft" action your
@@ -114,23 +164,40 @@ export function AddPurchaseForm({
     pending: "draft",
     ordered: "ordered",
   };
-  const [shippingMethod, setShippingMethod] = React.useState<string>(SHIPPING_METHODS[0]);
-  const [projectId, setProjectId] = React.useState("");
+  const [shippingMethod, setShippingMethod] = React.useState<string>(initialValues?.shippingMethod || SHIPPING_METHODS[0]);
+  const [projectId, setProjectId] = React.useState(initialValues?.projectId ?? "");
 
-  const [locationId, setLocationId] = React.useState(locations[0]?.id ?? "");
-  const [deliveryAddress, setDeliveryAddress] = React.useState(locations[0]?.address ?? "");
-  const [deliveryNotes, setDeliveryNotes] = React.useState("");
+  const [locationId, setLocationId] = React.useState(initialValues?.locationId ?? locations[0]?.id ?? "");
+  const [deliveryAddress, setDeliveryAddress] = React.useState(initialValues?.deliveryAddress ?? locations[0]?.address ?? "");
+  const [deliveryNotes, setDeliveryNotes] = React.useState(initialValues?.deliveryNotes ?? "");
 
-  const [items, setItems] = React.useState<LineItem[]>([]);
-  const [discountAmount, setDiscountAmount] = React.useState(0);
-  const [shippingCost, setShippingCost] = React.useState(0);
+  const [items, setItems] = React.useState<LineItem[]>(() =>
+    initialValues
+      ? initialValues.items.map((it) => ({
+          key: crypto.randomUUID(),
+          itemId: it.itemId,
+          productId: it.productId,
+          name: it.name,
+          sku: it.sku,
+          barcode: it.barcode,
+          unit: it.unit,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          discountPercent: it.discountPercent,
+          taxPercent: it.taxPercent,
+          quantityReceived: it.quantityReceived,
+        }))
+      : []
+  );
+  const [discountAmount, setDiscountAmount] = React.useState(initialValues?.discountAmount ?? 0);
+  const [shippingCost, setShippingCost] = React.useState(initialValues?.shippingCost ?? 0);
 
-  const [paymentMethod, setPaymentMethod] = React.useState("Bank Transfer");
-  const [paymentAccount, setPaymentAccount] = React.useState(bankAccounts[0]?.name ?? "");
-  const [payFromAccount, setPayFromAccount] = React.useState(bankAccounts[0]?.name ?? "");
+  const [paymentMethod, setPaymentMethod] = React.useState(initialValues?.paymentMethod || "Bank Transfer");
+  const [paymentAccount, setPaymentAccount] = React.useState(initialValues?.paymentAccount ?? bankAccounts[0]?.name ?? "");
+  const [payFromAccount, setPayFromAccount] = React.useState(initialValues?.payFromAccount ?? bankAccounts[0]?.name ?? "");
 
-  const [purchaseNote, setPurchaseNote] = React.useState("");
-  const [internalNote, setInternalNote] = React.useState("");
+  const [purchaseNote, setPurchaseNote] = React.useState(initialValues?.purchaseNote ?? "");
+  const [internalNote, setInternalNote] = React.useState(initialValues?.internalNote ?? "");
   const [attachments, setAttachments] = React.useState<StagedFile[]>([]);
 
   // Hide/show toggle for the Supplier & Purchase Details card.
@@ -169,6 +236,7 @@ export function AddPurchaseForm({
         ...prev,
         {
           key: crypto.randomUUID(),
+          itemId: null,
           productId: product.id,
           name: product.name,
           sku: product.sku,
@@ -178,6 +246,7 @@ export function AddPurchaseForm({
           unitPrice: product.costPrice,
           discountPercent: 0,
           taxPercent: 15,
+          quantityReceived: 0,
         },
       ];
     });
@@ -190,6 +259,7 @@ export function AddPurchaseForm({
       ...prev,
       {
         key: crypto.randomUUID(),
+        itemId: null,
         productId: "",
         name: "",
         sku: "",
@@ -199,6 +269,7 @@ export function AddPurchaseForm({
         unitPrice: 0,
         discountPercent: 0,
         taxPercent: 15,
+        quantityReceived: 0,
       },
     ]);
   }
@@ -224,10 +295,27 @@ export function AddPurchaseForm({
   }
 
   function updateLine(key: string, patch: Partial<LineItem>) {
-    setItems((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    setItems((prev) =>
+      prev.map((l) => {
+        if (l.key !== key) return l;
+        // Never let quantity drop below what's already been received on
+        // this line — that would desync the form from real stock history.
+        if (patch.quantity !== undefined && l.quantityReceived > 0) {
+          return { ...l, ...patch, quantity: Math.max(patch.quantity, l.quantityReceived) };
+        }
+        return { ...l, ...patch };
+      })
+    );
   }
 
   function removeLine(key: string) {
+    const line = items.find((l) => l.key === key);
+    if (line && line.quantityReceived > 0) {
+      setFormError(
+        `Can't remove ${line.name || "this line"} — ${line.quantityReceived} unit(s) already received. Process a purchase return instead.`
+      );
+      return;
+    }
     setItems((prev) => prev.filter((l) => l.key !== key));
   }
 
@@ -238,7 +326,7 @@ export function AddPurchaseForm({
   const totalDiscount = itemsDiscount + Math.max(0, discountAmount);
   const grandTotal = subtotal - totalDiscount + tax + Math.max(0, shippingCost);
 
-  function buildInput(action: "draft" | "ordered" | "received") {
+  function buildCreateInput(action: "draft" | "ordered" | "received") {
     const purchaseItems: PurchaseItemInput[] = items.map((l) => ({
       productId: l.productId,
       quantity: l.quantity,
@@ -271,6 +359,37 @@ export function AddPurchaseForm({
     };
   }
 
+  function buildUpdateInput() {
+    return {
+      supplierId,
+      purchaseDate,
+      expectedDeliveryDate: expectedDeliveryDate || null,
+      reference: reference || null,
+      invoiceNumber: invoiceNumber || null,
+      shippingMethod: shippingMethod || null,
+      projectId: projectId || null,
+      locationId,
+      deliveryAddress: deliveryAddress || null,
+      deliveryNotes: deliveryNotes || null,
+      items: items.map((l) => ({
+        id: l.itemId,
+        productId: l.productId,
+        quantity: l.quantity,
+        unit: l.unit,
+        unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent,
+        taxPercent: l.taxPercent,
+      })),
+      discountAmount,
+      shippingCost,
+      paymentMethod: paymentMethod || null,
+      paymentAccount: paymentAccount || null,
+      payFromAccount: payFromAccount || null,
+      purchaseNote: purchaseNote || null,
+      internalNote: internalNote || null,
+    };
+  }
+
   function submit(action: "draft" | "ordered" | "received") {
     setFormError(null);
     if (!supplierId) return setFormError("Select a supplier.");
@@ -278,7 +397,7 @@ export function AddPurchaseForm({
     if (items.length === 0) return setFormError("Add at least one product.");
 
     startTransition(async () => {
-      const result = await createPurchase(buildInput(action));
+      const result = await createPurchase(buildCreateInput(action));
       if (!result.ok) {
         setFormError(result.error ?? "Something went wrong. Try again.");
         return;
@@ -287,26 +406,57 @@ export function AddPurchaseForm({
     });
   }
 
+  function submitEdit() {
+    setFormError(null);
+    if (!supplierId) return setFormError("Select a supplier.");
+    if (!locationId) return setFormError("Select where this purchase will be received.");
+    if (items.length === 0) return setFormError("Add at least one product.");
+
+    startTransition(async () => {
+      const result = await updatePurchase(purchaseId!, buildUpdateInput());
+      if (!result.ok) {
+        setFormError(result.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      router.push(`/purchases/${purchaseId}`);
+    });
+  }
+
   return (
     <div className="space-y-5 pb-24">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Add Purchase</h1>
+          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">
+            {isEdit ? "Edit Purchase" : "Add Purchase"}
+          </h1>
           <p className="mt-1 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">
-            Purchases <ChevronRight className="h-3.5 w-3.5" /> Add Purchase
+            Purchases <ChevronRight className="h-3.5 w-3.5" /> {isEdit ? "Edit Purchase" : "Add Purchase"}
           </p>
         </div>
         <div className="rounded-md border border-ledger-100 bg-white px-4 py-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900">
-          <p className="text-xs text-ledger-400">Purchase No.</p>
-          <p className="font-mono font-medium text-ink-900 dark:text-white">Auto-generated on save</p>
+          {isEdit ? (
+            <>
+              <p className="text-xs text-ledger-400">Status</p>
+              <p className="font-mono font-medium text-ink-900 dark:text-white">
+                {PURCHASE_STATUS_LABEL[initialValues!.status]}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-ledger-400">Purchase No.</p>
+              <p className="font-mono font-medium text-ink-900 dark:text-white">Auto-generated on save</p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Info banner */}
       <div className="flex items-center gap-2 rounded-md border border-signal/30 bg-signal-soft px-4 py-2.5 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">
         <Info className="h-4 w-4 shrink-0 text-signal" />
-        All fields marked with <span className="font-semibold">*</span> are required.
+        {isEdit
+          ? "Quantities already received or paid against are locked — process a return to change those."
+          : <>All fields marked with <span className="font-semibold">*</span> are required.</>}
       </div>
 
       <div className="space-y-5">
@@ -393,14 +543,23 @@ export function AddPurchaseForm({
                       className="flex w-full resize-none rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                     />
                   </Field>
-                  <Field label="Purchase Status:" required hint="Pending saves as a draft, Ordered records the purchase, Received also receives the items and updates stock.">
-                    <Select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value as typeof purchaseStatus)}>
-                      <option value="">Please Select</option>
-                      <option value="received">Received</option>
-                      <option value="pending">Pending</option>
-                      <option value="ordered">Ordered</option>
-                    </Select>
-                  </Field>
+                  {isEdit ? (
+                    <Field
+                      label="Purchase Status:"
+                      hint="Status can't be changed here — use Receive Items or the row actions on the purchase list to move this forward."
+                    >
+                      <Input value={PURCHASE_STATUS_LABEL[initialValues!.status]} disabled className="opacity-70" />
+                    </Field>
+                  ) : (
+                    <Field label="Purchase Status:" required hint="Pending saves as a draft, Ordered records the purchase, Received also receives the items and updates stock.">
+                      <Select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value as typeof purchaseStatus)}>
+                        <option value="">Please Select</option>
+                        <option value="received">Received</option>
+                        <option value="pending">Pending</option>
+                        <option value="ordered">Ordered</option>
+                      </Select>
+                    </Field>
+                  )}
                 </div>
 
                 <details className="mt-4 rounded-md border border-ledger-100 px-3 py-2 dark:border-ledger-700">
@@ -508,81 +667,96 @@ export function AddPurchaseForm({
                         </td>
                       </tr>
                     )}
-                    {computedLines.map(({ line, total }, i) => (
-                      <tr key={line.key}>
-                        <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
-                        <td className="px-3 py-2">
-                          <ProductRowCell
-                            products={products}
-                            currentName={line.name}
-                            onSelect={(p) => selectProductForLine(line.key, p)}
-                          />
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.sku || "—"}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.barcode ?? "—"}</td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={line.unitPrice}
-                            onChange={(e) => updateLine(line.key, { unitPrice: Number(e.target.value) })}
-                            className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={1}
-                            value={line.quantity}
-                            onChange={(e) => updateLine(line.key, { quantity: Math.max(1, Number(e.target.value)) })}
-                            className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={line.unit}
-                            onChange={(e) => updateLine(line.key, { unit: e.target.value })}
-                            className="h-8 w-full rounded border border-ledger-200 bg-white px-1.5 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                          >
-                            {UNIT_OPTIONS.map((u) => (
-                              <option key={u} value={u}>{u}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={line.discountPercent}
-                            onChange={(e) => updateLine(line.key, { discountPercent: Number(e.target.value) })}
-                            className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={line.taxPercent}
-                            onChange={(e) => updateLine(line.key, { taxPercent: Number(e.target.value) })}
-                            className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-medium text-ink-900 dark:text-white">
-                          {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <button
-                            onClick={() => removeLine(line.key)}
-                            className="rounded p-1.5 text-alert/70 hover:bg-alert-soft hover:text-alert"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {computedLines.map(({ line, total }, i) => {
+                      const locked = line.quantityReceived > 0;
+                      return (
+                        <tr key={line.key}>
+                          <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
+                          <td className="px-3 py-2">
+                            <ProductRowCell
+                              products={products}
+                              currentName={line.name}
+                              onSelect={(p) => selectProductForLine(line.key, p)}
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.sku || "—"}</td>
+                          <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.barcode ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={line.unitPrice}
+                              onChange={(e) => updateLine(line.key, { unitPrice: Number(e.target.value) })}
+                              className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={locked ? line.quantityReceived : 1}
+                                value={line.quantity}
+                                onChange={(e) => updateLine(line.key, { quantity: Math.max(1, Number(e.target.value)) })}
+                                className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                              />
+                              {locked && (
+                                <span
+                                  title={`${line.quantityReceived} already received — can't go below this`}
+                                  className="shrink-0"
+                                >
+                                  <Lock className="h-3.5 w-3.5 text-ledger-400" />
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={line.unit}
+                              onChange={(e) => updateLine(line.key, { unit: e.target.value })}
+                              className="h-8 w-full rounded border border-ledger-200 bg-white px-1.5 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            >
+                              {UNIT_OPTIONS.map((u) => (
+                                <option key={u} value={u}>{u}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={line.discountPercent}
+                              onChange={(e) => updateLine(line.key, { discountPercent: Number(e.target.value) })}
+                              className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={line.taxPercent}
+                              onChange={(e) => updateLine(line.key, { taxPercent: Number(e.target.value) })}
+                              className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-medium text-ink-900 dark:text-white">
+                            {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              onClick={() => removeLine(line.key)}
+                              disabled={locked}
+                              title={locked ? `${line.quantityReceived} already received — can't remove` : undefined}
+                              className="rounded p-1.5 text-alert/70 hover:bg-alert-soft hover:text-alert disabled:cursor-not-allowed disabled:text-ledger-300 disabled:hover:bg-transparent"
+                            >
+                              {locked ? <Lock className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -701,9 +875,11 @@ export function AddPurchaseForm({
                     ))}
                   </Select>
                 </Field>
-                <p className="rounded-md bg-ledger-50 px-3 py-2 text-xs text-ledger-500 dark:bg-white/[0.04]">
-                  Payment will be recorded when you choose <strong>Save &amp; Receive Items</strong>, or later from the purchase detail page.
-                </p>
+                {!isEdit && (
+                  <p className="rounded-md bg-ledger-50 px-3 py-2 text-xs text-ledger-500 dark:bg-white/[0.04]">
+                    Payment will be recorded when you choose <strong>Save &amp; Receive Items</strong>, or later from the purchase detail page.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -743,39 +919,46 @@ export function AddPurchaseForm({
           <Button variant="outline" size="md" onClick={() => router.back()} disabled={isPending}>
             Cancel
           </Button>
-          <div className="flex items-center gap-2">
-            {purchaseStatus && (
+          {isEdit ? (
+            <Button variant="primary" size="md" onClick={submitEdit} disabled={isPending}>
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              {purchaseStatus && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => submit(STATUS_TO_ACTION[purchaseStatus])}
+                  disabled={isPending}
+                  className="bg-signal hover:bg-signal/90 dark:bg-signal dark:hover:bg-signal/90"
+                >
+                  {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save as {purchaseStatus === "pending" ? "Draft" : purchaseStatus === "ordered" ? "Ordered" : "Received"}
+                </Button>
+              )}
+              <Button variant="secondary" size="md" onClick={() => submit("draft")} disabled={isPending}>
+                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save as Draft
+              </Button>
+              <Button variant="primary" size="md" onClick={() => submit("ordered")} disabled={isPending}>
+                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save Purchase
+              </Button>
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => submit(STATUS_TO_ACTION[purchaseStatus])}
+                onClick={() => submit("received")}
                 disabled={isPending}
                 className="bg-signal hover:bg-signal/90 dark:bg-signal dark:hover:bg-signal/90"
               >
                 {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Save as {purchaseStatus === "pending" ? "Draft" : purchaseStatus === "ordered" ? "Ordered" : "Received"}
+                <Plus className="h-4 w-4" />
+                Save &amp; Receive Items
               </Button>
-            )}
-            <Button variant="secondary" size="md" onClick={() => submit("draft")} disabled={isPending}>
-              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save as Draft
-            </Button>
-            <Button variant="primary" size="md" onClick={() => submit("ordered")} disabled={isPending}>
-              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save Purchase
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => submit("received")}
-              disabled={isPending}
-              className="bg-signal hover:bg-signal/90 dark:bg-signal dark:hover:bg-signal/90"
-            >
-              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              <Plus className="h-4 w-4" />
-              Save &amp; Receive Items
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

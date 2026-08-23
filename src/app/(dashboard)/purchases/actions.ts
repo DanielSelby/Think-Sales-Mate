@@ -456,3 +456,202 @@ export async function recordPurchasePayment(
   revalidatePath("/purchases");
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// Update (edit) — header fields and un-received line items only. Deliberately
+// does NOT touch quantity_received, received_at, paid_amount, or status:
+// those are only ever changed through Receive Items / Record Payment /
+// row-menu actions, so editing here can never silently corrupt stock or
+// payment numbers already posted against this purchase.
+// ---------------------------------------------------------------------------
+
+export interface UpdatePurchaseItemInput {
+  /** Existing purchase_items.id, or null for a line added during this edit. */
+  id: string | null;
+  productId: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  discountPercent: number;
+  taxPercent: number;
+}
+
+export interface UpdatePurchaseInput {
+  supplierId: string;
+  purchaseDate: string;
+  expectedDeliveryDate: string | null;
+  reference: string | null;
+  invoiceNumber: string | null;
+  shippingMethod: string | null;
+  projectId: string | null;
+  locationId: string;
+  deliveryAddress: string | null;
+  deliveryNotes: string | null;
+  items: UpdatePurchaseItemInput[];
+  discountAmount: number;
+  shippingCost: number;
+  paymentMethod: string | null;
+  paymentAccount: string | null;
+  payFromAccount: string | null;
+  purchaseNote: string | null;
+  internalNote: string | null;
+}
+
+export interface UpdatePurchaseResult {
+  ok: boolean;
+  error?: string;
+  purchaseId?: string;
+}
+
+export async function updatePurchase(purchaseId: string, input: UpdatePurchaseInput): Promise<UpdatePurchaseResult> {
+  if (input.items.length === 0) {
+    return { ok: false, error: "Add at least one product before saving." };
+  }
+  for (const item of input.items) {
+    if (!item.productId || item.quantity <= 0 || item.unitPrice < 0) {
+      return { ok: false, error: "Every line needs a product, a quantity above zero, and a valid price." };
+    }
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in to edit a purchase." };
+
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+
+  const { data: purchase, error: fetchError } = await supabase
+    .from("purchases")
+    .select("id, org_id")
+    .eq("id", purchaseId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (fetchError || !purchase) return { ok: false, error: "Purchase not found." };
+
+  const { data: existingItems, error: existingItemsError } = await supabase
+    .from("purchase_items")
+    .select("id, product_id, quantity, quantity_received")
+    .eq("purchase_id", purchaseId);
+  if (existingItemsError || !existingItems) return { ok: false, error: "Couldn't load this purchase's line items." };
+
+  const existingById = new Map(existingItems.map((i) => [i.id, i]));
+  const submittedIds = new Set(input.items.map((i) => i.id).filter(Boolean) as string[]);
+
+  // Block reducing an existing line below what's already been received,
+  // and block removing a line that has any units received — both would
+  // desync stock from what was actually posted.
+  for (const item of input.items) {
+    if (!item.id) continue;
+    const existing = existingById.get(item.id);
+    if (!existing) return { ok: false, error: "One of these line items no longer exists on this purchase." };
+    if (item.quantity < existing.quantity_received) {
+      return {
+        ok: false,
+        error: `Can't reduce quantity below the ${existing.quantity_received} unit(s) already received on that line.`,
+      };
+    }
+  }
+  const removedItems = existingItems.filter((e) => !submittedIds.has(e.id));
+  const blockedRemoval = removedItems.find((e) => e.quantity_received > 0);
+  if (blockedRemoval) {
+    return {
+      ok: false,
+      error: "Can't remove a line that already has units received — process a purchase return instead.",
+    };
+  }
+
+  const { lines: computedLines, subtotal, discount, tax, total } = computeTotals(
+    input.items.map(({ productId, quantity, unit, unitPrice, discountPercent, taxPercent }) => ({
+      productId, quantity, unit, unitPrice, discountPercent, taxPercent,
+    })),
+    input.discountAmount,
+    input.shippingCost
+  );
+  // computeTotals only knows about the pricing fields, so line `id`s are
+  // zipped back in by index (input.items and computedLines stay in the
+  // same order — computeTotals maps over the array without reordering).
+  const lines = computedLines.map((line, i) => ({ ...line, id: input.items[i].id }));
+
+  const { error: updateError } = await supabase
+    .from("purchases")
+    .update({
+      supplier_id: input.supplierId,
+      purchase_date: input.purchaseDate,
+      expected_delivery_date: input.expectedDeliveryDate,
+      reference: input.reference,
+      invoice_number: input.invoiceNumber,
+      shipping_method: input.shippingMethod,
+      project_id: input.projectId,
+      location_id: input.locationId,
+      delivery_address: input.deliveryAddress,
+      delivery_notes: input.deliveryNotes,
+      subtotal,
+      discount_amount: discount,
+      tax_amount: tax,
+      shipping_cost: Math.max(0, input.shippingCost),
+      total,
+      payment_method: input.paymentMethod,
+      payment_account: input.paymentAccount,
+      pay_from_account: input.payFromAccount,
+      purchase_note: input.purchaseNote,
+      internal_note: input.internalNote,
+    })
+    .eq("id", purchaseId);
+  if (updateError) return { ok: false, error: updateError.message };
+
+  if (removedItems.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("purchase_items")
+      .delete()
+      .in("id", removedItems.map((i) => i.id));
+    if (deleteError) return { ok: false, error: deleteError.message };
+  }
+
+  for (const line of lines) {
+    if (line.id) {
+      const { error: itemUpdateError } = await supabase
+        .from("purchase_items")
+        .update({
+          product_id: line.productId,
+          quantity: line.quantity,
+          unit: line.unit,
+          unit_price: line.unitPrice,
+          discount_percent: line.discountPercent,
+          tax_percent: line.taxPercent,
+          line_total: line.lineTotal,
+        })
+        .eq("id", line.id);
+      if (itemUpdateError) return { ok: false, error: itemUpdateError.message };
+    } else {
+      const { error: itemInsertError } = await supabase.from("purchase_items").insert({
+        purchase_id: purchaseId,
+        org_id: context.orgId,
+        product_id: line.productId,
+        quantity: line.quantity,
+        quantity_received: 0,
+        unit: line.unit,
+        unit_price: line.unitPrice,
+        discount_percent: line.discountPercent,
+        tax_percent: line.taxPercent,
+        line_total: line.lineTotal,
+      });
+      if (itemInsertError) return { ok: false, error: itemInsertError.message };
+    }
+  }
+
+  await supabase.from("audit_logs").insert({
+    org_id: context.orgId,
+    actor_id: user.id,
+    action: "purchase.updated",
+    entity_type: "purchases",
+    entity_id: purchaseId,
+    metadata: { total },
+  });
+
+  revalidatePath("/purchases");
+  revalidatePath(`/purchases/${purchaseId}`);
+
+  return { ok: true, purchaseId };
+}
