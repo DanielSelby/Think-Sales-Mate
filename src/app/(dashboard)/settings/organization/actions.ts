@@ -210,6 +210,10 @@ export async function updateCurrency(currency: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/settings/organization");
+  // currency lives on organizations and is read by getCurrentOrgContext()
+  // on effectively every route — revalidate the whole app's router cache,
+  // not just this settings page, so already-visited pages don't keep
+  // showing the old currency until a hard refresh.
+  revalidatePath("/", "layout");
   return { success: true };
 }
