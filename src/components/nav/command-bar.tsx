@@ -8,26 +8,50 @@ import {
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
   Wallet, Landmark, Receipt, Package, FolderKanban,
   BarChart3, Settings, Sparkles, Plus, ArrowLeftRight,
-  FileText, Tag, TrendingUp, TrendingDown, Clock,
+  FileText, Tag, TrendingUp, TrendingDown, Clock, MapPin,
 } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 
 // ── Pages ─────────────────────────────────────────────────────
-const PAGES = [
-  { id: "dashboard",  label: "Dashboard",      path: "/dashboard",           icon: LayoutDashboard, group: "Pages" },
-  { id: "sales",      label: "Sales",          path: "/sales",               icon: Receipt,         group: "Pages" },
-  { id: "inventory",  label: "Inventory",      path: "/inventory",           icon: Boxes,           group: "Pages" },
-  { id: "crm",        label: "CRM",            path: "/crm",                 icon: Contact,         group: "Pages" },
-  { id: "hrm",        label: "HRM & Payroll",  path: "/hrm",                 icon: Users,           group: "Pages" },
-  { id: "accounting", label: "Accounting",     path: "/accounting",          icon: Wallet,          group: "Pages" },
-  { id: "banking",    label: "Banking",        path: "/banking",             icon: Landmark,        group: "Pages" },
-  { id: "assets",     label: "Assets",         path: "/assets",              icon: Package,         group: "Pages" },
-  { id: "projects",   label: "Projects",       path: "/projects",            icon: FolderKanban,    group: "Pages" },
-  { id: "reports",    label: "Reports",        path: "/reports",             icon: BarChart3,       group: "Pages" },
-  { id: "ai",         label: "AI Assistant",   path: "/ai",                  icon: Sparkles,        group: "Pages" },
-  { id: "settings",   label: "Settings",       path: "/settings",            icon: Settings,        group: "Pages" },
-];
+// ── Auto-detected from sidebar NAV_ITEMS ─────────────────────
+// Add new pages to sidebar.tsx NAV_ITEMS and they appear here automatically
+import { NAV_ITEMS } from "./sidebar";
+
+function flattenNavItems(items: typeof NAV_ITEMS): { id: string; label: string; path: string; icon: any; group: string }[] {
+  const result: { id: string; label: string; path: string; icon: any; group: string }[] = [];
+  for (const item of items) {
+    result.push({
+      id:    item.href.replace(/\//g, "-").slice(1) || "home",
+      label: item.label,
+      path:  item.href,
+      icon:  item.icon,
+      group: "Pages",
+    });
+    if (item.children) {
+      for (const child of item.children) {
+        result.push({
+          id:    child.href.replace(/\//g, "-").slice(1) || "child",
+          label: child.label,
+          path:  child.href,
+          icon:  child.icon ?? item.icon,
+          group: "Pages",
+        });
+      }
+    }
+  }
+  // Add settings children
+  result.push(
+    { id: "settings-org",          label: "Organization Settings", path: "/settings/organization", icon: Settings, group: "Pages" },
+    { id: "settings-team",         label: "Team Members",          path: "/settings/team",          icon: Users,    group: "Pages" },
+    { id: "settings-billing",      label: "Billing",               path: "/settings/billing",       icon: Wallet,   group: "Pages" },
+    { id: "settings-integrations", label: "Integrations",          path: "/settings/integrations",  icon: Settings, group: "Pages" },
+    { id: "settings-locations",    label: "Locations",             path: "/settings/locations",     icon: MapPin,   group: "Pages" },
+  );
+  return result;
+}
+
+const PAGES = flattenNavItems(NAV_ITEMS);
 
 // ── Quick Actions ─────────────────────────────────────────────
 const buildActions = (router: ReturnType<typeof useRouter>, close: () => void) => [

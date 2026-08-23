@@ -14,13 +14,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 
-interface NavChild {
+export interface NavChild {
   label: string;
   href:  string;
   icon?: React.ComponentType<{ className?: string }>;
 }
 
-interface NavItem {
+export interface NavItem {
   label:     string;
   href:      string;
   icon:      React.ComponentType<{ className?: string }>;
@@ -28,7 +28,7 @@ interface NavItem {
   children?: NavChild[];
 }
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   {
     label: "Dashboard",
     href:  "/dashboard",
