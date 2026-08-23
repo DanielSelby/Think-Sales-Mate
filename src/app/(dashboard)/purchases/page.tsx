@@ -27,12 +27,18 @@ export default async function PurchasesPage() {
     supabase
       .from("purchases")
       .select(`
-        id, purchase_number, purchase_date, total, paid_amount, status, created_by, expected_delivery_date,
+        id, purchase_number, purchase_date, invoice_number, total, paid_amount, status, created_by,
+        created_at, expected_delivery_date,
         supplier:suppliers ( name ),
         location:business_locations ( name )
       `)
       .eq("org_id", orgId)
-      .order("purchase_date", { ascending: false }),
+      // purchase_date is a DATE column, so several purchases can share the
+      // same date — order by created_at as a tiebreaker so a brand-new
+      // purchase always sorts to the top instead of landing wherever
+      // Postgres happens to put ties.
+      .order("purchase_date", { ascending: false })
+      .order("created_at", { ascending: false }),
     supabase.from("suppliers").select("id, name").eq("org_id", orgId).eq("is_active", true),
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
   ]);
@@ -71,6 +77,8 @@ export default async function PurchasesPage() {
       id: p.id,
       purchaseNumber: p.purchase_number,
       date: p.purchase_date,
+      createdAt: p.created_at,
+      invoiceNumber: p.invoice_number,
       supplierName: (p.supplier as { name: string } | null)?.name ?? "Unknown supplier",
       locationName: (p.location as { name: string } | null)?.name ?? "—",
       itemCount: items.length,

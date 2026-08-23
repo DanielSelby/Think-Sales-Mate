@@ -25,6 +25,8 @@ export interface PurchaseRow {
   id: string;
   purchaseNumber: number;
   date: string;
+  createdAt: string;
+  invoiceNumber: string | null;
   supplierName: string;
   locationName: string;
   itemCount: number;
@@ -137,9 +139,11 @@ export function PurchaseListView({
       if (location !== "all" && p.locationName !== location) return false;
       if (paymentStatus !== "all" && p.paymentStatus !== paymentStatus) return false;
       if (q) {
-        const invoice = formatPurchaseNumber(p.purchaseNumber).toLowerCase();
+        const poNumber = formatPurchaseNumber(p.purchaseNumber).toLowerCase();
+        const invoiceNumber = (p.invoiceNumber ?? "").toLowerCase();
         const matches =
-          invoice.includes(q) ||
+          poNumber.includes(q) ||
+          invoiceNumber.includes(q) ||
           p.supplierName.toLowerCase().includes(q) ||
           (p.primaryProductName ?? "").toLowerCase().includes(q);
         if (!matches) return false;
@@ -331,6 +335,7 @@ export function PurchaseListView({
                     <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" />
                   </th>
                   <th className="px-3 py-3 font-semibold">PO Number</th>
+                  <th className="px-3 py-3 font-semibold">Invoice No.</th>
                   <th className="px-3 py-3 font-semibold">Date</th>
                   <th className="px-3 py-3 font-semibold">Supplier</th>
                   <th className="px-3 py-3 font-semibold">Location</th>
@@ -345,13 +350,19 @@ export function PurchaseListView({
               <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-4 py-12 text-center text-ledger-400">
+                    <td colSpan={12} className="px-4 py-12 text-center text-ledger-400">
                       No purchases match your filters.
                     </td>
                   </tr>
                 )}
                 {pageRows.map((p) => {
-                  const { date, time } = formatDateTime(p.date);
+                  // purchase_date is a DATE column with no time component —
+                  // deriving a "time" from it always yields midnight, so the
+                  // date and time below are pulled from two different
+                  // fields on purpose: `date` (the purchase date the user
+                  // chose) and `createdAt` (the real save timestamp).
+                  const { date } = formatDateTime(p.date);
+                  const { time } = formatDateTime(p.createdAt);
                   const overdue = p.expectedDeliveryDate
                     && new Date(p.expectedDeliveryDate) < new Date()
                     && p.status !== "received" && p.status !== "cancelled";
@@ -366,6 +377,7 @@ export function PurchaseListView({
                         </Link>
                         {overdue && <Badge tone="alert" className="ml-2">Overdue</Badge>}
                       </td>
+                      <td className="px-3 py-3 font-mono text-xs text-ledger-500">{p.invoiceNumber ?? "—"}</td>
                       <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
                         {date}<div className="text-xs text-ledger-400">{time}</div>
                       </td>

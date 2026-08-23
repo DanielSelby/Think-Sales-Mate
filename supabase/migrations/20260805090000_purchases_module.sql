@@ -149,4 +149,13 @@ create policy "purchase_items_all" on public.purchase_items
       where m.org_id = purchase_items.org_id and m.user_id = auth.uid() and m.status = 'active')
   );
 
+-- Adds the invoice_number column that the Add Purchase form has always
+-- collected but the original purchases migration never created a place
+-- to store — it was being silently discarded on every save.
+
+begin;
+
+alter table public.purchases
+  add column if not exists invoice_number text;
+
 commit;

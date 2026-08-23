@@ -19,6 +19,7 @@ export interface CreatePurchaseInput {
   purchaseDate: string;
   expectedDeliveryDate: string | null;
   reference: string | null;
+  invoiceNumber: string | null;
   shippingMethod: string | null;
   projectId: string | null;
   locationId: string;
@@ -104,6 +105,7 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
       purchase_date: input.purchaseDate,
       expected_delivery_date: input.expectedDeliveryDate,
       reference: input.reference,
+      
       shipping_method: input.shippingMethod,
       project_id: input.projectId,
       location_id: input.locationId,
@@ -347,6 +349,7 @@ export async function duplicatePurchase(purchaseId: string): Promise<DuplicatePu
       purchase_date: new Date().toISOString().slice(0, 10),
       expected_delivery_date: null,
       reference: original.reference,
+      
       shipping_method: original.shipping_method,
       project_id: original.project_id,
       location_id: original.location_id,
