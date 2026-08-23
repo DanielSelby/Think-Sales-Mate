@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
+import { updateCurrency as updateOrganizationCurrency } from "@/app/(dashboard)/settings/organization/actions";
 
 async function requireAdmin() {
   const context = await getCurrentOrgContext();
@@ -113,6 +114,10 @@ export async function setDefaultCurrency(id: string) {
   if ("error" in check) return check;
 
   const supabase = await createClient();
+
+  const { data: target } = await supabase.from("currencies").select("code").eq("id", id).single();
+  if (!target) return { error: "Currency not found." };
+
   await supabase.from("currencies").update({ is_default: false }).eq("org_id", check.context.orgId);
   const { error } = await supabase
     .from("currencies")
@@ -121,6 +126,14 @@ export async function setDefaultCurrency(id: string) {
     .eq("org_id", check.context.orgId);
 
   if (error) return { error: error.message };
+
+  // The `currencies` table's "default" flag was previously disconnected
+  // from organizations.currency — the single value every page actually
+  // reads via getCurrentOrgContext(). Keep them in sync so this control
+  // actually changes what's displayed app-wide.
+  const orgResult = await updateOrganizationCurrency(target.code);
+  if (orgResult && "error" in orgResult) return orgResult;
+
   revalidatePath("/settings/currencies");
   return { success: true };
 }
