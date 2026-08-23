@@ -69,17 +69,35 @@ export async function createCurrency(input: { code: string; name: string; symbol
   if (Number.isNaN(input.exchangeRate) || input.exchangeRate <= 0) return { error: "Enter a valid exchange rate." };
 
   const supabase = await createClient();
+
+  // An org's very first currency has nothing to be "relative to" and
+  // nothing else the app could be displaying — it must become both base
+  // and default immediately, or the org is left with neither set at all.
+  const { count: existingCount } = await supabase
+    .from("currencies")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", check.context.orgId);
+  const isFirstCurrency = (existingCount ?? 0) === 0;
+
   const { error } = await supabase.from("currencies").insert({
     org_id: check.context.orgId,
     code,
     name: input.name.trim(),
     symbol: input.symbol.trim() || code,
-    exchange_rate_to_base: input.exchangeRate
+    exchange_rate_to_base: isFirstCurrency ? 1 : input.exchangeRate,
+    is_base: isFirstCurrency,
+    is_default: isFirstCurrency
   });
 
   if (error) {
     return { error: error.code === "23505" ? `${code} is already added.` : error.message };
   }
+
+  if (isFirstCurrency) {
+    const orgResult = await updateOrganizationCurrency(code);
+    if (orgResult && "error" in orgResult) return orgResult;
+  }
+
   revalidatePath("/settings/currencies");
   return { success: true };
 }
