@@ -9,7 +9,7 @@ import {
   BarChart3, Settings, Sparkles, Lock,
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
-  PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock,
+  PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -77,9 +77,10 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     children: [
       { label: "Products",          href: "/inventory",                icon: List         },
-      { label: "Product History",   href: "/inventory/history",        icon: FileText     },
+      { label: "Stock Transfer",    href: "/inventory/transfers",       icon: Truck        },
       { label: "Stock Adjustment",  href: "/inventory/adjustments",     icon: ClipboardEdit },
-      { label: "Stock Transfers",   href: "/inventory/transfers",       icon: Truck        },
+      { label: "Stock Taking",      href: "/inventory/stock-taking",    icon: Layers       },
+      { label: "Adjustment History", href: "/inventory/history",       icon: FileText     },
       { label: "Warehouses",        href: "/settings/locations",       icon: LayoutGrid   },
     ],
   },

@@ -5,79 +5,95 @@ import {
   StockAdjustmentForm,
   type AdjustLocation,
   type AdjustableProduct,
-  type RecentAdjustment,
-  type ReasonStat
+  type ResponsiblePerson,
 } from "@/components/inventory/stock-adjustment-form";
 
+export const metadata = {
+  title: "Stock Taking & Adjustment · ThinkSales Pro",
+};
+
 export default async function StockAdjustmentPage() {
-  const activeOrgId = await (await cookies()).get("active_org_id")?.value;
+  const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
   const supabase = await createClient();
 
-  const [{ data: locationRows }, { data: productRows }, { data: recentRows }, { data: reasonRows }] = await Promise.all([
+  const [
+    { data: locationRows },
+    { data: productRows },
+    { data: memberRows },
+    { data: profileRows },
+  ] = await Promise.all([
     supabase
       .from("business_locations")
-      .select("id, name")
+      .select("id, name, is_primary")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("is_primary", { ascending: false })
       .order("name"),
     supabase
       .from("products")
-      .select("id, sku, name, category, stock_quantity, cost_price")
+      .select("id, sku, barcode, name, category, brand, stock_quantity, cost_price, unit_price, image_urls")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
     supabase
-      .from("stock_adjustments")
-      .select("id, reference_no, adjustment_number, adjustment_date, stock_adjustment_items(system_stock, counted_stock, unit_cost)")
+      .from("organization_members")
+      .select("user_id, role")
       .eq("org_id", context.orgId)
-      .order("created_at", { ascending: false })
-      .limit(3),
-    supabase.from("stock_adjustments").select("reason").eq("org_id", context.orgId)
+      .eq("status", "active"),
+    supabase.from("profiles").select("id, full_name, avatar_url"),
   ]);
 
-  const locations: AdjustLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
+  const locations: AdjustLocation[] = (locationRows ?? []).map((l) => ({
+    id: l.id,
+    name: l.name,
+    isPrimary: l.is_primary,
+  }));
 
   const products: AdjustableProduct[] = (productRows ?? []).map((p) => ({
     id: p.id,
     sku: p.sku,
+    barcode: p.barcode,
     name: p.name,
     category: p.category,
-    stockQuantity: p.stock_quantity,
-    costPrice: p.cost_price
+    brand: p.brand,
+    stockQuantity: p.stock_quantity ?? 0,
+    costPrice: p.cost_price ?? 0,
+    unitPrice: p.unit_price ?? 0,
+    imageUrl: p.image_urls?.[0] || null,
   }));
 
-  const recentAdjustments: RecentAdjustment[] = (recentRows ?? []).map((a) => {
-    const items = (a.stock_adjustment_items ?? []) as { system_stock: number; counted_stock: number; unit_cost: number }[];
-    const impact = items.reduce((sum, i) => sum + (i.counted_stock - i.system_stock) * i.unit_cost, 0);
+  // Build team members
+  const profileMap = new Map((profileRows ?? []).map((pr) => [pr.id, pr]));
+  const teamMembers: ResponsiblePerson[] = (memberRows ?? []).map((m) => {
+    const prof = m.user_id ? profileMap.get(m.user_id) : null;
     return {
-      id: a.id,
-      label: a.reference_no || `ADJ-${String(a.adjustment_number).padStart(4, "0")}`,
-      date: a.adjustment_date,
-      impact
+      id: m.user_id || `user-${Math.random()}`,
+      name: prof?.full_name || "Team Member",
+      avatarUrl: prof?.avatar_url || null,
+      role: m.role,
     };
   });
 
-  const reasonCounts = new Map<string, number>();
-  for (const row of reasonRows ?? []) {
-    const key = row.reason || "Other";
-    reasonCounts.set(key, (reasonCounts.get(key) ?? 0) + 1);
+  // Current user fallback
+  if (teamMembers.length === 0) {
+    teamMembers.push({
+      id: context.userId,
+      name: "Daniel Addy",
+      avatarUrl: null,
+      role: context.role,
+    });
   }
-  const totalReasons = [...reasonCounts.values()].reduce((s, v) => s + v, 0);
-  const reasonStats: ReasonStat[] = [...reasonCounts.entries()]
-    .map(([reason, count]) => ({ reason, pct: totalReasons > 0 ? Math.round((count / totalReasons) * 100) : 0 }))
-    .sort((a, b) => b.pct - a.pct)
-    .slice(0, 4);
 
   return (
     <StockAdjustmentForm
       locations={locations}
       products={products}
-      recentAdjustments={recentAdjustments}
-      reasonStats={reasonStats}
+      teamMembers={teamMembers}
+      currency={context.currency || "GHS"}
+      currentUserName={context.orgName || "Daniel Addy"}
     />
   );
 }
