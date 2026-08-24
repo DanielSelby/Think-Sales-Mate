@@ -76,11 +76,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon:  Boxes,
     status: "live",
     children: [
-      { label: "All Products",      href: "/inventory",                icon: List         },
-      { label: "Add Product",       href: "/inventory/new",             icon: PlusCircle   },
-      { label: "Stock Transfers List",   href: "/inventory/transfers",       icon: Truck        },
-      { label: "Add Transfer",      href: "/inventory/transfers/new",   icon: PlusCircle   },
+      { label: "Products",          href: "/inventory",                icon: List         },
+      { label: "Product History",   href: "/inventory/history",        icon: FileText     },
       { label: "Stock Adjustment",  href: "/inventory/adjustments",     icon: ClipboardEdit },
+      { label: "Stock Transfers",   href: "/inventory/transfers",       icon: Truck        },
+      { label: "Warehouses",        href: "/settings/locations",       icon: LayoutGrid   },
     ],
   },
 

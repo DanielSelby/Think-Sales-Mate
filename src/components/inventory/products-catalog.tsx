@@ -707,8 +707,8 @@ export function ProductsCatalog({
                       <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} />
                     </td>
                     <td className="px-2 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white text-ledger-400 dark:border-ledger-700 dark:bg-ink-900">
+                      <Link href={`/inventory/${p.id}`} className="group flex items-center gap-2">
+                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white text-ledger-400 transition-transform group-hover:scale-105 dark:border-ledger-700 dark:bg-ink-900">
                           {p.imageUrl ? (
                             <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
                           ) : (
@@ -716,10 +716,10 @@ export function ProductsCatalog({
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-ink-900 dark:text-white">{p.name}</p>
+                          <p className="truncate font-medium text-ink-900 group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">{p.name}</p>
                           {p.description && <p className="truncate text-xs text-ledger-400">{p.description}</p>}
                         </div>
-                      </div>
+                      </Link>
                     </td>
                     <td className="px-2 py-3 font-mono text-xs text-ledger-500 dark:text-ledger-400">{p.sku}</td>
                     <td className="px-2 py-3 font-mono text-xs text-ledger-400">{p.barcode ?? "—"}</td>
@@ -780,12 +780,17 @@ export function ProductsCatalog({
                             <MoreVertical className="h-3.5 w-3.5" />
                           </button>
                           {openMenuId === p.id && (
-                            <div className="absolute right-0 top-6 z-10 w-40 rounded-md border border-ledger-100 bg-white py-1 text-left shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+                              <Link
+                                href={`/inventory/${p.id}`}
+                                className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-white/[0.06]"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> View Details & Ledger
+                              </Link>
                               <Link
                                 href={`/inventory/${p.id}/edit`}
                                 className="flex items-center gap-2 px-3 py-1.5 text-xs text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
                               >
-                                <Eye className="h-3.5 w-3.5" /> View / edit
+                                <Pencil className="h-3.5 w-3.5" /> Edit details
                               </Link>
                               <button
                                 onClick={() => handleDuplicate(p)}
@@ -822,23 +827,25 @@ export function ProductsCatalog({
           {pageItems.map((p) => {
             const status = getStatus(p);
             return (
-              <div key={p.id} className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+              <div key={p.id} className="group rounded-card border border-ledger-100 bg-white p-4 shadow-card transition-all hover:shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                 <div className="flex items-start justify-between">
-                  <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white text-ledger-400 dark:border-ledger-700 dark:bg-ink-900">
+                  <Link href={`/inventory/${p.id}`} className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white text-ledger-400 transition-transform group-hover:scale-105 dark:border-ledger-700 dark:bg-ink-900">
                     {p.imageUrl ? (
                       <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
                     ) : (
                       <Package className="h-5 w-5" />
                     )}
-                  </div>
+                  </Link>
                   {canManage && (
                     <Link href={`/inventory/${p.id}/edit`} className="text-ledger-400 hover:text-ink-900 dark:hover:text-white">
                       <Pencil className="h-3.5 w-3.5" />
                     </Link>
                   )}
                 </div>
-                <p className="mt-2 truncate font-medium text-ink-900 dark:text-white">{p.name}</p>
-                <p className="font-mono text-xs text-ledger-400">{p.sku}</p>
+                <Link href={`/inventory/${p.id}`} className="block">
+                  <p className="mt-2 truncate font-medium text-ink-900 group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">{p.name}</p>
+                  <p className="font-mono text-xs text-ledger-400">{p.sku}</p>
+                </Link>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="font-semibold text-ink-900 dark:text-white">{formatMoney(p.unitPrice, currency)}</span>
                   <span

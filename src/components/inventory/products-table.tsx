@@ -60,9 +60,16 @@ export function ProductsTable({ products, canManage, currency = "GHS" }: { produ
             {products.map((product) => {
               const isLow = product.stockQuantity <= product.lowStockThreshold;
               return (
-                <tr key={product.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
-                  <td className="px-4 py-3 font-mono text-xs text-ledger-500 dark:text-ledger-400">{product.sku}</td>
-                  <td className="px-4 py-3 text-ink-900 dark:text-white">{product.name}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-ledger-500 dark:text-ledger-400">
+                    <Link href={`/inventory/${product.id}`} className="hover:text-blue-600 hover:underline dark:hover:text-blue-400">
+                      {product.sku}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
+                    <Link href={`/inventory/${product.id}`} className="hover:text-blue-600 hover:underline dark:hover:text-blue-400">
+                      {product.name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-right text-ink-900 dark:text-white">{formatMoney(product.unitPrice, currency)}</td>
                   <td className="px-4 py-3 text-right">
                     <span
