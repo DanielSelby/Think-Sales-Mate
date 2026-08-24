@@ -20,6 +20,7 @@ import {
 } from "@/lib/expenses/format";
 import { ExpenseRowMenu } from "@/components/expenses/expense-row-menu";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { bulkApproveExpenses, bulkDeleteExpenses } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 
@@ -78,6 +79,8 @@ export function ExpenseListView({
   expenses, kpis, currency, categories, paymentMethods, departments, categoryBreakdown, recentActivity,
 }: ExpenseListViewProps) {
   const router = useRouter();
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [activeTab, setActiveTab] = React.useState<"all" | DisplayStatus>("all");
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState("all");
@@ -201,7 +204,10 @@ export function ExpenseListView({
           <Button variant="outline" size="md" onClick={exportCsv}><Download className="h-4 w-4" /> Export</Button>
           <Link
             href="/expenses/new"
-            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-ink-900 px-4 text-sm font-medium text-white shadow-sm transition-all hover:bg-ink-950 active:scale-[0.98] dark:bg-white dark:text-ink-900 dark:hover:bg-ledger-100"
+            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium text-white shadow-sm transition-all active:scale-[0.98]"
+            style={{ background: theme.colors.primary }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
           >
             <Plus className="h-4 w-4" /> Add Expense
           </Link>
@@ -275,8 +281,9 @@ export function ExpenseListView({
                   onClick={() => { setActiveTab(tab.key); setPage(1); setSelected([]); }}
                   className={cn(
                     "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
-                    activeTab === tab.key ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
+                    activeTab !== tab.key && "border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
                   )}
+                  style={activeTab === tab.key ? { background: theme.colors.primary, color: "#fff" } : undefined}
                 >
                   {tab.label} ({counts[tab.key]})
                 </button>
@@ -296,18 +303,18 @@ export function ExpenseListView({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">
-                  <tr className="border-b border-ledger-100 text-ledger-400 dark:border-ledger-700">
+                  <tr className="border-b border-ledger-100 text-ink-900 dark:border-ledger-700 dark:text-white">
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></th>
-                    <th className="px-3 py-3 font-medium">Date</th>
-                    <th className="px-3 py-3 font-medium">Expense No.</th>
-                    <th className="px-3 py-3 font-medium">Category</th>
-                    <th className="px-3 py-3 font-medium">Description</th>
-                    <th className="px-3 py-3 font-medium">Vendor</th>
-                    <th className="px-3 py-3 font-medium">Payment Method</th>
-                    <th className="px-3 py-3 text-right font-medium">Amount</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-3 py-3 font-medium">Paid On</th>
-                    <th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
+                    <th className="px-3 py-3 font-semibold">Date</th>
+                    <th className="px-3 py-3 font-semibold">Expense No.</th>
+                    <th className="px-3 py-3 font-semibold">Category</th>
+                    <th className="px-3 py-3 font-semibold">Description</th>
+                    <th className="px-3 py-3 font-semibold">Vendor</th>
+                    <th className="px-3 py-3 font-semibold">Payment Method</th>
+                    <th className="px-3 py-3 text-right font-semibold">Amount</th>
+                    <th className="px-3 py-3 font-semibold">Status</th>
+                    <th className="px-3 py-3 font-semibold">Paid On</th>
+                    <th className="px-3 py-3 pr-4 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
