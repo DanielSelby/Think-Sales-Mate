@@ -65,3 +65,29 @@
     transition: none;
   }
 }
+
+/* ── Print Media Optimization ── */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  aside, header, nav, .print-hide, [data-print-hide="true"] {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  .print-table th, .print-table td {
+    border: 1px solid #e2e8f0 !important;
+    padding: 6px 8px !important;
+  }
+  .print-break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

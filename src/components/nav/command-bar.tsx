@@ -14,6 +14,36 @@ import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 import { formatMoney } from "@/lib/currency";
 
+// The Zustand store's activeOrgId is never actually populated anywhere in
+// this app — every page resolves the active org from the `active_org_id`
+// cookie instead (see lib/organizations/current.ts). Read the same source
+// here so search actually has an org to query against.
+function getActiveOrgIdFromCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)active_org_id=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+async function resolveActiveOrgId(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<string | null> {
+  const fromCookie = getActiveOrgIdFromCookie();
+  if (fromCookie) return fromCookie;
+
+  // Fallback if the cookie isn't present for some reason — first active
+  // membership, same as the server-side resolver's default.
+  const { data } = await supabase
+    .from("organization_members")
+    .select("org_id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+
+  return data?.org_id ?? null;
+}
+
 // ── Pages ─────────────────────────────────────────────────────
 // ── Auto-detected from sidebar NAV_ITEMS ─────────────────────
 // Add new pages to sidebar.tsx NAV_ITEMS and they appear here automatically
@@ -110,9 +140,11 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
     if (!open) return;
     (async () => {
       try {
-        const orgId = useAppStore.getState().activeOrgId;
-        if (!orgId) return;
         const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const orgId = await resolveActiveOrgId(supabase, user.id);
+        if (!orgId) return;
         const { data } = await supabase.from("organizations").select("currency").eq("id", orgId).single();
         if (data?.currency) setOrgCurrency(data.currency);
       } catch { /* silent — falls back to USD */ }
@@ -181,7 +213,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const orgId = useAppStore.getState().activeOrgId;
+          const orgId = await resolveActiveOrgId(supabase, user.id);
           if (orgId) {
             const [
               { data: products },
