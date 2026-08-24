@@ -224,8 +224,7 @@ export function ExpenseListView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
-        <div className="space-y-5">
+      <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
             <KpiFlipCard color="green" label="Total Expenses" value={formatCurrency(filteredKpis.totalExpenses, currency)} icon={<Wallet className="h-full w-full" />} detail="Sum of every expense matching the current filters." featured />
@@ -361,12 +360,12 @@ export function ExpenseListView({
               </div>
             </div>
           </Card>
-        </div>
+      </div>
 
-        {/* Analytics */}
-        <div className="space-y-5">
-          <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Overview</CardTitle></CardHeader>
+      {/* Analytics — moved below the table so both the table and these cards get full width */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+        <Card accent="neutral">
+          <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Overview</CardTitle></CardHeader>
             <CardContent className="pt-0">
               {donutTotal === 0 ? <p className="text-sm text-ledger-400">No expenses yet.</p> : (
                 <>
@@ -426,7 +425,6 @@ export function ExpenseListView({
               ))}
             </CardContent>
           </Card>
-        </div>
       </div>
 
     </div>
