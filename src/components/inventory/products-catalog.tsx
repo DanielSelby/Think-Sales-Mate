@@ -780,6 +780,7 @@ export function ProductsCatalog({
                             <MoreVertical className="h-3.5 w-3.5" />
                           </button>
                           {openMenuId === p.id && (
+                            <div className="absolute right-0 top-6 z-10 w-48 rounded-md border border-ledger-100 bg-white py-1 text-left shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                               <Link
                                 href={`/inventory/${p.id}`}
                                 className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-white/[0.06]"
