@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
+import { formatMoney } from "@/lib/currency";
 
 // ── Pages ─────────────────────────────────────────────────────
 // ── Auto-detected from sidebar NAV_ITEMS ─────────────────────
@@ -84,6 +85,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
   const [searching,  setSearching]  = useState(false);
   const [activeIdx,  setActiveIdx]  = useState(0);
   const [recentItems, setRecentItems] = useState<CommandItem[]>([]);
+  const [orgCurrency, setOrgCurrency] = useState("USD");
 
   const inputRef  = useRef<HTMLInputElement>(null);
   const listRef   = useRef<HTMLDivElement>(null);
@@ -101,6 +103,20 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
       setTimeout(() => inputRef.current?.focus(), 40);
       setQuery(""); setResults([]); setActiveIdx(0);
     }
+  }, [open]);
+
+  // Load the org's currency once, so search results never hardcode "$"
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const orgId = useAppStore.getState().activeOrgId;
+        if (!orgId) return;
+        const supabase = createClient();
+        const { data } = await supabase.from("organizations").select("currency").eq("id", orgId).single();
+        if (data?.currency) setOrgCurrency(data.currency);
+      } catch { /* silent — falls back to USD */ }
+    })();
   }, [open]);
 
   // Load recent items from localStorage
@@ -159,23 +175,65 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
         .filter(a => a.label.toLowerCase().includes(q))
         .map(a => ({ ...a, sub: "Quick action", group: "Actions" }));
 
-      // Supabase search
+      // Supabase search — products, customers, sales, invoices, expenses
       const dbItems: CommandItem[] = [];
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // Get org from store
           const orgId = useAppStore.getState().activeOrgId;
           if (orgId) {
-            const [{ data: products }, { data: customers }, { data: sales }] = await Promise.all([
-              supabase.from("products").select("id, name").eq("org_id", orgId).ilike("name", `%${q}%`).limit(3),
-              supabase.from("customers").select("id, name").eq("org_id", orgId).ilike("name", `%${q}%`).limit(3),
-              supabase.from("sales").select("id, customer_name, total").eq("org_id", orgId).ilike("customer_name", `%${q}%`).limit(3),
+            const [
+              { data: products },
+              { data: customers },
+              { data: sales },
+              { data: invoices },
+              { data: expenses },
+            ] = await Promise.all([
+              supabase.from("products").select("id, name, sku")
+                .eq("org_id", orgId)
+                .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+                .limit(4),
+              supabase.from("customers").select("id, name, phone, email")
+                .eq("org_id", orgId)
+                .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
+                .limit(4),
+              supabase.from("sales").select("id, customer_name, total")
+                .eq("org_id", orgId)
+                .ilike("customer_name", `%${q}%`)
+                .limit(4),
+              supabase.from("invoices").select("id, customer_name, amount, status")
+                .eq("org_id", orgId)
+                .ilike("customer_name", `%${q}%`)
+                .limit(4),
+              supabase.from("expenses").select("id, category, vendor, amount")
+                .eq("org_id", orgId)
+                .or(`category.ilike.%${q}%,vendor.ilike.%${q}%`)
+                .limit(4),
             ]);
-            (products ?? []).forEach(p => dbItems.push({ id: "prod-"+p.id, label: p.name, sub: "Product", icon: Boxes, group: "Products", action: () => { navigate("/inventory"); close(); } }));
-            (customers ?? []).forEach(c => dbItems.push({ id: "cust-"+c.id, label: c.name, sub: "Customer", icon: Contact, group: "Customers", action: () => { navigate("/crm"); close(); } }));
-            (sales ?? []).forEach(s => dbItems.push({ id: "sale-"+s.id, label: s.customer_name || `Sale #${s.id.slice(-6)}`, sub: `Sale · $${Number(s.total).toFixed(2)}`, icon: Receipt, group: "Sales", action: () => { navigate(`/sales/${s.id}`); close(); } }));
+
+            (products ?? []).forEach(p => dbItems.push({
+              id: "prod-" + p.id, label: p.name, sub: `Product · ${p.sku ?? ""}`,
+              icon: Boxes, group: "Products", action: () => { navigate("/inventory"); close(); }
+            }));
+            (customers ?? []).forEach(c => dbItems.push({
+              id: "cust-" + c.id, label: c.name, sub: c.phone || c.email || "Customer",
+              icon: Contact, group: "Customers", action: () => { navigate("/crm"); close(); }
+            }));
+            (sales ?? []).forEach(s => dbItems.push({
+              id: "sale-" + s.id, label: s.customer_name || `Sale #${s.id.slice(-6)}`,
+              sub: `Sale · ${formatMoney(Number(s.total), orgCurrency)}`,
+              icon: Receipt, group: "Transactions", action: () => { navigate(`/sales/${s.id}`); close(); }
+            }));
+            (invoices ?? []).forEach(i => dbItems.push({
+              id: "inv-" + i.id, label: i.customer_name || `Invoice #${i.id.slice(-6)}`,
+              sub: `Invoice · ${formatMoney(Number(i.amount), orgCurrency)} · ${i.status}`,
+              icon: FileText, group: "Transactions", action: () => { navigate("/accounting/invoices"); close(); }
+            }));
+            (expenses ?? []).forEach(e => dbItems.push({
+              id: "exp-" + e.id, label: e.vendor || e.category, sub: `Expense · ${formatMoney(Number(e.amount), orgCurrency)}`,
+              icon: TrendingDown, group: "Transactions", action: () => { navigate("/accounting/expenses"); close(); }
+            }));
           }
         }
       } catch { /* silent */ }
@@ -184,7 +242,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
       setSearching(false);
     }, 200);
     return () => clearTimeout(debounce.current);
-  }, [query]);
+  }, [query, orgCurrency]);
 
   // Flat list for keyboard nav
   const flatItems = useMemo(() => {
@@ -235,14 +293,14 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
           style={{ boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}>
 
           {/* Input */}
-          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100">
+          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100 bg-white">
             <Search className="w-4 h-4 text-slate-400 shrink-0" />
             <input
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search pages, actions, customers, products…"
-              className="flex-1 text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-800"
+              placeholder="Search pages, actions, customers, products, transactions…"
+              className="flex-1 text-sm bg-white outline-none placeholder:text-slate-400 text-slate-800"
             />
             <div className="flex items-center gap-2 shrink-0">
               {searching && <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />}
@@ -256,7 +314,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
 
           {/* Results */}
-          <div ref={listRef} className="max-h-[420px] overflow-y-auto py-2">
+          <div ref={listRef} className="max-h-[420px] overflow-y-auto py-2 bg-white">
             {flatItems.length === 0 && query && !searching && (
               <div className="px-4 py-8 text-center">
                 <Search className="w-8 h-8 mx-auto mb-2 text-slate-200" />
