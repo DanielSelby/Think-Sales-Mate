@@ -63,13 +63,13 @@ export function ProductsTable({ products, canManage, currency = "GHS" }: { produ
                 <tr key={product.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
                   <td className="px-4 py-3 font-mono text-xs text-ledger-500 dark:text-ledger-400">{product.sku}</td>
                   <td className="px-4 py-3 text-ink-900 dark:text-white">{product.name}</td>
-                  <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">{formatMoney(product.unitPrice, currency)}</td>
+                  <td className="px-4 py-3 text-right text-ink-900 dark:text-white">{formatMoney(product.unitPrice, currency)}</td>
                   <td className="px-4 py-3 text-right">
                     <span
                       className={
                         isLow
-                          ? "figure rounded-full bg-alert-soft px-2 py-0.5 text-xs font-semibold text-alert"
-                          : "figure text-ledger-700 dark:text-ledger-200"
+                          ? "rounded-full bg-alert-soft px-2 py-0.5 text-xs font-semibold text-alert"
+                          : "text-ledger-700 dark:text-ledger-200"
                       }
                     >
                       {product.stockQuantity}

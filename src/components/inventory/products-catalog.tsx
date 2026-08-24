@@ -724,14 +724,14 @@ export function ProductsCatalog({
                         <span className="text-xs text-ledger-300">—</span>
                       )}
                     </td>
-                    <td className="px-2 py-3 text-right figure text-ledger-500 dark:text-ledger-400">
+                    <td className="px-2 py-3 text-right text-ledger-500 dark:text-ledger-400">
                       {p.costPrice != null ? formatMoney(p.costPrice, currency) : "—"}
                     </td>
-                    <td className="px-2 py-3 text-right figure text-ink-900 dark:text-white">{formatMoney(p.unitPrice, currency)}</td>
+                    <td className="px-2 py-3 text-right text-ink-900 dark:text-white">{formatMoney(p.unitPrice, currency)}</td>
                     <td className="px-2 py-3">
                       <div className="text-right">
                         <span
-                          className={`figure font-semibold ${status === "out" ? "text-alert" : status === "low" ? "text-amber" : "text-signal"}`}
+                          className={`font-semibold ${status === "out" ? "text-alert" : status === "low" ? "text-amber" : "text-signal"}`}
                         >
                           {p.stockQuantity}
                         </span>
@@ -832,9 +832,9 @@ export function ProductsCatalog({
                 <p className="mt-2 truncate font-medium text-ink-900 dark:text-white">{p.name}</p>
                 <p className="font-mono text-xs text-ledger-400">{p.sku}</p>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="figure font-semibold text-ink-900 dark:text-white">{formatMoney(p.unitPrice, currency)}</span>
+                  <span className="font-semibold text-ink-900 dark:text-white">{formatMoney(p.unitPrice, currency)}</span>
                   <span
-                    className={`figure text-xs font-semibold ${status === "out" ? "text-alert" : status === "low" ? "text-amber" : "text-signal"}`}
+                    className={`text-xs font-semibold ${status === "out" ? "text-alert" : status === "low" ? "text-amber" : "text-signal"}`}
                   >
                     {p.stockQuantity} in stock
                   </span>
@@ -877,7 +877,7 @@ export function ProductsCatalog({
               <li key={c.name} className="flex items-center gap-2 text-xs">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
                 <span className="flex-1 truncate text-ledger-600 dark:text-ledger-300">{c.name}</span>
-                <span className="figure text-ledger-400">{c.pct}%</span>
+                <span className="text-ledger-400">{c.pct}%</span>
               </li>
             ))}
             {categoryValues.length === 0 && <p className="text-xs text-ledger-400">No inventory value yet.</p>}
@@ -894,7 +894,7 @@ export function ProductsCatalog({
                   {i + 1}
                 </span>
                 <span className="flex-1 truncate text-ledger-700 dark:text-ledger-200">{b.name}</span>
-                <span className="figure text-ledger-400">{b.unitsSold} units</span>
+                <span className="text-ledger-400">{b.unitsSold} units</span>
               </li>
             ))}
             {bestSellers.length === 0 && <p className="text-xs text-ledger-400">No sales recorded yet.</p>}
@@ -908,7 +908,7 @@ export function ProductsCatalog({
             {lowStockAlerts.map((p) => (
               <li key={p.id} className="flex items-center justify-between text-xs">
                 <span className="truncate text-ledger-700 dark:text-ledger-200">{p.name}</span>
-                <span className={`figure font-semibold ${p.stockQuantity === 0 ? "text-alert" : "text-amber"}`}>
+                <span className={`font-semibold ${p.stockQuantity === 0 ? "text-alert" : "text-amber"}`}>
                   {p.stockQuantity} left
                 </span>
               </li>
