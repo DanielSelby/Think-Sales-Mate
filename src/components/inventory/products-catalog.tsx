@@ -29,6 +29,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { formatMoney } from "@/lib/currency";
 import { deleteProduct, toggleProductActive, duplicateProduct, bulkImportProducts } from "@/app/(dashboard)/inventory/actions";
@@ -108,6 +109,8 @@ export function ProductsCatalog({
   canManage: boolean;
   currency?: string;
 }) {
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
@@ -438,7 +441,12 @@ export function ProductsCatalog({
               Print labels
             </Button>
             <Link href="/inventory/new">
-              <Button>
+              <Button
+                className="text-white transition-colors"
+                style={{ background: theme.colors.primary }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
+              >
                 <Plus className="h-3.5 w-3.5" />
                 Add product
               </Button>
@@ -667,7 +675,7 @@ export function ProductsCatalog({
       ) : view === "table" ? (
         <div className="overflow-x-auto rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
           <table className="w-full text-sm">
-            <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
+            <thead className="border-b border-ledger-100 text-left text-xs font-semibold uppercase tracking-wide text-ink-900 dark:border-ledger-700 dark:text-white">
               <tr>
                 <th className="w-8 px-4 py-3">
                   <input

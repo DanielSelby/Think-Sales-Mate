@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
 import {
   updateTransferStatus,
@@ -114,7 +115,7 @@ function TransferRowDetails({ transferId }: { transferId: string }) {
   return (
     <div className="bg-ledger-50 px-4 py-3 dark:bg-white/[0.02]">
       <table className="w-full text-xs">
-        <thead className="text-left uppercase tracking-wide text-ledger-400">
+        <thead className="text-left uppercase tracking-wide text-ink-900 dark:text-white">
           <tr>
             <th className="pb-1.5">Product</th>
             <th className="pb-1.5">SKU</th>
@@ -162,6 +163,8 @@ export function TransferHistory({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -422,7 +425,12 @@ export function TransferHistory({
           </Button>
           {canManage && (
             <Link href="/inventory/transfers/new">
-              <Button>
+              <Button
+                className="text-white transition-colors"
+                style={{ background: theme.colors.primary }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
+              >
                 <Plus className="h-3.5 w-3.5" />
                 New stock transfer
               </Button>
@@ -699,7 +707,7 @@ export function TransferHistory({
       ) : (
         <div className="overflow-x-auto rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 z-[1] border-b border-ledger-100 bg-white text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700 dark:bg-ink-900">
+            <thead className="sticky top-0 z-[1] border-b border-ledger-100 bg-white text-left text-xs font-semibold uppercase tracking-wide text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
               <tr>
                 <th className="w-8 px-3 py-3">
                   <input type="checkbox" checked={pageItems.every((t) => selectedIds.has(t.id))} onChange={toggleSelectAllOnPage} />

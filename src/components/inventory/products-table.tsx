@@ -47,7 +47,7 @@ export function ProductsTable({ products, canManage, currency = "GHS" }: { produ
 
       <div className="overflow-hidden rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <table className="w-full text-sm">
-          <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
+          <thead className="border-b border-ledger-100 text-left text-xs font-semibold uppercase tracking-wide text-ink-900 dark:border-ledger-700 dark:text-white">
             <tr>
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">Product</th>
