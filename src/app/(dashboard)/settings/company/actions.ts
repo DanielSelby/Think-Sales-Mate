@@ -17,12 +17,16 @@ async function requireAdmin() {
 export interface CompanyProfileFields {
   companyName: string;
   registrationNo?: string;
+  vatNumber?: string;
+  businessType?: string;
+  industry?: string;
   businessEmail: string;
   businessPhone: string;
   website?: string;
   tin?: string;
   description?: string;
   country?: string;
+  postalAddress?: string;
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
@@ -55,6 +59,9 @@ export async function saveCompanyProfile(fields: CompanyProfileFields) {
       org_id: check.context.orgId,
       company_name: fields.companyName.trim(),
       registration_no: fields.registrationNo || null,
+      vat_number: fields.vatNumber || null,
+      business_type: fields.businessType || null,
+      industry: fields.industry || null,
       business_email: fields.businessEmail.trim(),
       business_phone: fields.businessPhone || null,
       website: fields.website || null,
@@ -66,6 +73,7 @@ export async function saveCompanyProfile(fields: CompanyProfileFields) {
       city: fields.city || null,
       postcode: fields.postcode || null,
       region: fields.region || null,
+      postal_address: fields.postalAddress || null,
       contact_name: fields.contactName || null,
       contact_designation: fields.contactDesignation || null,
       contact_email: fields.contactEmail || null,
@@ -121,6 +129,59 @@ export async function uploadCompanyLogo(formData: FormData): Promise<UploadLogoR
   if (error) return { error: error.message };
   revalidatePath("/settings/company");
   return { logoUrl };
+}
+
+async function uploadCompanyAsset(
+  formData: FormData,
+  fieldName: "stamp" | "signature",
+  column: "stamp_url" | "signature_url"
+): Promise<UploadLogoResult> {
+  const check = await requireAdmin();
+  if ("error" in check) return { error: check.error };
+
+  const file = formData.get(fieldName) as File | null;
+  if (!file || file.size === 0) return { error: "Choose a file first." };
+  if (file.size > 2 * 1024 * 1024) return { error: `${fieldName === "stamp" ? "Stamp" : "Signature"} must be under 2MB.` };
+  if (!["image/png", "image/jpeg", "image/svg+xml"].includes(file.type)) {
+    return { error: `${fieldName === "stamp" ? "Stamp" : "Signature"} must be a JPG, PNG, or SVG file.` };
+  }
+
+  const supabase = await createClient();
+  const ext = file.name.split(".").pop();
+  const path = `${check.context.orgId}/${fieldName}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage.from("company-assets").upload(path, file, { upsert: true });
+  if (uploadError) return { error: uploadError.message };
+
+  const { data: publicUrl } = supabase.storage.from("company-assets").getPublicUrl(path);
+  const url = `${publicUrl.publicUrl}?v=${Date.now()}`;
+
+  const assetData =
+  column === "stamp_url"
+    ? { stamp_url: url }
+    : { signature_url: url };
+
+const { error } = await supabase
+  .from("company_profile")
+  .upsert(
+    {
+      org_id: check.context.orgId,
+      ...assetData,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "org_id" }
+  );
+  if (error) return { error: error.message };
+  revalidatePath("/settings/company");
+  return { logoUrl: url };
+}
+
+export async function uploadCompanyStamp(formData: FormData): Promise<UploadLogoResult> {
+  return uploadCompanyAsset(formData, "stamp", "stamp_url");
+}
+
+export async function uploadCompanySignature(formData: FormData): Promise<UploadLogoResult> {
+  return uploadCompanyAsset(formData, "signature", "signature_url");
 }
 
 // Real helper other modules (Invoices, Receipts, POS, etc.) can call —

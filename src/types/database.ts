@@ -464,6 +464,12 @@ export interface Database {
           twitter_url: string | null;
           linkedin_url: string | null;
           youtube_url: string | null;
+          vat_number: string | null;
+          business_type: string | null;
+          industry: string | null;
+          postal_address: string | null;
+          stamp_url: string | null;
+          signature_url: string | null;
           updated_at: string;
         };
         Insert: {
@@ -494,9 +500,54 @@ export interface Database {
           twitter_url?: string | null;
           linkedin_url?: string | null;
           youtube_url?: string | null;
+          vat_number?: string | null;
+          business_type?: string | null;
+          industry?: string | null;
+          postal_address?: string | null;
+          stamp_url?: string | null;
+          signature_url?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["company_profile"]["Row"]>;
+        Relationships: [];
+      };
+
+      org_general_settings: {
+        Row: {
+          org_id: string;
+          business_short_name: string | null;
+          default_language: string;
+          timezone: string;
+          date_format: string;
+          time_format: "12h" | "24h";
+          financial_year_start: string;
+          default_tax_rate: number;
+          enable_barcode_scanning: boolean;
+          enable_notifications: boolean;
+          enable_email_alerts: boolean;
+          session_timeout_minutes: number;
+          auto_logout_minutes: number;
+          default_landing_page: string;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          business_short_name?: string | null;
+          default_language?: string;
+          timezone?: string;
+          date_format?: string;
+          time_format?: "12h" | "24h";
+          financial_year_start?: string;
+          default_tax_rate?: number;
+          enable_barcode_scanning?: boolean;
+          enable_notifications?: boolean;
+          enable_email_alerts?: boolean;
+          session_timeout_minutes?: number;
+          auto_logout_minutes?: number;
+          default_landing_page?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["org_general_settings"]["Row"]>;
         Relationships: [];
       };
 
