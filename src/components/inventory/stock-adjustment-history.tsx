@@ -485,12 +485,20 @@ export function StockAdjustmentHistory({
   // ── Sorted & Paginated Records ───────────────────────────────────────────
   const sortedRecords = useMemo(() => {
     return [...filteredRecords].sort((a, b) => {
-      let valA = a[sortField];
-      let valB = b[sortField];
+      const valA = a[sortField];
+      const valB = b[sortField];
 
-      if (typeof valA === "string") {
-        valA = (valA as string).toLowerCase();
-        valB = (valB as string).toLowerCase();
+      if (valA === null || valA === undefined) return 1;
+      if (valB === null || valB === undefined) return -1;
+
+      if (typeof valA === "string" && typeof valB === "string") {
+        return sortDirection === "asc"
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA);
+      }
+
+      if (typeof valA === "number" && typeof valB === "number") {
+        return sortDirection === "asc" ? valA - valB : valB - valA;
       }
 
       if (valA < valB) return sortDirection === "asc" ? -1 : 1;
