@@ -11,16 +11,43 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/sales/format";
 import {
   EXPENSE_CATEGORIES, PAYMENT_METHODS, DEPARTMENTS, RECURRING_FREQUENCIES,
-  EXPENSE_TYPES, CURRENCIES, DISPLAY_STATUS_LABEL, DISPLAY_STATUS_TONE,
+  EXPENSE_TYPES, CURRENCIES, DISPLAY_STATUS_LABEL, DISPLAY_STATUS_TONE, deriveDisplayStatus,
 } from "@/lib/expenses/format";
 import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/attachments-dropzone";
 import {
-  createExpense, getBudgetStatus, getRecentExpensesForCategory, searchPurchaseOrdersForExpense,
+  createExpense, updateExpense, getBudgetStatus, getRecentExpensesForCategory, searchPurchaseOrdersForExpense,
   type ExpenseItemInput, type ApproverOption, type BudgetStatus, type RecentExpenseSummary, type PurchaseOrderOption,
 } from "@/app/(dashboard)/expenses/actions";
+import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 
 export interface LocationOption { id: string; name: string; }
 export interface BankAccountOption { id: string; name: string; }
+
+// Pre-fill shape for edit mode.
+export interface ExpenseEditInitialValues {
+  status: ExpenseStatus;
+  paymentStatus: ExpensePaymentStatus;
+  dueDate: string | null;
+  expenseDate: string;
+  reference: string;
+  category: string;
+  department: string;
+  vendor: string;
+  locationId: string;
+  selectedPo: { id: string; label: string } | null;
+  expenseType: string;
+  tags: string[];
+  approvalRequired: boolean;
+  approverId: string;
+  paymentMethod: string;
+  paymentAccount: string;
+  transactionReference: string;
+  expenseCurrency: string;
+  discountAmount: number;
+  isRecurring: boolean;
+  recurringFrequency: string;
+  items: { description: string; category: string; quantity: number; unitCost: number; taxAmount: number }[];
+}
 
 interface AddExpenseFormProps {
   locations: LocationOption[];
@@ -28,6 +55,10 @@ interface AddExpenseFormProps {
   approvers: ApproverOption[];
   currency: string;
   currentUserName: string;
+  /** Defaults to "create". Pass "edit" + expenseId + initialValues to edit an existing expense. */
+  mode?: "create" | "edit";
+  expenseId?: string;
+  initialValues?: ExpenseEditInitialValues;
 }
 
 interface LineItem {
@@ -39,45 +70,51 @@ interface LineItem {
   taxAmount: number;
 }
 
-export function AddExpenseForm({ locations, bankAccounts, approvers, currency, currentUserName }: AddExpenseFormProps) {
+export function AddExpenseForm({
+  locations, bankAccounts, approvers, currency, currentUserName, mode = "create", expenseId, initialValues,
+}: AddExpenseFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
 
-  const [expenseDate, setExpenseDate] = React.useState(() => new Date().toISOString().slice(0, 10));
-  const [reference, setReference] = React.useState("");
-  const [category, setCategory] = React.useState<string>(EXPENSE_CATEGORIES[0]);
-  const [department, setDepartment] = React.useState<string>(DEPARTMENTS[0]);
-  const [vendor, setVendor] = React.useState("");
-  const [locationId, setLocationId] = React.useState(locations[0]?.id ?? "");
+  const isEdit = mode === "edit" && !!expenseId && !!initialValues;
+
+  const [expenseDate, setExpenseDate] = React.useState(initialValues?.expenseDate ?? (() => new Date().toISOString().slice(0, 10))());
+  const [reference, setReference] = React.useState(initialValues?.reference ?? "");
+  const [category, setCategory] = React.useState<string>(initialValues?.category ?? EXPENSE_CATEGORIES[0]);
+  const [department, setDepartment] = React.useState<string>(initialValues?.department || DEPARTMENTS[0]);
+  const [vendor, setVendor] = React.useState(initialValues?.vendor ?? "");
+  const [locationId, setLocationId] = React.useState(initialValues?.locationId ?? locations[0]?.id ?? "");
   const [poQuery, setPoQuery] = React.useState("");
   const [poResults, setPoResults] = React.useState<PurchaseOrderOption[]>([]);
-  const [selectedPo, setSelectedPo] = React.useState<PurchaseOrderOption | null>(null);
+  const [selectedPo, setSelectedPo] = React.useState<PurchaseOrderOption | null>(initialValues?.selectedPo ?? null);
   const [poOpen, setPoOpen] = React.useState(false);
 
-  const [items, setItems] = React.useState<LineItem[]>([
-    { key: crypto.randomUUID(), description: "", category, quantity: 1, unitCost: 0, taxAmount: 0 },
-  ]);
+  const [items, setItems] = React.useState<LineItem[]>(() =>
+    initialValues && initialValues.items.length > 0
+      ? initialValues.items.map((i) => ({ key: crypto.randomUUID(), ...i }))
+      : [{ key: crypto.randomUUID(), description: "", category: initialValues?.category ?? EXPENSE_CATEGORIES[0], quantity: 1, unitCost: 0, taxAmount: 0 }]
+  );
 
-  const [expenseType, setExpenseType] = React.useState<string>(EXPENSE_TYPES[0]);
-  const [tags, setTags] = React.useState<string[]>([]);
+  const [expenseType, setExpenseType] = React.useState<string>(initialValues?.expenseType || EXPENSE_TYPES[0]);
+  const [tags, setTags] = React.useState<string[]>(initialValues?.tags ?? []);
   const [tagInput, setTagInput] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
-  const [approvalRequired, setApprovalRequired] = React.useState(true);
-  const [approverId, setApproverId] = React.useState(approvers[0]?.id ?? "");
+  const [approvalRequired, setApprovalRequired] = React.useState(initialValues?.approvalRequired ?? true);
+  const [approverId, setApproverId] = React.useState(initialValues?.approverId ?? approvers[0]?.id ?? "");
   const [comments, setComments] = React.useState("");
 
-  const [paymentMethod, setPaymentMethod] = React.useState<string>(PAYMENT_METHODS[0]);
-  const [paymentAccount, setPaymentAccount] = React.useState(bankAccounts[0]?.name ?? "");
-  const [transactionReference, setTransactionReference] = React.useState("");
-  const [expenseCurrency, setExpenseCurrency] = React.useState<string>(currency);
+  const [paymentMethod, setPaymentMethod] = React.useState<string>(initialValues?.paymentMethod || PAYMENT_METHODS[0]);
+  const [paymentAccount, setPaymentAccount] = React.useState(initialValues?.paymentAccount ?? bankAccounts[0]?.name ?? "");
+  const [transactionReference, setTransactionReference] = React.useState(initialValues?.transactionReference ?? "");
+  const [expenseCurrency, setExpenseCurrency] = React.useState<string>(initialValues?.expenseCurrency || currency);
   const [paymentStatus, setPaymentStatus] = React.useState<"unpaid" | "paid">("unpaid");
   const [paidOn, setPaidOn] = React.useState(() => new Date().toISOString().slice(0, 10));
-  const [discountAmount, setDiscountAmount] = React.useState(0);
+  const [discountAmount, setDiscountAmount] = React.useState(initialValues?.discountAmount ?? 0);
 
-  const [isRecurring, setIsRecurring] = React.useState(false);
-  const [recurringFrequency, setRecurringFrequency] = React.useState<string>(RECURRING_FREQUENCIES[1]);
+  const [isRecurring, setIsRecurring] = React.useState(initialValues?.isRecurring ?? false);
+  const [recurringFrequency, setRecurringFrequency] = React.useState<string>(initialValues?.recurringFrequency || RECURRING_FREQUENCIES[1]);
   const [attachments, setAttachments] = React.useState<StagedFile[]>([]);
 
   const [budget, setBudget] = React.useState<BudgetStatus | null>(null);
@@ -153,28 +190,72 @@ export function AddExpenseForm({ locations, bankAccounts, approvers, currency, c
     });
   }
 
+  function submitEdit() {
+    setError(null);
+    if (buildItems().length === 0) {
+      setError("Add at least one expense item with a description.");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await updateExpense(expenseId!, {
+        category, vendor: vendor || null, department, locationId: locationId || null,
+        paymentMethod, paymentAccount: paymentAccount || null, transactionReference: transactionReference || null,
+        currency: expenseCurrency, referenceNumber: reference || null,
+        purchaseOrderId: selectedPo?.id ?? null, expenseDate, dueDate: null,
+        expenseType, tags, approvalRequired, approverId: approverId || null,
+        discountAmount, items: buildItems(), isRecurring, recurringFrequency: isRecurring ? recurringFrequency : null,
+      });
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      router.push(`/expenses/${expenseId}`);
+    });
+  }
+
+  const currentDisplayStatus = isEdit
+    ? deriveDisplayStatus(initialValues!.status, initialValues!.paymentStatus, initialValues!.dueDate)
+    : null;
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Add Expense</h1>
+          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">
+            {isEdit ? "Edit Expense" : "Add Expense"}
+          </h1>
           <p className="mt-1 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">
-            Home <ChevronRight className="h-3.5 w-3.5" /> Expenses <ChevronRight className="h-3.5 w-3.5" /> Add Expense
+            Home <ChevronRight className="h-3.5 w-3.5" /> Expenses <ChevronRight className="h-3.5 w-3.5" /> {isEdit ? "Edit Expense" : "Add Expense"}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="md" onClick={() => router.back()} disabled={isPending}>Cancel</Button>
-          <Button variant="secondary" size="md" onClick={() => submit("draft", false)} disabled={isPending}>
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Draft
-          </Button>
-          <Button variant="outline" size="md" onClick={() => submit("submitted", true)} disabled={isPending}>
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Submit for Approval
-          </Button>
-          <Button variant="primary" size="md" onClick={() => submit("submitted", false)} disabled={isPending}>
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Expense
-          </Button>
+          {isEdit ? (
+            <Button variant="primary" size="md" onClick={submitEdit} disabled={isPending}>
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Changes
+            </Button>
+          ) : (
+            <>
+              <Button variant="secondary" size="md" onClick={() => submit("draft", false)} disabled={isPending}>
+                {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Draft
+              </Button>
+              <Button variant="outline" size="md" onClick={() => submit("submitted", true)} disabled={isPending}>
+                {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Submit for Approval
+              </Button>
+              <Button variant="primary" size="md" onClick={() => submit("submitted", false)} disabled={isPending}>
+                {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Expense
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {isEdit && (
+        <div className="flex items-center gap-2 rounded-md border border-signal/30 bg-signal-soft px-4 py-2.5 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">
+          Status, payment status, and approval decisions can't be changed here — use Approve / Reject / Mark as Paid from the expense list actions.
+        </div>
+      )}
 
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-4 py-2.5 text-sm text-alert">{error}</div>}
 
@@ -186,7 +267,15 @@ export function AddExpenseForm({ locations, bankAccounts, approvers, currency, c
             <CardContent className="space-y-3 pt-0">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <Field label="Expense Date" required><Input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} /></Field>
-                <Field label="Expense No."><Input value="Auto-generated" disabled className="opacity-70" /></Field>
+                <Field label="Expense No.">
+                  {isEdit ? (
+                    <div className="flex h-10 items-center">
+                      <Badge tone={DISPLAY_STATUS_TONE[currentDisplayStatus!]}>{DISPLAY_STATUS_LABEL[currentDisplayStatus!]}</Badge>
+                    </div>
+                  ) : (
+                    <Input value="Auto-generated" disabled className="opacity-70" />
+                  )}
+                </Field>
                 <Field label="Reference / Description">
                   <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Office stationery and printer ink" />
                 </Field>
@@ -240,14 +329,14 @@ export function AddExpenseForm({ locations, bankAccounts, approvers, currency, c
               <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-400 dark:border-ledger-700 dark:bg-white/[0.03]">
-                      <th className="w-8 px-3 py-2 font-medium">#</th>
-                      <th className="px-3 py-2 font-medium">Item / Description</th>
-                      <th className="w-36 px-3 py-2 font-medium">Category</th>
-                      <th className="w-16 px-3 py-2 text-right font-medium">Qty</th>
-                      <th className="w-24 px-3 py-2 text-right font-medium">Unit Cost</th>
-                      <th className="w-20 px-3 py-2 text-right font-medium">Tax</th>
-                      <th className="w-24 px-3 py-2 text-right font-medium">Amount</th>
+                    <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ink-900 dark:border-ledger-700 dark:bg-white/[0.03] dark:text-white">
+                      <th className="w-8 px-3 py-2 font-semibold">#</th>
+                      <th className="px-3 py-2 font-semibold">Item / Description</th>
+                      <th className="w-36 px-3 py-2 font-semibold">Category</th>
+                      <th className="w-16 px-3 py-2 text-right font-semibold">Qty</th>
+                      <th className="w-24 px-3 py-2 text-right font-semibold">Unit Cost</th>
+                      <th className="w-20 px-3 py-2 text-right font-semibold">Tax</th>
+                      <th className="w-24 px-3 py-2 text-right font-semibold">Amount</th>
                       <th className="w-10 px-3 py-2" />
                     </tr>
                   </thead>
@@ -322,9 +411,11 @@ export function AddExpenseForm({ locations, bankAccounts, approvers, currency, c
                     />
                   </div>
                 </Field>
-                <Field label="Notes (Optional)">
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="For general office use." className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
-                </Field>
+                {!isEdit && (
+                  <Field label="Notes (Optional)">
+                    <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="For general office use." className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                  </Field>
+                )}
                 <label className="flex items-center gap-2 text-sm text-ink-900 dark:text-white">
                   <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="h-4 w-4 rounded border-ledger-300 accent-signal" />
                   Recurring expense
@@ -360,11 +451,17 @@ export function AddExpenseForm({ locations, bankAccounts, approvers, currency, c
                 </Field>
                 <div>
                   <p className="mb-1 text-xs font-medium text-ledger-500">Approval Status</p>
-                  <Badge tone={DISPLAY_STATUS_TONE.pending_approval}>{DISPLAY_STATUS_LABEL.pending_approval}</Badge>
+                  {isEdit ? (
+                    <Badge tone={DISPLAY_STATUS_TONE[currentDisplayStatus!]}>{DISPLAY_STATUS_LABEL[currentDisplayStatus!]}</Badge>
+                  ) : (
+                    <Badge tone={DISPLAY_STATUS_TONE.pending_approval}>{DISPLAY_STATUS_LABEL.pending_approval}</Badge>
+                  )}
                 </div>
-                <Field label="Comments (Optional)">
-                  <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={2} placeholder="Waiting for manager approval." className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
-                </Field>
+                {!isEdit && (
+                  <Field label="Comments (Optional)">
+                    <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={2} placeholder="Waiting for manager approval." className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                  </Field>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -394,17 +491,23 @@ export function AddExpenseForm({ locations, bankAccounts, approvers, currency, c
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Payment Status" required>
-                  <Select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as "unpaid" | "paid")}>
-                    <option value="unpaid">Unpaid</option>
-                    <option value="paid">Paid</option>
-                  </Select>
-                </Field>
-                <Field label="Paid On">
-                  <Input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} disabled={paymentStatus !== "paid"} />
-                </Field>
-              </div>
+              {isEdit ? (
+                <p className="rounded-md bg-ledger-50 px-3 py-2 text-xs text-ledger-500 dark:bg-white/[0.04]">
+                  Payment status changes via Mark as Paid from the expense list actions, not here.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Payment Status" required>
+                    <Select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as "unpaid" | "paid")}>
+                      <option value="unpaid">Unpaid</option>
+                      <option value="paid">Paid</option>
+                    </Select>
+                  </Field>
+                  <Field label="Paid On">
+                    <Input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} disabled={paymentStatus !== "paid"} />
+                  </Field>
+                </div>
+              )}
               <Field label="Discount (if applicable)">
                 <Input type="number" min={0} step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(Number(e.target.value))} />
               </Field>

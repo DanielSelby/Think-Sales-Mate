@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Eye, Pencil, Printer, MoreVertical, CheckCircle2, XCircle, Wallet, Trash2, Loader2 } from "lucide-react";
 import { approveExpense, rejectExpense, markExpensePaid, deleteExpense } from "@/app/(dashboard)/expenses/actions";
 import { formatExpenseNumber } from "@/lib/expenses/format";
+import { formatCurrency } from "@/lib/sales/format";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 
 interface ExpenseRowMenuProps {
@@ -14,9 +15,18 @@ interface ExpenseRowMenuProps {
   status: ExpenseStatus;
   paymentStatus: ExpensePaymentStatus;
   onNotice: (message: string, tone?: "success" | "error") => void;
+  /** Used to build the standalone print document — without these, Print
+   *  falls back to printing the whole page instead of just this expense. */
+  category?: string;
+  vendor?: string | null;
+  date?: string;
+  amount?: number;
+  currency?: string;
 }
 
-export function ExpenseRowMenu({ expenseId, expenseNumber, status, paymentStatus, onNotice }: ExpenseRowMenuProps) {
+export function ExpenseRowMenu({
+  expenseId, expenseNumber, status, paymentStatus, onNotice, category, vendor, date, amount, currency,
+}: ExpenseRowMenuProps) {
   const router = useRouter();
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -43,7 +53,14 @@ export function ExpenseRowMenu({ expenseId, expenseNumber, status, paymentStatus
 
   function handlePrint() {
     setMenuOpen(false);
-    window.print();
+    printExpense({
+      expenseNumber,
+      category: category ?? "—",
+      vendor: vendor ?? null,
+      date: date ?? new Date().toISOString(),
+      amount: amount ?? 0,
+      currency: currency ?? "USD",
+    });
   }
 
   return (
@@ -87,4 +104,40 @@ export function ExpenseRowMenu({ expenseId, expenseNumber, status, paymentStatus
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Print — opens a minimal print-ready document for just this expense in a
+// new tab and triggers the browser print dialog, instead of printing
+// whatever happens to be the current page.
+// ---------------------------------------------------------------------------
+function printExpense(info: { expenseNumber: number; category: string; vendor: string | null; date: string; amount: number; currency: string }) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  const printedAt = new Date().toLocaleString();
+  const expenseDate = new Date(info.date).toLocaleDateString();
+  win.document.write(`
+    <html>
+      <head>
+        <title>${formatExpenseNumber(info.expenseNumber)}</title>
+        <style>
+          body { font-family: -apple-system, sans-serif; padding: 40px; color: #12161d; }
+          h1 { font-size: 20px; margin-bottom: 4px; }
+          p { color: #68655c; margin: 2px 0; }
+          .total { margin-top: 24px; font-size: 18px; font-weight: 600; }
+        </style>
+      </head>
+      <body>
+        <h1>${formatExpenseNumber(info.expenseNumber)}</h1>
+        <p>Category: ${info.category}</p>
+        ${info.vendor ? `<p>Vendor: ${info.vendor}</p>` : ""}
+        <p>Date: ${expenseDate}</p>
+        <p>Printed: ${printedAt}</p>
+        <p class="total">Amount: ${formatCurrency(info.amount, info.currency)}</p>
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  win.print();
 }

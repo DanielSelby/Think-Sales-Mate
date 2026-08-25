@@ -149,6 +149,132 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
 }
 
 // ---------------------------------------------------------------------------
+// Update (edit) — header fields + line items. Deliberately does NOT touch
+// status, payment_status, paid_on, approved_by, or approved_at: those only
+// ever change through Approve / Reject / Mark as Paid on the row menu, so
+// editing here can't silently desync the approval workflow. Items are
+// replaced wholesale (delete + reinsert) since, unlike purchase receiving,
+// expense_items has no "already received" locking concept to preserve.
+// ---------------------------------------------------------------------------
+
+export interface UpdateExpenseInput {
+  category: string;
+  vendor: string | null;
+  department: string | null;
+  locationId: string | null;
+  paymentMethod: string | null;
+  paymentAccount: string | null;
+  transactionReference: string | null;
+  currency: string;
+  referenceNumber: string | null;
+  purchaseOrderId: string | null;
+  expenseDate: string;
+  dueDate: string | null;
+  expenseType: string | null;
+  tags: string[];
+  approvalRequired: boolean;
+  approverId: string | null;
+  discountAmount: number;
+  items: ExpenseItemInput[];
+  isRecurring: boolean;
+  recurringFrequency: string | null;
+}
+
+export interface UpdateExpenseResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function updateExpense(expenseId: string, input: UpdateExpenseInput): Promise<UpdateExpenseResult> {
+  if (!input.category) return { ok: false, error: "Select a category." };
+  const items = input.items.filter((i) => i.description.trim() && i.quantity > 0);
+  if (items.length === 0) return { ok: false, error: "Add at least one expense item." };
+
+  const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
+  const taxAmount = items.reduce((sum, i) => sum + i.taxAmount, 0);
+  const total = Math.max(0, subtotal + taxAmount - input.discountAmount);
+  if (total <= 0) return { ok: false, error: "Total amount must be greater than zero." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("expenses")
+    .select("id, org_id")
+    .eq("id", expenseId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (fetchError || !existing) return { ok: false, error: "Expense not found." };
+
+  const { error: updateError } = await supabase
+    .from("expenses")
+    .update({
+      category: input.category,
+      vendor: input.vendor,
+      description: items[0]?.description ?? null,
+      amount: total,
+      expense_date: input.expenseDate,
+      payment_method: input.paymentMethod,
+      department: input.department,
+      location_id: input.locationId,
+      due_date: input.dueDate,
+      reference_number: input.referenceNumber,
+      purchase_order_id: input.purchaseOrderId,
+      currency: input.currency,
+      tags: input.tags,
+      expense_type: input.expenseType,
+      approver_id: input.approverId,
+      approval_required: input.approvalRequired,
+      transaction_reference: input.transactionReference,
+      discount_amount: input.discountAmount,
+      is_recurring: input.isRecurring,
+      recurring_frequency: input.isRecurring ? input.recurringFrequency : null,
+      next_recurrence_date: input.isRecurring && input.recurringFrequency
+        ? nextRecurrenceDate(input.expenseDate, input.recurringFrequency)
+        : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", expenseId);
+  if (updateError) return { ok: false, error: updateError.message };
+
+  const { error: deleteError } = await supabase.from("expense_items").delete().eq("expense_id", expenseId);
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  const { error: itemsError } = await supabase.from("expense_items").insert(
+    items.map((i) => ({
+      expense_id: expenseId,
+      org_id: context.orgId,
+      description: i.description,
+      category: i.category,
+      quantity: i.quantity,
+      unit_cost: i.unitCost,
+      tax_amount: i.taxAmount,
+      line_total: i.quantity * i.unitCost + i.taxAmount,
+    }))
+  );
+  if (itemsError) return { ok: false, error: itemsError.message };
+
+  await supabase.from("audit_logs").insert({
+    org_id: context.orgId,
+    actor_id: user.id,
+    action: "expense.updated",
+    entity_type: "expenses",
+    entity_id: expenseId,
+    metadata: { amount: total, category: input.category },
+  });
+
+  revalidatePath("/expenses");
+  revalidatePath(`/expenses/${expenseId}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // Supporting data for the Add Expense form
 // ---------------------------------------------------------------------------
 

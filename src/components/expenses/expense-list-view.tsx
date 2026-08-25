@@ -333,7 +333,18 @@ export function ExpenseListView({
                       <td className="px-3 py-3"><Badge tone={DISPLAY_STATUS_TONE[e.displayStatus]}>{DISPLAY_STATUS_LABEL[e.displayStatus]}</Badge></td>
                       <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.paidOn ? new Date(e.paidOn).toLocaleDateString("en-GH", { day: "2-digit", month: "short" }) : "—"}</td>
                       <td className="px-3 py-3 pr-4">
-                        <ExpenseRowMenu expenseId={e.id} expenseNumber={e.expenseNumber} status={e.status} paymentStatus={e.paymentStatus} onNotice={showNotice} />
+                        <ExpenseRowMenu
+                          expenseId={e.id}
+                          expenseNumber={e.expenseNumber}
+                          status={e.status}
+                          paymentStatus={e.paymentStatus}
+                          onNotice={showNotice}
+                          category={e.category}
+                          vendor={e.vendor}
+                          date={e.date}
+                          amount={e.amount}
+                          currency={currency}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -362,72 +373,71 @@ export function ExpenseListView({
           </Card>
       </div>
 
-      {/* Analytics — moved below the table so both the table and these cards get full width */}
+      {/* Analytics — full-width row below the table */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
         <Card accent="neutral">
           <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Overview</CardTitle></CardHeader>
-            <CardContent className="pt-0">
-              {donutTotal === 0 ? <p className="text-sm text-ledger-400">No expenses yet.</p> : (
-                <>
-                  <div className="relative mx-auto h-40 w-40">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={categoryBreakdown.map((c, i) => ({ name: c.category, value: c.total, color: DONUT_COLORS[i % DONUT_COLORS.length] }))} dataKey="value" innerRadius={48} outerRadius={70} paddingAngle={2}>
-                          {categoryBreakdown.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} stroke="none" />)}
-                        </Pie>
-                        <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="font-display text-lg font-semibold text-ink-900 dark:text-white">{formatCurrency(donutTotal, currency)}</span>
-                      <span className="text-[10px] text-ledger-400">Total</span>
+          <CardContent className="pt-0">
+            {donutTotal === 0 ? <p className="text-sm text-ledger-400">No expenses yet.</p> : (
+              <>
+                <div className="relative mx-auto h-40 w-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={categoryBreakdown.map((c, i) => ({ name: c.category, value: c.total, color: DONUT_COLORS[i % DONUT_COLORS.length] }))} dataKey="value" innerRadius={48} outerRadius={70} paddingAngle={2}>
+                        {categoryBreakdown.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} stroke="none" />)}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-display text-lg font-semibold text-ink-900 dark:text-white">{formatCurrency(donutTotal, currency)}</span>
+                    <span className="text-[10px] text-ledger-400">Total</span>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  {categoryBreakdown.map((c, i) => (
+                    <div key={c.category} className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-ledger-500"><span className="h-2 w-2 rounded-full" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} /> {c.category}</span>
+                      <span className="font-medium text-ink-900 dark:text-white">{Math.round((c.total / donutTotal) * 100)}% ({formatCurrency(c.total, currency)})</span>
                     </div>
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {categoryBreakdown.map((c, i) => (
-                      <div key={c.category} className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1.5 text-ledger-500"><span className="h-2 w-2 rounded-full" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} /> {c.category}</span>
-                        <span className="font-medium text-ink-900 dark:text-white">{Math.round((c.total / donutTotal) * 100)}% ({formatCurrency(c.total, currency)})</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Top Expense Categories</CardTitle></CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              {categoryBreakdown.map((c) => (
-                <div key={c.category}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="truncate text-ink-900 dark:text-white">{c.category}</span>
-                    <span className="font-mono text-xs text-ledger-500">{formatCurrency(c.total, currency)}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-ledger-100 dark:bg-white/[0.06]">
-                    <div className="h-1.5 rounded-full bg-signal" style={{ width: `${(c.total / maxCategoryTotal) * 100}%` }} />
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
-          <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Recent Expense Activity</CardTitle></CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              {recentActivity.length === 0 && <p className="text-sm text-ledger-400">No recent activity.</p>}
-              {recentActivity.map((a) => (
-                <div key={a.id} className="text-sm">
-                  <p className="text-ink-900 dark:text-white">{a.label} <span className="font-mono text-xs text-ledger-500">{formatExpenseNumber(a.expenseNumber)}</span></p>
-                  <p className="text-xs text-ledger-400">{a.category} · {new Date(a.createdAt).toLocaleDateString("en-GH", { day: "2-digit", month: "short" })}</p>
+        <Card accent="neutral">
+          <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Top Expense Categories</CardTitle></CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            {categoryBreakdown.map((c) => (
+              <div key={c.category}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="truncate text-ink-900 dark:text-white">{c.category}</span>
+                  <span className="font-mono text-xs text-ledger-500">{formatCurrency(c.total, currency)}</span>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+                <div className="h-1.5 w-full rounded-full bg-ledger-100 dark:bg-white/[0.06]">
+                  <div className="h-1.5 rounded-full bg-signal" style={{ width: `${(c.total / maxCategoryTotal) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card accent="neutral">
+          <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Recent Expense Activity</CardTitle></CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            {recentActivity.length === 0 && <p className="text-sm text-ledger-400">No recent activity.</p>}
+            {recentActivity.map((a) => (
+              <div key={a.id} className="text-sm">
+                <p className="text-ink-900 dark:text-white">{a.label} <span className="font-mono text-xs text-ledger-500">{formatExpenseNumber(a.expenseNumber)}</span></p>
+                <p className="text-xs text-ledger-400">{a.category} · {new Date(a.createdAt).toLocaleDateString("en-GH", { day: "2-digit", month: "short" })}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
 
     </div>
   );
 }
-
