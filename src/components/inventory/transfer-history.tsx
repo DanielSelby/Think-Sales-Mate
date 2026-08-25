@@ -455,7 +455,7 @@ export function TransferHistory({
         <KpiFlipCard color="amber" label="Pending / in transit" value={kpis.pending.value.toLocaleString()} icon={<ArrowDownRight className="h-full w-full" />} detail={`${Math.abs(kpis.pending.change)}% vs last month.`} />
         <KpiFlipCard color="red" label="Cancelled" value={kpis.cancelled.value.toLocaleString()} icon={<ArrowDownRight className="h-full w-full" />} detail={`${Math.abs(kpis.cancelled.change)}% vs last month.`} />
         <KpiFlipCard color="purple" label="Qty transferred" value={kpis.totalQuantity.value.toLocaleString()} icon={<ArrowUpRight className="h-full w-full" />} detail={`${Math.abs(kpis.totalQuantity.change)}% vs last month.`} />
-        <KpiFlipCard color="teal" label="Value transferred" value={`$${formatMoney(kpis.totalValue.value)}`} icon={<ArrowUpRight className="h-full w-full" />} detail={`${Math.abs(kpis.totalValue.change)}% vs last month.`} />
+        <KpiFlipCard color="teal" label="Value transferred" value={`$${formatMoney(kpis.totalValue.value)}`} icon={<ArrowUpRight className="h-full w-full" />} detail={`${Math.abs(kpis.totalValue.change)}% vs last month.`} featured />
       </div>
 
       {/* Analytics row — moved above the search bar */}
