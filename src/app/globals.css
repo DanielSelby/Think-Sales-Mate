@@ -8,12 +8,40 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
+    font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   body {
     @apply bg-ledger-50 text-ink-900 dark:bg-ink-950 dark:text-ledger-100;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
+  
+  /* Consistent Header Typography across all pages */
+  h1 {
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  h3 {
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  h4, h5, h6 {
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+  }
+  
+  button, input, select, textarea {
+    font-family: inherit;
+  }
+
   ::selection {
     @apply bg-signal/20;
   }
@@ -68,26 +96,78 @@
 
 /* ── Print Media Optimization ── */
 @media print {
+  @page {
+    margin: 12mm 10mm 15mm 10mm;
+    size: auto;
+  }
+
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    font-size: 11pt !important;
+    line-height: 1.3 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  aside, header, nav, .print-hide, [data-print-hide="true"] {
+
+  /* Hide app navigation chrome, modals, sidebars, interactive controls */
+  aside,
+  header,
+  nav,
+  button,
+  .print-hide,
+  [data-print-hide="true"],
+  .no-print {
     display: none !important;
   }
+
+  /* Display clean print container */
   .print-only {
     display: block !important;
   }
+
   .print-table {
     width: 100% !important;
     border-collapse: collapse !important;
+    margin-top: 10px !important;
+    font-size: 9.5pt !important;
   }
-  .print-table th, .print-table td {
-    border: 1px solid #e2e8f0 !important;
+
+  .print-table th {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    border: 1px solid #cbd5e1 !important;
     padding: 6px 8px !important;
+    text-align: left !important;
   }
+
+  .print-table td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 5px 8px !important;
+    color: #1e293b !important;
+  }
+
+  .print-table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   .print-break-inside-avoid {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+  }
+
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #64748b;
+    border-top: 1px solid #cbd5e1;
+    padding-top: 4px;
   }
 }

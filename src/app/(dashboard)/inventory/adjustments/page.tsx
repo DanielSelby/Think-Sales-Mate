@@ -22,6 +22,7 @@ export default async function StockAdjustmentPage() {
   const [
     { data: locationRows },
     { data: productRows },
+    { data: stockLevelRows },
     { data: memberRows },
     { data: profileRows },
   ] = await Promise.all([
@@ -34,10 +35,14 @@ export default async function StockAdjustmentPage() {
       .order("name"),
     supabase
       .from("products")
-      .select("id, sku, barcode, name, category, brand, stock_quantity, cost_price, unit_price, image_urls")
+      .select("id, sku, barcode, name, category, brand, stock_quantity, cost_price, unit_price, image_urls, location_id")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("product_stock_levels")
+      .select("product_id, location_id, quantity")
+      .eq("org_id", context.orgId),
     supabase
       .from("organization_members")
       .select("user_id, role")
@@ -52,6 +57,15 @@ export default async function StockAdjustmentPage() {
     isPrimary: l.is_primary,
   }));
 
+  // Build stock by product and location
+  const stockByProductLoc: Record<string, Record<string, number>> = {};
+  (stockLevelRows ?? []).forEach((sl) => {
+    if (!stockByProductLoc[sl.product_id]) {
+      stockByProductLoc[sl.product_id] = {};
+    }
+    stockByProductLoc[sl.product_id][sl.location_id] = sl.quantity;
+  });
+
   const products: AdjustableProduct[] = (productRows ?? []).map((p) => ({
     id: p.id,
     sku: p.sku,
@@ -59,10 +73,12 @@ export default async function StockAdjustmentPage() {
     name: p.name,
     category: p.category,
     brand: p.brand,
+    locationId: p.location_id,
     stockQuantity: p.stock_quantity ?? 0,
     costPrice: p.cost_price ?? 0,
     unitPrice: p.unit_price ?? 0,
     imageUrl: p.image_urls?.[0] || null,
+    locationStocks: stockByProductLoc[p.id] || {},
   }));
 
   // Build team members
