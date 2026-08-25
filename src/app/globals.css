@@ -9,12 +9,16 @@
     text-rendering: optimizeLegibility;
     font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
     font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
   }
   body {
     @apply bg-ledger-50 text-ink-900 dark:bg-ink-950 dark:text-ledger-100;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
   }
   
   /* Consistent Header Typography across all pages */
@@ -38,8 +42,13 @@
     font-weight: 600;
   }
   
-  button, input, select, textarea {
-    font-family: inherit;
+  /* Form Controls & Tables inherit standard font */
+  input, select, textarea {
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  table {
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   }
 
   ::selection {

@@ -12,6 +12,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
   ChevronDown,
+  ChevronUp,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
@@ -28,8 +29,8 @@ import {
   Copy,
   Check,
   X,
-  ExternalLink,
   Eye,
+  EyeOff,
   Building2,
   User as UserIcon,
   HelpCircle,
@@ -360,10 +361,16 @@ export function StockAdjustmentHistory({
   });
 
   // Filter States
+  const [showFilters, setShowFilters] = useState<boolean>(true);
   const [searchProduct, setSearchProduct] = useState<string>("");
   const [selectedBranch, setSelectedBranch] = useState<string>("All Branches");
   const [selectedAdjustmentType, setSelectedAdjustmentType] = useState<string>("All Types");
-  const [dateRange, setDateRange] = useState<string>("May 1, 2025 - May 17, 2025");
+  
+  // Date Range Picker States
+  const [startDate, setStartDate] = useState<string>("2025-05-01");
+  const [endDate, setEndDate] = useState<string>("2025-05-17");
+  const [datePreset, setDatePreset] = useState<string>("custom");
+
   const [selectedReason, setSelectedReason] = useState<string>("All Reasons");
   const [selectedRefType, setSelectedRefType] = useState<string>("All References");
   const [searchReference, setSearchReference] = useState<string>("");
@@ -409,6 +416,35 @@ export function StockAdjustmentHistory({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Preset Date Handlers
+  const handleDatePresetChange = (preset: string) => {
+    setDatePreset(preset);
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
+    if (preset === "all") {
+      setStartDate("");
+      setEndDate("");
+    } else if (preset === "today") {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (preset === "7days") {
+      const past = new Date();
+      past.setDate(now.getDate() - 7);
+      setStartDate(past.toISOString().slice(0, 10));
+      setEndDate(todayStr);
+    } else if (preset === "this_month") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      setStartDate(firstDay);
+      setEndDate(todayStr);
+    } else if (preset === "30days") {
+      const past = new Date();
+      past.setDate(now.getDate() - 30);
+      setStartDate(past.toISOString().slice(0, 10));
+      setEndDate(todayStr);
+    }
+  };
+
   // ── Filtered Records ─────────────────────────────────────────────────────
   const filteredRecords = useMemo(() => {
     return records.filter((rec) => {
@@ -444,6 +480,14 @@ export function StockAdjustmentHistory({
         if (rec.adjustmentType !== selectedAdjustmentType) return false;
       }
 
+      // Date Range Filtering
+      if (startDate && rec.rawDate < startDate) {
+        return false;
+      }
+      if (endDate && rec.rawDate > endDate) {
+        return false;
+      }
+
       // Reason
       if (selectedReason !== "All Reasons") {
         if (rec.reason !== selectedReason) return false;
@@ -476,6 +520,8 @@ export function StockAdjustmentHistory({
     searchProduct,
     selectedBranch,
     selectedAdjustmentType,
+    startDate,
+    endDate,
     selectedReason,
     selectedRefType,
     searchReference,
@@ -615,6 +661,9 @@ export function StockAdjustmentHistory({
     setSearchProduct("");
     setSelectedBranch("All Branches");
     setSelectedAdjustmentType("All Types");
+    setStartDate("");
+    setEndDate("");
+    setDatePreset("all");
     setSelectedReason("All Reasons");
     setSelectedRefType("All References");
     setSearchReference("");
@@ -776,195 +825,6 @@ export function StockAdjustmentHistory({
           </div>
         </div>
 
-        {/* ── Advanced Filter Section ─────────────────────────────────────── */}
-        <div className="rounded-2xl border border-ledger-100 bg-white p-6 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <div className="flex items-center justify-between border-b border-ledger-100 pb-4 dark:border-ledger-700">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-emerald-600" />
-              <h2 className="font-semibold text-sm text-ink-900 dark:text-white">
-                Filter Adjustment History
-              </h2>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowMoreFilters(!showMoreFilters)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span>{showMoreFilters ? "Fewer Filters" : "More Filters"}</span>
-            </button>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-            {/* Search Product */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                Search Product
-              </label>
-              <div className="relative flex items-center">
-                <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-ledger-400" />
-                <input
-                  type="text"
-                  placeholder="Search by product name, SKU or barcode..."
-                  value={searchProduct}
-                  onChange={(e) => setSearchProduct(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-3 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                />
-              </div>
-            </div>
-
-            {/* Branch / Warehouse */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                Branch / Warehouse
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                >
-                  {branches.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
-              </div>
-            </div>
-
-            {/* Adjustment Type */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                Adjustment Type
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedAdjustmentType}
-                  onChange={(e) => setSelectedAdjustmentType(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                >
-                  {ADJUSTMENT_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
-              </div>
-            </div>
-
-            {/* Date Range */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                Date Range
-              </label>
-              <div className="relative flex items-center">
-                <Calendar className="pointer-events-none absolute left-3 h-4 w-4 text-ledger-400" />
-                <input
-                  type="text"
-                  value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-3 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                />
-              </div>
-            </div>
-
-            {/* Adjustment Reason */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                Adjustment Reason
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedReason}
-                  onChange={(e) => setSelectedReason(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                >
-                  {ADJUSTMENT_REASONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
-              </div>
-            </div>
-
-            {/* Reference Type */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                Reference Type
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedRefType}
-                  onChange={(e) => setSelectedRefType(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                >
-                  {REFERENCE_TYPES.map((rt) => (
-                    <option key={rt} value={rt}>
-                      {rt}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
-              </div>
-            </div>
-
-            {/* Reference */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                Reference
-              </label>
-              <input
-                type="text"
-                placeholder="Search reference..."
-                value={searchReference}
-                onChange={(e) => setSearchReference(e.target.value)}
-                className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-              />
-            </div>
-
-            {/* User */}
-            <div>
-              <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                User
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedUser}
-                  onChange={(e) => setSelectedUser(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                >
-                  {userList.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
-              </div>
-            </div>
-          </div>
-
-          {/* Reset Filters Bar */}
-          <div className="mt-4 flex items-center justify-between border-t border-ledger-100 pt-3 dark:border-ledger-700 text-xs">
-            <span className="text-ledger-400">
-              Showing filtered results ({filteredRecords.length} adjustments matched)
-            </span>
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
-            >
-              Reset All Filters
-            </button>
-          </div>
-        </div>
-
         {/* ── 5 KPI Summary Cards across top ──────────────────────────────── */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {/* 1. Total Adjustments */}
@@ -1048,497 +908,769 @@ export function StockAdjustmentHistory({
           </div>
         </div>
 
-        {/* ── Main Workspace Grid (8.5 cols Table + 3.5 cols Sidebar Analytics) ── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-          {/* ── Left / Center Table (Adjustment History) ── */}
-          <div className="lg:col-span-8 xl:col-span-9 space-y-4">
-            <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              {/* Table Top Toolbar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ledger-100 p-4 dark:border-ledger-700">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <h3 className="font-semibold text-sm text-ink-900 dark:text-white">
-                    Adjustment History
-                  </h3>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Export Dropdown */}
-                  <div className="relative" ref={exportMenuRef}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowExportMenu(!showExportMenu)}
-                      className="h-8 gap-1.5 rounded-xl border-ledger-200 text-xs font-semibold text-ink-900 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white"
-                    >
-                      <Download className="h-3.5 w-3.5 text-ledger-500" />
-                      Export
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-
-                    {showExportMenu && (
-                      <div className="absolute right-0 top-9 z-30 w-44 rounded-xl border border-ledger-100 bg-white p-1.5 shadow-xl dark:border-ledger-700 dark:bg-ink-900">
-                        <button
-                          type="button"
-                          onClick={handleExportExcel}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
-                        >
-                          <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                          Export to Excel (.xlsx)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleExportCSV}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
-                        >
-                          <FileText className="h-3.5 w-3.5 text-blue-600" />
-                          Export to CSV (.csv)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowExportMenu(false);
-                            window.print();
-                          }}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
-                        >
-                          <Printer className="h-3.5 w-3.5 text-purple-600" />
-                          Print Table Slip
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Refresh Button */}
-                  <button
-                    type="button"
-                    onClick={handleRefresh}
-                    title="Refresh Records"
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-ledger-200 bg-white text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
-                  </button>
-                </div>
+        {/* ── Top Overview Section (Moved to Top: Summary, Donut, Top Reasons) ── */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          {/* 1. Adjustment Summary Card */}
+          <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                <FileSpreadsheet className="h-4 w-4" />
               </div>
+              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+                Adjustment Summary
+              </h3>
+            </div>
 
-              {/* Table Content */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-                    <tr>
-                      <th
-                        onClick={() => handleSort("rawDate")}
-                        className="cursor-pointer px-3.5 py-3 hover:text-ink-900 dark:hover:text-white"
-                      >
-                        <div className="flex items-center gap-1">
-                          Date &amp; Time
-                          <span className="text-[9px]">⇕</span>
-                        </div>
-                      </th>
-                      <th className="px-3.5 py-3">Product</th>
-                      <th className="px-3.5 py-3">SKU</th>
-                      <th className="px-3.5 py-3">Branch / Warehouse</th>
-                      <th className="px-3.5 py-3">Adjustment Type</th>
-                      <th className="px-3.5 py-3">Reason</th>
-                      <th className="px-3.5 py-3">Reference No.</th>
-                      <th
-                        onClick={() => handleSort("qtyChange")}
-                        className="cursor-pointer px-3.5 py-3 text-center hover:text-ink-900 dark:hover:text-white"
-                      >
-                        Qty Change ⇕
-                      </th>
-                      <th className="px-3.5 py-3 text-right">Unit Cost ({currency})</th>
-                      <th
-                        onClick={() => handleSort("valueImpact")}
-                        className="cursor-pointer px-3.5 py-3 text-right hover:text-ink-900 dark:hover:text-white"
-                      >
-                        Value Impact ({currency}) ⇕
-                      </th>
-                      <th className="px-3.5 py-3">User</th>
-                      <th className="px-3 py-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-                    {paginatedRecords.length === 0 ? (
-                      <tr>
-                        <td colSpan={12} className="px-6 py-12 text-center text-ledger-400">
-                          No stock adjustment history records match the current filter selection.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedRecords.map((row) => {
-                        const isPositive = row.qtyChange > 0;
-                        return (
-                          <tr
-                            key={row.id}
-                            className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]"
-                          >
-                            {/* Date & Time */}
-                            <td className="px-3.5 py-3.5 text-ledger-600 dark:text-ledger-300 whitespace-nowrap">
-                              <span className="font-medium text-ink-900 dark:text-white block">
-                                {row.dateTime.split(" ")[0]} {row.dateTime.split(" ")[1]} {row.dateTime.split(" ")[2]}
-                              </span>
-                              <span className="text-[10px] text-ledger-400">
-                                {row.dateTime.split(" ").slice(3).join(" ")}
-                              </span>
-                            </td>
-
-                            {/* Product */}
-                            <td className="px-3.5 py-3.5">
-                              <div className="flex items-center gap-2.5 min-w-[170px]">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white p-1 dark:border-ledger-700 dark:bg-ink-950">
-                                  <Package className="h-4 w-4 text-ledger-400" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-ink-900 dark:text-white truncate">
-                                    {row.productName}
-                                  </p>
-                                  <p className="text-[10px] text-ledger-400">{row.productCategory}</p>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* SKU */}
-                            <td className="px-3.5 py-3.5 font-mono text-xs text-ledger-600 dark:text-ledger-300">
-                              {row.sku}
-                            </td>
-
-                            {/* Branch / Warehouse */}
-                            <td className="px-3.5 py-3.5 whitespace-nowrap">
-                              <p className="font-medium text-ink-900 dark:text-white">{row.branch}</p>
-                              <p className="text-[10px] text-ledger-400">{row.warehouse}</p>
-                            </td>
-
-                            {/* Adjustment Type Badge */}
-                            <td className="px-3.5 py-3.5">
-                              <span
-                                className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold ${getBadgeStyle(
-                                  row.adjustmentType
-                                )}`}
-                              >
-                                {row.adjustmentType}
-                              </span>
-                            </td>
-
-                            {/* Reason */}
-                            <td className="px-3.5 py-3.5 text-ledger-600 dark:text-ledger-300">
-                              {row.reason}
-                            </td>
-
-                            {/* Reference No */}
-                            <td className="px-3.5 py-3.5 font-mono">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedRecordForDetail(row)}
-                                className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
-                              >
-                                {row.referenceNo}
-                              </button>
-                            </td>
-
-                            {/* Qty Change */}
-                            <td className="px-3.5 py-3.5 text-center font-bold font-mono">
-                              <span
-                                className={
-                                  isPositive
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : "text-red-600 dark:text-red-400"
-                                }
-                              >
-                                {isPositive ? `+${row.qtyChange}` : row.qtyChange}
-                              </span>
-                            </td>
-
-                            {/* Unit Cost */}
-                            <td className="px-3.5 py-3.5 text-right font-mono text-ledger-700 dark:text-ledger-300">
-                              {row.unitCost.toLocaleString("en-US", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
-                            </td>
-
-                            {/* Value Impact */}
-                            <td className="px-3.5 py-3.5 text-right font-bold font-mono">
-                              <span
-                                className={
-                                  row.valueImpact > 0
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : "text-red-600 dark:text-red-400"
-                                }
-                              >
-                                {row.valueImpact.toLocaleString("en-US", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
-                              </span>
-                            </td>
-
-                            {/* User */}
-                            <td className="px-3.5 py-3.5 whitespace-nowrap text-ledger-600 dark:text-ledger-300 font-medium">
-                              {row.userName}
-                            </td>
-
-                            {/* Actions */}
-                            <td className="px-3 py-3.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedRecordForDetail(row)}
-                                title="View Document Details"
-                                className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+            <div className="mt-3.5 space-y-2.5 text-xs">
+              <div className="flex justify-between text-ledger-500">
+                <span>Total Adjustments</span>
+                <span className="font-bold text-ink-900 dark:text-white font-mono">
+                  {analytics.totalAdjustments}
+                </span>
               </div>
+              <div className="flex justify-between text-ledger-500">
+                <span>Qty Added</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                  {analytics.qtyAdded}
+                </span>
+              </div>
+              <div className="flex justify-between text-ledger-500">
+                <span>Qty Reduced</span>
+                <span className="font-bold text-red-600 dark:text-red-400 font-mono">
+                  {analytics.qtyReduced}
+                </span>
+              </div>
+              <div className="flex justify-between text-ledger-500">
+                <span>Net Adjustment</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">
+                  +{analytics.netAdjustment}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-ledger-100 pt-2 text-ledger-500 dark:border-ledger-700">
+                <span>Total Value Impact</span>
+                <span className="font-bold text-ink-900 dark:text-white font-mono">
+                  {currency} {analytics.totalValueImpact.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
 
-              {/* Table Pagination Footer */}
-              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-ledger-100 p-4 text-xs dark:border-ledger-700">
-                <div className="text-ledger-400">
-                  Showing{" "}
-                  <strong>
-                    {sortedRecords.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
-                  </strong>{" "}
-                  to{" "}
-                  <strong>
-                    {Math.min(currentPage * pageSize, sortedRecords.length)}
-                  </strong>{" "}
-                  of <strong>{sortedRecords.length}</strong> entries
-                </div>
+          {/* 2. Adjustment by Type Donut Card */}
+          <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
+                <Layers className="h-4 w-4" />
+              </div>
+              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+                Adjustment by Type
+              </h3>
+            </div>
 
-                <div className="flex items-center gap-3">
-                  {/* Page Size Selector */}
-                  <div className="flex items-center gap-1.5 text-ledger-500">
-                    <select
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(Number(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                      className="rounded-lg border border-ledger-200 bg-white px-2 py-1 text-xs font-semibold text-ink-900 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+            <div className="mt-3 flex items-center justify-between">
+              {/* Donut Chart with Center Total */}
+              <div className="relative h-24 w-24 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analytics.typeDonutData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={28}
+                      outerRadius={42}
+                      paddingAngle={3}
+                      dataKey="value"
                     >
-                      <option value={10}>10 per page</option>
-                      <option value={20}>20 per page</option>
-                      <option value={50}>50 per page</option>
-                    </select>
-                  </div>
-
-                  {/* Pagination Controls */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-ledger-200 bg-white text-ledger-600 disabled:opacity-40 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .slice(0, 5)
-                      .map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => setCurrentPage(p)}
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
-                            currentPage === p
-                              ? "bg-blue-600 text-white"
-                              : "border border-ledger-200 bg-white text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                          }`}
-                        >
-                          {p}
-                        </button>
+                      {analytics.typeDonutData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="font-display font-bold text-sm text-ink-900 dark:text-white leading-tight">
+                    {analytics.totalAdjustments}
+                  </span>
+                  <span className="text-[9px] text-ledger-400 leading-none">Total</span>
+                </div>
+              </div>
 
-                    {totalPages > 5 && (
-                      <>
-                        <span className="px-1 text-ledger-400">...</span>
-                        <button
-                          type="button"
-                          onClick={() => setCurrentPage(totalPages)}
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
-                            currentPage === totalPages
-                              ? "bg-blue-600 text-white"
-                              : "border border-ledger-200 bg-white text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                          }`}
-                        >
-                          {totalPages}
-                        </button>
-                      </>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-ledger-200 bg-white text-ledger-600 disabled:opacity-40 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+              {/* Legend List */}
+              <div className="space-y-1.5 text-xs flex-1 ml-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">Add Stock</span>
                   </div>
+                  <span className="font-semibold text-ink-900 dark:text-white font-mono text-[11px]">
+                    {analytics.addStockCount} ({analytics.addPct}%)
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                    <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">Reduce Stock</span>
+                  </div>
+                  <span className="font-semibold text-ink-900 dark:text-white font-mono text-[11px]">
+                    {analytics.reduceStockCount} ({analytics.redPct}%)
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-purple-500" />
+                    <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">Set Qty</span>
+                  </div>
+                  <span className="font-semibold text-ink-900 dark:text-white font-mono text-[11px]">
+                    {analytics.setCountCount} ({analytics.setPct}%)
+                  </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Right Sidebar Analytics ── */}
-          <div className="lg:col-span-4 xl:col-span-3 space-y-6">
-            {/* 1. Adjustment Summary Card */}
-            <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
-                Adjustment Summary
-              </h3>
-
-              <div className="mt-4 space-y-3 text-xs">
-                <div className="flex justify-between text-ledger-500">
-                  <span>Total Adjustments</span>
-                  <span className="font-bold text-ink-900 dark:text-white font-mono">
-                    {analytics.totalAdjustments}
-                  </span>
+          {/* 3. Top Reasons Card */}
+          <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <div className="flex items-center justify-between border-b border-ledger-100 pb-3 dark:border-ledger-700">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40">
+                  <TrendingUp className="h-4 w-4" />
                 </div>
-                <div className="flex justify-between text-ledger-500">
-                  <span>Qty Added</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                    {analytics.qtyAdded}
-                  </span>
-                </div>
-                <div className="flex justify-between text-ledger-500">
-                  <span>Qty Reduced</span>
-                  <span className="font-bold text-red-600 dark:text-red-400 font-mono">
-                    {analytics.qtyReduced}
-                  </span>
-                </div>
-                <div className="flex justify-between text-ledger-500">
-                  <span>Net Adjustment</span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">
-                    +{analytics.netAdjustment}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t border-ledger-100 pt-2.5 text-ledger-500 dark:border-ledger-700">
-                  <span>Total Value Impact</span>
-                  <span className="font-bold text-ink-900 dark:text-white font-mono">
-                    {currency} {analytics.totalValueImpact.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
+                <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+                  Top Reasons
+                </h3>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowAllReasonsModal(true)}
+                className="text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
+              >
+                View all
+              </button>
             </div>
 
-            {/* 2. Adjustment by Type Donut Card */}
-            <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
-                Adjustment by Type
-              </h3>
-
-              <div className="mt-4 flex flex-col items-center">
-                {/* Donut Chart with Center Total */}
-                <div className="relative h-32 w-32">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={analytics.typeDonutData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={36}
-                        outerRadius={54}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {analytics.typeDonutData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="font-display font-bold text-base text-ink-900 dark:text-white leading-none">
-                      {analytics.totalAdjustments}
-                    </span>
-                    <span className="text-[10px] text-ledger-400 mt-0.5">Total</span>
-                  </div>
-                </div>
-
-                {/* Legend List */}
-                <div className="mt-4 w-full space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                      <span className="text-ledger-600 dark:text-ledger-300">Add Stock</span>
-                    </div>
-                    <span className="font-semibold text-ink-900 dark:text-white font-mono">
-                      {analytics.addStockCount} ({analytics.addPct}%)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                      <span className="text-ledger-600 dark:text-ledger-300">Reduce Stock</span>
-                    </div>
-                    <span className="font-semibold text-ink-900 dark:text-white font-mono">
-                      {analytics.reduceStockCount} ({analytics.redPct}%)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
-                      <span className="text-ledger-600 dark:text-ledger-300">Set Quantity</span>
-                    </div>
-                    <span className="font-semibold text-ink-900 dark:text-white font-mono">
-                      {analytics.setCountCount} ({analytics.setPct}%)
-                    </span>
-                  </div>
-                </div>
+            <div className="mt-3 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">Stock Count Increase</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 font-mono text-xs">22</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">Damaged Item</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 font-mono text-xs">14</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">Expired Stock</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 font-mono text-xs">10</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">Vendor Return</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 font-mono text-xs">8</span>
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* 3. Top Reasons Card */}
-            <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
-                Top Reasons
-              </h3>
+        {/* ── Advanced Filter Section (Collapsible Toggle) ─────────────────── */}
+        <div className="rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900 overflow-hidden">
+          {/* Filter Header with Hide/Show Toggle */}
+          <div className="flex items-center justify-between border-b border-ledger-100 px-6 py-3.5 dark:border-ledger-700">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-emerald-600" />
+              <h2 className="font-semibold text-xs text-ink-900 dark:text-white">
+                Filter Adjustment History
+              </h2>
 
-              <div className="mt-3.5 space-y-2.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-ledger-600 dark:text-ledger-300">Stock Count Increase</span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">22</span>
+              {!showFilters && (
+                <div className="hidden sm:flex items-center gap-2 ml-3 text-xs text-ledger-400">
+                  <span className="inline-flex items-center rounded-md bg-ledger-100 px-2 py-0.5 font-medium text-ink-900 dark:bg-ledger-800 dark:text-ledger-200">
+                    {selectedBranch}
+                  </span>
+                  <span>·</span>
+                  <span className="font-medium text-ledger-600 dark:text-ledger-300">
+                    {selectedAdjustmentType}
+                  </span>
+                  <span>·</span>
+                  <span>{filteredRecords.length} records matched</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-ledger-600 dark:text-ledger-300">Damaged Item</span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">14</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-ledger-600 dark:text-ledger-300">Expired Stock</span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">10</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-ledger-600 dark:text-ledger-300">Vendor Return</span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">8</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-ledger-600 dark:text-ledger-300">Customer Return</span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">6</span>
-                </div>
-              </div>
+              )}
+            </div>
 
-              <div className="mt-4 border-t border-ledger-100 pt-3 dark:border-ledger-700 text-center">
+            <div className="flex items-center gap-3">
+              {showFilters && (
                 <button
                   type="button"
-                  onClick={() => setShowAllReasonsModal(true)}
-                  className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                  onClick={() => setShowMoreFilters(!showMoreFilters)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
                 >
-                  View all reasons
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>{showMoreFilters ? "Fewer Filters" : "More Filters"}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:text-ledger-400 dark:hover:bg-white/[0.04] dark:hover:text-white"
+              >
+                {showFilters ? (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5" />
+                    <span>Hide Filters</span>
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>Show Filters</span>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Form Content */}
+          {showFilters && (
+            <div className="p-6 pt-4 animate-in fade-in duration-150">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+                {/* 1. Search Product */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    Search Product
+                  </label>
+                  <div className="relative flex items-center">
+                    <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-ledger-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, SKU or barcode..."
+                      value={searchProduct}
+                      onChange={(e) => setSearchProduct(e.target.value)}
+                      className="h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-3 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Branch / Warehouse */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    Branch / Warehouse
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    >
+                      {branches.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
+                  </div>
+                </div>
+
+                {/* 3. Adjustment Type */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    Adjustment Type
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedAdjustmentType}
+                      onChange={(e) => setSelectedAdjustmentType(e.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    >
+                      {ADJUSTMENT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
+                  </div>
+                </div>
+
+                {/* 4. Interactive Date Range Picker */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    Date Range Filter
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setDatePreset("custom");
+                      }}
+                      className="h-10 flex-1 rounded-xl border border-ledger-200 bg-white px-2.5 text-[11px] font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    />
+                    <span className="text-ledger-400 font-bold text-xs">-</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setDatePreset("custom");
+                      }}
+                      className="h-10 flex-1 rounded-xl border border-ledger-200 bg-white px-2.5 text-[11px] font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2 (Optional / More Filters) */}
+                {/* 5. Adjustment Reason */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    Adjustment Reason
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedReason}
+                      onChange={(e) => setSelectedReason(e.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    >
+                      {ADJUSTMENT_REASONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
+                  </div>
+                </div>
+
+                {/* 6. Reference Type */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    Reference Type
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedRefType}
+                      onChange={(e) => setSelectedRefType(e.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    >
+                      {REFERENCE_TYPES.map((rt) => (
+                        <option key={rt} value={rt}>
+                          {rt}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
+                  </div>
+                </div>
+
+                {/* 7. Reference Search */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    Reference Search
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search reference..."
+                    value={searchReference}
+                    onChange={(e) => setSearchReference(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                  />
+                </div>
+
+                {/* 8. User Filter */}
+                <div>
+                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+                    User
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedUser}
+                      onChange={(e) => setSelectedUser(e.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    >
+                      {userList.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Date Presets Bar & Reset Filters */}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-ledger-400 mr-1 text-[11px]">Quick Date Presets:</span>
+                  {[
+                    { id: "all", label: "All Time" },
+                    { id: "today", label: "Today" },
+                    { id: "7days", label: "Last 7 Days" },
+                    { id: "this_month", label: "This Month" },
+                    { id: "30days", label: "Last 30 Days" },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleDatePresetChange(p.id)}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                        datePreset === p.id
+                          ? "bg-emerald-700 text-white"
+                          : "bg-ledger-100 text-ledger-600 hover:bg-ledger-200 dark:bg-ledger-800 dark:text-ledger-200"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
+                >
+                  Reset All Filters
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Full 100% Width Stock Adjustment History Table ─────────────── */}
+        <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          {/* Table Top Toolbar with Per Page Beside Export */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ledger-100 p-4 dark:border-ledger-700">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                <FileText className="h-4 w-4" />
+              </div>
+              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+                Adjustment History ({filteredRecords.length} records)
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {/* Rows Per Page Dropdown at Top Beside Export */}
+              <div className="flex items-center gap-1.5 text-xs text-ledger-500">
+                <span className="text-[11px] hidden sm:inline">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="h-8 rounded-xl border border-ledger-200 bg-white px-2.5 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                >
+                  <option value={10}>10 per page</option>
+                  <option value={20}>20 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                </select>
+              </div>
+
+              {/* Export Dropdown */}
+              <div className="relative" ref={exportMenuRef}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="h-8 gap-1.5 rounded-xl border-ledger-200 text-xs font-semibold text-ink-900 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white"
+                >
+                  <Download className="h-3.5 w-3.5 text-emerald-600" />
+                  Export
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+
+                {showExportMenu && (
+                  <div className="absolute right-0 top-9 z-30 w-44 rounded-xl border border-ledger-100 bg-white p-1.5 shadow-xl dark:border-ledger-700 dark:bg-ink-900">
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                      Export to Excel (.xlsx)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportCSV}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-blue-600" />
+                      Export to CSV (.csv)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        window.print();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-purple-600" />
+                      Print Table Slip
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Refresh Button */}
+              <button
+                type="button"
+                onClick={handleRefresh}
+                title="Refresh Records"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-ledger-200 bg-white text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Expanded Table Content (Full 12 cols) */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th
+                    onClick={() => handleSort("rawDate")}
+                    className="cursor-pointer px-4 py-3 hover:text-ink-900 dark:hover:text-white whitespace-nowrap"
+                  >
+                    <div className="flex items-center gap-1">
+                      Date &amp; Time
+                      <span className="text-[9px]">⇕</span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 min-w-[200px]">Product</th>
+                  <th className="px-4 py-3 min-w-[130px]">SKU</th>
+                  <th className="px-4 py-3 min-w-[170px]">Branch / Warehouse</th>
+                  <th className="px-4 py-3 min-w-[150px]">Adjustment Type</th>
+                  <th className="px-4 py-3 min-w-[150px]">Reason</th>
+                  <th className="px-4 py-3 min-w-[150px]">Reference No.</th>
+                  <th
+                    onClick={() => handleSort("qtyChange")}
+                    className="cursor-pointer px-4 py-3 text-center hover:text-ink-900 dark:hover:text-white min-w-[110px]"
+                  >
+                    Qty Change ⇕
+                  </th>
+                  <th className="px-4 py-3 text-right min-w-[120px]">Unit Cost ({currency})</th>
+                  <th
+                    onClick={() => handleSort("valueImpact")}
+                    className="cursor-pointer px-4 py-3 text-right hover:text-ink-900 dark:hover:text-white min-w-[130px]"
+                  >
+                    Value Impact ({currency}) ⇕
+                  </th>
+                  <th className="px-4 py-3 min-w-[110px]">User</th>
+                  <th className="px-4 py-3 text-center w-16">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {paginatedRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="px-6 py-12 text-center text-ledger-400">
+                      No stock adjustment history records match the current filter selection.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedRecords.map((row) => {
+                    const isPositive = row.qtyChange > 0;
+                    return (
+                      <tr
+                        key={row.id}
+                        className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]"
+                      >
+                        {/* Date & Time */}
+                        <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300 whitespace-nowrap">
+                          <span className="font-semibold text-ink-900 dark:text-white block">
+                            {row.dateTime.split(" ")[0]} {row.dateTime.split(" ")[1]} {row.dateTime.split(" ")[2]}
+                          </span>
+                          <span className="text-[10px] text-ledger-400">
+                            {row.dateTime.split(" ").slice(3).join(" ")}
+                          </span>
+                        </td>
+
+                        {/* Product */}
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white p-1 dark:border-ledger-700 dark:bg-ink-950">
+                              <Package className="h-4 w-4 text-ledger-400" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-ink-900 dark:text-white truncate">
+                                {row.productName}
+                              </p>
+                              <p className="text-[10px] text-ledger-400">{row.productCategory}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* SKU */}
+                        <td className="px-4 py-3.5 font-mono text-xs text-ledger-600 dark:text-ledger-300">
+                          {row.sku}
+                        </td>
+
+                        {/* Branch / Warehouse */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <p className="font-semibold text-ink-900 dark:text-white">{row.branch}</p>
+                          <p className="text-[10px] text-ledger-400">{row.warehouse}</p>
+                        </td>
+
+                        {/* Adjustment Type Badge */}
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold ${getBadgeStyle(
+                              row.adjustmentType
+                            )}`}
+                          >
+                            {row.adjustmentType}
+                          </span>
+                        </td>
+
+                        {/* Reason */}
+                        <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300 font-medium">
+                          {row.reason}
+                        </td>
+
+                        {/* Reference No */}
+                        <td className="px-4 py-3.5 font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRecordForDetail(row)}
+                            className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+                          >
+                            {row.referenceNo}
+                          </button>
+                        </td>
+
+                        {/* Qty Change */}
+                        <td className="px-4 py-3.5 text-center font-bold font-mono">
+                          <span
+                            className={
+                              isPositive
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-600 dark:text-red-400"
+                            }
+                          >
+                            {isPositive ? `+${row.qtyChange}` : row.qtyChange}
+                          </span>
+                        </td>
+
+                        {/* Unit Cost */}
+                        <td className="px-4 py-3.5 text-right font-mono text-ledger-700 dark:text-ledger-300">
+                          {row.unitCost.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+
+                        {/* Value Impact */}
+                        <td className="px-4 py-3.5 text-right font-bold font-mono">
+                          <span
+                            className={
+                              row.valueImpact > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-600 dark:text-red-400"
+                            }
+                          >
+                            {row.valueImpact.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </td>
+
+                        {/* User */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-ledger-600 dark:text-ledger-300 font-semibold">
+                          {row.userName}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRecordForDetail(row)}
+                            title="View Document Details"
+                            className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Table Pagination Footer */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-ledger-100 p-4 text-xs dark:border-ledger-700">
+            <div className="text-ledger-400">
+              Showing{" "}
+              <strong>
+                {sortedRecords.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+              </strong>{" "}
+              to{" "}
+              <strong>
+                {Math.min(currentPage * pageSize, sortedRecords.length)}
+              </strong>{" "}
+              of <strong>{sortedRecords.length}</strong> entries
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-ledger-200 bg-white text-ledger-600 disabled:opacity-40 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .slice(0, 5)
+                .map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setCurrentPage(p)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
+                      currentPage === p
+                        ? "bg-blue-600 text-white"
+                        : "border border-ledger-200 bg-white text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+
+              {totalPages > 5 && (
+                <>
+                  <span className="px-1 text-ledger-400">...</span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
+                      currentPage === totalPages
+                        ? "bg-blue-600 text-white"
+                        : "border border-ledger-200 bg-white text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    }`}
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-ledger-200 bg-white text-ledger-600 disabled:opacity-40 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>
