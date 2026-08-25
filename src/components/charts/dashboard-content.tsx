@@ -25,6 +25,7 @@ import { TopSellingTable } from "@/components/charts/top-selling-table";
 import { InventorySummaryCard } from "@/components/charts/inventory-summary-card";
 import { RecentActivityFeed } from "@/components/charts/recent-activity-feed";
 import { ProfitOverviewChart } from "@/components/charts/profit-overview-chart";
+import { BranchPerformanceCard } from "@/components/charts/branch-performance-card";
 import { DateRangeFilter } from "@/components/charts/date-range-filter";
 import { DashboardFilters, type FilterOption } from "@/components/charts/dashboard-filters";
 import { formatMoney } from "@/lib/currency";
@@ -195,11 +196,15 @@ export function DashboardContent({
 
         <Card>
           <CardHeader>
-            <CardTitle>Sales by product</CardTitle>
+            <CardTitle>Sales by product &amp; category</CardTitle>
           </CardHeader>
           <CardContent>
-            {summary.revenueByProduct30d.length > 0 ? (
-              <RevenueByProductChart data={summary.revenueByProduct30d} currency={currency} />
+            {summary.revenueByProduct30d.length > 0 || summary.revenueByCategory30d.length > 0 ? (
+              <RevenueByProductChart
+                data={summary.revenueByProduct30d}
+                categoryData={summary.revenueByCategory30d}
+                currency={currency}
+              />
             ) : (
               <div className="flex h-44 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-ledger-200 text-center dark:border-ledger-700">
                 <p className="text-sm text-ledger-400">No sales in this period yet.</p>
@@ -207,6 +212,12 @@ export function DashboardContent({
             )}
           </CardContent>
         </Card>
+
+        {/* Branch by Branch Performance Comparison */}
+        <BranchPerformanceCard
+          branches={summary.branchPerformance}
+          currency={currency}
+        />
 
         <Card>
           <CardHeader>
