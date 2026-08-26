@@ -312,7 +312,6 @@ export async function bulkImportProducts(rows: BulkImportRow[]): Promise<BulkImp
 
 
 
-
 // ---------------------------------------------------------------------------
 // Product images — real Supabase Storage uploads (product-images bucket,
 // same pattern as company-assets logo uploads), not placeholders.

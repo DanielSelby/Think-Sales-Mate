@@ -281,6 +281,10 @@ export interface Database {
           note: string | null;
           created_by: string;
           created_at: string;
+          count_type: string;
+          resposible_person_id: string;
+          status: string;
+          adjustment_account: string;
         };
         Insert: {
           id?: string;
@@ -293,6 +297,10 @@ export interface Database {
           note?: string | null;
           created_by: string;
           created_at?: string;
+          count_type: string;
+          resposible_person_id: string;
+          status: string;
+          adjustment_account: string;
         };
         Update: Partial<Database["public"]["Tables"]["stock_adjustments"]["Row"]>;
         Relationships: [

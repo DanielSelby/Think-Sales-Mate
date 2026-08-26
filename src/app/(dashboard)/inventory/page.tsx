@@ -1,85 +1,146 @@
+// Target path (confirmed from your zip): app/(dashboard)/inventory/adjustments/page.tsx
+// (/inventory/stock-taking re-exports this same page — no change needed there.)
+//
+// This replaces my earlier guessed page.tsx. It's now your real
+// adjustments/page.tsx with two fixes applied, everything else left as-is
+// since the rest of it already works correctly:
+//
+// 1. currentUserName was resolving to context.orgName (the ORGANIZATION's
+//    name), falling back to a hardcoded "Daniel Addy" if that was empty —
+//    so the "Responsible Person" avatar initial and any personalization
+//    were never actually showing the signed-in person. Now resolved from
+//    their profile.
+// 2. canManage is now computed and passed, so the finalize/save buttons
+//    in the form can actually respect permissions client-side (the server
+//    action already enforces this regardless).
+
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import {
-  ProductsCatalog,
-  type CatalogProduct,
-  type CatalogLocation,
-  type BestSellerRow
-} from "@/components/inventory/products-catalog";
+  StockAdjustmentForm,
+  type AdjustLocation,
+  type AdjustableProduct,
+  type ResponsiblePerson,
+} from "@/components/inventory/stock-adjustment-form";
 
+export const metadata = {
+  title: "Stock Taking & Adjustment · ThinkSales Pro",
+};
 
-
-export default async function InventoryPage() {
+export default async function StockAdjustmentPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
   const supabase = await createClient();
 
-  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-  const [{ data: productRows }, { data: locationRows }, { data: recentItemRows }] = await Promise.all([
+  const [
+    { data: locationRows },
+    { data: productRows },
+    { data: stockLevelRows },
+    { data: memberRows },
+    { data: profileRows },
+  ] = await Promise.all([
+    supabase
+      .from("business_locations")
+      .select("id, name, is_primary")
+      .eq("org_id", context.orgId)
+      .eq("is_active", true)
+      .order("is_primary", { ascending: false })
+      .order("name"),
     supabase
       .from("products")
-      .select(
-        "id, sku, name, description, category, brand, supplier, barcode, location_id, unit_price, cost_price, stock_quantity, low_stock_threshold, is_active, image_urls, business_locations(name)"
-      )
+      .select("id, sku, barcode, name, category, brand, stock_quantity, cost_price, unit_price, image_urls, location_id")
       .eq("org_id", context.orgId)
+      .eq("is_active", true)
       .order("name"),
-    supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     supabase
-      .from("sale_items")
-      .select("product_id, quantity, products(name)")
+      .from("product_stock_levels")
+      .select("product_id, location_id, quantity")
+      .eq("org_id", context.orgId),
+    supabase
+      .from("organization_members")
+      .select("user_id, role")
       .eq("org_id", context.orgId)
-      .gte("created_at", since30d)
+      .eq("status", "active"),
+    supabase.from("profiles").select("id, full_name, avatar_url"),
   ]);
 
-  const products: CatalogProduct[] = (productRows ?? []).map((p) => {
-    const location = Array.isArray(p.business_locations) ? p.business_locations[0] : p.business_locations;
-    return {
-      id: p.id,
-      sku: p.sku,
-      name: p.name,
-      description: p.description,
-      category: p.category,
-      brand: p.brand,
-      supplier: p.supplier,
-      barcode: p.barcode,
-      locationId: p.location_id,
-      locationName: location?.name ?? null,
-      unitPrice: p.unit_price,
-      costPrice: p.cost_price,
-      stockQuantity: p.stock_quantity,
-      lowStockThreshold: p.low_stock_threshold,
-      isActive: p.is_active,
-      imageUrl: p.image_urls?.[0] ?? null
-    };
+  const locations: AdjustLocation[] = (locationRows ?? []).map((l) => ({
+    id: l.id,
+    name: l.name,
+    isPrimary: l.is_primary,
+  }));
+
+  // Build stock by product and location
+  const stockByProductLoc: Record<string, Record<string, number>> = {};
+  (stockLevelRows ?? []).forEach((sl) => {
+    if (!stockByProductLoc[sl.product_id]) {
+      stockByProductLoc[sl.product_id] = {};
+    }
+    stockByProductLoc[sl.product_id][sl.location_id] = sl.quantity;
   });
 
-  const locations: CatalogLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
+  const products: AdjustableProduct[] = (productRows ?? []).map((p) => ({
+    id: p.id,
+    sku: p.sku,
+    barcode: p.barcode,
+    name: p.name,
+    category: p.category,
+    brand: p.brand,
+    locationId: p.location_id,
+    stockQuantity: p.stock_quantity ?? 0,
+    costPrice: p.cost_price ?? 0,
+    unitPrice: p.unit_price ?? 0,
+    imageUrl: p.image_urls?.[0] || null,
+    locationStocks: stockByProductLoc[p.id] || {},
+  }));
 
-  const bestSellerMap = new Map<string, { name: string; unitsSold: number }>();
-  for (const row of recentItemRows ?? []) {
-    const product = Array.isArray(row.products) ? row.products[0] : row.products;
-    if (!row.product_id || !product) continue;
-    const existing = bestSellerMap.get(row.product_id) ?? { name: product.name, unitsSold: 0 };
-    existing.unitsSold += row.quantity;
-    bestSellerMap.set(row.product_id, existing);
+  // Build team members. Dropped the `user-${Math.random()}` fallback id
+  // for members with no linked user_id (e.g. a still-pending invite) —
+  // that produced a fresh random id on every render, which isn't a
+  // usable "Responsible Person" selection anyway since it can't be saved
+  // against any real user.
+  const profileMap = new Map((profileRows ?? []).map((pr) => [pr.id, pr]));
+  const teamMembers: ResponsiblePerson[] = (memberRows ?? [])
+    .filter((m): m is typeof m & { user_id: string } => !!m.user_id)
+    .map((m) => {
+      const prof = profileMap.get(m.user_id);
+      return {
+        id: m.user_id,
+        name: prof?.full_name || "Team Member",
+        avatarUrl: prof?.avatar_url || null,
+        role: m.role,
+      };
+    });
+
+  const currentUserProfile = profileMap.get(context.userId);
+  const currentUserName =
+    currentUserProfile?.full_name ||
+    teamMembers.find((tm) => tm.id === context.userId)?.name ||
+    context.userEmail ||
+    "You";
+
+  if (!teamMembers.some((tm) => tm.id === context.userId)) {
+    teamMembers.unshift({
+      id: context.userId,
+      name: currentUserName,
+      avatarUrl: currentUserProfile?.avatar_url || null,
+      role: context.role,
+    });
   }
-  const bestSellers: BestSellerRow[] = [...bestSellerMap.entries()]
-    .map(([productId, v]) => ({ productId, name: v.name, unitsSold: v.unitsSold }))
-    .sort((a, b) => b.unitsSold - a.unitsSold)
-    .slice(0, 3);
 
   return (
-    <ProductsCatalog
-      products={products}
+    <StockAdjustmentForm
       locations={locations}
-      bestSellers={bestSellers}
+      products={products}
+      teamMembers={teamMembers}
+      currency={context.currency || "GHS"}
+      currentUserName={currentUserName}
+      currentUserId={context.userId}
       canManage={can(context.role, "inventory.manage")}
-      currency={context.currency}
     />
   );
 }

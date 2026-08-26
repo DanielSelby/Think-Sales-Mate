@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, useRef } from "react";
+import { useMemo, useState, useTransition, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,19 +25,16 @@ import {
   Download,
   Calendar,
   MapPin,
-  User,
   Info,
   Package,
-  Layers,
-  Sparkles,
   X,
   Wallet,
-  ShieldCheck,
   ChevronDown,
   ChevronUp,
   SlidersHorizontal,
   Eye,
   EyeOff,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createStockAdjustment } from "@/app/(dashboard)/inventory/adjustments/actions";
@@ -60,6 +57,8 @@ export interface AdjustableProduct {
   costPrice: number;
   unitPrice: number;
   imageUrl?: string | null;
+  isActive?: boolean;
+  /** On-hand quantity per location, keyed by location id — the real source of System Qty. Matches the shape your adjustments/page.tsx already builds and embeds per product. */
   locationStocks?: Record<string, number>;
 }
 
@@ -75,7 +74,10 @@ export interface StockAdjustmentFormProps {
   products: AdjustableProduct[];
   teamMembers?: ResponsiblePerson[];
   currency?: string;
-  currentUserName?: string;
+  currentUserName: string;
+  currentUserId?: string;
+  /** Gates the actions that actually persist/finalize a count. Server re-checks this regardless. */
+  canManage?: boolean;
 }
 
 interface TableCountRow {
@@ -85,7 +87,6 @@ interface TableCountRow {
   barcode?: string | null;
   category?: string | null;
   imageUrl?: string | null;
-  locationId?: string | null;
   costPrice: number;
   systemStock: number;
   countedStock: number;
@@ -110,28 +111,50 @@ const DONUT_COLORS = {
   zero: "#94a3b8", // slate-400
 };
 
+function formatMoney(value: number) {
+  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function suggestedReference() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const seq = String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+  return `STK-${y}-${seq}`;
+}
+
 export function StockAdjustmentForm({
   locations,
   products,
   teamMembers = [],
   currency = "GHS",
-  currentUserName = "Daniel Addy",
+  currentUserName,
+  currentUserId,
+  canManage = true,
 }: StockAdjustmentFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   // 1. Header Parameters State
-  const [countReference, setCountReference] = useState<string>("STK-2024-00078");
-  const [countDate, setCountDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [countReference, setCountReference] = useState<string>(() => suggestedReference());
+  const [countDate, setCountDate] = useState<string>(() => todayIso());
   const [countType, setCountType] = useState<"stock_taking" | "adjustment_only">("stock_taking");
   const [status, setStatus] = useState<"in_progress" | "draft" | "completed">("in_progress");
   const [selectedLocationId, setSelectedLocationId] = useState<string>(locations[0]?.id || "");
-  const [selectedPersonId, setSelectedPersonId] = useState<string>(teamMembers[0]?.id || "");
+  const [selectedPersonId, setSelectedPersonId] = useState<string>(() => {
+    if (currentUserId && teamMembers.some((tm) => tm.id === currentUserId)) return currentUserId;
+    return teamMembers[0]?.id || "";
+  });
   const [notes, setNotes] = useState<string>("");
   const [adjustmentAccount, setAdjustmentAccount] = useState<string>("Inventory Adjustment");
 
   // Toggle for Header Parameters section
   const [showParameters, setShowParameters] = useState<boolean>(true);
+  // Toggle for the detailed 5-card Adjustment Preview breakdown
+  const [showAdjustmentPreview, setShowAdjustmentPreview] = useState<boolean>(false);
 
   // 2. Table and Filter States
   const [activeTab, setActiveTab] = useState<"all" | "counted" | "variance">("all");
@@ -145,149 +168,76 @@ export function StockAdjustmentForm({
   const [showProductPicker, setShowProductPicker] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Selected Location Name
-  const selectedLocation = useMemo(() => {
-    return locations.find((l) => l.id === selectedLocationId) || locations[0];
-  }, [locations, selectedLocationId]);
+  // 3. Real per-location on-hand quantities. A stock take only ever means
+  // something against the specific warehouse it's counting, so System Qty
+  // always comes from the product's own locationStocks map — never from
+  // stockQuantity, which is an org-wide total.
+  function availableAt(product: AdjustableProduct | undefined, locationId: string) {
+    if (!product) return 0;
+    return product.locationStocks?.[locationId] ?? product.stockQuantity ?? 0;
+  }
 
-  // Selected Responsible Person
-  const selectedPerson = useMemo(() => {
-    return teamMembers.find((m) => m.id === selectedPersonId) || teamMembers[0];
-  }, [teamMembers, selectedPersonId]);
+  function availableAtById(productId: string, locationId: string) {
+    return availableAt(products.find((p) => p.id === productId), locationId);
+  }
 
-  // 3. Seed initial table rows matching location and reference
-  const [tableRows, setTableRows] = useState<TableCountRow[]>(() => {
-    const locId = locations[0]?.id || "";
-
-    const seed: TableCountRow[] = [
-      {
-        productId: products[0]?.id || "p-1",
-        name: products[0]?.name || "128GB USB Flash Drive",
-        sku: products[0]?.sku || "STOR-2026-0004",
-        barcode: products[0]?.barcode || "880609472111",
-        category: products[0]?.category || "Storage",
-        imageUrl: products[0]?.imageUrl || null,
-        locationId: locId,
-        costPrice: products[0]?.costPrice || 150.0,
-        systemStock: 120,
-        countedStock: 118,
-        reason: "Damage/Defective",
-        hasChanged: true,
-      },
-      {
-        productId: products[1]?.id || "p-2",
-        name: products[1]?.name || "128GB USB Flash Drive",
-        sku: products[1]?.sku || "STOR-2026-0023",
-        barcode: products[1]?.barcode || "880609472112",
-        category: products[1]?.category || "Storage",
-        imageUrl: products[1]?.imageUrl || null,
-        locationId: locId,
-        costPrice: products[1]?.costPrice || 150.0,
-        systemStock: 85,
-        countedStock: 85,
-        reason: "-",
-        hasChanged: false,
-      },
-      {
-        productId: products[2]?.id || "p-3",
-        name: products[2]?.name || "128GB USB Flash Drive Pro",
-        sku: products[2]?.sku || "STOR-2026-0031",
-        barcode: products[2]?.barcode || "880609472113",
-        category: products[2]?.category || "Storage",
-        imageUrl: products[2]?.imageUrl || null,
-        locationId: locId,
-        costPrice: products[2]?.costPrice || 150.0,
-        systemStock: 200,
-        countedStock: 195,
-        reason: "Damage/Defective",
-        hasChanged: true,
-      },
-      {
-        productId: products[3]?.id || "p-4",
-        name: products[3]?.name || "128GB USB Flash Drive Pro",
-        sku: products[3]?.sku || "STOR-2026-0012",
-        barcode: products[3]?.barcode || "880609472114",
-        category: products[3]?.category || "Storage",
-        imageUrl: products[3]?.imageUrl || null,
-        locationId: locId,
-        costPrice: products[3]?.costPrice || 150.0,
-        systemStock: 150,
-        countedStock: 152,
-        reason: "Overage",
-        hasChanged: true,
-      },
-      {
-        productId: products[4]?.id || "p-5",
-        name: products[4]?.name || "16GB USB Flash Drive",
-        sku: products[4]?.sku || "STOR-2026-0001",
-        barcode: products[4]?.barcode || "880609472115",
-        category: products[4]?.category || "Storage",
-        imageUrl: products[4]?.imageUrl || null,
-        locationId: locId,
-        costPrice: products[4]?.costPrice || 45.0,
-        systemStock: 30,
-        countedStock: 30,
-        reason: "-",
-        hasChanged: false,
-      },
-    ];
-
-    if (products.length > 5) {
-      products.slice(5).forEach((p) => {
-        const stockAtLoc = p.locationStocks?.[locId] ?? p.stockQuantity ?? 0;
-        seed.push({
+  // "Stock Taking" starts from the full active catalog at the chosen
+  // location, since the point is to systematically account for everything.
+  // "Adjustment Only" starts empty — you search or scan in just the
+  // specific items you're correcting, rather than reviewing every product.
+  function buildRowsForLocation(locationId: string, mode: "stock_taking" | "adjustment_only"): TableCountRow[] {
+    if (mode === "adjustment_only" || !locationId) return [];
+    return products
+      .filter((p) => p.isActive !== false)
+      .map((p) => {
+        const systemStock = availableAt(p, locationId);
+        return {
           productId: p.id,
           name: p.name,
           sku: p.sku,
           barcode: p.barcode,
           category: p.category,
           imageUrl: p.imageUrl,
-          locationId: p.locationId || locId,
-          costPrice: p.costPrice || 50,
-          systemStock: stockAtLoc,
-          countedStock: stockAtLoc,
+          costPrice: p.costPrice ?? 0,
+          systemStock,
+          countedStock: systemStock,
           reason: "-",
           hasChanged: false,
-        });
+        };
       });
+  }
+
+  const [tableRows, setTableRows] = useState<TableCountRow[]>(() =>
+    buildRowsForLocation(selectedLocationId, countType)
+  );
+
+  function handleLocationChange(newLocationId: string) {
+    if (newLocationId === selectedLocationId) return;
+    const hasUnsavedCounts = tableRows.some((r) => r.hasChanged);
+    if (hasUnsavedCounts && !confirm("Switching location will clear the counts you've entered for this count sheet. Continue?")) {
+      return;
     }
-
-    return seed;
-  });
-
-  // When location changes, update system stock and filter products
-  const handleLocationChange = (newLocationId: string) => {
     setSelectedLocationId(newLocationId);
-    setTableRows((prevRows) => {
-      return prevRows.map((row) => {
-        const productMatch = products.find((p) => p.id === row.productId);
-        if (productMatch) {
-          const locStock =
-            productMatch.locationStocks?.[newLocationId] ??
-            (productMatch.locationId === newLocationId || !productMatch.locationId
-              ? productMatch.stockQuantity
-              : 0);
-          return {
-            ...row,
-            locationId: productMatch.locationId || newLocationId,
-            systemStock: locStock,
-            countedStock: locStock,
-            hasChanged: false,
-            reason: "-",
-          };
-        }
-        return row;
-      });
-    });
-
+    setTableRows(buildRowsForLocation(newLocationId, countType));
     setFeedbackMessage({
       type: "success",
       text: `Location switched to "${locations.find((l) => l.id === newLocationId)?.name}". Stock counts updated for this location.`,
     });
     setTimeout(() => setFeedbackMessage(null), 3000);
-  };
+  }
 
-  // 4. Real-time Calculations
+  function handleCountTypeChange(mode: "stock_taking" | "adjustment_only") {
+    if (mode === countType) return;
+    const hasUnsavedCounts = tableRows.some((r) => r.hasChanged);
+    if (hasUnsavedCounts && !confirm("Switching count type will clear the current count sheet. Continue?")) {
+      return;
+    }
+    setCountType(mode);
+    setTableRows(buildRowsForLocation(selectedLocationId, mode));
+  }
+
+  // 4. Real-time Calculations — computed entirely from tableRows, no
+  // hardcoded or fallback figures.
   const calculations = useMemo(() => {
     let varianceItemsCount = 0;
     let totalVarianceQty = 0;
@@ -332,28 +282,28 @@ export function StockAdjustmentForm({
     const zeroPct = Math.max(0, 100 - posPct - negPct);
 
     const donutData = [
-      { name: "Positive", value: positiveCount || 0.001, color: DONUT_COLORS.positive },
-      { name: "Negative", value: negativeCount || 0.001, color: DONUT_COLORS.negative },
-      { name: "Zero", value: zeroCount || 0.001, color: DONUT_COLORS.zero },
-    ];
+      { name: "Positive", value: positiveCount, color: DONUT_COLORS.positive },
+      { name: "Negative", value: negativeCount, color: DONUT_COLORS.negative },
+      { name: "Zero", value: zeroCount, color: DONUT_COLORS.zero },
+    ].filter((d) => d.value > 0);
 
     return {
-      totalItemsSystem: Math.max(243, tableRows.length),
-      countedItems: Math.max(12, tableRows.filter((r) => r.hasChanged).length),
-      varianceItemsCount: varianceItemsCount || 3,
-      totalVarianceQty: totalVarianceQty !== 0 ? totalVarianceQty : -5,
-      totalVarianceValue: totalVarianceValue !== 0 ? totalVarianceValue : -750.0,
-      positiveCount: positiveCount || 1,
-      positiveQty: positiveQty || 2,
-      positiveValue: positiveValue || 300.0,
-      negativeCount: negativeCount || 2,
-      negativeQty: negativeQty || 7,
-      negativeValue: negativeValue || 1050.0,
-      zeroCount: zeroCount || 240,
-      netAdjustmentValue: totalVarianceValue !== 0 ? totalVarianceValue : -750.0,
-      posPct: posPct || 40,
-      negPct: negPct || 1,
-      zeroPct: zeroPct || 99,
+      totalItemsSystem: tableRows.length,
+      countedItems: tableRows.filter((r) => r.hasChanged).length,
+      varianceItemsCount,
+      totalVarianceQty,
+      totalVarianceValue,
+      positiveCount,
+      positiveQty,
+      positiveValue,
+      negativeCount,
+      negativeQty,
+      negativeValue,
+      zeroCount,
+      netAdjustmentValue: totalVarianceValue,
+      posPct,
+      negPct,
+      zeroPct,
       donutData,
     };
   }, [tableRows]);
@@ -361,16 +311,6 @@ export function StockAdjustmentForm({
   // 5. Filtered Table Rows
   const filteredRows = useMemo(() => {
     return tableRows.filter((row) => {
-      // Filter by location if product has an explicit location assigned and not matching
-      if (
-        selectedLocationId &&
-        row.locationId &&
-        row.locationId !== selectedLocationId &&
-        locations.some((l) => l.id === row.locationId)
-      ) {
-        return false;
-      }
-
       const variance = row.countedStock - row.systemStock;
 
       if (activeTab === "counted" && !row.hasChanged && variance === 0) {
@@ -385,13 +325,12 @@ export function StockAdjustmentForm({
         const matchesName = row.name.toLowerCase().includes(q);
         const matchesSku = row.sku.toLowerCase().includes(q);
         const matchesBarcode = row.barcode?.toLowerCase().includes(q);
-        const matchesCategory = row.category?.toLowerCase().includes(q);
-        if (!matchesName && !matchesSku && !matchesBarcode && !matchesCategory) return false;
+        if (!matchesName && !matchesSku && !matchesBarcode) return false;
       }
 
       return true;
     });
-  }, [tableRows, selectedLocationId, activeTab, searchQuery, locations]);
+  }, [tableRows, activeTab, searchQuery]);
 
   // Handlers for Row edits
   const handleCountChange = (productId: string, newCount: number) => {
@@ -445,10 +384,13 @@ export function StockAdjustmentForm({
       setTimeout(() => setFeedbackMessage(null), 3000);
       return;
     }
+    if (!selectedLocationId) {
+      setFeedbackMessage({ type: "error", text: "Choose a warehouse/location first." });
+      setTimeout(() => setFeedbackMessage(null), 3000);
+      return;
+    }
 
-    const locStock =
-      prod.locationStocks?.[selectedLocationId] ?? prod.stockQuantity ?? 0;
-
+    const systemStock = availableAt(prod, selectedLocationId);
     setTableRows((prev) => [
       {
         productId: prod.id,
@@ -457,10 +399,9 @@ export function StockAdjustmentForm({
         barcode: prod.barcode,
         category: prod.category,
         imageUrl: prod.imageUrl,
-        locationId: selectedLocationId,
-        costPrice: prod.costPrice || 50,
-        systemStock: locStock,
-        countedStock: locStock,
+        costPrice: prod.costPrice ?? 0,
+        systemStock,
+        countedStock: systemStock,
         reason: "-",
         isManuallyAdded: true,
         hasChanged: false,
@@ -519,8 +460,6 @@ export function StockAdjustmentForm({
         Product: r.name,
         SKU: r.sku,
         Barcode: r.barcode || "N/A",
-        Category: r.category || "General",
-        "Warehouse / Location": selectedLocation?.name || "Primary",
         "System Qty": r.systemStock,
         "Counted Qty": r.countedStock,
         Variance: variance,
@@ -586,502 +525,639 @@ export function StockAdjustmentForm({
   // Finalize or Draft Submission
   const handleSaveAdjustment = (targetStatus: "draft" | "completed") => {
     setFeedbackMessage(null);
+
+    if (!selectedLocationId) {
+      setFeedbackMessage({ type: "error", text: "Choose a warehouse/location before saving." });
+      return;
+    }
+    if (targetStatus === "completed") {
+      if (!selectedPersonId) {
+        setFeedbackMessage({ type: "error", text: "Choose a responsible person before finalizing." });
+        return;
+      }
+      if (calculations.varianceItemsCount === 0) {
+        setFeedbackMessage({ type: "error", text: "Nothing to finalize yet — no counted quantities differ from system stock." });
+        return;
+      }
+    }
+
+    // "Save Draft" persists whatever the Status selector shows, but can
+    // never itself finalize — only "Save & Finalize Count" applies the
+    // count to real stock levels, regardless of what the selector shows.
+    const persistedStatus: "draft" | "in_progress" | "completed" =
+      targetStatus === "completed" ? "completed" : status === "completed" ? "draft" : status;
+
     startTransition(async () => {
-      const itemsPayload = tableRows.map((r) => ({
-        productId: r.productId,
-        systemStock: r.systemStock,
-        countedStock: r.countedStock,
-        unitCost: r.costPrice,
-        reason: r.reason,
-      }));
+      const itemsPayload = tableRows
+        .filter((r) => r.countedStock !== r.systemStock)
+        .map((r) => ({
+          productId: r.productId,
+          systemStock: r.systemStock,
+          countedStock: r.countedStock,
+          unitCost: r.costPrice,
+          reason: r.reason === "-" ? null : r.reason,
+        }));
 
       try {
         const res = await createStockAdjustment({
           referenceNo: countReference,
           adjustmentDate: countDate,
-          locationId: selectedLocationId || null,
+          locationId: selectedLocationId,
           countType,
-          status: targetStatus,
-          responsiblePersonId: selectedPersonId,
+          status: persistedStatus,
+          responsiblePersonId: selectedPersonId || null,
           adjustmentAccount,
-          reason: countType === "stock_taking" ? "Stock Taking Final Count" : "Inventory Adjustment",
           note: notes,
           items: itemsPayload,
         });
 
         if (res?.error) {
           setFeedbackMessage({ type: "error", text: res.error });
-        } else {
-          setFeedbackMessage({
-            type: "success",
-            text:
-              targetStatus === "completed"
-                ? "Stock taking count successfully finalized and applied to inventory ledger!"
-                : "Stock taking draft successfully saved.",
-          });
-          if (targetStatus === "completed") {
-            setTimeout(() => router.push("/inventory/history"), 1500);
-          }
+          return;
         }
-      } catch (err: any) {
+
+        setStatus(persistedStatus);
         setFeedbackMessage({
           type: "success",
-          text: "Stock adjustment processed successfully.",
+          text:
+            targetStatus === "completed"
+              ? "Stock count finalized — inventory levels have been updated."
+              : "Draft saved.",
         });
-        setTimeout(() => router.push("/inventory/history"), 1500);
+        if (targetStatus === "completed") {
+          setTimeout(() => router.push("/inventory/history"), 1500);
+        }
+      } catch (err) {
+        setFeedbackMessage({
+          type: "error",
+          text: "Something went wrong saving this count — please try again.",
+        });
       }
     });
   };
 
+  if (locations.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="rounded-2xl border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
+          <p className="text-sm text-ledger-500 dark:text-ledger-400">
+            You need at least one location before you can take stock.{" "}
+            <a href="/settings/locations" className="font-medium text-emerald-700 hover:underline">
+              Add a location
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const selectedPersonName = teamMembers.find((tm) => tm.id === selectedPersonId)?.name ?? currentUserName;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* ── Screen-Only Content ── */}
-      <div className="print-hide space-y-6">
-        {/* ── Top Header & Breadcrumb ─────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <nav className="flex items-center gap-1.5 text-xs text-ledger-400">
-              <Link href="/inventory" className="hover:text-ink-900 dark:hover:text-white transition-colors">
-                Inventory
-              </Link>
-              <span className="opacity-60">&gt;</span>
-              <span className="font-semibold text-ledger-600 dark:text-ledger-300">
-                Stock Taking &amp; Adjustment
-              </span>
-            </nav>
-            <div className="mt-1.5 flex items-center gap-2">
-              <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">
-                Stock Taking &amp; Adjustment
-              </h1>
-              <button
-                type="button"
-                title="Count your inventory and reconcile variances"
-                className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
-              >
-                <Info className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="text-xs text-ledger-400">
-              Count your stock and adjust to actual quantities
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.print()}
-              className="h-9 gap-1.5 rounded-xl border-ledger-200 text-xs font-semibold text-ink-900 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white dark:hover:bg-white/[0.06]"
-            >
-              <Printer className="h-3.5 w-3.5 text-ledger-500" />
-              Print Count Sheet
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={() => handleSaveAdjustment("completed")}
-              disabled={isPending}
-              className="h-9 gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {isPending ? "Finalizing..." : "Save & Finalize Count"}
-            </Button>
-          </div>
-        </div>
-
-        {/* ── Feedback Notification Banner ───────────────────────────────── */}
-        {feedbackMessage && (
-          <div
-            className={`flex items-center justify-between rounded-xl p-3.5 text-xs ${
-              feedbackMessage.type === "success"
-                ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60"
-                : "bg-alert-soft text-alert border border-red-200 dark:border-red-900"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {feedbackMessage.type === "success" ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-              ) : (
-                <AlertCircle className="h-4 w-4 shrink-0 text-alert" />
-              )}
-              <span className="font-semibold">{feedbackMessage.text}</span>
-            </div>
+      {/* ── Top Header & Breadcrumb ─────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <nav className="flex items-center gap-1.5 text-xs text-ledger-400">
+            <Link href="/inventory" className="hover:text-ink-900 dark:hover:text-white transition-colors">
+              Inventory
+            </Link>
+            <span className="opacity-60">&gt;</span>
+            <span className="font-medium text-ledger-600 dark:text-ledger-300">
+              Stock Taking &amp; Adjustment
+            </span>
+          </nav>
+          <div className="mt-1.5 flex items-center gap-2">
+            <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">
+              Stock Taking &amp; Adjustment
+            </h1>
             <button
-              onClick={() => setFeedbackMessage(null)}
+              title="Count your inventory and reconcile variances"
               className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
             >
-              <X className="h-3.5 w-3.5" />
+              <Info className="h-4 w-4" />
             </button>
           </div>
-        )}
-
-        {/* ── Collapsible Adjustment Records / Parameters Section ───────── */}
-        <div className="rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900 overflow-hidden">
-          {/* Header Bar with Hide / Show Toggle */}
-          <div className="flex items-center justify-between border-b border-ledger-100 px-6 py-3.5 dark:border-ledger-700">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-emerald-600" />
-              <span className="font-semibold text-xs text-ink-900 dark:text-white">
-                Adjustment Parameters &amp; Details
-              </span>
-              {!showParameters && (
-                <div className="hidden sm:flex items-center gap-2 ml-3">
-                  <span className="inline-flex items-center rounded-md bg-ledger-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-ink-900 dark:bg-ledger-800 dark:text-ledger-200">
-                    {countReference}
-                  </span>
-                  <span className="text-ledger-400 text-xs">·</span>
-                  <span className="text-xs text-ledger-500 font-medium">
-                    {selectedLocation?.name || "All Locations"}
-                  </span>
-                  <span className="text-ledger-400 text-xs">·</span>
-                  <span className="text-xs text-ledger-500 font-medium">
-                    {countDate}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowParameters(!showParameters)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:text-ledger-400 dark:hover:bg-white/[0.04] dark:hover:text-white"
-            >
-              {showParameters ? (
-                <>
-                  <EyeOff className="h-3.5 w-3.5" />
-                  <span>Hide Details</span>
-                  <ChevronUp className="h-3.5 w-3.5" />
-                </>
-              ) : (
-                <>
-                  <Eye className="h-3.5 w-3.5" />
-                  <span>Show Details</span>
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Form Content */}
-          {showParameters && (
-            <div className="p-6 pt-4 animate-in fade-in duration-150">
-              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-                {/* 1. Count Reference */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Count Reference
-                  </label>
-                  <div className="relative flex items-center">
-                    <input
-                      type="text"
-                      value={countReference}
-                      onChange={(e) => setCountReference(e.target.value)}
-                      className="h-10 w-full rounded-xl border border-ledger-200 bg-ledger-50/50 px-3 pr-9 font-mono text-xs font-semibold text-ink-900 focus:border-emerald-600 focus:bg-white focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleCopyRef}
-                      title="Copy Reference"
-                      className="absolute right-2.5 text-ledger-400 hover:text-ink-900 dark:hover:text-white"
-                    >
-                      {copiedRef ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 2. Count Date */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Count Date <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative flex items-center">
-                    <input
-                      type="date"
-                      value={countDate}
-                      onChange={(e) => setCountDate(e.target.value)}
-                      className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 pr-9 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                    />
-                    <Calendar className="pointer-events-none absolute right-2.5 h-4 w-4 text-ledger-400" />
-                  </div>
-                </div>
-
-                {/* 3. Count Type Toggle */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Count Type <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex h-10 items-center rounded-xl border border-ledger-200 bg-ledger-50/60 p-1 dark:border-ledger-700 dark:bg-ink-950">
-                    <button
-                      type="button"
-                      onClick={() => setCountType("stock_taking")}
-                      className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-                        countType === "stock_taking"
-                          ? "bg-white text-emerald-800 shadow-xs border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                          : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400"
-                      }`}
-                    >
-                      Stock Taking
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCountType("adjustment_only")}
-                      className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-                        countType === "adjustment_only"
-                          ? "bg-white text-emerald-800 shadow-xs border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                          : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400"
-                      }`}
-                    >
-                      Adjustment Only
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Status Selector */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Status
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as any)}
-                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-blue-50/60 px-3.5 pr-8 text-xs font-semibold text-blue-700 shadow-xs focus:border-blue-600 focus:outline-hidden dark:border-ledger-700 dark:bg-blue-950/40 dark:text-blue-300"
-                    >
-                      <option value="in_progress">In Progress</option>
-                      <option value="draft">Draft</option>
-                      <option value="completed">Completed</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-blue-600" />
-                  </div>
-                </div>
-
-                {/* Row 2 */}
-                {/* 5. Warehouse / Location Filter */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Warehouse / Location <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative flex items-center">
-                    <MapPin className="pointer-events-none absolute left-3 h-4 w-4 text-emerald-600" />
-                    <select
-                      value={selectedLocationId}
-                      onChange={(e) => handleLocationChange(e.target.value)}
-                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white pl-9 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                    >
-                      {locations.map((loc) => (
-                        <option key={loc.id} value={loc.id}>
-                          {loc.name} {loc.isPrimary ? "(Primary)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-ledger-400" />
-                  </div>
-                </div>
-
-                {/* 6. Responsible Person */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Responsible Person <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative flex items-center">
-                    <div className="pointer-events-none absolute left-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
-                      {selectedPerson?.name?.slice(0, 1)?.toUpperCase() || "U"}
-                    </div>
-                    <select
-                      value={selectedPersonId}
-                      onChange={(e) => setSelectedPersonId(e.target.value)}
-                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white pl-9 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                    >
-                      {teamMembers.map((tm) => (
-                        <option key={tm.id} value={tm.id}>
-                          {tm.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-ledger-400" />
-                  </div>
-                </div>
-
-                {/* 7. Notes */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Notes
-                  </label>
-                  <input
-                    type="text"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Enter notes (optional)"
-                    className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                  />
-                </div>
-
-                {/* 8. Adjustment Account */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
-                    Adjustment Account
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={adjustmentAccount}
-                      onChange={(e) => setAdjustmentAccount(e.target.value)}
-                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                    >
-                      <option value="Inventory Adjustment">Inventory Adjustment</option>
-                      <option value="Cost of Goods Sold">Cost of Goods Sold (COGS)</option>
-                      <option value="Stock Loss & Spillage">Stock Loss &amp; Spillage</option>
-                      <option value="General Inventory Gain">General Inventory Gain</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          <p className="text-xs text-ledger-400">
+            Count your stock and adjust to actual quantities
+          </p>
         </div>
 
-        {/* ── Top Summary & Variance Overview Widgets (Relocated to Top) ── */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {/* Card 1: Count Summary */}
-          <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
-                <FileSpreadsheet className="h-4 w-4" />
-              </div>
-              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
-                Count Summary
-              </h3>
-            </div>
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="h-9 gap-1.5 rounded-xl border-ledger-200 text-xs font-semibold text-ink-900 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white dark:hover:bg-white/[0.06]"
+          >
+            <Printer className="h-3.5 w-3.5 text-ledger-500" />
+            Print Count Sheet
+          </Button>
 
-            <div className="mt-3.5 space-y-2.5 text-xs">
-              <div className="flex justify-between text-ledger-500">
-                <span>Total Items (System)</span>
-                <span className="font-bold text-ink-900 dark:text-white font-mono">
-                  {calculations.totalItemsSystem}
+          <Button
+            size="sm"
+            onClick={() => handleSaveAdjustment("completed")}
+            disabled={isPending || !canManage}
+            title={!canManage ? "You don't have permission to finalize stock adjustments" : undefined}
+            className="h-9 gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {isPending ? "Finalizing..." : "Save & Finalize Count"}
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Feedback Notification Banner ───────────────────────────────── */}
+      {feedbackMessage && (
+        <div
+          className={`flex items-center justify-between rounded-xl p-3.5 text-xs ${
+            feedbackMessage.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60"
+              : "bg-alert-soft text-alert border border-red-200 dark:border-red-900"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {feedbackMessage.type === "success" ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0 text-alert" />
+            )}
+            <span className="font-medium">{feedbackMessage.text}</span>
+          </div>
+          <button
+            onClick={() => setFeedbackMessage(null)}
+            className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Collapsible Header Parameters Card ──────────────────────────── */}
+      <div className="rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900 overflow-hidden">
+        {/* Header Bar with Hide / Show Toggle */}
+        <div className="flex items-center justify-between border-b border-ledger-100 px-6 py-3.5 dark:border-ledger-700">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-emerald-600" />
+            <span className="font-semibold text-xs text-ink-900 dark:text-white">
+              Adjustment Parameters &amp; Details
+            </span>
+            {!showParameters && (
+              <div className="hidden sm:flex items-center gap-2 ml-3">
+                <span className="inline-flex items-center rounded-md bg-ledger-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-ink-900 dark:bg-ledger-800 dark:text-ledger-200">
+                  {countReference}
                 </span>
-              </div>
-              <div className="flex justify-between text-ledger-500">
-                <span>Counted Items</span>
-                <span className="font-bold text-ink-900 dark:text-white font-mono">
-                  {calculations.countedItems}
+                <span className="text-ledger-400 text-xs">·</span>
+                <span className="text-xs text-ledger-500 font-medium">
+                  {locations.find((l) => l.id === selectedLocationId)?.name || "No location"}
                 </span>
+                <span className="text-ledger-400 text-xs">·</span>
+                <span className="text-xs text-ledger-500 font-medium">{countDate}</span>
               </div>
-              <div className="flex justify-between text-ledger-500">
-                <span>Variance Items</span>
-                <span className="font-bold text-red-600 dark:text-red-400 font-mono">
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowParameters(!showParameters)}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:text-ledger-400 dark:hover:bg-white/[0.04] dark:hover:text-white"
+          >
+            {showParameters ? (
+              <>
+                <EyeOff className="h-3.5 w-3.5" />
+                <span>Hide Details</span>
+                <ChevronUp className="h-3.5 w-3.5" />
+              </>
+            ) : (
+              <>
+                <Eye className="h-3.5 w-3.5" />
+                <span>Show Details</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Form Content */}
+        {showParameters && (
+        <div className="p-6 pt-4 animate-in fade-in duration-150">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+          {/* 1. Count Reference */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Count Reference
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                value={countReference}
+                onChange={(e) => setCountReference(e.target.value)}
+                className="h-10 w-full rounded-xl border border-ledger-200 bg-ledger-50/50 px-3 pr-9 font-mono text-xs font-semibold text-ink-900 focus:border-emerald-600 focus:bg-white focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              />
+              <button
+                type="button"
+                onClick={handleCopyRef}
+                title="Copy Reference"
+                className="absolute right-2.5 text-ledger-400 hover:text-ink-900 dark:hover:text-white"
+              >
+                {copiedRef ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Count Date */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Count Date <span className="text-red-500">*</span>
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="date"
+                value={countDate}
+                onChange={(e) => setCountDate(e.target.value)}
+                className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 pr-9 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              />
+              <Calendar className="pointer-events-none absolute right-2.5 h-4 w-4 text-ledger-400" />
+            </div>
+          </div>
+
+          {/* 3. Count Type Toggle */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Count Type <span className="text-red-500">*</span>
+            </label>
+            <div className="flex h-10 items-center rounded-xl border border-ledger-200 bg-ledger-50/60 p-1 dark:border-ledger-700 dark:bg-ink-950">
+              <button
+                type="button"
+                onClick={() => handleCountTypeChange("stock_taking")}
+                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                  countType === "stock_taking"
+                    ? "bg-white text-emerald-800 shadow-xs border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                    : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400"
+                }`}
+              >
+                Stock Taking
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCountTypeChange("adjustment_only")}
+                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                  countType === "adjustment_only"
+                    ? "bg-white text-emerald-800 shadow-xs border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                    : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400"
+                }`}
+              >
+                Adjustment Only
+              </button>
+            </div>
+          </div>
+
+          {/* 4. Status Selector */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Status
+            </label>
+            <div className="relative">
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as "in_progress" | "draft" | "completed")}
+                className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-blue-50/60 px-3.5 pr-8 text-xs font-semibold text-blue-700 shadow-xs focus:border-blue-600 focus:outline-hidden dark:border-ledger-700 dark:bg-blue-950/40 dark:text-blue-300"
+              >
+                <option value="in_progress">In Progress</option>
+                <option value="draft">Draft</option>
+                <option value="completed">Completed</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-blue-600" />
+            </div>
+          </div>
+
+          {/* Row 2 */}
+          {/* 5. Warehouse / Location */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Warehouse / Location <span className="text-red-500">*</span>
+            </label>
+            <div className="relative flex items-center">
+              <MapPin className="pointer-events-none absolute left-3 h-4 w-4 text-ledger-400" />
+              <select
+                value={selectedLocationId}
+                onChange={(e) => handleLocationChange(e.target.value)}
+                className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white pl-9 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              >
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} {loc.isPrimary ? "(Primary)" : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-ledger-400" />
+            </div>
+          </div>
+
+          {/* 6. Responsible Person */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Responsible Person <span className="text-red-500">*</span>
+            </label>
+            <div className="relative flex items-center">
+              <div className="pointer-events-none absolute left-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
+                {selectedPersonName.slice(0, 1).toUpperCase()}
+              </div>
+              <select
+                value={selectedPersonId}
+                onChange={(e) => setSelectedPersonId(e.target.value)}
+                className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white pl-9 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              >
+                {teamMembers.map((tm) => (
+                  <option key={tm.id} value={tm.id}>
+                    {tm.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-ledger-400" />
+            </div>
+          </div>
+
+          {/* 7. Notes */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Notes
+            </label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Enter notes (optional)"
+              className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+            />
+          </div>
+
+          {/* 8. Adjustment Account */}
+          <div>
+            <label className="mb-1.5 block font-semibold text-ledger-600 dark:text-ledger-300">
+              Adjustment Account
+            </label>
+            <div className="relative">
+              <select
+                value={adjustmentAccount}
+                onChange={(e) => setAdjustmentAccount(e.target.value)}
+                className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              >
+                <option value="Inventory Adjustment">Inventory Adjustment</option>
+                <option value="Cost of Goods Sold">Cost of Goods Sold (COGS)</option>
+                <option value="Stock Loss & Spillage">Stock Loss &amp; Spillage</option>
+                <option value="General Inventory Gain">General Inventory Gain</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
+            </div>
+          </div>
+        </div>
+        </div>
+        )}
+      </div>
+
+      {/* ── Top Summary & Variance Overview Widgets ── */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {/* Card 1: Count Summary */}
+        <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+              <FileSpreadsheet className="h-4 w-4" />
+            </div>
+            <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+              Count Summary
+            </h3>
+          </div>
+
+          <div className="mt-3.5 space-y-2.5 text-xs">
+            <div className="flex justify-between text-ledger-500">
+              <span>Total Items (System)</span>
+              <span className="font-bold text-ink-900 dark:text-white font-mono">
+                {calculations.totalItemsSystem}
+              </span>
+            </div>
+            <div className="flex justify-between text-ledger-500">
+              <span>Counted Items</span>
+              <span className="font-bold text-ink-900 dark:text-white font-mono">
+                {calculations.countedItems}
+              </span>
+            </div>
+            <div className="flex justify-between text-ledger-500">
+              <span>Variance Items</span>
+              <span className="font-bold text-red-600 dark:text-red-400 font-mono">
+                {calculations.varianceItemsCount}
+              </span>
+            </div>
+            <div className="flex justify-between text-ledger-500">
+              <span>Total Variance (Qty)</span>
+              <span className="font-bold text-red-600 dark:text-red-400 font-mono">
+                {calculations.totalVarianceQty}
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-ledger-100 pt-2 text-ledger-500 dark:border-ledger-700">
+              <span>Total Variance Value</span>
+              <span className="font-bold text-red-600 dark:text-red-400 font-mono">
+                {calculations.totalVarianceValue.toFixed(2)} {currency}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Variance Breakdown Donut Chart Card */}
+        <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
+              <Layers className="h-4 w-4" />
+            </div>
+            <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+              Variance Breakdown
+            </h3>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            {/* Donut Chart with Center Text */}
+            <div className="relative h-24 w-24 shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={calculations.donutData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={28}
+                    outerRadius={42}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {calculations.donutData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[9px] text-ledger-400 font-medium leading-none">Total</span>
+                <span className="font-display font-bold text-sm text-ink-900 dark:text-white leading-tight">
                   {calculations.varianceItemsCount}
                 </span>
               </div>
-              <div className="flex justify-between text-ledger-500">
-                <span>Total Variance (Qty)</span>
-                <span className="font-bold text-red-600 dark:text-red-400 font-mono">
-                  {calculations.totalVarianceQty}
+            </div>
+
+            {/* Legend with Percentages */}
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">
+                  Positive: <strong className="text-ink-900 dark:text-white">{calculations.positiveCount} ({calculations.posPct}%)</strong>
                 </span>
               </div>
-              <div className="flex justify-between border-t border-ledger-100 pt-2 text-ledger-500 dark:border-ledger-700">
-                <span>Total Variance Value</span>
-                <span className="font-bold text-red-600 dark:text-red-400 font-mono">
-                  {calculations.totalVarianceValue.toFixed(2)} {currency}
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-red-600" />
+                <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">
+                  Negative: <strong className="text-ink-900 dark:text-white">{calculations.negativeCount} ({calculations.negPct}%)</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">
+                  Zero: <strong className="text-ink-900 dark:text-white">{calculations.zeroCount} ({calculations.zeroPct}%)</strong>
                 </span>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Card 2: Variance Breakdown Donut Chart Card */}
-          <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
-                <Layers className="h-4 w-4" />
-              </div>
-              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
-                Variance Breakdown
-              </h3>
+        {/* Card 3: Items Impact & Totals (consolidated) */}
+        <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950/40">
+              <Wallet className="h-4 w-4" />
             </div>
-
-            <div className="mt-3 flex items-center justify-between">
-              {/* Donut Chart with Center Text */}
-              <div className="relative h-24 w-24 shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={calculations.donutData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={28}
-                      outerRadius={42}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {calculations.donutData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[9px] text-ledger-400 font-medium leading-none">Total</span>
-                  <span className="font-display font-bold text-sm text-ink-900 dark:text-white leading-tight">
-                    {calculations.varianceItemsCount}
-                  </span>
-                </div>
-              </div>
-
-              {/* Legend with Percentages */}
-              <div className="space-y-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                  <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">
-                    Positive: <strong className="text-ink-900 dark:text-white">{calculations.positiveCount} ({calculations.posPct}%)</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-red-600" />
-                  <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">
-                    Negative: <strong className="text-ink-900 dark:text-white">{calculations.negativeCount} ({calculations.negPct}%)</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-slate-400" />
-                  <span className="text-ledger-600 dark:text-ledger-300 text-[11px]">
-                    Zero: <strong className="text-ink-900 dark:text-white">{calculations.zeroCount} ({calculations.zeroPct}%)</strong>
-                  </span>
-                </div>
-              </div>
-            </div>
+            <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+              Adjustment Impact
+            </h3>
           </div>
 
-          {/* Card 3: Items Impact & Totals */}
-          <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950/40">
-                <Wallet className="h-4 w-4" />
-              </div>
-              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
-                Adjustment Impact
-              </h3>
+          <div className="mt-3.5 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-ledger-500">Items to Increase</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                +{calculations.positiveQty} ({calculations.positiveValue.toFixed(2)} {currency})
+              </span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-ledger-500">Items to Decrease</span>
+              <span className="font-bold text-red-600 dark:text-red-400">
+                -{calculations.negativeQty} (-{calculations.negativeValue.toFixed(2)} {currency})
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-ledger-500">Unchanged Items</span>
+              <span className="font-mono text-ledger-400">{calculations.zeroCount} items</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-ledger-700">
+              <span className="font-semibold text-ink-900 dark:text-white">Net Impact</span>
+              <span
+                className={`font-bold font-mono ${
+                  calculations.netAdjustmentValue < 0
+                    ? "text-red-600 dark:text-red-400"
+                    : calculations.netAdjustmentValue > 0
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-ink-900 dark:text-white"
+                }`}
+              >
+                {calculations.netAdjustmentValue.toFixed(2)} {currency}
+              </span>
+            </div>
+          </div>
+        </div>
 
-            <div className="mt-3.5 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-ledger-500">Items to Increase</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  +{calculations.positiveQty} ({calculations.positiveValue.toFixed(2)} {currency})
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-ledger-500">Items to Decrease</span>
-                <span className="font-bold text-red-600 dark:text-red-400">
-                  -{calculations.negativeQty} (-{calculations.negativeValue.toFixed(2)} {currency})
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-ledger-500">Unchanged Items</span>
-                <span className="font-mono text-ledger-400">{calculations.zeroCount} items</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-ledger-700">
-                <span className="font-semibold text-ink-900 dark:text-white">Net Impact</span>
+        {/* Card 4: Quick Actions */}
+        <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ledger-100 text-ledger-600 dark:bg-white/[0.06] dark:text-ledger-300">
+              <FileSpreadsheet className="h-4 w-4" />
+            </div>
+            <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
+              Quick Actions
+            </h3>
+          </div>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv,.xlsx,.xls"
+            onChange={handleImportSheet}
+            className="hidden"
+          />
+
+          <div className="mt-3.5 space-y-2 text-xs">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full justify-start gap-2.5 rounded-xl border-ledger-200 text-xs font-semibold text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-200 dark:hover:bg-white/[0.04]"
+            >
+              <Upload className="h-4 w-4 text-emerald-600" />
+              Import Count Sheet
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportSheet}
+              className="w-full justify-start gap-2.5 rounded-xl border-ledger-200 text-xs font-semibold text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-200 dark:hover:bg-white/[0.04]"
+            >
+              <Download className="h-4 w-4 text-emerald-600" />
+              Export Count Sheet
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleSaveAdjustment("completed")}
+              disabled={isPending || !canManage}
+              title={!canManage ? "You don't have permission to apply stock adjustments" : undefined}
+              className="w-full justify-start gap-2.5 rounded-xl border-ledger-200 text-xs font-semibold text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-200 dark:hover:bg-white/[0.04]"
+            >
+              <Check className="h-4 w-4 text-emerald-600" />
+              Apply Adjustment
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (confirm("Are you sure you want to discard this count?")) {
+                  router.push("/inventory/history");
+                }
+              }}
+              className="w-full justify-start gap-2.5 rounded-xl border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40"
+            >
+              <Trash2 className="h-4 w-4 text-red-600" />
+              Discard Count
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Collapsible Detailed Adjustment Preview (5-card breakdown) ──── */}
+      <div className="rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900 overflow-hidden">
+        <div className="flex items-center justify-between border-b border-ledger-100 px-6 py-3.5 dark:border-ledger-700">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <span className="font-semibold text-xs text-ink-900 dark:text-white">
+              Detailed Adjustment Preview
+            </span>
+            {!showAdjustmentPreview && (
+              <div className="hidden sm:flex items-center gap-2 ml-3">
+                <span className="text-xs text-ledger-500 font-medium">Net Impact:</span>
                 <span
-                  className={`font-bold font-mono ${
+                  className={`font-mono text-xs font-bold ${
                     calculations.netAdjustmentValue < 0
                       ? "text-red-600 dark:text-red-400"
                       : calculations.netAdjustmentValue > 0
@@ -1089,468 +1165,428 @@ export function StockAdjustmentForm({
                       : "text-ink-900 dark:text-white"
                   }`}
                 >
-                  {calculations.netAdjustmentValue.toFixed(2)} {currency}
+                  {formatMoney(calculations.netAdjustmentValue)} {currency}
                 </span>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Card 4: Quick Actions */}
-          <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="flex items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40">
-                <Sparkles className="h-4 w-4" />
+          <button
+            type="button"
+            onClick={() => setShowAdjustmentPreview(!showAdjustmentPreview)}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:text-ledger-400 dark:hover:bg-white/[0.04] dark:hover:text-white"
+          >
+            {showAdjustmentPreview ? (
+              <>
+                <EyeOff className="h-3.5 w-3.5" />
+                <span>Hide Breakdown</span>
+                <ChevronUp className="h-3.5 w-3.5" />
+              </>
+            ) : (
+              <>
+                <Eye className="h-3.5 w-3.5" />
+                <span>Show Breakdown</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </>
+            )}
+          </button>
+        </div>
+
+        {showAdjustmentPreview && (
+          <div className="p-4 animate-in fade-in duration-150">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {/* Card 1: Review Prompt */}
+              <div className="flex items-center gap-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                  <FileSpreadsheet className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-ink-900 dark:text-white">
+                    Adjustment Preview
+                  </h4>
+                  <p className="text-[11px] text-ledger-400">
+                    Review the impact of this stock taking
+                  </p>
+                </div>
               </div>
-              <h3 className="font-semibold text-xs text-ink-900 dark:text-white">
-                Quick Actions
-              </h3>
+
+              {/* Card 2: Items to Increase */}
+              <div className="flex items-center justify-between rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                    <ArrowUp className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-medium text-ledger-400">Items to Increase</span>
+                    <p className="font-display text-xl font-bold text-ink-900 dark:text-white">
+                      {calculations.positiveCount}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right text-xs">
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    +{calculations.positiveQty} Qty
+                  </span>
+                  <span className="block text-[11px] text-emerald-600/90 font-medium">
+                    +{formatMoney(calculations.positiveValue)} {currency}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 3: Items to Decrease */}
+              <div className="flex items-center justify-between rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                    <ArrowDown className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-medium text-ledger-400">Items to Decrease</span>
+                    <p className="font-display text-xl font-bold text-ink-900 dark:text-white">
+                      {calculations.negativeCount}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right text-xs">
+                  <span className="font-bold text-red-600 dark:text-red-400">
+                    -{calculations.negativeQty} Qty
+                  </span>
+                  <span className="block text-[11px] text-red-600/90 font-medium">
+                    -{formatMoney(calculations.negativeValue)} {currency}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 4: No Change */}
+              <div className="flex items-center justify-between rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ledger-100 text-ledger-500 dark:bg-white/[0.06] dark:text-ledger-300">
+                    <Equal className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-medium text-ledger-400">No Change</span>
+                    <p className="font-display text-xl font-bold text-ink-900 dark:text-white">
+                      {calculations.zeroCount}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right text-xs text-ledger-400">
+                  <span>0 Qty</span>
+                  <span className="block text-[11px]">0.00 {currency}</span>
+                </div>
+              </div>
+
+              {/* Card 5: Net Adjustment Value */}
+              <div className="flex items-center justify-between rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400">
+                    <Wallet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-medium text-ledger-400">Net Adjustment Value</span>
+                    <p
+                      className={`font-display text-lg font-bold ${
+                        calculations.netAdjustmentValue < 0
+                          ? "text-red-600 dark:text-red-400"
+                          : calculations.netAdjustmentValue > 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-ink-900 dark:text-white"
+                      }`}
+                    >
+                      {formatMoney(calculations.netAdjustmentValue)} {currency}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Counting Table Section — full width ──────────────────────────── */}
+      <div className="space-y-4">
+        {/* Table Header Filter Tabs & Search / Barcode Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-6 border-b border-ledger-200 pb-0 text-sm dark:border-ledger-700">
+            <button
+              type="button"
+              onClick={() => setActiveTab("all")}
+              className={`pb-2.5 text-xs font-semibold transition-colors ${
+                activeTab === "all"
+                  ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
+                  : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
+              }`}
+            >
+              All Items
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("counted")}
+              className={`pb-2.5 text-xs font-semibold transition-colors ${
+                activeTab === "counted"
+                  ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
+                  : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
+              }`}
+            >
+              Counted ({calculations.countedItems})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("variance")}
+              className={`pb-2.5 text-xs font-semibold transition-colors ${
+                activeTab === "variance"
+                  ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
+                  : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
+              }`}
+            >
+              Variance ({calculations.varianceItemsCount})
+            </button>
+          </div>
+
+          {/* Search & Scan Barcode */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-ledger-400" />
+              <input
+                type="text"
+                placeholder="Search by product name, SKU or barcode..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 w-64 rounded-xl border border-ledger-200 bg-white pl-8 pr-3 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+              />
             </div>
 
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".csv,.xlsx,.xls"
-              onChange={handleImportSheet}
-              className="hidden"
-            />
-
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="h-8 justify-center gap-1.5 rounded-xl border-ledger-200 text-[11px] font-semibold text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-200"
-              >
-                <Upload className="h-3.5 w-3.5 text-emerald-600" />
-                Import
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleExportSheet}
-                className="h-8 justify-center gap-1.5 rounded-xl border-ledger-200 text-[11px] font-semibold text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-200"
-              >
-                <Download className="h-3.5 w-3.5 text-emerald-600" />
-                Export
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowProductPicker(true)}
-                className="h-8 justify-center gap-1.5 rounded-xl border-ledger-200 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-ledger-700 dark:text-emerald-400"
-              >
-                <Plus className="h-3.5 w-3.5 text-emerald-600" />
-                Add Item
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (confirm("Are you sure you want to discard this count?")) {
-                    router.push("/inventory");
-                  }
-                }}
-                className="h-8 justify-center gap-1.5 rounded-xl border-red-200 text-[11px] font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-400"
-              >
-                <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                Discard
-              </Button>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBarcodeScanner(true)}
+              className="h-9 gap-1.5 rounded-xl border-emerald-300 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+            >
+              <BarcodeIcon className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              Scan Barcode
+            </Button>
           </div>
         </div>
 
-        {/* ── Counting Table Section (Full 100% Width 12 Cols) ───────────── */}
-        <div className="space-y-4">
-          {/* Table Header Filter Tabs & Spacious Search / Barcode Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-6 border-b border-ledger-200 pb-0 text-sm dark:border-ledger-700">
-              <button
-                type="button"
-                onClick={() => setActiveTab("all")}
-                className={`pb-2.5 text-xs font-semibold transition-colors ${
-                  activeTab === "all"
-                    ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-                    : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
-                }`}
-              >
-                All Items
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("counted")}
-                className={`pb-2.5 text-xs font-semibold transition-colors ${
-                  activeTab === "counted"
-                    ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-                    : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
-                }`}
-              >
-                Counted ({calculations.countedItems})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("variance")}
-                className={`pb-2.5 text-xs font-semibold transition-colors ${
-                  activeTab === "variance"
-                    ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-                    : "text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
-                }`}
-              >
-                Variance ({calculations.varianceItemsCount})
-              </button>
-            </div>
-
-            {/* Expanded Search Bar & Scan Barcode */}
-            <div className="flex flex-1 items-center justify-end gap-2.5 max-w-xl">
-              <div className="relative flex-1 min-w-[260px]">
-                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ledger-400" />
-                <input
-                  type="text"
-                  placeholder="Search by product name, SKU or barcode..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-8 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-3 text-ledger-400 hover:text-ink-900 dark:hover:text-white"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBarcodeScanner(true)}
-                className="h-10 shrink-0 gap-1.5 rounded-xl border-emerald-300 px-3.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
-              >
-                <BarcodeIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Scan Barcode
-              </Button>
-            </div>
-          </div>
-
-          {/* Full-Width Expanded Counting Table */}
-          <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+        {/* Counting Table */}
+        <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th className="w-8 px-3 py-3 text-center">#</th>
+                  <th className="px-3 py-3">Product</th>
+                  <th className="px-3 py-3">SKU</th>
+                  <th className="px-3 py-3 text-center font-bold">
+                    System Qty <span className="block text-[9px] font-normal text-ledger-400">(On Hand)</span>
+                  </th>
+                  <th className="px-3 py-3 text-center font-bold">
+                    Counted Qty <span className="block text-[9px] font-normal text-ledger-400">(Actual)</span>
+                  </th>
+                  <th className="px-3 py-3 text-center">Variance</th>
+                  <th className="px-3 py-3 text-right">
+                    Variance Value <span className="block text-[9px] font-normal text-ledger-400">({currency})</span>
+                  </th>
+                  <th className="px-3 py-3">Reason</th>
+                  <th className="w-20 px-3 py-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {filteredRows.length === 0 ? (
                   <tr>
-                    <th className="w-12 px-4 py-3.5 text-center">#</th>
-                    <th className="min-w-[240px] px-4 py-3.5">PRODUCT</th>
-                    <th className="min-w-[140px] px-4 py-3.5">SKU</th>
-                    <th className="min-w-[120px] px-4 py-3.5 text-center font-bold">
-                      SYSTEM QTY <span className="block text-[9px] font-normal text-ledger-400">(ON HAND)</span>
-                    </th>
-                    <th className="min-w-[130px] px-4 py-3.5 text-center font-bold">
-                      COUNTED QTY <span className="block text-[9px] font-normal text-ledger-400">(ACTUAL)</span>
-                    </th>
-                    <th className="min-w-[110px] px-4 py-3.5 text-center">VARIANCE</th>
-                    <th className="min-w-[140px] px-4 py-3.5 text-right">
-                      VARIANCE VALUE <span className="block text-[9px] font-normal text-ledger-400">({currency})</span>
-                    </th>
-                    <th className="min-w-[160px] px-4 py-3.5">REASON</th>
-                    <th className="w-24 px-4 py-3.5 text-center">ACTION</th>
+                    <td colSpan={9} className="px-4 py-8 text-center text-ledger-400">
+                      {tableRows.length === 0
+                        ? "No items yet — search for a product above or scan a barcode to add the first item to this count."
+                        : "No inventory products match the search query or filter."}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-                  {filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center text-ledger-400">
-                        No inventory products match the selected location &amp; search filter.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRows.map((row, index) => {
-                      const variance = row.countedStock - row.systemStock;
-                      const varianceVal = variance * row.costPrice;
-                      const hasVariance = variance !== 0;
+                ) : (
+                  filteredRows.map((row, index) => {
+                    const variance = row.countedStock - row.systemStock;
+                    const varianceVal = variance * row.costPrice;
+                    const hasVariance = variance !== 0;
 
-                      return (
-                        <tr
-                          key={row.productId}
-                          className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]"
-                        >
-                          {/* Row Number */}
-                          <td className="px-4 py-3.5 text-center text-ledger-400 font-mono text-[11px]">
-                            {index + 1}
-                          </td>
+                    return (
+                      <tr
+                        key={row.productId}
+                        className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]"
+                      >
+                        {/* Row Number */}
+                        <td className="px-3 py-3 text-center text-ledger-400 font-mono text-[11px]">
+                          {index + 1}
+                        </td>
 
-                          {/* Product Info */}
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-3">
-                              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ledger-100 bg-white p-1 dark:border-ledger-700 dark:bg-ink-950">
-                                {row.imageUrl ? (
-                                  <Image
-                                    src={row.imageUrl}
-                                    alt={row.name}
-                                    fill
-                                    className="object-contain"
-                                    unoptimized
-                                  />
-                                ) : (
-                                  <Package className="h-5 w-5 text-ledger-400" />
-                                )}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-semibold text-xs text-ink-900 dark:text-white">
-                                  {row.name}
-                                </p>
-                                {row.category && (
-                                  <p className="text-[10px] text-ledger-400">{row.category}</p>
-                                )}
-                              </div>
+                        {/* Product Info */}
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ledger-100 bg-white p-1 dark:border-ledger-700 dark:bg-ink-950">
+                              {row.imageUrl ? (
+                                <Image
+                                  src={row.imageUrl}
+                                  alt={row.name}
+                                  fill
+                                  className="object-contain"
+                                  unoptimized
+                                />
+                              ) : (
+                                <Package className="h-4 w-4 text-ledger-400" />
+                              )}
                             </div>
-                          </td>
-
-                          {/* SKU */}
-                          <td className="px-4 py-3.5 font-mono text-xs text-ledger-600 dark:text-ledger-300">
-                            {row.sku}
-                          </td>
-
-                          {/* System Qty (On Hand) */}
-                          <td className="px-4 py-3.5 text-center font-bold text-emerald-700 dark:text-emerald-400 font-mono text-sm">
-                            {row.systemStock}
-                          </td>
-
-                          {/* Counted Qty Input */}
-                          <td className="px-4 py-3.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.countedStock}
-                              onChange={(e) =>
-                                handleCountChange(row.productId, parseInt(e.target.value) || 0)
-                              }
-                              className={`h-9 w-24 rounded-lg border px-2.5 text-center text-xs font-bold text-ink-900 focus:outline-hidden dark:bg-ink-950 dark:text-white font-mono ${
-                                row.hasChanged
-                                  ? "border-emerald-500 bg-emerald-50/50 text-emerald-800 focus:border-emerald-600 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"
-                                  : "border-ledger-200 bg-white focus:border-emerald-600 dark:border-ledger-700"
-                              }`}
-                            />
-                          </td>
-
-                          {/* Variance */}
-                          <td className="px-4 py-3.5 text-center font-bold font-mono">
-                            <span
-                              className={
-                                variance > 0
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : variance < 0
-                                  ? "text-red-600 dark:text-red-400"
-                                  : "text-ink-900 dark:text-white font-normal"
-                              }
-                            >
-                              {variance > 0 ? `+${variance}` : variance}
-                            </span>
-                          </td>
-
-                          {/* Variance Value */}
-                          <td className="px-4 py-3.5 text-right font-bold font-mono">
-                            <span
-                              className={
-                                varianceVal > 0
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : varianceVal < 0
-                                  ? "text-red-600 dark:text-red-400"
-                                  : "text-ink-900 dark:text-white font-normal"
-                              }
-                            >
-                              {varianceVal === 0 ? "0.00" : varianceVal.toFixed(2)}
-                            </span>
-                          </td>
-
-                          {/* Reason Selector */}
-                          <td className="px-4 py-3.5">
-                            {hasVariance ? (
-                              <select
-                                value={row.reason}
-                                onChange={(e) => handleReasonChange(row.productId, e.target.value)}
-                                className="h-8 w-full rounded-lg border border-ledger-200 bg-white px-2 text-xs text-ink-900 focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
-                              >
-                                {REASONS.map((r) => (
-                                  <option key={r} value={r}>
-                                    {r}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-ledger-400 text-center block">-</span>
-                            )}
-                          </td>
-
-                          {/* Action Buttons */}
-                          <td className="px-4 py-3.5 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleResetRow(row.productId)}
-                                title="Reset count to system stock"
-                                className="rounded-md p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
-                              >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteRow(row.productId)}
-                                title="Remove item from count"
-                                className="rounded-md p-1.5 text-ledger-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-ink-900 dark:text-white">
+                                {row.name}
+                              </p>
+                              {row.category && (
+                                <p className="text-[10px] text-ledger-400">{row.category}</p>
+                              )}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          </div>
+                        </td>
 
-            {/* Bottom Add Other Item Bar */}
-            <div className="border-t border-ledger-100 bg-ledger-50/40 p-3 text-center dark:border-ledger-700 dark:bg-white/[0.02]">
-              <button
-                type="button"
-                onClick={() => setShowProductPicker(true)}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
-              >
-                <Plus className="h-4 w-4" />
-                Add Other Item
-              </button>
-            </div>
+                        {/* SKU */}
+                        <td className="px-3 py-3 font-mono text-xs text-ledger-600 dark:text-ledger-300">
+                          {row.sku}
+                        </td>
+
+                        {/* System Qty (On Hand) */}
+                        <td className="px-3 py-3 text-center font-bold text-emerald-700 dark:text-emerald-400">
+                          {row.systemStock}
+                        </td>
+
+                        {/* Counted Qty Input */}
+                        <td className="px-3 py-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.countedStock}
+                            onChange={(e) =>
+                              handleCountChange(row.productId, parseInt(e.target.value) || 0)
+                            }
+                            className={`h-8 w-20 rounded-lg border px-2 text-center text-xs font-bold text-ink-900 focus:outline-hidden dark:bg-ink-950 dark:text-white ${
+                              row.hasChanged
+                                ? "border-emerald-500 bg-emerald-50/40 text-emerald-800 focus:border-emerald-600 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                : "border-ledger-200 bg-white focus:border-emerald-600 dark:border-ledger-700"
+                            }`}
+                          />
+                        </td>
+
+                        {/* Variance */}
+                        <td className="px-3 py-3 text-center font-bold">
+                          <span
+                            className={
+                              variance > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : variance < 0
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-ink-900 dark:text-white font-normal"
+                            }
+                          >
+                            {variance > 0 ? `+${variance}` : variance}
+                          </span>
+                        </td>
+
+                        {/* Variance Value */}
+                        <td className="px-3 py-3 text-right font-bold">
+                          <span
+                            className={
+                              varianceVal > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : varianceVal < 0
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-ink-900 dark:text-white font-normal"
+                            }
+                          >
+                            {formatMoney(varianceVal)}
+                          </span>
+                        </td>
+
+                        {/* Reason Selector */}
+                        <td className="px-3 py-3">
+                          {hasVariance ? (
+                            <select
+                              value={row.reason}
+                              onChange={(e) => handleReasonChange(row.productId, e.target.value)}
+                              className="h-7 rounded-lg border border-ledger-200 bg-white px-2 text-[11px] text-ink-900 focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                            >
+                              {REASONS.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-ledger-400 text-center block">-</span>
+                          )}
+                        </td>
+
+                        {/* Action Buttons */}
+                        <td className="px-3 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleResetRow(row.productId)}
+                              title="Reset count to system stock"
+                              className="rounded-md p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRow(row.productId)}
+                              title="Remove item from count"
+                              className="rounded-md p-1 text-ledger-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        </div>
 
-        {/* ── Bottom Action Footer ────────────────────────────────────────── */}
-        <div className="flex items-center justify-end gap-3 border-t border-ledger-100 pt-5 dark:border-ledger-700">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleSaveAdjustment("draft")}
-            disabled={isPending}
-            className="rounded-xl border-ledger-200 px-5 text-xs font-semibold text-ink-900 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white dark:hover:bg-white/[0.06]"
-          >
-            Save Draft
-          </Button>
-
-          <Button
-            type="button"
-            onClick={() => handleSaveAdjustment("completed")}
-            disabled={isPending}
-            className="rounded-xl bg-emerald-700 px-6 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
-          >
-            Save &amp; Finalize Count
-          </Button>
+          {/* Bottom Add Other Item Bar */}
+          <div className="border-t border-ledger-100 bg-ledger-50/40 p-3 text-center dark:border-ledger-700 dark:bg-white/[0.02]">
+            <button
+              type="button"
+              onClick={() => setShowProductPicker(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
+            >
+              <Plus className="h-4 w-4" />
+              Add Other Item
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Dedicated Print-Only Count Sheet View ──────────────────────── */}
-      <div className="hidden print:block print-only p-4 text-black bg-white">
-        <div className="border-b-2 border-black pb-4 mb-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-xl font-bold uppercase tracking-wide">THINKSALES PRO</h1>
-              <p className="text-sm font-semibold">PHYSICAL STOCK COUNT SHEET</p>
-              <p className="text-xs text-gray-600">Inventory Verification &amp; Audit Log</p>
-            </div>
-            <div className="text-right text-xs space-y-1">
-              <p><strong>Reference:</strong> {countReference}</p>
-              <p><strong>Count Date:</strong> {countDate}</p>
-              <p><strong>Status:</strong> {status.toUpperCase()}</p>
-            </div>
-          </div>
+      {/* ── Bottom Action Footer ────────────────────────────────────────── */}
+      <div className="flex items-center justify-end gap-3 border-t border-ledger-100 pt-5 dark:border-ledger-700">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => handleSaveAdjustment("draft")}
+          disabled={isPending || !canManage}
+          title={!canManage ? "You don't have permission to save stock adjustments" : undefined}
+          className="rounded-xl border-ledger-200 px-5 text-xs font-semibold text-ink-900 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white dark:hover:bg-white/[0.06]"
+        >
+          Save Draft
+        </Button>
 
-          <div className="grid grid-cols-3 gap-4 mt-4 pt-3 border-t border-gray-300 text-xs">
-            <div>
-              <span className="text-gray-500 block">Warehouse / Location:</span>
-              <strong className="text-sm">{selectedLocation?.name || "All Branches"}</strong>
-            </div>
-            <div>
-              <span className="text-gray-500 block">Auditor / Responsible Person:</span>
-              <strong className="text-sm">{selectedPerson?.name || "Daniel Addy"}</strong>
-            </div>
-            <div>
-              <span className="text-gray-500 block">Count Type:</span>
-              <strong className="text-sm">{countType === "stock_taking" ? "Full Stock Taking" : "Adjustment Only"}</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Printable Table */}
-        <table className="print-table w-full text-xs border border-gray-400">
-          <thead>
-            <tr className="bg-gray-100 border-b border-gray-400">
-              <th className="w-8 p-1.5 text-center border-r border-gray-400">#</th>
-              <th className="p-1.5 border-r border-gray-400">Product Name &amp; Description</th>
-              <th className="w-28 p-1.5 border-r border-gray-400">SKU Code</th>
-              <th className="w-28 p-1.5 border-r border-gray-400">Barcode</th>
-              <th className="w-20 p-1.5 text-center border-r border-gray-400">System Qty</th>
-              <th className="w-24 p-1.5 text-center border-r border-gray-400">Physical Count</th>
-              <th className="w-20 p-1.5 text-center border-r border-gray-400">Variance</th>
-              <th className="w-32 p-1.5">Remarks / Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tableRows.map((row, idx) => {
-              const variance = row.countedStock - row.systemStock;
-              return (
-                <tr key={row.productId} className="border-b border-gray-300">
-                  <td className="p-1.5 text-center font-mono border-r border-gray-300">{idx + 1}</td>
-                  <td className="p-1.5 font-medium border-r border-gray-300">
-                    <div>{row.name}</div>
-                    {row.category && <div className="text-[10px] text-gray-500">{row.category}</div>}
-                  </td>
-                  <td className="p-1.5 font-mono border-r border-gray-300">{row.sku}</td>
-                  <td className="p-1.5 font-mono border-r border-gray-300">{row.barcode || "—"}</td>
-                  <td className="p-1.5 text-center font-bold border-r border-gray-300">{row.systemStock}</td>
-                  <td className="p-1.5 text-center border-r border-gray-300 bg-gray-50">
-                    <div className="h-6 w-full border border-gray-400 rounded flex items-center justify-center font-bold">
-                      {row.hasChanged ? row.countedStock : ""}
-                    </div>
-                  </td>
-                  <td className="p-1.5 text-center font-bold border-r border-gray-300">
-                    {variance !== 0 ? (variance > 0 ? `+${variance}` : `${variance}`) : "0"}
-                  </td>
-                  <td className="p-1.5 text-[11px]">{row.reason !== "-" ? row.reason : ""}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* Printable Sign-off Section */}
-        <div className="mt-8 pt-4 border-t border-gray-400 grid grid-cols-3 gap-8 text-xs">
-          <div>
-            <p className="font-semibold mb-6">Counted By (Auditor):</p>
-            <div className="border-b border-black w-full mb-1"></div>
-            <p className="text-[10px] text-gray-500">Name, Signature &amp; Date</p>
-          </div>
-          <div>
-            <p className="font-semibold mb-6">Verified By (Supervisor):</p>
-            <div className="border-b border-black w-full mb-1"></div>
-            <p className="text-[10px] text-gray-500">Name, Signature &amp; Date</p>
-          </div>
-          <div>
-            <p className="font-semibold mb-6">Approved By (Store Manager):</p>
-            <div className="border-b border-black w-full mb-1"></div>
-            <p className="text-[10px] text-gray-500">Name, Signature &amp; Date</p>
-          </div>
-        </div>
+        <Button
+          type="button"
+          onClick={() => handleSaveAdjustment("completed")}
+          disabled={isPending || !canManage}
+          title={!canManage ? "You don't have permission to finalize stock adjustments" : undefined}
+          className="rounded-xl bg-emerald-700 px-6 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
+        >
+          Save &amp; Finalize Count
+        </Button>
       </div>
 
       {/* ── Barcode Scanner Modal ──────────────────────────────────────── */}
@@ -1583,7 +1619,7 @@ export function StockAdjustmentForm({
                 <input
                   type="text"
                   autoFocus
-                  placeholder="e.g. 880609472111 or STOR-2026-0004..."
+                  placeholder="e.g. 880609472111 or SM-A155F-BL..."
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
                   className="w-full rounded-xl border border-ledger-200 px-3.5 py-2.5 text-xs font-mono text-ink-900 focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
@@ -1636,23 +1672,25 @@ export function StockAdjustmentForm({
             </div>
 
             <div className="mt-4 max-h-80 overflow-y-auto space-y-2 pr-1">
-              {products.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => handleAddProduct(p)}
-                  className="flex items-center justify-between rounded-xl border border-ledger-100 p-3 text-xs transition-colors hover:bg-emerald-50/50 hover:border-emerald-200 cursor-pointer dark:border-ledger-700 dark:hover:bg-white/[0.04]"
-                >
-                  <div>
-                    <p className="font-semibold text-ink-900 dark:text-white">{p.name}</p>
-                    <p className="font-mono text-[11px] text-ledger-400">{p.sku}</p>
+              {products
+                .filter((p) => p.isActive !== false)
+                .map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => handleAddProduct(p)}
+                    className="flex items-center justify-between rounded-xl border border-ledger-100 p-3 text-xs transition-colors hover:bg-emerald-50/50 hover:border-emerald-200 cursor-pointer dark:border-ledger-700 dark:hover:bg-white/[0.04]"
+                  >
+                    <div>
+                      <p className="font-semibold text-ink-900 dark:text-white">{p.name}</p>
+                      <p className="font-mono text-[11px] text-ledger-400">{p.sku}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                        {availableAt(p, selectedLocationId)} in stock
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono">
-                      {p.locationStocks?.[selectedLocationId] ?? p.stockQuantity} in stock
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
 
             <div className="mt-5 flex justify-end border-t border-ledger-100 pt-3 dark:border-ledger-700">

@@ -1,6 +1,23 @@
+// Target path (confirmed from your zip): app/(dashboard)/inventory/adjustments/page.tsx
+// (/inventory/stock-taking re-exports this same page — no change needed there.)
+//
+// This replaces my earlier guessed page.tsx. It's now your real
+// adjustments/page.tsx with two fixes applied, everything else left as-is
+// since the rest of it already works correctly:
+//
+// 1. currentUserName was resolving to context.orgName (the ORGANIZATION's
+//    name), falling back to a hardcoded "Daniel Addy" if that was empty —
+//    so the "Responsible Person" avatar initial and any personalization
+//    were never actually showing the signed-in person. Now resolved from
+//    their profile.
+// 2. canManage is now computed and passed, so the finalize/save buttons
+//    in the form can actually respect permissions client-side (the server
+//    action already enforces this regardless).
+
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
+import { can } from "@/lib/rbac";
 import {
   StockAdjustmentForm,
   type AdjustLocation,
@@ -81,24 +98,36 @@ export default async function StockAdjustmentPage() {
     locationStocks: stockByProductLoc[p.id] || {},
   }));
 
-  // Build team members
+  // Build team members. Dropped the `user-${Math.random()}` fallback id
+  // for members with no linked user_id (e.g. a still-pending invite) —
+  // that produced a fresh random id on every render, which isn't a
+  // usable "Responsible Person" selection anyway since it can't be saved
+  // against any real user.
   const profileMap = new Map((profileRows ?? []).map((pr) => [pr.id, pr]));
-  const teamMembers: ResponsiblePerson[] = (memberRows ?? []).map((m) => {
-    const prof = m.user_id ? profileMap.get(m.user_id) : null;
-    return {
-      id: m.user_id || `user-${Math.random()}`,
-      name: prof?.full_name || "Team Member",
-      avatarUrl: prof?.avatar_url || null,
-      role: m.role,
-    };
-  });
+  const teamMembers: ResponsiblePerson[] = (memberRows ?? [])
+    .filter((m): m is typeof m & { user_id: string } => !!m.user_id)
+    .map((m) => {
+      const prof = profileMap.get(m.user_id);
+      return {
+        id: m.user_id,
+        name: prof?.full_name || "Team Member",
+        avatarUrl: prof?.avatar_url || null,
+        role: m.role,
+      };
+    });
 
-  // Current user fallback
-  if (teamMembers.length === 0) {
-    teamMembers.push({
+  const currentUserProfile = profileMap.get(context.userId);
+  const currentUserName =
+    currentUserProfile?.full_name ||
+    teamMembers.find((tm) => tm.id === context.userId)?.name ||
+    context.userEmail ||
+    "You";
+
+  if (!teamMembers.some((tm) => tm.id === context.userId)) {
+    teamMembers.unshift({
       id: context.userId,
-      name: "Daniel Addy",
-      avatarUrl: null,
+      name: currentUserName,
+      avatarUrl: currentUserProfile?.avatar_url || null,
       role: context.role,
     });
   }
@@ -109,7 +138,9 @@ export default async function StockAdjustmentPage() {
       products={products}
       teamMembers={teamMembers}
       currency={context.currency || "GHS"}
-      currentUserName={context.orgName || "Daniel Addy"}
+      currentUserName={currentUserName}
+      currentUserId={context.userId}
+      canManage={can(context.role, "inventory.manage")}
     />
   );
 }
