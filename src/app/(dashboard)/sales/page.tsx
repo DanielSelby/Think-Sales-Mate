@@ -15,7 +15,7 @@ export default async function SalesPage() {
 
   const supabase = await createClient();
 
-  const [{ data: sales }, { data: locations }] = await Promise.all([
+  const [{ data: sales }, { data: locations }, { data: companyProfile }] = await Promise.all([
     supabase
       .from("sales")
       .select(`
@@ -28,6 +28,7 @@ export default async function SalesPage() {
       .eq("org_id", orgId)
       .order("sale_date", { ascending: false }),
     supabase.from("business_locations").select("name").eq("org_id", orgId).eq("is_active", true),
+    supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", orgId).maybeSingle(),
   ]);
 
   const currency = context.currency;
@@ -88,6 +89,8 @@ export default async function SalesPage() {
       locations={locationNames}
       salesReps={salesRepNames}
       orgName={context.orgName}
+      logoUrl={companyProfile?.logo_url ?? null}
+      showLogoOnInvoices={companyProfile?.show_logo_on_invoices ?? true}
     />
   );
 }

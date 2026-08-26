@@ -150,6 +150,8 @@ export function SaleForm({
   orgId,
   orgName,
   currency,
+  logoUrl,
+  showLogoOnInvoices,
 }: {
   products: SellableProduct[];
   customers: SaleCustomer[];
@@ -163,6 +165,8 @@ export function SaleForm({
   orgName: string;
   currency: string;
   currentUserEmail: string;
+  logoUrl?: string | null;
+  showLogoOnInvoices?: boolean;
 }) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -473,16 +477,18 @@ export function SaleForm({
       const items = await getSaleInvoiceItems(saleId);
       const html = buildInvoiceHtml({
         orgName,
+        logoUrl,
+        showLogoOnInvoices,
         saleNumber,
         saleDate,
         customerName: selectedCustomer?.name || walkInName || "Walk-in Customer",
         soldByName: reps.find((r) => r.id === salesRepId)?.name ?? currentUserEmail,
         locationName: locations.find((l) => l.id === locationId)?.name ?? null,
         paymentMethod,
-        paymentStatus: derivePaymentStatus(total, paidAmount),
+        paymentStatus: derivePaymentStatus(total, amountPaid),
         subtotal,
         total,
-        amountPaid: paidAmount,
+        amountPaid,
         currency,
         items,
       });

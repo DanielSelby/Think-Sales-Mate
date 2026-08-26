@@ -17,6 +17,8 @@ export interface BrandedInvoiceItem {
 
 export interface BrandedInvoiceData {
   orgName: string;
+  logoUrl?: string | null;
+  showLogoOnInvoices?: boolean;
   locationName: string | null;
   locationAddress: string | null;
   locationPhone: string | null;
@@ -133,7 +135,9 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   .brand-mark {
     width: 46px; height: 46px; border-radius: 50%; background: #2fae4e; color: #fff;
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0;
+    overflow: hidden;
   }
+  .brand-mark img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
   .brand-name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
   .brand-sub { font-size: 11px; color: #b7ccb9; margin-top: 1px; }
   .brand-contact { font-size: 11px; color: #d7e5d8; margin-top: 8px; line-height: 1.6; }
@@ -182,7 +186,11 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   <div class="sheet">
     <div class="header">
       <div class="brand">
-        <div class="brand-mark">${esc(initials(data.orgName))}</div>
+        <div class="brand-mark">
+          ${data.logoUrl && data.showLogoOnInvoices !== false
+            ? `<img src="${esc(data.logoUrl)}" alt="${esc(data.orgName)}" />`
+            : esc(initials(data.orgName))}
+        </div>
         <div>
           <div class="brand-name">${esc(data.orgName)}</div>
           ${data.locationName ? `<div class="brand-sub">${esc(data.locationName)}</div>` : ""}
@@ -269,6 +277,8 @@ export interface InvoiceItem {
 
 export interface InvoiceData {
   orgName: string;
+  logoUrl?: string | null;
+  showLogoOnInvoices?: boolean;
   saleNumber: number;
   saleDate: string;
   customerName: string;
@@ -297,6 +307,8 @@ export function buildInvoiceHtml(data: InvoiceData): string {
 
   return buildBrandedInvoiceHtml({
     orgName: data.orgName,
+    logoUrl: data.logoUrl,
+    showLogoOnInvoices: data.showLogoOnInvoices,
     locationName: data.locationName,
     locationAddress: null,
     locationPhone: null,

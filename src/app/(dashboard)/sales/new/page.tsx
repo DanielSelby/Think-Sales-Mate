@@ -26,7 +26,8 @@ export default async function NewSalePage() {
     { data: openInvoices },
     { data: pastSaleRows },
     { data: recentItemRows },
-    { data: stockLevelRows }
+    { data: stockLevelRows },
+    { data: companyprofile }
   ] = await Promise.all([
     supabase
       .from("products")
@@ -56,8 +57,9 @@ export default async function NewSalePage() {
       .eq("org_id", context.orgId)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId)
-  ]);
+    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId),
+    supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", context.orgId).maybeSingle()
+  ]);;
 
   // Best-effort outstanding balance per customer — invoices only store a
   // free-text customer_name (they predate the customers table), so this
@@ -135,6 +137,8 @@ export default async function NewSalePage() {
       currentUserEmail={context.userEmail}
       orgName={context.orgName}
       currency={context.currency}
+      logoUrl={companyprofile?.logo_url ?? null}
+      showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
     />
   );
 }

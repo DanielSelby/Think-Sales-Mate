@@ -32,7 +32,9 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     { data: openInvoices },
     { data: pastSaleRows },
     { data: recentItemRows },
-    { data: stockLevelRows }
+    { data: stockLevelRows },
+    { data: companyprofile }
+
   ] = await Promise.all([
     // No stock_quantity filter here — an existing line's product might be
     // fully allocated elsewhere and show 0 org-wide; it's reclaimed below.
@@ -63,8 +65,9 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       .eq("org_id", context.orgId)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId)
-  ]);
+    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId),
+    supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", context.orgId).maybeSingle()
+  ]);;
 
   const outstandingByName = new Map<string, number>();
   for (const inv of openInvoices ?? []) {
@@ -147,6 +150,8 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       currentUserEmail={context.userEmail}
       orgName={context.orgName}
       currency={context.currency}
+      logoUrl={companyprofile?.logo_url ?? null}
+      showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
     />
   );
 }

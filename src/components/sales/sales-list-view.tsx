@@ -59,6 +59,8 @@ interface SalesListViewProps {
   locations: string[];
   salesReps: string[];
   orgName: string;
+  logoUrl?: string | null;
+  showLogoOnInvoices?: boolean;
 }
 
 const STATUS_TABS: { key: "all" | SaleStatus; label: string }[] = [
@@ -82,7 +84,7 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
-export function SalesListView({ sales, kpis, currency, locations, salesReps, orgName }: SalesListViewProps) {
+export function SalesListView({ sales, kpis, currency, locations, salesReps, orgName, logoUrl, showLogoOnInvoices }: SalesListViewProps) {
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -150,6 +152,8 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
       const items = await getSaleInvoiceItems(sale.id);
       const html = buildInvoiceHtml({
         orgName,
+        logoUrl,
+        showLogoOnInvoices,
         saleNumber: sale.saleNumber,
         saleDate: sale.saleDate,
         customerName: sale.customerName,
