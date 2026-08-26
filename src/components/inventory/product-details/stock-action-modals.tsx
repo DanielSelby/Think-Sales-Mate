@@ -60,8 +60,10 @@ export function QuickAdjustmentModal({
     startTransition(async () => {
       try {
         const res = await createStockAdjustment({
-          locationId: selectedBranchId || null,
-          reason,
+       locationId: selectedBranchId || null,
+       countType: "adjustment_only",
+       status: "completed",
+        reason,
           note: note || `Manual quick adjustment for ${productName} (${sku})`,
           items: [
             {
