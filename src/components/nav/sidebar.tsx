@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -53,6 +54,13 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "New Sale",     href: "/sales/new",          icon: PlusCircle  },
       { label: "Invoices",     href: "/accounting/invoices", icon: FileText   },
     ],
+  },
+
+  {
+    label: "Orders",
+    href:  "/orders",
+    icon:  Inbox,
+    status: "live",
   },
 
   // ── Purchases group ───────────────────────────────────────
@@ -127,6 +135,7 @@ const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Team",          href: "/settings/team"         },
   { label: "Locations",     href: "/settings/locations"    },
   { label: "Currencies",    href: "/settings/currencies"   },
+  { label: "Customer Ordering", href: "/settings/customer-ordering" },
   { label: "Billing",       href: "/settings/billing"      },
   { label: "Members",       href: "/settings/members"      },
   { label: "Integrations", href: "/settings/integrations" },
