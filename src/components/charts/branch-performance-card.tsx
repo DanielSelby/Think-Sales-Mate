@@ -19,8 +19,9 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowUpRight,
-} from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+  GitCompare,
+  ArrowLeftRight,
+} from "lucide-react";import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/lib/currency";
 import type { BranchPerformanceMetric } from "@/lib/accounting/metrics";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -49,10 +50,22 @@ export function BranchPerformanceCard({
   const [viewMode, setViewMode] = useState<"table" | "chart">("table");
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const totalRevenue = branches.reduce((sum, b) => sum + b.revenue, 0);
-  const totalOrders = branches.reduce((sum, b) => sum + b.orders, 0);
-  const topBranch = branches.length > 0 ? branches[0] : null;
+  // Branch-to-branch filter — narrows the table/chart down to just two
+  // selected branches instead of always showing all of them.
+  const [compareBranches, setCompareBranches] = useState(false);
+  const [branchAId, setBranchAId] = useState<string>("");
+  const [branchBId, setBranchBId] = useState<string>("");
 
+  const branchA = branches.find((b) => b.id === branchAId) ?? null;
+  const branchB = branches.find((b) => b.id === branchBId) ?? null;
+  const displayBranches = compareBranches
+    ? [branchA, branchB].filter((b): b is BranchPerformanceMetric => b !== null)
+    : branches;
+
+  const totalRevenue = displayBranches.reduce((sum, b) => sum + b.revenue, 0);
+  const totalOrders = displayBranches.reduce((sum, b) => sum + b.orders, 0);
+  const topBranch =
+    displayBranches.length > 0 ? [...displayBranches].sort((a, b) => b.revenue - a.revenue)[0] : null;
   return (
     <Card className="col-span-1 lg:col-span-2">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 pb-3">
@@ -100,7 +113,65 @@ export function BranchPerformanceCard({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+       <CardContent className="space-y-4">
+        {/* Branch-to-Branch Filter */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-ledger-100 pb-4 dark:border-ledger-700">
+          <button
+            type="button"
+            onClick={() => setCompareBranches(!compareBranches)}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              compareBranches
+                ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                : "bg-slate-100 text-slate-500 hover:text-ink-900 dark:bg-ink-950 dark:text-slate-400"
+            }`}
+          >
+            <GitCompare className="h-3.5 w-3.5" />
+            <span>Compare Two Branches</span>
+          </button>
+
+          {compareBranches && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <select
+                value={branchAId}
+                onChange={(e) => setBranchAId(e.target.value)}
+                className="h-8 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-medium text-ink-900 focus:border-blue-500 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              >
+                <option value="">Branch A…</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id} disabled={b.id === branchBId}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchAId(branchBId);
+                  setBranchBId(branchAId);
+                }}
+                title="Swap Branch A and Branch B"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ledger-400 hover:bg-ledger-50 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+              </button>
+
+              <select
+                value={branchBId}
+                onChange={(e) => setBranchBId(e.target.value)}
+                className="h-8 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-medium text-ink-900 focus:border-blue-500 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              >
+                <option value="">Branch B…</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id} disabled={b.id === branchAId}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
         {/* Quick Highlights Strip */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 border-b border-ledger-100 pb-4 dark:border-ledger-700">
           <div className="rounded-xl bg-ledger-50/60 p-3 dark:bg-white/[0.02]">
@@ -137,6 +208,10 @@ export function BranchPerformanceCard({
           <div className="flex h-44 flex-col items-center justify-center rounded-xl border border-dashed border-ledger-200 text-center dark:border-ledger-700">
             <p className="text-sm text-ledger-400">No branch performance metrics available.</p>
           </div>
+        ) : compareBranches && displayBranches.length === 0 ? (
+          <div className="flex h-44 flex-col items-center justify-center rounded-xl border border-dashed border-ledger-200 text-center dark:border-ledger-700">
+            <p className="text-sm text-ledger-400">Select two branches above to compare them.</p>
+          </div>
         ) : viewMode === "table" ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -151,7 +226,7 @@ export function BranchPerformanceCard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-                {branches.map((b, idx) => (
+                {displayBranches.map((b, idx) => (
                   <tr
                     key={b.id}
                     className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]"
@@ -224,7 +299,7 @@ export function BranchPerformanceCard({
           <div className="h-64 pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={branches}
+                data={displayBranches}
                 margin={{ top: 10, right: 20, left: 10, bottom: 20 }}
                 onMouseMove={(state) => {
                   if (state.activeTooltipIndex !== undefined) {
@@ -269,7 +344,7 @@ export function BranchPerformanceCard({
                   }}
                 />
                 <Bar dataKey="revenue" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                  {branches.map((_, index) => (
+                  {displayBranches.map((_, index) => (
                     <Cell
                       key={`bar-${index}`}
                       fill={BRANCH_COLORS[index % BRANCH_COLORS.length]}
