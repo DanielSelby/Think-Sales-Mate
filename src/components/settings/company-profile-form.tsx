@@ -143,7 +143,7 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
     startTransition(async () => {
       const result = await uploadCompanyStamp(formData);
       if (result?.error) setError(result.error);
-      else if (result?.logoUrl) setStampUrl(result.logoUrl);
+      else if (result?.stampUrl) setStampUrl(result.stampUrl);
       setUploadingStamp(false);
     });
   }
@@ -156,7 +156,7 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
     startTransition(async () => {
       const result = await uploadCompanySignature(formData);
       if (result?.error) setError(result.error);
-      else if (result?.logoUrl) setSignatureUrl(result.logoUrl);
+      else if (result?.signatureUrl) setSignatureUrl(result.signatureUrl);
       setUploadingSignature(false);
     });
   }

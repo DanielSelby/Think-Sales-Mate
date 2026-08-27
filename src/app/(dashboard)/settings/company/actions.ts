@@ -131,57 +131,74 @@ export async function uploadCompanyLogo(formData: FormData): Promise<UploadLogoR
   return { logoUrl };
 }
 
-async function uploadCompanyAsset(
-  formData: FormData,
-  fieldName: "stamp" | "signature",
-  column: "stamp_url" | "signature_url"
-): Promise<UploadLogoResult> {
+export interface UploadStampResult {
+  error?: string;
+  stampUrl?: string;
+}
+
+export async function uploadCompanyStamp(formData: FormData): Promise<UploadStampResult> {
   const check = await requireAdmin();
   if ("error" in check) return { error: check.error };
 
-  const file = formData.get(fieldName) as File | null;
+  const file = formData.get("stamp") as File | null;
   if (!file || file.size === 0) return { error: "Choose a file first." };
-  if (file.size > 2 * 1024 * 1024) return { error: `${fieldName === "stamp" ? "Stamp" : "Signature"} must be under 2MB.` };
+  if (file.size > 2 * 1024 * 1024) return { error: "Stamp must be under 2MB." };
   if (!["image/png", "image/jpeg", "image/svg+xml"].includes(file.type)) {
-    return { error: `${fieldName === "stamp" ? "Stamp" : "Signature"} must be a JPG, PNG, or SVG file.` };
+    return { error: "Stamp must be a JPG, PNG, or SVG file." };
   }
 
   const supabase = await createClient();
   const ext = file.name.split(".").pop();
-  const path = `${check.context.orgId}/${fieldName}.${ext}`;
+  const path = `${check.context.orgId}/stamp.${ext}`;
 
   const { error: uploadError } = await supabase.storage.from("company-assets").upload(path, file, { upsert: true });
   if (uploadError) return { error: uploadError.message };
 
   const { data: publicUrl } = supabase.storage.from("company-assets").getPublicUrl(path);
-  const url = `${publicUrl.publicUrl}?v=${Date.now()}`;
+  const stampUrl = `${publicUrl.publicUrl}?v=${Date.now()}`;
 
-  const assetData =
-  column === "stamp_url"
-    ? { stamp_url: url }
-    : { signature_url: url };
+  const { error } = await supabase
+    .from("company_profile")
+    .upsert({ org_id: check.context.orgId, stamp_url: stampUrl, updated_at: new Date().toISOString() }, { onConflict: "org_id" });
 
-const { error } = await supabase
-  .from("company_profile")
-  .upsert(
-    {
-      org_id: check.context.orgId,
-      ...assetData,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "org_id" }
-  );
   if (error) return { error: error.message };
   revalidatePath("/settings/company");
-  return { logoUrl: url };
+  return { stampUrl };
 }
 
-export async function uploadCompanyStamp(formData: FormData): Promise<UploadLogoResult> {
-  return uploadCompanyAsset(formData, "stamp", "stamp_url");
+export interface UploadSignatureResult {
+  error?: string;
+  signatureUrl?: string;
 }
 
-export async function uploadCompanySignature(formData: FormData): Promise<UploadLogoResult> {
-  return uploadCompanyAsset(formData, "signature", "signature_url");
+export async function uploadCompanySignature(formData: FormData): Promise<UploadSignatureResult> {
+  const check = await requireAdmin();
+  if ("error" in check) return { error: check.error };
+
+  const file = formData.get("signature") as File | null;
+  if (!file || file.size === 0) return { error: "Choose a file first." };
+  if (file.size > 2 * 1024 * 1024) return { error: "Signature must be under 2MB." };
+  if (!["image/png", "image/jpeg", "image/svg+xml"].includes(file.type)) {
+    return { error: "Signature must be a JPG, PNG, or SVG file." };
+  }
+
+  const supabase = await createClient();
+  const ext = file.name.split(".").pop();
+  const path = `${check.context.orgId}/signature.${ext}`;
+
+  const { error: uploadError } = await supabase.storage.from("company-assets").upload(path, file, { upsert: true });
+  if (uploadError) return { error: uploadError.message };
+
+  const { data: publicUrl } = supabase.storage.from("company-assets").getPublicUrl(path);
+  const signatureUrl = `${publicUrl.publicUrl}?v=${Date.now()}`;
+
+  const { error } = await supabase
+    .from("company_profile")
+    .upsert({ org_id: check.context.orgId, signature_url: signatureUrl, updated_at: new Date().toISOString() }, { onConflict: "org_id" });
+
+  if (error) return { error: error.message };
+  revalidatePath("/settings/company");
+  return { signatureUrl };
 }
 
 // Real helper other modules (Invoices, Receipts, POS, etc.) can call —

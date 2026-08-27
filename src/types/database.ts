@@ -18,6 +18,8 @@ export type PayrollRunStatus = "draft" | "processing" | "completed" | "failed";
 export type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "on_leave";
 export type LeaveStatus = "pending" | "approved" | "rejected";
 export type HeldSaleKind = "hold" | "draft";
+export type CustomerAccountRequirement = "optional" | "required" | "guest_only";
+export type CustomerOrderStatus = "new" | "processing" | "reviewed" | "completed" | "cancelled";
 
 export interface Database {
   public: {
@@ -55,7 +57,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organizations"]["Row"]>;
         Relationships: [];
       };
-
 
      organization_members: {
         Row: {
@@ -96,7 +97,6 @@ export interface Database {
           }
         ];
       };
-
 
       business_locations: {
         Row: {
@@ -353,7 +353,6 @@ export interface Database {
         ];
       };
 
-
       product_import_batches: {
         Row: {
           id: string;
@@ -441,7 +440,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["currency_settings"]["Row"]>;
         Relationships: [];
       };
-
 
       company_profile: {
         Row: {
@@ -558,7 +556,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["org_general_settings"]["Row"]>;
         Relationships: [];
       };
-
 
       audit_logs: {
         Row: {
@@ -1758,6 +1755,159 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["register_closures"]["Row"]>;
         Relationships: [];
       };
+      customer_portal_settings: {
+        Row: {
+          id: string;
+          org_id: string;
+          is_enabled: boolean;
+          account_requirement: CustomerAccountRequirement;
+          require_approval_before_processing: boolean;
+          allow_customer_select_delivery: boolean;
+          allow_order_notes: boolean;
+          allow_view_order_status: boolean;
+          allow_create_account: boolean;
+          require_email_verification: boolean;
+          show_prices_to_customers: boolean;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          is_enabled?: boolean;
+          account_requirement?: CustomerAccountRequirement;
+          require_approval_before_processing?: boolean;
+          allow_customer_select_delivery?: boolean;
+          allow_order_notes?: boolean;
+          allow_view_order_status?: boolean;
+          allow_create_account?: boolean;
+          require_email_verification?: boolean;
+          show_prices_to_customers?: boolean;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["customer_portal_settings"]["Row"]>;
+        Relationships: [];
+      };
+      customer_orders: {
+        Row: {
+          id: string;
+          org_id: string;
+          order_number: string;
+          customer_id: string | null;
+          guest_name: string;
+          guest_phone: string;
+          guest_email: string | null;
+          delivery_address: string;
+          delivery_option: string | null;
+          delivery_fee: number;
+          notes: string | null;
+          subtotal: number;
+          total: number;
+          payment_method: string;
+          status: CustomerOrderStatus;
+          admin_notes: string | null;
+          stock_checked: boolean;
+          location_id: string | null;
+          approved_by: string | null;
+          approved_at: string | null;
+          linked_sale_id: string | null;
+          access_token: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          order_number?: string;
+          customer_id?: string | null;
+          guest_name: string;
+          guest_phone: string;
+          guest_email?: string | null;
+          delivery_address: string;
+          delivery_option?: string | null;
+          delivery_fee?: number;
+          notes?: string | null;
+          subtotal?: number;
+          total?: number;
+          payment_method?: string;
+          status?: CustomerOrderStatus;
+          admin_notes?: string | null;
+          stock_checked?: boolean;
+          location_id?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          linked_sale_id?: string | null;
+          access_token?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["customer_orders"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "customer_orders_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_orders_location_id_fkey";
+            columns: ["location_id"];
+            isOneToOne: false;
+            referencedRelation: "business_locations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_orders_linked_sale_id_fkey";
+            columns: ["linked_sale_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      customer_order_items: {
+        Row: {
+          id: string;
+          order_id: string;
+          org_id: string;
+          product_id: string;
+          product_name: string;
+          quantity: number;
+          unit_price: number;
+          line_total: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          org_id: string;
+          product_id: string;
+          product_name: string;
+          quantity: number;
+          unit_price: number;
+          line_total: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["customer_order_items"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "customer_order_items_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "customer_orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_order_items_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       bank_accounts: {
         Row: {
           id: string;
@@ -1909,7 +2059,21 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      public_product_catalog: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          category: string | null;
+          brand: string | null;
+          unit_price: number;
+          stock_quantity: number;
+          sku: string;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       adjust_product_stock_at_location: {
         Args: { p_product_id: string; p_location_id: string; p_org_id: string; p_delta: number };
@@ -1937,6 +2101,8 @@ export interface Database {
       attendance_status: AttendanceStatus;
       leave_status: LeaveStatus;
       held_sale_kind: HeldSaleKind;
+      customer_account_requirement: CustomerAccountRequirement;
+      customer_order_status: CustomerOrderStatus;
     };
     CompositeTypes: Record<string, never>;
   };
