@@ -78,6 +78,7 @@ export function LocationsManager({
   const [stats, setStats] = useState<LocationStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
 
   const selected = locations.find((l) => l.id === selectedId) ?? null;
 
@@ -107,12 +108,43 @@ export function LocationsManager({
       .finally(() => setLoadingStats(false));
   }
 
-  function handleCreate(formData: FormData) {
+  function handleFormSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
-      const result = await createLocation(formData);
-      if (result?.error) setError(result.error);
-      else setShowForm(false);
+      if (editingLocation) {
+        const isPrimary = formData.get("is_primary") === "on";
+        const result = await updateLocation(editingLocation.id, {
+          name: String(formData.get("name") ?? "").trim(),
+          code: String(formData.get("code") ?? "").trim().toUpperCase() || null,
+          location_type: String(formData.get("location_type") ?? "branch") as LocationType,
+          manager_name: String(formData.get("manager_name") ?? "").trim() || null,
+          address: String(formData.get("address") ?? "").trim() || null,
+          city: String(formData.get("city") ?? "").trim() || null,
+          region: String(formData.get("region") ?? "").trim() || null,
+          country: String(formData.get("country") ?? "").trim() || null,
+          phone: String(formData.get("phone") ?? "").trim() || null,
+          email: String(formData.get("email") ?? "").trim() || null,
+        });
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
+        // updateLocation doesn't unset other locations' primary flag the
+        // way createLocation does, so that's handled as its own step here.
+        if (isPrimary && !editingLocation.isPrimary) {
+          const primaryResult = await setPrimaryLocation(editingLocation.id);
+          if (primaryResult?.error) {
+            setError(primaryResult.error);
+            return;
+          }
+        }
+        setShowForm(false);
+        setEditingLocation(null);
+      } else {
+        const result = await createLocation(formData);
+        if (result?.error) setError(result.error);
+        else setShowForm(false);
+      }
     });
   }
 
@@ -141,7 +173,7 @@ export function LocationsManager({
           <p className="text-sm text-ledger-500 dark:text-ledger-400">Manage all your business locations and warehouses.</p>
         </div>
         {canManage && (
-          <Button onClick={() => setShowForm((s) => !s)}>
+          <Button onClick={() => { setEditingLocation(null); setShowForm((s) => !s); }}>
             <Plus className="h-3.5 w-3.5" />
             Add location
           </Button>
@@ -183,21 +215,24 @@ export function LocationsManager({
 
       {showForm && canManage && (
         <form
-          action={handleCreate}
+          key={editingLocation?.id ?? "new"}
+          action={handleFormSubmit}
           className="space-y-3 rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900"
         >
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">New location</h3>
-            <button type="button" onClick={() => setShowForm(false)} aria-label="Cancel">
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">
+              {editingLocation ? `Edit ${editingLocation.name}` : "New location"}
+            </h3>
+            <button type="button" onClick={() => { setShowForm(false); setEditingLocation(null); }} aria-label="Cancel">
               <X className="h-4 w-4 text-ledger-400" />
             </button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input name="name" required placeholder="Location name *" />
-            <Input name="code" placeholder="Code (e.g. MAIN)" className="uppercase" />
+            <Input name="name" required placeholder="Location name *" defaultValue={editingLocation?.name ?? ""} />
+            <Input name="code" placeholder="Code (e.g. MAIN)" className="uppercase" defaultValue={editingLocation?.code ?? ""} />
             <select
               name="location_type"
-              defaultValue="branch"
+              defaultValue={editingLocation?.locationType ?? "branch"}
               className="h-10 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
             >
               {Object.entries(TYPE_LABELS).map(([value, label]) => (
@@ -206,23 +241,23 @@ export function LocationsManager({
                 </option>
               ))}
             </select>
-            <Input name="manager_name" placeholder="Manager name" />
-            <Input name="phone" type="tel" placeholder="Phone" />
-            <Input name="email" type="email" placeholder="Email" />
-            <Input name="address" placeholder="Street address" className="sm:col-span-3" />
-            <Input name="city" placeholder="City" />
-            <Input name="region" placeholder="Region / State" />
-            <Input name="country" placeholder="Country" />
+            <Input name="manager_name" placeholder="Manager name" defaultValue={editingLocation?.managerName ?? ""} />
+            <Input name="phone" type="tel" placeholder="Phone" defaultValue={editingLocation?.phone ?? ""} />
+            <Input name="email" type="email" placeholder="Email" defaultValue={editingLocation?.email ?? ""} />
+            <Input name="address" placeholder="Street address" className="sm:col-span-3" defaultValue={editingLocation?.address ?? ""} />
+            <Input name="city" placeholder="City" defaultValue={editingLocation?.city ?? ""} />
+            <Input name="region" placeholder="Region / State" defaultValue={editingLocation?.region ?? ""} />
+            <Input name="country" placeholder="Country" defaultValue={editingLocation?.country ?? ""} />
           </div>
           <label className="flex items-center gap-2 text-sm text-ledger-600 dark:text-ledger-300">
-            <input type="checkbox" name="is_primary" className="h-4 w-4 rounded border-ledger-300" />
+            <input type="checkbox" name="is_primary" className="h-4 w-4 rounded border-ledger-300" defaultChecked={editingLocation?.isPrimary ?? false} />
             Set as primary location
           </label>
           <div className="flex gap-2">
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : "Save location"}
+              {isPending ? "Saving…" : editingLocation ? "Save changes" : "Save location"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+            <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditingLocation(null); }}>
               Cancel
             </Button>
           </div>
@@ -323,7 +358,7 @@ export function LocationsManager({
                         <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                           <div className="relative flex items-center justify-end gap-1">
                             <button
-                              onClick={() => selectLocation(loc)}
+                              onClick={() => { selectLocation(loc); setEditingLocation(loc); setShowForm(true); }}
                               className="rounded-md p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
                               title="Edit"
                             >
@@ -449,7 +484,7 @@ export function LocationsManager({
 
               {canManage && (
                 <div className="flex gap-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => setShowForm(true)}>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditingLocation(selected); setShowForm(true); }}>
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
                   </Button>
