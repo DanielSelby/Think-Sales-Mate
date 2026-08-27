@@ -11,7 +11,7 @@ export default function Loading() {
   const theme = THEMES[activeTheme];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-7 p-6">
+   <div className="space-y-7 p-6">
 
       {/* Header skeleton */}
       <div className="flex items-start justify-between gap-4">
