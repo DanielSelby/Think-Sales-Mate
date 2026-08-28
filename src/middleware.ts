@@ -1,9 +1,11 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/"];
 
 export async function middleware(request: NextRequest) {
+  console.log("MW_START", request.nextUrl.pathname, Date.now());
+
   let response = NextResponse.next({ request: { headers: request.headers } });
 
   const supabase = createServerClient(
@@ -26,9 +28,17 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const result = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("auth_check_timeout")), 5000))
+    ]);
+    user = result.data.user;
+  } catch (e) {
+    console.log("MW_AUTH_FAILED_OR_TIMED_OUT", request.nextUrl.pathname, String(e));
+    user = null;
+  }
 
   const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
 
@@ -42,9 +52,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
+  console.log("MW_END", request.nextUrl.pathname, Date.now());
   return response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|order/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
 };
