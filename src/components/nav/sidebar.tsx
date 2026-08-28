@@ -61,6 +61,10 @@ export const NAV_ITEMS: NavItem[] = [
     href:  "/orders",
     icon:  Inbox,
     status: "live",
+    children: [
+      { label: "All Orders",       href: "/orders",                          icon: List     },
+      { label: "Customer Order Settings", href: "/settings/customer-ordering",     icon: Settings },
+    ],
   },
 
   // ── Purchases group ───────────────────────────────────────
