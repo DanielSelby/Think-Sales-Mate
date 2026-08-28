@@ -733,7 +733,9 @@ export function PosView({ products, categories, locations, stockLevels, currency
                 {customer ? (
                   <div className="flex h-10 items-center justify-between rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
                     <span className="truncate">{customer.name}</span>
-                    <button onClick={() => setCustomer(null)}><X className="h-3.5 w-3.5 text-ledger-400" /></button>
+                    <button onClick={() => setCustomer(null)} className="flex h-6 w-6 items-center justify-center rounded-full text-alert hover:bg-alert-soft">
+                      <X className="h-4 w-4" strokeWidth={3} />
+                    </button>
                   </div>
                 ) : (
                   <div className="flex gap-1">
