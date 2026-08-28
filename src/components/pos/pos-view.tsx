@@ -56,6 +56,8 @@ interface CartLine extends CartItemInput {
   maxStock: number;
 }
 
+const CART_WIDTH_OPTIONS = [20, 30, 40, 50, 60];
+
 function isoToLocalDate(iso: string) {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -77,14 +79,18 @@ export function PosView({ products, categories, locations, stockLevels, currency
   }, []);
 
   const [browseTab, setBrowseTab] = React.useState<"category" | "brands">("category");
-  const [cartExpanded, setCartExpanded] = React.useState(false);
+  const [cartWidthPercent, setCartWidthPercent] = React.useState(30);
+         const [expandMenuOpen, setExpandMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
   const [activeCategory, setActiveCategory] = React.useState("all");
-  const [cart, setCart] = React.useState<CartLine[]>([]);
+ const [cart, setCart] = React.useState<CartLine[]>([]);
+  const [priceEditLine, setPriceEditLine] = React.useState<CartLine | null>(null);
+  const [cartAddSignal, setCartAddSignal] = React.useState(0);
+  const cartListRef = React.useRef<HTMLDivElement>(null);
   const [locationId, setLocationId] = React.useState(locations[0]?.id ?? "");
+  const [selectResetKey, setSelectResetKey] = React.useState(0);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
-
   const [customer, setCustomer] = React.useState<CustomerOption | null>(null);
   const [customerQuery, setCustomerQuery] = React.useState("");
   const [customerResults, setCustomerResults] = React.useState<CustomerOption[]>([]);
@@ -132,6 +138,15 @@ export function PosView({ products, categories, locations, stockLevels, currency
     return () => clearInterval(t);
   }, []);
 
+  // Auto-scroll the cart list to the newest entry every time an item is
+  // added — new lines are appended at the bottom, so without this the
+  // latest scan/click is invisible until the user scrolls down manually.
+  React.useLayoutEffect(() => {
+    if (cartAddSignal === 0) return;
+    const el = cartListRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [cartAddSignal]);
+
   function showNotice(msg: string) {
     setNotice(msg);
     setTimeout(() => setNotice(null), 3000);
@@ -175,25 +190,24 @@ export function PosView({ products, categories, locations, stockLevels, currency
     });
   }, [locationProducts, query, activeCategory]);
 
+  // Adding a product opens the price/description popup on that line — a
+  // new line at qty 1, or the existing line with its quantity bumped.
   function addToCart(product: PosProduct) {
     if (product.stockQuantity <= 0) {
       setError(`${product.name} is out of stock.`);
       return;
     }
-    setCart((prev) => {
-      const existing = prev.find((l) => l.productId === product.id);
-      if (existing) {
-        if (existing.quantity >= product.stockQuantity) {
-          setError(`Only ${product.stockQuantity} unit(s) of ${product.name} available.`);
-          return prev;
-        }
-        return prev.map((l) => (l.productId === product.id ? { ...l, quantity: l.quantity + 1, maxStock: product.stockQuantity } : l));
-      }
-      return [
-        ...prev,
-        { key: crypto.randomUUID(), productId: product.id, name: product.name, sku: product.sku, unitPrice: product.unitPrice, quantity: 1, discountPercent: 0, taxPercent: taxRatePercent, maxStock: product.stockQuantity },
-      ];
-    });
+    const existing = cart.find((l) => l.productId === product.id);
+    if (existing && existing.quantity >= product.stockQuantity) {
+      setError(`Only ${product.stockQuantity} unit(s) of ${product.name} available.`);
+      return;
+    }
+    const line: CartLine = existing
+      ? { ...existing, quantity: existing.quantity + 1, maxStock: product.stockQuantity }
+      : { key: crypto.randomUUID(), productId: product.id, name: product.name, sku: product.sku, unitPrice: product.unitPrice, quantity: 1, discountPercent: 0, taxPercent: taxRatePercent, maxStock: product.stockQuantity, description: "" };
+    setCart((prev) => (existing ? prev.map((l) => (l.productId === product.id ? line : l)) : [...prev, line]));
+    setPriceEditLine(line);
+    setCartAddSignal((n) => n + 1);
   }
 
   function onBarcodeEnter(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -218,6 +232,14 @@ export function PosView({ products, categories, locations, stockLevels, currency
   function setQtyDirect(key: string, value: number) {
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, quantity: Math.max(1, Math.min(l.maxStock, value || 1)) } : l)));
   }
+  function updateLinePrice(key: string, unitPrice: number) {
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, unitPrice } : l)));
+    setPriceEditLine((prev) => (prev && prev.key === key ? { ...prev, unitPrice } : prev));
+  }
+  function updateLineDescription(key: string, description: string) {
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, description } : l)));
+    setPriceEditLine((prev) => (prev && prev.key === key ? { ...prev, description } : prev));
+  }
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
@@ -233,7 +255,15 @@ export function PosView({ products, categories, locations, stockLevels, currency
     if (cart.length === 0) return;
     if (window.confirm("Clear the current sale? This can't be undone.")) clearCart();
   }
-
+  function handleLocationChange(newLocationId: string) {
+    if (newLocationId === locationId) return;
+    if (cart.length > 0 && !window.confirm("Changing Location/Branch will clear All entries made")) {
+      setSelectResetKey((k) => k + 1);
+      return;
+    }
+    setLocationId(newLocationId);
+    clearCart();
+  }
   const subtotal = cart.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
   const itemsDiscount = cart.reduce((sum, l) => sum + (l.quantity * l.unitPrice * l.discountPercent) / 100, 0);
   const taxTotal = cart.reduce((sum, l) => {
@@ -251,8 +281,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
   }, [customerQuery, customerOpen]);
 
   function buildCartInput(): CartItemInput[] {
-    return cart.map((l) => ({ productId: l.productId, name: l.name, sku: l.sku, unitPrice: l.unitPrice, quantity: l.quantity, discountPercent: l.discountPercent, taxPercent: l.taxPercent }));
-  }
+   return cart.map((l) => ({ productId: l.productId, name: l.name, sku: l.sku, unitPrice: l.unitPrice, quantity: l.quantity, discountPercent: l.discountPercent, taxPercent: l.taxPercent, description: l.description }));  }
 
   // Accepts an explicit method so quick-pay buttons (Cash/Card/MOMO/Credit)
   // don't race React's async state batching — setPaymentMethod(x) followed
@@ -563,8 +592,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ledger-100 bg-white p-2 dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium text-ledger-500">Location:</span>
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="h-10 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
-            {locations.length === 0 && <option value="">No branch</option>}
+          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
@@ -601,8 +629,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
           Tailwind can't interpolate an arbitrary grid-template from state. */}
       <div
         className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[var(--pos-left)_var(--pos-right)]"
-        style={{ "--pos-left": "1fr", "--pos-right": cartExpanded ? "640px" : "420px" } as React.CSSProperties}
-      >
+        style={{ "--pos-left": `${100 - cartWidthPercent}%`, "--pos-right": `${cartWidthPercent}%` } as React.CSSProperties}      >
         {/* LEFT: images/grid */}
         <div className="flex min-h-0 flex-col gap-3">
           <div className="flex gap-2">
@@ -675,13 +702,31 @@ export function PosView({ products, categories, locations, stockLevels, currency
 
         {/* RIGHT: customer + search + cart table + totals */}
         <Card accent="signal" className="relative flex min-h-0 flex-col" style={{ borderLeftColor: theme.colors.primary }}>
-          <button
-            title={cartExpanded ? "Narrow the cart panel" : "Widen the cart panel"}
-            onClick={() => setCartExpanded((v) => !v)}
-            className="absolute -left-3 top-1/2 z-20 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-md border border-ledger-200 bg-white text-ledger-500 shadow-card hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300"
-          >
-            {cartExpanded ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
-          </button>
+          <div className="absolute -left-3 top-1/2 z-20 -translate-y-1/2">
+            <button
+              title="Resize the cart panel"
+              onClick={() => setExpandMenuOpen((v) => !v)}
+              className="flex h-8 w-6 items-center justify-center rounded-md border border-ledger-200 bg-white text-ledger-500 shadow-card hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300"
+            >
+              {cartWidthPercent >= 50 ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
+            </button>
+            {expandMenuOpen && (
+              <div className="absolute left-1/2 top-full z-30 mt-1 w-24 -translate-x-1/2 rounded-md border border-ledger-200 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+                {CART_WIDTH_OPTIONS.map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => { setCartWidthPercent(pct); setExpandMenuOpen(false); }}
+                    className={cn(
+                      "block w-full px-3 py-1.5 text-center text-xs font-medium hover:bg-ledger-50 dark:hover:bg-white/[0.06]",
+                      cartWidthPercent === pct ? "font-bold text-signal" : "text-ledger-600 dark:text-ledger-300"
+                    )}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pt-5">
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
@@ -752,9 +797,8 @@ export function PosView({ products, categories, locations, stockLevels, currency
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-             <table className="w-full text-[15px]">
-                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
+           <div ref={cartListRef} className="min-h-0 flex-1 overflow-y-auto rounded-md border border-ledger-100 dark:border-ledger-700">
+             <table className="w-full text-[15px]">                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
                   <tr>
                     <th className="px-2 py-2 text-left font-bold">Product</th>
                     <th className="px-2 py-2 text-center font-bold">Quantity</th>
@@ -785,8 +829,10 @@ export function PosView({ products, categories, locations, stockLevels, currency
                         </div>
                       </td>
                       <td className="px-2 py-2 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
-                      <td className="px-2 py-2 text-center">
-                        <button onClick={() => removeLine(l.key)} className="text-alert/70 hover:text-alert"><X className="h-3.5 w-3.5" /></button>
+                       <td className="px-2 py-2 text-center">
+                        <button onClick={() => removeLine(l.key)} className="flex h-7 w-7 items-center justify-center rounded-full bg-alert/10 text-alert transition-colors hover:bg-alert hover:text-white">
+                          <X className="h-4 w-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -875,6 +921,40 @@ export function PosView({ products, categories, locations, stockLevels, currency
         </div>
       </div>
 
+     {/* Edit price / description for the just-added cart line */}
+      <Dialog open={!!priceEditLine} onClose={() => setPriceEditLine(null)} title={priceEditLine?.name ?? ""}>
+        {priceEditLine && (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-ink-900 dark:text-white">Unit Price</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                autoFocus
+                value={priceEditLine.unitPrice}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => updateLinePrice(priceEditLine.key, Number(e.target.value) || 0)}
+                className="h-11 w-full rounded-md border border-ledger-200 bg-white px-3 text-base font-semibold text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-ink-900 dark:text-white">Description</label>
+              <textarea
+                rows={3}
+                value={priceEditLine.description ?? ""}
+                onChange={(e) => updateLineDescription(priceEditLine.key, e.target.value)}
+                placeholder="Add product IMEI, Serial number or other informations here."
+                className="w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+              />
+            </div>
+            <div className="flex justify-end border-t border-ledger-100 pt-3 dark:border-ledger-700">
+              <Button variant="primary" className="bg-ink-900 hover:bg-ink-900/90" onClick={() => setPriceEditLine(null)}>Close</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
       {/* Held / draft sales (Pause icon shortcut) */}
       <Dialog open={heldOpen} onClose={() => setHeldOpen(false)} title={heldKind === "hold" ? "Suspended Sales" : "Draft Sales"}>
         <div className="max-h-80 space-y-2 overflow-y-auto">
@@ -900,7 +980,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
       </Dialog>
 
       {/* Recent transactions: Final / Draft tabs, numbered rows, Edit + Print */}
-      <Dialog open={recentOpen} onClose={() => setRecentOpen(false)} title="Recent Transactions">
+      <Dialog open={recentOpen} onClose={() => setRecentOpen(false)} title="Recent Transactions" className="max-w-3xl">
         <div className="space-y-3">
           <div className="flex gap-4 border-b border-ledger-100 dark:border-ledger-700">
             <button

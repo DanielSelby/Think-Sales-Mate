@@ -381,6 +381,7 @@ export interface CartItemInput {
   quantity: number;
   discountPercent: number;
   taxPercent: number;
+  description?: string;
 }
 
 export interface SimpleResult {
