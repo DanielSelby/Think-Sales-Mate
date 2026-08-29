@@ -674,8 +674,8 @@ export function ProductsCatalog({
         </div>
       ) : view === "table" ? (
         <div className="overflow-x-auto rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-sm">
-            <thead className="border-b border-ledger-100 text-left text-xs font-semibold uppercase tracking-wide text-ink-900 dark:border-ledger-700 dark:text-white">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
               <tr>
                 <th className="w-8 px-4 py-3">
                   <input
