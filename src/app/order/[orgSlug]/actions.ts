@@ -98,6 +98,7 @@ export async function getCatalog(orgId: string): Promise<CatalogProduct[]> {
     brand: p.brand,
     unitPrice: p.unit_price,
     stockQuantity: p.stock_quantity,
+  
   }));
 }
 
