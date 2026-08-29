@@ -7,7 +7,8 @@ import {
   Coins,
   Percent,
   CreditCard,
-  Mail
+  Mail,
+  ShoppingBag
 } from "lucide-react";
 
 const SECTIONS = [
@@ -18,7 +19,8 @@ const SECTIONS = [
   { label: "Currencies", desc: "Multi-currency settings", href: "/settings/currencies", icon: Coins },
   { label: "Taxes", desc: "Tax rates & rules", href: "/settings/taxes", icon: Percent },
   { label: "Payments", desc: "Payment methods", href: "/settings/payments", icon: CreditCard },
-  { label: "Email", desc: "Email templates", href: "/settings/email", icon: Mail }
+  { label: "Email", desc: "Email templates", href: "/settings/email", icon: Mail },
+  { label: "Customer Ordering", desc: "Storefront & order settings", href: "/settings/customer-ordering", icon: ShoppingBag }
 ];
 
 export default function SettingsHubPage() {
