@@ -106,6 +106,7 @@ export function OrderDetailView({
   const [checkingStock, setCheckingStock] = React.useState(false);
   const [declineOpen, setDeclineOpen] = React.useState(false);
   const [declineReason, setDeclineReason] = React.useState("");
+  const [rejectionReason, setRejectReason] = React.useState("");
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
 
