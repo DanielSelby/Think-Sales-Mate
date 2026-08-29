@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
   X, Trash2, Inbox, ChevronsLeft, XCircle, Briefcase, Calculator as CalculatorIcon,
-  RotateCcw, Keyboard, PlusCircle, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar, ChevronsRight,
+ RotateCcw, Keyboard, PlusCircle, Plus, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar, ChevronsRight,
   Lock, Download, Users, User,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,7 +95,8 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [customerQuery, setCustomerQuery] = React.useState("");
   const [customerResults, setCustomerResults] = React.useState<CustomerOption[]>([]);
   const [customerOpen, setCustomerOpen] = React.useState(false);
-  const [addContactOpen, setAddContactOpen] = React.useState(false);
+ const [addContactOpen, setAddContactOpen] = React.useState(false);
+         const [customProductOpen, setCustomProductOpen] = React.useState(false);
   const [saleDate, setSaleDate] = React.useState(() => isoToLocalDate(new Date().toISOString()));
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [shippingAmount, setShippingAmount] = React.useState(0);
@@ -598,7 +599,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
         </div>
         <span className="flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white" style={{ background: theme.colors.primary }}>{dateLabel}</span>
 
-        <div className="flex flex-1 items-center justify-center gap-2">
+       <div className="flex flex-1 items-center justify-between gap-2">
           <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
           <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
           <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
@@ -754,38 +755,50 @@ export function PosView({ products, categories, locations, stockLevels, currency
                 )}
               </div>
 
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
-                <Input
-                  ref={searchInputRef}
-                  value={query}
-                  onChange={(e) => { setQuery(e.target.value); setSearchDropdownOpen(true); }}
-                  onFocus={() => setSearchDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
-                  onKeyDown={onBarcodeEnter}
-                  placeholder="Product name / SKU / scan barcode"
-                  className="h-10 pl-9"
-                />
-                {searchDropdownOpen && query.trim() && filteredProducts.length > 0 && (
-                  <div className="absolute left-0 right-0 top-11 z-30 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-                    {filteredProducts.slice(0, 10).map((p) => (
-                      <button
-                        key={p.id}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { addToCart(p); setQuery(""); setSearchDropdownOpen(false); }}
-                        disabled={p.stockQuantity <= 0}
-                        className="block w-full px-3 py-2 text-left hover:bg-ledger-50 disabled:opacity-50 dark:hover:bg-white/[0.06]"
-                      >
-                        <p className="truncate text-sm font-medium text-ink-900 dark:text-white">{p.name}</p>
-                        <p className="text-xs text-ledger-400">
-                          Price: {formatCurrency(p.unitPrice, currency)} · {p.stockQuantity > 0 ? `${p.stockQuantity}Pc(s)` : "Out of stock"}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                )}
+               <div className="flex gap-1">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
+                  <Input
+                    ref={searchInputRef}
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setSearchDropdownOpen(true); }}
+                    onFocus={() => setSearchDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
+                    onKeyDown={onBarcodeEnter}
+                    placeholder="Product name / SKU / scan barcode"
+                    className="h-10 pl-9"
+                  />
+                  {searchDropdownOpen && query.trim() && filteredProducts.length > 0 && (
+                    <div className="absolute left-0 right-0 top-11 z-30 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+                      {filteredProducts.slice(0, 10).map((p) => (
+                        <button
+                          key={p.id}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { addToCart(p); setQuery(""); setSearchDropdownOpen(false); }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary + "20"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                          disabled={p.stockQuantity <= 0}
+                          className="block w-full px-3 py-2 text-left disabled:opacity-50"
+                        >
+                          <p className="truncate text-sm font-medium text-ink-900 dark:text-white">{p.name}</p>
+                          <p className="text-xs text-ledger-400">
+                            Price: {formatCurrency(p.unitPrice, currency)} · {p.stockQuantity > 0 ? `${p.stockQuantity}Pc(s)` : "Out of stock"}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCustomProductOpen(true)}
+                  title="Add custom product"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition-transform hover:scale-105 active:scale-95"
+                  style={{ background: theme.colors.primary }}
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
               </div>
-
               {/* Select date — under the Walk-In Customer field. sale_date is a
                   DATE column (no time component), so this is date-only. */}
               <div className="relative col-span-1">
@@ -820,20 +833,20 @@ export function PosView({ products, categories, locations, stockLevels, currency
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => updateQty(l.key, -1)} className="rounded border border-ledger-200 px-1.5 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700">−</button>
+                         <button onClick={() => updateQty(l.key, -1)} className="rounded border border-alert/30 px-1.5 text-alert hover:bg-alert-soft">−</button>
                           <input
                             type="number"
                             value={l.quantity}
                             onChange={(e) => setQtyDirect(l.key, Number(e.target.value))}
                             className="h-7 w-12 rounded border border-ledger-200 bg-white text-center text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                           />
-                          <button onClick={() => updateQty(l.key, 1)} className="rounded border border-ledger-200 px-1.5 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700">+</button>
+                          <button onClick={() => updateQty(l.key, 1)} className="rounded border border-signal/30 px-1.5 text-signal hover:bg-signal-soft">+</button>
                         </div>
                       </td>
                       <td className="px-2 py-2 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
                        <td className="px-2 py-2 text-center">
-                        <button onClick={() => removeLine(l.key)} className="flex h-7 w-7 items-center justify-center rounded-full bg-alert/10 text-alert transition-colors hover:bg-alert hover:text-white">
-                          <X className="h-4 w-4" />
+                        <button onClick={() => removeLine(l.key)} className="text-alert hover:text-alert/70">
+                          <X className="h-5 w-5" strokeWidth={3} />
                         </button>
                       </td>
                     </tr>
