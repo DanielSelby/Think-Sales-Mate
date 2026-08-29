@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   ORDER_STATUS_LABEL, ORDER_STATUS_TONE,
   PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE,
@@ -91,6 +92,9 @@ export function OrderDetailView({
   staff,
 }: OrderDetailViewProps) {
   const router = useRouter();
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme] || THEMES.fintech;
+
   const [items, setItems] = React.useState(initialItems);
   const [adminNotes, setAdminNotesLocal] = React.useState(order.adminNotes ?? "");
   const [locationId, setLocationId] = React.useState(order.locationId ?? locations[0]?.id ?? "");
@@ -258,7 +262,14 @@ export function OrderDetailView({
         {/* Quick Stepper Actions */}
         <div className="flex flex-wrap items-center gap-2">
           {order.status === "new" && (
-            <Button variant="primary" size="md" onClick={handleApprove} disabled={isPending} className="bg-purple-700 hover:bg-purple-800">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleApprove}
+              disabled={isPending}
+              style={{ background: theme.colors.primary, color: "#ffffff" }}
+              className="hover:opacity-90"
+            >
               <PackageCheck className="h-4 w-4 mr-1.5" /> Approve Order
             </Button>
           )}
@@ -521,7 +532,7 @@ export function OrderDetailView({
             </div>
             <div className="flex justify-between border-t border-ledger-100 pt-2 text-base font-bold text-ink-900 dark:border-ledger-800 dark:text-white">
               <span>Grand Total</span>
-              <span className="font-mono text-purple-700 dark:text-purple-400">{formatCurrency(total, currency)}</span>
+              <span className="font-mono" style={{ color: theme.colors.primary }}>{formatCurrency(total, currency)}</span>
             </div>
           </CardContent>
         </Card>
@@ -538,7 +549,10 @@ export function OrderDetailView({
           <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-ledger-200 dark:before:bg-ledger-700">
             {timeline.map((event, idx) => (
               <div key={idx} className="relative">
-                <span className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white ring-4 ring-white dark:ring-ink-900">
+                <span
+                  style={{ background: theme.colors.primary }}
+                  className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ring-4 ring-white dark:ring-ink-900"
+                >
                   <span className="h-1.5 w-1.5 rounded-full bg-white" />
                 </span>
                 <div>
@@ -582,7 +596,8 @@ export function OrderDetailView({
                   size="md"
                   onClick={handleApprove}
                   disabled={isPending}
-                  className="bg-purple-700 hover:bg-purple-800"
+                  style={{ background: theme.colors.primary, color: "#ffffff" }}
+                  className="hover:opacity-90"
                 >
                   {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <PackageCheck className="h-4 w-4 mr-1.5" />}
                   Approve &amp; Reserve Stock
@@ -593,7 +608,8 @@ export function OrderDetailView({
                   size="md"
                   onClick={handleConvertToSaleClick}
                   disabled={isPending || Boolean(order.linkedSaleId)}
-                  className="bg-purple-700 hover:bg-purple-800"
+                  style={{ background: theme.colors.primary, color: "#ffffff" }}
+                  className="hover:opacity-90"
                 >
                   {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Receipt className="h-4 w-4 mr-1.5" />}
                   {order.linkedSaleId ? "Sale Recorded" : "Convert Order to Sale"}
@@ -614,7 +630,7 @@ export function OrderDetailView({
         <div className="space-y-3 pt-2">
           <textarea
             value={declineReason}
-            onChange={(e) => setDeclineReason(e.target.value)}
+            onChange={(e) => setRejectReason(e.target.value)}
             rows={3}
             placeholder="Reason for rejecting this order..."
             className="w-full rounded-md border border-ledger-200 bg-white p-2.5 text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white"

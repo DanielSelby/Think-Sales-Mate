@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   ORDER_STATUS_LABEL, ORDER_STATUS_TONE,
   PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE,
@@ -120,6 +121,8 @@ export function OrdersListView({
   userLocationId,
 }: OrdersListViewProps) {
   const router = useRouter();
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme] || THEMES.fintech;
 
   // Filters state
   const [tab, setTab] = React.useState<TabKey>("all");
@@ -358,14 +361,15 @@ export function OrdersListView({
         <p className="text-xs text-ledger-400 dark:text-ledger-400 mt-0.5">Sales &gt; Orders &gt; Order Tracker</p>
       </div>
 
-      {/* ── 1. Top KPI Metric Cards (8 Cards matching uploaded image) ── */}
+      {/* ── 1. Top KPI Metric Cards (8 Cards) ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         <KpiCard
           label="Total Orders"
           value={metrics.totalOrders.toString()}
           trend="+18.2% this month"
           icon={ShoppingBag}
-          iconColor="text-purple-600 bg-purple-50 dark:bg-purple-950/30 dark:text-purple-400"
+          customBg={theme.colors.primaryPale}
+          customColor={theme.colors.primary}
         />
         <KpiCard
           label="Pending Orders"
@@ -407,7 +411,8 @@ export function OrdersListView({
           value={formatCurrency(metrics.orderValueToday, currency)}
           trend="+15.8% vs yesterday"
           icon={Coins}
-          iconColor="text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30 dark:text-indigo-400"
+          customBg={theme.colors.primaryPale}
+          customColor={theme.colors.primary}
         />
         <KpiCard
           label="Avg. Processing Time"
@@ -527,10 +532,11 @@ export function OrdersListView({
               <button
                 key={t.key}
                 onClick={() => { setTab(t.key); setPage(1); }}
+                style={isActive ? { background: theme.colors.primary, color: "#ffffff" } : undefined}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
                   isActive
-                    ? "bg-purple-700 text-white shadow-sm dark:bg-purple-600"
+                    ? "shadow-sm"
                     : "text-ledger-600 hover:bg-ledger-100 hover:text-ink-900 dark:text-ledger-300 dark:hover:bg-ink-800"
                 )}
               >
@@ -594,7 +600,7 @@ export function OrdersListView({
                   value={query}
                   onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                   placeholder="Search in orders..."
-                  className="h-8 w-full rounded-lg border border-ledger-200 bg-ledger-50/50 pl-8 pr-3 text-xs text-ink-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-600 dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
+                  className="h-8 w-full rounded-lg border border-ledger-200 bg-ledger-50/50 pl-8 pr-3 text-xs text-ink-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-signal dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
                 />
               </div>
             </div>
@@ -631,13 +637,14 @@ export function OrdersListView({
                         <tr
                           key={o.id}
                           onClick={() => setSelectedOrderId(o.id)}
+                          style={isSelected ? { backgroundColor: theme.colors.primaryPale } : undefined}
                           className={cn(
-                            "cursor-pointer transition-colors hover:bg-purple-50/40 dark:hover:bg-purple-950/15",
-                            isSelected && "bg-purple-50/70 dark:bg-purple-950/25 ring-1 ring-inset ring-purple-500/30"
+                            "cursor-pointer transition-colors hover:bg-ledger-50/60 dark:hover:bg-ink-800/50",
+                            isSelected && "font-medium"
                           )}
                         >
                           {/* Order No */}
-                          <td className="py-3 pl-4 pr-2 font-mono font-semibold text-purple-700 dark:text-purple-400">
+                          <td className="py-3 pl-4 pr-2 font-mono font-semibold" style={{ color: theme.colors.primary }}>
                             <Link
                               href={`/orders/${o.id}`}
                               onClick={(e) => e.stopPropagation()}
@@ -650,7 +657,10 @@ export function OrdersListView({
                           {/* Customer with Avatar */}
                           <td className="px-2 py-3">
                             <div className="flex items-center gap-2">
-                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-[10px] font-bold text-purple-700 dark:bg-purple-900 dark:text-purple-200">
+                              <span
+                                style={{ background: theme.colors.primaryPale, color: theme.colors.primary }}
+                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                              >
                                 {o.customerName.charAt(0).toUpperCase()}
                               </span>
                               <span className="font-medium text-ink-900 dark:text-white truncate max-w-[110px]">
@@ -916,17 +926,17 @@ export function OrdersListView({
                   .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
                   .map((p, idx, arr) => {
                     const prev = arr[idx - 1];
+                    const isCurrent = page === p;
                     return (
                       <React.Fragment key={p}>
                         {prev && p - prev > 1 && <span className="px-1 text-ledger-400">...</span>}
                         <button
                           type="button"
                           onClick={() => setPage(p)}
+                          style={isCurrent ? { background: theme.colors.primary, color: "#ffffff" } : undefined}
                           className={cn(
                             "h-7 w-7 rounded font-medium",
-                            page === p
-                              ? "bg-purple-700 text-white dark:bg-purple-600"
-                              : "border border-ledger-200 text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300"
+                            !isCurrent && "border border-ledger-200 text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300"
                           )}
                         >
                           {p}
@@ -955,7 +965,7 @@ export function OrdersListView({
               <div className="rounded-xl border border-ledger-200/80 bg-white p-5 shadow-sm dark:border-ledger-700/80 dark:bg-ink-900">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="font-display text-sm font-bold text-ink-900 dark:text-white">Order Timeline</h3>
-                  <span className="font-mono text-[11px] text-purple-700 dark:text-purple-400 font-semibold">
+                  <span className="font-mono text-[11px] font-semibold" style={{ color: theme.colors.primary }}>
                     {selectedOrder.orderNumber}
                   </span>
                 </div>
@@ -964,7 +974,10 @@ export function OrdersListView({
                   {selectedOrder.timeline.length > 0 ? (
                     selectedOrder.timeline.map((event, idx) => (
                       <div key={idx} className="relative">
-                        <span className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white ring-4 ring-white dark:ring-ink-900">
+                        <span
+                          style={{ background: theme.colors.primary }}
+                          className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ring-4 ring-white dark:ring-ink-900"
+                        >
                           <span className="h-1.5 w-1.5 rounded-full bg-white" />
                         </span>
                         <div>
@@ -985,7 +998,10 @@ export function OrdersListView({
                     ))
                   ) : (
                     <div className="relative">
-                      <span className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white ring-4 ring-white dark:ring-ink-900" />
+                      <span
+                        style={{ background: theme.colors.primary }}
+                        className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ring-4 ring-white dark:ring-ink-900"
+                      />
                       <div>
                         <p className="text-xs font-semibold text-ink-900 dark:text-white">Order Created</p>
                         <p className="text-[11px] text-ledger-400">by {selectedOrder.customerName}</p>
@@ -1001,7 +1017,8 @@ export function OrdersListView({
                   <button
                     type="button"
                     onClick={() => setTimelineModalOpen(true)}
-                    className="text-xs font-semibold text-purple-700 hover:underline dark:text-purple-400"
+                    style={{ color: theme.colors.primary }}
+                    className="text-xs font-semibold hover:underline"
                   >
                     View Full Timeline
                   </button>
@@ -1015,7 +1032,7 @@ export function OrdersListView({
                 <div className="space-y-2.5 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-ledger-500">Order No.</span>
-                    <span className="font-mono font-semibold text-purple-700 dark:text-purple-400">{selectedOrder.orderNumber}</span>
+                    <span className="font-mono font-semibold" style={{ color: theme.colors.primary }}>{selectedOrder.orderNumber}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -1060,7 +1077,7 @@ export function OrdersListView({
 
                   <div className="flex items-center justify-between border-t border-ledger-100 pt-2 text-sm font-bold dark:border-ledger-800">
                     <span className="text-ink-900 dark:text-white">Total Amount</span>
-                    <span className="font-mono text-purple-700 dark:text-purple-400">
+                    <span className="font-mono" style={{ color: theme.colors.primary }}>
                       {formatCurrency(selectedOrder.total, currency)}
                     </span>
                   </div>
@@ -1068,7 +1085,8 @@ export function OrdersListView({
 
                 <Link
                   href={`/orders/${selectedOrder.id}`}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-purple-700 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-purple-800 transition-colors"
+                  style={{ background: theme.colors.primary, color: "#ffffff" }}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold shadow-sm hover:opacity-95 transition-opacity"
                 >
                   View Order Details
                 </Link>
@@ -1082,16 +1100,17 @@ export function OrdersListView({
         </div>
       </div>
 
-      {/* ── 5. Bottom Section: Order Kanban Overview (matching design) ── */}
+      {/* ── 5. Bottom Section: Order Kanban Overview ── */}
       <div className="rounded-xl border border-ledger-200/80 bg-white p-5 shadow-sm dark:border-ledger-700/80 dark:bg-ink-900 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-purple-700 dark:text-purple-400" />
+            <Layers className="h-4 w-4" style={{ color: theme.colors.primary }} />
             <h3 className="font-display text-sm font-bold text-ink-900 dark:text-white">Order Kanban Overview</h3>
           </div>
           <Link
             href="/orders?view=kanban"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 hover:underline dark:text-purple-400"
+            style={{ color: theme.colors.primary }}
+            className="inline-flex items-center gap-1 text-xs font-semibold hover:underline"
           >
             View Kanban Board <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
@@ -1156,7 +1175,7 @@ export function OrdersListView({
             <select
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="h-9 w-full rounded-lg border border-ledger-200 bg-white px-3 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-purple-600 dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
+              className="h-9 w-full rounded-lg border border-ledger-200 bg-white px-3 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-signal dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
             >
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>
@@ -1170,7 +1189,13 @@ export function OrdersListView({
             <Button variant="ghost" size="md" onClick={() => setAssignModalOrder(null)} disabled={isPending}>
               Cancel
             </Button>
-            <Button variant="primary" size="md" onClick={handleAssignBranch} disabled={isPending} className="bg-purple-700 hover:bg-purple-800">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleAssignBranch}
+              disabled={isPending}
+              style={{ background: theme.colors.primary, color: "#ffffff" }}
+            >
               {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />} Assign Branch
             </Button>
           </div>
@@ -1217,7 +1242,10 @@ export function OrdersListView({
         <div className="max-h-96 overflow-y-auto pr-2 space-y-4 pt-3">
           {selectedOrder?.timeline.map((event, idx) => (
             <div key={idx} className="flex items-start gap-3 rounded-lg border border-ledger-100 p-3 dark:border-ledger-800">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-700 text-xs font-bold dark:bg-purple-950 dark:text-purple-300">
+              <span
+                style={{ background: theme.colors.primaryPale, color: theme.colors.primary }}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+              >
                 {idx + 1}
               </span>
               <div className="min-w-0 flex-1">
@@ -1244,17 +1272,24 @@ function KpiCard({
   trend,
   icon: Icon,
   iconColor,
+  customBg,
+  customColor,
 }: {
   label: string;
   value: string;
   trend: string;
   icon: React.ComponentType<{ className?: string }>;
-  iconColor: string;
+  iconColor?: string;
+  customBg?: string;
+  customColor?: string;
 }) {
   return (
     <div className="rounded-xl border border-ledger-200/80 bg-white p-3.5 shadow-sm dark:border-ledger-700/80 dark:bg-ink-900">
       <div className="flex items-center justify-between">
-        <span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", iconColor)}>
+        <span
+          style={customBg && customColor ? { background: customBg, color: customColor } : undefined}
+          className={cn("flex h-8 w-8 items-center justify-center rounded-lg", iconColor)}
+        >
           <Icon className="h-4 w-4" />
         </span>
       </div>
