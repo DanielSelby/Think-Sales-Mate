@@ -200,17 +200,15 @@ function LoginForm() {
           {/* Features */}
           <div className="relative z-10 mt-10 space-y-5 xl:mt-12">
             {[
-              { title: "Grow Your Sales",       desc: "Track performance and close more deals."        },
-              { title: "Manage Inventory",       desc: "Real-time stock tracking across locations."     },
-              { title: "Know Your Customers",    desc: "Build stronger relationships that last."        },
-              { title: "Powerful Analytics",     desc: "Make data-driven decisions with ease."          },
+              { title: "Grow Your Sales",    desc: "Track performance and close more deals.",     icon: <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 19V10"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19V3"/></svg> },
+              { title: "Manage Inventory",   desc: "Real-time stock tracking across locations.",  icon: <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.5 7.5 7.5 4 7.5-4"/><path d="M12 11.5V21"/></svg> },
+              { title: "Know Your Customers",desc: "Build stronger relationships that last.",     icon: <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c.5-3.4 2.4-5.2 5.5-5.2s5 1.8 5.5 5.2"/><path d="M16 11a3 3 0 1 0 0-6"/><path d="M16 14.8c2.4.2 3.9 1.8 4.5 4.2"/></svg> },
+              { title: "Powerful Analytics", desc: "Make data-driven decisions with ease.",      icon: <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3.5-4 3 2 4.5-6"/><path d="M15.5 7H18v2.5"/></svg> },
             ].map(f => (
               <div key={f.title} className="flex items-center gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
                   style={{ background: "rgba(255,255,255,0.08)" }}>
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
-                    <path d="m5 12 4 4L19 6"/>
-                  </svg>
+                  {f.icon}
                 </div>
                 <div>
                   <p className="text-[14px] font-semibold">{f.title}</p>

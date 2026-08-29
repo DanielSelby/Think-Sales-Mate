@@ -138,7 +138,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        const orgId = useAppStore.getState().activeOrgId;
+        const orgId = document.cookie.split("; ").find(r => r.startsWith("active_org_id="))?.split("=")[1] ?? useAppStore.getState().activeOrgId;
 
         if (user && orgId) {
           const [
