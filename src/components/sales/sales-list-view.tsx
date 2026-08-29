@@ -356,19 +356,19 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
                 <th className="w-10 px-4 py-3">
                   <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" />
                 </th>
-                <th className="px-3 py-3 font-semibold">Invoice</th>
-                <th className="px-3 py-3 font-semibold">Date &amp; Time</th>
-                <th className="px-3 py-3 font-semibold">Customer</th>
-                <th className="px-3 py-3 font-semibold">Customer #</th>
-                <th className="px-3 py-3 font-semibold">Sold By</th>
-                <th className="px-3 py-3 font-semibold">Product</th>
-                <th className="px-3 py-3 text-right font-semibold">Items</th>
-                <th className="px-3 py-3 text-right font-semibold">Total</th>
-                <th className="px-3 py-3 font-semibold">Payment Method</th>
-                <th className="px-3 py-3 font-semibold">Payment Status</th>
-                <th className="px-3 py-3 font-semibold">Sales Status</th>
-                <th className="px-3 py-3 font-semibold">Branch</th>
-                <th className="px-3 py-3 pr-4 text-right font-semibold">Actions</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Invoice</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Date &amp; Time</th>
+                <th className="px-3 py-3 min-w-[150px] font-semibold whitespace-nowrap">Customer</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Customer #</th>
+                <th className="px-3 py-3 min-w-[120px] font-semibold whitespace-nowrap">Sold By</th>
+                <th className="px-3 py-3 min-w-[180px] font-semibold whitespace-nowrap">Product</th>
+                <th className="px-3 py-3 min-w-[80px] text-right font-semibold whitespace-nowrap">Items</th>
+                <th className="px-3 py-3 min-w-[120px] text-right font-semibold whitespace-nowrap">Total</th>
+                <th className="px-3 py-3 min-w-[140px] font-semibold whitespace-nowrap">Payment Method</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Payment Status</th>
+                <th className="px-3 py-3 min-w-[120px] font-semibold whitespace-nowrap">Sales Status</th>
+                <th className="px-3 py-3 min-w-[110px] font-semibold whitespace-nowrap">Branch</th>
+                <th className="px-3 py-3 pr-4 min-w-[160px] text-right font-semibold whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
@@ -496,4 +496,3 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
     </div>
   );
 }
-

@@ -223,44 +223,46 @@ export function ProductTabViews({
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Transfer Ref</th>
-                <th className="px-4 py-3">Destination / Branch</th>
-                <th className="px-4 py-3 text-right">Quantity</th>
-                <th className="px-4 py-3 text-right">Transfer Value</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Officer</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-              {transferMovements.map((m) => (
-                <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
-                  <td className="px-4 py-3 font-mono font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
-                    {m.referenceNo}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
-                  <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">{m.inQty ?? m.outQty}</td>
-                  <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{currency} {formatLedgerMoney(m.totalValue, currency)}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">
-                      Completed
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{m.userName}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Date</th>
+                  <th className="px-4 py-3 min-w-[150px] whitespace-nowrap">Transfer Ref</th>
+                  <th className="px-4 py-3 min-w-[160px] whitespace-nowrap">Destination / Branch</th>
+                  <th className="px-4 py-3 min-w-[90px] text-right whitespace-nowrap">Quantity</th>
+                  <th className="px-4 py-3 min-w-[140px] text-right whitespace-nowrap">Transfer Value</th>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Officer</th>
+                  <th className="px-4 py-3 min-w-[80px] text-right whitespace-nowrap">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {transferMovements.map((m) => (
+                  <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
+                      {m.referenceNo}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
+                    <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">{m.inQty ?? m.outQty}</td>
+                    <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{currency} {formatLedgerMoney(m.totalValue, currency)}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">
+                        Completed
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{m.userName}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -283,44 +285,46 @@ export function ProductTabViews({
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">PO Reference</th>
-                <th className="px-4 py-3">Receiving Branch</th>
-                <th className="px-4 py-3 text-right">Qty Received</th>
-                <th className="px-4 py-3 text-right">Unit Cost</th>
-                <th className="px-4 py-3 text-right">Total PO Value</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-              {purchaseMovements.map((m) => (
-                <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
-                  <td className="px-4 py-3 font-mono font-semibold text-purple-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
-                    {m.referenceNo}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
-                  <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">+{m.inQty}</td>
-                  <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{currency} {formatLedgerMoney(m.unitCost, currency)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">{currency} {formatLedgerMoney(m.totalValue, currency)}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-                      Received
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Date</th>
+                  <th className="px-4 py-3 min-w-[140px] whitespace-nowrap">PO Reference</th>
+                  <th className="px-4 py-3 min-w-[150px] whitespace-nowrap">Receiving Branch</th>
+                  <th className="px-4 py-3 min-w-[110px] text-right whitespace-nowrap">Qty Received</th>
+                  <th className="px-4 py-3 min-w-[110px] text-right whitespace-nowrap">Unit Cost</th>
+                  <th className="px-4 py-3 min-w-[130px] text-right whitespace-nowrap">Total PO Value</th>
+                  <th className="px-4 py-3 min-w-[100px] whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3 min-w-[80px] text-right whitespace-nowrap">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {purchaseMovements.map((m) => (
+                  <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-purple-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
+                      {m.referenceNo}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">+{m.inQty}</td>
+                    <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{currency} {formatLedgerMoney(m.unitCost, currency)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">{currency} {formatLedgerMoney(m.totalValue, currency)}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+                        Received
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -343,40 +347,42 @@ export function ProductTabViews({
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Invoice No</th>
-                <th className="px-4 py-3">Branch</th>
-                <th className="px-4 py-3 text-right">Qty Sold</th>
-                <th className="px-4 py-3 text-right">Selling Price</th>
-                <th className="px-4 py-3 text-right">Total Revenue</th>
-                <th className="px-4 py-3">Cashier</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-              {salesMovements.map((m) => (
-                <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
-                  <td className="px-4 py-3 font-mono font-semibold text-orange-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
-                    {m.referenceNo}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
-                  <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">-{m.outQty}</td>
-                  <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{currency} {formatLedgerMoney(product.sellingPrice, currency)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">{currency} {formatLedgerMoney((m.outQty || 1) * product.sellingPrice, currency)}</td>
-                  <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{m.userName}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Date</th>
+                  <th className="px-4 py-3 min-w-[130px] whitespace-nowrap">Invoice No</th>
+                  <th className="px-4 py-3 min-w-[150px] whitespace-nowrap">Branch</th>
+                  <th className="px-4 py-3 min-w-[90px] text-right whitespace-nowrap">Qty Sold</th>
+                  <th className="px-4 py-3 min-w-[120px] text-right whitespace-nowrap">Selling Price</th>
+                  <th className="px-4 py-3 min-w-[130px] text-right whitespace-nowrap">Total Revenue</th>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Cashier</th>
+                  <th className="px-4 py-3 min-w-[80px] text-right whitespace-nowrap">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {salesMovements.map((m) => (
+                  <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-orange-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
+                      {m.referenceNo}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
+                    <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">-{m.outQty}</td>
+                    <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{currency} {formatLedgerMoney(product.sellingPrice, currency)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">{currency} {formatLedgerMoney((m.outQty || 1) * product.sellingPrice, currency)}</td>
+                    <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{m.userName}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -397,46 +403,48 @@ export function ProductTabViews({
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Adjustment No</th>
-                <th className="px-4 py-3">Branch</th>
-                <th className="px-4 py-3">Adjustment Reason</th>
-                <th className="px-4 py-3 text-right">Variance</th>
-                <th className="px-4 py-3 text-right">Financial Impact</th>
-                <th className="px-4 py-3">Auditor</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-              {adjustmentMovements.map((m) => (
-                <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
-                  <td className="px-4 py-3 font-mono font-semibold text-amber-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
-                    {m.referenceNo}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
-                  <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
-                    {m.subTypeNote || "Physical Count Discrepancy"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                    +{m.inQty ?? m.outQty}
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">
-                    {currency} {formatLedgerMoney(m.totalValue, currency)}
-                  </td>
-                  <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{m.userName}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Date</th>
+                  <th className="px-4 py-3 min-w-[150px] whitespace-nowrap">Adjustment No</th>
+                  <th className="px-4 py-3 min-w-[150px] whitespace-nowrap">Branch</th>
+                  <th className="px-4 py-3 min-w-[170px] whitespace-nowrap">Adjustment Reason</th>
+                  <th className="px-4 py-3 min-w-[100px] text-right whitespace-nowrap">Variance</th>
+                  <th className="px-4 py-3 min-w-[130px] text-right whitespace-nowrap">Financial Impact</th>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Auditor</th>
+                  <th className="px-4 py-3 min-w-[80px] text-right whitespace-nowrap">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {adjustmentMovements.map((m) => (
+                  <tr key={m.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-ledger-500">{m.dateFormatted}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-amber-600 hover:underline cursor-pointer" onClick={() => onOpenDocModal(m)}>
+                      {m.referenceNo}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{m.branchName}</td>
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
+                      {m.subTypeNote || "Physical Count Discrepancy"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      +{m.inQty ?? m.outQty}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-ink-900 dark:text-white">
+                      {currency} {formatLedgerMoney(m.totalValue, currency)}
+                    </td>
+                    <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{m.userName}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => onOpenDocModal(m)} className="rounded-lg p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white">
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -463,51 +471,53 @@ export function ProductTabViews({
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-              <tr>
-                <th className="px-4 py-3">Branch / Location</th>
-                <th className="px-4 py-3 text-right">On Hand Qty</th>
-                <th className="px-4 py-3 text-right">Min Threshold</th>
-                <th className="px-4 py-3 text-right">Reorder Point</th>
-                <th className="px-4 py-3 text-right">Branch Stock Value</th>
-                <th className="px-4 py-3">Health Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-              {product.branches.map((b) => {
-                const isLow = b.quantity <= (b.minStock || 3);
-                return (
-                  <tr key={b.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 font-semibold text-ink-900 dark:text-white">{b.name}</td>
-                    <td className="px-4 py-3 text-right font-display font-bold text-base text-blue-600 dark:text-blue-400">
-                      {b.quantity}
-                    </td>
-                    <td className="px-4 py-3 text-right text-ledger-500">{b.minStock || 3}</td>
-                    <td className="px-4 py-3 text-right text-ledger-500">{b.reorderPoint || 5}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-ink-900 dark:text-white">
-                      {currency} {formatLedgerMoney(b.quantity * product.costPrice, currency)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                        isLow
-                          ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                          : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                      }`}>
-                        {isLow ? "Low Stock" : "In Stock"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={onOpenTransferModal} className="h-7 text-xs text-blue-600 hover:text-blue-700">
-                        Transfer
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 min-w-[150px] whitespace-nowrap">Branch / Location</th>
+                  <th className="px-4 py-3 min-w-[110px] text-right whitespace-nowrap">On Hand Qty</th>
+                  <th className="px-4 py-3 min-w-[120px] text-right whitespace-nowrap">Min Threshold</th>
+                  <th className="px-4 py-3 min-w-[120px] text-right whitespace-nowrap">Reorder Point</th>
+                  <th className="px-4 py-3 min-w-[150px] text-right whitespace-nowrap">Branch Stock Value</th>
+                  <th className="px-4 py-3 min-w-[120px] whitespace-nowrap">Health Status</th>
+                  <th className="px-4 py-3 min-w-[90px] text-right whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {product.branches.map((b) => {
+                  const isLow = b.quantity <= (b.minStock || 3);
+                  return (
+                    <tr key={b.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 font-semibold text-ink-900 dark:text-white">{b.name}</td>
+                      <td className="px-4 py-3 text-right font-display font-bold text-base text-blue-600 dark:text-blue-400">
+                        {b.quantity}
+                      </td>
+                      <td className="px-4 py-3 text-right text-ledger-500">{b.minStock || 3}</td>
+                      <td className="px-4 py-3 text-right text-ledger-500">{b.reorderPoint || 5}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-ink-900 dark:text-white">
+                        {currency} {formatLedgerMoney(b.quantity * product.costPrice, currency)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                          isLow
+                            ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                            : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                        }`}>
+                          {isLow ? "Low Stock" : "In Stock"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button size="sm" variant="ghost" onClick={onOpenTransferModal} className="h-7 text-xs text-blue-600 hover:text-blue-700">
+                          Transfer
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -560,36 +570,38 @@ export function ProductTabViews({
         )}
 
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-              <tr>
-                <th className="px-4 py-3">Serial / IMEI No</th>
-                <th className="px-4 py-3">Batch Reference</th>
-                <th className="px-4 py-3">Current Location</th>
-                <th className="px-4 py-3">Registration Date</th>
-                <th className="px-4 py-3">Unit Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
-              {serials.map((s) => (
-                <tr key={s.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 font-mono font-bold text-ink-900 dark:text-white">{s.serialNo}</td>
-                  <td className="px-4 py-3 font-mono text-ledger-500">{s.batchNo}</td>
-                  <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{s.location}</td>
-                  <td className="px-4 py-3 text-ledger-500">{s.dateAdded}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                      s.status === "Available"
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                        : "bg-ledger-100 text-ledger-600 dark:bg-white/[0.06] dark:text-ledger-300"
-                    }`}>
-                      {s.status}
-                    </span>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 min-w-[170px] whitespace-nowrap">Serial / IMEI No</th>
+                  <th className="px-4 py-3 min-w-[120px] whitespace-nowrap">Batch Reference</th>
+                  <th className="px-4 py-3 min-w-[150px] whitespace-nowrap">Current Location</th>
+                  <th className="px-4 py-3 min-w-[130px] whitespace-nowrap">Registration Date</th>
+                  <th className="px-4 py-3 min-w-[110px] whitespace-nowrap">Unit Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
+                {serials.map((s) => (
+                  <tr key={s.id} className="hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 font-mono font-bold text-ink-900 dark:text-white">{s.serialNo}</td>
+                    <td className="px-4 py-3 font-mono text-ledger-500">{s.batchNo}</td>
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">{s.location}</td>
+                    <td className="px-4 py-3 text-ledger-500">{s.dateAdded}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                        s.status === "Available"
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                          : "bg-ledger-100 text-ledger-600 dark:bg-white/[0.06] dark:text-ledger-300"
+                      }`}>
+                        {s.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );

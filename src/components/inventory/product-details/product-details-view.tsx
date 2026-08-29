@@ -798,18 +798,18 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                   <table className="w-full text-left text-xs">
                     <thead className="border-b border-ledger-100 bg-white text-[11px] font-semibold text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
                       <tr>
-                        <th className="px-3 py-3">Date & Time</th>
-                        <th className="px-2 py-3">Type</th>
-                        <th className="px-3 py-3">Reference No.</th>
-                        <th className="px-3 py-3">Reference Type</th>
-                        <th className="px-3 py-3">Branch / Warehouse</th>
-                        <th className="px-2 py-3 text-center">In Qty</th>
-                        <th className="px-2 py-3 text-center">Out Qty</th>
-                        <th className="px-2 py-3 text-center">Balance</th>
-                        <th className="px-3 py-3 text-right">Unit Cost ({currency})</th>
-                        <th className="px-3 py-3 text-right">Total Value ({currency})</th>
-                        <th className="px-3 py-3">User</th>
-                        <th className="px-2 py-3 text-right"></th>
+                        <th className="px-3 py-3 min-w-[110px] whitespace-nowrap">Date & Time</th>
+                        <th className="px-2 py-3 min-w-[110px] whitespace-nowrap">Type</th>
+                        <th className="px-3 py-3 min-w-[130px] whitespace-nowrap">Reference No.</th>
+                        <th className="px-3 py-3 min-w-[130px] whitespace-nowrap">Reference Type</th>
+                        <th className="px-3 py-3 min-w-[150px] whitespace-nowrap">Branch / Warehouse</th>
+                        <th className="px-2 py-3 min-w-[80px] text-center whitespace-nowrap">In Qty</th>
+                        <th className="px-2 py-3 min-w-[80px] text-center whitespace-nowrap">Out Qty</th>
+                        <th className="px-2 py-3 min-w-[80px] text-center whitespace-nowrap">Balance</th>
+                        <th className="px-3 py-3 min-w-[130px] text-right whitespace-nowrap">Unit Cost ({currency})</th>
+                        <th className="px-3 py-3 min-w-[140px] text-right whitespace-nowrap">Total Value ({currency})</th>
+                        <th className="px-3 py-3 min-w-[110px] whitespace-nowrap">User</th>
+                        <th className="px-2 py-3 min-w-[50px] text-right whitespace-nowrap"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
