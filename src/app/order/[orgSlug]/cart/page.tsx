@@ -1,4 +1,4 @@
-import { getPortalContext } from "@/app/order/[orgSlug]/actions";
+import { getPortalContext, getStorefrontLocations } from "@/app/order/[orgSlug]/actions";
 import { CheckoutView } from "@/components/customer-portal/checkout-view";
 
 export default async function CartPage({ params }: { params: Promise<{ orgSlug: string }> }) {
@@ -13,6 +13,8 @@ export default async function CartPage({ params }: { params: Promise<{ orgSlug: 
     );
   }
 
+  const locations = context.allowCustomerLocationSelection ? await getStorefrontLocations(context.orgId) : [];
+
   return (
     <CheckoutView
       orgSlug={orgSlug}
@@ -22,6 +24,8 @@ export default async function CartPage({ params }: { params: Promise<{ orgSlug: 
       showPrices={context.showPrices}
       allowSelectDelivery={context.allowCustomerSelectDelivery}
       allowNotes={context.allowOrderNotes}
+      allowLocationSelection={context.allowCustomerLocationSelection}
+      locations={locations}
     />
   );
 }

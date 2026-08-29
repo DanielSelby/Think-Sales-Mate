@@ -62,8 +62,9 @@ export const NAV_ITEMS: NavItem[] = [
     icon:  Inbox,
     status: "live",
     children: [
-      { label: "All Orders",       href: "/orders",                          icon: List     },
-      { label: "Customer Order Settings", href: "/settings/customer-ordering",     icon: Settings },
+      { label: "Order Tracker",          href: "/orders",                          icon: List        },
+      { label: "Order List",             href: "/orders?tab=all",                  icon: List        },
+      { label: "Customer Order Settings", href: "/settings/customer-ordering",     icon: Settings    },
     ],
   },
 

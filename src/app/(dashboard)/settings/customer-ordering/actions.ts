@@ -15,6 +15,12 @@ export interface PortalSettings {
   allowCreateAccount: boolean;
   requireEmailVerification: boolean;
   showPricesToCustomers: boolean;
+  allowCustomerLocationSelection: boolean;
+  allowGuestOrders: boolean;
+  requireCustomerAccount: boolean;
+  autoReserveStockOnApproval: boolean;
+  sendEmailNotifications: boolean;
+  sendWhatsAppNotifications: boolean;
 }
 
 export async function getPortalSettings(): Promise<PortalSettings> {
@@ -29,6 +35,12 @@ export async function getPortalSettings(): Promise<PortalSettings> {
     allowCreateAccount: true,
     requireEmailVerification: false,
     showPricesToCustomers: true,
+    allowCustomerLocationSelection: true,
+    allowGuestOrders: true,
+    requireCustomerAccount: false,
+    autoReserveStockOnApproval: true,
+    sendEmailNotifications: true,
+    sendWhatsAppNotifications: false,
   };
   if (!context) return defaults;
 
@@ -37,15 +49,21 @@ export async function getPortalSettings(): Promise<PortalSettings> {
   if (!data) return defaults;
 
   return {
-    isEnabled: data.is_enabled,
-    accountRequirement: data.account_requirement,
-    requireApprovalBeforeProcessing: data.require_approval_before_processing,
-    allowCustomerSelectDelivery: data.allow_customer_select_delivery,
-    allowOrderNotes: data.allow_order_notes,
-    allowViewOrderStatus: data.allow_view_order_status,
-    allowCreateAccount: data.allow_create_account,
-    requireEmailVerification: data.require_email_verification,
-    showPricesToCustomers: data.show_prices_to_customers,
+    isEnabled: data.is_enabled ?? defaults.isEnabled,
+    accountRequirement: data.account_requirement ?? defaults.accountRequirement,
+    requireApprovalBeforeProcessing: data.require_approval_before_processing ?? defaults.requireApprovalBeforeProcessing,
+    allowCustomerSelectDelivery: data.allow_customer_select_delivery ?? defaults.allowCustomerSelectDelivery,
+    allowOrderNotes: data.allow_order_notes ?? defaults.allowOrderNotes,
+    allowViewOrderStatus: data.allow_view_order_status ?? defaults.allowViewOrderStatus,
+    allowCreateAccount: data.allow_create_account ?? defaults.allowCreateAccount,
+    requireEmailVerification: data.require_email_verification ?? defaults.requireEmailVerification,
+    showPricesToCustomers: data.show_prices_to_customers ?? defaults.showPricesToCustomers,
+    allowCustomerLocationSelection: data.allow_customer_location_selection ?? defaults.allowCustomerLocationSelection,
+    allowGuestOrders: data.allow_guest_orders ?? defaults.allowGuestOrders,
+    requireCustomerAccount: data.require_customer_account ?? defaults.requireCustomerAccount,
+    autoReserveStockOnApproval: data.auto_reserve_stock_on_approval ?? defaults.autoReserveStockOnApproval,
+    sendEmailNotifications: data.send_email_notifications ?? defaults.sendEmailNotifications,
+    sendWhatsAppNotifications: data.send_whatsapp_notifications ?? defaults.sendWhatsAppNotifications,
   };
 }
 
@@ -73,6 +91,12 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
       allow_create_account: settings.allowCreateAccount,
       require_email_verification: settings.requireEmailVerification,
       show_prices_to_customers: settings.showPricesToCustomers,
+      allow_customer_location_selection: settings.allowCustomerLocationSelection,
+      allow_guest_orders: settings.allowGuestOrders,
+      require_customer_account: settings.requireCustomerAccount,
+      auto_reserve_stock_on_approval: settings.autoReserveStockOnApproval,
+      send_email_notifications: settings.sendEmailNotifications,
+      send_whatsapp_notifications: settings.sendWhatsAppNotifications,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     },
@@ -81,5 +105,6 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/settings/customer-ordering");
+  revalidatePath("/orders");
   return { ok: true };
 }

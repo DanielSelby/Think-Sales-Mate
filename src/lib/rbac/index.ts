@@ -44,8 +44,14 @@ export const CAPABILITIES = {
   "projects.manage": "manager",
   "reports.view": "viewer",
   "ai.view": "viewer",
-  "ai.generate": "manager"
-
+  "ai.generate": "manager",
+  "orders.view_all": "admin",
+  "orders.view_branch": "staff",
+  "orders.assign_branch": "manager",
+  "orders.approve": "manager",
+  "orders.reject": "manager",
+  "orders.edit": "staff",
+  "orders.convert_to_sale": "staff",
 } as const satisfies Record<string, MemberRole>;
 
 export type Capability = keyof typeof CAPABILITIES;

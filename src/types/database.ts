@@ -19,7 +19,9 @@ export type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "
 export type LeaveStatus = "pending" | "approved" | "rejected";
 export type HeldSaleKind = "hold" | "draft";
 export type CustomerAccountRequirement = "optional" | "required" | "guest_only";
-export type CustomerOrderStatus = "new" | "processing" | "reviewed" | "completed" | "cancelled";
+export type CustomerOrderStatus = "new" | "approved" | "picking" | "packing" | "delivery" | "completed" | "cancelled" | "returned" | "processing" | "reviewed";
+export type OrderPaymentStatus = "paid" | "partial" | "unpaid";
+export type OrderDeliveryStatus = "not_shipped" | "picking" | "packing" | "in_delivery" | "delivered";
 
 export interface Database {
   public: {
@@ -1768,6 +1770,12 @@ export interface Database {
           allow_create_account: boolean;
           require_email_verification: boolean;
           show_prices_to_customers: boolean;
+          allow_customer_location_selection: boolean;
+          allow_guest_orders: boolean;
+          require_customer_account: boolean;
+          auto_reserve_stock_on_approval: boolean;
+          send_email_notifications: boolean;
+          send_whatsapp_notifications: boolean;
           updated_by: string | null;
           updated_at: string;
         };
@@ -1783,6 +1791,12 @@ export interface Database {
           allow_create_account?: boolean;
           require_email_verification?: boolean;
           show_prices_to_customers?: boolean;
+          allow_customer_location_selection?: boolean;
+          allow_guest_orders?: boolean;
+          require_customer_account?: boolean;
+          auto_reserve_stock_on_approval?: boolean;
+          send_email_notifications?: boolean;
+          send_whatsapp_notifications?: boolean;
           updated_by?: string | null;
           updated_at?: string;
         };
@@ -1805,10 +1819,16 @@ export interface Database {
           subtotal: number;
           total: number;
           payment_method: string;
+          payment_status: OrderPaymentStatus;
+          delivery_status: OrderDeliveryStatus;
           status: CustomerOrderStatus;
           admin_notes: string | null;
           stock_checked: boolean;
           location_id: string | null;
+          sales_person_id: string | null;
+          expected_delivery_date: string | null;
+          stock_reserved: boolean;
+          rejection_reason: string | null;
           approved_by: string | null;
           approved_at: string | null;
           linked_sale_id: string | null;
@@ -1831,10 +1851,16 @@ export interface Database {
           subtotal?: number;
           total?: number;
           payment_method?: string;
+          payment_status?: OrderPaymentStatus;
+          delivery_status?: OrderDeliveryStatus;
           status?: CustomerOrderStatus;
           admin_notes?: string | null;
           stock_checked?: boolean;
           location_id?: string | null;
+          sales_person_id?: string | null;
+          expected_delivery_date?: string | null;
+          stock_reserved?: boolean;
+          rejection_reason?: string | null;
           approved_by?: string | null;
           approved_at?: string | null;
           linked_sale_id?: string | null;
@@ -1863,6 +1889,13 @@ export interface Database {
             columns: ["linked_sale_id"];
             isOneToOne: false;
             referencedRelation: "sales";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_orders_sales_person_id_fkey";
+            columns: ["sales_person_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           }
         ];
@@ -1904,6 +1937,84 @@ export interface Database {
             columns: ["product_id"];
             isOneToOne: false;
             referencedRelation: "products";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      customer_order_timeline: {
+        Row: {
+          id: string;
+          order_id: string;
+          org_id: string;
+          title: string;
+          actor_name: string;
+          actor_id: string | null;
+          status: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          org_id: string;
+          title: string;
+          actor_name: string;
+          actor_id?: string | null;
+          status?: string;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["customer_order_timeline"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "customer_order_timeline_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "customer_orders";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          org_id: string;
+          user_id: string | null;
+          location_id: string | null;
+          title: string;
+          message: string;
+          type: string;
+          channel: "in_app" | "email" | "whatsapp";
+          entity_type: string;
+          entity_id: string | null;
+          recipient_contact: string | null;
+          is_read: boolean;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          user_id?: string | null;
+          location_id?: string | null;
+          title: string;
+          message: string;
+          type: string;
+          channel?: "in_app" | "email" | "whatsapp";
+          entity_type?: string;
+          entity_id?: string | null;
+          recipient_contact?: string | null;
+          is_read?: boolean;
+          status?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "notifications_location_id_fkey";
+            columns: ["location_id"];
+            isOneToOne: false;
+            referencedRelation: "business_locations";
             referencedColumns: ["id"];
           }
         ];
