@@ -132,6 +132,7 @@ export async function notifyCustomerOrderStatus(params: {
   customerName: string;
   customerPhone?: string | null;
   customerEmail?: string | null;
+  locationId?: string | null;
   notes?: string | null;
   sendEmail?: boolean;
   sendWhatsApp?: boolean;
@@ -165,6 +166,7 @@ export async function notifyCustomerOrderStatus(params: {
     message,
     type: typeKey,
     channel: "in_app",
+    locationId: params.locationId ?? null,
     entityId: params.orderId,
   });
 

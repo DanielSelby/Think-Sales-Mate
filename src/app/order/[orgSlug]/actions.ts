@@ -246,8 +246,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     branchName,
     customerPhone: input.guestPhone.trim(),
     customerEmail: input.guestEmail?.trim() || null,
-    sendEmail: settings.send_email_notifications,
-    sendWhatsApp: settings.send_whatsapp_notifications,
+    sendEmail: settings?.send_email_notifications,
+    sendWhatsApp: settings?.send_whatsapp_notifications,
   });
 
   return { ok: true, orderNumber: order.order_number, accessToken: order.access_token };
