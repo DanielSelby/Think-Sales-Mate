@@ -403,7 +403,7 @@ export function ProductsCatalog({
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6">
       <input
         ref={fileInputRef}
         type="file"
@@ -684,17 +684,17 @@ export function ProductsCatalog({
                     onChange={toggleSelectAllOnPage}
                   />
                 </th>
-                <th className="px-2 py-3">Product</th>
-                <th className="px-2 py-3">SKU</th>
-                <th className="px-2 py-3">Barcode</th>
-                <th className="px-2 py-3">Category</th>
-                <th className="px-2 py-3 text-right">Buying price</th>
-                <th className="px-2 py-3 text-right">Selling price</th>
-                <th className="px-2 py-3 text-right">Stock</th>
-                <th className="px-2 py-3">Warehouse</th>
-                <th className="px-2 py-3">Supplier</th>
-                <th className="px-2 py-3">Status</th>
-                {canManage && <th className="w-16 px-2 py-3" />}
+                <th className="px-2 py-3 min-w-[220px] whitespace-nowrap">Product</th>
+                <th className="px-2 py-3 min-w-[120px] whitespace-nowrap">SKU</th>
+                <th className="px-2 py-3 min-w-[130px] whitespace-nowrap">Barcode</th>
+                <th className="px-2 py-3 min-w-[120px] whitespace-nowrap">Category</th>
+                <th className="px-2 py-3 min-w-[120px] text-right whitespace-nowrap">Buying price</th>
+                <th className="px-2 py-3 min-w-[120px] text-right whitespace-nowrap">Selling price</th>
+                <th className="px-2 py-3 min-w-[110px] text-right whitespace-nowrap">Stock</th>
+                <th className="px-2 py-3 min-w-[130px] whitespace-nowrap">Warehouse</th>
+                <th className="px-2 py-3 min-w-[150px] whitespace-nowrap">Supplier</th>
+                <th className="px-2 py-3 min-w-[110px] whitespace-nowrap">Status</th>
+                {canManage && <th className="w-16 px-2 py-3 min-w-[80px]" />}
               </tr>
             </thead>
             <tbody>
