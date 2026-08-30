@@ -733,7 +733,7 @@ function ProductCard({
     <article className="group overflow-hidden rounded-xl border border-ledger-200 bg-white transition-all hover:-translate-y-0.5 hover:border-ledger-300 hover:shadow-md dark:border-ledger-800 dark:bg-ink-900">
 
       {/* Product image */}
-      <div className="relative mx-2 mt-2 flex h-[125px] items-center justify-center overflow-hidden rounded-lg bg-ledger-50 dark:bg-ink-800">
+      <div className="relative mx-2 mt-2 flex h-[125px] items-center justify-center overflow-hidden rounded-lg bg-white dark:bg-ink-900">
 
         {product.imageUrl ? (
           <Image
