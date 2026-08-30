@@ -84,7 +84,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [query, setQuery] = React.useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
   const [activeCategory, setActiveCategory] = React.useState("all");
- const [cart, setCart] = React.useState<CartLine[]>([]);
+  const [cart, setCart] = React.useState<CartLine[]>([]);
   const [priceEditLine, setPriceEditLine] = React.useState<CartLine | null>(null);
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
   const cartListRef = React.useRef<HTMLDivElement>(null);
@@ -95,8 +95,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [customerQuery, setCustomerQuery] = React.useState("");
   const [customerResults, setCustomerResults] = React.useState<CustomerOption[]>([]);
   const [customerOpen, setCustomerOpen] = React.useState(false);
- const [addContactOpen, setAddContactOpen] = React.useState(false);
-         const [customProductOpen, setCustomProductOpen] = React.useState(false);
+  const [addContactOpen, setAddContactOpen] = React.useState(false);
   const [saleDate, setSaleDate] = React.useState(() => isoToLocalDate(new Date().toISOString()));
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [shippingAmount, setShippingAmount] = React.useState(0);
@@ -211,6 +210,20 @@ export function PosView({ products, categories, locations, stockLevels, currency
     setCartAddSignal((n) => n + 1);
   }
 
+  // Navigates to the real product-creation page. If there's anything in
+  // the cart, it's parked as a suspended sale first so it isn't lost —
+  // leaving POS unmounts this component and its state with it. Resume it
+  // from Suspended Sales after the new product is created.
+  async function handleGoAddProduct() {
+    if (cart.length > 0) {
+      const result = await parkSale({
+        locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null, customerPhone: customer?.phone ?? null,
+        orderNote: null, items: buildCartInput(), subtotal, discountAmount: itemsDiscount + discountAmount, taxAmount: taxTotal, total, kind: "hold",
+      });
+      if (result.ok) clearCart();
+    }
+    router.push("/inventory/new");
+  }
   function onBarcodeEnter(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     const q = query.trim().toLowerCase();
@@ -789,10 +802,10 @@ export function PosView({ products, categories, locations, stockLevels, currency
                     </div>
                   )}
                 </div>
-                <button
+               <button
                   type="button"
-                  onClick={() => setCustomProductOpen(true)}
-                  title="Add custom product"
+                  onClick={handleGoAddProduct}
+                  title="Add new product"
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition-transform hover:scale-105 active:scale-95"
                   style={{ background: theme.colors.primary }}
                 >
@@ -1196,12 +1209,13 @@ export function PosView({ products, categories, locations, stockLevels, currency
       </Dialog>
 
       {/* Add a new contact */}
-      <AddContactDialog
+     <AddContactDialog
         open={addContactOpen}
         onClose={() => setAddContactOpen(false)}
         onSaved={(c) => { setCustomer(c); setAddContactOpen(false); }}
       />
-    </div>
+
+        </div>
   );
 }
 
@@ -1302,8 +1316,54 @@ function AddContactDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
   );
 }
 
-function PosCalculator() {
-  const [display, setDisplay] = React.useState("0");
+function AddCustomProductDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (name: string, price: number, quantity: number) => void }) {
+  const [name, setName] = React.useState("");
+  const [price, setPrice] = React.useState("");
+  const [quantity, setQuantity] = React.useState("1");
+  const [err, setErr] = React.useState<string | null>(null);
+
+  function reset() {
+    setName(""); setPrice(""); setQuantity("1"); setErr(null);
+  }
+
+  function handleAdd() {
+    setErr(null);
+    if (!name.trim()) return setErr("Product name is required.");
+    const p = Number(price);
+    if (!(p > 0)) return setErr("Enter a price greater than 0.");
+    const q = Math.max(1, Number(quantity) || 1);
+    onAdd(name.trim(), p, q);
+    reset();
+  }
+
+  return (
+    <Dialog open={open} onClose={() => { onClose(); reset(); }} title="Add Custom Product">
+      <div className="space-y-4">
+        {err && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{err}</div>}
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ledger-500">Product Name*</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Screen Protector, Repair Fee" autoFocus />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ledger-500">Unit Price*</label>
+            <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ledger-500">Quantity</label>
+            <Input type="number" min={1} step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+          <Button variant="primary" onClick={handleAdd}>Add to Cart</Button>
+          <Button variant="outline" onClick={() => { onClose(); reset(); }}>Cancel</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function PosCalculator() {  const [display, setDisplay] = React.useState("0");
   const [pending, setPending] = React.useState<{ value: number; op: string } | null>(null);
   const [justEvaluated, setJustEvaluated] = React.useState(false);
 

@@ -81,13 +81,14 @@ export interface CatalogProduct {
   brand: string | null;
   unitPrice: number;
   stockQuantity: number;
+  imageUrl: string | null;
 }
 
 export async function getCatalog(orgId: string): Promise<CatalogProduct[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("public_product_catalog")
-    .select("id, name, category, brand, unit_price, stock_quantity")
+    .select("id, name, category, brand, unit_price, stock_quantity, image_url")
     .eq("org_id", orgId)
     .order("name");
 
@@ -98,6 +99,7 @@ export async function getCatalog(orgId: string): Promise<CatalogProduct[]> {
     brand: p.brand,
     unitPrice: p.unit_price,
     stockQuantity: p.stock_quantity,
+    imageUrl: p.image_url,
   
   }));
 }

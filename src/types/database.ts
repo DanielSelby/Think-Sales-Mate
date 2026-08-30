@@ -2181,6 +2181,7 @@ export interface Database {
           unit_price: number;
           stock_quantity: number;
           sku: string;
+          image_url: string | null;
         };
         Relationships: [];
       };
