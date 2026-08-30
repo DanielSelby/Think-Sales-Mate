@@ -81,6 +81,7 @@ export interface CatalogProduct {
   brand: string | null;
   unitPrice: number;
   stockQuantity: number;
+  
 }
 
 export async function getCatalog(orgId: string): Promise<CatalogProduct[]> {

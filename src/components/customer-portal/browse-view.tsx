@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   Search,
@@ -735,19 +734,14 @@ function ProductCard({
       {/* Product image */}
       <div className="relative mx-2 mt-2 flex h-[125px] items-center justify-center overflow-hidden rounded-lg bg-ledger-50 dark:bg-ink-800">
 
-        {product.imageUrl ? (
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            className="object-contain p-3"
-            unoptimized
-          />
-        ) : (
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-ink-900">
-            <Package className="h-8 w-8 text-ledger-300 dark:text-ledger-600" />
-          </div>
-        )}
+        {/* 
+          Your current CatalogProduct does not expose an image URL,
+          therefore this is a safe fallback until image_url is added
+          to the catalog query.
+        */}
+        <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-ink-900">
+          <Package className="h-8 w-8 text-ledger-300 dark:text-ledger-600" />
+        </div>
 
         {isOutOfStock && (
           <span className="absolute left-2 top-2 rounded-md bg-alert px-2 py-1 text-[9px] font-bold text-white">
