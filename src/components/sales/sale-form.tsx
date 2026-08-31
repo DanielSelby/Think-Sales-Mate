@@ -1436,6 +1436,7 @@ export function SaleForm({
               variant="outline"
               disabled={isPending || (docStatus !== "draft" && docStatus !== "quotation" && docStatus !== "proforma")}
               onClick={saveDraft}
+              className={cn( (docStatus === "draft" || docStatus === "quotation" || docStatus === "proforma") && "border-amber bg-amber text-white hover:bg-amber/90")}
             >
               {isPending ? "Saving…" : "Save as Draft"}
             </Button>

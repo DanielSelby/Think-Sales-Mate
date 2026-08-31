@@ -9,7 +9,7 @@ import {
   BarChart3, Settings, Sparkles, Lock,
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
-  PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,
+  PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
   Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -50,10 +50,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon:  Receipt,
     status: "live",
     children: [
-      { label: "All Sales",    href: "/sales",              icon: List        },
-      { label: "New Sale",     href: "/sales/new",          icon: PlusCircle  },
-      { label: "Invoices",     href: "/accounting/invoices", icon: FileText   },
-      { label: "Draft List",     href: "Sales/drafts",         icon: List   },
+      { label: "All Sales",                href: "/sales",               icon: List        },
+      { label: "New Sale",                 href: "/sales/new",           icon: PlusCircle  },
+      { label: "Drafts & Quotations List", href: "/sales/drafts",        icon: Clock3     },
+      { label: "Invoices",                 href: "/accounting/invoices", icon: FileText   },
+      
     ],
   },
 
