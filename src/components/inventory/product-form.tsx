@@ -138,6 +138,7 @@ export function ProductForm({
   const [imageUrls, setImageUrls] = React.useState<string[]>(initialValues?.image_urls ?? []);
   const [uploading, setUploading] = React.useState(false);
   const [imageError, setImageError] = React.useState<string | null>(null);
+  const [imageUrlInput, setImageUrlInput] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [tags, setTags] = React.useState<string[]>(initialValues?.tags ?? []);
@@ -174,6 +175,26 @@ export function ProductForm({
 
   function removeImage(url: string) {
     setImageUrls((prev) => prev.filter((u) => u !== url));
+  }
+
+  function addImageUrlFromInput() {
+    const url = imageUrlInput.trim();
+    setImageError(null);
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      setImageError("Enter a full image link starting with http:// or https://");
+      return;
+    }
+    if (imageUrls.includes(url)) {
+      setImageError("That image is already added.");
+      return;
+    }
+    if (imageUrls.length >= 5) {
+      setImageError("You can upload up to 5 images.");
+      return;
+    }
+    setImageUrls((prev) => [...prev, url]);
+    setImageUrlInput("");
   }
 
   function addTag(raw: string) {
@@ -320,6 +341,28 @@ export function ProductForm({
             </div>
             <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
             <p className="mt-2 text-xs text-ledger-400">PNG, JPG or WEBP (Max. 2MB each) — up to 5 images.</p>
+
+            <div className="mt-4 border-t border-ledger-100 pt-4 dark:border-ledger-700">
+              <FieldLabel htmlFor="image_url_input" optional>Or paste an image link</FieldLabel>
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  id="image_url_input"
+                  type="url"
+                  value={imageUrlInput}
+                  onChange={(e) => setImageUrlInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addImageUrlFromInput(); } }}
+                  disabled={imageUrls.length >= 5}
+                  placeholder="https://example.com/photo.jpg"
+                  className="h-10 flex-1 rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 outline-none focus-visible:ring-2 focus-visible:ring-signal/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                />
+                <Button type="button" variant="outline" onClick={addImageUrlFromInput} disabled={imageUrls.length >= 5 || !imageUrlInput.trim()}>
+                  Add Link
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-ledger-400">
+                Paste a direct link to an already-hosted image — added alongside any uploaded images, up to 5 total.
+              </p>
+            </div>
           </SectionCard>
 
           <SectionCard title="Additional Options">

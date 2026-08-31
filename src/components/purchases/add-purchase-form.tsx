@@ -500,7 +500,10 @@ export function AddPurchaseForm({
                         type="button"
                         onClick={() => setAddSupplierOpen(true)}
                         title="Add new supplier"
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 transition-colors hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-400 dark:hover:bg-white/[0.06]"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-white transition-colors"
+                        style={{ background: theme.colors.primary }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
                       >
                         <Plus className="h-4 w-4" />
                       </button>

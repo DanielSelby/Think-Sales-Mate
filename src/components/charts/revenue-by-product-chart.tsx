@@ -89,8 +89,16 @@ export function RevenueByProductChart({
     ];
   }, [categoryData, data]);
 
-  const activeData = view === "product" ? data : effectiveCategoryData;
+    // Merge duplicate names by summing their values
+  const deduped = (raw: RevenueSlice[]) => {
+    const map = new Map<string, number>();
+    raw.forEach(item => map.set(item.name, (map.get(item.name) ?? 0) + item.value));
+    return [...map.entries()]
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  };
 
+  const activeData = deduped(view === "product" ? data : effectiveCategoryData);
   const total = activeData.reduce((sum, item) => sum + item.value, 0);
 
   function switchView(nextView: "product" | "category") {

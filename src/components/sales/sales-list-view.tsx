@@ -93,9 +93,18 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
   const [location, setLocation] = useState("all");
   const [salesRep, setSalesRep] = useState("all");
   const [paymentStatus, setPaymentStatus] = useState<"all" | PaymentStatus>("all");
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(10);
+
+  const paymentMethods = useMemo(
+    () => Array.from(new Set(sales.map((s) => s.paymentMethod).filter(Boolean))) as string[],
+    [sales]
+  );
 
   const counts = useMemo(() => {
     const c: Record<"all" | SaleStatus, number> = { all: sales.length, completed: 0, returned: 0, cancelled: 0 };
@@ -114,9 +123,12 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
         const invoice = formatInvoiceNumber(s.saleNumber).toLowerCase();
         if (!invoice.includes(q) && !s.customerName.toLowerCase().includes(q)) return false;
       }
+      if (dateFrom && s.saleDate.slice(0, 10) < dateFrom) return false;
+      if (dateTo && s.saleDate.slice(0, 10) > dateTo) return false;
+      if (paymentMethodFilter !== "all" && s.paymentMethod !== paymentMethodFilter) return false;
       return true;
     });
-  }, [sales, activeTab, paymentStatus, location, salesRep, query]);
+  }, [sales, activeTab, paymentStatus, location, salesRep, query, dateFrom, dateTo, paymentMethodFilter]);
 
   const filteredKpis = useMemo(() => {
     const totalOrders = filtered.length;
@@ -183,6 +195,9 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
     setLocation("all");
     setSalesRep("all");
     setPaymentStatus("all");
+    setDateFrom("");
+    setDateTo("");
+    setPaymentMethodFilter("all");
     setActiveTab("all");
     setPage(1);
   }
@@ -311,7 +326,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
               </Select>
             </div>
 
-            <Button variant="outline" size="md">
+            <Button variant="outline" size="md" onClick={() => setShowMoreFilters((s) => !s)}>
               <Filter className="h-4 w-4" />
               More Filters
             </Button>
@@ -319,6 +334,28 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
               Clear
             </Button>
           </div>
+
+          {showMoreFilters && (
+            <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+              <div className="w-40">
+                <label className="mb-1 block text-xs font-medium text-ledger-500">Date From</label>
+                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} />
+              </div>
+              <div className="w-40">
+                <label className="mb-1 block text-xs font-medium text-ledger-500">Date To</label>
+                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} />
+              </div>
+              <div className="w-44">
+                <label className="mb-1 block text-xs font-medium text-ledger-500">Payment Type</label>
+                <Select value={paymentMethodFilter} onChange={(e) => { setPaymentMethodFilter(e.target.value); setPage(1); }}>
+                  <option value="all">All Payment Types</option>
+                  {paymentMethods.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -435,7 +472,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
                       {s.productLineCount > 1 && <span className="text-ledger-400"> +{s.productLineCount - 1} more</span>}
                     </td>
                     <td className="px-3 py-3 text-right text-ledger-600 dark:text-ledger-300">{s.itemCount}</td>
-                    <td className="px-3 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">
+                    <td className="px-3 py-3 text-right font-medium text-ink-900 dark:text-white">
                       {formatCurrency(s.total, currency)}
                     </td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.paymentMethod ?? "—"}</td>
