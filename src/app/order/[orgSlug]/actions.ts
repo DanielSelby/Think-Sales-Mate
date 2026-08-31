@@ -104,6 +104,40 @@ export async function getCatalog(orgId: string): Promise<CatalogProduct[]> {
   }));
 }
 
+export interface UploadVoiceNoteResult {
+  ok: boolean;
+  url?: string;
+  error?: string;
+}
+
+const MAX_VOICE_NOTE_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_VOICE_MIME_PREFIXES = ["audio/"];
+
+export async function uploadVoiceNote(formData: FormData): Promise<UploadVoiceNoteResult> {
+  const orgId = String(formData.get("org_id") ?? "");
+  const file = formData.get("voice_note") as File | null;
+
+  if (!orgId) return { ok: false, error: "Missing organization." };
+  if (!file || file.size === 0) return { ok: false, error: "No recording found." };
+  if (file.size > MAX_VOICE_NOTE_BYTES) return { ok: false, error: "Voice note must be under 5MB." };
+  if (!ALLOWED_VOICE_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix))) {
+    return { ok: false, error: "That file doesn't look like an audio recording." };
+  }
+
+  const supabase = await createClient();
+  const ext = file.type.includes("webm") ? "webm" : file.type.includes("mp4") ? "m4a" : "ogg";
+  const path = `${orgId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage.from("customer-order-attachments").upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (uploadError) return { ok: false, error: uploadError.message };
+
+  const { data: publicUrl } = supabase.storage.from("customer-order-attachments").getPublicUrl(path);
+  return { ok: true, url: publicUrl.publicUrl };
+}
+
 export interface CartLineInput {
   productId: string;
   productName: string;
@@ -120,6 +154,7 @@ export interface PlaceOrderInput {
   deliveryOption: string | null;
   deliveryFee: number;
   notes: string | null;
+  voiceNoteUrl?: string | null;
   locationId?: string | null;
   items: CartLineInput[];
 }
@@ -199,6 +234,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       delivery_option: input.deliveryOption,
       delivery_fee: Math.max(0, input.deliveryFee),
       notes: input.notes?.trim() || null,
+      voice_note_url: input.voiceNoteUrl ?? null,
       subtotal,
       total,
       status: "new",

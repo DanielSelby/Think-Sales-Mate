@@ -26,32 +26,38 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!order) return <p className="p-6 text-sm text-ledger-400">Order not found.</p>;
 
   const detail: OrderDetail = {
-    id: order.id,
-    orderNumber: order.order_number,
-    status: order.status,
-    paymentStatus: order.payment_status ?? "unpaid",
-    deliveryStatus: order.delivery_status ?? "not_shipped",
-    locationId: order.location_id,
-    branchName: (order.business_locations as any)?.name ?? null,
-    salesPersonId: order.sales_person_id,
-    salesPersonName: (order.profiles as any)?.full_name ?? null,
-    expectedDeliveryDate: order.expected_delivery_date,
-    stockReserved: Boolean(order.stock_reserved),
-    createdAt: order.created_at,
-    guestName: order.guest_name,
-    guestPhone: order.guest_phone,
-    guestEmail: order.guest_email,
-    deliveryAddress: order.delivery_address,
-    deliveryOption: order.delivery_option,
-    deliveryFee: Number(order.delivery_fee ?? 0),
-    paymentMethod: order.payment_method ?? "Cash on Delivery",
-    subtotal: Number(order.subtotal ?? 0),
-    total: Number(order.total ?? 0),
-    notes: order.notes,
-    adminNotes: order.admin_notes,
-    rejectionReason: order.rejection_reason,
-    linkedSaleId: order.linked_sale_id,
-  };
+  id: order.id,
+  orderNumber: order.order_number,
+  status: order.status,
+  paymentStatus: order.payment_status ?? "unpaid",
+  deliveryStatus: order.delivery_status ?? "not_shipped",
+  locationId: order.location_id,
+  branchName: (order.business_locations as any)?.name ?? null,
+  salesPersonId: order.sales_person_id,
+  salesPersonName: (order.profiles as any)?.full_name ?? null,
+  expectedDeliveryDate: order.expected_delivery_date,
+  stockReserved: Boolean(order.stock_reserved),
+  createdAt: order.created_at,
+
+  guestName: order.guest_name,
+  guestPhone: order.guest_phone,
+  guestEmail: order.guest_email,
+  deliveryAddress: order.delivery_address,
+  deliveryOption: order.delivery_option,
+  deliveryFee: Number(order.delivery_fee ?? 0),
+  paymentMethod: order.payment_method ?? "Cash on Delivery",
+
+  subtotal: Number(order.subtotal ?? 0),
+  total: Number(order.total ?? 0),
+
+  notes: order.notes,
+  adminNotes: order.admin_notes,
+  rejectionReason: order.rejection_reason,
+  linkedSaleId: order.linked_sale_id,
+
+  // ADD THIS
+  voiceNoteUrl: order.voice_note_url ?? null,
+};
 
   const itemRows: OrderItemRow[] = (items ?? []).map((i) => ({
     id: i.id,

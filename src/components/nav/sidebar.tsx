@@ -53,6 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "All Sales",    href: "/sales",              icon: List        },
       { label: "New Sale",     href: "/sales/new",          icon: PlusCircle  },
       { label: "Invoices",     href: "/accounting/invoices", icon: FileText   },
+      { label: "Draft List",     href: "Sales/drafts",         icon: List   },
     ],
   },
 

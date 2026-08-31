@@ -3,10 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Minus, Plus, Trash2, Loader2, Package, MapPin, Search, Store, Info } from "lucide-react";
+import { ArrowLeft, Minus, Plus, Trash2, Loader2, Package, MapPin, Search, Store, Info, Mic, Square, Play, Pause, X as XIcon } from "lucide-react";
 import { formatCurrency } from "@/lib/sales/format";
 import { useCart } from "@/components/customer-portal/cart-context";
-import { placeOrder, type StorefrontLocation } from "@/app/order/[orgSlug]/actions";
+import { placeOrder, uploadVoiceNote, type StorefrontLocation } from "@/app/order/[orgSlug]/actions";
 import { cn } from "@/lib/utils";
 
 interface CheckoutViewProps {
@@ -27,6 +27,12 @@ const DELIVERY_OPTIONS = [
   { label: "Pickup / In-Store Collection", fee: 0 },
 ];
 
+function formatSeconds(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function CheckoutView({
   orgSlug,
   orgId,
@@ -46,10 +52,24 @@ export function CheckoutView({
   const [address, setAddress] = React.useState("");
   const [deliveryOption, setDeliveryOption] = React.useState(DELIVERY_OPTIONS[0].label);
   const [notes, setNotes] = React.useState("");
+  const [message, setMessage] = React.useState("");
   const [selectedLocationId, setSelectedLocationId] = React.useState<string>(locations[0]?.id ?? "");
   const [branchSearch, setBranchSearch] = React.useState("");
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
+
+  // Voice note recording state
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [recordingSeconds, setRecordingSeconds] = React.useState(0);
+  const [recordedBlob, setRecordedBlob] = React.useState<Blob | null>(null);
+  const [recordedUrl, setRecordedUrl] = React.useState<string | null>(null);
+  const [isPlayingBack, setIsPlayingBack] = React.useState(false);
+  const [voiceError, setVoiceError] = React.useState<string | null>(null);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
+  const recordingTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const playbackAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
 
   const deliveryFee = DELIVERY_OPTIONS.find((d) => d.label === deliveryOption)?.fee ?? 0;
   const total = cart.subtotal + (allowSelectDelivery ? deliveryFee : 0);
@@ -66,6 +86,81 @@ export function CheckoutView({
     );
   }, [locations, branchSearch]);
 
+  React.useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function startRecording() {
+    setVoiceError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        setRecordedBlob(blob);
+        setRecordedUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => {
+          if (s >= 119) {
+            stopRecording();
+            return s;
+          }
+          return s + 1;
+        });
+      }, 1000);
+    } catch {
+      setVoiceError("Microphone access was denied or is unavailable. Please check your browser permissions.");
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  }
+
+  function discardRecording() {
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+    setRecordingSeconds(0);
+    setIsPlayingBack(false);
+    setVoiceError(null);
+  }
+
+  function togglePlayback() {
+    const audioEl = playbackAudioRef.current;
+    if (!audioEl) return;
+    if (isPlayingBack) {
+      audioEl.pause();
+    } else {
+      audioEl.play();
+    }
+  }
+
   function submit() {
     setError(null);
     if (!fullName.trim()) return setError("Please enter your full name.");
@@ -76,7 +171,29 @@ export function CheckoutView({
       return setError("Please select a branch location.");
     }
 
+    const combinedNotes =
+      [
+        allowNotes && notes.trim() ? notes.trim() : null,
+        message.trim() ? `Message: ${message.trim()}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ") || null;
+
     startTransition(async () => {
+      let voiceNoteUrl: string | null = null;
+
+      if (recordedBlob) {
+        const voiceFormData = new FormData();
+        voiceFormData.append("org_id", orgId);
+        voiceFormData.append("voice_note", recordedBlob, "voice-note.webm");
+        const uploadResult = await uploadVoiceNote(voiceFormData);
+        if (!uploadResult.ok) {
+          setError(uploadResult.error ?? "Failed to upload voice note. Please try again.");
+          return;
+        }
+        voiceNoteUrl = uploadResult.url ?? null;
+      }
+
       const result = await placeOrder({
         orgId,
         guestName: fullName,
@@ -85,7 +202,7 @@ export function CheckoutView({
         deliveryAddress: address,
         deliveryOption: allowSelectDelivery ? deliveryOption : null,
         deliveryFee: allowSelectDelivery ? deliveryFee : 0,
-        notes: allowNotes && notes.trim() ? notes.trim() : null,
+        notes: combinedNotes,voiceNoteUrl,
         locationId: allowLocationSelection ? selectedLocationId || null : null,
         items: cart.items.map((i) => ({
           productId: i.productId,
@@ -256,6 +373,73 @@ export function CheckoutView({
                   placeholder="Street name, landmark, digital address or building number"
                   className="w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-signal dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
                 />
+              </Field>
+
+              <Field label="Message / Comments (Optional)">
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={3}
+                  placeholder="Any message, comment, or feedback for us..."
+                  className="w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-signal dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
+                />
+              </Field>
+
+              <Field label="Voice Note (Optional)">
+                <div className="rounded-md border border-ledger-200 bg-ledger-50/40 p-3 dark:border-ledger-700 dark:bg-ink-800/40">
+                  {voiceError && (
+                    <p className="mb-2 text-[11px] font-medium text-alert">{voiceError}</p>
+                  )}
+
+                  {!recordedUrl ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={isRecording ? stopRecording : startRecording}
+                        className={cn(
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition",
+                          isRecording ? "bg-alert animate-pulse" : "bg-signal hover:bg-signal/90"
+                        )}
+                        title={isRecording ? "Stop recording" : "Record a voice note"}
+                      >
+                        {isRecording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
+                      </button>
+                      <span className="text-xs text-ledger-500 dark:text-ledger-400">
+                        {isRecording ? `Recording… ${formatSeconds(recordingSeconds)} (max 2:00)` : "Tap to record a message for us"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={togglePlayback}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-signal text-white hover:bg-signal/90"
+                        title={isPlayingBack ? "Pause" : "Play back your recording"}
+                      >
+                        {isPlayingBack ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                      </button>
+                      <audio
+                        ref={playbackAudioRef}
+                        src={recordedUrl}
+                        onPlay={() => setIsPlayingBack(true)}
+                        onPause={() => setIsPlayingBack(false)}
+                        onEnded={() => setIsPlayingBack(false)}
+                        className="hidden"
+                      />
+                      <span className="flex-1 text-xs text-ledger-600 dark:text-ledger-300">
+                        Voice note recorded ({formatSeconds(recordingSeconds)})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={discardRecording}
+                        title="Remove recording"
+                        className="text-ledger-400 hover:text-alert"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </Field>
 
               {allowSelectDelivery && (

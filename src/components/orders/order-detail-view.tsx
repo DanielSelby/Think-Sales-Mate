@@ -69,6 +69,7 @@ export interface OrderDetail {
   subtotal: number;
   total: number;
   notes: string | null;
+  voiceNoteUrl: string | null;
   adminNotes: string | null;
   rejectionReason: string | null;
   linkedSaleId: string | null;
@@ -321,6 +322,12 @@ export function OrderDetailView({
               <div className="mt-2 rounded bg-ledger-50 p-2.5 dark:bg-ink-800">
                 <p className="font-semibold text-ledger-700 dark:text-ledger-200">Customer Note:</p>
                 <p className="text-ledger-600 dark:text-ledger-300 italic">{order.notes}</p>
+              </div>
+            )}
+            {order.voiceNoteUrl && (
+              <div className="mt-2 rounded bg-ledger-50 p-2.5 dark:bg-ink-800">
+                <p className="mb-1 font-semibold text-ledger-700 dark:text-ledger-200">Voice Note:</p>
+                <audio controls src={order.voiceNoteUrl} className="h-8 w-full" />
               </div>
             )}
           </CardContent>

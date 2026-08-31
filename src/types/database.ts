@@ -1813,6 +1813,7 @@ export interface Database {
           org_id: string;
           order_number: string;
           customer_id: string | null;
+          voice_note_url: string | null;
           guest_name: string;
           guest_phone: string;
           guest_email: string | null;
@@ -1845,6 +1846,7 @@ export interface Database {
           org_id: string;
           order_number?: string;
           customer_id?: string | null;
+          voice_note_url: string | null;
           guest_name: string;
           guest_phone: string;
           guest_email?: string | null;
