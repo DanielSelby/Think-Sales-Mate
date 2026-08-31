@@ -196,6 +196,13 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
           <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">View and manage all sales transactions</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/sales/drafts"
+            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-ledger-200 px-4 text-sm font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
+          >
+            <Pencil className="h-4 w-4" />
+            Drafts &amp; Quotations
+          </Link>
           <Button variant="outline" size="md">
             <Download className="h-4 w-4" />
             Export

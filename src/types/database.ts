@@ -669,6 +669,7 @@ export interface Database {
           id: string;
           org_id: string;
           sale_number: number;
+          document_status?:"draft" | "quotation" | "proforma" | "final";
           customer_name: string | null;
           customer_id: string | null;
           location_id: string | null;
@@ -688,11 +689,13 @@ export interface Database {
           status_changed_by: string | null;
           status_changed_at: string;
           created_at: string;
+          
         };
         Insert: {
           id?: string;
           org_id: string;
           sale_number?: number;
+          document_status?:"draft" | "quotation" | "proforma" | "final";
           customer_name?: string | null;
           customer_id?: string | null;
           location_id?: string | null;
@@ -712,6 +715,7 @@ export interface Database {
           status_changed_by?: string | null;
           status_changed_at?: string;
           created_at?: string;
+          
         };
         Update: Partial<Database["public"]["Tables"]["sales"]["Row"]>;
         Relationships: [

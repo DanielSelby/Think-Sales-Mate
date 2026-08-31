@@ -26,6 +26,7 @@ export default async function SalesPage() {
         customer:customers ( phone )
       `)
       .eq("org_id", orgId)
+      .eq("document_status", "final")
       .order("sale_date", { ascending: false }),
     supabase.from("business_locations").select("name").eq("org_id", orgId).eq("is_active", true),
     supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", orgId).maybeSingle(),

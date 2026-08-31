@@ -79,6 +79,7 @@ export interface SaleStockLevel {
 export interface InitialSaleData {
   id: string;
   saleNumber: number;
+  documentStatus: "draft" | "quotation" | "proforma" | "final";
   customerId: string | null;
   customerName: string | null;
   locationId: string | null;
@@ -299,6 +300,7 @@ export function SaleForm({
     // Editing an existing sale takes priority over any locally-saved draft
     // — pre-fill from the DB record instead.
     if (initialSale) {
+      setDocStatus(initialSale.documentStatus);
       if (initialSale.customerId) setSelectedCustomerId(initialSale.customerId);
       else if (initialSale.customerName) setWalkInName(initialSale.customerName);
       setSaleDate(initialSale.saleDate);
@@ -320,31 +322,6 @@ export function SaleForm({
       return;
     }
 
-    try {
-      const raw = window.localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      if (draft.lines?.length) {
-        setLines(
-          draft.lines.map((l: Partial<LineItem>) => ({
-            key: l.key ?? crypto.randomUUID(),
-            productId: l.productId ?? "",
-            quantity: l.quantity ?? 1,
-            discountPercent: l.discountPercent ?? 0,
-            taxPercent: l.taxPercent ?? 0,
-          }))
-        );
-      }
-      if (draft.walkInName) setWalkInName(draft.walkInName);
-      if (draft.selectedCustomerId) setSelectedCustomerId(draft.selectedCustomerId);
-      if (draft.reference) setReference(draft.reference);
-      if (draft.note) {
-        setNote(draft.note);
-      }
-      if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
-    } catch {
-      // ignore malformed/missing draft
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -446,23 +423,85 @@ export function SaleForm({
     window.localStorage.removeItem(DRAFT_KEY);
   }
 
+  // Persists Draft/Quotation/Proforma to the DB — these show up on the
+  // Drafts list (/sales/drafts) instead of the main Sales list, and never
+  // touch inventory until later finalized into a real sale.
   function saveDraft() {
-    window.localStorage.setItem(
-      DRAFT_KEY,
-      JSON.stringify({ lines, walkInName, selectedCustomerId, reference, note, paymentMethod })
-    );
-    setError(null);
-  }
-
-  // Maps the Status dropdown onto the two real save paths: Draft /
-  // Quotation / Proforma all go through the existing localStorage draft;
-  // Final routes through the same handleConfirm() "Complete Sale" uses.
-  function handleSaveByStatus() {
-    if (docStatus === "final") {
-      handleConfirm();
+    if (docStatus !== "draft" && docStatus !== "quotation" && docStatus !== "proforma") {
+      setError("Select Draft, Quotation, or Proforma under Status before saving.");
       return;
     }
-    saveDraft();
+    if (lines.filter((l) => l.productId).length === 0 && !selectedCustomer && !walkInName) {
+      setError("Add at least a customer or a product before saving.");
+      return;
+    }
+    setError(null);
+
+    startTransition(async () => {
+      if (editingSaleId) {
+        const result = await updateSale({
+          saleId: editingSaleId,
+          documentStatus: docStatus,
+          subtotal,
+          total,
+          customerId: selectedCustomerId,
+          customerName: selectedCustomer?.name ?? walkInName,
+          locationId: locationId || null,
+          reference,
+          saleDate,
+          paymentMethod,
+          amountPaid,
+          shippingAmount,
+          discountAmount: discountTotal + additionalDiscountAmount,
+          taxAmount: taxTotal + additionalTaxAmount,
+          items: lines
+            .filter((l) => l.productId)
+            .map((l) => {
+              const product = productById.get(l.productId);
+              const unitPrice = product?.unitPrice ?? 0;
+              const gross = unitPrice * l.quantity;
+              const disc = gross * (l.discountPercent / 100);
+              const lineTotal = gross - disc + (gross - disc) * (l.taxPercent / 100);
+              return { productId: l.productId, quantity: l.quantity, unitPrice, discountPercent: l.discountPercent, taxPercent: l.taxPercent, lineTotal };
+            }),
+        });
+        if (!result.ok) {
+          setError(result.error ?? "Something went wrong.");
+          return;
+        }
+        router.push("/sales/drafts");
+        return;
+      }
+
+      const result = await recordSale({
+        orgId,
+        documentStatus: docStatus,
+        subtotal,
+        total,
+        customerId: selectedCustomerId,
+        customerName: selectedCustomer?.name ?? walkInName,
+        locationId: locationId || null,
+        reference,
+        saleDate,
+        paymentMethod,
+        amountPaid,
+        shippingAmount,
+        discountAmount: discountTotal + additionalDiscountAmount,
+        taxAmount: taxTotal + additionalTaxAmount,
+        notes: note,
+        items: lines.filter((l) => l.productId).map((l) => ({
+          productId: l.productId,
+          quantity: l.quantity,
+          discountPercent: l.discountPercent,
+          taxPercent: l.taxPercent
+        }))
+      });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      router.push("/sales/drafts");
+    });
   }
 
   function validate(): string | null {
@@ -507,6 +546,11 @@ export function SaleForm({
   function handleConfirm(amountPaidOverride?: number) {
     const paidAmount = amountPaidOverride ?? amountPaid;
 
+    if (docStatus !== "final") {
+      setError("Set Status to Final before completing the sale — use Save as Draft for Draft/Quotation/Proforma.");
+      return;
+    }
+
     const validationError = validate();
     if (validationError) {
       setError(validationError);
@@ -524,6 +568,7 @@ export function SaleForm({
       if (editingSaleId) {
         const result = await updateSale({
           saleId: editingSaleId,
+          documentStatus: "final",
           subtotal,
           total,
           customerId: selectedCustomerId,
@@ -560,7 +605,6 @@ export function SaleForm({
           return;
         }
 
-        window.localStorage.removeItem(DRAFT_KEY);
         if (printReceipt && initialSale) await printSaleReceipt(editingSaleId, initialSale.saleNumber, paidAmount);
         router.push(`/sales/${editingSaleId}`);
         return;
@@ -568,6 +612,7 @@ export function SaleForm({
 
       const result = await recordSale({
         orgId,
+        documentStatus: "final",
         subtotal,
         total,
         customerId: selectedCustomerId,
@@ -594,7 +639,6 @@ export function SaleForm({
         return;
       }
 
-      window.localStorage.removeItem(DRAFT_KEY);
       if (printReceipt && result.saleId && result.saleNumber) {
         await printSaleReceipt(result.saleId, result.saleNumber, paidAmount);
       }
@@ -1387,15 +1431,17 @@ export function SaleForm({
             Cancel
           </Button>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={saveDraft}>
-              Save as Draft
-            </Button>
-            <Button type="button" variant="outline" disabled={isPending} onClick={handleSaveByStatus}>
-              {isPending ? "Saving…" : "Save Sale"}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending || (docStatus !== "draft" && docStatus !== "quotation" && docStatus !== "proforma")}
+              onClick={saveDraft}
+            >
+              {isPending ? "Saving…" : "Save as Draft"}
             </Button>
             <Button
               type="button"
-              disabled={isPending}
+              disabled={isPending || docStatus !== "final"}
               onClick={() => handleConfirm()}
               className="text-white transition-colors"
               style={{ background: theme.colors.primary }}

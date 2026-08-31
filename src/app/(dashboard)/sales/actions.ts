@@ -218,6 +218,7 @@ export async function updateSaleStatus({
 // ---------------------------------------------------------------------------
 export interface RecordSaleInput {
   orgId:           string;
+  documentStatus?: "draft" | "quotation" | "proforma" | "final";
   customerId?:     string | null;
   customerName?:   string | null;
   locationId?:     string | null;
@@ -276,6 +277,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         location_id:     input.locationId ?? null,
         reference:       input.reference ?? null,
         sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
+        document_status: input.documentStatus ?? "final",
         subtotal:        input.subtotal,
         discount_amount: input.discountAmount ?? 0,
         tax_amount:      input.taxAmount ?? 0,
@@ -319,11 +321,15 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
       if (itemsError) throw new Error(itemsError.message);
     }
 
-    for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
-      await (supabase as any).rpc("adjust_product_stock", {
-        p_product_id: l.productId,
-        p_delta:      -l.quantity,
-      });
+    // Only a "final" document is a real sale — drafts, quotations, and
+    // proformas must not touch inventory until they're actually finalized.
+    if ((input.documentStatus ?? "final") === "final") {
+      for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
+        await (supabase as any).rpc("adjust_product_stock", {
+          p_product_id: l.productId,
+          p_delta:      -l.quantity,
+        });
+      }
     }
 
     revalidatePath("/sales");
@@ -343,6 +349,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
 export interface SaleEditData {
   id:            string;
   saleNumber:    number;
+  documentStatus: "draft" | "quotation" | "proforma" | "final";
   customerId:    string | null;
   customerName:  string | null;
   locationId:    string | null;
@@ -361,7 +368,7 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
 
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, sale_number, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
+    .select("id, sale_number, document_status, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
     .eq("id", saleId)
     .single();
   if (!sale) return null;
@@ -374,6 +381,7 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
   return {
     id: sale.id,
     saleNumber: sale.sale_number,
+    documentStatus: sale.document_status ?? "final",
     customerId: sale.customer_id,
     customerName: sale.customer_name,
     locationId: sale.location_id,
@@ -396,6 +404,7 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
 
 export interface UpdateSaleInput {
   saleId:          string;
+  documentStatus?: "draft" | "quotation" | "proforma" | "final";
   customerId?:     string | null;
   customerName?:   string | null;
   locationId?:     string | null;
@@ -423,12 +432,20 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   const admin = createAdminClient();
 
   try {
-    const { data: existingSale } = await supabase.from("sales").select("org_id").eq("id", input.saleId).single();
+    const { data: existingSale } = await supabase.from("sales").select("org_id, document_status").eq("id", input.saleId).single();
     if (!existingSale) throw new Error("Sale not found.");
 
+    const wasFinal = existingSale.document_status === "final";
+    const nextDocumentStatus = input.documentStatus ?? existingSale.document_status;
+    const willBeFinal = nextDocumentStatus === "final";
+
     const { data: existingItems } = await supabase.from("sale_items").select("product_id, quantity").eq("sale_id", input.saleId);
-    for (const item of existingItems ?? []) {
-      await (supabase as any).rpc("adjust_product_stock", { p_product_id: item.product_id, p_delta: item.quantity });
+    // Only reverse stock if this sale had actually deducted it before —
+    // a draft/quotation never touched inventory in the first place.
+    if (wasFinal) {
+      for (const item of existingItems ?? []) {
+        await (supabase as any).rpc("adjust_product_stock", { p_product_id: item.product_id, p_delta: item.quantity });
+      }
     }
 
     const { error: deleteError, count: deletedCount } = await admin
@@ -456,6 +473,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
         tax_amount:      input.taxAmount ?? 0,
         shipping_amount: input.shippingAmount ?? 0,
         total:           input.total,
+        document_status: nextDocumentStatus,
         payment_method:  input.paymentMethod ?? null,
         amount_paid:     input.amountPaid ?? null,
       })
@@ -477,8 +495,13 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
       if (itemsError) throw new Error(itemsError.message);
     }
 
-    for (const l of input.items) {
-      await (supabase as any).rpc("adjust_product_stock", { p_product_id: l.productId, p_delta: -l.quantity });
+    // Only deduct stock if the sale is (or is becoming) final — this is
+    // what makes finalizing a draft actually reserve inventory, exactly
+    // once, at the moment it's finalized.
+    if (willBeFinal) {
+      for (const l of input.items) {
+        await (supabase as any).rpc("adjust_product_stock", { p_product_id: l.productId, p_delta: -l.quantity });
+      }
     }
 
     revalidatePath("/sales");
@@ -488,6 +511,60 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Drafts / Quotations / Proformas list
+// ---------------------------------------------------------------------------
+export interface DraftSaleRow {
+  id: string;
+  saleNumber: number;
+  documentStatus: "draft" | "quotation" | "proforma";
+  customerName: string;
+  saleDate: string;
+  total: number;
+  createdAt: string;
+}
+
+export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("sales")
+    .select("id, sale_number, document_status, customer_name, sale_date, total, created_at")
+    .eq("org_id", orgId)
+    .in("document_status", ["draft", "quotation", "proforma"])
+    .order("created_at", { ascending: false });
+
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    saleNumber: s.sale_number,
+    documentStatus: s.document_status as "draft" | "quotation" | "proforma",
+    customerName: s.customer_name ?? "Walk-in Customer",
+    saleDate: s.sale_date,
+    total: s.total,
+    createdAt: s.created_at,
+  }));
+}
+
+export async function deleteDraftSale(saleId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  // Only ever deletes rows still in a non-final state — a safety check
+  // against accidentally deleting a real, finalized sale from this screen.
+  const { data: sale } = await supabase.from("sales").select("document_status").eq("id", saleId).single();
+  if (!sale) return { ok: false, error: "Not found." };
+  if (sale.document_status === "final") return { ok: false, error: "This is a finalized sale — it can't be deleted from here." };
+
+  const { error: itemsError } = await supabase.from("sale_items").delete().eq("sale_id", saleId);
+  if (itemsError) return { ok: false, error: itemsError.message };
+
+  const { error } = await supabase.from("sales").delete().eq("id", saleId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/sales/drafts");
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
