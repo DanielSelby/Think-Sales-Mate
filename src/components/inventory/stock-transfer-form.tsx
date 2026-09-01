@@ -1859,7 +1859,7 @@ export function StockTransferForm({
 
                         <Button
                           size="sm"
-                          variant={isAdded ? "outline" : "default"}
+                          variant={isAdded ? "outline" : "primary"}
                           onClick={() => handleAddProduct(p)}
                           className={`rounded-xl text-xs ${
                             isAdded ? "" : "bg-emerald-700 text-white hover:bg-emerald-800"
