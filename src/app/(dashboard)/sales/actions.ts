@@ -329,7 +329,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         const { data: primaryLoc } = await supabase
           .from("business_locations")
           .select("id")
-          .eq("org_id", context.orgId)
+          .eq("org_id", input.orgId)
           .eq("is_primary", true)
           .maybeSingle();
         targetLocationId = primaryLoc?.id ?? null;
@@ -339,7 +339,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
           await supabase.rpc("adjust_product_stock_at_location", {
             p_product_id: l.productId,
             p_location_id: targetLocationId,
-            p_org_id: context.orgId,
+            p_org_id: input.orgId,
             p_delta: -l.quantity,
           });
         }
