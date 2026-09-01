@@ -144,6 +144,7 @@ export default async function StockTransferHistoryPage() {
       locations={locations}
       products={products}
       canManage={can(context.role, "inventory.manage")}
+      currency={context.currency || "GHS"}
     />
   );
 }
