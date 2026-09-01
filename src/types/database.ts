@@ -559,6 +559,29 @@ export interface Database {
         Relationships: [];
       };
 
+      generated_reports: {
+        Row: {
+          id: string;
+          org_id: string;
+          report_name: string;
+          report_type: string;
+          format: "pdf" | "excel" | "csv";
+          generated_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          report_name: string;
+          report_type: string;
+          format: "pdf" | "excel" | "csv";
+          generated_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["generated_reports"]["Row"]>;
+        Relationships: [];
+      };
+
       audit_logs: {
         Row: {
           id: string;
