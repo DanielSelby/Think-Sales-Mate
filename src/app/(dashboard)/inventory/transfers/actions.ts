@@ -59,6 +59,36 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
 
   const availableByProduct = new Map((levels ?? []).map((l) => [l.product_id, l]));
 
+  // Self-heal: If any products are missing product_stock_levels rows at the source location
+  // but have org-wide stock associated with this branch, seed them now.
+  const missingProductIds = items.filter((i) => !availableByProduct.has(i.productId)).map((i) => i.productId);
+  if (missingProductIds.length > 0) {
+    const { data: missingProducts } = await supabase
+      .from("products")
+      .select("id, name, location_id, stock_quantity, cost_price, unit_price")
+      .in("id", missingProductIds);
+
+    for (const prod of missingProducts ?? []) {
+      const seedQty = (prod.location_id === payload.fromLocationId || !prod.location_id) ? (prod.stock_quantity ?? 0) : 0;
+      if (seedQty > 0) {
+        await supabase.from("product_stock_levels").upsert(
+          {
+            org_id: context.orgId,
+            product_id: prod.id,
+            location_id: payload.fromLocationId,
+            quantity: seedQty,
+          },
+          { onConflict: "product_id,location_id", ignoreDuplicates: true }
+        );
+        availableByProduct.set(prod.id, {
+          product_id: prod.id,
+          quantity: seedQty,
+          products: prod,
+        } as any);
+      }
+    }
+  }
+
   for (const item of items) {
     const level = availableByProduct.get(item.productId);
     const available = level?.quantity ?? 0;

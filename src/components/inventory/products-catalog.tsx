@@ -34,6 +34,12 @@ import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { formatMoney } from "@/lib/currency";
 import { deleteProduct, toggleProductActive, duplicateProduct, bulkImportProducts } from "@/app/(dashboard)/inventory/actions";
 
+export interface CatalogProductStockLevel {
+  locationId: string;
+  locationName: string;
+  quantity: number;
+}
+
 export interface CatalogProduct {
   id: string;
   sku: string;
@@ -51,6 +57,7 @@ export interface CatalogProduct {
   lowStockThreshold: number;
   isActive: boolean;
   imageUrl?: string | null;
+  stockLevels?: CatalogProductStockLevel[];
 }
 
 export interface CatalogLocation {
@@ -70,10 +77,29 @@ type SortKey = "name-asc" | "name-desc" | "stock-desc" | "stock-asc" | "price-de
 const PAGE_SIZE = 8;
 const CATEGORY_COLORS = ["#2563eb", "#16a34a", "#7c3aed", "#d97706", "#0d9488", "#94a3b8"];
 
+export function getProductStockForWarehouse(p: CatalogProduct, warehouseId: string = "all"): number {
+  if (warehouseId === "all") {
+    return p.stockQuantity;
+  }
+  if (p.stockLevels && p.stockLevels.length > 0) {
+    const found = p.stockLevels.find((sl) => sl.locationId === warehouseId);
+    return found ? found.quantity : 0;
+  }
+  return p.locationId === warehouseId ? p.stockQuantity : 0;
+}
 
-function getStatus(p: CatalogProduct): StockStatus {
-  if (p.stockQuantity <= 0) return "out";
-  if (p.stockQuantity <= p.lowStockThreshold) return "low";
+export function isProductInWarehouse(p: CatalogProduct, warehouseId: string = "all"): boolean {
+  if (warehouseId === "all") return true;
+  if (p.stockLevels && p.stockLevels.length > 0) {
+    return p.stockLevels.some((sl) => sl.locationId === warehouseId && sl.quantity > 0) || p.locationId === warehouseId;
+  }
+  return p.locationId === warehouseId;
+}
+
+function getStatus(p: CatalogProduct, warehouseId: string = "all"): StockStatus {
+  const qty = getProductStockForWarehouse(p, warehouseId);
+  if (qty <= 0) return "out";
+  if (qty <= p.lowStockThreshold) return "low";
   return "in";
 }
 
@@ -152,8 +178,8 @@ export function ProductsCatalog({
       if (category !== "all" && p.category !== category) return false;
       if (brand !== "all" && p.brand !== brand) return false;
       if (supplier !== "all" && p.supplier !== supplier) return false;
-      if (warehouse !== "all" && p.locationId !== warehouse) return false;
-      if (stockStatus !== "all" && getStatus(p) !== stockStatus) return false;
+      if (warehouse !== "all" && !isProductInWarehouse(p, warehouse)) return false;
+      if (stockStatus !== "all" && getStatus(p, warehouse) !== stockStatus) return false;
       if (minPrice && p.unitPrice < Number(minPrice)) return false;
       if (maxPrice && p.unitPrice > Number(maxPrice)) return false;
       return true;
@@ -164,9 +190,11 @@ export function ProductsCatalog({
   const totalProducts = filtered.length;
   const activeProducts = filtered.filter((p) => p.isActive).length;
   const activePct = totalProducts > 0 ? Math.round((activeProducts / totalProducts) * 100) : 0;
-  const lowStockCount = filtered.filter((p) => p.isActive && getStatus(p) === "low").length;
-  const outOfStockCount = filtered.filter((p) => p.isActive && getStatus(p) === "out").length;
-  const inventoryValue = filtered.filter((p) => p.isActive).reduce((sum, p) => sum + p.unitPrice * p.stockQuantity, 0);
+  const lowStockCount = filtered.filter((p) => p.isActive && getStatus(p, warehouse) === "low").length;
+  const outOfStockCount = filtered.filter((p) => p.isActive && getStatus(p, warehouse) === "out").length;
+  const inventoryValue = filtered
+    .filter((p) => p.isActive)
+    .reduce((sum, p) => sum + p.unitPrice * getProductStockForWarehouse(p, warehouse), 0);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -174,9 +202,9 @@ export function ProductsCatalog({
       case "name-desc":
         return arr.sort((a, b) => b.name.localeCompare(a.name));
       case "stock-desc":
-        return arr.sort((a, b) => b.stockQuantity - a.stockQuantity);
+        return arr.sort((a, b) => getProductStockForWarehouse(b, warehouse) - getProductStockForWarehouse(a, warehouse));
       case "stock-asc":
-        return arr.sort((a, b) => a.stockQuantity - b.stockQuantity);
+        return arr.sort((a, b) => getProductStockForWarehouse(a, warehouse) - getProductStockForWarehouse(b, warehouse));
       case "price-desc":
         return arr.sort((a, b) => b.unitPrice - a.unitPrice);
       case "price-asc":
@@ -699,8 +727,9 @@ export function ProductsCatalog({
             </thead>
             <tbody>
               {pageItems.map((p) => {
-                const status = getStatus(p);
-                const stockPct = p.lowStockThreshold > 0 ? Math.min(100, (p.stockQuantity / (p.lowStockThreshold * 3)) * 100) : 100;
+                const currentStock = getProductStockForWarehouse(p, warehouse);
+                const status = getStatus(p, warehouse);
+                const stockPct = p.lowStockThreshold > 0 ? Math.min(100, (currentStock / (p.lowStockThreshold * 3)) * 100) : 100;
                 return (
                   <tr key={p.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
                     <td className="px-4 py-3">
@@ -741,7 +770,7 @@ export function ProductsCatalog({
                         <span
                           className={`font-semibold ${status === "out" ? "text-alert" : status === "low" ? "text-amber" : "text-signal"}`}
                         >
-                          {p.stockQuantity}
+                          {currentStock}
                         </span>
                         <div className="mt-1 h-1 w-16 overflow-hidden rounded-full bg-ledger-100 dark:bg-white/[0.06]">
                           <div
@@ -751,7 +780,22 @@ export function ProductsCatalog({
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-3 text-ledger-500 dark:text-ledger-400">{p.locationName ?? "—"}</td>
+                    <td className="px-2 py-3 text-ledger-500 dark:text-ledger-400">
+                      {warehouse !== "all" ? (
+                        <span>{locations.find((l) => l.id === warehouse)?.name ?? p.locationName ?? "—"}</span>
+                      ) : p.stockLevels && p.stockLevels.filter((sl) => sl.quantity > 0).length > 1 ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                          title={p.stockLevels.filter((sl) => sl.quantity > 0).map((sl) => `${sl.locationName}: ${sl.quantity}`).join(" | ")}
+                        >
+                          Multiple ({p.stockLevels.filter((sl) => sl.quantity > 0).length})
+                        </span>
+                      ) : p.stockLevels && p.stockLevels.filter((sl) => sl.quantity > 0).length === 1 ? (
+                        <span>{p.stockLevels.find((sl) => sl.quantity > 0)?.locationName ?? p.locationName ?? "—"}</span>
+                      ) : (
+                        <span>{p.locationName ?? "—"}</span>
+                      )}
+                    </td>
                     <td className="px-2 py-3 text-ledger-500 dark:text-ledger-400">{p.supplier ?? "—"}</td>
                     <td className="px-2 py-3">
                       {!p.isActive ? (
@@ -826,7 +870,8 @@ export function ProductsCatalog({
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {pageItems.map((p) => {
-            const status = getStatus(p);
+            const currentStock = getProductStockForWarehouse(p, warehouse);
+            const status = getStatus(p, warehouse);
             return (
               <div key={p.id} className="group rounded-card border border-ledger-100 bg-white p-4 shadow-card transition-all hover:shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                 <div className="flex items-start justify-between">
@@ -852,7 +897,7 @@ export function ProductsCatalog({
                   <span
                     className={`text-xs font-semibold ${status === "out" ? "text-alert" : status === "low" ? "text-amber" : "text-signal"}`}
                   >
-                    {p.stockQuantity} in stock
+                    {currentStock} in stock
                   </span>
                 </div>
               </div>

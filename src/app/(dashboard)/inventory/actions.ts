@@ -110,14 +110,45 @@ export async function createProduct(formData: FormData): Promise<void> {
 
   const supabase = await createClient();
   const sku = await generateSku(supabase, context.orgId, context.orgName);
-  const { error } = await supabase.from("products").insert({
-    org_id: context.orgId,
-    sku,
-    ...fields
-  });
 
-  if (error) {
-    redirectWithError("/inventory/new", error.message);
+  // Resolve target location (user selected location, or org primary location)
+  let targetLocationId = fields.location_id;
+  if (!targetLocationId) {
+    const { data: primaryLoc } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("is_primary", true)
+      .maybeSingle();
+    targetLocationId = primaryLoc?.id ?? null;
+  }
+
+  const { data: createdProduct, error } = await supabase
+    .from("products")
+    .insert({
+      org_id: context.orgId,
+      sku,
+      ...fields,
+      location_id: targetLocationId ?? fields.location_id,
+    })
+    .select("id, stock_quantity")
+    .single();
+
+  if (error || !createdProduct) {
+    redirectWithError("/inventory/new", error?.message ?? "Failed to save product.");
+  }
+
+  // Seed product_stock_levels so location-aware inventory and transfers recognize the initial stock
+  if (createdProduct.stock_quantity > 0 && targetLocationId) {
+    await supabase.from("product_stock_levels").upsert(
+      {
+        org_id: context.orgId,
+        product_id: createdProduct.id,
+        location_id: targetLocationId,
+        quantity: createdProduct.stock_quantity,
+      },
+      { onConflict: "product_id,location_id" }
+    );
   }
 
   revalidatePath("/inventory");
@@ -276,6 +307,14 @@ export async function bulkImportProducts(rows: BulkImportRow[]): Promise<BulkImp
   }
 
   const supabase = await createClient();
+  const { data: primaryLoc } = await supabase
+    .from("business_locations")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const primaryLocationId = primaryLoc?.id;
+
   const skipped: { row: number; reason: string }[] = [];
   let imported = 0;
 
@@ -286,23 +325,39 @@ export async function bulkImportProducts(rows: BulkImportRow[]): Promise<BulkImp
       continue;
     }
 
-    const { error } = await supabase.from("products").insert({
-      org_id: context.orgId,
-      name: row.name,
-      sku: row.sku,
-      unit_price: row.unitPrice,
-      cost_price: row.costPrice ?? null,
-      stock_quantity: row.stockQuantity ?? 0,
-      category: row.category || null,
-      brand: row.brand || null,
-      supplier: row.supplier || null,
-      barcode: row.barcode || null
-    });
+    const { data: createdProd, error } = await supabase
+      .from("products")
+      .insert({
+        org_id: context.orgId,
+        name: row.name,
+        sku: row.sku,
+        unit_price: row.unitPrice,
+        cost_price: row.costPrice ?? null,
+        stock_quantity: row.stockQuantity ?? 0,
+        location_id: primaryLocationId ?? null,
+        category: row.category || null,
+        brand: row.brand || null,
+        supplier: row.supplier || null,
+        barcode: row.barcode || null,
+      })
+      .select("id, stock_quantity")
+      .single();
 
-    if (error) {
-      skipped.push({ row: i + 1, reason: error.code === "23505" ? `SKU "${row.sku}" already exists` : error.message });
+    if (error || !createdProd) {
+      skipped.push({ row: i + 1, reason: error?.code === "23505" ? `SKU "${row.sku}" already exists` : error?.message ?? "Error" });
     } else {
       imported++;
+      if (createdProd.stock_quantity > 0 && primaryLocationId) {
+        await supabase.from("product_stock_levels").upsert(
+          {
+            org_id: context.orgId,
+            product_id: createdProd.id,
+            location_id: primaryLocationId,
+            quantity: createdProd.stock_quantity,
+          },
+          { onConflict: "product_id,location_id" }
+        );
+      }
     }
   }
 

@@ -19,7 +19,7 @@ export default async function InventoryPage() {
 
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: productRows }, { data: locationRows }, { data: recentItemRows }] = await Promise.all([
+  const [{ data: productRows }, { data: locationRows }, { data: stockLevelRows }, { data: recentItemRows }] = await Promise.all([
     supabase
       .from("products")
       .select(
@@ -29,14 +29,34 @@ export default async function InventoryPage() {
       .order("name"),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     supabase
+      .from("product_stock_levels")
+      .select("product_id, location_id, quantity, business_locations(name)")
+      .eq("org_id", context.orgId),
+    supabase
       .from("sale_items")
       .select("product_id, quantity, products(name)")
       .eq("org_id", context.orgId)
       .gte("created_at", since30d)
   ]);
 
+  const stockLevelsByProduct = new Map<string, { locationId: string; locationName: string; quantity: number }[]>();
+  for (const sl of stockLevelRows ?? []) {
+    const loc = Array.isArray(sl.business_locations) ? sl.business_locations[0] : sl.business_locations;
+    const list = stockLevelsByProduct.get(sl.product_id) ?? [];
+    list.push({
+      locationId: sl.location_id,
+      locationName: loc?.name ?? "Warehouse",
+      quantity: sl.quantity,
+    });
+    stockLevelsByProduct.set(sl.product_id, list);
+  }
+
   const products: CatalogProduct[] = (productRows ?? []).map((p) => {
     const location = Array.isArray(p.business_locations) ? p.business_locations[0] : p.business_locations;
+    const stockLevels = stockLevelsByProduct.get(p.id) ?? [];
+    const totalLevelStock = stockLevels.reduce((sum, sl) => sum + sl.quantity, 0);
+    const effectiveStock = stockLevels.length > 0 ? totalLevelStock : p.stock_quantity;
+
     return {
       id: p.id,
       sku: p.sku,
@@ -50,10 +70,11 @@ export default async function InventoryPage() {
       locationName: location?.name ?? null,
       unitPrice: p.unit_price,
       costPrice: p.cost_price,
-      stockQuantity: p.stock_quantity,
+      stockQuantity: effectiveStock,
       lowStockThreshold: p.low_stock_threshold,
       isActive: p.is_active,
-      imageUrl: p.image_urls?.[0] ?? null
+      imageUrl: p.image_urls?.[0] ?? null,
+      stockLevels,
     };
   });
 

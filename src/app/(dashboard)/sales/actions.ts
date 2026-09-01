@@ -324,11 +324,25 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
     // Only a "final" document is a real sale — drafts, quotations, and
     // proformas must not touch inventory until they're actually finalized.
     if ((input.documentStatus ?? "final") === "final") {
-      for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
-        await (supabase as any).rpc("adjust_product_stock", {
-          p_product_id: l.productId,
-          p_delta:      -l.quantity,
-        });
+      let targetLocationId = input.locationId;
+      if (!targetLocationId) {
+        const { data: primaryLoc } = await supabase
+          .from("business_locations")
+          .select("id")
+          .eq("org_id", context.orgId)
+          .eq("is_primary", true)
+          .maybeSingle();
+        targetLocationId = primaryLoc?.id ?? null;
+      }
+      if (targetLocationId) {
+        for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
+          await supabase.rpc("adjust_product_stock_at_location", {
+            p_product_id: l.productId,
+            p_location_id: targetLocationId,
+            p_org_id: context.orgId,
+            p_delta: -l.quantity,
+          });
+        }
       }
     }
 
@@ -432,7 +446,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   const admin = createAdminClient();
 
   try {
-    const { data: existingSale } = await supabase.from("sales").select("org_id, document_status").eq("id", input.saleId).single();
+    const { data: existingSale } = await supabase.from("sales").select("org_id, location_id, document_status").eq("id", input.saleId).single();
     if (!existingSale) throw new Error("Sale not found.");
 
     const wasFinal = existingSale.document_status === "final";
@@ -442,9 +456,14 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
     const { data: existingItems } = await supabase.from("sale_items").select("product_id, quantity").eq("sale_id", input.saleId);
     // Only reverse stock if this sale had actually deducted it before —
     // a draft/quotation never touched inventory in the first place.
-    if (wasFinal) {
+    if (wasFinal && existingSale.location_id) {
       for (const item of existingItems ?? []) {
-        await (supabase as any).rpc("adjust_product_stock", { p_product_id: item.product_id, p_delta: item.quantity });
+        await supabase.rpc("adjust_product_stock_at_location", {
+          p_product_id: item.product_id,
+          p_location_id: existingSale.location_id,
+          p_org_id: existingSale.org_id,
+          p_delta: item.quantity,
+        });
       }
     }
 
@@ -499,8 +518,16 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
     // what makes finalizing a draft actually reserve inventory, exactly
     // once, at the moment it's finalized.
     if (willBeFinal) {
-      for (const l of input.items) {
-        await (supabase as any).rpc("adjust_product_stock", { p_product_id: l.productId, p_delta: -l.quantity });
+      const targetLocationId = input.locationId ?? existingSale.location_id;
+      if (targetLocationId) {
+        for (const l of input.items) {
+          await supabase.rpc("adjust_product_stock_at_location", {
+            p_product_id: l.productId,
+            p_location_id: targetLocationId,
+            p_org_id: existingSale.org_id,
+            p_delta: -l.quantity,
+          });
+        }
       }
     }
 

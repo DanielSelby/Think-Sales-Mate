@@ -129,8 +129,8 @@ export function ProductTabViews({
             </h3>
             <div className="mt-4 divide-y divide-ledger-100 text-xs dark:divide-ledger-700/50">
               <div className="flex justify-between py-2.5">
-                <span className="text-ledger-400">Product Model / Variant</span>
-                <span className="font-semibold text-ink-900 dark:text-white">{product.name} (128GB)</span>
+                <span className="text-ledger-400">Product Name</span>
+                <span className="font-semibold text-ink-900 dark:text-white">{product.name}</span>
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">SKU Code</span>
@@ -138,15 +138,15 @@ export function ProductTabViews({
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Barcode / EAN</span>
-                <span className="font-mono font-semibold text-ink-900 dark:text-white">{product.barcode || "8806094721234"}</span>
+                <span className="font-mono font-semibold text-ink-900 dark:text-white">{product.barcode || "—"}</span>
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Product Category</span>
-                <span className="font-semibold text-ink-900 dark:text-white">{product.category || "Smartphones"}</span>
+                <span className="font-semibold text-ink-900 dark:text-white">{product.category || "General"}</span>
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Brand / Manufacturer</span>
-                <span className="font-semibold text-ink-900 dark:text-white">{product.brand || "Samsung"}</span>
+                <span className="font-semibold text-ink-900 dark:text-white">{product.brand || "—"}</span>
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Unit of Measurement</span>
@@ -154,7 +154,9 @@ export function ProductTabViews({
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Warranty Duration</span>
-                <span className="font-semibold text-ink-900 dark:text-white">24 Months Official Warranty</span>
+                <span className="font-semibold text-ink-900 dark:text-white">
+                  {product.warrantyMonths ? `${product.warrantyMonths} Months Warranty` : "Standard Policy"}
+                </span>
               </div>
             </div>
           </div>
@@ -168,11 +170,7 @@ export function ProductTabViews({
             <div className="mt-4 divide-y divide-ledger-100 text-xs dark:divide-ledger-700/50">
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Primary Supplier</span>
-                <span className="font-semibold text-ink-900 dark:text-white">Samsung Electronics Ghana Ltd</span>
-              </div>
-              <div className="flex justify-between py-2.5">
-                <span className="text-ledger-400">Average Lead Time</span>
-                <span className="font-semibold text-ink-900 dark:text-white">3 - 5 Business Days</span>
+                <span className="font-semibold text-ink-900 dark:text-white">{product.supplier || "Not assigned"}</span>
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Reorder Threshold</span>
@@ -184,11 +182,13 @@ export function ProductTabViews({
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="text-ledger-400">Tax / VAT Rate</span>
-                <span className="font-semibold text-ink-900 dark:text-white">{product.taxRate || 0}% Standard</span>
+                <span className="font-semibold text-ink-900 dark:text-white">{product.taxRate || 0}%</span>
               </div>
               <div className="flex justify-between py-2.5">
-                <span className="text-ledger-400">Batch / Serial Tracking</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Enabled (Individual Serialized)</span>
+                <span className="text-ledger-400">Stock Status</span>
+                <span className={`font-semibold ${product.stockQuantity > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600"}`}>
+                  {product.stockQuantity > 0 ? `In Stock (${product.stockQuantity})` : "Out of Stock"}
+                </span>
               </div>
             </div>
 

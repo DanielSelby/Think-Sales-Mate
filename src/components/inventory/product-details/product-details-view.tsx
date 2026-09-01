@@ -851,9 +851,20 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                                   </span>
                                 )}
                                 {isTransfer && (
-                                  <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-                                    Stock Transfer
-                                  </span>
+                                  <div>
+                                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                      m.type === "Stock Transfer In"
+                                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                                        : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                                    }`}>
+                                      {m.type === "Stock Transfer In" ? "Transfer In" : "Transfer Out"}
+                                    </span>
+                                    {m.subTypeNote && (
+                                      <span className="block text-[10px] text-ledger-400">
+                                        {m.subTypeNote}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                                 {isAdjustment && (
                                   <div>
