@@ -803,7 +803,7 @@ export function UserManagement({
             </Button>
             <Button
               type="button"
-              variant={showMoreFilters ? "default" : "outline"}
+              variant={showMoreFilters ? "secondary" : "outline"}
               size="sm"
               onClick={() => setShowMoreFilters(!showMoreFilters)}
               className="h-9 flex-1 text-xs font-semibold"
