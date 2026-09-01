@@ -1,0 +1,11 @@
+export { UserManagement } from "../user-management";
+export * from "./types";
+export * from "./constants";
+export { UsersTab } from "./tabs/users-tab";
+export { RolesTab } from "./tabs/roles-tab";
+export { PermissionsTab } from "./tabs/permissions-tab";
+export { AccessMatrixTab } from "./tabs/access-matrix-tab";
+export { ApprovalMatrixTab } from "./tabs/approval-matrix-tab";
+export { BranchAccessTab } from "./tabs/branch-access-tab";
+export { AuditLogsTab } from "./tabs/audit-logs-tab";
+export { LoginSessionsTab } from "./tabs/login-sessions-tab";

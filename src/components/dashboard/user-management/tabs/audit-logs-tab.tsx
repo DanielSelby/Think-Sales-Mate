@@ -16,10 +16,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  History
+  History,
+  FileText,
+  Trash2,
+  Share2,
+  Eye,
+  Activity,
+  ArrowRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ActivityDiffModal } from "../modals/activity-diff-modal";
 import type { AuditLogEntry, UserBranch } from "../types";
 
 interface AuditLogsTabProps {
@@ -33,7 +40,16 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [selectedLogForDiff, setSelectedLogForDiff] = useState<AuditLogEntry | null>(null);
   const pageSize = 10;
+
+  // 6 Activity Dashboard KPIs
+  const totalActivitiesToday = logs.length;
+  const activeUsersToday = new Set(logs.map((l) => l.userId)).size;
+  const failedLogins = logs.filter((l) => l.action.toLowerCase().includes("failed login") || l.status === "failed").length;
+  const criticalChanges = logs.filter((l) => l.action.toLowerCase().includes("role") || l.action.toLowerCase().includes("price") || l.action.toLowerCase().includes("deactivat")).length;
+  const exportsPerformed = logs.filter((l) => l.action.toLowerCase().includes("export") || l.module.toLowerCase().includes("report")).length;
+  const deletedRecords = logs.filter((l) => l.action.toLowerCase().includes("delete") || l.action.toLowerCase().includes("remove")).length;
 
   const modulesList = useMemo(() => {
     const set = new Set<string>();
@@ -44,8 +60,16 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
   const filteredLogs = useMemo(() => {
     const q = search.trim().toLowerCase();
     return logs.filter((log) => {
-      if (q && !log.userName.toLowerCase().includes(q) && !log.userEmail.toLowerCase().includes(q) && !log.action.toLowerCase().includes(q) && !(log.details || "").toLowerCase().includes(q)) {
-        return false;
+      if (q) {
+        const matchUser = log.userName.toLowerCase().includes(q) || log.userEmail.toLowerCase().includes(q);
+        const matchAction = log.action.toLowerCase().includes(q);
+        const matchModule = log.module.toLowerCase().includes(q);
+        const matchIp = (log.ipAddress || "").toLowerCase().includes(q);
+        const matchDetails = (log.details || "").toLowerCase().includes(q);
+        const matchRecord = (log.recordId || "").toLowerCase().includes(q);
+        if (!matchUser && !matchAction && !matchModule && !matchIp && !matchDetails && !matchRecord) {
+          return false;
+        }
       }
       if (branchFilter !== "all" && log.branch.toLowerCase() !== branchFilter.toLowerCase()) {
         return false;
@@ -65,13 +89,19 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
   const pageItems = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleExportCsv = () => {
-    const headers = ["Timestamp", "User Name", "Email", "Action", "Module", "Branch", "Device", "IP Address", "Status", "Details"];
+    const headers = ["Log ID", "Timestamp", "User Name", "Email", "Role", "Action", "Module", "Page", "Record ID", "Old Value", "New Value", "Branch", "Device", "IP Address", "Status", "Details"];
     const rows = filteredLogs.map((l) => [
+      `"${l.logId || l.id}"`,
       `"${new Date(l.timestamp).toLocaleString()}"`,
       `"${l.userName}"`,
       `"${l.userEmail}"`,
+      `"${l.role || ""}"`,
       `"${l.action}"`,
       `"${l.module}"`,
+      `"${l.page || ""}"`,
+      `"${l.recordId || ""}"`,
+      `"${l.oldValue || ""}"`,
+      `"${l.newValue || ""}"`,
       `"${l.branch}"`,
       `"${l.device}"`,
       `"${l.ipAddress}"`,
@@ -84,7 +114,7 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "audit_trail_export.csv";
+    link.download = `thinksales_activity_logs_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -96,37 +126,76 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
   return (
     <div className="space-y-4">
       
-      {/* Header and Filters Card */}
-      <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-3">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <History className="h-5 w-5 text-blue-600" />
-              <h2 className="text-base font-bold text-ink-900 dark:text-white">Security & Activity Audit Logs</h2>
-            </div>
-            <p className="text-xs text-ledger-500 dark:text-ledger-400">
-              Immutable forensic trail of authentication events, permission alterations, and user lifecycle modifications
-            </p>
-          </div>
-
+      {/* Header and Controls */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+        <div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={handleExportCsv} className="h-8 text-xs">
-              <Download className="h-3.5 w-3.5 mr-1" /> Export CSV
-            </Button>
-            <Button size="sm" variant="outline" onClick={handlePrint} className="h-8 text-xs">
-              <Printer className="h-3.5 w-3.5 mr-1" /> Print
-            </Button>
+            <Activity className="h-5 w-5 text-blue-600" />
+            <h2 className="text-base font-bold text-ink-900 dark:text-white">Centralized Enterprise Activity Log</h2>
           </div>
+          <p className="text-xs text-ledger-500 dark:text-ledger-400">
+            Forensic tracking of every operational transaction, before/after change deltas, authentication events, and administrative security actions
+          </p>
         </div>
 
-        {/* Filter Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-ledger-100 dark:border-ledger-800">
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleExportCsv} className="h-8 text-xs font-semibold">
+            <Download className="h-3.5 w-3.5 mr-1" /> Export CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={handlePrint} className="h-8 text-xs font-semibold">
+            <Printer className="h-3.5 w-3.5 mr-1" /> Print
+          </Button>
+        </div>
+      </div>
+
+      {/* 6 Activity Dashboard KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Total Activities</span>
+          <p className="text-xl font-bold text-ink-900 dark:text-white mt-1">{totalActivitiesToday}</p>
+          <p className="text-[11px] text-blue-600 font-medium">Logged events</p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Active Users Today</span>
+          <p className="text-xl font-bold text-ink-900 dark:text-white mt-1">{activeUsersToday}</p>
+          <p className="text-[11px] text-emerald-600 font-medium">Unique actors</p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Failed Logins</span>
+          <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">{failedLogins}</p>
+          <p className="text-[11px] text-red-500 font-medium">Security alerts</p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Critical Changes</span>
+          <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">{criticalChanges}</p>
+          <p className="text-[11px] text-amber-600 font-medium">Prices, roles & status</p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Exports Performed</span>
+          <p className="text-xl font-bold text-ink-900 dark:text-white mt-1">{exportsPerformed}</p>
+          <p className="text-[11px] text-ledger-400">Data downloads</p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Deleted Records</span>
+          <p className="text-xl font-bold text-ink-900 dark:text-white mt-1">{deletedRecords}</p>
+          <p className="text-[11px] text-ledger-400">Archived/Removed</p>
+        </div>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
             <Input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search user, action, IP..."
+              placeholder="Search user, action, record ID, IP..."
               className="h-8 pl-8 text-xs"
             />
           </div>
@@ -136,7 +205,7 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
             onChange={(e) => { setModuleFilter(e.target.value); setPage(1); }}
             className="h-8 rounded-lg border border-ledger-200 bg-white px-2 text-xs font-semibold dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
           >
-            <option value="all">All Modules</option>
+            <option value="all">All Modules ({modulesList.length})</option>
             {modulesList.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
@@ -166,7 +235,7 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
         </div>
       </div>
 
-      {/* Audit Trail Table */}
+      {/* Activity Log Data Table */}
       <div className="rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -175,11 +244,11 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
                 <th className="px-4 py-3">Timestamp</th>
                 <th className="px-4 py-3">Actor / User</th>
                 <th className="px-3 py-3">Action</th>
-                <th className="px-3 py-3">Module</th>
-                <th className="px-3 py-3">Branch</th>
-                <th className="px-3 py-3">Device / IP</th>
+                <th className="px-3 py-3">Module & Record</th>
+                <th className="px-4 py-3">Before & After Changes</th>
+                <th className="px-3 py-3">Branch & IP</th>
                 <th className="px-3 py-3">Status</th>
-                <th className="px-4 py-3">Details</th>
+                <th className="px-3 py-3 text-right">Inspect</th>
               </tr>
             </thead>
 
@@ -187,12 +256,17 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
               {pageItems.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-ledger-400">
-                    No audit log records match your filter parameters.
+                    No activity log records match your filter parameters.
                   </td>
                 </tr>
               ) : (
                 pageItems.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr
+                    key={log.id}
+                    onClick={() => setSelectedLogForDiff(log)}
+                    className="hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                  >
+                    {/* Timestamp */}
                     <td className="px-4 py-3 font-mono text-[11px] text-ledger-400 whitespace-nowrap">
                       {new Date(log.timestamp).toLocaleString("en-GB", {
                         day: "2-digit",
@@ -203,6 +277,7 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
                       })}
                     </td>
 
+                    {/* Actor */}
                     <td className="px-4 py-3">
                       <div>
                         <p className="font-bold text-ink-900 dark:text-white">{log.userName}</p>
@@ -210,25 +285,39 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
                       </div>
                     </td>
 
+                    {/* Action */}
                     <td className="px-3 py-3 font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
                       {log.action}
                     </td>
 
-                    <td className="px-3 py-3 font-medium text-ink-900 dark:text-white whitespace-nowrap">
-                      {log.module}
-                    </td>
-
-                    <td className="px-3 py-3 text-ledger-500 dark:text-ledger-400 whitespace-nowrap">
-                      {log.branch}
-                    </td>
-
+                    {/* Module & Record ID */}
                     <td className="px-3 py-3">
-                      <div>
-                        <p className="font-medium text-ink-900 dark:text-white truncate max-w-[140px]">{log.device}</p>
-                        <p className="text-[10px] font-mono text-ledger-400">{log.ipAddress}</p>
-                      </div>
+                      <p className="font-semibold text-ink-900 dark:text-white">{log.module}</p>
+                      <p className="text-[10px] text-ledger-400 font-mono truncate max-w-[140px]">
+                        {log.recordId || log.recordType || log.page || "System"}
+                      </p>
                     </td>
 
+                    {/* Before & After Delta */}
+                    <td className="px-4 py-3">
+                      {log.oldValue && log.newValue ? (
+                        <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                          <span className="text-red-600 dark:text-red-400 line-through truncate max-w-[100px]">{log.oldValue}</span>
+                          <ArrowRight className="h-3 w-3 text-ledger-400 shrink-0" />
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold truncate max-w-[120px]">{log.newValue}</span>
+                        </div>
+                      ) : (
+                        <span className="text-ledger-400 text-xs truncate max-w-[180px] block">{log.details || log.action}</span>
+                      )}
+                    </td>
+
+                    {/* Branch & IP */}
+                    <td className="px-3 py-3">
+                      <p className="text-ink-900 dark:text-white font-medium">{log.branch}</p>
+                      <p className="text-[10px] text-ledger-400 font-mono">{log.ipAddress}</p>
+                    </td>
+
+                    {/* Status */}
                     <td className="px-3 py-3 whitespace-nowrap">
                       {log.status === "success" ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
@@ -245,9 +334,13 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
                       )}
                     </td>
 
-                    <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300 text-xs max-w-xs truncate">
-                      {log.details || log.action}
+                    {/* Inspect Button */}
+                    <td className="px-3 py-3 text-right">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-600 hover:text-blue-700">
+                        <Eye className="h-3.5 w-3.5 mr-1" /> View Diff
+                      </Button>
                     </td>
+
                   </tr>
                 ))
               )}
@@ -258,7 +351,7 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
         {/* Pagination Footer */}
         <div className="flex items-center justify-between px-6 py-3.5 border-t border-ledger-100 dark:border-ledger-800 bg-white dark:bg-slate-900">
           <p className="text-xs text-ledger-400">
-            Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filteredLogs.length)} of {filteredLogs.length} audit logs
+            Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filteredLogs.length)} of {filteredLogs.length} activity records
           </p>
 
           <div className="flex items-center gap-1">
@@ -286,6 +379,13 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
           </div>
         </div>
       </div>
+
+      {/* Before / After Diff Modal */}
+      <ActivityDiffModal
+        isOpen={Boolean(selectedLogForDiff)}
+        onClose={() => setSelectedLogForDiff(null)}
+        log={selectedLogForDiff}
+      />
 
     </div>
   );

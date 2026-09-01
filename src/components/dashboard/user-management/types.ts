@@ -26,6 +26,7 @@ export type ModuleCategory =
   | "dashboard"
   | "sales"
   | "pos"
+  | "orders"
   | "products"
   | "inventory"
   | "transfers"
@@ -46,6 +47,30 @@ export interface UserBranch {
   isMain?: boolean;
 }
 
+export type SessionStatus = "active" | "expired" | "logged_out" | "timed_out";
+
+export interface LoginSession {
+  id: string;
+  sessionId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userAvatar?: string | null;
+  role: string;
+  branch: string;
+  loginTime: string;
+  lastActivity: string;
+  logoutTime?: string | null;
+  durationMinutes: number;
+  device: string;
+  browser: string;
+  os: string;
+  ipAddress: string;
+  location: string;
+  status: SessionStatus;
+  isCurrent: boolean;
+}
+
 export interface UserSession {
   id: string;
   device: string;
@@ -63,8 +88,22 @@ export interface ApprovalPermission {
   expenses: boolean;
   priceUpdates: boolean;
   stockAdjustments: boolean;
+  customerOrders?: boolean;
   maxExpenseAmount?: number;
   maxPurchaseAmount?: number;
+}
+
+export interface UserPerformanceMetrics {
+  salesCreated: number;
+  ordersApproved: number;
+  ordersProcessed: number;
+  transfersApproved: number;
+  inventoryAdjustments: number;
+  expensesApproved: number;
+  totalSalesVolumeGHS: number;
+  activityScore: number; // 0 - 100
+  lastLogin: string;
+  monthlyTrend: { month: string; sales: number; activities: number }[];
 }
 
 export interface ManagedUser {
@@ -91,6 +130,8 @@ export interface ManagedUser {
   approvalPermissions?: ApprovalPermission;
   sessions?: UserSession[];
   branchScope?: "all" | "assigned" | "single";
+  performance?: UserPerformanceMetrics;
+  attentionReason?: "stale" | "failed_logins" | "locked" | "disabled" | "pending_invitation" | null;
 }
 
 export interface RoleDefinition {
@@ -110,6 +151,7 @@ export interface RoleDefinition {
     expenses: boolean;
     priceUpdates: boolean;
     stockAdjustments: boolean;
+    customerOrders?: boolean;
   };
 }
 
@@ -121,33 +163,79 @@ export interface ModulePermissionConfig {
   supportedActions: PermissionAction[];
 }
 
+export interface FieldChangeDiff {
+  field: string;
+  label: string;
+  oldValue: string | number | boolean | null;
+  newValue: string | number | boolean | null;
+}
+
 export interface AuditLogEntry {
   id: string;
+  logId?: string;
+  timestamp: string;
   userId: string;
   userName: string;
   userEmail: string;
   userAvatar?: string | null;
-  action: 
-    | "User Added" 
-    | "User Updated" 
-    | "User Deactivated" 
-    | "User Activated" 
-    | "User Deleted" 
-    | "Role Changed" 
-    | "Permission Updated" 
-    | "Password Reset" 
-    | "Login Successful" 
-    | "Failed Login Attempt" 
-    | "2FA Enforced" 
-    | "Branch Assigned" 
-    | "Approval Granted";
-  module: string;
-  timestamp: string;
+  role?: string;
   branch: string;
+  module: string;
+  page?: string;
+  action: string;
+  recordType?: string;
+  recordId?: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  changesDiff?: FieldChangeDiff[];
   device: string;
+  browser?: string;
+  os?: string;
   ipAddress: string;
+  sessionId?: string;
   status: "success" | "warning" | "failed";
   details?: string;
+}
+
+export interface ApprovalRule {
+  id: string;
+  roleKey: string;
+  roleName: string;
+  moduleKey: "purchases" | "expenses" | "stock_transfers" | "stock_adjustments" | "price_changes" | "customer_orders";
+  moduleName: string;
+  canApprove: boolean;
+  approvalLimitGHS: number | "unlimited";
+  requiresHigherApproval: boolean;
+  higherApproverRole?: string;
+  notes?: string;
+}
+
+export interface BranchAccessRule {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  role: string;
+  primaryBranchId: string;
+  primaryBranchName: string;
+  additionalBranchIds: string[];
+  additionalBranchNames: string[];
+  viewAllBranches: boolean;
+  canTransferBetweenBranches: boolean;
+  canApproveBranchOrders: boolean;
+}
+
+export interface InvitationRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  roleLabel: string;
+  branchId: string;
+  branchName: string;
+  invitedBy: string;
+  invitedAt: string;
+  expiresAt: string;
+  status: "pending" | "accepted" | "expired";
 }
 
 export interface UserFilterState {
@@ -160,6 +248,15 @@ export interface UserFilterState {
   lastActive: string;
   twoFactorOnly?: boolean;
   multiBranchOnly?: boolean;
+  attentionOnly?: boolean;
 }
 
-export type ActiveTab = "users" | "roles" | "permissions" | "matrix" | "audit";
+export type ActiveTab = 
+  | "users" 
+  | "roles" 
+  | "permissions" 
+  | "matrix" 
+  | "approvals" 
+  | "branches" 
+  | "audit" 
+  | "sessions";

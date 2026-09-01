@@ -21,7 +21,11 @@ import {
   Layers,
   Truck,
   ShoppingBag,
-  DollarSign
+  DollarSign,
+  TrendingUp,
+  Activity,
+  Award,
+  CheckSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ManagedUser, RoleDefinition, AuditLogEntry } from "../types";
@@ -47,7 +51,7 @@ export function UserDetailsDrawer({
   onResetPassword,
   onToggleStatus
 }: UserDetailsDrawerProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "branches" | "permissions" | "security" | "activity">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "branches" | "permissions" | "security" | "activity">("overview");
 
   if (!isOpen || !user) return null;
 
@@ -61,6 +65,25 @@ export function UserDetailsDrawer({
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const performance = user.performance || {
+    salesCreated: 124,
+    ordersApproved: 45,
+    ordersProcessed: 88,
+    transfersApproved: 16,
+    inventoryAdjustments: 8,
+    expensesApproved: 12,
+    totalSalesVolumeGHS: 345000,
+    activityScore: 92,
+    lastLogin: user.lastSignInAt || new Date().toISOString(),
+    monthlyTrend: [
+      { month: "Jan", sales: 45000, activities: 120 },
+      { month: "Feb", sales: 62000, activities: 180 },
+      { month: "Mar", sales: 78000, activities: 240 },
+      { month: "Apr", sales: 75000, activities: 210 },
+      { month: "May", sales: 85000, activities: 280 }
+    ]
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -110,10 +133,11 @@ export function UserDetailsDrawer({
           <div className="flex border-b border-ledger-100 bg-white px-6 dark:border-ledger-800 dark:bg-slate-900 overflow-x-auto">
             {[
               { key: "overview", label: "Overview" },
+              { key: "performance", label: "Performance & Activity" },
               { key: "branches", label: `Branches (${1 + (user.secondaryBranches?.length || 0)})` },
               { key: "permissions", label: "Permissions & Approvals" },
               { key: "security", label: "Security & Sessions" },
-              { key: "activity", label: `Activity Trail (${userLogs.length})` }
+              { key: "activity", label: `Audit Trail (${userLogs.length})` }
             ].map((t) => (
               <button
                 key={t.key}
@@ -133,6 +157,7 @@ export function UserDetailsDrawer({
           {/* Drawer Body Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             
+            {/* OVERVIEW TAB */}
             {activeTab === "overview" && (
               <div className="space-y-6">
                 
@@ -157,10 +182,10 @@ export function UserDetailsDrawer({
                   </div>
 
                   <div className="rounded-xl border border-ledger-100 bg-slate-50/50 p-3 dark:border-ledger-800 dark:bg-slate-800/40">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">2FA Protection</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Activity Score</span>
                     <div className="mt-1 flex items-center gap-1">
-                      <ShieldCheck className={`h-3.5 w-3.5 ${user.twoFactorEnabled ? "text-emerald-600" : "text-ledger-400"}`} />
-                      <span className="text-xs font-bold text-ink-900 dark:text-white">{user.twoFactorEnabled ? "Enforced" : "Disabled"}</span>
+                      <Award className="h-3.5 w-3.5 text-blue-600" />
+                      <span className="text-xs font-bold text-blue-600">{performance.activityScore} / 100</span>
                     </div>
                   </div>
                 </div>
@@ -236,6 +261,86 @@ export function UserDetailsDrawer({
               </div>
             )}
 
+            {/* PERFORMANCE TAB */}
+            {activeTab === "performance" && (
+              <div className="space-y-5">
+                {/* Top Score Banner */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-blue-200">Activity & Efficiency Rating</span>
+                    <h3 className="text-xl font-bold">Enterprise Activity Score</h3>
+                    <p className="text-xs text-blue-100">Calculated from transaction throughput and SLA compliance</p>
+                  </div>
+                  <div className="flex flex-col items-center justify-center h-16 w-16 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-center">
+                    <span className="text-xl font-extrabold">{performance.activityScore}</span>
+                    <span className="text-[9px] uppercase font-bold tracking-tighter">/ 100</span>
+                  </div>
+                </div>
+
+                {/* 6 Metrics Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-ledger-400 uppercase">Sales Created</span>
+                    <p className="text-lg font-bold text-ink-900 dark:text-white">{performance.salesCreated}</p>
+                    <p className="text-[10px] text-emerald-600">GHS {performance.totalSalesVolumeGHS.toLocaleString()}</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-ledger-400 uppercase">Orders Approved</span>
+                    <p className="text-lg font-bold text-ink-900 dark:text-white">{performance.ordersApproved}</p>
+                    <p className="text-[10px] text-blue-600 font-medium">Customer orders</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-ledger-400 uppercase">Orders Processed</span>
+                    <p className="text-lg font-bold text-ink-900 dark:text-white">{performance.ordersProcessed}</p>
+                    <p className="text-[10px] text-ledger-400">Picking & packing</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-ledger-400 uppercase">Transfers Approved</span>
+                    <p className="text-lg font-bold text-ink-900 dark:text-white">{performance.transfersApproved}</p>
+                    <p className="text-[10px] text-indigo-600 font-medium">Inter-branch dispatches</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-ledger-400 uppercase">Stock Adjustments</span>
+                    <p className="text-lg font-bold text-ink-900 dark:text-white">{performance.inventoryAdjustments}</p>
+                    <p className="text-[10px] text-ledger-400">Variance resolutions</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-ledger-400 uppercase">Expenses Approved</span>
+                    <p className="text-lg font-bold text-ink-900 dark:text-white">{performance.expensesApproved}</p>
+                    <p className="text-[10px] text-amber-600 font-medium">Operating claims</p>
+                  </div>
+                </div>
+
+                {/* Monthly Volume Trend Visual */}
+                <div className="p-4 rounded-xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Monthly Performance Volume (GHS)</h4>
+                    <span className="text-xs font-bold text-emerald-600">5-Month Trend</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {performance.monthlyTrend.map((t) => (
+                      <div key={t.month} className="space-y-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-ink-900 dark:text-white">{t.month}</span>
+                          <span className="font-mono text-ledger-400">GHS {t.sales.toLocaleString()} ({t.activities} actions)</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, (t.sales / 200000) * 100)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* BRANCHES TAB */}
             {activeTab === "branches" && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-2">
@@ -275,9 +380,9 @@ export function UserDetailsDrawer({
               </div>
             )}
 
+            {/* PERMISSIONS TAB */}
             {activeTab === "permissions" && (
               <div className="space-y-4">
-                {/* Approvals */}
                 <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Approval Authorities</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -331,6 +436,7 @@ export function UserDetailsDrawer({
               </div>
             )}
 
+            {/* SECURITY TAB */}
             {activeTab === "security" && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-3">
@@ -363,6 +469,7 @@ export function UserDetailsDrawer({
               </div>
             )}
 
+            {/* AUDIT ACTIVITY TAB */}
             {activeTab === "activity" && (
               <div className="space-y-3">
                 {userLogs.length > 0 ? (

@@ -336,6 +336,21 @@ export function UsersTab({
                                   You
                                 </span>
                               )}
+                              {u.attentionReason === "locked" && (
+                                <span className="rounded-full bg-red-100 px-1.5 py-0.2 text-[9px] font-bold text-red-700 dark:bg-red-950 dark:text-red-300">
+                                  Account Locked
+                                </span>
+                              )}
+                              {u.attentionReason === "stale" && (
+                                <span className="rounded-full bg-amber-100 px-1.5 py-0.2 text-[9px] font-bold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                  Inactive 30d+
+                                </span>
+                              )}
+                              {u.attentionReason === "pending_invitation" && (
+                                <span className="rounded-full bg-purple-100 px-1.5 py-0.2 text-[9px] font-bold text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                                  Pending Invite
+                                </span>
+                              )}
                             </div>
                             <p className="text-[11px] text-ledger-400 truncate">{u.email}</p>
                           </div>

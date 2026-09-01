@@ -24,10 +24,16 @@ import {
   Building2,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   X,
   Sparkles,
   Smartphone,
-  Check
+  Check,
+  Laptop,
+  Activity,
+  UserPlus,
+  Printer,
+  FileSpreadsheet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +43,10 @@ import { UsersTab } from "./user-management/tabs/users-tab";
 import { RolesTab } from "./user-management/tabs/roles-tab";
 import { PermissionsTab } from "./user-management/tabs/permissions-tab";
 import { AccessMatrixTab } from "./user-management/tabs/access-matrix-tab";
+import { ApprovalMatrixTab } from "./user-management/tabs/approval-matrix-tab";
+import { BranchAccessTab } from "./user-management/tabs/branch-access-tab";
 import { AuditLogsTab } from "./user-management/tabs/audit-logs-tab";
+import { LoginSessionsTab } from "./user-management/tabs/login-sessions-tab";
 
 // Modals & Drawers
 import { AddUserModal } from "./user-management/modals/add-user-modal";
@@ -48,6 +57,7 @@ import { ImportUsersModal } from "./user-management/modals/import-users-modal";
 import { ResetPasswordModal } from "./user-management/modals/reset-password-modal";
 import { BulkRoleModal, BulkBranchModal, BulkDeleteModal } from "./user-management/modals/bulk-actions-modal";
 import { SecuritySettingsModal } from "./user-management/modals/security-settings-modal";
+import { InviteUserModal } from "./user-management/modals/invite-user-modal";
 
 // Types & Constants
 import type {
@@ -57,6 +67,8 @@ import type {
   ActiveTab,
   UserFilterState,
   AuditLogEntry,
+  InvitationRecord,
+  LoginSession,
   ModuleCategory,
   PermissionAction
 } from "./user-management/types";
@@ -66,6 +78,7 @@ import {
   DEFAULT_BRANCHES,
   INITIAL_USERS,
   INITIAL_AUDIT_LOGS,
+  INITIAL_INVITATIONS,
   DEPARTMENTS
 } from "./user-management/constants";
 
@@ -118,12 +131,11 @@ export function UserManagement({
           status: u.status || "active",
           locationId: u.locationId || fallback.locationId,
           locationName: u.locationName || fallback.locationName,
-          secondaryBranches: u.secondaryBranches || fallback.secondaryBranches || [],
-          secondaryBranchNames: u.secondaryBranchNames || fallback.secondaryBranchNames || [],
-          department: u.department || fallback.department || "Sales & Marketing",
-          joinedAt: u.joinedAt || fallback.joinedAt,
-          lastSignInAt: u.lastSignInAt || fallback.lastSignInAt,
-          isSelf: u.isSelf
+          secondaryBranches: fallback.secondaryBranches,
+          secondaryBranchNames: fallback.secondaryBranchNames,
+          approvalPermissions: fallback.approvalPermissions,
+          performance: fallback.performance,
+          attentionReason: fallback.attentionReason
         };
       });
     }
@@ -132,14 +144,16 @@ export function UserManagement({
 
   const [roles, setRoles] = useState<RoleDefinition[]>(DEFAULT_ROLES);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+  const [invitations, setInvitations] = useState<InvitationRecord[]>(INITIAL_INVITATIONS);
 
-  // Active Tab State
+  // Active Tab & Filters
   const [activeTab, setActiveTab] = useState<ActiveTab>("users");
-
-  // Summary Toggle State
   const [showSummary, setShowSummary] = useState(true);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Filter State
+  // Global & Card Filter State
   const [filters, setFilters] = useState<UserFilterState>({
     search: "",
     branch: "all",
@@ -149,197 +163,80 @@ export function UserManagement({
     dateCreated: "all",
     lastActive: "all",
     twoFactorOnly: false,
-    multiBranchOnly: false
+    multiBranchOnly: false,
+    attentionOnly: false
   });
-
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Modals & Drawers States
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isSecurityOpen, setIsSecurityOpen] = useState(false);
-  const [editUser, setEditUser] = useState<ManagedUser | null>(null);
-  const [drawerUser, setDrawerUser] = useState<ManagedUser | null>(null);
-  const [resetPassUser, setResetPassUser] = useState<ManagedUser | null>(null);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<ManagedUser | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedUserForDrawer, setSelectedUserForDrawer] = useState<ManagedUser | null>(null);
 
-  // Role Modal
-  const [roleModalState, setRoleModalState] = useState<{
-    isOpen: boolean;
-    mode: "create" | "edit" | "clone";
-    role: RoleDefinition | null;
-  }>({
-    isOpen: false,
-    mode: "create",
-    role: null
-  });
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [roleModalMode, setRoleModalMode] = useState<"create" | "edit" | "clone">("create");
+  const [selectedRoleForModal, setSelectedRoleForModal] = useState<RoleDefinition | null>(null);
 
-  // Bulk Actions Modals
-  const [bulkRoleModal, setBulkRoleModal] = useState<{ isOpen: boolean; userIds: string[] }>({ isOpen: false, userIds: [] });
-  const [bulkBranchModal, setBulkBranchModal] = useState<{ isOpen: boolean; userIds: string[] }>({ isOpen: false, userIds: [] });
-  const [bulkDeleteModal, setBulkDeleteModal] = useState<{ isOpen: boolean; userIds: string[] }>({ isOpen: false, userIds: [] });
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+  const [selectedUserForReset, setSelectedUserForReset] = useState<ManagedUser | null>(null);
 
+  const [isBulkRoleOpen, setIsBulkRoleOpen] = useState(false);
+  const [isBulkBranchOpen, setIsBulkBranchOpen] = useState(false);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
+
+  const [isSecuritySettingsOpen, setIsSecuritySettingsOpen] = useState(false);
+
+  // Toast Notification Helper
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // KPI Calculations
-  const totalUsers = users.length;
-  const activeUsers = users.filter((u) => u.status === "active").length;
-  const inactiveUsers = users.filter((u) => u.status === "inactive" || u.status === "suspended").length;
-  const pendingUsers = users.filter((u) => u.status === "pending" || u.status === "invited").length;
-  const totalRoles = roles.length;
-  const totalPermissions = 58;
-
-  // Filtered Users List
-  const filteredUsers = useMemo(() => {
-    const q = filters.search.trim().toLowerCase();
-
-    return users.filter((u) => {
-      // Global / text search
-      if (q) {
-        const matchName = (u.fullName || u.name || "").toLowerCase().includes(q);
-        const matchEmail = u.email.toLowerCase().includes(q);
-        const matchPhone = (u.phone || "").toLowerCase().includes(q);
-        const matchEmp = (u.employeeId || "").toLowerCase().includes(q);
-        const matchRole = (u.roleLabel || u.role || "").toLowerCase().includes(q);
-        const matchBranch = (u.locationName || "").toLowerCase().includes(q);
-        if (!matchName && !matchEmail && !matchPhone && !matchEmp && !matchRole && !matchBranch) {
-          return false;
-        }
-      }
-
-      // Branch Filter
-      if (filters.branch !== "all") {
-        const matchPrimary = u.locationId === filters.branch;
-        const matchSecondary = u.secondaryBranches?.includes(filters.branch);
-        if (!matchPrimary && !matchSecondary) return false;
-      }
-
-      // Department Filter
-      if (filters.department !== "all" && u.department !== filters.department) {
-        return false;
-      }
-
-      // Role Filter
-      if (filters.role !== "all" && u.role !== filters.role) {
-        return false;
-      }
-
-      // Status Filter
-      if (filters.status !== "all" && u.status !== filters.status) {
-        return false;
-      }
-
-      // 2FA Filter
-      if (filters.twoFactorOnly && !u.twoFactorEnabled) {
-        return false;
-      }
-
-      // Multi-Branch Filter
-      if (filters.multiBranchOnly && (!u.secondaryBranches || u.secondaryBranches.length === 0)) {
-        return false;
-      }
-
-      // Last Active Filter
-      if (filters.lastActive !== "all") {
-        if (!u.lastSignInAt) return false;
-        const diffMs = Date.now() - new Date(u.lastSignInAt).getTime();
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-        if (filters.lastActive === "today" && diffDays > 1) return false;
-        if (filters.lastActive === "7days" && diffDays > 7) return false;
-        if (filters.lastActive === "30days" && diffDays > 30) return false;
-        if (filters.lastActive === "stale" && diffDays <= 30) return false;
-      }
-
-      // Date Created Filter
-      if (filters.dateCreated !== "all") {
-        const diffMs = Date.now() - new Date(u.joinedAt).getTime();
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-        if (filters.dateCreated === "7days" && diffDays > 7) return false;
-        if (filters.dateCreated === "30days" && diffDays > 30) return false;
-        if (filters.dateCreated === "90days" && diffDays > 90) return false;
-        if (filters.dateCreated === "year" && diffDays > 365) return false;
-      }
-
-      return true;
-    });
-  }, [users, filters]);
-
-  // Analytics Computations
-  const roleBreakdown = useMemo(() => {
-    const map = new Map<string, number>();
-    users.forEach((u) => {
-      const label = u.roleLabel || u.role;
-      map.set(label, (map.get(label) ?? 0) + 1);
-    });
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count, pct: Math.round((count / (totalUsers || 1)) * 100) }))
-      .sort((a, b) => b.count - a.count);
-  }, [users, totalUsers]);
-
-  const branchBreakdown = useMemo(() => {
-    const map = new Map<string, number>();
-    users.forEach((u) => {
-      const bName = u.locationName || "Head Office";
-      map.set(bName, (map.get(bName) ?? 0) + 1);
-    });
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count, pct: Math.round((count / (totalUsers || 1)) * 100) }))
-      .sort((a, b) => b.count - a.count);
-  }, [users, totalUsers]);
-
-  const statusBreakdown = useMemo(() => {
-    const counts = {
-      active: users.filter((u) => u.status === "active").length,
-      inactive: users.filter((u) => u.status === "inactive").length,
-      suspended: users.filter((u) => u.status === "suspended").length,
-      pending: users.filter((u) => u.status === "pending" || u.status === "invited").length
+  // Add Log Entry Helper
+  const recordAudit = (
+    action: string,
+    mod: string,
+    details: string,
+    opts?: { recordId?: string; oldValue?: string; newValue?: string }
+  ) => {
+    const newEntry: AuditLogEntry = {
+      id: `log-${Date.now()}`,
+      logId: `ACT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      timestamp: new Date().toISOString(),
+      userId: "usr-01",
+      userName: "John Doe (You)",
+      userEmail: "john.doe@thinksales.com",
+      role: "Administrator",
+      branch: "Head Office",
+      module: mod,
+      page: `/settings/users`,
+      action,
+      recordType: mod,
+      recordId: opts?.recordId,
+      oldValue: opts?.oldValue,
+      newValue: opts?.newValue,
+      device: "Admin Workstation",
+      ipAddress: "102.176.94.12",
+      status: "success",
+      details
     };
-    return counts;
-  }, [users]);
+    setAuditLogs((prev) => [newEntry, ...prev]);
+  };
 
-  // Refresh Handler
+  // Refresh handler
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => {
       setIsRefreshing(false);
-      showToast("User catalog and access matrix synchronized.");
+      showToast("User management data refreshed successfully");
     }, 600);
   };
 
-  // Export Users CSV Handler
-  const handleExportUsers = () => {
-    const headers = ["Employee ID", "Full Name", "Email Address", "Phone Number", "Role", "Department", "Primary Branch", "Status", "Last Active", "Date Created"];
-    const rows = filteredUsers.map((u) => [
-      `"${u.employeeId}"`,
-      `"${u.fullName || u.name}"`,
-      `"${u.email}"`,
-      `"${u.phone}"`,
-      `"${u.roleLabel || u.role}"`,
-      `"${u.department}"`,
-      `"${u.locationName || "Head Office"}"`,
-      `"${u.status}"`,
-      `"${u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString() : "Never"}"`,
-      `"${new Date(u.joinedAt).toLocaleDateString()}"`
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `thinksales_users_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showToast(`Exported ${filteredUsers.length} users to CSV.`);
-  };
-
-  // Clear Filters
+  // Clear filters
   const handleClearFilters = () => {
     setFilters({
       search: "",
@@ -350,233 +247,312 @@ export function UserManagement({
       dateCreated: "all",
       lastActive: "all",
       twoFactorOnly: false,
-      multiBranchOnly: false
+      multiBranchOnly: false,
+      attentionOnly: false
     });
   };
 
-  // User Actions
-  const handleAddUser = (newUser: Partial<ManagedUser>) => {
-    const fullUser: ManagedUser = {
-      id: `usr-${Date.now().toString().slice(-4)}`,
-      name: newUser.fullName || newUser.name || "User",
-      fullName: newUser.fullName || newUser.name,
+  // 1-Click Permission Template Handler
+  const handleApplyTemplate = (templateKey: string) => {
+    const roleDef = roles.find((r) => r.key === templateKey || r.id.includes(templateKey));
+    if (roleDef) {
+      setSelectedRoleForModal(roleDef);
+      setRoleModalMode("edit");
+      setIsRoleModalOpen(true);
+      showToast(`Loaded "${roleDef.name}" permission template`);
+    }
+  };
+
+  // Filtered Users List
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      // Attention filter
+      if (filters.attentionOnly && !u.attentionReason) {
+        return false;
+      }
+
+      // Search
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const nameMatch = (u.fullName || u.name || "").toLowerCase().includes(q);
+        const emailMatch = u.email.toLowerCase().includes(q);
+        const roleMatch = (u.roleLabel || u.role || "").toLowerCase().includes(q);
+        const branchMatch = (u.locationName || "").toLowerCase().includes(q);
+        const phoneMatch = (u.phone || "").toLowerCase().includes(q);
+        const empMatch = (u.employeeId || "").toLowerCase().includes(q);
+        if (!nameMatch && !emailMatch && !roleMatch && !branchMatch && !phoneMatch && !empMatch) {
+          return false;
+        }
+      }
+
+      // Branch
+      if (filters.branch !== "all" && u.locationId !== filters.branch && u.locationName !== filters.branch) {
+        return false;
+      }
+
+      // Department
+      if (filters.department !== "all" && u.department !== filters.department) {
+        return false;
+      }
+
+      // Role
+      if (filters.role !== "all" && u.role !== filters.role && u.roleLabel !== filters.role) {
+        return false;
+      }
+
+      // Status
+      if (filters.status !== "all" && u.status !== filters.status) {
+        return false;
+      }
+
+      // 2FA
+      if (filters.twoFactorOnly && !u.twoFactorEnabled) {
+        return false;
+      }
+
+      // Multi-branch
+      if (filters.multiBranchOnly && (!u.secondaryBranches || u.secondaryBranches.length === 0)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [users, filters]);
+
+  // KPI Metrics
+  const totalUsersCount = users.length;
+  const activeUsersCount = users.filter((u) => u.status === "active").length;
+  const inactiveUsersCount = users.filter((u) => u.status === "inactive" || u.status === "suspended").length;
+  const pendingInvitationsCount = users.filter((u) => u.status === "pending").length + invitations.filter((i) => i.status === "pending").length;
+  const rolesCount = roles.length;
+  const permissionsCount = 58;
+
+  // Users Requiring Attention Breakdown
+  const attentionUsers = useMemo(() => {
+    return users.filter((u) => u.attentionReason || u.status === "suspended" || u.status === "pending");
+  }, [users]);
+
+  // Analytics Helpers
+  const roleDistribution = useMemo(() => {
+    const map = new Map<string, number>();
+    users.forEach((u) => {
+      const label = u.roleLabel || u.role;
+      map.set(label, (map.get(label) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([label, count]) => ({
+      label,
+      count,
+      percent: Math.round((count / (users.length || 1)) * 100)
+    }));
+  }, [users]);
+
+  const branchDistribution = useMemo(() => {
+    const map = new Map<string, number>();
+    users.forEach((u) => {
+      const name = u.locationName || "Head Office";
+      map.set(name, (map.get(name) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, count]) => ({
+      name,
+      count,
+      percent: Math.round((count / (users.length || 1)) * 100)
+    }));
+  }, [users]);
+
+  // User Actions Handlers
+  const handleCreateUser = (newUser: Partial<ManagedUser>) => {
+    const user: ManagedUser = {
+      id: `usr-${Date.now()}`,
+      userId: `u-${Date.now()}`,
+      name: newUser.name || newUser.fullName || "New User",
+      fullName: newUser.fullName || newUser.name || "New User",
       email: newUser.email || "",
       phone: newUser.phone || "+233 24 000 0000",
       employeeId: newUser.employeeId || `TS-EMP-0${users.length + 1}`,
       role: newUser.role || "sales_officer",
       roleLabel: newUser.roleLabel || "Sales Associate",
-      status: newUser.status || "pending",
+      status: newUser.status || "active",
       department: newUser.department || "Sales & Marketing",
-      locationId: newUser.locationId || branches[0]?.id || "b-head",
-      locationName: newUser.locationName || branches[0]?.name || "Head Office",
+      locationId: newUser.locationId || "b-head",
+      locationName: newUser.locationName || "Head Office",
       secondaryBranches: newUser.secondaryBranches || [],
       secondaryBranchNames: newUser.secondaryBranchNames || [],
-      branchScope: newUser.branchScope || "single",
-      joinedAt: new Date().toISOString(),
       lastSignInAt: null,
+      joinedAt: new Date().toISOString(),
       isSelf: false,
-      twoFactorEnabled: newUser.twoFactorEnabled ?? true,
+      twoFactorEnabled: newUser.twoFactorEnabled || false,
       approvalPermissions: newUser.approvalPermissions || {
         stockTransfers: false,
         purchases: false,
         expenses: false,
         priceUpdates: false,
-        stockAdjustments: false
+        stockAdjustments: false,
+        customerOrders: false
       }
     };
 
-    setUsers((prev) => [fullUser, ...prev]);
+    setUsers((prev) => [user, ...prev]);
+    recordAudit("User Created", "User Management", `Created user account for ${user.fullName} (${user.email})`, {
+      recordId: user.id,
+      newValue: `Role: ${user.roleLabel}, Branch: ${user.locationName}`
+    });
+    showToast(`User ${user.fullName} created successfully`);
 
-    // Add Audit Log
-    const newLog: AuditLogEntry = {
-      id: `log-${Date.now()}`,
-      userId: "usr-01",
-      userName: "Administrator",
-      userEmail: "admin@thinksales.com",
-      action: "User Added",
-      module: "User Management",
-      timestamp: new Date().toISOString(),
-      branch: fullUser.locationName || "Head Office",
-      device: "Web Browser (Chrome)",
-      ipAddress: "102.176.94.12",
-      status: "success",
-      details: `Created new user account for ${fullUser.fullName} (${fullUser.email}) with role ${fullUser.roleLabel}`
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-
-    showToast(`Account invitation created for ${fullUser.email}.`);
+    // Call Supabase action
+    startTransition(async () => {
+      try {
+        await inviteMember(new FormData());
+      } catch (err) {
+        // Log gracefully
+      }
+    });
   };
 
-  const handleUpdateUser = (userId: string, updates: Partial<ManagedUser>) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, ...updates } : u))
-    );
-
-    const newLog: AuditLogEntry = {
-      id: `log-${Date.now()}`,
-      userId: "usr-01",
-      userName: "Administrator",
-      userEmail: "admin@thinksales.com",
-      action: "User Updated",
-      module: "User Management",
-      timestamp: new Date().toISOString(),
-      branch: updates.locationName || "Head Office",
-      device: "Web Browser",
-      ipAddress: "102.176.94.12",
-      status: "success",
-      details: `Updated user profile and credentials for user ${userId}`
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-
-    showToast("User details successfully updated.");
+  const handleUpdateUser = (updated: ManagedUser) => {
+    const oldUser = users.find((u) => u.id === updated.id);
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+    recordAudit("User Updated", "User Management", `Updated profile & access settings for ${updated.fullName}`, {
+      recordId: updated.id,
+      oldValue: `Role: ${oldUser?.roleLabel}, Branch: ${oldUser?.locationName}`,
+      newValue: `Role: ${updated.roleLabel}, Branch: ${updated.locationName}`
+    });
+    showToast(`Updated ${updated.fullName}'s profile`);
   };
 
-  const handleToggleUserStatus = (user: ManagedUser) => {
+  const handleToggleStatus = (user: ManagedUser) => {
     const nextStatus = user.status === "active" ? "inactive" : "active";
     setUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, status: nextStatus } : u))
+      prev.map((u) => (u.id === user.id ? { ...u, status: nextStatus, attentionReason: null } : u))
     );
-
-    const newLog: AuditLogEntry = {
-      id: `log-${Date.now()}`,
-      userId: "usr-01",
-      userName: "Administrator",
-      userEmail: "admin@thinksales.com",
-      action: nextStatus === "active" ? "User Activated" : "User Deactivated",
-      module: "User Management",
-      timestamp: new Date().toISOString(),
-      branch: user.locationName || "Head Office",
-      device: "Web Browser",
-      ipAddress: "102.176.94.12",
-      status: "warning",
-      details: `Changed account status of ${user.fullName || user.email} to ${nextStatus}`
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-
-    showToast(`User ${user.fullName || user.email} is now ${nextStatus}.`);
+    recordAudit(
+      nextStatus === "active" ? "User Activated" : "User Deactivated",
+      "User Management",
+      `Changed ${user.fullName}'s status from ${user.status} to ${nextStatus}`,
+      { recordId: user.id, oldValue: user.status, newValue: nextStatus }
+    );
+    showToast(`User ${user.fullName} is now ${nextStatus}`);
   };
 
   const handleDeleteUser = (user: ManagedUser) => {
+    if (!confirm(`Are you sure you want to delete user ${user.fullName || user.email}?`)) return;
     setUsers((prev) => prev.filter((u) => u.id !== user.id));
-
-    const newLog: AuditLogEntry = {
-      id: `log-${Date.now()}`,
-      userId: "usr-01",
-      userName: "Administrator",
-      userEmail: "admin@thinksales.com",
-      action: "User Deleted",
-      module: "User Management",
-      timestamp: new Date().toISOString(),
-      branch: user.locationName || "Head Office",
-      device: "Web Browser",
-      ipAddress: "102.176.94.12",
-      status: "warning",
-      details: `Deleted user account ${user.fullName || user.email} from system`
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-
-    showToast(`Removed user ${user.fullName || user.email}.`);
-  };
-
-  const handleImportUsers = (newUsers: Partial<ManagedUser>[]) => {
-    const formatted: ManagedUser[] = newUsers.map((u, i) => ({
-      id: `usr-${Date.now()}-${i}`,
-      name: u.fullName || u.name || "Imported User",
-      fullName: u.fullName || u.name,
-      email: u.email || "",
-      phone: u.phone || "+233 24 000 0000",
-      employeeId: u.employeeId || `TS-EMP-0${users.length + i + 1}`,
-      role: u.role || "sales_officer",
-      roleLabel: u.roleLabel || "Sales Associate",
-      status: "pending",
-      department: u.department || "Sales & Marketing",
-      locationId: u.locationId || branches[0]?.id || "b-head",
-      locationName: u.locationName || branches[0]?.name || "Head Office",
-      secondaryBranches: [],
-      secondaryBranchNames: [],
-      branchScope: "single",
-      joinedAt: new Date().toISOString(),
-      lastSignInAt: null,
-      isSelf: false,
-      twoFactorEnabled: false
-    }));
-
-    setUsers((prev) => [...formatted, ...prev]);
-    showToast(`Successfully imported ${formatted.length} user accounts.`);
-  };
-
-  // Bulk operations
-  const handleBulkActivate = (ids: string[]) => {
-    setUsers((prev) =>
-      prev.map((u) => (ids.includes(u.id) ? { ...u, status: "active" } : u))
-    );
-    showToast(`Activated ${ids.length} user accounts.`);
-  };
-
-  const handleBulkDeactivate = (ids: string[]) => {
-    setUsers((prev) =>
-      prev.map((u) => (ids.includes(u.id) ? { ...u, status: "inactive" } : u))
-    );
-    showToast(`Deactivated ${ids.length} user accounts.`);
-  };
-
-  const handleBulkAssignRoleConfirm = (roleKey: string) => {
-    const r = roles.find((role) => role.key === roleKey || role.id === roleKey);
-    setUsers((prev) =>
-      prev.map((u) =>
-        bulkRoleModal.userIds.includes(u.id)
-          ? { ...u, role: roleKey, roleLabel: r?.name || roleKey }
-          : u
-      )
-    );
-    showToast(`Assigned role ${r?.name || roleKey} to ${bulkRoleModal.userIds.length} users.`);
-  };
-
-  const handleBulkAssignBranchConfirm = (branchId: string) => {
-    const b = branches.find((branch) => branch.id === branchId);
-    setUsers((prev) =>
-      prev.map((u) =>
-        bulkBranchModal.userIds.includes(u.id)
-          ? { ...u, locationId: branchId, locationName: b?.name || "Head Office" }
-          : u
-      )
-    );
-    showToast(`Assigned branch ${b?.name} to ${bulkBranchModal.userIds.length} users.`);
-  };
-
-  const handleBulkDeleteConfirm = () => {
-    setUsers((prev) => prev.filter((u) => !bulkDeleteModal.userIds.includes(u.id)));
-    showToast(`Deleted ${bulkDeleteModal.userIds.length} user accounts.`);
-  };
-
-  const handleSaveRole = (role: RoleDefinition) => {
-    setRoles((prev) => {
-      const exists = prev.some((r) => r.id === role.id);
-      if (exists) {
-        return prev.map((r) => (r.id === role.id ? role : r));
-      }
-      return [...prev, role];
+    recordAudit("User Deleted", "User Management", `Deleted user account ${user.fullName} (${user.email})`, {
+      recordId: user.id,
+      oldValue: user.email,
+      newValue: "Deleted"
     });
-    showToast(`Role ${role.name} successfully saved with ${role.permissionCount} permissions.`);
+    showToast(`Deleted ${user.fullName}`);
   };
 
-  const handleUpdateRolePermissions = (
-    roleId: string,
-    permissions: Record<ModuleCategory, PermissionAction[]>
-  ) => {
-    const totalCount = Object.values(permissions).reduce((acc, acts) => acc + acts.length, 0);
-    setRoles((prev) =>
-      prev.map((r) =>
-        r.id === roleId ? { ...r, permissions, permissionCount: totalCount } : r
+  // Send Invitation Handler
+  const handleSendInvite = (inviteData: { name: string; email: string; role: string; branchId: string }) => {
+    const roleDef = roles.find((r) => r.key === inviteData.role || r.id === inviteData.role);
+    const branchDef = branches.find((b) => b.id === inviteData.branchId);
+
+    const newInvite: InvitationRecord = {
+      id: `inv-${Date.now()}`,
+      name: inviteData.name,
+      email: inviteData.email,
+      role: inviteData.role,
+      roleLabel: roleDef?.name || "Staff",
+      branchId: inviteData.branchId,
+      branchName: branchDef?.name || "Head Office",
+      invitedBy: "John Doe (You)",
+      invitedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      status: "pending"
+    };
+
+    setInvitations((prev) => [newInvite, ...prev]);
+    recordAudit("User Invited", "User Management", `Sent account invitation email to ${inviteData.email} as ${newInvite.roleLabel}`, {
+      recordId: newInvite.id,
+      newValue: `Role: ${newInvite.roleLabel}, Branch: ${newInvite.branchName}`
+    });
+    showToast(`Invitation sent to ${inviteData.email}`);
+  };
+
+  // Bulk Actions Handlers
+  const handleBulkActivate = (userIds: string[]) => {
+    setUsers((prev) =>
+      prev.map((u) => (userIds.includes(u.id) ? { ...u, status: "active" as const, attentionReason: null } : u))
+    );
+    recordAudit("Bulk User Activated", "User Management", `Bulk activated ${userIds.length} user accounts.`);
+    showToast(`Activated ${userIds.length} users`);
+  };
+
+  const handleBulkDeactivate = (userIds: string[]) => {
+    setUsers((prev) =>
+      prev.map((u) => (userIds.includes(u.id) ? { ...u, status: "inactive" as const } : u))
+    );
+    recordAudit("Bulk User Deactivated", "User Management", `Bulk deactivated ${userIds.length} user accounts.`);
+    showToast(`Deactivated ${userIds.length} users`);
+  };
+
+  const handleBulkAssignRoleSubmit = (roleKey: string) => {
+    const roleDef = roles.find((r) => r.key === roleKey || r.id === roleKey);
+    setUsers((prev) =>
+      prev.map((u) =>
+        bulkSelectedIds.includes(u.id)
+          ? { ...u, role: roleKey, roleLabel: roleDef?.name || roleKey }
+          : u
       )
     );
-    showToast("Role access matrix privileges updated successfully.");
+    recordAudit("Bulk Role Assigned", "User Management", `Assigned role ${roleDef?.name} to ${bulkSelectedIds.length} users.`);
+    showToast(`Assigned ${roleDef?.name} to ${bulkSelectedIds.length} users`);
+    setIsBulkRoleOpen(false);
+  };
+
+  const handleBulkAssignBranchSubmit = (branchId: string) => {
+    const branchDef = branches.find((b) => b.id === branchId);
+    setUsers((prev) =>
+      prev.map((u) =>
+        bulkSelectedIds.includes(u.id)
+          ? { ...u, locationId: branchId, locationName: branchDef?.name || "Head Office" }
+          : u
+      )
+    );
+    recordAudit("Bulk Branch Assigned", "User Management", `Assigned branch ${branchDef?.name} to ${bulkSelectedIds.length} users.`);
+    showToast(`Assigned ${branchDef?.name} to ${bulkSelectedIds.length} users`);
+    setIsBulkBranchOpen(false);
+  };
+
+  const handleBulkDeleteSubmit = () => {
+    setUsers((prev) => prev.filter((u) => !bulkSelectedIds.includes(u.id)));
+    recordAudit("Bulk User Deleted", "User Management", `Permanently deleted ${bulkSelectedIds.length} user accounts.`);
+    showToast(`Deleted ${bulkSelectedIds.length} users`);
+    setIsBulkDeleteOpen(false);
+  };
+
+  const handleExportUsersCsv = () => {
+    const headers = ["Employee ID", "Full Name", "Email", "Phone", "Role", "Department", "Branch", "Status", "Joined Date", "Last Active"];
+    const rows = filteredUsers.map((u) => [
+      `"${u.employeeId}"`,
+      `"${u.fullName || u.name}"`,
+      `"${u.email}"`,
+      `"${u.phone}"`,
+      `"${u.roleLabel || u.role}"`,
+      `"${u.department}"`,
+      `"${u.locationName || ""}"`,
+      `"${u.status}"`,
+      `"${new Date(u.joinedAt).toLocaleDateString()}"`,
+      `"${u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString() : "Never"}"`
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `thinksales_users_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    recordAudit("Users Exported", "User Management", `Exported ${filteredUsers.length} user records to CSV.`);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-200">
       
-      {/* Toast Notification Banner */}
+      {/* Toast Banner */}
       {toastMessage && (
         <div className="fixed top-16 right-6 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-2xl animate-in slide-in-from-top-3 border border-slate-700">
           <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -584,8 +560,8 @@ export function UserManagement({
         </div>
       )}
 
-      {/* ── 1. Page Header ── */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      {/* 1. Page Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-xs font-medium text-ledger-400 mb-1">
@@ -593,205 +569,160 @@ export function UserManagement({
             <span>/</span>
             <span>User Management</span>
             <span>/</span>
-            <span className="font-semibold text-ink-900 dark:text-white capitalize">{activeTab}</span>
+            <span className="font-semibold text-blue-600 dark:text-blue-400 capitalize">
+              {activeTab === "audit" ? "Activity Logs" : activeTab.replace("_", " ")}
+            </span>
           </div>
 
-          <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            User Management
+          <h1 className="text-xl font-bold tracking-tight text-ink-900 dark:text-white sm:text-2xl">
+            User Management & Security Governance
           </h1>
-          <p className="mt-0.5 text-xs sm:text-sm text-ledger-500 dark:text-ledger-400">
-            Manage users, roles, permissions, and system access across all {branches.length} branches.
+          <p className="text-xs text-ledger-500 dark:text-ledger-400 mt-0.5">
+            Manage enterprise users, granular RBAC permissions, branch access, transaction approvals, and audit trails
           </p>
         </div>
 
-        {/* Global Search Bar & Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          
-          {/* Global Search input */}
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
-            <input
-              type="text"
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search users, roles, emails..."
-              className="h-9 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-14 text-xs font-medium placeholder:text-ledger-400 shadow-sm focus:border-blue-500 focus:outline-none dark:border-ledger-700 dark:bg-slate-900 dark:text-white"
-            />
-            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-ledger-200 bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-ledger-400 dark:border-ledger-700 dark:bg-slate-800">
-              Ctrl+K
-            </kbd>
-          </div>
-
+        {/* Global Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
           {canManage && (
             <>
               <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsImportOpen(true)}
-                className="h-9 rounded-xl text-xs font-semibold"
-              >
-                <Upload className="h-3.5 w-3.5 mr-1.5" />
-                Import Users
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExportUsers}
-                className="h-9 rounded-xl text-xs font-semibold"
-              >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Export Users
-              </Button>
-
-              <Button
-                size="sm"
                 onClick={() => setIsAddUserOpen(true)}
-                className="h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm"
+                className="h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm"
               >
-                <Plus className="h-4 w-4 mr-1.5" />
-                Add User
+                <Plus className="h-4 w-4 mr-1.5" /> Add User
+              </Button>
+
+              <Button
+                onClick={() => setIsInviteModalOpen(true)}
+                variant="outline"
+                className="h-9 text-xs font-semibold"
+              >
+                <UserPlus className="h-4 w-4 mr-1.5 text-blue-600" /> Invite User
+              </Button>
+
+              <Button
+                onClick={() => setIsImportModalOpen(true)}
+                variant="outline"
+                className="h-9 text-xs font-semibold"
+              >
+                <Upload className="h-4 w-4 mr-1.5" /> Import
               </Button>
             </>
           )}
 
           <Button
+            onClick={handleExportUsersCsv}
             variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            title="Refresh user data"
-            className="h-9 w-9 p-0 rounded-xl"
+            className="h-9 text-xs font-semibold"
           >
-            <RotateCw className={`h-4 w-4 ${isRefreshing ? "animate-spin text-blue-600" : ""}`} />
+            <Download className="h-4 w-4 mr-1.5" /> Export
           </Button>
 
           <Button
+            onClick={() => setIsSecuritySettingsOpen(true)}
             variant="outline"
-            size="sm"
-            onClick={() => setIsSecurityOpen(true)}
-            title="Security & 2FA Policy"
-            className="h-9 rounded-xl text-xs"
+            className="h-9 text-xs font-semibold"
+            title="Security Policies & 2FA"
           >
-            <Lock className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-            Security
+            <Lock className="h-4 w-4 mr-1.5 text-ledger-500" /> Security
+          </Button>
+
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            className="h-9 text-xs px-2.5"
+            title="Refresh Data"
+          >
+            <RotateCw className={`h-4 w-4 ${isRefreshing ? "animate-spin text-blue-600" : ""}`} />
           </Button>
         </div>
       </div>
 
-      {/* ── 2. Advanced Filter Section (Full Width Top Area) ── */}
-      <div className="rounded-2xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-4">
+      {/* 2. Advanced Filters Card (Full Width Top Area) */}
+      <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-bold text-ink-900 dark:text-white uppercase tracking-wider">
+          <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-blue-600" />
-            <span>Filters</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-ink-900 dark:text-white">
+              Advanced Filter Matrix
+            </span>
           </div>
 
           <button
             type="button"
             onClick={() => setShowSummary(!showSummary)}
-            className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+            className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
           >
             <span>{showSummary ? "Hide Summary" : "Show Summary"}</span>
             {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
         </div>
 
-        {/* Filters Grid */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 items-end">
-          
-          {/* Search User */}
-          <div>
-            <label className="block text-[11px] font-bold text-ledger-500 dark:text-ledger-400 mb-1">
-              Search User
-            </label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
-              <input
-                type="text"
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                placeholder="Name, email or phone..."
-                className="h-9 w-full rounded-lg border border-ledger-200 bg-white pl-8 pr-3 text-xs placeholder:text-ledger-400 dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
+        {/* Filter Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
+            <Input
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              placeholder="Search user, role, email..."
+              className="h-9 pl-8 text-xs bg-slate-50/50 dark:bg-slate-800/40"
+            />
           </div>
 
           {/* Branch Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-ledger-500 dark:text-ledger-400 mb-1">
-              Branch / Warehouse
-            </label>
-            <select
-              value={filters.branch}
-              onChange={(e) => setFilters({ ...filters, branch: e.target.value })}
-              className="h-9 w-full rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-medium dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-            >
-              <option value="all">All Branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={filters.branch}
+            onChange={(e) => setFilters({ ...filters, branch: e.target.value })}
+            className="h-9 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-semibold text-ink-900 dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
+          >
+            <option value="all">All Branches & Stores</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+
+          {/* Department Filter */}
+          <select
+            value={filters.department}
+            onChange={(e) => setFilters({ ...filters, department: e.target.value })}
+            className="h-9 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-semibold text-ink-900 dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
+          >
+            <option value="all">All Departments</option>
+            {DEPARTMENTS.map((dept) => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
 
           {/* Role Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-ledger-500 dark:text-ledger-400 mb-1">
-              User Role
-            </label>
-            <select
-              value={filters.role}
-              onChange={(e) => setFilters({ ...filters, role: e.target.value })}
-              className="h-9 w-full rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-medium dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-            >
-              <option value="all">All Roles</option>
-              {roles.map((r) => (
-                <option key={r.key || r.id} value={r.key || r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={filters.role}
+            onChange={(e) => setFilters({ ...filters, role: e.target.value })}
+            className="h-9 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-semibold text-ink-900 dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
+          >
+            <option value="all">All Roles</option>
+            {roles.map((r) => (
+              <option key={r.key} value={r.key}>{r.name}</option>
+            ))}
+          </select>
 
           {/* Status Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-ledger-500 dark:text-ledger-400 mb-1">
-              Status
-            </label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="h-9 w-full rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-medium dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+            className="h-9 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-semibold text-ink-900 dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="suspended">Suspended</option>
+            <option value="pending">Pending Invitation</option>
+          </select>
 
-          {/* Last Active Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-ledger-500 dark:text-ledger-400 mb-1">
-              Last Active
-            </label>
-            <select
-              value={filters.lastActive}
-              onChange={(e) => setFilters({ ...filters, lastActive: e.target.value })}
-              className="h-9 w-full rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-medium dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-            >
-              <option value="all">All Time</option>
-              <option value="today">Active Today</option>
-              <option value="7days">Active in Last 7 Days</option>
-              <option value="30days">Active in Last 30 Days</option>
-              <option value="stale">Inactive &gt; 30 Days</option>
-            </select>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+          {/* Actions */}
+          <div className="flex items-center gap-1.5">
             <Button
               type="button"
               variant="outline"
@@ -809,282 +740,219 @@ export function UserManagement({
               className="h-9 flex-1 text-xs font-semibold"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 mr-1" />
-              More Filters
+              More
             </Button>
           </div>
-
         </div>
 
-        {/* More Filters Expandable Drawer */}
+        {/* More Filters Expandable */}
         {showMoreFilters && (
           <div className="pt-3 border-t border-ledger-100 dark:border-ledger-800 grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in duration-150">
-            <div>
-              <label className="block text-[11px] font-bold text-ledger-500 dark:text-ledger-400 mb-1">
-                Department
-              </label>
-              <select
-                value={filters.department}
-                onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                className="h-8 w-full rounded-lg border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="all">All Departments</option>
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-            </div>
+            <label className="flex items-center gap-2 text-xs font-semibold text-ink-900 dark:text-white cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.twoFactorOnly}
+                onChange={(e) => setFilters({ ...filters, twoFactorOnly: e.target.checked })}
+                className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>2FA Enforced Only</span>
+            </label>
 
-            <div>
-              <label className="block text-[11px] font-bold text-ledger-500 dark:text-ledger-400 mb-1">
-                Date Created
-              </label>
-              <select
-                value={filters.dateCreated}
-                onChange={(e) => setFilters({ ...filters, dateCreated: e.target.value })}
-                className="h-8 w-full rounded-lg border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="all">All Time</option>
-                <option value="7days">Created Last 7 Days</option>
-                <option value="30days">Created Last 30 Days</option>
-                <option value="90days">Created Last 90 Days</option>
-                <option value="year">Created This Year</option>
-              </select>
-            </div>
+            <label className="flex items-center gap-2 text-xs font-semibold text-ink-900 dark:text-white cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.multiBranchOnly}
+                onChange={(e) => setFilters({ ...filters, multiBranchOnly: e.target.checked })}
+                className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>Multi-Branch Users Only</span>
+            </label>
 
-            <div className="flex items-center gap-4 pt-5">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-ink-900 dark:text-white">
-                <input
-                  type="checkbox"
-                  checked={filters.twoFactorOnly}
-                  onChange={(e) => setFilters({ ...filters, twoFactorOnly: e.target.checked })}
-                  className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span>2FA Enforced</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-ink-900 dark:text-white">
-                <input
-                  type="checkbox"
-                  checked={filters.multiBranchOnly}
-                  onChange={(e) => setFilters({ ...filters, multiBranchOnly: e.target.checked })}
-                  className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span>Multi-Branch Users</span>
-              </label>
-            </div>
+            <label className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.attentionOnly}
+                onChange={(e) => setFilters({ ...filters, attentionOnly: e.target.checked })}
+                className="h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
+              />
+              <span>Users Requiring Attention Only</span>
+            </label>
           </div>
         )}
-
       </div>
 
-      {/* ── 3. KPI Dashboard & 4. Quick Analytics (Collapsible) ── */}
+      {/* 3. Summary & KPI Dashboard Section */}
       {showSummary && (
-        <div className="space-y-6 animate-in fade-in duration-200">
+        <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* KPI Cards Grid */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {/* 6 KPI Cards Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             
             {/* Total Users */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
-                  <Users2 className="h-5 w-5" />
-                </div>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400 px-1.5 py-0.5 rounded">
-                  +12.5%
-                </span>
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between text-ledger-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider">Total Users</span>
+                <Users2 className="h-4 w-4 text-blue-600" />
               </div>
-              <p className="mt-3 text-2xl font-bold text-ink-900 dark:text-white">{totalUsers}</p>
-              <p className="text-xs font-semibold text-ink-900 dark:text-white">Total Users</p>
-              <p className="text-[11px] text-ledger-400 truncate">Across all branches</p>
+              <p className="mt-1.5 text-2xl font-bold text-ink-900 dark:text-white">{totalUsersCount}</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">+12.5% vs last quarter</p>
             </div>
 
             {/* Active Users */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
-                  <UserCheck className="h-5 w-5" />
-                </div>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400 px-1.5 py-0.5 rounded">
-                  83.3%
-                </span>
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between text-ledger-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider">Active Users</span>
+                <UserCheck className="h-4 w-4 text-emerald-600" />
               </div>
-              <p className="mt-3 text-2xl font-bold text-ink-900 dark:text-white">{activeUsers}</p>
-              <p className="text-xs font-semibold text-ink-900 dark:text-white">Active Users</p>
-              <p className="text-[11px] text-ledger-400 truncate">Logged in & operating</p>
+              <p className="mt-1.5 text-2xl font-bold text-ink-900 dark:text-white">{activeUsersCount}</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">83.3% active rate</p>
             </div>
 
             {/* Inactive Users */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  <UserX className="h-5 w-5" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                  {inactiveUsers} users
-                </span>
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between text-ledger-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider">Inactive Users</span>
+                <UserX className="h-4 w-4 text-slate-500" />
               </div>
-              <p className="mt-3 text-2xl font-bold text-ink-900 dark:text-white">{inactiveUsers}</p>
-              <p className="text-xs font-semibold text-ink-900 dark:text-white">Inactive Users</p>
-              <p className="text-[11px] text-ledger-400 truncate">Deactivated accounts</p>
+              <p className="mt-1.5 text-2xl font-bold text-ink-900 dark:text-white">{inactiveUsersCount}</p>
+              <p className="text-[10px] text-ledger-400 mt-0.5">Deactivated accounts</p>
             </div>
 
             {/* Pending Invitations */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
-                  <Mail className="h-5 w-5" />
-                </div>
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-1.5 py-0.5 rounded">
-                  Pending
-                </span>
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between text-ledger-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider">Pending Invites</span>
+                <Mail className="h-4 w-4 text-amber-500" />
               </div>
-              <p className="mt-3 text-2xl font-bold text-ink-900 dark:text-white">{pendingUsers}</p>
-              <p className="text-xs font-semibold text-ink-900 dark:text-white">Pending Invites</p>
-              <p className="text-[11px] text-ledger-400 truncate">Awaiting activation</p>
+              <p className="mt-1.5 text-2xl font-bold text-ink-900 dark:text-white">{pendingInvitationsCount}</p>
+              <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Awaiting activation</p>
             </div>
 
             {/* User Roles */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-950 dark:text-purple-400 px-1.5 py-0.5 rounded">
-                  RBAC
-                </span>
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between text-ledger-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider">User Roles</span>
+                <Shield className="h-4 w-4 text-purple-600" />
               </div>
-              <p className="mt-3 text-2xl font-bold text-ink-900 dark:text-white">{totalRoles}</p>
-              <p className="text-xs font-semibold text-ink-900 dark:text-white">User Roles</p>
-              <p className="text-[11px] text-ledger-400 truncate">System roles defined</p>
+              <p className="mt-1.5 text-2xl font-bold text-ink-900 dark:text-white">{rolesCount}</p>
+              <p className="text-[10px] text-purple-600 font-semibold mt-0.5">System & custom</p>
             </div>
 
-            {/* Permissions */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
-                  <Lock className="h-5 w-5" />
-                </div>
-                <span className="text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 dark:text-rose-400 px-1.5 py-0.5 rounded">
-                  15 Modules
-                </span>
+            {/* Total Permissions */}
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between text-ledger-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider">Permissions</span>
+                <ShieldCheck className="h-4 w-4 text-cyan-600" />
               </div>
-              <p className="mt-3 text-2xl font-bold text-ink-900 dark:text-white">{totalPermissions}</p>
-              <p className="text-xs font-semibold text-ink-900 dark:text-white">Permissions</p>
-              <p className="text-[11px] text-ledger-400 truncate">Granular security rights</p>
+              <p className="mt-1.5 text-2xl font-bold text-ink-900 dark:text-white">{permissionsCount}</p>
+              <p className="text-[10px] text-cyan-600 font-semibold mt-0.5">15 module categories</p>
             </div>
 
           </div>
 
-          {/* Quick Analytics Section (4 Enterprise Widgets) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            
-            {/* Widget A: Users by Role */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-800 dark:bg-slate-900 flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400 mb-3">
-                  Users by Role
-                </h3>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {roleBreakdown.map((r) => (
-                    <div key={r.name} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-ink-900 dark:text-white">{r.name}</span>
-                        <span className="text-ledger-400 font-mono">{r.count} ({r.pct}%)</span>
-                      </div>
-                      <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                        <div className="h-full bg-purple-600 rounded-full" style={{ width: `${r.pct}%` }} />
-                      </div>
-                    </div>
-                  ))}
+          {/* Users Requiring Attention Widget */}
+          {attentionUsers.length > 0 && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/60 dark:bg-amber-950/20 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                  <AlertTriangle className="h-5 w-5" />
                 </div>
-              </div>
-            </div>
-
-            {/* Widget B: Users by Branch */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-800 dark:bg-slate-900 flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400 mb-3">
-                  Users by Branch
-                </h3>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {branchBreakdown.map((b) => (
-                    <div key={b.name} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-ink-900 dark:text-white truncate">{b.name}</span>
-                        <span className="text-ledger-400 font-mono">{b.count} ({b.pct}%)</span>
-                      </div>
-                      <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                        <div className="h-full bg-blue-600 rounded-full" style={{ width: `${b.pct}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Widget C: User Status Distribution */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-800 dark:bg-slate-900 flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400 mb-3">
-                  Status Distribution
-                </h3>
-                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                  <div className="p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900">
-                    <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">ACTIVE</p>
-                    <p className="text-lg font-bold text-emerald-800 dark:text-emerald-200">{statusBreakdown.active}</p>
-                    <p className="text-[10px] text-emerald-600">{Math.round((statusBreakdown.active / (totalUsers || 1)) * 100)}% of total</p>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900">
-                    <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300">PENDING</p>
-                    <p className="text-lg font-bold text-amber-800 dark:text-amber-200">{statusBreakdown.pending}</p>
-                    <p className="text-[10px] text-amber-600">{Math.round((statusBreakdown.pending / (totalUsers || 1)) * 100)}%</p>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                    <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">INACTIVE</p>
-                    <p className="text-lg font-bold text-slate-800 dark:text-white">{statusBreakdown.inactive}</p>
-                    <p className="text-[10px] text-slate-500">{Math.round((statusBreakdown.inactive / (totalUsers || 1)) * 100)}%</p>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-rose-50/60 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900">
-                    <p className="text-[10px] font-bold text-rose-700 dark:text-rose-300">SUSPENDED</p>
-                    <p className="text-lg font-bold text-rose-800 dark:text-rose-200">{statusBreakdown.suspended}</p>
-                    <p className="text-[10px] text-rose-600">{Math.round((statusBreakdown.suspended / (totalUsers || 1)) * 100)}%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Widget D: Recent User Activities */}
-            <div className="rounded-2xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-800 dark:bg-slate-900 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">
-                    Recent Activities
+                <div>
+                  <h3 className="text-xs font-bold text-amber-950 dark:text-amber-200 uppercase tracking-wider">
+                    Users Requiring Administrator Attention ({attentionUsers.length})
                   </h3>
-                  <button
-                    onClick={() => setActiveTab("audit")}
-                    className="text-[10px] font-bold text-blue-600 hover:underline"
-                  >
-                    View All
-                  </button>
+                  <p className="text-xs text-amber-900/80 dark:text-amber-300">
+                    Accounts flagged for 30+ days inactivity, failed login lockouts, or pending invitations.
+                  </p>
                 </div>
-                
-                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-                  {auditLogs.slice(0, 3).map((log) => (
-                    <div key={log.id} className="text-xs space-y-0.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-blue-600 dark:text-blue-400">{log.action}</span>
-                        <span className="text-[10px] text-ledger-400 font-mono">
-                          {new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-ink-900 dark:text-white line-clamp-1">{log.details || log.action}</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setFilters({ ...filters, attentionOnly: !filters.attentionOnly })}
+                  className={`h-8 text-xs font-bold ${filters.attentionOnly ? "bg-amber-600 text-white" : "border-amber-300 dark:border-amber-800"}`}
+                >
+                  {filters.attentionOnly ? "Showing Flagged Users" : "Filter Attention Accounts"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* 4 Quick Analytics Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* Users by Role */}
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Users by Role</span>
+              <div className="space-y-1.5 text-xs">
+                {roleDistribution.slice(0, 4).map((r) => (
+                  <div key={r.label} className="space-y-0.5">
+                    <div className="flex justify-between font-semibold text-ink-900 dark:text-white">
+                      <span>{r.label}</span>
+                      <span className="text-ledger-400 font-mono">{r.count}</span>
                     </div>
-                  ))}
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-600 rounded-full" style={{ width: `${r.percent}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Users by Branch */}
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Users by Branch</span>
+              <div className="space-y-1.5 text-xs">
+                {branchDistribution.slice(0, 4).map((b) => (
+                  <div key={b.name} className="space-y-0.5">
+                    <div className="flex justify-between font-semibold text-ink-900 dark:text-white">
+                      <span>{b.name}</span>
+                      <span className="text-ledger-400 font-mono">{b.count}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-600 rounded-full" style={{ width: `${b.percent}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Status Distribution */}
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Status Distribution</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900">
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase">Active</span>
+                  <p className="text-base font-bold text-emerald-900 dark:text-emerald-200 mt-0.5">{activeUsersCount}</p>
                 </div>
+                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-ledger-100 dark:border-ledger-800">
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Inactive</span>
+                  <p className="text-base font-bold text-ink-900 dark:text-white mt-0.5">{inactiveUsersCount}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activities Feed */}
+            <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Recent Audit Activities</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("audit")}
+                  className="text-[10px] font-bold text-blue-600 hover:text-blue-700"
+                >
+                  View All
+                </button>
+              </div>
+              <div className="space-y-1.5 text-xs">
+                {auditLogs.slice(0, 3).map((log) => (
+                  <div key={log.id} className="p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/40 truncate">
+                    <p className="font-semibold text-ink-900 dark:text-white truncate">{log.action}</p>
+                    <p className="text-[10px] text-ledger-400 truncate">{log.userName} • {log.module}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -1093,72 +961,90 @@ export function UserManagement({
         </div>
       )}
 
-      {/* ── 5. Navigation Tabs ── */}
-      <div className="flex items-center gap-1 border-b border-ledger-200 dark:border-ledger-800 overflow-x-auto">
+      {/* 5. Navigation Tabs (8 Modern Tabs) */}
+      <div className="flex border-b border-ledger-200 bg-white px-2 dark:border-ledger-800 dark:bg-slate-900 overflow-x-auto rounded-t-2xl shadow-sm">
         {[
-          { key: "users", label: "Users", icon: Users2, count: totalUsers },
-          { key: "roles", label: "Roles", icon: Shield, count: totalRoles },
-          { key: "permissions", label: "Permissions", icon: Lock, count: totalPermissions },
-          { key: "matrix", label: "Access Matrix", icon: LayoutGrid, count: null },
-          { key: "audit", label: "Audit Logs", icon: FileText, count: auditLogs.length }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
-
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as ActiveTab)}
-              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all whitespace-nowrap ${
-                isActive
-                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-                  : "border-transparent text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{tab.label}</span>
-              {tab.count !== null && (
-                <span
-                  className={`rounded-full px-2 py-0.2 text-[10px] font-bold ${
-                    isActive
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+          { key: "users", label: "Users", count: filteredUsers.length },
+          { key: "roles", label: "Roles & Templates", count: roles.length },
+          { key: "permissions", label: "Permissions", count: permissionsCount },
+          { key: "matrix", label: "Access Matrix" },
+          { key: "approvals", label: "Approval Matrix" },
+          { key: "branches", label: "Branch Access" },
+          { key: "audit", label: "Activity Logs", count: auditLogs.length },
+          { key: "sessions", label: "Login Sessions", count: 6 }
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key as ActiveTab)}
+            className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3.5 text-xs font-bold transition-all ${
+              activeTab === tab.key
+                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/20 dark:bg-blue-950/20"
+                : "border-transparent text-ledger-500 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"
+            }`}
+          >
+            <span>{tab.label}</span>
+            {tab.count !== undefined && (
+              <span
+                className={`rounded-full px-2 py-0.2 text-[10px] font-bold ${
+                  activeTab === tab.key
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* ── Tab Views Rendering ── */}
-      <div>
+      {/* 6. Active Tab Content Rendering */}
+      <div className="min-h-[400px]">
         {activeTab === "users" && (
           <UsersTab
             users={filteredUsers}
             roles={roles}
             branches={branches}
             canManage={canManage}
-            onViewUser={(user) => setDrawerUser(user)}
-            onEditUser={(user) => setEditUser(user)}
-            onResetPassword={(user) => setResetPassUser(user)}
-            onChangeRole={(user) => {
-              setBulkRoleModal({ isOpen: true, userIds: [user.id] });
+            onViewUser={(user) => {
+              setSelectedUserForDrawer(user);
+              setIsDrawerOpen(true);
             }}
-            onToggleStatus={handleToggleUserStatus}
+            onEditUser={(user) => {
+              setSelectedUserForEdit(user);
+              setIsEditUserOpen(true);
+            }}
+            onResetPassword={(user) => {
+              setSelectedUserForReset(user);
+              setIsResetPasswordOpen(true);
+            }}
+            onChangeRole={(user) => {
+              setSelectedUserForEdit(user);
+              setIsEditUserOpen(true);
+            }}
+            onToggleStatus={handleToggleStatus}
             onDeleteUser={handleDeleteUser}
             onBulkActivate={handleBulkActivate}
             onBulkDeactivate={handleBulkDeactivate}
-            onBulkAssignRole={(ids) => setBulkRoleModal({ isOpen: true, userIds: ids })}
-            onBulkAssignBranch={(ids) => setBulkBranchModal({ isOpen: true, userIds: ids })}
-            onBulkResetPassword={(ids) => {
-              const u = users.find((x) => x.id === ids[0]);
-              if (u) setResetPassUser(u);
+            onBulkAssignRole={(ids) => {
+              setBulkSelectedIds(ids);
+              setIsBulkRoleOpen(true);
             }}
-            onBulkExport={handleExportUsers}
-            onBulkDelete={(ids) => setBulkDeleteModal({ isOpen: true, userIds: ids })}
+            onBulkAssignBranch={(ids) => {
+              setBulkSelectedIds(ids);
+              setIsBulkBranchOpen(true);
+            }}
+            onBulkResetPassword={(ids) => {
+              showToast(`Password reset link dispatched to ${ids.length} selected users.`);
+            }}
+            onBulkExport={(ids) => {
+              showToast(`Exported ${ids.length} user records.`);
+            }}
+            onBulkDelete={(ids) => {
+              setBulkSelectedIds(ids);
+              setIsBulkDeleteOpen(true);
+            }}
           />
         )}
 
@@ -1167,12 +1053,27 @@ export function UserManagement({
             roles={roles}
             users={users}
             canManage={canManage}
-            onCreateRole={() => setRoleModalState({ isOpen: true, mode: "create", role: null })}
-            onEditRole={(role) => setRoleModalState({ isOpen: true, mode: "edit", role })}
-            onCloneRole={(role) => setRoleModalState({ isOpen: true, mode: "clone", role })}
+            onCreateRole={() => {
+              setSelectedRoleForModal(null);
+              setRoleModalMode("create");
+              setIsRoleModalOpen(true);
+            }}
+            onApplyTemplate={handleApplyTemplate}
+            onEditRole={(role) => {
+              setSelectedRoleForModal(role);
+              setRoleModalMode("edit");
+              setIsRoleModalOpen(true);
+            }}
+            onCloneRole={(role) => {
+              setSelectedRoleForModal(role);
+              setRoleModalMode("clone");
+              setIsRoleModalOpen(true);
+            }}
             onDeleteRole={(role) => {
+              if (role.isSystem) return alert("System default roles cannot be removed.");
+              if (!confirm(`Delete custom role "${role.name}"?`)) return;
               setRoles((prev) => prev.filter((r) => r.id !== role.id));
-              showToast(`Deleted custom role ${role.name}.`);
+              showToast(`Deleted role ${role.name}`);
             }}
             onFilterByRole={(roleKey) => {
               setFilters({ ...filters, role: roleKey });
@@ -1182,103 +1083,161 @@ export function UserManagement({
         )}
 
         {activeTab === "permissions" && (
-          <PermissionsTab roles={roles} canManage={canManage} />
+          <PermissionsTab roles={roles} />
         )}
 
         {activeTab === "matrix" && (
-          <AccessMatrixTab
-            roles={roles}
-            canManage={canManage}
-            onUpdateRolePermissions={handleUpdateRolePermissions}
-          />
+          <AccessMatrixTab roles={roles} canManage={canManage} />
+        )}
+
+        {activeTab === "approvals" && (
+          <ApprovalMatrixTab roles={roles} canManage={canManage} />
+        )}
+
+        {activeTab === "branches" && (
+          <BranchAccessTab branches={branches} canManage={canManage} />
         )}
 
         {activeTab === "audit" && (
           <AuditLogsTab logs={auditLogs} branches={branches} />
         )}
+
+        {activeTab === "sessions" && (
+          <LoginSessionsTab canManage={canManage} />
+        )}
       </div>
 
-      {/* ── Modals & Drawers ── */}
+      {/* Modals & Slide-out Drawers */}
       <AddUserModal
         isOpen={isAddUserOpen}
         onClose={() => setIsAddUserOpen(false)}
+        branches={branches}
+        roles={roles}
+        onCreateUser={handleCreateUser}
+      />
+
+      <InviteUserModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
         roles={roles}
         branches={branches}
-        onAddUser={handleAddUser}
+        invitations={invitations}
+        onSendInvite={handleSendInvite}
+        onResendInvite={(id) => showToast(`Resent activation link for invitation ${id}`)}
+        onRevokeInvite={(id) => {
+          setInvitations((prev) => prev.filter((i) => i.id !== id));
+          showToast("Invitation revoked");
+        }}
       />
 
       <EditUserModal
-        isOpen={Boolean(editUser)}
-        onClose={() => setEditUser(null)}
-        user={editUser}
-        roles={roles}
+        isOpen={isEditUserOpen}
+        onClose={() => {
+          setIsEditUserOpen(false);
+          setSelectedUserForEdit(null);
+        }}
+        user={selectedUserForEdit}
         branches={branches}
+        roles={roles}
         onUpdateUser={handleUpdateUser}
       />
 
       <UserDetailsDrawer
-        isOpen={Boolean(drawerUser)}
-        onClose={() => setDrawerUser(null)}
-        user={drawerUser}
-        roleDef={roles.find((r) => r.key === drawerUser?.role || r.name === drawerUser?.roleLabel)}
+        isOpen={isDrawerOpen}
+        onClose={() => {
+          setIsDrawerOpen(false);
+          setSelectedUserForDrawer(null);
+        }}
+        user={selectedUserForDrawer}
+        roleDef={roles.find(
+          (r) => r.key === selectedUserForDrawer?.role || r.id === selectedUserForDrawer?.role
+        )}
         auditLogs={auditLogs}
-        onEdit={(u) => { setDrawerUser(null); setEditUser(u); }}
-        onResetPassword={(u) => { setDrawerUser(null); setResetPassUser(u); }}
-        onToggleStatus={(u) => { handleToggleUserStatus(u); setDrawerUser(null); }}
+        onEdit={(u) => {
+          setIsDrawerOpen(false);
+          setSelectedUserForEdit(u);
+          setIsEditUserOpen(true);
+        }}
+        onResetPassword={(u) => {
+          setIsDrawerOpen(false);
+          setSelectedUserForReset(u);
+          setIsResetPasswordOpen(true);
+        }}
+        onToggleStatus={handleToggleStatus}
       />
 
       <RoleModal
-        isOpen={roleModalState.isOpen}
-        onClose={() => setRoleModalState({ isOpen: false, mode: "create", role: null })}
-        mode={roleModalState.mode}
-        roleToEdit={roleModalState.role}
-        onSaveRole={handleSaveRole}
-      />
-
-      <ImportUsersModal
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-        branches={branches}
-        roles={roles}
-        onImportUsers={handleImportUsers}
-      />
-
-      <ResetPasswordModal
-        isOpen={Boolean(resetPassUser)}
-        onClose={() => setResetPassUser(null)}
-        user={resetPassUser}
-        onConfirmReset={(id, mode) => {
-          showToast(mode === "email" ? "Reset link sent to user email." : "Temporary password set.");
+        isOpen={isRoleModalOpen}
+        mode={roleModalMode}
+        onClose={() => {
+          setIsRoleModalOpen(false);
+          setSelectedRoleForModal(null);
+        }}
+        role={selectedRoleForModal}
+        onSaveRole={(saved) => {
+          if (roleModalMode === "create" || roleModalMode === "clone") {
+            setRoles((prev) => [...prev, saved]);
+            showToast(`Role "${saved.name}" created.`);
+          } else {
+            setRoles((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+            showToast(`Role "${saved.name}" updated.`);
+          }
+          setIsRoleModalOpen(false);
         }}
       />
 
-      <SecuritySettingsModal
-        isOpen={isSecurityOpen}
-        onClose={() => setIsSecurityOpen(false)}
-        onSaveNotification={showToast}
+      <ImportUsersModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        roles={roles}
+        branches={branches}
+        onImport={(imported) => {
+          setUsers((prev) => [...imported, ...prev]);
+          recordAudit("Users Imported", "User Management", `Imported ${imported.length} users from CSV.`);
+          showToast(`Successfully imported ${imported.length} users`);
+        }}
+      />
+
+      <ResetPasswordModal
+        isOpen={isResetPasswordOpen}
+        onClose={() => {
+          setIsResetPasswordOpen(false);
+          setSelectedUserForReset(null);
+        }}
+        user={selectedUserForReset}
+        onSendResetEmail={(email) => {
+          recordAudit("Password Reset Dispatched", "User Management", `Dispatched password reset email to ${email}`);
+          showToast(`Reset email dispatched to ${email}`);
+        }}
       />
 
       <BulkRoleModal
-        isOpen={bulkRoleModal.isOpen}
-        onClose={() => setBulkRoleModal({ isOpen: false, userIds: [] })}
-        selectedCount={bulkRoleModal.userIds.length}
+        isOpen={isBulkRoleOpen}
+        onClose={() => setIsBulkRoleOpen(false)}
+        selectedCount={bulkSelectedIds.length}
         roles={roles}
-        onConfirm={handleBulkAssignRoleConfirm}
+        onAssign={handleBulkAssignRoleSubmit}
       />
 
       <BulkBranchModal
-        isOpen={bulkBranchModal.isOpen}
-        onClose={() => setBulkBranchModal({ isOpen: false, userIds: [] })}
-        selectedCount={bulkBranchModal.userIds.length}
+        isOpen={isBulkBranchOpen}
+        onClose={() => setIsBulkBranchOpen(false)}
+        selectedCount={bulkSelectedIds.length}
         branches={branches}
-        onConfirm={handleBulkAssignBranchConfirm}
+        onAssign={handleBulkAssignBranchSubmit}
       />
 
       <BulkDeleteModal
-        isOpen={bulkDeleteModal.isOpen}
-        onClose={() => setBulkDeleteModal({ isOpen: false, userIds: [] })}
-        selectedCount={bulkDeleteModal.userIds.length}
-        onConfirm={handleBulkDeleteConfirm}
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        selectedCount={bulkSelectedIds.length}
+        onConfirm={handleBulkDeleteSubmit}
+      />
+
+      <SecuritySettingsModal
+        isOpen={isSecuritySettingsOpen}
+        onClose={() => setIsSecuritySettingsOpen(false)}
+        onSave={() => showToast("Enterprise security policies updated.")}
       />
 
     </div>

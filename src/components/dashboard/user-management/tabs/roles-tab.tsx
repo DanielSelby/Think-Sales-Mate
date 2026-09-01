@@ -12,9 +12,17 @@ import {
   CheckCircle2,
   Building2,
   KeyRound,
-  Eye
+  Eye,
+  Sparkles,
+  Zap,
+  Crown,
+  ShoppingCart,
+  Receipt,
+  Layers,
+  Wallet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PERMISSION_TEMPLATES } from "../constants";
 import type { RoleDefinition, ManagedUser } from "../types";
 
 interface RolesTabProps {
@@ -22,6 +30,7 @@ interface RolesTabProps {
   users: ManagedUser[];
   canManage: boolean;
   onCreateRole: () => void;
+  onApplyTemplate: (templateKey: string) => void;
   onEditRole: (role: RoleDefinition) => void;
   onCloneRole: (role: RoleDefinition) => void;
   onDeleteRole: (role: RoleDefinition) => void;
@@ -33,6 +42,7 @@ export function RolesTab({
   users,
   canManage,
   onCreateRole,
+  onApplyTemplate,
   onEditRole,
   onCloneRole,
   onDeleteRole,
@@ -44,17 +54,50 @@ export function RolesTab({
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900">
         <div>
-          <h2 className="text-base font-bold text-ink-900 dark:text-white">Role-Based Access Control (RBAC)</h2>
+          <h2 className="text-base font-bold text-ink-900 dark:text-white">Role-Based Access Control (RBAC) & Governance</h2>
           <p className="text-xs text-ledger-500 dark:text-ledger-400">
-            Configure system roles, access policies, and operational authority
+            Configure system roles, access policies, approval authorities, and 1-click permission templates
           </p>
         </div>
 
         {canManage && (
-          <Button onClick={onCreateRole} className="bg-purple-600 hover:bg-purple-700 text-white text-xs">
+          <Button onClick={onCreateRole} className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold">
             <Plus className="h-4 w-4 mr-1.5" /> Create Custom Role
           </Button>
         )}
+      </div>
+
+      {/* 1-Click Permission Templates Banner */}
+      <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50/70 via-indigo-50/40 to-blue-50/50 p-4 dark:border-purple-900/60 dark:bg-slate-900 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-300">
+              1-Click Enterprise Permission Templates
+            </h3>
+          </div>
+          <span className="text-[11px] text-ledger-500 dark:text-ledger-400">
+            Apply pre-configured best-practice authorizations instantly
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+          {PERMISSION_TEMPLATES.map((tmpl) => (
+            <button
+              key={tmpl.key}
+              type="button"
+              onClick={() => onApplyTemplate(tmpl.key)}
+              className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-purple-100 bg-white hover:border-purple-300 hover:shadow-sm dark:border-ledger-800 dark:bg-slate-850 dark:hover:border-purple-800 transition-all text-center group"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors dark:bg-purple-950 dark:text-purple-300 mb-1">
+                <Shield className="h-3.5 w-3.5" />
+              </div>
+              <span className="text-[11px] font-bold text-ink-900 dark:text-white truncate max-w-full">
+                {tmpl.name}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Role Cards Grid */}

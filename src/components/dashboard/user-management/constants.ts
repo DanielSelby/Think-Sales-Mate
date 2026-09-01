@@ -5,7 +5,11 @@ import type {
   PermissionAction,
   ManagedUser,
   UserBranch,
-  AuditLogEntry
+  AuditLogEntry,
+  LoginSession,
+  ApprovalRule,
+  BranchAccessRule,
+  InvitationRecord
 } from "./types";
 
 export const PERMISSION_ACTIONS: { key: PermissionAction; label: string; description: string }[] = [
@@ -22,6 +26,7 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "dashboard", name: "Dashboard", description: "Overview metrics, KPIs, and executive charts", iconName: "LayoutDashboard", supportedActions: ["view", "export", "print"] },
   { key: "sales", name: "Sales", description: "Quotations, invoices, sales orders, and returns", iconName: "Receipt", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "pos", name: "POS", description: "Point of sale register, cashier terminal, and till cashups", iconName: "ShoppingCart", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
+  { key: "orders", name: "Orders", description: "Customer order management, picking, delivery, and conversions", iconName: "Inbox", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "products", name: "Products", description: "Product catalog, pricing tiers, barcodes, and units", iconName: "Boxes", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "inventory", name: "Inventory", description: "Stock levels, batches, stock takes, and adjustments", iconName: "Layers", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "transfers", name: "Transfers", description: "Inter-branch and warehouse stock transfers", iconName: "Truck", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
@@ -60,7 +65,18 @@ export const DEFAULT_BRANCHES: UserBranch[] = [
   { id: "b-wa", name: "Wa Branch", code: "WA-01" }
 ];
 
-const ALL_ACTIONS: PermissionAction[] = ["view", "create", "edit", "delete", "approve", "export", "print"];
+// ── 1-Click Permission Templates ────────────────────────────
+export const PERMISSION_TEMPLATES: { key: string; name: string; description: string; roleKey: string; icon: string }[] = [
+  { key: "super_admin", name: "Super Admin", description: "Unrestricted master access across all 15 modules and global branches", roleKey: "administrator", icon: "Crown" },
+  { key: "administrator", name: "Administrator", description: "Full business administration, user governance, and security controls", roleKey: "administrator", icon: "ShieldAlert" },
+  { key: "branch_manager", name: "Branch Manager", description: "Complete branch operational authority, daily approvals, and stock supervision", roleKey: "manager", icon: "Building2" },
+  { key: "sales_officer", name: "Sales Officer", description: "Quotation creation, sales order booking, CRM, and customer registry", roleKey: "sales_officer", icon: "Receipt" },
+  { key: "cashier", name: "Cashier", description: "Fast POS register, till cashiering, payment receipts, and petty cash", roleKey: "cashier", icon: "ShoppingCart" },
+  { key: "inventory_officer", name: "Inventory Officer", description: "Stock ledger, warehouse transfers, goods receipts, and adjustments", roleKey: "inventory_officer", icon: "Layers" },
+  { key: "accountant", name: "Accountant", description: "Financial ledgers, expense sign-offs, purchase verification, and banking", roleKey: "accountant", icon: "Wallet" },
+  { key: "hr_officer", name: "HR Officer", description: "Employee records, shift schedules, attendance logs, and payroll runs", roleKey: "hr_officer", icon: "Users" },
+  { key: "viewer", name: "Read-Only Viewer", description: "Executive reporting view and export access without editing capabilities", roleKey: "viewer", icon: "Eye" }
+];
 
 export const DEFAULT_ROLES: RoleDefinition[] = [
   {
@@ -82,13 +98,14 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       purchases: true,
       expenses: true,
       priceUpdates: true,
-      stockAdjustments: true
+      stockAdjustments: true,
+      customerOrders: true
     }
   },
   {
     id: "role-manager",
     key: "manager",
-    name: "Manager",
+    name: "Branch Manager",
     description: "Manages branch operations, daily sales, approvals, stock adjustments, and staff.",
     userCount: 5,
     permissionCount: 46,
@@ -99,6 +116,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view", "export", "print"],
       sales: ["view", "create", "edit", "approve", "export", "print"],
       pos: ["view", "create", "edit", "export", "print"],
+      orders: ["view", "create", "edit", "approve", "export", "print"],
       products: ["view", "create", "edit", "export", "print"],
       inventory: ["view", "create", "edit", "approve", "export", "print"],
       transfers: ["view", "create", "edit", "approve", "export", "print"],
@@ -117,7 +135,8 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       purchases: true,
       expenses: true,
       priceUpdates: false,
-      stockAdjustments: true
+      stockAdjustments: true,
+      customerOrders: true
     }
   },
   {
@@ -134,6 +153,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view"],
       sales: ["view", "create", "edit", "export", "print"],
       pos: ["view", "create", "print"],
+      orders: ["view", "create", "edit", "export", "print"],
       products: ["view", "export"],
       inventory: ["view"],
       transfers: ["view"],
@@ -152,7 +172,8 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       purchases: false,
       expenses: false,
       priceUpdates: false,
-      stockAdjustments: false
+      stockAdjustments: false,
+      customerOrders: false
     }
   },
   {
@@ -169,6 +190,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view"],
       sales: ["view", "create", "print"],
       pos: ["view", "create", "edit", "print"],
+      orders: ["view"],
       products: ["view"],
       inventory: ["view"],
       transfers: [],
@@ -187,7 +209,8 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       purchases: false,
       expenses: false,
       priceUpdates: false,
-      stockAdjustments: false
+      stockAdjustments: false,
+      customerOrders: false
     }
   },
   {
@@ -204,6 +227,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view"],
       sales: ["view"],
       pos: [],
+      orders: ["view"],
       products: ["view", "create", "edit", "export", "print"],
       inventory: ["view", "create", "edit", "export", "print"],
       transfers: ["view", "create", "edit", "export", "print"],
@@ -222,7 +246,8 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       purchases: false,
       expenses: false,
       priceUpdates: false,
-      stockAdjustments: false
+      stockAdjustments: false,
+      customerOrders: false
     }
   },
   {
@@ -239,6 +264,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view"],
       sales: [],
       pos: [],
+      orders: [],
       products: [],
       inventory: [],
       transfers: [],
@@ -257,7 +283,8 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       purchases: false,
       expenses: false,
       priceUpdates: false,
-      stockAdjustments: false
+      stockAdjustments: false,
+      customerOrders: false
     }
   },
   {
@@ -274,6 +301,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view", "export", "print"],
       sales: ["view", "export", "print"],
       pos: ["view", "export"],
+      orders: ["view", "export"],
       products: ["view", "export"],
       inventory: ["view", "export"],
       transfers: ["view", "export"],
@@ -292,9 +320,47 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       purchases: true,
       expenses: true,
       priceUpdates: false,
-      stockAdjustments: false
+      stockAdjustments: false,
+      customerOrders: false
     }
   }
+];
+
+export const INITIAL_APPROVAL_RULES: ApprovalRule[] = [
+  { id: "app-1", roleKey: "administrator", roleName: "Administrator", moduleKey: "purchases", moduleName: "Purchases", canApprove: true, approvalLimitGHS: "unlimited", requiresHigherApproval: false, notes: "Unrestricted PO approval" },
+  { id: "app-2", roleKey: "administrator", roleName: "Administrator", moduleKey: "expenses", moduleName: "Operating Expenses", canApprove: true, approvalLimitGHS: "unlimited", requiresHigherApproval: false, notes: "Unrestricted expense approval" },
+  { id: "app-3", roleKey: "administrator", roleName: "Administrator", moduleKey: "stock_transfers", moduleName: "Stock Transfers", canApprove: true, approvalLimitGHS: "unlimited", requiresHigherApproval: false, notes: "Global transfer sign-off" },
+  { id: "app-4", roleKey: "administrator", roleName: "Administrator", moduleKey: "stock_adjustments", moduleName: "Stock Adjustments", canApprove: true, approvalLimitGHS: "unlimited", requiresHigherApproval: false, notes: "Inventory variance write-off" },
+  { id: "app-5", roleKey: "administrator", roleName: "Administrator", moduleKey: "price_changes", moduleName: "Price Changes", canApprove: true, approvalLimitGHS: "unlimited", requiresHigherApproval: false, notes: "Price list & tier modification" },
+  { id: "app-6", roleKey: "administrator", roleName: "Administrator", moduleKey: "customer_orders", moduleName: "Customer Orders", canApprove: true, approvalLimitGHS: "unlimited", requiresHigherApproval: false, notes: "Order confirmation & credit release" },
+
+  { id: "app-7", roleKey: "manager", roleName: "Branch Manager", moduleKey: "purchases", moduleName: "Purchases", canApprove: true, approvalLimitGHS: 50000, requiresHigherApproval: true, higherApproverRole: "Administrator", notes: "Branch procurement bills up to GHS 50,000" },
+  { id: "app-8", roleKey: "manager", roleName: "Branch Manager", moduleKey: "expenses", moduleName: "Operating Expenses", canApprove: true, approvalLimitGHS: 25000, requiresHigherApproval: true, higherApproverRole: "Administrator", notes: "Branch petty cash & claims up to GHS 25,000" },
+  { id: "app-9", roleKey: "manager", roleName: "Branch Manager", moduleKey: "stock_transfers", moduleName: "Stock Transfers", canApprove: true, approvalLimitGHS: "unlimited", requiresHigherApproval: false, notes: "Branch transfer dispatch & receiving" },
+  { id: "app-10", roleKey: "manager", roleName: "Branch Manager", moduleKey: "stock_adjustments", moduleName: "Stock Adjustments", canApprove: true, approvalLimitGHS: 15000, requiresHigherApproval: true, higherApproverRole: "Administrator", notes: "Discrepancy adjustment threshold" },
+  { id: "app-11", roleKey: "manager", roleName: "Branch Manager", moduleKey: "price_changes", moduleName: "Price Changes", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, higherApproverRole: "Administrator", notes: "Requires Admin authorization" },
+  { id: "app-12", roleKey: "manager", roleName: "Branch Manager", moduleKey: "customer_orders", moduleName: "Customer Orders", canApprove: true, approvalLimitGHS: 100000, requiresHigherApproval: false, notes: "Direct customer order confirmation" },
+
+  { id: "app-13", roleKey: "accountant", roleName: "Accountant", moduleKey: "purchases", moduleName: "Purchases", canApprove: true, approvalLimitGHS: 200000, requiresHigherApproval: false, notes: "Vendor invoice fiscal validation" },
+  { id: "app-14", roleKey: "accountant", roleName: "Accountant", moduleKey: "expenses", moduleName: "Operating Expenses", canApprove: true, approvalLimitGHS: 100000, requiresHigherApproval: false, notes: "Ledger expense reimbursement sign-off" },
+  { id: "app-15", roleKey: "accountant", roleName: "Accountant", moduleKey: "stock_transfers", moduleName: "Stock Transfers", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: false, notes: "Operational role only" },
+  { id: "app-16", roleKey: "accountant", roleName: "Accountant", moduleKey: "stock_adjustments", moduleName: "Stock Adjustments", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: false, notes: "Read-only for audit" },
+  { id: "app-17", roleKey: "accountant", roleName: "Accountant", moduleKey: "price_changes", moduleName: "Price Changes", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: false, notes: "Managed by Executive" },
+  { id: "app-18", roleKey: "accountant", roleName: "Accountant", moduleKey: "customer_orders", moduleName: "Customer Orders", canApprove: true, approvalLimitGHS: 500000, requiresHigherApproval: false, notes: "Credit clearance verification" },
+
+  { id: "app-19", roleKey: "sales_officer", roleName: "Sales Associate", moduleKey: "purchases", moduleName: "Purchases", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Cannot approve purchases" },
+  { id: "app-20", roleKey: "sales_officer", roleName: "Sales Associate", moduleKey: "expenses", moduleName: "Operating Expenses", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Cannot approve expenses" },
+  { id: "app-21", roleKey: "sales_officer", roleName: "Sales Associate", moduleKey: "stock_transfers", moduleName: "Stock Transfers", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Requires Manager approval" },
+  { id: "app-22", roleKey: "sales_officer", roleName: "Sales Associate", moduleKey: "stock_adjustments", moduleName: "Stock Adjustments", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Cannot adjust inventory" },
+  { id: "app-23", roleKey: "sales_officer", roleName: "Sales Associate", moduleKey: "price_changes", moduleName: "Price Changes", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Fixed pricing only" },
+  { id: "app-24", roleKey: "sales_officer", roleName: "Sales Associate", moduleKey: "customer_orders", moduleName: "Customer Orders", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Orders route to Manager for approval" },
+
+  { id: "app-25", roleKey: "cashier", roleName: "Cashier", moduleKey: "purchases", moduleName: "Purchases", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "No procurement rights" },
+  { id: "app-26", roleKey: "cashier", roleName: "Cashier", moduleKey: "expenses", moduleName: "Operating Expenses", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Cannot approve expenses" },
+  { id: "app-27", roleKey: "cashier", roleName: "Cashier", moduleKey: "stock_transfers", moduleName: "Stock Transfers", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "No transfer authorization" },
+  { id: "app-28", roleKey: "cashier", roleName: "Cashier", moduleKey: "stock_adjustments", moduleName: "Stock Adjustments", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "No adjustment authority" },
+  { id: "app-29", roleKey: "cashier", roleName: "Cashier", moduleKey: "price_changes", moduleName: "Price Changes", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "Cannot discount or change prices" },
+  { id: "app-30", roleKey: "cashier", roleName: "Cashier", moduleKey: "customer_orders", moduleName: "Customer Orders", canApprove: false, approvalLimitGHS: 0, requiresHigherApproval: true, notes: "POS transactions only" }
 ];
 
 export const INITIAL_USERS: ManagedUser[] = [
@@ -320,7 +386,25 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: true,
     twoFactorEnabled: true,
     branchScope: "all",
-    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: true, stockAdjustments: true, maxExpenseAmount: 500000, maxPurchaseAmount: 1000000 }
+    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: true, stockAdjustments: true, customerOrders: true, maxExpenseAmount: 500000, maxPurchaseAmount: 1000000 },
+    performance: {
+      salesCreated: 142,
+      ordersApproved: 88,
+      ordersProcessed: 120,
+      transfersApproved: 45,
+      inventoryAdjustments: 12,
+      expensesApproved: 34,
+      totalSalesVolumeGHS: 840500,
+      activityScore: 98,
+      lastLogin: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      monthlyTrend: [
+        { month: "Jan", sales: 120000, activities: 240 },
+        { month: "Feb", sales: 150000, activities: 310 },
+        { month: "Mar", sales: 185000, activities: 420 },
+        { month: "Apr", sales: 195000, activities: 390 },
+        { month: "May", sales: 190500, activities: 450 }
+      ]
+    }
   },
   {
     id: "usr-02",
@@ -332,7 +416,7 @@ export const INITIAL_USERS: ManagedUser[] = [
     employeeId: "TS-EMP-002",
     avatarUrl: null,
     role: "manager",
-    roleLabel: "Manager",
+    roleLabel: "Branch Manager",
     status: "active",
     department: "Operations & Logistics",
     locationId: "b-kumasi",
@@ -344,7 +428,25 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: false,
     twoFactorEnabled: true,
     branchScope: "assigned",
-    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: false, stockAdjustments: true, maxExpenseAmount: 25000, maxPurchaseAmount: 50000 }
+    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: false, stockAdjustments: true, customerOrders: true, maxExpenseAmount: 25000, maxPurchaseAmount: 50000 },
+    performance: {
+      salesCreated: 85,
+      ordersApproved: 64,
+      ordersProcessed: 90,
+      transfersApproved: 28,
+      inventoryAdjustments: 16,
+      expensesApproved: 22,
+      totalSalesVolumeGHS: 420000,
+      activityScore: 92,
+      lastLogin: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
+      monthlyTrend: [
+        { month: "Jan", sales: 65000, activities: 180 },
+        { month: "Feb", sales: 78000, activities: 210 },
+        { month: "Mar", sales: 92000, activities: 290 },
+        { month: "Apr", sales: 90000, activities: 270 },
+        { month: "May", sales: 95000, activities: 310 }
+      ]
+    }
   },
   {
     id: "usr-03",
@@ -368,7 +470,25 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: false,
     twoFactorEnabled: false,
     branchScope: "single",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
+    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false, customerOrders: false },
+    performance: {
+      salesCreated: 210,
+      ordersApproved: 0,
+      ordersProcessed: 180,
+      transfersApproved: 0,
+      inventoryAdjustments: 0,
+      expensesApproved: 0,
+      totalSalesVolumeGHS: 620000,
+      activityScore: 88,
+      lastLogin: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
+      monthlyTrend: [
+        { month: "Jan", sales: 95000, activities: 310 },
+        { month: "Feb", sales: 110000, activities: 380 },
+        { month: "Mar", sales: 135000, activities: 450 },
+        { month: "Apr", sales: 130000, activities: 430 },
+        { month: "May", sales: 150000, activities: 490 }
+      ]
+    }
   },
   {
     id: "usr-04",
@@ -392,7 +512,25 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: false,
     twoFactorEnabled: true,
     branchScope: "single",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
+    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false, customerOrders: false },
+    performance: {
+      salesCreated: 340,
+      ordersApproved: 0,
+      ordersProcessed: 0,
+      transfersApproved: 0,
+      inventoryAdjustments: 0,
+      expensesApproved: 0,
+      totalSalesVolumeGHS: 310000,
+      activityScore: 94,
+      lastLogin: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
+      monthlyTrend: [
+        { month: "Jan", sales: 50000, activities: 420 },
+        { month: "Feb", sales: 62000, activities: 510 },
+        { month: "Mar", sales: 71000, activities: 580 },
+        { month: "Apr", sales: 63000, activities: 530 },
+        { month: "May", sales: 64000, activities: 560 }
+      ]
+    }
   },
   {
     id: "usr-05",
@@ -411,12 +549,13 @@ export const INITIAL_USERS: ManagedUser[] = [
     locationName: "Tema Branch",
     secondaryBranches: ["b-accra"],
     secondaryBranchNames: ["Accra Main Branch"],
-    lastSignInAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+    lastSignInAt: new Date(Date.now() - 1000 * 60 * 60 * 48 * 20).toISOString(),
     joinedAt: "2024-04-01T10:00:00Z",
     isSelf: false,
     twoFactorEnabled: false,
     branchScope: "assigned",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
+    attentionReason: "stale",
+    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false, customerOrders: false }
   },
   {
     id: "usr-06",
@@ -440,7 +579,7 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: false,
     twoFactorEnabled: true,
     branchScope: "single",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
+    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false, customerOrders: false }
   },
   {
     id: "usr-07",
@@ -452,7 +591,7 @@ export const INITIAL_USERS: ManagedUser[] = [
     employeeId: "TS-EMP-007",
     avatarUrl: null,
     role: "manager",
-    roleLabel: "Manager",
+    roleLabel: "Branch Manager",
     status: "active",
     department: "Operations & Logistics",
     locationId: "b-cape",
@@ -464,7 +603,7 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: false,
     twoFactorEnabled: true,
     branchScope: "assigned",
-    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: false, stockAdjustments: true, maxExpenseAmount: 20000, maxPurchaseAmount: 40000 }
+    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: false, stockAdjustments: true, customerOrders: true, maxExpenseAmount: 20000, maxPurchaseAmount: 40000 }
   },
   {
     id: "usr-08",
@@ -483,108 +622,13 @@ export const INITIAL_USERS: ManagedUser[] = [
     locationName: "Sunyani Branch",
     secondaryBranches: [],
     secondaryBranchNames: [],
-    lastSignInAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
+    lastSignInAt: new Date(Date.now() - 1000 * 60 * 60 * 72 * 15).toISOString(),
     joinedAt: "2024-05-02T13:30:00Z",
     isSelf: false,
     twoFactorEnabled: false,
     branchScope: "single",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
-  },
-  {
-    id: "usr-09",
-    userId: "u-09",
-    name: "Richard Darko",
-    fullName: "Richard Darko",
-    email: "richard.d@thinksales.com",
-    phone: "+233 20 334 4556",
-    employeeId: "TS-EMP-009",
-    avatarUrl: null,
-    role: "inventory_officer",
-    roleLabel: "Inventory Clerk",
-    status: "active",
-    department: "Inventory & Warehouse",
-    locationId: "b-tamale",
-    locationName: "Tamale Branch",
-    secondaryBranches: ["b-wa"],
-    secondaryBranchNames: ["Wa Branch"],
-    lastSignInAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
-    joinedAt: "2024-05-10T10:15:00Z",
-    isSelf: false,
-    twoFactorEnabled: true,
-    branchScope: "assigned",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
-  },
-  {
-    id: "usr-10",
-    userId: "u-10",
-    name: "Esi Ampofo",
-    fullName: "Esi Ampofo",
-    email: "esi.a@thinksales.com",
-    phone: "+233 55 990 0112",
-    employeeId: "TS-EMP-010",
-    avatarUrl: null,
-    role: "sales_officer",
-    roleLabel: "Sales Associate",
-    status: "active",
-    department: "Sales & Marketing",
-    locationId: "b-wa",
-    locationName: "Wa Branch",
-    secondaryBranches: [],
-    secondaryBranchNames: [],
-    lastSignInAt: new Date(Date.now() - 1000 * 60 * 60 * 50).toISOString(),
-    joinedAt: "2024-05-18T10:10:00Z",
-    isSelf: false,
-    twoFactorEnabled: true,
-    branchScope: "single",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
-  },
-  {
-    id: "usr-11",
-    userId: "u-11",
-    name: "Kwame Nkrumah Jr",
-    fullName: "Kwame Nkrumah",
-    email: "kwame.n@thinksales.com",
-    phone: "+233 24 111 2233",
-    employeeId: "TS-EMP-011",
-    avatarUrl: null,
-    role: "accountant",
-    roleLabel: "Accountant",
-    status: "active",
-    department: "Finance & Accounts",
-    locationId: "b-head",
-    locationName: "Head Office",
-    secondaryBranches: ["b-accra", "b-tema"],
-    secondaryBranchNames: ["Accra Main Branch", "Tema Branch"],
-    lastSignInAt: new Date(Date.now() - 1000 * 60 * 70).toISOString(),
-    joinedAt: "2024-01-20T08:30:00Z",
-    isSelf: false,
-    twoFactorEnabled: true,
-    branchScope: "all",
-    approvalPermissions: { stockTransfers: false, purchases: true, expenses: true, priceUpdates: false, stockAdjustments: false, maxExpenseAmount: 100000, maxPurchaseAmount: 200000 }
-  },
-  {
-    id: "usr-12",
-    userId: "u-12",
-    name: "Ama Serwaa",
-    fullName: "Ama Serwaa",
-    email: "ama.s@thinksales.com",
-    phone: "+233 50 444 5566",
-    employeeId: "TS-EMP-012",
-    avatarUrl: null,
-    role: "hr_officer",
-    roleLabel: "HR Officer",
-    status: "active",
-    department: "Human Resources",
-    locationId: "b-head",
-    locationName: "Head Office",
-    secondaryBranches: [],
-    secondaryBranchNames: [],
-    lastSignInAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-    joinedAt: "2024-02-15T09:00:00Z",
-    isSelf: false,
-    twoFactorEnabled: true,
-    branchScope: "all",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: true, priceUpdates: false, stockAdjustments: false }
+    attentionReason: "disabled",
+    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false, customerOrders: false }
   },
   {
     id: "usr-13",
@@ -596,7 +640,7 @@ export const INITIAL_USERS: ManagedUser[] = [
     employeeId: "TS-EMP-013",
     avatarUrl: null,
     role: "manager",
-    roleLabel: "Manager",
+    roleLabel: "Branch Manager",
     status: "pending",
     department: "Operations & Logistics",
     locationId: "b-accra",
@@ -608,7 +652,8 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: false,
     twoFactorEnabled: false,
     branchScope: "assigned",
-    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: false, stockAdjustments: true }
+    attentionReason: "pending_invitation",
+    approvalPermissions: { stockTransfers: true, purchases: true, expenses: true, priceUpdates: false, stockAdjustments: true, customerOrders: true }
   },
   {
     id: "usr-14",
@@ -632,121 +677,344 @@ export const INITIAL_USERS: ManagedUser[] = [
     isSelf: false,
     twoFactorEnabled: false,
     branchScope: "single",
-    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false }
+    attentionReason: "locked",
+    approvalPermissions: { stockTransfers: false, purchases: false, expenses: false, priceUpdates: false, stockAdjustments: false, customerOrders: false }
+  }
+];
+
+export const INITIAL_LOGIN_SESSIONS: LoginSession[] = [
+  {
+    id: "sess-1",
+    sessionId: "sess_9f81a2e4b",
+    userId: "usr-01",
+    userName: "John Doe",
+    userEmail: "john.doe@thinksales.com",
+    role: "Administrator",
+    branch: "Head Office",
+    loginTime: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    lastActivity: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
+    durationMinutes: 15,
+    device: "Dell XPS 15 (Desktop)",
+    browser: "Chrome 124.0",
+    os: "Windows 11 Pro",
+    ipAddress: "102.176.94.12",
+    location: "Accra, Ghana",
+    status: "active",
+    isCurrent: true
+  },
+  {
+    id: "sess-2",
+    sessionId: "sess_c48b2109d",
+    userId: "usr-02",
+    userName: "Mary Addo",
+    userEmail: "mary.addo@thinksales.com",
+    role: "Branch Manager",
+    branch: "Kumasi Branch",
+    loginTime: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
+    lastActivity: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+    durationMinutes: 95,
+    device: "MacBook Pro 16",
+    browser: "Safari 17.4",
+    os: "macOS Sonoma",
+    ipAddress: "197.251.130.45",
+    location: "Kumasi, Ghana",
+    status: "active",
+    isCurrent: false
+  },
+  {
+    id: "sess-3",
+    sessionId: "sess_7e3a98bc1",
+    userId: "usr-03",
+    userName: "Daniel Koomson",
+    userEmail: "daniel.k@thinksales.com",
+    role: "Sales Associate",
+    branch: "Takoradi Branch",
+    loginTime: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
+    lastActivity: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    durationMinutes: 240,
+    device: "Samsung Galaxy Tab S9 (Tablet)",
+    browser: "Chrome Mobile 124",
+    os: "Android 14",
+    ipAddress: "154.160.22.89",
+    location: "Takoradi, Ghana",
+    status: "active",
+    isCurrent: false
+  },
+  {
+    id: "sess-4",
+    sessionId: "sess_5a19d80ef",
+    userId: "usr-04",
+    userName: "Grace Mensah",
+    userEmail: "grace.m@thinksales.com",
+    role: "Cashier",
+    branch: "Accra Main Branch",
+    loginTime: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
+    lastActivity: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    durationMinutes: 360,
+    device: "POS Terminal 01",
+    browser: "Chrome 123.0",
+    os: "Windows 10 Enterprise",
+    ipAddress: "102.176.94.18",
+    location: "Accra, Ghana",
+    status: "active",
+    isCurrent: false
+  },
+  {
+    id: "sess-5",
+    sessionId: "sess_2b98e714a",
+    userId: "usr-14",
+    userName: "Faustina Arthur",
+    userEmail: "faustina.a@thinksales.com",
+    role: "Cashier",
+    branch: "Kumasi Branch",
+    loginTime: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 11).toISOString(),
+    logoutTime: new Date(Date.now() - 1000 * 60 * 60 * 11).toISOString(),
+    durationMinutes: 60,
+    device: "HP ProDesk 400",
+    browser: "Firefox 125.0",
+    os: "Windows 10 Pro",
+    ipAddress: "41.215.160.22",
+    location: "Kumasi, Ghana",
+    status: "timed_out",
+    isCurrent: false
+  },
+  {
+    id: "sess-6",
+    sessionId: "sess_8f3d10ab7",
+    userId: "usr-06",
+    userName: "Akosua Gyamfi",
+    userEmail: "akosua.g@thinksales.com",
+    role: "Sales Associate",
+    branch: "Ho Branch",
+    loginTime: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(),
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 21).toISOString(),
+    logoutTime: new Date(Date.now() - 1000 * 60 * 60 * 21).toISOString(),
+    durationMinutes: 45,
+    device: "iPhone 15 Pro",
+    browser: "Mobile Safari",
+    os: "iOS 17.4",
+    ipAddress: "154.160.44.12",
+    location: "Ho, Ghana",
+    status: "logged_out",
+    isCurrent: false
   }
 ];
 
 export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
   {
     id: "log-1",
+    logId: "ACT-2025-0982",
     userId: "usr-01",
     userName: "John Doe",
     userEmail: "john.doe@thinksales.com",
-    action: "User Added",
-    module: "User Management",
-    timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    role: "Administrator",
     branch: "Head Office",
-    device: "Chrome 124 (Windows 11)",
+    module: "Products",
+    page: "/inventory/products",
+    action: "Price Updated",
+    recordType: "Product",
+    recordId: "PRD-BEV-001 (Club Beer 625ml)",
+    oldValue: "GHS 150.00",
+    newValue: "GHS 175.00",
+    changesDiff: [
+      { field: "wholesalePrice", label: "Wholesale Price", oldValue: "GHS 150.00", newValue: "GHS 175.00" },
+      { field: "retailPrice", label: "Retail Price", oldValue: "GHS 180.00", newValue: "GHS 210.00" },
+      { field: "margin", label: "Gross Margin", oldValue: "20.0%", newValue: "20.0%" }
+    ],
+    timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+    device: "Dell XPS 15",
+    browser: "Chrome 124",
+    os: "Windows 11",
     ipAddress: "102.176.94.12",
+    sessionId: "sess_9f81a2e4b",
     status: "success",
-    details: "Invited Kofi Annan (kofi.a@thinksales.com) as Manager to Accra Main Branch"
+    details: "Adjusted product price tier due to supplier excise rate change."
   },
   {
     id: "log-2",
+    logId: "ACT-2025-0981",
     userId: "usr-01",
     userName: "John Doe",
     userEmail: "john.doe@thinksales.com",
-    action: "Role Changed",
-    module: "User Management",
-    timestamp: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
+    role: "Administrator",
     branch: "Head Office",
-    device: "Chrome 124 (Windows 11)",
+    module: "User Management",
+    page: "/settings/organization",
+    action: "Role Assigned",
+    recordType: "User Account",
+    recordId: "usr-02 (Mary Addo)",
+    oldValue: "Sales Associate",
+    newValue: "Branch Manager",
+    changesDiff: [
+      { field: "role", label: "System Role", oldValue: "Sales Associate", newValue: "Branch Manager" },
+      { field: "branchScope", label: "Branch Access Scope", oldValue: "Single Branch (Takoradi)", newValue: "Multi-Branch (Kumasi, Sunyani)" },
+      { field: "approvalLimit", label: "Expense Approval Limit", oldValue: "GHS 0", newValue: "GHS 25,000" }
+    ],
+    timestamp: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+    device: "Dell XPS 15",
+    browser: "Chrome 124",
+    os: "Windows 11",
     ipAddress: "102.176.94.12",
+    sessionId: "sess_9f81a2e4b",
     status: "success",
-    details: "Changed role of Mary Addo from Sales Associate to Manager"
+    details: "Promoted Mary Addo to Branch Manager with multi-branch management authority."
   },
   {
     id: "log-3",
+    logId: "ACT-2025-0980",
     userId: "usr-02",
     userName: "Mary Addo",
     userEmail: "mary.addo@thinksales.com",
-    action: "Approval Granted",
-    module: "Transfers",
-    timestamp: new Date(Date.now() - 1000 * 60 * 140).toISOString(),
+    role: "Branch Manager",
     branch: "Kumasi Branch",
-    device: "Safari 17.4 (macOS Sonoma)",
+    module: "Transfers",
+    page: "/inventory/transfers",
+    action: "Stock Transfer Approved",
+    recordType: "Stock Transfer",
+    recordId: "TRF-2025-089",
+    oldValue: "Pending Approval",
+    newValue: "Approved & Dispatched",
+    changesDiff: [
+      { field: "status", label: "Transfer Status", oldValue: "pending_approval", newValue: "in_transit" },
+      { field: "dispatchedQty", label: "Total Units Dispatched", oldValue: 0, newValue: 50 },
+      { field: "destination", label: "Destination Branch", oldValue: "None", newValue: "Sunyani Branch" }
+    ],
+    timestamp: new Date(Date.now() - 1000 * 60 * 75).toISOString(),
+    device: "MacBook Pro 16",
+    browser: "Safari 17.4",
+    os: "macOS Sonoma",
     ipAddress: "197.251.130.45",
+    sessionId: "sess_c48b2109d",
     status: "success",
-    details: "Approved Inter-Branch Stock Transfer TRF-2025-089 (50 units Beverages to Sunyani)"
+    details: "Approved inter-branch stock dispatch of 50 units Beverages to Sunyani Branch."
   },
   {
     id: "log-4",
-    userId: "usr-11",
-    userName: "Kwame Nkrumah",
-    userEmail: "kwame.n@thinksales.com",
-    action: "Permission Updated",
-    module: "Expenses",
-    timestamp: new Date(Date.now() - 1000 * 60 * 280).toISOString(),
-    branch: "Head Office",
-    device: "Edge 124 (Windows 11)",
+    logId: "ACT-2025-0979",
+    userId: "usr-04",
+    userName: "Grace Mensah",
+    userEmail: "grace.m@thinksales.com",
+    role: "Cashier",
+    branch: "Accra Main Branch",
+    module: "POS",
+    page: "/pos",
+    action: "Sale Completed",
+    recordType: "POS Receipt",
+    recordId: "REC-ACC-2025-1049",
+    oldValue: "Cart Active (3 items)",
+    newValue: "Paid GHS 450.00 via MTN MoMo",
+    changesDiff: [
+      { field: "subtotal", label: "Subtotal", oldValue: "GHS 450.00", newValue: "GHS 450.00" },
+      { field: "paymentMethod", label: "Payment Method", oldValue: "Pending", newValue: "Mobile Money (MTN)" },
+      { field: "receiptNumber", label: "Receipt Number", oldValue: "N/A", newValue: "REC-ACC-2025-1049" }
+    ],
+    timestamp: new Date(Date.now() - 1000 * 60 * 110).toISOString(),
+    device: "POS Terminal 01",
+    browser: "Chrome 123",
+    os: "Windows 10",
     ipAddress: "102.176.94.18",
+    sessionId: "sess_5a19d80ef",
     status: "success",
-    details: "Configured expense approval limit for Accra Main Branch to GHS 25,000"
+    details: "Checkout transaction processed with receipt printout."
   },
   {
     id: "log-5",
+    logId: "ACT-2025-0978",
     userId: "usr-14",
     userName: "Faustina Arthur",
     userEmail: "faustina.a@thinksales.com",
-    action: "Failed Login Attempt",
-    module: "Authentication",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
+    role: "Cashier",
     branch: "Kumasi Branch",
-    device: "Firefox 125 (Windows 10)",
+    module: "User Management",
+    page: "/login",
+    action: "Failed Login Attempt",
+    recordType: "Auth Credential",
+    recordId: "usr-14",
+    oldValue: "Active Account",
+    newValue: "Account Locked (3 failed attempts)",
+    changesDiff: [
+      { field: "failedAttempts", label: "Consecutive Failed Logins", oldValue: 2, newValue: 3 },
+      { field: "accountLockState", label: "Lockout Status", oldValue: "Unlocked", newValue: "Temporary 15m Lockout" }
+    ],
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
+    device: "HP ProDesk 400",
+    browser: "Firefox 125",
+    os: "Windows 10",
     ipAddress: "41.215.160.22",
     status: "failed",
-    details: "3 consecutive invalid password attempts. Account flagged for temporary freeze."
+    details: "3 invalid password attempts recorded. Security policy triggered account freeze."
   },
   {
     id: "log-6",
+    logId: "ACT-2025-0977",
     userId: "usr-01",
     userName: "John Doe",
     userEmail: "john.doe@thinksales.com",
-    action: "User Deactivated",
-    module: "User Management",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 9).toISOString(),
+    role: "Administrator",
     branch: "Head Office",
-    device: "Chrome 124 (Windows 11)",
+    module: "Expenses",
+    page: "/expenses",
+    action: "Expense Approved",
+    recordType: "Operating Expense",
+    recordId: "EXP-2025-042",
+    oldValue: "Pending Review (GHS 4,500)",
+    newValue: "Approved for Disbursement",
+    changesDiff: [
+      { field: "approvalStatus", label: "Approval Status", oldValue: "pending_approval", newValue: "approved" },
+      { field: "approvedAmount", label: "Disbursement Limit", oldValue: "GHS 0", newValue: "GHS 4,500.00" },
+      { field: "category", label: "Expense Category", oldValue: "Utilities", newValue: "Utilities (Generator Fuel)" }
+    ],
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
+    device: "Dell XPS 15",
+    browser: "Chrome 124",
+    os: "Windows 11",
     ipAddress: "102.176.94.12",
-    status: "warning",
-    details: "Temporarily suspended Faustina Arthur (Cashier) pending security verification"
+    sessionId: "sess_9f81a2e4b",
+    status: "success",
+    details: "Approved diesel procurement invoice for Head Office backup generator."
   },
   {
     id: "log-7",
-    userId: "usr-01",
-    userName: "John Doe",
-    userEmail: "john.doe@thinksales.com",
-    action: "2FA Enforced",
-    module: "Security",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    branch: "Head Office",
-    device: "Chrome 124 (Windows 11)",
-    ipAddress: "102.176.94.12",
-    status: "success",
-    details: "Enforced mandatory Two-Factor Authentication for all Administrator and Manager accounts"
-  },
-  {
-    id: "log-8",
+    logId: "ACT-2025-0976",
     userId: "usr-03",
-    userName: "Daniel K.",
+    userName: "Daniel Koomson",
     userEmail: "daniel.k@thinksales.com",
-    action: "Password Reset",
-    module: "Authentication",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+    role: "Sales Associate",
     branch: "Takoradi Branch",
-    device: "Chrome Mobile (Android 14)",
+    module: "Orders",
+    page: "/orders",
+    action: "Order Created",
+    recordType: "Customer Order",
+    recordId: "ORD-2025-0144",
+    oldValue: "Draft Order",
+    newValue: "Submitted Order (GHS 18,500)",
+    changesDiff: [
+      { field: "customerName", label: "Customer Name", oldValue: "N/A", newValue: "Western Wholesale Depot" },
+      { field: "totalAmount", label: "Total Order Value", oldValue: "GHS 0.00", newValue: "GHS 18,500.00" },
+      { field: "deliveryTarget", label: "Delivery Target Date", oldValue: "N/A", newValue: "2025-05-30" }
+    ],
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
+    device: "Samsung Galaxy Tab",
+    browser: "Chrome Mobile",
+    os: "Android 14",
     ipAddress: "154.160.22.89",
+    sessionId: "sess_7e3a98bc1",
     status: "success",
-    details: "Password successfully updated via self-service recovery link"
+    details: "New high-volume wholesale customer order created and routed for manager review."
   }
+];
+
+export const INITIAL_BRANCH_ACCESS_RULES: BranchAccessRule[] = [
+  { userId: "usr-01", userName: "John Doe", userEmail: "john.doe@thinksales.com", role: "Administrator", primaryBranchId: "b-head", primaryBranchName: "Head Office", additionalBranchIds: ["b-accra", "b-kumasi", "b-takoradi", "b-tema", "b-ho", "b-cape", "b-sunyani", "b-tamale", "b-wa"], additionalBranchNames: ["All Branches"], viewAllBranches: true, canTransferBetweenBranches: true, canApproveBranchOrders: true },
+  { userId: "usr-02", userName: "Mary Addo", userEmail: "mary.addo@thinksales.com", role: "Branch Manager", primaryBranchId: "b-kumasi", primaryBranchName: "Kumasi Branch", additionalBranchIds: ["b-sunyani"], additionalBranchNames: ["Sunyani Branch"], viewAllBranches: false, canTransferBetweenBranches: true, canApproveBranchOrders: true },
+  { userId: "usr-03", userName: "Daniel Koomson", userEmail: "daniel.k@thinksales.com", role: "Sales Associate", primaryBranchId: "b-takoradi", primaryBranchName: "Takoradi Branch", additionalBranchIds: [], additionalBranchNames: [], viewAllBranches: false, canTransferBetweenBranches: false, canApproveBranchOrders: false },
+  { userId: "usr-04", userName: "Grace Mensah", userEmail: "grace.m@thinksales.com", role: "Cashier", primaryBranchId: "b-accra", primaryBranchName: "Accra Main Branch", additionalBranchIds: [], additionalBranchNames: [], viewAllBranches: false, canTransferBetweenBranches: false, canApproveBranchOrders: false },
+  { userId: "usr-07", userName: "Michael Ofori", userEmail: "michael.o@thinksales.com", role: "Branch Manager", primaryBranchId: "b-cape", primaryBranchName: "Cape Coast Branch", additionalBranchIds: ["b-takoradi"], additionalBranchNames: ["Takoradi Branch"], viewAllBranches: false, canTransferBetweenBranches: true, canApproveBranchOrders: true }
+];
+
+export const INITIAL_INVITATIONS: InvitationRecord[] = [
+  { id: "inv-1", name: "Kofi Annan", email: "kofi.a@thinksales.com", role: "manager", roleLabel: "Branch Manager", branchId: "b-accra", branchName: "Accra Main Branch", invitedBy: "John Doe", invitedAt: "2024-05-24T14:00:00Z", expiresAt: "2024-05-31T14:00:00Z", status: "pending" },
+  { id: "inv-2", name: "Sarah Owusu", email: "sarah.o@thinksales.com", role: "sales_officer", roleLabel: "Sales Associate", branchId: "b-tamale", branchName: "Tamale Branch", invitedBy: "John Doe", invitedAt: "2024-05-20T09:00:00Z", expiresAt: "2024-05-27T09:00:00Z", status: "expired" },
+  { id: "inv-3", name: "Patrick Kyeremeh", email: "patrick.k@thinksales.com", role: "cashier", roleLabel: "Cashier", branchId: "b-sunyani", branchName: "Sunyani Branch", invitedBy: "John Doe", invitedAt: "2024-05-15T11:30:00Z", expiresAt: "2024-05-22T11:30:00Z", status: "accepted" }
 ];
