@@ -408,16 +408,39 @@ export function UserManagement({
     });
   };
 
-  const handleUpdateUser = (updated: ManagedUser) => {
-    const oldUser = users.find((u) => u.id === updated.id);
-    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-    recordAudit("User Updated", "User Management", `Updated profile & access settings for ${updated.fullName}`, {
-      recordId: updated.id,
-      oldValue: `Role: ${oldUser?.roleLabel}, Branch: ${oldUser?.locationName}`,
-      newValue: `Role: ${updated.roleLabel}, Branch: ${updated.locationName}`
-    });
-    showToast(`Updated ${updated.fullName}'s profile`);
-  };
+  const handleUpdateUser = (
+  userId: string,
+  updates: Partial<ManagedUser>
+) => {
+  const oldUser = users.find((u) => u.id === userId);
+
+  const updatedUser = oldUser
+    ? { ...oldUser, ...updates }
+    : null;
+
+  setUsers((prev) =>
+    prev.map((u) =>
+      u.id === userId
+        ? { ...u, ...updates }
+        : u
+    )
+  );
+
+  if (updatedUser) {
+    recordAudit(
+      "User Updated",
+      "User Management",
+      `Updated profile & access settings for ${updatedUser.fullName}`,
+      {
+        recordId: updatedUser.id,
+        oldValue: `Role: ${oldUser?.roleLabel}, Branch: ${oldUser?.locationName}`,
+        newValue: `Role: ${updatedUser.roleLabel}, Branch: ${updatedUser.locationName}`
+      }
+    );
+
+    showToast(`Updated ${updatedUser.fullName}'s profile`);
+  }
+};
 
   const handleToggleStatus = (user: ManagedUser) => {
     const nextStatus = user.status === "active" ? "inactive" : "active";
@@ -1083,11 +1106,39 @@ export function UserManagement({
         )}
 
         {activeTab === "permissions" && (
-          <PermissionsTab roles={roles} />
+          <PermissionsTab roles={roles} canManage={canManage}
+          />
         )}
 
         {activeTab === "matrix" && (
-          <AccessMatrixTab roles={roles} canManage={canManage} />
+          <AccessMatrixTab
+          roles={roles}
+          canManage={canManage}
+          onUpdateRolePermissions={(roleId, permissions) => {
+    setRoles((prev) =>
+      prev.map((role) =>
+        role.id === roleId
+          ? { ...role, permissions }
+          : role
+      )
+    );
+
+    const updatedRole = roles.find((role) => role.id === roleId);
+
+    recordAudit(
+      "Role Permissions Updated",
+      "User Management",
+      `Updated access permissions for ${updatedRole?.name || roleId}`,
+      {
+        recordId: roleId
+      }
+    );
+
+    showToast(
+      `Permissions updated for ${updatedRole?.name || "role"}`
+    );
+  }}
+/>
         )}
 
         {activeTab === "approvals" && (
@@ -1113,7 +1164,7 @@ export function UserManagement({
         onClose={() => setIsAddUserOpen(false)}
         branches={branches}
         roles={roles}
-        onCreateUser={handleCreateUser}
+        onAddUser={handleCreateUser}
       />
 
       <InviteUserModal
@@ -1173,7 +1224,7 @@ export function UserManagement({
           setIsRoleModalOpen(false);
           setSelectedRoleForModal(null);
         }}
-        role={selectedRoleForModal}
+        roleToEdit={selectedRoleForModal}
         onSaveRole={(saved) => {
           if (roleModalMode === "create" || roleModalMode === "clone") {
             setRoles((prev) => [...prev, saved]);
@@ -1191,11 +1242,19 @@ export function UserManagement({
         onClose={() => setIsImportModalOpen(false)}
         roles={roles}
         branches={branches}
-        onImport={(imported) => {
-          setUsers((prev) => [...imported, ...prev]);
-          recordAudit("Users Imported", "User Management", `Imported ${imported.length} users from CSV.`);
-          showToast(`Successfully imported ${imported.length} users`);
-        }}
+        onImportUsers={(imported) => {
+         imported.forEach((importedUser) => {
+         handleCreateUser(importedUser);
+         });
+
+               recordAudit(
+                    "Users Imported",
+            "User Management",
+               `Imported ${imported.length} users from CSV.`
+        );
+
+                     showToast(`Successfully imported ${imported.length} users`);
+                      }}
       />
 
       <ResetPasswordModal
@@ -1205,10 +1264,31 @@ export function UserManagement({
           setSelectedUserForReset(null);
         }}
         user={selectedUserForReset}
-        onSendResetEmail={(email) => {
-          recordAudit("Password Reset Dispatched", "User Management", `Dispatched password reset email to ${email}`);
-          showToast(`Reset email dispatched to ${email}`);
-        }}
+        onConfirmReset={(userId, mode, tempPassword) => {
+  const resetUser = users.find((u) => u.id === userId);
+
+  if (!resetUser) return;
+
+  recordAudit(
+    "Password Reset Dispatched",
+    "User Management",
+    mode === "email"
+      ? `Dispatched password reset email to ${resetUser.email}`
+      : `Reset password using temporary password for ${resetUser.email}`,
+    {
+      recordId: userId,
+      newValue: mode === "email"
+        ? "Password reset email"
+        : "Temporary password"
+    }
+  );
+
+  showToast(
+    mode === "email"
+      ? `Reset email dispatched to ${resetUser.email}`
+      : `Temporary password generated for ${resetUser.email}`
+  );
+}}
       />
 
       <BulkRoleModal
@@ -1216,7 +1296,7 @@ export function UserManagement({
         onClose={() => setIsBulkRoleOpen(false)}
         selectedCount={bulkSelectedIds.length}
         roles={roles}
-        onAssign={handleBulkAssignRoleSubmit}
+        onConfirm={handleBulkAssignRoleSubmit}
       />
 
       <BulkBranchModal
@@ -1224,7 +1304,7 @@ export function UserManagement({
         onClose={() => setIsBulkBranchOpen(false)}
         selectedCount={bulkSelectedIds.length}
         branches={branches}
-        onAssign={handleBulkAssignBranchSubmit}
+        onConfirm={handleBulkAssignBranchSubmit}
       />
 
       <BulkDeleteModal
@@ -1237,7 +1317,7 @@ export function UserManagement({
       <SecuritySettingsModal
         isOpen={isSecuritySettingsOpen}
         onClose={() => setIsSecuritySettingsOpen(false)}
-        onSave={() => showToast("Enterprise security policies updated.")}
+        onSaveNotification={(msg) => showToast(msg)}
       />
 
     </div>
