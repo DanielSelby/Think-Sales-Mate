@@ -1,0 +1,19 @@
+-- 1. Add the missing column
+alter table customer_orders add column if not exists voice_note_url text;
+
+-- 2. Create the storage bucket (public, so the admin can play back recordings)
+insert into storage.buckets (id, name, public)
+values ('customer-order-attachments', 'customer-order-attachments', true)
+on conflict (id) do nothing;
+
+-- 3. Allow anonymous storefront visitors to upload a voice note
+create policy "Anyone can upload voice notes"
+on storage.objects for insert
+to anon
+with check (bucket_id = 'customer-order-attachments');
+
+-- 4. Allow anyone to read/play the recordings back (needed for the admin audio player)
+create policy "Public can read voice notes"
+on storage.objects for select
+to public
+using (bucket_id = 'customer-order-attachments');

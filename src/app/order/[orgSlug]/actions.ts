@@ -112,6 +112,7 @@ export interface UploadVoiceNoteResult {
 
 const MAX_VOICE_NOTE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_VOICE_MIME_PREFIXES = ["audio/"];
+const VOICE_NOTE_BUCKET = "customer-order-attachments";
 
 export async function uploadVoiceNote(formData: FormData): Promise<UploadVoiceNoteResult> {
   const orgId = String(formData.get("org_id") ?? "");
@@ -128,13 +129,18 @@ export async function uploadVoiceNote(formData: FormData): Promise<UploadVoiceNo
   const ext = file.type.includes("webm") ? "webm" : file.type.includes("mp4") ? "m4a" : "ogg";
   const path = `${orgId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage.from("customer-order-attachments").upload(path, file, {
+  const { error: uploadError } = await supabase.storage.from(VOICE_NOTE_BUCKET).upload(path, file, {
     contentType: file.type,
     upsert: false,
   });
-  if (uploadError) return { ok: false, error: uploadError.message };
+  if (uploadError) {
+    if (/bucket not found/i.test(uploadError.message)) {
+      return { ok: false, error: "Voice notes aren't set up yet on this store — continuing without the recording." };
+    }
+    return { ok: false, error: uploadError.message };
+  }
 
-  const { data: publicUrl } = supabase.storage.from("customer-order-attachments").getPublicUrl(path);
+  const { data: publicUrl } = supabase.storage.from(VOICE_NOTE_BUCKET).getPublicUrl(path);
   return { ok: true, url: publicUrl.publicUrl };
 }
 
@@ -221,29 +227,56 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   const randomSuffix = Math.floor(100 + Math.random() * 900);
   const orderNumber = `ORD-${dateStr}-${randomSuffix}`;
 
-  const { data: order, error: orderError } = await supabase
-    .from("customer_orders")
-    .insert({
-      org_id: input.orgId,
-      order_number: orderNumber,
-      customer_id: existingCustomer?.id ?? null,
-      guest_name: input.guestName.trim(),
-      guest_phone: input.guestPhone.trim(),
-      guest_email: input.guestEmail?.trim() || null,
-      delivery_address: input.deliveryAddress.trim(),
-      delivery_option: input.deliveryOption,
-      delivery_fee: Math.max(0, input.deliveryFee),
-      notes: input.notes?.trim() || null,
-      voice_note_url: input.voiceNoteUrl ?? null,
-      subtotal,
-      total,
-      status: "new",
-      payment_status: "unpaid",
-      delivery_status: "not_shipped",
-      location_id: assignedLocationId,
-    })
-    .select("id, order_number, access_token")
-    .single();
+    const baseOrderPayload = {
+    org_id: input.orgId,
+    order_number: orderNumber,
+    customer_id: existingCustomer?.id ?? null,
+    guest_name: input.guestName.trim(),
+    guest_phone: input.guestPhone.trim(),
+    guest_email: input.guestEmail?.trim() || null,
+    delivery_address: input.deliveryAddress.trim(),
+    delivery_option: input.deliveryOption,
+    delivery_fee: Math.max(0, input.deliveryFee),
+    notes: input.notes?.trim() || null,
+    subtotal,
+    total,
+    status: "new" as const,
+    payment_status: "unpaid" as const,
+    delivery_status: "not_shipped" as const,
+    location_id: assignedLocationId,
+  };
+
+  let order: { id: string; order_number: string; access_token: string } | null = null;
+  let orderError: { message: string } | null = null;
+
+  if (input.voiceNoteUrl) {
+    const attempt = await supabase
+      .from("customer_orders")
+      .insert({ ...baseOrderPayload, voice_note_url: input.voiceNoteUrl })
+      .select("id, order_number, access_token")
+      .single();
+
+    if (attempt.error && /voice_note_url/i.test(attempt.error.message)) {
+      const fallback = await supabase
+        .from("customer_orders")
+        .insert(baseOrderPayload)
+        .select("id, order_number, access_token")
+        .single();
+      order = fallback.data;
+      orderError = fallback.error;
+    } else {
+      order = attempt.data;
+      orderError = attempt.error;
+    }
+  } else {
+    const attempt = await supabase
+      .from("customer_orders")
+      .insert(baseOrderPayload)
+      .select("id, order_number, access_token")
+      .single();
+    order = attempt.data;
+    orderError = attempt.error;
+  }
 
   if (orderError || !order) return { ok: false, error: orderError?.message ?? "Couldn't create order." };
 
