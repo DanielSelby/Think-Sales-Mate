@@ -44,6 +44,8 @@ import {
   MessageSquare,
   HelpCircle,
   AlertTriangle,
+  Trash2,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,162 +108,8 @@ interface Kpis {
   totalValue: KpiStat;
 }
 
-// Seed dataset matching reference image (media_1788282707620.png)
-const DEFAULT_SEED_TRANSFERS: TransferRow[] = [
-  {
-    id: "trf-000128",
-    label: "TRF-000128",
-    referenceNo: "INV-2024-128",
-    status: "completed",
-    reason: "Routine Store Restock",
-    notes: "Direct transfer from central distribution bay.",
-    shippingCharges: 0,
-    transferDate: "2024-05-28",
-    createdAt: "2024-05-28T10:45:00Z",
-    completedAt: "2024-05-28T14:30:00Z",
-    fromLocationId: "loc-wh-accra",
-    fromLocationName: "Main Warehouse",
-    fromCity: "Accra",
-    toLocationId: "loc-br-tema",
-    toLocationName: "Tema Branch",
-    toCity: "Tema",
-    productCount: 12,
-    productIds: ["prod-1", "prod-2"],
-    totalQuantity: 245,
-    totalValue: 84500.0,
-    requestedByEmail: "abena.k@onlygod.com",
-    transferredByName: "Abena K.",
-    transferredByRole: "Admin",
-  },
-  {
-    id: "trf-000127",
-    label: "TRF-000127",
-    referenceNo: "INV-2024-127",
-    status: "completed",
-    reason: "Stock Balancing",
-    notes: "Inter-city replenishment transfer.",
-    shippingCharges: 0,
-    transferDate: "2024-05-27",
-    createdAt: "2024-05-27T16:30:00Z",
-    completedAt: "2024-05-27T19:15:00Z",
-    fromLocationId: "loc-br-kumasi",
-    fromLocationName: "Kumasi Branch",
-    fromCity: "Kumasi",
-    toLocationId: "loc-wh-accra",
-    toLocationName: "Main Warehouse",
-    toCity: "Accra",
-    productCount: 8,
-    productIds: ["prod-3", "prod-4"],
-    totalQuantity: 120,
-    totalValue: 42300.0,
-    requestedByEmail: "michael.a@onlygod.com",
-    transferredByName: "Michael A.",
-    transferredByRole: "Manager",
-  },
-  {
-    id: "trf-000126",
-    label: "TRF-000126",
-    referenceNo: "INV-2024-126",
-    status: "pending",
-    reason: "High Demand Season Restock",
-    notes: "Awaiting final loading dock dispatch.",
-    shippingCharges: 0,
-    transferDate: "2024-05-27",
-    createdAt: "2024-05-27T11:15:00Z",
-    completedAt: null,
-    fromLocationId: "loc-wh-accra",
-    fromLocationName: "Main Warehouse",
-    fromCity: "Accra",
-    toLocationId: "loc-br-takoradi",
-    toLocationName: "Takoradi Branch",
-    toCity: "Takoradi",
-    productCount: 15,
-    productIds: ["prod-5", "prod-6"],
-    totalQuantity: 310,
-    totalValue: 112000.0,
-    requestedByEmail: "abena.k@onlygod.com",
-    transferredByName: "Abena K.",
-    transferredByRole: "Admin",
-  },
-  {
-    id: "trf-000125",
-    label: "TRF-000125",
-    referenceNo: "INV-2024-125",
-    status: "pending",
-    reason: "Branch Request",
-    notes: "Transit van scheduled for dispatch.",
-    shippingCharges: 0,
-    transferDate: "2024-05-26",
-    createdAt: "2024-05-26T09:20:00Z",
-    completedAt: null,
-    fromLocationId: "loc-br-tamale",
-    fromLocationName: "Tamale Branch",
-    fromCity: "Tamale",
-    toLocationId: "loc-wh-accra",
-    toLocationName: "Main Warehouse",
-    toCity: "Accra",
-    productCount: 6,
-    productIds: ["prod-7"],
-    totalQuantity: 85,
-    totalValue: 29400.0,
-    requestedByEmail: "joseph.o@onlygod.com",
-    transferredByName: "Joseph O.",
-    transferredByRole: "Officer",
-  },
-  {
-    id: "trf-000124",
-    label: "TRF-000124",
-    referenceNo: "INV-2024-124",
-    status: "cancelled",
-    reason: "Customer Order Cancelled",
-    notes: "Cancelled by store manager before dispatch.",
-    shippingCharges: 0,
-    transferDate: "2024-05-25",
-    createdAt: "2024-05-25T15:10:00Z",
-    completedAt: null,
-    fromLocationId: "loc-br-takoradi",
-    fromLocationName: "Takoradi Branch",
-    fromCity: "Takoradi",
-    toLocationId: "loc-br-kumasi",
-    toLocationName: "Kumasi Branch",
-    toCity: "Kumasi",
-    productCount: 4,
-    productIds: ["prod-8"],
-    totalQuantity: 60,
-    totalValue: 18500.0,
-    requestedByEmail: "michael.a@onlygod.com",
-    transferredByName: "Michael A.",
-    transferredByRole: "Manager",
-  },
-  {
-    id: "trf-000123",
-    label: "TRF-000123",
-    referenceNo: "INV-2024-123",
-    status: "completed",
-    reason: "Emergency Restock",
-    notes: "Fast-tracked pallet transfer.",
-    shippingCharges: 0,
-    transferDate: "2024-05-24",
-    createdAt: "2024-05-24T08:30:00Z",
-    completedAt: "2024-05-24T12:00:00Z",
-    fromLocationId: "loc-wh-accra",
-    fromLocationName: "Main Warehouse",
-    fromCity: "Accra",
-    toLocationId: "loc-br-tema",
-    toLocationName: "Tema Branch",
-    toCity: "Tema",
-    productCount: 9,
-    productIds: ["prod-9"],
-    totalQuantity: 180,
-    totalValue: 62000.0,
-    requestedByEmail: "abena.k@onlygod.com",
-    transferredByName: "Abena K.",
-    transferredByRole: "Admin",
-  },
-];
-
 export function TransferHistory({
-  transfers = DEFAULT_SEED_TRANSFERS,
+  transfers = [],
   kpis,
   locations = [],
   products = [],
@@ -278,11 +126,6 @@ export function TransferHistory({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Combine real and seed data cleanly
-  const allTransfers = useMemo(() => {
-    return transfers && transfers.length > 0 ? transfers : DEFAULT_SEED_TRANSFERS;
-  }, [transfers]);
-
   // Tab filter: "all" | "completed" | "pending" | "cancelled"
   const [activeTab, setActiveTab] = useState<string>("all");
 
@@ -290,13 +133,14 @@ export function TransferHistory({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
-  const [startDate, setStartDate] = useState("2024-05-01");
-  const [endDate, setEndDate] = useState("2024-05-28");
+  // Default dates to empty so no valid records get filtered out
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
 
   // Modals and Details
   const [selectedTransferForDetail, setSelectedTransferForDetail] = useState<TransferRow | null>(null);
@@ -304,13 +148,8 @@ export function TransferHistory({
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationsList, setNotificationsList] = useState([
-    { id: "1", title: "Transfer TRF-000128 Completed", time: "10 mins ago", read: false },
-    { id: "2", title: "Takoradi Branch requested 310 items", time: "1 hour ago", read: false },
-    { id: "3", title: "Low stock alert: Samsung Galaxy A15", time: "2 hours ago", read: false },
-    { id: "4", title: "Transfer TRF-000125 dispatched", time: "Yesterday", read: true },
-    { id: "5", title: "Monthly inventory report ready for download", time: "2 days ago", read: true },
-  ]);
+  const [actionMenuTransferId, setActionMenuTransferId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -324,27 +163,21 @@ export function TransferHistory({
       if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
       }
+      if (actionMenuTransferId) {
+        setActionMenuTransferId(null);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [actionMenuTransferId]);
 
-  // Fetch line items when a transfer is opened
+  // Fetch real line items when a transfer detail drawer is opened
   useEffect(() => {
     if (selectedTransferForDetail) {
       setIsLoadingItems(true);
       getTransferItems(selectedTransferForDetail.id)
         .then((items) => {
-          if (items && items.length > 0) {
-            setDetailItems(items);
-          } else {
-            // Mock sample items for demo view
-            setDetailItems([
-              { productId: "p1", productName: "Samsung Galaxy A15 128GB", sku: "SM-A155F-BL", quantity: 20, unitCost: 1200 },
-              { productId: "p2", productName: "Infinix Hot 40i 128GB", sku: "IN-H40I-PB", quantity: 30, unitCost: 650 },
-              { productId: "p3", productName: "Oraimo 18W Fast Charger", sku: "ORC-18W-WH", quantity: 60, unitCost: 45 },
-            ]);
-          }
+          setDetailItems(items || []);
         })
         .finally(() => setIsLoadingItems(false));
     } else {
@@ -352,60 +185,16 @@ export function TransferHistory({
     }
   }, [selectedTransferForDetail]);
 
-  // ── Filtered Records ─────────────────────────────────────────────────────
-  const filteredRecords = useMemo(() => {
-    return allTransfers.filter((t) => {
-      // Tab filter
-      if (activeTab === "completed" && t.status !== "completed") return false;
-      if (activeTab === "pending" && t.status !== "pending" && t.status !== "in_transit") return false;
-      if (activeTab === "cancelled" && t.status !== "cancelled") return false;
-
-      // Status dropdown
-      if (selectedStatus !== "all" && t.status !== selectedStatus) return false;
-
-      // Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesId = t.label.toLowerCase().includes(q) || (t.referenceNo && t.referenceNo.toLowerCase().includes(q));
-        const matchesFrom = t.fromLocationName.toLowerCase().includes(q);
-        const matchesTo = t.toLocationName.toLowerCase().includes(q);
-        const matchesUser = t.transferredByName?.toLowerCase().includes(q) || t.requestedByEmail.toLowerCase().includes(q);
-        const matchesNotes = t.notes && t.notes.toLowerCase().includes(q);
-        if (!matchesId && !matchesFrom && !matchesTo && !matchesUser && !matchesNotes) return false;
-      }
-
-      // Location filter
-      if (selectedLocation !== "all") {
-        if (!t.fromLocationName.includes(selectedLocation) && !t.toLocationName.includes(selectedLocation)) {
-          return false;
-        }
-      }
-
-      // Date Range Filter
-      if (startDate && t.transferDate < startDate) return false;
-      if (endDate && t.transferDate > endDate) return false;
-
-      return true;
-    });
-  }, [allTransfers, activeTab, selectedStatus, searchQuery, selectedLocation, startDate, endDate]);
-
-  // Paginated records
-  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
-  const paginatedRecords = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredRecords.slice(start, start + pageSize);
-  }, [filteredRecords, currentPage, pageSize]);
-
-  // ── Calculated Counts & KPIs (Matching reference image) ─────────────────
+  // ── Real KPI Calculations directly from database records ─────────────────
   const calculatedKpis = useMemo(() => {
-    const totalCount = allTransfers.length || 128;
-    const completedCount = allTransfers.filter((t) => t.status === "completed").length || 112;
-    const pendingCount = allTransfers.filter((t) => t.status === "pending" || t.status === "in_transit").length || 16;
-    const cancelledCount = allTransfers.filter((t) => t.status === "cancelled").length || 3;
-    const totalItemsTransferred = allTransfers.reduce((sum, t) => sum + t.totalQuantity, 0) || 2456;
+    const totalCount = transfers.length;
+    const completedCount = transfers.filter((t) => t.status === "completed").length;
+    const pendingCount = transfers.filter((t) => t.status === "pending" || t.status === "in_transit").length;
+    const cancelledCount = transfers.filter((t) => t.status === "cancelled").length;
+    const totalItemsTransferred = transfers.reduce((sum, t) => sum + (t.totalQuantity || 0), 0);
 
-    const completedPct = Math.round((completedCount / totalCount) * 100) || 87.5;
-    const pendingPct = Math.round((pendingCount / totalCount) * 100) || 12.5;
+    const completedPct = totalCount > 0 ? ((completedCount / totalCount) * 100).toFixed(1) : "0.0";
+    const pendingPct = totalCount > 0 ? ((pendingCount / totalCount) * 100).toFixed(1) : "0.0";
 
     return {
       totalTransfers: totalCount,
@@ -416,26 +205,104 @@ export function TransferHistory({
       completedPct,
       pendingPct,
     };
-  }, [allTransfers]);
+  }, [transfers]);
+
+  // ── Filtered Records using pure database records ─────────────────────────
+  const filteredRecords = useMemo(() => {
+    return transfers.filter((t) => {
+      // Tab filter
+      if (activeTab === "completed" && t.status !== "completed") return false;
+      if (activeTab === "pending" && t.status !== "pending" && t.status !== "in_transit") return false;
+      if (activeTab === "cancelled" && t.status !== "cancelled") return false;
+
+      // Status dropdown
+      if (selectedStatus !== "all") {
+        if (selectedStatus === "pending" && t.status !== "pending" && t.status !== "in_transit") return false;
+        if (selectedStatus !== "pending" && t.status !== selectedStatus) return false;
+      }
+
+      // Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesId = t.label?.toLowerCase().includes(q) || (t.referenceNo && t.referenceNo.toLowerCase().includes(q));
+        const matchesFrom = t.fromLocationName?.toLowerCase().includes(q);
+        const matchesTo = t.toLocationName?.toLowerCase().includes(q);
+        const matchesUser = t.transferredByName?.toLowerCase().includes(q) || t.requestedByEmail?.toLowerCase().includes(q);
+        const matchesNotes = t.notes && t.notes.toLowerCase().includes(q);
+        if (!matchesId && !matchesFrom && !matchesTo && !matchesUser && !matchesNotes) return false;
+      }
+
+      // Location filter
+      if (selectedLocation !== "all") {
+        if (!t.fromLocationName?.toLowerCase().includes(selectedLocation.toLowerCase()) && !t.toLocationName?.toLowerCase().includes(selectedLocation.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // Date Range Filter (only when explicitly provided)
+      if (startDate && t.transferDate < startDate) return false;
+      if (endDate && t.transferDate > endDate) return false;
+
+      return true;
+    });
+  }, [transfers, activeTab, selectedStatus, searchQuery, selectedLocation, startDate, endDate]);
+
+  // Paginated records
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRecords.slice(start, start + pageSize);
+  }, [filteredRecords, currentPage, pageSize]);
+
+  // Real Status Update Action
+  const handleUpdateStatus = (transferId: string, newStatus: TransferStatus) => {
+    startTransition(async () => {
+      const res = await updateTransferStatus(transferId, newStatus);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        setToastMessage(`Transfer status updated to ${newStatus.replace("_", " ")}.`);
+        setTimeout(() => setToastMessage(null), 3000);
+        router.refresh();
+      }
+      setActionMenuTransferId(null);
+    });
+  };
+
+  // Real Delete Action
+  const handleDeleteTransfer = (transferId: string) => {
+    if (!confirm("Are you sure you want to cancel and remove this stock transfer? This will restore inventory.")) return;
+    startTransition(async () => {
+      const res = await deleteTransfer(transferId);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        setToastMessage("Transfer successfully deleted and inventory restored.");
+        setTimeout(() => setToastMessage(null), 3000);
+        router.refresh();
+      }
+      setActionMenuTransferId(null);
+    });
+  };
 
   // Export handlers
   const handleExportExcel = () => {
     const data = filteredRecords.map((t) => ({
       "Transfer ID": t.label,
       "Reference No": t.referenceNo || "N/A",
-      "Date & Time": t.transferDate,
+      "Date": t.transferDate,
       "From Location": t.fromLocationName,
       "To Location": t.toLocationName,
-      "Item Count": t.productCount,
+      "Product Count": t.productCount,
       "Total Quantity": t.totalQuantity,
       [`Total Value (${currency})`]: t.totalValue,
       Status: t.status,
-      "Transferred By": t.transferredByName || t.requestedByEmail,
+      "Requested By": t.requestedByEmail,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Transfers History");
-    XLSX.writeFile(wb, `Stock_Transfer_History_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Stock Transfers");
+    XLSX.writeFile(wb, `Stock_Transfers_${new Date().toISOString().slice(0, 10)}.xlsx`);
     setShowExportMenu(false);
   };
 
@@ -449,22 +316,36 @@ export function TransferHistory({
       Quantity: t.totalQuantity,
       Value: t.totalValue,
       Status: t.status,
-      User: t.transferredByName || t.requestedByEmail,
+      User: t.requestedByEmail,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Stock_Transfer_History_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `Stock_Transfers_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     setShowExportMenu(false);
   };
 
-  const unreadNotificationsCount = notificationsList.filter((n) => !n.read).length;
+  // Dynamic notifications from real pending/in-transit transfers
+  const pendingTransfersList = useMemo(() => {
+    return transfers.filter((t) => t.status === "in_transit" || t.status === "pending");
+  }, [transfers]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150 pb-12">
+    <div className="space-y-6 animate-in fade-in duration-150 pb-16">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-2xl bg-emerald-700 px-5 py-3.5 text-white shadow-2xl animate-in slide-in-from-top-4">
+          <CheckCircle2 className="h-5 w-5 text-emerald-200" />
+          <span className="text-xs font-semibold">{toastMessage}</span>
+          <button onClick={() => setToastMessage(null)} className="ml-2 rounded-lg p-1 hover:bg-white/10">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── Page Header matching reference image ────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
@@ -477,7 +358,7 @@ export function TransferHistory({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Notification Bell Dropdown (Active & Functional) */}
+          {/* Active Notifications Bell */}
           <div className="relative" ref={notificationRef}>
             <button
               type="button"
@@ -485,9 +366,9 @@ export function TransferHistory({
               className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-ledger-200 bg-white text-ledger-600 shadow-xs hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300"
             >
               <Bell className="h-4 w-4" />
-              {unreadNotificationsCount > 0 && (
+              {pendingTransfersList.length > 0 && (
                 <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-                  {unreadNotificationsCount}
+                  {pendingTransfersList.length}
                 </span>
               )}
             </button>
@@ -497,33 +378,41 @@ export function TransferHistory({
                 <div className="flex items-center justify-between border-b border-ledger-100 pb-2.5 dark:border-ledger-700">
                   <div className="flex items-center gap-1.5">
                     <Bell className="h-4 w-4 text-emerald-600" />
-                    <h4 className="font-bold text-xs text-ink-900 dark:text-white">Notifications</h4>
+                    <h4 className="font-bold text-xs text-ink-900 dark:text-white">Transfer Alerts</h4>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNotificationsList((prev) => prev.map((n) => ({ ...n, read: true })))
-                    }
-                    className="text-[10px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
-                  >
-                    Mark all as read
-                  </button>
+                  <span className="text-[10px] text-ledger-400 font-mono">
+                    {pendingTransfersList.length} active
+                  </span>
                 </div>
 
                 <div className="mt-2 space-y-1.5 max-h-72 overflow-y-auto">
-                  {notificationsList.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`rounded-xl p-2.5 text-xs transition-colors ${
-                        n.read
-                          ? "bg-transparent text-ledger-500 hover:bg-ledger-50 dark:hover:bg-white/[0.02]"
-                          : "bg-emerald-50/50 text-ink-900 font-medium dark:bg-emerald-950/30 dark:text-white"
-                      }`}
-                    >
-                      <p className="text-xs leading-snug">{n.title}</p>
-                      <span className="mt-1 block text-[10px] text-ledger-400">{n.time}</span>
-                    </div>
-                  ))}
+                  {pendingTransfersList.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-ledger-400">
+                      No pending or in-transit stock transfers right now.
+                    </p>
+                  ) : (
+                    pendingTransfersList.map((t) => (
+                      <div
+                        key={t.id}
+                        onClick={() => {
+                          setSelectedTransferForDetail(t);
+                          setShowNotifications(false);
+                        }}
+                        className="cursor-pointer rounded-xl bg-emerald-50/50 p-2.5 text-xs transition-colors hover:bg-emerald-100/60 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/60"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-ink-900 dark:text-white font-mono">{t.label}</span>
+                          <span className="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-400">
+                            {t.status.replace("_", " ")}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-ledger-600 dark:text-ledger-300 mt-0.5">
+                          {t.fromLocationName} → {t.toLocationName} ({t.totalQuantity} items)
+                        </p>
+                        <span className="mt-1 block text-[10px] text-ledger-400 font-mono">{t.transferDate}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -588,7 +477,7 @@ export function TransferHistory({
         </div>
       </div>
 
-      {/* ── 4 Top KPI Cards (Matching Image) ──────────────────────────────── */}
+      {/* ── 4 Top KPI Cards (Computed strictly from real data) ────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* 1. Total Transfers */}
         <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
@@ -602,13 +491,15 @@ export function TransferHistory({
                 <span className="font-display text-2xl font-bold text-ink-900 dark:text-white font-mono">
                   {calculatedKpis.totalTransfers}
                 </span>
-                <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  ↗ 15.6%
-                </span>
+                {kpis?.total?.change !== undefined && (
+                  <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    {kpis.total.change >= 0 ? "↗" : "↘"} {Math.abs(kpis.total.change)}%
+                  </span>
+                )}
               </div>
             </div>
           </div>
-          <p className="mt-2 text-[10px] text-ledger-400">vs last 30 days</p>
+          <p className="mt-2 text-[10px] text-ledger-400">All registered transfers</p>
         </div>
 
         {/* 2. Total Items Transferred */}
@@ -623,13 +514,11 @@ export function TransferHistory({
                 <span className="font-display text-2xl font-bold text-ink-900 dark:text-white font-mono">
                   {calculatedKpis.totalItemsTransferred.toLocaleString()}
                 </span>
-                <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  ↗ 8.2%
-                </span>
+                <span className="text-[10px] font-mono text-ledger-400">units</span>
               </div>
             </div>
           </div>
-          <p className="mt-2 text-[10px] text-ledger-400">vs last 30 days</p>
+          <p className="mt-2 text-[10px] text-ledger-400">Sum of all quantities moved</p>
         </div>
 
         {/* 3. Completed Transfers */}
@@ -645,7 +534,7 @@ export function TransferHistory({
                   {calculatedKpis.completedTransfers}
                 </span>
                 <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                  ↑ 87.5%
+                  ↑ {calculatedKpis.completedPct}%
                 </span>
               </div>
             </div>
@@ -665,17 +554,17 @@ export function TransferHistory({
                 <span className="font-display text-2xl font-bold text-ink-900 dark:text-white font-mono">
                   {calculatedKpis.pendingTransfers}
                 </span>
-                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                  ↻ 12.5%
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                  ↻ {calculatedKpis.pendingPct}%
                 </span>
               </div>
             </div>
           </div>
-          <p className="mt-2 text-[10px] text-ledger-400">of total transfers</p>
+          <p className="mt-2 text-[10px] text-ledger-400">Awaiting transit / receiving</p>
         </div>
       </div>
 
-      {/* ── Status Filter Tabs Bar (Matching Image) ───────────────────────── */}
+      {/* ── Status Filter Tabs Bar (Direct Real Counts) ────────────────────── */}
       <div className="flex flex-wrap items-center gap-2 border-b border-ledger-100 pb-3 dark:border-ledger-700">
         {[
           { id: "all", label: "All Transfers", icon: ArrowLeftRight, count: calculatedKpis.totalTransfers },
@@ -715,10 +604,10 @@ export function TransferHistory({
         })}
       </div>
 
-      {/* ── Filter Toolbar (Matching Image) ───────────────────────────────── */}
+      {/* ── Filter Toolbar ────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900 space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 items-center">
-          {/* 1. Search Input (5 cols) */}
+          {/* 1. Search Input */}
           <div className="relative lg:col-span-5">
             <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-ledger-400" />
             <input
@@ -733,7 +622,7 @@ export function TransferHistory({
             />
           </div>
 
-          {/* 2. Status Dropdown (2 cols) */}
+          {/* 2. Status Dropdown */}
           <div className="relative lg:col-span-2">
             <select
               value={selectedStatus}
@@ -745,14 +634,14 @@ export function TransferHistory({
             >
               <option value="all">All Status</option>
               <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
               <option value="in_transit">In Transit</option>
+              <option value="pending">Pending</option>
               <option value="cancelled">Cancelled</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
           </div>
 
-          {/* 3. Locations Dropdown (2 cols) */}
+          {/* 3. Locations Dropdown */}
           <div className="relative lg:col-span-2">
             <select
               value={selectedLocation}
@@ -763,21 +652,22 @@ export function TransferHistory({
               className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
             >
               <option value="all">All Locations</option>
-              <option value="Main Warehouse">Main Warehouse (Accra)</option>
-              <option value="Kumasi Branch">Kumasi Branch</option>
-              <option value="Takoradi Branch">Takoradi Branch</option>
-              <option value="Tema Branch">Tema Branch</option>
-              <option value="Tamale Branch">Tamale Branch</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.name}>
+                  {loc.name}
+                </option>
+              ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-ledger-400" />
           </div>
 
-          {/* 4. Date Range (2 cols) */}
+          {/* 4. Date Range */}
           <div className="lg:col-span-2 flex items-center gap-1 rounded-xl border border-ledger-200 bg-white px-2 py-1 shadow-xs dark:border-ledger-700 dark:bg-ink-950">
             <Calendar className="h-3.5 w-3.5 text-ledger-400 shrink-0" />
             <input
               type="date"
               value={startDate}
+              placeholder="Start"
               onChange={(e) => setStartDate(e.target.value)}
               className="w-full text-[10px] font-mono text-ink-900 bg-transparent focus:outline-hidden dark:text-white"
             />
@@ -785,26 +675,35 @@ export function TransferHistory({
             <input
               type="date"
               value={endDate}
+              placeholder="End"
               onChange={(e) => setEndDate(e.target.value)}
               className="w-full text-[10px] font-mono text-ink-900 bg-transparent focus:outline-hidden dark:text-white"
             />
           </div>
 
-          {/* 5. Filters Toggle (1 col) */}
+          {/* 5. Filters Toggle */}
           <div className="lg:col-span-1">
             <button
               type="button"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+                setSelectedLocation("all");
+                setSelectedStatus("all");
+                setSearchQuery("");
+                setCurrentPage(1);
+              }}
+              title="Reset Filters"
               className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-ledger-200 bg-white px-3 text-xs font-semibold text-ink-900 shadow-xs hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">Filters</span>
+              <RotateCcw className="h-3.5 w-3.5 text-ledger-400" />
+              <span className="hidden sm:inline">Reset</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Modern Transfers Audit Table (Matching Image) ───────────────── */}
+      {/* ── Modern Transfers Audit Table (Strictly Real Records) ─────────── */}
       <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -818,15 +717,33 @@ export function TransferHistory({
                 <th className="px-4 py-3 text-center min-w-[80px]">ITEMS</th>
                 <th className="px-4 py-3 text-center min-w-[90px]">QUANTITY</th>
                 <th className="px-4 py-3 min-w-[110px]">STATUS</th>
-                <th className="px-4 py-3 min-w-[160px]">TRANSFERRED BY</th>
+                <th className="px-4 py-3 min-w-[160px]">REQUESTED BY</th>
                 <th className="px-4 py-3 text-center w-16">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
               {paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-ledger-400">
-                    No stock transfer records match the current filter criteria.
+                  <td colSpan={10} className="px-6 py-14 text-center">
+                    <div className="mx-auto max-w-sm space-y-3">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-ledger-50 text-ledger-400 dark:bg-ledger-800">
+                        <ArrowLeftRight className="h-6 w-6" />
+                      </div>
+                      <p className="font-bold text-sm text-ink-900 dark:text-white">
+                        No stock transfer records found
+                      </p>
+                      <p className="text-xs text-ledger-400">
+                        {transfers.length === 0
+                          ? "You haven't created any stock transfers yet. Click 'Create Transfer' to initiate your first transfer."
+                          : "No transfers match the current filter selection. Try clearing search filters."}
+                      </p>
+                      <Link href="/inventory/transfers/new" className="inline-block pt-1">
+                        <Button size="sm" className="gap-1.5 rounded-xl bg-emerald-700 text-xs text-white">
+                          <Plus className="h-3.5 w-3.5" />
+                          Create New Transfer
+                        </Button>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -835,20 +752,17 @@ export function TransferHistory({
                   const isPendingStatus = row.status === "pending" || row.status === "in_transit";
                   const isCancelled = row.status === "cancelled";
 
-                  // Color indicator icon
                   const iconBg = isCompleted
                     ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
                     : isPendingStatus
                     ? "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
                     : "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400";
 
-                  const userInitials = row.transferredByName
-                    ? row.transferredByName
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()
-                    : "AK";
+                  const userInitials = row.requestedByEmail
+                    ? row.requestedByEmail.slice(0, 2).toUpperCase()
+                    : "ST";
+
+                  const isMenuOpen = actionMenuTransferId === row.id;
 
                   return (
                     <tr
@@ -860,7 +774,7 @@ export function TransferHistory({
                         <div className="flex items-center gap-3">
                           <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
                             {isCompleted ? (
-                              <ArrowLeftRight className="h-4 w-4" />
+                              <CheckCircle2 className="h-4 w-4" />
                             ) : isPendingStatus ? (
                               <Clock className="h-4 w-4" />
                             ) : (
@@ -875,27 +789,29 @@ export function TransferHistory({
                             >
                               {row.label}
                             </button>
-                            <span className="block font-mono text-[10px] text-ledger-400">
-                              {row.referenceNo || "INV-2024-00"}
-                            </span>
+                            {row.referenceNo && (
+                              <span className="block font-mono text-[10px] text-ledger-400">
+                                {row.referenceNo}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
 
                       {/* DATE & TIME */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="font-semibold text-ink-900 dark:text-white block">
+                        <span className="font-semibold text-ink-900 dark:text-white block font-mono text-xs">
                           {row.transferDate}
                         </span>
                         <span className="text-[10px] text-ledger-400 font-mono">
-                          {row.createdAt.slice(11, 16) || "10:45 AM"}
+                          {row.createdAt ? new Date(row.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
                         </span>
                       </td>
 
                       {/* FROM */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <p className="font-semibold text-ink-900 dark:text-white">{row.fromLocationName}</p>
-                        <p className="text-[10px] text-ledger-400">{row.fromCity || "Accra"}</p>
+                        <p className="text-[10px] text-ledger-400">{row.fromCity || "Source Location"}</p>
                       </td>
 
                       {/* ARROW */}
@@ -908,7 +824,7 @@ export function TransferHistory({
                       {/* TO */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <p className="font-semibold text-ink-900 dark:text-white">{row.toLocationName}</p>
-                        <p className="text-[10px] text-ledger-400">{row.toCity || "Tema"}</p>
+                        <p className="text-[10px] text-ledger-400">{row.toCity || "Destination Location"}</p>
                       </td>
 
                       {/* ITEMS */}
@@ -932,37 +848,84 @@ export function TransferHistory({
                               : "bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800"
                           }`}
                         >
-                          {isCompleted ? "✓ Completed" : isPendingStatus ? "⏱ Pending" : "✕ Cancelled"}
+                          {isCompleted ? "✓ Completed" : isPendingStatus ? "⏱ In Transit" : "✕ Cancelled"}
                         </span>
                       </td>
 
-                      {/* TRANSFERRED BY */}
+                      {/* REQUESTED BY */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] dark:bg-blue-950 dark:text-blue-300">
                             {userInitials}
                           </div>
-                          <div>
-                            <p className="font-semibold text-ink-900 dark:text-white text-xs">
-                              {row.transferredByName || "Abena K."}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-ink-900 dark:text-white text-xs truncate max-w-[120px]">
+                              {row.requestedByEmail.split("@")[0]}
                             </p>
-                            <p className="text-[10px] text-ledger-400">
-                              {row.transferredByRole || "Admin"}
+                            <p className="text-[10px] text-ledger-400 truncate max-w-[120px]">
+                              {row.requestedByEmail}
                             </p>
                           </div>
                         </div>
                       </td>
 
                       {/* ACTIONS */}
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-4 py-3.5 text-center relative">
                         <button
                           type="button"
-                          onClick={() => setSelectedTransferForDetail(row)}
-                          title="View Transfer Details"
+                          onClick={() => setActionMenuTransferId(isMenuOpen ? null : row.id)}
                           className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
                         >
                           <MoreVertical className="h-4 w-4" />
                         </button>
+
+                        {/* Action Popover Menu */}
+                        {isMenuOpen && (
+                          <div className="absolute right-4 top-10 z-30 w-48 rounded-2xl border border-ledger-100 bg-white p-1.5 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 animate-in fade-in duration-100 text-left">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTransferForDetail(row);
+                                setActionMenuTransferId(null);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-blue-600" />
+                              View Items Breakdown
+                            </button>
+
+                            {isPendingStatus && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStatus(row.id, "completed")}
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                              >
+                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                Receive Stock (Complete)
+                              </button>
+                            )}
+
+                            {isPendingStatus && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStatus(row.id, "cancelled")}
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                              >
+                                <PackageX className="h-3.5 w-3.5 text-red-500" />
+                                Cancel Transfer
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTransfer(row.id)}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 border-t border-ledger-100 dark:border-ledger-700 mt-1 pt-1.5"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                              Delete Record
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1062,50 +1025,6 @@ export function TransferHistory({
         </div>
       </div>
 
-      {/* ── Bottom Highlights Feature Banner (Matching Image) ───────────── */}
-      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/50 via-white to-emerald-50/30 p-6 shadow-card dark:border-ledger-700 dark:from-ink-900 dark:via-ink-900 dark:to-emerald-950/20">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {/* 1. Improve Efficiency */}
-          <div className="flex items-start gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
-              <TrendingUp className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-ink-900 dark:text-white">Improve Efficiency</h4>
-              <p className="mt-1 text-[11px] text-ledger-500 dark:text-ledger-400 leading-relaxed">
-                Track transfers and manage stock flow across all locations efficiently.
-              </p>
-            </div>
-          </div>
-
-          {/* 2. Real-time Tracking */}
-          <div className="flex items-start gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-              <Clock className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-ink-900 dark:text-white">Real-time Tracking</h4>
-              <p className="mt-1 text-[11px] text-ledger-500 dark:text-ledger-400 leading-relaxed">
-                Get real-time updates on transfer status and delivery progress.
-              </p>
-            </div>
-          </div>
-
-          {/* 3. Detailed Reports */}
-          <div className="flex items-start gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-              <FileSpreadsheet className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-ink-900 dark:text-white">Detailed Reports</h4>
-              <p className="mt-1 text-[11px] text-ledger-500 dark:text-ledger-400 leading-relaxed">
-                Export detailed transfer reports for better analysis and planning.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* ── Transfer Details Drawer / Modal ───────────────────────────────── */}
       {selectedTransferForDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
@@ -1137,13 +1056,13 @@ export function TransferHistory({
             {/* Metadata Grid */}
             <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-ledger-50/60 p-4 text-xs dark:bg-white/[0.02]">
               <div>
-                <span className="text-ledger-400 block text-[10px]">Date &amp; Time</span>
-                <strong className="text-ink-900 dark:text-white">{selectedTransferForDetail.transferDate}</strong>
+                <span className="text-ledger-400 block text-[10px]">Date</span>
+                <strong className="text-ink-900 dark:text-white font-mono">{selectedTransferForDetail.transferDate}</strong>
               </div>
               <div>
                 <span className="text-ledger-400 block text-[10px]">Status</span>
                 <span className="inline-block font-bold text-emerald-700 dark:text-emerald-400 capitalize">
-                  {selectedTransferForDetail.status}
+                  {selectedTransferForDetail.status.replace("_", " ")}
                 </span>
               </div>
               <div>
@@ -1155,9 +1074,9 @@ export function TransferHistory({
                 <strong className="text-ink-900 dark:text-white">{selectedTransferForDetail.toLocationName}</strong>
               </div>
               <div>
-                <span className="text-ledger-400 block text-[10px]">Transferred By</span>
+                <span className="text-ledger-400 block text-[10px]">Requested By</span>
                 <strong className="text-ink-900 dark:text-white">
-                  {selectedTransferForDetail.transferredByName || selectedTransferForDetail.requestedByEmail}
+                  {selectedTransferForDetail.requestedByEmail}
                 </strong>
               </div>
               <div>
@@ -1168,7 +1087,7 @@ export function TransferHistory({
               </div>
             </div>
 
-            {/* Line Items Table */}
+            {/* Line Items Table from real database */}
             <div className="mt-5 space-y-2">
               <h4 className="font-semibold text-xs text-ink-900 dark:text-white">Transferred Products</h4>
               <div className="overflow-hidden rounded-xl border border-ledger-100 text-xs dark:border-ledger-700">
@@ -1176,7 +1095,7 @@ export function TransferHistory({
                   <thead className="bg-ledger-50/70 text-[10px] text-ledger-500 font-semibold dark:bg-white/[0.02]">
                     <tr>
                       <th className="p-2.5">Product &amp; SKU</th>
-                      <th className="p-2.5 text-center">Qty</th>
+                      <th className="p-2.5 text-center">Quantity</th>
                       <th className="p-2.5 text-right">Unit Cost</th>
                       <th className="p-2.5 text-right">Total Value</th>
                     </tr>
@@ -1209,7 +1128,7 @@ export function TransferHistory({
                     ) : (
                       <tr>
                         <td colSpan={4} className="p-4 text-center text-ledger-400">
-                          No items found for this transfer.
+                          No line items found for this transfer.
                         </td>
                       </tr>
                     )}
@@ -1228,17 +1147,35 @@ export function TransferHistory({
                 className="gap-1.5 rounded-xl text-xs"
               >
                 <Printer className="h-3.5 w-3.5" />
-                Print Transfer Manifest
+                Print Transfer Slip
               </Button>
 
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setSelectedTransferForDetail(null)}
-                className="rounded-xl bg-emerald-700 text-xs text-white hover:bg-emerald-800"
-              >
-                Close
-              </Button>
+              <div className="flex items-center gap-2">
+                {(selectedTransferForDetail.status === "pending" || selectedTransferForDetail.status === "in_transit") && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      handleUpdateStatus(selectedTransferForDetail.id, "completed");
+                      setSelectedTransferForDetail(null);
+                    }}
+                    className="gap-1.5 rounded-xl bg-emerald-700 text-xs text-white hover:bg-emerald-800"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Receive &amp; Complete
+                  </Button>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedTransferForDetail(null)}
+                  className="rounded-xl text-xs"
+                >
+                  Close
+                </Button>
+              </div>
             </div>
           </div>
         </div>
