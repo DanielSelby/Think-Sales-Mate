@@ -79,6 +79,9 @@ export default async function NewStockTransferPage() {
       stockLevels={stockLevels}
       recentTransfers={recentTransfers}
       currentUserEmail={context.userEmail}
+      currentUserName={context.userName || "Daniel Kofi"}
+      currentUserRole={context.role || "Administrator"}
+      currency={context.currency || "GHS"}
     />
   );
 }
