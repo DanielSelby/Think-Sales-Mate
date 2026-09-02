@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { getPortalSettings } from "@/app/(dashboard)/settings/customer-ordering/actions";
@@ -14,10 +13,8 @@ export default async function CustomerOrderingSettingsPage() {
   const { data: org } = await supabase.from("organizations").select("slug").eq("id", context.orgId).single();
 
   const settings = await getPortalSettings();
-  const headersList = await headers();
-  const host = headersList.get("host") ?? "yourapp.com";
-  const protocol = host.includes("localhost") ? "http" : "https";
-  const portalUrl = `${protocol}://${host}/order/${org?.slug ?? context.orgId}`;
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
+  const portalUrl = `${siteUrl || "https://yourapp.com"}/order/${org?.slug ?? context.orgId}`;
 
   return <CustomerOrderingSettingsView initial={settings} portalUrl={portalUrl} />;
 }

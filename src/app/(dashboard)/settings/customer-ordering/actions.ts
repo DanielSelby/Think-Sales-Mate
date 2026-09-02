@@ -7,6 +7,10 @@ import type { CustomerAccountRequirement } from "@/types/database";
 
 export interface PortalSettings {
   isEnabled: boolean;
+  scheduleEnabled: boolean;
+  activeFrom: string;
+  activeUntil: string;
+  scheduleTimezone: string;
   accountRequirement: CustomerAccountRequirement;
   requireApprovalBeforeProcessing: boolean;
   allowCustomerSelectDelivery: boolean;
@@ -27,6 +31,10 @@ export async function getPortalSettings(): Promise<PortalSettings> {
   const context = await getCurrentOrgContext();
   const defaults: PortalSettings = {
     isEnabled: false,
+    scheduleEnabled: false,
+    activeFrom: "00:00",
+    activeUntil: "23:59",
+    scheduleTimezone: "UTC",
     accountRequirement: "optional",
     requireApprovalBeforeProcessing: true,
     allowCustomerSelectDelivery: true,
@@ -50,6 +58,10 @@ export async function getPortalSettings(): Promise<PortalSettings> {
 
   return {
     isEnabled: data.is_enabled ?? defaults.isEnabled,
+    scheduleEnabled: data.schedule_enabled ?? defaults.scheduleEnabled,
+    activeFrom: data.active_from?.slice(0, 5) ?? defaults.activeFrom,
+    activeUntil: data.active_until?.slice(0, 5) ?? defaults.activeUntil,
+    scheduleTimezone: data.schedule_timezone ?? defaults.scheduleTimezone,
     accountRequirement: data.account_requirement ?? defaults.accountRequirement,
     requireApprovalBeforeProcessing: data.require_approval_before_processing ?? defaults.requireApprovalBeforeProcessing,
     allowCustomerSelectDelivery: data.allow_customer_select_delivery ?? defaults.allowCustomerSelectDelivery,
@@ -78,11 +90,30 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  const validTime = (value: string) => {
+    if (!/^\d{2}:\d{2}$/.test(value)) return false;
+    const [hours, minutes] = value.split(":").map(Number);
+    return hours < 24 && minutes < 60;
+  };
+  if (!validTime(settings.activeFrom) || !validTime(settings.activeUntil)) {
+    return { ok: false, error: "Please enter valid opening and closing times." };
+  }
+  if (settings.scheduleEnabled) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: settings.scheduleTimezone || "UTC" }).format();
+    } catch {
+      return { ok: false, error: "Please enter a valid IANA time zone." };
+    }
+  }
 
   const { error } = await supabase.from("customer_portal_settings").upsert(
     {
       org_id: context.orgId,
       is_enabled: settings.isEnabled,
+      schedule_enabled: settings.scheduleEnabled,
+      active_from: settings.activeFrom,
+      active_until: settings.activeUntil,
+      schedule_timezone: settings.scheduleTimezone,
       account_requirement: settings.accountRequirement,
       require_approval_before_processing: settings.requireApprovalBeforeProcessing,
       allow_customer_select_delivery: settings.allowCustomerSelectDelivery,

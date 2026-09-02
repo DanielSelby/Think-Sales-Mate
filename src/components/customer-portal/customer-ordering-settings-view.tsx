@@ -176,6 +176,47 @@ export function CustomerOrderingSettingsView({ initial, portalUrl }: SettingsVie
               onChange={(v) => patch("isEnabled", v)}
             />
             <ToggleRow
+              label="Use Active Hours"
+              description="Automatically open and close this ordering link every day using the schedule below."
+              checked={settings.scheduleEnabled}
+              onChange={(v) => patch("scheduleEnabled", v)}
+            />
+            {settings.scheduleEnabled && (
+              <div className="grid grid-cols-1 gap-3 rounded-lg border border-ledger-100 bg-ledger-50/50 p-3 dark:border-ledger-700 dark:bg-white/[0.02] sm:grid-cols-3">
+                <label className="text-xs font-medium text-ledger-600 dark:text-ledger-300">
+                  Opens at
+                  <input
+                    type="time"
+                    value={settings.activeFrom}
+                    onChange={(event) => patch("activeFrom", event.target.value)}
+                    className="mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                  />
+                </label>
+                <label className="text-xs font-medium text-ledger-600 dark:text-ledger-300">
+                  Closes at
+                  <input
+                    type="time"
+                    value={settings.activeUntil}
+                    onChange={(event) => patch("activeUntil", event.target.value)}
+                    className="mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                  />
+                </label>
+                <label className="text-xs font-medium text-ledger-600 dark:text-ledger-300">
+                  Time zone
+                  <input
+                    type="text"
+                    value={settings.scheduleTimezone}
+                    onChange={(event) => patch("scheduleTimezone", event.target.value)}
+                    placeholder="Africa/Accra"
+                    className="mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                  />
+                </label>
+                <p className="text-xs text-ledger-500 dark:text-ledger-400 sm:col-span-3">
+                  The portal is disabled outside these hours. Use an IANA time zone such as Africa/Accra or America/New_York.
+                </p>
+              </div>
+            )}
+            <ToggleRow
               label="Require Customer Account"
               description="Require customers to create or log in to an account before submitting orders."
               checked={settings.requireCustomerAccount}

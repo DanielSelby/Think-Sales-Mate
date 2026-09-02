@@ -1789,6 +1789,10 @@ export interface Database {
           id: string;
           org_id: string;
           is_enabled: boolean;
+          schedule_enabled: boolean;
+          active_from: string;
+          active_until: string;
+          schedule_timezone: string;
           account_requirement: CustomerAccountRequirement;
           require_approval_before_processing: boolean;
           allow_customer_select_delivery: boolean;
@@ -1810,6 +1814,10 @@ export interface Database {
           id?: string;
           org_id: string;
           is_enabled?: boolean;
+          schedule_enabled?: boolean;
+          active_from?: string;
+          active_until?: string;
+          schedule_timezone?: string;
           account_requirement?: CustomerAccountRequirement;
           require_approval_before_processing?: boolean;
           allow_customer_select_delivery?: boolean;

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { notifyNewCustomerOrder } from "@/lib/notifications";
+import { isPortalActive } from "@/lib/customer-portal/schedule";
 
 export interface PortalContext {
   orgId: string;
@@ -33,7 +34,13 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
     orgId: org.id,
     orgName: org.name,
     currency: org.currency,
-    isEnabled: settings?.is_enabled ?? false,
+    isEnabled: isPortalActive({
+      isEnabled: settings?.is_enabled ?? false,
+      scheduleEnabled: settings?.schedule_enabled ?? false,
+      activeFrom: settings?.active_from?.slice(0, 5) ?? "00:00",
+      activeUntil: settings?.active_until?.slice(0, 5) ?? "23:59",
+      scheduleTimezone: settings?.schedule_timezone ?? "UTC",
+    }),
     showPrices: settings?.show_prices_to_customers ?? true,
     accountRequirement: settings?.account_requirement ?? "optional",
     allowCustomerSelectDelivery: settings?.allow_customer_select_delivery ?? true,
@@ -184,7 +191,13 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     supabase.from("organizations").select("currency").eq("id", input.orgId).maybeSingle(),
   ]);
 
-  if (!settings?.is_enabled) return { ok: false, error: "Ordering is currently unavailable." };
+  if (!settings || !isPortalActive({
+    isEnabled: settings.is_enabled,
+    scheduleEnabled: settings.schedule_enabled ?? false,
+    activeFrom: settings.active_from?.slice(0, 5) ?? "00:00",
+    activeUntil: settings.active_until?.slice(0, 5) ?? "23:59",
+    scheduleTimezone: settings.schedule_timezone ?? "UTC",
+  })) return { ok: false, error: "Ordering is currently unavailable." };
 
   // If customer location selection is enabled and required, validate location
   let assignedLocationId: string | null = null;
