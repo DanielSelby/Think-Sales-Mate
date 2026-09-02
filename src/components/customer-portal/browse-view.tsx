@@ -194,60 +194,62 @@ export function BrowseView({
               LEFT CATEGORY SIDEBAR
           ===================================================== */}
           <aside className="hidden xl:block">
+            <div className="sticky top-[90px]">
 
-            <div className="rounded-xl border border-ledger-200 bg-white p-3 dark:border-ledger-800 dark:bg-ink-900">
+              <div className="rounded-xl border border-ledger-200 bg-white p-3 dark:border-ledger-800 dark:bg-ink-900">
 
-              <p className="mb-3 px-2 text-[10px] font-bold uppercase tracking-wider text-ledger-400">
-                Categories
-              </p>
+                <p className="mb-3 px-2 text-[10px] font-bold uppercase tracking-wider text-ledger-400">
+                  Categories
+                </p>
 
-              <div className="space-y-0.5">
+                <div className="space-y-0.5">
 
-                {/* All Categories */}
-                <CategoryButton
-                  active={category === "all"}
-                  onClick={() => setCategory("all")}
-                  icon={Grid2X2}
-                >
-                  All Categories
-                </CategoryButton>
+                  {/* All Categories */}
+                  <CategoryButton
+                    active={category === "all"}
+                    onClick={() => setCategory("all")}
+                    icon={Grid2X2}
+                  >
+                    All Categories
+                  </CategoryButton>
 
-                {categories.map((c) => {
-                  const Icon = getCategoryIcon(c);
+                  {categories.map((c) => {
+                    const Icon = getCategoryIcon(c);
 
-                  return (
-                    <CategoryButton
-                      key={c}
-                      active={category === c}
-                      onClick={() => setCategory(c)}
-                      icon={Icon}
-                    >
-                      {c}
-                    </CategoryButton>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Need Help */}
-            <div className="mt-4 rounded-xl border border-ledger-200 bg-white p-4 dark:border-ledger-800 dark:bg-ink-900">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-signal-soft text-signal dark:bg-signal/15">
-                  <Headphones className="h-4 w-4" />
+                    return (
+                      <CategoryButton
+                        key={c}
+                        active={category === c}
+                        onClick={() => setCategory(c)}
+                        icon={Icon}
+                      >
+                        {c}
+                      </CategoryButton>
+                    );
+                  })}
                 </div>
+              </div>
 
-                <div>
-                  <p className="text-xs font-bold text-ink-900 dark:text-white">
-                    Need help?
-                  </p>
+              {/* Need Help */}
+              <div className="mt-4 rounded-xl border border-ledger-200 bg-white p-4 dark:border-ledger-800 dark:bg-ink-900">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-signal-soft text-signal dark:bg-signal/15">
+                    <Headphones className="h-4 w-4" />
+                  </div>
 
-                  <p className="mt-0.5 text-[11px] text-ledger-500">
-                    Contact our support team
-                  </p>
+                  <div>
+                    <p className="text-xs font-bold text-ink-900 dark:text-white">
+                      Need help?
+                    </p>
 
-                  <p className="mt-1.5 text-[11px] font-semibold text-signal">
-                    +233 24 123 4567
-                  </p>
+                    <p className="mt-0.5 text-[11px] text-ledger-500">
+                      Contact our support team
+                    </p>
+
+                    <p className="mt-1.5 text-[11px] font-semibold text-signal">
+                      +233 24 123 4567
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
