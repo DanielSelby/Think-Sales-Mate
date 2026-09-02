@@ -24,7 +24,7 @@ export default async function CustomerOrderingSettingsPage() {
   const { data: org } = await supabase.from("organizations").select("slug").eq("id", context.orgId).single();
 
   const settings = await getPortalSettings();
-  const configuredSiteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
+  const configuredSiteUrl = (process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
   const requestHeaders = await headers();
   const requestHost = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
   const isLocalUrl = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredSiteUrl);
