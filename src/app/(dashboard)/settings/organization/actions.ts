@@ -58,18 +58,50 @@ export async function inviteMember(formData: FormData) {
   const supabase = await createClient();
   const invited = await sendOrganizationInvite(email, String(formData.get("name") ?? email.split("@")[0]), context.orgName);
   if ("error" in invited) return invited;
-  const { error: memberError } = await supabase.from("organization_members").insert({
+  const { data: member, error: memberError } = await supabase.from("organization_members").insert({
     org_id: context.orgId,
     user_id: invited.userId,
     invited_email: email,
     role,
     status: "invited",
     location_id: locationId || null
-  });
+  }).select("id").single();
 
   if (memberError) return { error: memberError.message };
 
   revalidatePath("/settings/organization");
+  return { success: true, memberId: member?.id };
+}
+
+export async function resetMemberPassword(memberId: string, mode: "email" | "temporary", temporaryPassword?: string) {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "org.manage_members")) return { error: "You don't have permission to reset passwords." };
+  const supabase = await createClient();
+  const { data: member } = await supabase.from("organization_members")
+    .select("user_id, invited_email")
+    .eq("id", memberId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (!member?.user_id) return { error: "This user has not completed account activation yet." };
+
+  const admin = createAdminClient();
+  if (mode === "temporary") {
+    if (!temporaryPassword || temporaryPassword.length < 8) return { error: "Temporary password must be at least 8 characters." };
+    const { error } = await admin.auth.admin.updateUserById(member.user_id, {
+      password: temporaryPassword,
+      user_metadata: { must_change_password: true }
+    });
+    if (error) return { error: error.message };
+    return { success: true };
+  }
+
+  if (!member.invited_email) return { error: "No email on file for this user." };
+  const { error } = await admin.auth.admin.generateLink({
+    type: "recovery",
+    email: member.invited_email,
+    options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password` }
+  });
+  if (error) return { error: error.message };
   return { success: true };
 }
 

@@ -90,7 +90,7 @@ import {
   removeMember,
   bulkInviteMembers
 } from "@/app/(dashboard)/settings/organization/actions";
-import { saveRoleTheme } from "@/app/(dashboard)/settings/organization/actions";
+import { saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
 import { THEMES, type ThemeKey } from "@/store/useAppStore";
 
 export type { ManagedUser, UserBranch } from "./user-management/types";
@@ -411,7 +411,17 @@ export function UserManagement({
       formData.set("role", user.role);
       formData.set("location_id", user.locationId ?? "");
       const result = await inviteMember(formData);
-      if (result?.error) showToast(result.error);
+      if (result?.error) {
+        setUsers((prev) => prev.filter((item) => item.id !== user.id));
+        showToast(result.error);
+        return;
+      }
+      if ("memberId" in result && result.memberId) {
+        const persistedUser = { ...user, id: result.memberId };
+        setUsers((prev) => prev.map((item) => item.id === user.id ? persistedUser : item));
+        setSelectedUserForReset(persistedUser);
+        setIsResetPasswordOpen(true);
+      }
     });
   };
 
@@ -1289,6 +1299,14 @@ export function UserManagement({
   const resetUser = users.find((u) => u.id === userId);
 
   if (!resetUser) return;
+
+  startTransition(async () => {
+    const result = await resetMemberPassword(userId, mode, tempPassword);
+    if (result?.error) {
+      showToast(result.error);
+      return;
+    }
+  });
 
   recordAudit(
     "Password Reset Dispatched",
