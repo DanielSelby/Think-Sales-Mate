@@ -30,7 +30,7 @@ interface NotificationItem {
   created_at: string;
 }
 
-export function TopNav() {
+export function TopNav({ orgName, logoUrl }: { orgName: string; logoUrl?: string | null }) {
   const { activeTheme, setTheme, commandBarOpen, setCommandBarOpen } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -177,6 +177,10 @@ export function TopNav() {
       </button>
 
       <div className="flex-1" />
+      <div className="hidden items-center gap-2 lg:flex">
+        <img src={logoUrl || "/thinksales-logo.svg"} alt="" width={28} height={28} className="h-7 w-7 rounded-lg object-cover" />
+        <span className="max-w-[180px] truncate text-xs font-semibold text-white/85">{orgName}</span>
+      </div>
 
       {/* Branch Selector */}
       <div className="relative">

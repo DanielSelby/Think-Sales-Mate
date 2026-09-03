@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 export function AppLoading({ className }: { className?: string }) {
   return (
@@ -13,9 +14,7 @@ export function AppLoading({ className }: { className?: string }) {
       <div className="relative flex h-24 w-24 items-center justify-center">
         <span className="absolute inset-0 rounded-full border-4 border-current/10" />
         <span className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-current border-r-current text-signal" />
-        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-signal text-xl font-extrabold tracking-tight text-white shadow-lg">
-          TS
-        </div>
+        <Image src="/thinksales-logo.svg" alt="ThinkSales" width={60} height={60} className="relative h-14 w-14 rounded-2xl object-cover shadow-lg" priority />
       </div>
       <span className="sr-only">Loading ThinkSales</span>
     </div>

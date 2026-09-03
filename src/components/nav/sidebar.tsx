@@ -200,7 +200,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const theme     = THEMES[activeTheme];
   const sidebar   = {
     ...theme.sidebar,
-    background: theme.colors.primaryPale,
+    background: `${theme.colors.primary}16`,
     text: theme.colors.text,
     textMuted: theme.colors.textMuted,
     activeBackground: theme.colors.primary,

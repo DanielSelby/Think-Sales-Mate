@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>ThinkSales</title>
+  <circle cx="256" cy="256" r="205" fill="#fff" stroke="#153b63" stroke-width="18"/>
+  <path fill="#153b63" d="M126 165h253l-31 51h-78v157h-66V216h-109z"/>
+  <path fill="#77b82a" d="M255 240c15-35 64-48 119-25l-22 37c-36-15-62-9-67 7-7 23 35 27 64 43 42 23 43 66 18 91-32 32-91 28-143 2l22-39c37 18 69 22 80 7 16-23-35-29-58-42-36-20-31-58-13-81z"/>
+  <path fill="#77b82a" d="M112 369h45v-48h27v48h23v-78h27v78h23v-108h27v108z"/>
+  <path fill="none" stroke="#77b82a" stroke-width="14" stroke-linecap="round" d="M265 440c106-5 187-84 187-185 0-34-9-66-25-94"/>
+</svg>

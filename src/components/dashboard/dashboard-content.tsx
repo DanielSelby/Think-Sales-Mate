@@ -12,10 +12,7 @@ import { RevenueExpenseChart } from "@/components/charts/revenue-expense-chart";
 import { RevenueByProductChart } from "@/components/charts/revenue-by-product-chart";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import type { FinancialSummary } from "@/lib/accounting/metrics";
-
-function fmtNum(v: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
-}
+import { formatCurrency } from "@/lib/sales/format";
 
 interface SaleRow {
   id:            string;
@@ -26,80 +23,82 @@ interface SaleRow {
 
 interface Props {
   summary:        FinancialSummary;
+  currency:       string;
   orgName:        string;
   lowStockItems:  { name: string; stock_quantity: number; low_stock_threshold: number }[];
   latestInsight:  { content: string; created_at: string } | null;
   recentSales:    SaleRow[];
 }
 
-export function DashboardContent({ summary, orgName, lowStockItems, latestInsight, recentSales }: Props) {
+export function DashboardContent({ summary, currency, orgName, lowStockItems, latestInsight, recentSales }: Props) {
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
 
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  const money = (value: number) => formatCurrency(value, currency);
 
   const kpis: { label: string; value: string; note: string; color: TiltCardColor; icon: React.ReactNode; trend?: number; backDetails?: { label: string; value: string }[]; solid?: boolean }[] = [
     {
-      label: "Sales Today", value: `$${fmtNum(summary.salesToday)}`, note: "Live · today only", color: "blue", icon: <DollarSign className="h-full w-full" />, solid: true,
+      label: "Sales Today", value: money(summary.salesToday), note: "Live · today only", color: "blue", icon: <DollarSign className="h-full w-full" />, solid: true,
       backDetails: [
-        { label: "Total Sales (30d)",  value: `$${fmtNum(summary.revenue30d)}`  },
+        { label: "Total Sales (30d)",  value: money(summary.revenue30d)  },
         { label: "No. of Sales",       value: String(summary.saleCount30d)      },
-        { label: "Cash Flow",          value: `$${fmtNum(summary.cashFlow30d)}` },
+        { label: "Cash Flow",         value: money(summary.cashFlow30d) },
       ],
     },
     {
-      label: "Revenue (30d)", value: `$${fmtNum(summary.revenue30d)}`, note: `${summary.saleCount30d} sales`, color: "green", icon: <TrendingUp className="h-full w-full" />, trend: summary.revenue30d > 0 ? 12.4 : undefined,
+      label: "Revenue (30d)", value: money(summary.revenue30d), note: `${summary.saleCount30d} sales`, color: "green", icon: <TrendingUp className="h-full w-full" />, trend: summary.revenue30d > 0 ? 12.4 : undefined,
       backDetails: [
-        { label: "Avg per Sale",   value: summary.saleCount30d > 0 ? `$${fmtNum(summary.revenue30d / summary.saleCount30d)}` : "$0.00" },
-        { label: "Expenses (30d)", value: `$${fmtNum(summary.expenses30d)}`  },
-        { label: "Net Profit",     value: `$${fmtNum(summary.netProfit30d)}` },
+        { label: "Avg per Sale",   value: summary.saleCount30d > 0 ? money(summary.revenue30d / summary.saleCount30d) : money(0) },
+        { label: "Expenses (30d)", value: money(summary.expenses30d)  },
+        { label: "Net Profit",     value: money(summary.netProfit30d) },
       ],
     },
     {
-      label: "Profit (30d)", value: `$${fmtNum(summary.netProfit30d)}`, note: summary.hasCostData ? "Net of COGS & exp." : "Add cost prices", color: summary.netProfit30d >= 0 ? "purple" : "red", icon: <PiggyBank className="h-full w-full" />,
+      label: "Profit (30d)", value: money(summary.netProfit30d), note: summary.hasCostData ? "Net of COGS & exp." : "Add cost prices", color: summary.netProfit30d >= 0 ? "purple" : "red", icon: <PiggyBank className="h-full w-full" />,
       backDetails: [
-        { label: "Revenue",  value: `$${fmtNum(summary.revenue30d)}`  },
-        { label: "Expenses", value: `$${fmtNum(summary.expenses30d)}` },
+        { label: "Revenue",  value: money(summary.revenue30d)  },
+        { label: "Expenses", value: money(summary.expenses30d) },
         { label: "Margin",   value: summary.revenue30d > 0 ? `${((summary.netProfit30d / summary.revenue30d) * 100).toFixed(1)}%` : "0%" },
       ],
     },
     {
-      label: "Expenses (30d)", value: `$${fmtNum(summary.expenses30d)}`, note: "Recorded expenses", color: "red", icon: <Receipt className="h-full w-full" />,
+      label: "Expenses (30d)", value: money(summary.expenses30d), note: "Recorded expenses", color: "red", icon: <Receipt className="h-full w-full" />,
       backDetails: [
-        { label: "Revenue",    value: `$${fmtNum(summary.revenue30d)}`  },
-        { label: "Net Profit", value: `$${fmtNum(summary.netProfit30d)}` },
+        { label: "Revenue",    value: money(summary.revenue30d)  },
+        { label: "Net Profit", value: money(summary.netProfit30d) },
         { label: "Exp. Ratio", value: summary.revenue30d > 0 ? `${((summary.expenses30d / summary.revenue30d) * 100).toFixed(1)}%` : "0%" },
       ],
     },
     {
-      label: "Cash Flow (30d)", value: `$${fmtNum(summary.cashFlow30d)}`, note: "Revenue + payments − expenses", color: summary.cashFlow30d >= 0 ? "teal" : "red", icon: <Wallet className="h-full w-full" />,
+      label: "Cash Flow (30d)", value: money(summary.cashFlow30d), note: "Revenue + payments − expenses", color: summary.cashFlow30d >= 0 ? "teal" : "red", icon: <Wallet className="h-full w-full" />,
       backDetails: [
-        { label: "Inflow",  value: `$${fmtNum(summary.revenue30d)}`  },
-        { label: "Outflow", value: `$${fmtNum(summary.expenses30d)}` },
-        { label: "Net",     value: `$${fmtNum(summary.cashFlow30d)}` },
+        { label: "Inflow",  value: money(summary.revenue30d)  },
+        { label: "Outflow", value: money(summary.expenses30d) },
+        { label: "Net",     value: money(summary.cashFlow30d) },
       ],
     },
     {
-      label: "Invoices Due", value: `$${fmtNum(summary.outstandingInvoicesTotal)}`, note: `${summary.outstandingInvoicesCount} unpaid`, color: "amber", icon: <FileWarning className="h-full w-full" />,
+      label: "Invoices Due", value: money(summary.outstandingInvoicesTotal), note: `${summary.outstandingInvoicesCount} unpaid`, color: "amber", icon: <FileWarning className="h-full w-full" />,
       backDetails: [
         { label: "Unpaid Count", value: String(summary.outstandingInvoicesCount) },
-        { label: "Total Value",  value: `$${fmtNum(summary.outstandingInvoicesTotal)}` },
+        { label: "Total Value",  value: money(summary.outstandingInvoicesTotal) },
         { label: "Status",       value: summary.outstandingInvoicesCount === 0 ? "All clear ✓" : "Action needed" },
       ],
     },
     {
-      label: "Inventory Value", value: `$${fmtNum(summary.inventoryValue)}`, note: "Active products at unit price", color: "teal", icon: <Boxes className="h-full w-full" />,
+      label: "Inventory Value", value: money(summary.inventoryValue), note: "Active products at unit price", color: "teal", icon: <Boxes className="h-full w-full" />,
       backDetails: [
         { label: "Low Stock Items", value: String(summary.lowStockCount) },
-        { label: "Total Value",     value: `$${fmtNum(summary.inventoryValue)}` },
+        { label: "Total Value",     value: money(summary.inventoryValue) },
         { label: "Status",          value: summary.lowStockCount > 0 ? "Restock needed" : "Healthy ✓" },
       ],
     },
     {
       label: "Low Stock", value: String(summary.lowStockCount), note: summary.lowStockCount > 0 ? "Needs attention" : "All stocked", color: summary.lowStockCount > 0 ? "red" : "green", icon: <AlertTriangle className="h-full w-full" />,
       backDetails: [
-        { label: "Inventory Value", value: `$${fmtNum(summary.inventoryValue)}` },
+        { label: "Inventory Value", value: money(summary.inventoryValue) },
         { label: "Alert Level",     value: summary.lowStockCount > 0 ? "⚠ Low stock" : "✓ All good"  },
         { label: "Action",          value: summary.lowStockCount > 0 ? "Reorder now" : "No action needed" },
       ],
@@ -265,7 +264,7 @@ export function DashboardContent({ summary, orgName, lowStockItems, latestInsigh
                       </p>
                     </div>
                   </div>
-                  <p className="text-xs font-bold text-slate-900">${fmtNum(s.total)}</p>
+                  <p className="text-xs font-bold text-slate-900">{money(s.total)}</p>
                 </Link>
               ))}
             </div>
@@ -348,7 +347,7 @@ export function DashboardContent({ summary, orgName, lowStockItems, latestInsigh
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-700 truncate">{p.name}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{p.quantity} units · ${fmtNum(p.revenue)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{p.quantity} units · {money(p.revenue)}</p>
                   </div>
                 </div>
               );
