@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
-  Inbox, Headphones,
+  Inbox, Headphones, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -147,6 +147,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Projects",      href: "/projects",   icon: FolderKanban, status: "live" },
   { label: "Reports",       href: "/reports",    icon: BarChart3,    status: "live" },
   { label: "AI Assistant",  href: "/ai",         icon: Sparkles,     status: "live" },
+  { label: "Communication", href: "/communication", icon: MessageSquare, status: "live" },
   { label: "User Management", href: "/settings/organization", icon: Users2, status: "live" },
 ];
 
