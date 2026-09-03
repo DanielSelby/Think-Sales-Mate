@@ -7,6 +7,42 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import type { MemberRole } from "@/lib/rbac";
 
+async function sendOrganizationInvite(email: string, name: string, orgName: string) {
+  const admin = createAdminClient();
+  const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard`;
+  const { data: profile } = await admin
+    .from("company_profile")
+    .select("business_email, company_name")
+    .eq("org_id", (await getCurrentOrgContext())?.orgId ?? "")
+    .maybeSingle();
+  const from = profile?.business_email;
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey || !from) {
+    const fallback = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
+    if (fallback.error) return { error: fallback.error.message };
+    return { success: true, userId: fallback.data.user?.id };
+  }
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: { redirectTo, data: { full_name: name, organization_name: orgName } }
+  });
+  if (error) return { error: error.message };
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: `${profile.company_name || orgName} <${from}>`,
+      to: [email],
+      subject: `You are invited to ${profile.company_name || orgName}`,
+      html: `<p>Hello ${name},</p><p>You have been invited to join <strong>${profile.company_name || orgName}</strong>.</p><p><a href="${data.properties.action_link}">Accept your invitation</a></p><p>This invitation link is single-use.</p>`
+    })
+  });
+  if (!response.ok) return { error: `Invitation email could not be sent (${response.status}).` };
+  return { success: true, userId: data.user?.id };
+}
+
 export async function inviteMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "staff") as MemberRole;
@@ -20,17 +56,11 @@ export async function inviteMember(formData: FormData) {
   if (!email) return { error: "Email is required." };
 
   const supabase = await createClient();
-  const admin = createAdminClient();
-
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard`
-  });
-
-  if (inviteError) return { error: inviteError.message };
-
+  const invited = await sendOrganizationInvite(email, String(formData.get("name") ?? email.split("@")[0]), context.orgName);
+  if ("error" in invited) return invited;
   const { error: memberError } = await supabase.from("organization_members").insert({
     org_id: context.orgId,
-    user_id: invited.user?.id,
+    user_id: invited.userId,
     invited_email: email,
     role,
     status: "invited",
@@ -112,13 +142,7 @@ export async function resendInvite(memberId: string) {
   if (!member?.invited_email) return { error: "No email on file for this member." };
   if (member.status !== "invited") return { error: "This member has already accepted their invite." };
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.inviteUserByEmail(member.invited_email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard`
-  });
-
-  if (error) return { error: error.message };
-  return { success: true };
+  return sendOrganizationInvite(member.invited_email, member.invited_email.split("@")[0], context.orgName);
 }
 
 export async function removeMember(memberId: string) {
@@ -165,18 +189,15 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
       continue;
     }
 
-    const { data: invitedUser, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard`
-    });
-
-    if (inviteError) {
-      skipped.push({ row: i + 1, reason: inviteError.message });
+    const inviteResult = await sendOrganizationInvite(email, email.split("@")[0], context.orgName);
+    if ("error" in inviteResult) {
+      skipped.push({ row: i + 1, reason: inviteResult.error ?? "Invitation failed." });
       continue;
     }
 
     const { error: memberError } = await supabase.from("organization_members").insert({
       org_id: context.orgId,
-      user_id: invitedUser.user?.id,
+      user_id: inviteResult.userId,
       invited_email: email,
       role: row.role || "staff",
       status: "invited",
@@ -214,6 +235,20 @@ export async function updateCurrency(currency: string) {
   // on effectively every route — revalidate the whole app's router cache,
   // not just this settings page, so already-visited pages don't keep
   // showing the old currency until a hard refresh.
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+export async function saveRoleTheme(roleKey: string, themeKey: string) {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "org.manage_members")) return { error: "You don't have permission to manage role themes." };
+  const allowed = ["green", "navy", "teal", "plum", "fintech", "royal", "harvest", "eclipse"];
+  if (!allowed.includes(themeKey)) return { error: "Invalid theme selected." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("organization_role_themes").upsert({
+    org_id: context.orgId, role_key: roleKey, theme_key: themeKey, updated_at: new Date().toISOString()
+  });
+  if (error) return { error: error.message };
   revalidatePath("/", "layout");
   return { success: true };
 }

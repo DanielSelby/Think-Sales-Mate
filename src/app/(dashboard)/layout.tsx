@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { DashboardShell } from "@/components/nav/dashboard-shell";
 import { createClient } from "@/lib/supabase/server";
+import type { ThemeKey } from "@/store/useAppStore";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -14,9 +15,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .select("logo_url")
     .eq("org_id", context.orgId)
     .maybeSingle();
+  const { data: roleTheme } = await supabase
+    .from("organization_role_themes")
+    .select("theme_key")
+    .eq("org_id", context.orgId)
+    .eq("role_key", context.role)
+    .maybeSingle();
+  const selectedTheme = roleTheme?.theme_key as ThemeKey | null;
 
   return (
-    <DashboardShell orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null}>
+    <DashboardShell orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
       {children}
     </DashboardShell>
   );

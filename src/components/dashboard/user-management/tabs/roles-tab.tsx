@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PERMISSION_TEMPLATES } from "../constants";
 import type { RoleDefinition, ManagedUser } from "../types";
+import { THEMES, type ThemeKey } from "@/store/useAppStore";
 
 interface RolesTabProps {
   roles: RoleDefinition[];
@@ -35,6 +36,9 @@ interface RolesTabProps {
   onCloneRole: (role: RoleDefinition) => void;
   onDeleteRole: (role: RoleDefinition) => void;
   onFilterByRole: (roleKey: string) => void;
+  roleThemes: Record<string, string>;
+  canManageThemes: boolean;
+  onSaveRoleTheme: (roleKey: string, themeKey: ThemeKey) => void;
 }
 
 export function RolesTab({
@@ -46,7 +50,7 @@ export function RolesTab({
   onEditRole,
   onCloneRole,
   onDeleteRole,
-  onFilterByRole
+  onFilterByRole, roleThemes, canManageThemes, onSaveRoleTheme
 }: RolesTabProps) {
   return (
     <div className="space-y-6">
@@ -145,6 +149,18 @@ export function RolesTab({
                 <p className="text-xs text-ledger-500 dark:text-ledger-400 line-clamp-2 leading-relaxed">
                   {role.description}
                 </p>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Theme for this role</label>
+                  <select
+                    disabled={!canManageThemes}
+                    value={roleThemes[role.key] || "fintech"}
+                    onChange={(event) => onSaveRoleTheme(role.key, event.target.value as ThemeKey)}
+                    className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {(Object.keys(THEMES) as ThemeKey[]).map((key) => <option key={key} value={key}>{THEMES[key].name}</option>)}
+                  </select>
+                  {!canManageThemes && <p className="mt-1 text-[10px] text-slate-400">Only administrators can change role themes.</p>}
+                </div>
 
                 {/* Stats Bar */}
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-ledger-100 dark:border-ledger-800">

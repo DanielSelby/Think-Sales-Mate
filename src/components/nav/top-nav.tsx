@@ -30,7 +30,7 @@ interface NotificationItem {
   created_at: string;
 }
 
-export function TopNav({ orgName, logoUrl }: { orgName: string; logoUrl?: string | null }) {
+export function TopNav({ orgName, logoUrl, canChangeTheme = false }: { orgName: string; logoUrl?: string | null; canChangeTheme?: boolean }) {
   const { activeTheme, setTheme, commandBarOpen, setCommandBarOpen } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -185,6 +185,7 @@ export function TopNav({ orgName, logoUrl }: { orgName: string; logoUrl?: string
       {/* Branch Selector */}
       <div className="relative">
         <button
+          disabled={!canChangeTheme}
           onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
           className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
@@ -264,7 +265,7 @@ export function TopNav({ orgName, logoUrl }: { orgName: string; logoUrl?: string
       {/* Theme picker */}
       <div className="relative">
         <button
-          onClick={() => { setShowThemes(v => !v); setShowUser(false); setShowNotifications(false); }}
+          onClick={() => { if (!canChangeTheme) return; setShowThemes(v => !v); setShowUser(false); setShowNotifications(false); }}
           className="flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold transition-all"
           style={{ color: "rgba(255,255,255,0.7)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}

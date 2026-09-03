@@ -90,6 +90,8 @@ import {
   removeMember,
   bulkInviteMembers
 } from "@/app/(dashboard)/settings/organization/actions";
+import { saveRoleTheme } from "@/app/(dashboard)/settings/organization/actions";
+import { THEMES, type ThemeKey } from "@/store/useAppStore";
 
 export type { ManagedUser, UserBranch } from "./user-management/types";
 
@@ -98,6 +100,8 @@ interface UserManagementProps {
   branches?: UserBranch[];
   canManage?: boolean;
   orgName?: string;
+  roleThemes?: Record<string, string>;
+  canManageThemes?: boolean;
 }
 
 export function UserManagement({
@@ -105,6 +109,7 @@ export function UserManagement({
   branches: initialBranchesProp,
   canManage = true,
   orgName = "ThinkSales Pro"
+  , roleThemes = {}, canManageThemes = false
 }: UserManagementProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -398,13 +403,15 @@ export function UserManagement({
     });
     showToast(`User ${user.fullName} created successfully`);
 
-    // Call Supabase action
+    // Persist the member and send the invitation using the configured company email.
     startTransition(async () => {
-      try {
-        await inviteMember(new FormData());
-      } catch (err) {
-        // Log gracefully
-      }
+      const formData = new FormData();
+      formData.set("name", user.fullName || user.name);
+      formData.set("email", user.email);
+      formData.set("role", user.role);
+      formData.set("location_id", user.locationId ?? "");
+      const result = await inviteMember(formData);
+      if (result?.error) showToast(result.error);
     });
   };
 
@@ -444,8 +451,9 @@ export function UserManagement({
 
   const handleToggleStatus = (user: ManagedUser) => {
     const nextStatus = user.status === "active" ? "inactive" : "active";
+    const persistedStatus = nextStatus === "active" ? "active" : "suspended";
     setUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, status: nextStatus, attentionReason: null } : u))
+      prev.map((u) => (u.id === user.id ? { ...u, status: persistedStatus, attentionReason: null } : u))
     );
     recordAudit(
       nextStatus === "active" ? "User Activated" : "User Deactivated",
@@ -454,6 +462,10 @@ export function UserManagement({
       { recordId: user.id, oldValue: user.status, newValue: nextStatus }
     );
     showToast(`User ${user.fullName} is now ${nextStatus}`);
+    startTransition(async () => {
+      const result = await updateMemberStatus(user.id, persistedStatus);
+      if (result?.error) showToast(result.error);
+    });
   };
 
   const handleDeleteUser = (user: ManagedUser) => {
@@ -1101,6 +1113,15 @@ export function UserManagement({
             onFilterByRole={(roleKey) => {
               setFilters({ ...filters, role: roleKey });
               setActiveTab("users");
+            }}
+            roleThemes={roleThemes}
+            canManageThemes={canManageThemes}
+            onSaveRoleTheme={(roleKey, themeKey) => {
+              startTransition(async () => {
+                const result = await saveRoleTheme(roleKey, themeKey);
+                if (result?.error) showToast(result.error);
+                else showToast("Role theme saved for all users in this role.");
+              });
             }}
           />
         )}

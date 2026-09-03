@@ -18,6 +18,11 @@ export default async function OrganizationSettingsPage() {
       .eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name")
   ]);
+  const { data: roleThemeRows } = await supabase
+    .from("organization_role_themes")
+    .select("role_key, theme_key")
+    .eq("org_id", context.orgId);
+  const roleThemes = Object.fromEntries((roleThemeRows ?? []).map((row) => [row.role_key, row.theme_key]));
 
   const branches: UserBranch[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
   const branchById = new Map(branches.map((b) => [b.id, b.name]));
@@ -69,6 +74,8 @@ export default async function OrganizationSettingsPage() {
         branches={branches}
         canManage={can(context.role, "org.manage_members")}
         orgName={context.orgName}
+        roleThemes={roleThemes}
+        canManageThemes={can(context.role, "org.manage_members")}
       />
     </div>
   );

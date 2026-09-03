@@ -2206,6 +2206,22 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["ai_insights"]["Row"]>;
         Relationships: [];
       };
+      organization_role_themes: {
+        Row: {
+          org_id: string;
+          role_key: string;
+          theme_key: string;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          role_key: string;
+          theme_key: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_role_themes"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       public_product_catalog: {
