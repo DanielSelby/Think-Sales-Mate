@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
+import { formatCurrency } from "@/lib/sales/format";
 import { Card, CardContent } from "@/components/ui/card";
 
 function formatMoney(value: number) {
@@ -60,7 +61,7 @@ export default async function PayrollRunDetailPage({ params }: { params: Promise
               {(items ?? []).map((item) => (
                 <tr key={item.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
                   <td className="py-2 text-ink-900 dark:text-white">{item.employee_name}</td>
-                  <td className="py-2 text-right figure">${formatMoney(item.amount)}</td>
+                  <td className="py-2 text-right figure">{formatCurrency(item.amount, context.currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -68,7 +69,7 @@ export default async function PayrollRunDetailPage({ params }: { params: Promise
 
           <div className="mt-4 flex items-center justify-between border-t border-ledger-100 pt-4 dark:border-ledger-700">
             <span className="text-sm font-medium text-ledger-500 dark:text-ledger-400">Total</span>
-            <span className="figure text-xl font-semibold text-alert">${formatMoney(run.total_amount)}</span>
+            <span className="figure text-xl font-semibold text-alert">{formatCurrency(run.total_amount, context.currency)}</span>
           </div>
         </CardContent>
       </Card>

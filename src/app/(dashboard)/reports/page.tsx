@@ -33,7 +33,10 @@ export default async function ReportsPage({
   const dateFrom = searchParams.from || defaults.from;
   const dateTo = searchParams.to || defaults.to;
   const locationId = searchParams.location && searchParams.location !== "all" ? searchParams.location : null;
-  const period = (searchParams.period as "daily" | "weekly" | "monthly" | "quarterly" | "yearly") || "monthly";
+  const requestedPeriod = searchParams.period || "monthly";
+  const period = (requestedPeriod === "today" || requestedPeriod === "yesterday" || requestedPeriod === "custom"
+    ? "daily"
+    : requestedPeriod) as "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 
   const filters = { orgId: context.orgId, dateFrom, dateTo, locationId };
 

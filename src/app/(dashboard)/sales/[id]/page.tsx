@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { formatCurrency } from "@/lib/sales/format";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -67,8 +68,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                       <span className="ml-2 font-mono text-xs text-ledger-400">{product?.sku}</span>
                     </td>
                     <td className="py-2 text-right figure">{item.quantity}</td>
-                    <td className="py-2 text-right figure">${formatMoney(item.unit_price)}</td>
-                    <td className="py-2 text-right figure">${formatMoney(item.line_total)}</td>
+                    <td className="py-2 text-right figure">{formatCurrency(item.unit_price, context.currency)}</td>
+                    <td className="py-2 text-right figure">{formatCurrency(item.line_total, context.currency)}</td>
                   </tr>
                 );
               })}
@@ -77,7 +78,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
 
           <div className="mt-4 flex items-center justify-between border-t border-ledger-100 pt-4 dark:border-ledger-700">
             <span className="text-sm font-medium text-ledger-500 dark:text-ledger-400">Total</span>
-            <span className="figure text-xl font-semibold text-ink-900 dark:text-white">${formatMoney(sale.total)}</span>
+            <span className="figure text-xl font-semibold text-ink-900 dark:text-white">{formatCurrency(sale.total, context.currency)}</span>
           </div>
         </CardContent>
       </Card>

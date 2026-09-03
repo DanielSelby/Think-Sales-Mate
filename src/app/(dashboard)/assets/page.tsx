@@ -50,7 +50,7 @@ export default async function AssetsPage() {
         )}
       </div>
 
-      <AssetsTable assets={assets} canManage={canManage} />
+      <AssetsTable assets={assets} canManage={canManage} currency={context.currency} />
     </div>
   );
 }

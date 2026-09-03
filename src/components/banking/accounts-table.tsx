@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { deleteAccount } from "@/app/(dashboard)/banking/actions";
+import { formatCurrency } from "@/lib/sales/format";
 
 export interface AccountRow {
   id: string;
@@ -24,7 +25,7 @@ const TYPE_LABELS: Record<string, string> = {
   other: "Other"
 };
 
-export function AccountsTable({ accounts, canManage }: { accounts: AccountRow[]; canManage: boolean }) {
+export function AccountsTable({ accounts, canManage, currency }: { accounts: AccountRow[]; canManage: boolean; currency: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -76,7 +77,7 @@ export function AccountsTable({ accounts, canManage }: { accounts: AccountRow[];
               )}
             </div>
             <p className="figure mt-3 text-2xl font-semibold text-ink-900 dark:text-white">
-              ${formatMoney(account.currentBalance)}
+              {formatCurrency(account.currentBalance, currency)}
             </p>
           </div>
         ))}

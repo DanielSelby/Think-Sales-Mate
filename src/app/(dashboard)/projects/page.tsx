@@ -53,7 +53,7 @@ export default async function ProjectsPage() {
         )}
       </div>
 
-      <ProjectsTable projects={projects} canManage={canManage} />
+      <ProjectsTable projects={projects} canManage={canManage} currency={context.currency} />
     </div>
   );
 }

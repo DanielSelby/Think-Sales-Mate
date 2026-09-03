@@ -50,7 +50,7 @@ export default async function InvoicesPage() {
         </div>
       </div>
 
-      <InvoicesTable invoices={invoices} canManage={canManage} />
+      <InvoicesTable invoices={invoices} canManage={canManage} currency={context.currency} />
     </div>
   );
 }

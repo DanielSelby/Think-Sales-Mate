@@ -56,7 +56,7 @@ export default async function BankingPage() {
         )}
       </div>
 
-      <AccountsTable accounts={accounts} canManage={canManage} />
+      <AccountsTable accounts={accounts} canManage={canManage} currency={context.currency} />
     </div>
   );
 }

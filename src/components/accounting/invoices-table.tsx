@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { markInvoicePaid, voidInvoice } from "@/app/(dashboard)/accounting/invoices/actions";
+import { formatCurrency } from "@/lib/sales/format";
 
 export interface InvoiceRow {
   id: string;
@@ -24,7 +25,7 @@ const STATUS_STYLES: Record<InvoiceRow["status"], string> = {
   void: "bg-ledger-100 text-ledger-400 dark:bg-white/5 dark:text-ledger-500"
 };
 
-export function InvoicesTable({ invoices, canManage }: { invoices: InvoiceRow[]; canManage: boolean }) {
+export function InvoicesTable({ invoices, canManage, currency }: { invoices: InvoiceRow[]; canManage: boolean; currency: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -83,7 +84,7 @@ export function InvoicesTable({ invoices, canManage }: { invoices: InvoiceRow[];
                     {invoice.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">${formatMoney(invoice.amount)}</td>
+                <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">{formatCurrency(invoice.amount, currency)}</td>
                 {canManage && (
                   <td className="px-4 py-3">
                     {(invoice.status === "sent" || invoice.status === "overdue") && (

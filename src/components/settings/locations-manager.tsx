@@ -25,6 +25,7 @@ import {
   type LocationStats
 } from "@/app/(dashboard)/settings/locations/actions";
 import type { LocationType } from "@/types/database";
+import { formatCurrency } from "@/lib/sales/format";
 
 export interface LocationRow {
   id: string;
@@ -62,11 +63,13 @@ function formatMoney(value: number) {
 export function LocationsManager({
   locations,
   canManage,
-  orgName
+  orgName,
+  currency
 }: {
   locations: LocationRow[];
   canManage: boolean;
   orgName: string;
+  currency: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -475,7 +478,7 @@ export function LocationsManager({
                       <p className="text-[11px] text-ledger-400">Units in stock</p>
                     </div>
                     <div className="rounded-md bg-ledger-50 p-2.5 dark:bg-white/[0.04]">
-                      <p className="figure text-lg font-semibold text-ink-900 dark:text-white">${formatMoney(stats?.inventoryValue ?? 0)}</p>
+                      <p className="figure text-lg font-semibold text-ink-900 dark:text-white">{formatCurrency(stats?.inventoryValue ?? 0, currency)}</p>
                       <p className="text-[11px] text-ledger-400">Inventory value</p>
                     </div>
                   </div>

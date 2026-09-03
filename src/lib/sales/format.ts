@@ -34,11 +34,13 @@ export function formatInvoiceNumber(saleNumber: number) {
 
 export function formatCurrency(amount: number, currency: Database["public"]["Tables"]["organizations"]["Row"]["currency"] = "GHS") {
   try {
-    return new Intl.NumberFormat("en-GH", {
+    const formatted = new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
       minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount);
+    return currency === "GHS" ? formatted.replace(/GHS/g, "GH₵").replace(/GH₵\s*/g, "GH₵ ") : formatted;
   } catch {
     // Fallback if currency code from org settings isn't ISO-4217 valid
     return `${currency} ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;

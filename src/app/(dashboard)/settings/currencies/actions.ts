@@ -164,6 +164,8 @@ export async function setBaseCurrency(id: string) {
 
   const { data: target } = await supabase.from("currencies").select("code").eq("id", id).single();
   if (!target) return { error: "Currency not found." };
+  const orgResult = await updateOrganizationCurrency(target.code);
+  if (orgResult && "error" in orgResult) return orgResult;
 
   // The base currency's own rate is always 1 by definition; every other
   // currency's rate is relative to whichever one is base.

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { deleteAsset } from "@/app/(dashboard)/assets/actions";
+import { formatCurrency } from "@/lib/sales/format";
 
 export interface AssetRow {
   id: string;
@@ -30,7 +31,7 @@ const STATUS_LABELS: Record<AssetRow["status"], string> = {
   disposed: "Disposed"
 };
 
-export function AssetsTable({ assets, canManage }: { assets: AssetRow[]; canManage: boolean }) {
+export function AssetsTable({ assets, canManage, currency }: { assets: AssetRow[]; canManage: boolean; currency: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -73,10 +74,10 @@ export function AssetsTable({ assets, canManage }: { assets: AssetRow[]; canMana
                 <td className="px-4 py-3 text-ink-900 dark:text-white">{asset.name}</td>
                 <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">{asset.category ?? "—"}</td>
                 <td className="px-4 py-3 text-right figure text-ledger-500 dark:text-ledger-400">
-                  ${formatMoney(asset.purchaseCost)}
+                  {formatCurrency(asset.purchaseCost, currency)}
                 </td>
                 <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">
-                  ${formatMoney(asset.currentValue)}
+                  {formatCurrency(asset.currentValue, currency)}
                 </td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLES[asset.status]}`}>

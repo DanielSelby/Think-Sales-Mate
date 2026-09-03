@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { ExportCsvButton } from "@/components/reports/export-csv-button";
+import { formatCurrency } from "@/lib/sales/format";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -44,7 +45,7 @@ export default async function InventoryReportPage() {
           <h1 className="mt-2 font-display text-2xl font-semibold text-ink-900 dark:text-white">Inventory valuation</h1>
           <p className="text-sm text-ledger-500 dark:text-ledger-400">
             {products.length} active product{products.length === 1 ? "" : "s"} · total{" "}
-            <span className="figure font-semibold text-ink-900 dark:text-white">${formatMoney(totalValue)}</span>
+            <span className="figure font-semibold text-ink-900 dark:text-white">{formatCurrency(totalValue, context.currency)}</span>
           </p>
         </div>
         <ExportCsvButton
@@ -77,10 +78,10 @@ export default async function InventoryReportPage() {
                   <td className="px-4 py-3 text-ink-900 dark:text-white">{p.name}</td>
                   <td className="px-4 py-3 text-right figure text-ledger-500 dark:text-ledger-400">{p.stock_quantity}</td>
                   <td className="px-4 py-3 text-right figure text-ledger-500 dark:text-ledger-400">
-                    ${formatMoney(p.unit_price)}
+                    {formatCurrency(p.unit_price, context.currency)}
                   </td>
                   <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">
-                    ${formatMoney(p.unit_price * p.stock_quantity)}
+                    {formatCurrency(p.unit_price * p.stock_quantity, context.currency)}
                   </td>
                 </tr>
               ))}

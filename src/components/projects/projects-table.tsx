@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { deleteProject } from "@/app/(dashboard)/projects/actions";
+import { formatCurrency } from "@/lib/sales/format";
 
 export interface ProjectRow {
   id: string;
@@ -34,7 +35,7 @@ const STATUS_LABELS: Record<ProjectRow["status"], string> = {
   cancelled: "Cancelled"
 };
 
-export function ProjectsTable({ projects, canManage }: { projects: ProjectRow[]; canManage: boolean }) {
+export function ProjectsTable({ projects, canManage, currency }: { projects: ProjectRow[]; canManage: boolean; currency: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +86,7 @@ export function ProjectsTable({ projects, canManage }: { projects: ProjectRow[];
                   {project.endDate ? new Date(project.endDate).toLocaleDateString() : "—"}
                 </td>
                 <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">
-                  {project.budget != null ? `$${formatMoney(project.budget)}` : "—"}
+                  {project.budget != null ? formatCurrency(project.budget, currency) : "—"}
                 </td>
                 {canManage && (
                   <td className="px-4 py-3">

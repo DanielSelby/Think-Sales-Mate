@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ExportCsvButton } from "@/components/reports/export-csv-button";
+import { formatCurrency } from "@/lib/sales/format";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -84,7 +85,7 @@ export default async function SalesReportPage({
       <div className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <p className="text-sm text-ledger-500 dark:text-ledger-400">
           {rows.length} sale{rows.length === 1 ? "" : "s"} · total{" "}
-          <span className="figure font-semibold text-ink-900 dark:text-white">${formatMoney(totalRevenue)}</span>
+          <span className="figure font-semibold text-ink-900 dark:text-white">{formatCurrency(totalRevenue, context.currency)}</span>
         </p>
       </div>
 
@@ -111,7 +112,7 @@ export default async function SalesReportPage({
                   <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">
                     {new Date(sale.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">${formatMoney(sale.total)}</td>
+                  <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">{formatCurrency(sale.total, context.currency)}</td>
                 </tr>
               ))}
             </tbody>

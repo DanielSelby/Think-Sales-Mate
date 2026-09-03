@@ -9,6 +9,7 @@ import { can } from "@/lib/rbac";
 import { Card, CardContent } from "@/components/ui/card";
 import { TransferStatusBadge } from "@/components/inventory/transfer-status-badge";
 import { TransferStatusActions } from "@/components/inventory/transfer-status-actions";
+import { formatCurrency } from "@/lib/sales/format";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -110,9 +111,9 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
                       <span className="ml-2 font-mono text-xs text-ledger-400">{product?.sku}</span>
                     </td>
                     <td className="py-2 text-right figure">{item.quantity}</td>
-                    <td className="py-2 text-right figure text-ledger-500 dark:text-ledger-400">${formatMoney(item.unit_cost)}</td>
+                    <td className="py-2 text-right figure text-ledger-500 dark:text-ledger-400">{formatCurrency(item.unit_cost, context.currency)}</td>
                     <td className="py-2 text-right figure font-medium text-ink-900 dark:text-white">
-                      ${formatMoney(item.unit_cost * item.quantity)}
+                      {formatCurrency(item.unit_cost * item.quantity, context.currency)}
                     </td>
                   </tr>
                 );
@@ -122,7 +123,7 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
 
           <div className="mt-3 flex items-center justify-between border-t border-ledger-100 pt-3 dark:border-ledger-700">
             <span className="text-sm font-medium text-ledger-600 dark:text-ledger-300">Total value</span>
-            <span className="figure text-lg font-semibold text-ink-900 dark:text-white">${formatMoney(totalValue)}</span>
+            <span className="figure text-lg font-semibold text-ink-900 dark:text-white">{formatCurrency(totalValue, context.currency)}</span>
           </div>
 
           {transfer.notes && (

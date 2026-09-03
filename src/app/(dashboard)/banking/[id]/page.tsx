@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
+import { formatCurrency } from "@/lib/sales/format";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { recordTransaction } from "@/app/(dashboard)/banking/actions";
@@ -67,7 +68,7 @@ export default async function AccountDetailPage({
         </p>
         <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">{account.name}</h1>
         <p className="figure mt-1 text-3xl font-semibold text-ink-900 dark:text-white">
-          ${formatMoney(account.current_balance)}
+          {formatCurrency(account.current_balance, context.currency)}
         </p>
       </div>
 
@@ -132,7 +133,7 @@ export default async function AccountDetailPage({
                   <td className="px-4 py-3 text-ink-900 dark:text-white">{tx.description ?? "—"}</td>
                   <td className="px-4 py-3 capitalize text-ledger-500 dark:text-ledger-400">{tx.type}</td>
                   <td className={`px-4 py-3 text-right figure ${tx.type === "deposit" ? "text-signal" : "text-alert"}`}>
-                    {tx.type === "deposit" ? "+" : "−"}${formatMoney(tx.amount)}
+                    {tx.type === "deposit" ? "+" : "−"}{formatCurrency(tx.amount, context.currency)}
                   </td>
                 </tr>
               ))}

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { runPayroll } from "@/app/(dashboard)/hrm/payroll/actions";
+import { formatCurrency } from "@/lib/sales/format";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -84,7 +85,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: { er
                   <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">
                     {new Date(run.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3 text-right figure text-alert">${formatMoney(run.total_amount)}</td>
+                  <td className="px-4 py-3 text-right figure text-alert">{formatCurrency(run.total_amount, context.currency)}</td>
                 </tr>
               ))}
             </tbody>

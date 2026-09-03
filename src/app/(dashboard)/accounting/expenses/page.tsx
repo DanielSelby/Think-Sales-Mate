@@ -50,7 +50,7 @@ export default async function ExpensesPage() {
         </div>
       </div>
 
-      <ExpensesTable expenses={expenses} canManage={canManage} />
+      <ExpensesTable expenses={expenses} canManage={canManage} currency={context.currency} />
     </div>
   );
 }

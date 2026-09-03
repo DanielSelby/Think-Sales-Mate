@@ -36,5 +36,5 @@ export default async function LocationsSettingsPage() {
     createdAt: row.created_at
   }));
 
-  return <LocationsManager locations={locations} canManage={can(context.role, "locations.manage")} orgName={context.orgName} />;
+  return <LocationsManager locations={locations} canManage={can(context.role, "locations.manage")} orgName={context.orgName} currency={context.currency} />;
 }

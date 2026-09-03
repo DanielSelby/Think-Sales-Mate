@@ -50,13 +50,20 @@ import type {
 import type { RecentReportRow } from "@/app/(dashboard)/reports/actions";
 
 const CATEGORY_COLORS = ["#2563eb", "#16a34a", "#7c3aed", "#d97706", "#0d9488", "#dc2626", "#94a3b8"];
-const TABS = ["Financial Reports", "Sales Reports", "Purchase Reports", "Inventory Reports", "Tax Reports"];
+const TABS = [
+  "Financial Reports", "Sales Reports", "Purchase Reports", "Inventory Reports",
+  "Tax Reports", "Customer Reports", "Supplier Reports", "Branch Reports",
+  "Product Reports", "Expense Reports", "User Activity Reports", "Stock Movement Reports",
+  "Profitability Reports", "Custom Reports"
+];
 const PERIOD_OPTIONS = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "yearly", label: "Yearly" }
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "weekly", label: "This Week" },
+  { value: "monthly", label: "This Month" },
+  { value: "quarterly", label: "This Quarter" },
+  { value: "yearly", label: "This Year" },
+  { value: "custom", label: "Custom" }
 ];
 
 interface ReportFiltersState {
@@ -117,6 +124,7 @@ export function ReportsDashboard({
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState("Financial Reports");
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState(filters.dateFrom);
   const [dateTo, setDateTo] = useState(filters.dateTo);
   const [locationId, setLocationId] = useState(filters.locationId ?? "all");
@@ -130,6 +138,23 @@ export function ReportsDashboard({
       period: overrides?.period ?? period
     });
     router.push(`/reports?${params.toString()}`);
+  }
+
+  function clearFilters() {
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const to = now.toISOString().slice(0, 10);
+    setDateFrom(from);
+    setDateTo(to);
+    setLocationId("all");
+    setPeriod("monthly");
+    applyFilters({ dateFrom: from, dateTo: to, locationId: "all", period: "monthly" });
+  }
+
+  function saveReportView() {
+    window.localStorage.setItem("thinksales-report-view", JSON.stringify({ dateFrom, dateTo, locationId, period, activeTab }));
+    setNotice("Report view saved on this device.");
+    window.setTimeout(() => setNotice(null), 2500);
   }
 
   function scrollTo(id: string) {
@@ -209,14 +234,15 @@ export function ReportsDashboard({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs text-ledger-400">Dashboard &gt; Accounting &gt; Reports</p>
+          <p className="text-xs text-ledger-400">Dashboard &gt; Reports</p>
           <h1 className="mt-1 font-display text-2xl font-semibold text-ink-900 dark:text-white">Reports</h1>
         </div>
       </div>
 
       {/* Category tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ledger-100 dark:border-ledger-700">
-        <div className="flex flex-wrap gap-1">
+      <div className="overflow-x-auto border-b border-ledger-100 dark:border-ledger-700">
+        <div className="flex min-w-max items-center justify-between gap-3">
+        <div className="flex gap-1">
           {TABS.map((tab) => (
             <button
               key={tab}
@@ -235,6 +261,7 @@ export function ReportsDashboard({
           <FileText className="h-3.5 w-3.5" />
           Custom Report
         </Button>
+        </div>
       </div>
 
       {/* KPI cards */}
@@ -256,6 +283,7 @@ export function ReportsDashboard({
       </div>
 
       {/* Filters */}
+      {notice && <p className="rounded-md bg-signal-soft px-3 py-2 text-sm text-signal">{notice}</p>}
       <div className="flex flex-wrap items-center gap-2 rounded-card border border-ledger-100 bg-white p-3 shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center gap-1.5">
           <Calendar className="h-3.5 w-3.5 text-ledger-400" />
@@ -298,8 +326,11 @@ export function ReportsDashboard({
         </select>
         <Button variant="outline" size="sm" onClick={() => applyFilters()}>
           <Filter className="h-3.5 w-3.5" />
-          Filter
+          Apply Filters
         </Button>
+        <Button variant="ghost" size="sm" onClick={clearFilters}>Clear Filters</Button>
+        <Button variant="ghost" size="sm" onClick={() => window.print()}>Print</Button>
+        <Button variant="ghost" size="sm" onClick={saveReportView}>Save Report View</Button>
         <div className="relative ml-auto">
           <Button size="sm" disabled={!canExport} onClick={() => setShowExportMenu((s) => !s)}>
             <Download className="h-3.5 w-3.5" />
@@ -322,6 +353,19 @@ export function ReportsDashboard({
         </div>
       </div>
 
+      {activeTab !== "Financial Reports" && (
+        <ReportWorkspace
+          tab={activeTab}
+          currency={currency}
+          kpis={kpis}
+          profitAndLoss={profitAndLoss}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+        />
+      )}
+
+      {activeTab === "Financial Reports" && (
+        <>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* P&L */}
         <div id="profit-loss" className="rounded-card border border-ledger-100 bg-white p-5 shadow-card lg:col-span-2 dark:border-ledger-700 dark:bg-ink-900">
@@ -578,6 +622,94 @@ export function ReportsDashboard({
           <SettingsLink icon={ClipboardList} label="Chart of Accounts" desc="View and manage accounts" href="/accounting" />
           <SettingsLink icon={Settings} label="Report Preferences" desc="Manage report formats & settings" href="/settings" />
         </div>
+      </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const REPORTS_BY_TAB: Record<string, string[]> = {
+  "Sales Reports": ["Sales by Product", "Sales by Category", "Sales by Customer", "Sales by Branch", "Sales Returns", "Discount Analysis"],
+  "Purchase Reports": ["Purchases by Supplier", "Purchases by Product", "Purchase Return Report", "Supplier Performance"],
+  "Inventory Reports": ["Current Inventory", "Inventory Valuation", "Inventory Aging", "Reorder Report", "Damaged Items", "Expired Items"],
+  "Tax Reports": ["VAT Summary", "Sales Tax Collected", "Purchase Tax Paid", "Tax Liability"],
+  "Customer Reports": ["Top Customers", "Customer Purchase History", "Outstanding Balances", "Customer Order Trends"],
+  "Supplier Reports": ["Supplier Purchases", "Supplier Payment History", "Outstanding Supplier Balances"],
+  "Branch Reports": ["Branch Performance Comparison", "Branch Stock Value", "Branch Expenses", "Branch Sales"],
+  "Product Reports": ["Product Performance", "Product Sales Trend", "Product Profitability", "Slow Moving Products", "Fast Moving Products"],
+  "Expense Reports": ["Expenses by Category", "Expenses by Branch", "Expenses by User"],
+  "User Activity Reports": ["User Activity Timeline", "Most Active Users", "Inactive Users"],
+  "Stock Movement Reports": ["Stock Transfer Report", "Stock Adjustment Report", "Inventory Movement Report"],
+  "Profitability Reports": ["Product Profitability", "Branch Profitability", "Customer Profitability", "Category Profitability"],
+  "Custom Reports": ["Report Builder", "Saved Templates", "Scheduled Reports", "Shared Reports"]
+};
+
+function ReportWorkspace({
+  tab,
+  currency,
+  kpis,
+  profitAndLoss,
+  dateFrom,
+  dateTo
+}: {
+  tab: string;
+  currency: string;
+  kpis: ReportKpis;
+  profitAndLoss: ProfitLossLine[];
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const reports = REPORTS_BY_TAB[tab] ?? [];
+  const values = [
+    ["Revenue", fmt(kpis.totalRevenue, currency)],
+    ["Expenses", fmt(kpis.totalExpenses, currency)],
+    ["Net Profit", fmt(kpis.netProfit, currency)],
+    ["Gross Margin", `${kpis.grossMargin}%`]
+  ];
+  return (
+    <div className="space-y-5">
+      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-ink-900 dark:text-white">{tab}</h2>
+            <p className="mt-1 text-xs text-ledger-400">{dateFrom} to {dateTo} · filtered live data</p>
+          </div>
+          <span className="rounded-full bg-signal-soft px-2.5 py-1 text-xs font-medium text-signal">Connected to ERP data</span>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {values.map(([label, value]) => (
+            <div key={label} className="rounded-md bg-ledger-50 p-3 dark:bg-white/[0.04]">
+              <p className="text-xs text-ledger-400">{label}</p>
+              <p className="figure mt-1 text-sm font-semibold text-ink-900 dark:text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Available reports</h3>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {reports.map((report) => (
+            <button key={report} className="rounded-md border border-ledger-100 p-3 text-left text-sm text-ink-900 hover:border-signal hover:bg-signal-soft dark:border-ledger-700 dark:text-white">
+              {report}
+              <span className="mt-1 block text-xs text-ledger-400">Uses the selected filters</span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-ledger-400">Detailed transaction rows are available in the financial statement below after selecting Financial Reports.</p>
+      </div>
+      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Filtered transaction summary</h3>
+        <table className="mt-3 w-full text-sm">
+          <tbody>
+            {profitAndLoss.slice(0, 6).map((line) => (
+              <tr key={line.label} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
+                <td className="py-2 text-ink-900 dark:text-white">{line.label}</td>
+                <td className="py-2 text-right figure text-ink-900 dark:text-white">{fmt(line.amount, currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

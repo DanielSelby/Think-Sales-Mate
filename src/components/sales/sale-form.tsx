@@ -39,7 +39,7 @@ import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
-import { derivePaymentStatus } from "@/lib/sales/format";
+import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 
 
 export interface SellableProduct {
@@ -111,8 +111,8 @@ const TAX_RATES = [0, 5, 12.5, 15];
 const PAYMENT_METHODS = ["Cash", "Mobile Money", "Card", "Bank Transfer", "Store Credit"];
 const DRAFT_KEY = "salesmate:new-sale-draft";
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+function formatMoney(value: number, currency: string) {
+  return formatCurrency(value, currency);
 }
 
 function todayIso() {
@@ -798,7 +798,7 @@ export function SaleForm({
                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedCustomer.phone}</span>
                     )}
                     {selectedCustomer.outstanding > 0 && (
-                      <span className="font-medium text-alert">Outstanding: GHC {formatMoney(selectedCustomer.outstanding)}</span>
+                      <span className="font-medium text-alert">Outstanding: {formatMoney(selectedCustomer.outstanding, currency)}</span>
                     )}
                   </div>
                 )}
@@ -940,7 +940,7 @@ export function SaleForm({
                             <span className="block text-xs text-ledger-400">{p.sku} · stock {p.stockQuantity}</span>
                           </span>
                           <span className="shrink-0 font-mono text-sm text-ledger-600 dark:text-ledger-300">
-                            {alreadyAdded ? "Added" : `GHC ${formatMoney(p.unitPrice)}`}
+                            {alreadyAdded ? "Added" : formatMoney(p.unitPrice, currency)}
                           </span>
                         </button>
                       );
@@ -1006,7 +1006,7 @@ export function SaleForm({
                             </td>
                             <td className="px-2 py-2 font-mono text-xs text-ledger-500">{product?.sku ?? "—"}</td>
                             <td className="px-2 py-2 text-right figure text-ledger-500 dark:text-ledger-400">
-                              GHC {formatMoney(product?.unitPrice ?? 0)}
+                              {formatMoney(product?.unitPrice ?? 0, currency)}
                             </td>
                             <td className="px-2 py-2">
                               <div className="flex items-center justify-center gap-1">
@@ -1073,7 +1073,7 @@ export function SaleForm({
                               </select>
                             </td>
                             <td className="px-2 py-2 text-right figure font-medium text-ink-900 dark:text-white">
-                              GHC {formatMoney(rowTotal)}
+                              {formatMoney(rowTotal, currency)}
                             </td>
                             <td className="px-2 py-2 pr-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
@@ -1137,11 +1137,11 @@ export function SaleForm({
                     <p className="text-ledger-400">Total qty</p>
                   </div>
                   <div>
-                    <p className="figure text-sm font-semibold text-ink-900 dark:text-white">GHC {formatMoney(subtotal)}</p>
+                    <p className="figure text-sm font-semibold text-ink-900 dark:text-white">{formatMoney(subtotal, currency)}</p>
                     <p className="text-ledger-400">Sub total</p>
                   </div>
                   <div>
-                    <p className="figure text-sm font-semibold text-alert">-GHC {formatMoney(discountTotal)}</p>
+                    <p className="figure text-sm font-semibold text-alert">-{formatMoney(discountTotal, currency)}</p>
                     <p className="text-ledger-400">Discount</p>
                   </div>
                 </div>
@@ -1270,34 +1270,34 @@ export function SaleForm({
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Sub total ({lines.length} items)</dt>
-                <dd className="figure text-ink-900 dark:text-white">GHC {formatMoney(subtotal)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">{formatMoney(subtotal, currency)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Discount</dt>
-                <dd className="figure text-alert">-GHC {formatMoney(discountTotal + additionalDiscountAmount)}</dd>
+                <dd className="figure text-alert">-{formatMoney(discountTotal + additionalDiscountAmount, currency)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Tax</dt>
-                <dd className="figure text-ink-900 dark:text-white">+GHC {formatMoney(taxTotal + additionalTaxAmount)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">+{formatMoney(taxTotal + additionalTaxAmount, currency)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Shipping</dt>
-                <dd className="figure text-ink-900 dark:text-white">+GHC {formatMoney(shippingAmount)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">+{formatMoney(shippingAmount, currency)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-ledger-500 dark:text-ledger-400">Other Charges</dt>
-                <dd className="figure text-ink-900 dark:text-white">+GHC {formatMoney(otherChargesAmount)}</dd>
+                <dd className="figure text-ink-900 dark:text-white">+{formatMoney(otherChargesAmount, currency)}</dd>
               </div>
               <div className="flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-ledger-700">
                 <dt className="font-medium text-ledger-600 dark:text-ledger-300">Total ({lines.length} items)</dt>
-                <dd className="figure text-lg font-semibold text-signal">GHC {formatMoney(total)}</dd>
+                <dd className="figure text-lg font-semibold text-signal">{formatMoney(total, currency)}</dd>
               </div>
               {discountTotal > 0 && (
                 <div className="flex items-center justify-between rounded-md bg-signal-soft px-2 py-1.5">
                   <dt className="flex items-center gap-1 text-xs font-medium text-signal">
                     <Star className="h-3 w-3" /> You save
                   </dt>
-                  <dd className="figure text-xs font-semibold text-signal">GHC {formatMoney(discountTotal)}</dd>
+                  <dd className="figure text-xs font-semibold text-signal">{formatMoney(discountTotal, currency)}</dd>
                 </div>
               )}
             </dl>
@@ -1306,7 +1306,7 @@ export function SaleForm({
               <div className="mt-3 space-y-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-alert">Balance Due</span>
-                  <span className="figure text-sm font-semibold text-alert">GHC {formatMoney(balanceDue)}</span>
+                  <span className="figure text-sm font-semibold text-alert">{formatMoney(balanceDue, currency)}</span>
                 </div>
                 {!payBalanceOpen ? (
                   <Button
@@ -1388,7 +1388,7 @@ export function SaleForm({
             <div className="mt-3 flex items-center justify-between rounded-md bg-ledger-50 px-3 py-2 text-sm dark:bg-white/[0.04]">
               <span className="text-ledger-500 dark:text-ledger-400">{changeOrDue >= 0 ? "Change" : "Balance due"}</span>
               <span className={changeOrDue >= 0 ? "figure font-semibold text-signal" : "figure font-semibold text-alert"}>
-                GHC {formatMoney(Math.abs(changeOrDue))}
+                {formatMoney(Math.abs(changeOrDue), currency)}
               </span>
             </div>
           </div>
@@ -1414,7 +1414,7 @@ export function SaleForm({
                         <Package2 className="h-3.5 w-3.5 shrink-0 text-ledger-400" />
                         <span className="truncate text-ink-900 dark:text-white">{item.name}</span>
                       </span>
-                      <span className="shrink-0 figure text-xs text-ledger-400">GHC {formatMoney(item.unitPrice)}</span>
+                      <span className="shrink-0 figure text-xs text-ledger-400">{formatMoney(item.unitPrice, currency)}</span>
                     </button>
                   </li>
                 ))}
