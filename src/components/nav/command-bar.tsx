@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
   Wallet, Landmark, Receipt, Package, FolderKanban,
   BarChart3, Settings, Sparkles, Plus, ArrowLeftRight,
-  FileText, Tag, TrendingUp, TrendingDown, Clock, MapPin,
+  FileText, Tag, TrendingUp, TrendingDown, Clock, MapPin, Truck,
 } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
@@ -207,7 +207,8 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
         .filter(a => a.label.toLowerCase().includes(q))
         .map(a => ({ ...a, sub: "Quick action", group: "Actions" }));
 
-      // Supabase search — products, customers, sales, invoices, expenses
+      // Search the main operational records so the command bar works as a
+      // system-wide finder rather than only a page navigator.
       const dbItems: CommandItem[] = [];
       try {
         const supabase = createClient();
@@ -221,6 +222,8 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
               { data: sales },
               { data: invoices },
               { data: expenses },
+              { data: suppliers },
+              { data: locations },
             ] = await Promise.all([
               supabase.from("products").select("id, name, sku")
                 .eq("org_id", orgId)
@@ -241,6 +244,14 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
               supabase.from("expenses").select("id, category, vendor, amount")
                 .eq("org_id", orgId)
                 .or(`category.ilike.%${q}%,vendor.ilike.%${q}%`)
+                .limit(4),
+              supabase.from("suppliers").select("id, name, phone, email")
+                .eq("org_id", orgId)
+                .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
+                .limit(4),
+              supabase.from("business_locations").select("id, name, address, phone")
+                .eq("org_id", orgId)
+                .or(`name.ilike.%${q}%,address.ilike.%${q}%,phone.ilike.%${q}%`)
                 .limit(4),
             ]);
 
@@ -265,6 +276,14 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
             (expenses ?? []).forEach(e => dbItems.push({
               id: "exp-" + e.id, label: e.vendor || e.category, sub: `Expense · ${formatMoney(Number(e.amount), orgCurrency)}`,
               icon: TrendingDown, group: "Transactions", action: () => { navigate("/accounting/expenses"); close(); }
+            }));
+            (suppliers ?? []).forEach(s => dbItems.push({
+              id: "supplier-" + s.id, label: s.name, sub: s.phone || s.email || "Supplier",
+              icon: Truck, group: "Suppliers", action: () => { navigate("/purchases/suppliers"); close(); }
+            }));
+            (locations ?? []).forEach(l => dbItems.push({
+              id: "location-" + l.id, label: l.name, sub: l.address || l.phone || "Business location",
+              icon: MapPin, group: "Locations", action: () => { navigate("/settings/locations"); close(); }
             }));
           }
         }

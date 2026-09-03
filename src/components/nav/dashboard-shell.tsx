@@ -4,6 +4,7 @@ import { useAppStore, THEMES } from "@/store/useAppStore";
 import { Sidebar } from "./sidebar";
 import { TopNav } from "./top-nav";
 import { SessionTimeout } from "./session-timeout";
+import { NavigationLoading } from "./navigation-loading";
 
 interface Props {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ export function DashboardShell({ children, orgName, logoUrl }: Props) {
 
   return (
     <SessionTimeout>
+      <NavigationLoading />
       <div className="flex h-screen overflow-hidden" style={{ background: theme.colors.background }}>
         <Sidebar collapsed={sidebarCollapsed} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">

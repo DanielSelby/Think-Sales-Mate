@@ -383,13 +383,13 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         {/* Need Help / Support */}
         {!collapsed && (
           <div className="px-3 py-2">
-            <div className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10 cursor-pointer">
+            <Link href="/support" className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
               <Headphones className="h-4 w-4 shrink-0 text-blue-400" />
               <div>
                 <p className="font-semibold" style={{ color: sidebar.text }}>Need Help?</p>
                 <p className="text-[11px]" style={{ color: sidebar.textMuted }}>Contact support</p>
               </div>
-            </div>
+            </Link>
           </div>
         )}
 
