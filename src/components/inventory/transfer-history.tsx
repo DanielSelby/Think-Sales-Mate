@@ -48,6 +48,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/sales/format";
 import {
   updateTransferStatus,
   getTransferItems,
@@ -1082,7 +1083,7 @@ export function TransferHistory({
               <div>
                 <span className="text-ledger-400 block text-[10px]">Total Transfer Value</span>
                 <strong className="text-ink-900 dark:text-white font-mono">
-                  {currency} {selectedTransferForDetail.totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {formatCurrency(selectedTransferForDetail.totalValue, currency)}
                 </strong>
               </div>
             </div>
@@ -1118,10 +1119,10 @@ export function TransferHistory({
                             {item.quantity}
                           </td>
                           <td className="p-2.5 text-right font-mono text-ledger-600 dark:text-ledger-300">
-                            {currency} {item.unitCost.toFixed(2)}
+                            {formatCurrency(item.unitCost, currency)}
                           </td>
                           <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            {currency} {(item.quantity * item.unitCost).toFixed(2)}
+                            {formatCurrency(item.quantity * item.unitCost, currency)}
                           </td>
                         </tr>
                       ))

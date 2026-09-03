@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
+import { formatCurrency } from "@/lib/sales/format";
 import {
   Search,
   Filter,
@@ -900,7 +901,7 @@ export function StockAdjustmentHistory({
               <div>
                 <p className="text-[11px] font-medium text-ledger-400">Total Value Impact</p>
                 <p className="font-display text-lg font-bold text-ink-900 dark:text-white font-mono">
-                  {currency} {analytics.totalValueImpact.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(analytics.totalValueImpact, currency)}
                 </p>
               </div>
             </div>
@@ -949,7 +950,7 @@ export function StockAdjustmentHistory({
               <div className="flex justify-between border-t border-ledger-100 pt-2 text-ledger-500 dark:border-ledger-700">
                 <span>Total Value Impact</span>
                 <span className="font-bold text-ink-900 dark:text-white font-mono">
-                  {currency} {analytics.totalValueImpact.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(analytics.totalValueImpact, currency)}
                 </span>
               </div>
             </div>
@@ -1768,11 +1769,11 @@ export function StockAdjustmentHistory({
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right font-mono">
-                        {currency} {selectedRecordForDetail.unitCost.toFixed(2)}
+                        {formatCurrency(selectedRecordForDetail.unitCost, currency)}
                       </td>
                       <td className="px-3 py-3 text-right font-bold font-mono">
                         <span className={selectedRecordForDetail.valueImpact > 0 ? "text-emerald-600" : "text-red-600"}>
-                          {currency} {selectedRecordForDetail.valueImpact.toFixed(2)}
+                          {formatCurrency(selectedRecordForDetail.valueImpact, currency)}
                         </span>
                       </td>
                     </tr>

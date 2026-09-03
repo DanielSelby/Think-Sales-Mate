@@ -274,8 +274,8 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         </div>
         {!collapsed && (
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-sm font-bold tracking-tight text-white">ThinkSales</span>
-            <span className="rounded bg-blue-600 px-1 py-0.2 text-[10px] font-bold text-white tracking-wide">Pro</span>
+            <span className="text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>ThinkSales</span>
+            <span className="rounded px-1 py-0.2 text-[10px] font-bold tracking-wide" style={{ background: theme.colors.primary, color: "#fff" }}>Pro</span>
           </div>
         )}
       </div>
@@ -386,8 +386,8 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
             <div className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10 cursor-pointer">
               <Headphones className="h-4 w-4 shrink-0 text-blue-400" />
               <div>
-                <p className="font-semibold text-white">Need Help?</p>
-                <p className="text-[11px] text-white/60">Contact support</p>
+                <p className="font-semibold" style={{ color: sidebar.text }}>Need Help?</p>
+                <p className="text-[11px]" style={{ color: sidebar.textMuted }}>Contact support</p>
               </div>
             </div>
           </div>

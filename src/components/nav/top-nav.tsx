@@ -7,6 +7,7 @@ import { CommandBar } from "./command-bar";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { createClient } from "@/lib/supabase/client";
+import { formatCurrency } from "@/lib/sales/format";
 
 const THEME_OPTIONS: { key: ThemeKey; label: string }[] = [
   { key: "fintech", label: "Fintech Blue" },
@@ -346,7 +347,7 @@ export function TopNav() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-slate-800 dark:text-white">Journal JE-2026-0154 Posted</p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">Sales revenue of GHS 3,250.00 reconciled.</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">Sales revenue of {formatCurrency(3250, currentCurrency)} reconciled.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2.5 p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
@@ -355,7 +356,7 @@ export function TopNav() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-slate-800 dark:text-white">Payment Received</p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">GHS 2,400.00 from Apex Logistics cleared.</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">{formatCurrency(2400, currentCurrency)} from Apex Logistics cleared.</p>
                   </div>
                 </div>
               </div>

@@ -40,6 +40,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/sales/format";
 import { createStockTransfer, updateTransferStatus, deleteTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
 import type { TransferStatus, LocationType } from "@/types/database";
 
@@ -720,7 +721,7 @@ export function StockTransferForm({
                     <div className="flex justify-between border-t border-ledger-100 pt-1.5 text-ledger-500 dark:border-ledger-700">
                       <span>Total Value:</span>
                       <strong className="text-ink-900 dark:text-white font-mono">
-                        {currency} {totals.totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        {formatCurrency(totals.totalValue, currency)}
                       </strong>
                     </div>
                   </div>
@@ -1102,7 +1103,7 @@ export function StockTransferForm({
               <div className="flex items-center gap-2">
                 <span className="text-ledger-500">Total Value ({currency}):</span>
                 <span className="font-bold text-ink-900 dark:text-white font-mono text-sm">
-                  {currency} {totals.totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {formatCurrency(totals.totalValue, currency)}
                 </span>
               </div>
             </div>
@@ -1319,7 +1320,7 @@ export function StockTransferForm({
               <div>
                 <span className="text-ledger-400 block text-[10px]">Total Value</span>
                 <strong className="text-ink-900 dark:text-white font-mono text-sm">
-                  {currency} {totals.totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {formatCurrency(totals.totalValue, currency)}
                 </strong>
               </div>
             </div>
@@ -1459,7 +1460,7 @@ export function StockTransferForm({
                               {srcQty} on hand
                             </p>
                             <p className="font-mono text-[10px] text-ledger-400">
-                              {currency} {p.unitCost.toFixed(2)}
+                              {formatCurrency(p.unitCost, currency)}
                             </p>
                           </div>
 
