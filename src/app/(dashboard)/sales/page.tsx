@@ -6,7 +6,7 @@ import { SalesListView, type SaleListRow, type SalesKpis } from "@/components/sa
 
 export const metadata = { title: "Sales · SalesMate ERP" };
 
-export default async function SalesPage() {
+export default async function SalesPage({ searchParams }: { searchParams?: { location?: string } }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null; // layout already redirects to /onboarding when there's no org
@@ -15,8 +15,8 @@ export default async function SalesPage() {
 
   const supabase = await createClient();
 
-  const [{ data: sales }, { data: locations }, { data: companyProfile }] = await Promise.all([
-    supabase
+  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  let salesQuery = supabase
       .from("sales")
       .select(`
         id, sale_number, customer_name, sale_date, created_at, total, amount_paid,
@@ -27,8 +27,12 @@ export default async function SalesPage() {
       `)
       .eq("org_id", orgId)
       .eq("document_status", "final")
-      .order("sale_date", { ascending: false }),
-    supabase.from("business_locations").select("name").eq("org_id", orgId).eq("is_active", true),
+      .order("sale_date", { ascending: false });
+  if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
+
+  const [{ data: sales }, { data: locations }, { data: companyProfile }] = await Promise.all([
+    salesQuery,
+    supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
     supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", orgId).maybeSingle(),
   ]);
 
@@ -88,6 +92,7 @@ export default async function SalesPage() {
       kpis={kpis}
       currency={currency}
       locations={locationNames}
+      initialLocation={locationId ? (locations ?? []).find((l) => l.id === locationId)?.name ?? "all" : "all"}
       salesReps={salesRepNames}
       orgName={context.orgName}
       logoUrl={companyProfile?.logo_url ?? null}

@@ -16,15 +16,15 @@ const ACTIVITY_LABEL: Record<string, string> = {
   "purchase.payment_recorded": "Payment recorded for",
 };
 
-export default async function PurchasesPage() {
+export default async function PurchasesPage({ searchParams }: { searchParams?: { location?: string } }) {
   const context = await getCurrentOrgContext();
   if (!context) return null;
 
   const orgId = context.orgId;
   const supabase = await createClient();
 
-  const [{ data: purchases }, { data: suppliers }, { data: locations }] = await Promise.all([
-    supabase
+  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  let purchasesQuery = supabase
       .from("purchases")
       .select(`
         id, purchase_number, purchase_date, invoice_number, total, paid_amount, status, created_by,
@@ -38,7 +38,11 @@ export default async function PurchasesPage() {
       // purchase always sorts to the top instead of landing wherever
       // Postgres happens to put ties.
       .order("purchase_date", { ascending: false })
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false });
+  if (locationId) purchasesQuery = purchasesQuery.eq("location_id", locationId);
+
+  const [{ data: purchases }, { data: suppliers }, { data: locations }] = await Promise.all([
+    purchasesQuery,
     supabase.from("suppliers").select("id, name").eq("org_id", orgId).eq("is_active", true),
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
   ]);
@@ -167,6 +171,7 @@ export default async function PurchasesPage() {
       currency={context.currency}
       suppliers={(suppliers ?? []).map((s) => s.name)}
       locations={(locations ?? []).map((l) => l.name)}
+      initialLocation={locationId ? (locations ?? []).find((l) => l.id === locationId)?.name ?? "all" : "all"}
       overview={overview}
       topSuppliers={topSuppliers}
       categories={categories}

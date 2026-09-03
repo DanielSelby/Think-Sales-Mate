@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search, Filter, Plus, Download, Eye, Pencil, Printer,
   ChevronLeft, ChevronRight, ShoppingCart, Wallet, Clock3, CheckCircle2, Undo2, Gem, XCircle,
@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
 import { useAppStore, THEMES } from "@/store/useAppStore";
+import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ interface SalesListViewProps {
   kpis: SalesKpis;
   currency: string;
   locations: string[];
+  initialLocation?: string;
   salesReps: string[];
   orgName: string;
   logoUrl?: string | null;
@@ -84,8 +86,9 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
-export function SalesListView({ sales, kpis, currency, locations, salesReps, orgName, logoUrl, showLogoOnInvoices }: SalesListViewProps) {
+export function SalesListView({ sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, logoUrl, showLogoOnInvoices }: SalesListViewProps) {
   const { activeTheme } = useAppStore();
+  const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | SaleStatus>("all");
@@ -100,6 +103,11 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(10);
+
+  useEffect(() => {
+    setLocation(initialLocation);
+    setPage(1);
+  }, [initialLocation]);
 
   const paymentMethods = useMemo(
     () => Array.from(new Set(sales.map((s) => s.paymentMethod).filter(Boolean))) as string[],
@@ -298,7 +306,7 @@ export function SalesListView({ sales, kpis, currency, locations, salesReps, org
 
             <div className="w-40">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Branch</label>
-              <Select value={location} onChange={(e) => { setLocation(e.target.value); setPage(1); }}>
+              <Select value={location} onChange={(e) => { setLocation(e.target.value); setBranch(e.target.value); setPage(1); }}>
                 <option value="all">All Branches</option>
                 {locations.map((l) => (
                   <option key={l} value={l}>{l}</option>

@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/sales/format";
+import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { logReportExport } from "@/app/(dashboard)/reports/actions";
 import type {
   ReportKpis,
@@ -129,6 +130,7 @@ export function ReportsDashboard({
   const [dateTo, setDateTo] = useState(filters.dateTo);
   const [locationId, setLocationId] = useState(filters.locationId ?? "all");
   const [period, setPeriod] = useState(filters.period);
+  const setBranch = useAccountingStore((state) => state.setBranch);
 
   function applyFilters(overrides?: Partial<ReportFiltersState>) {
     const params = new URLSearchParams({
@@ -314,7 +316,11 @@ export function ReportsDashboard({
         </select>
         <select
           value={locationId}
-          onChange={(e) => setLocationId(e.target.value)}
+          onChange={(e) => {
+            const nextLocationId = e.target.value;
+            setLocationId(nextLocationId);
+            setBranch(locations.find((location) => location.id === nextLocationId)?.name ?? "all");
+          }}
           className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
         >
           <option value="all">All Branches</option>

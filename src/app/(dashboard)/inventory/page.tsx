@@ -10,7 +10,7 @@ import {
 } from "@/components/inventory/products-catalog";
 
 
-export default async function InventoryPage() {
+export default async function InventoryPage({ searchParams }: { searchParams?: { location?: string } }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -19,19 +19,26 @@ export default async function InventoryPage() {
 
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: productRows }, { data: locationRows }, { data: stockLevelRows }, { data: recentItemRows }] = await Promise.all([
-    supabase
+  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  let productsQuery = supabase
       .from("products")
       .select(
         "id, sku, name, description, category, brand, supplier, barcode, location_id, unit_price, cost_price, stock_quantity, low_stock_threshold, is_active, image_urls, business_locations(name)"
       )
       .eq("org_id", context.orgId)
-      .order("name"),
+      .order("name");
+  if (locationId) productsQuery = productsQuery.eq("location_id", locationId);
+
+  let stockLevelsQuery = supabase
+    .from("product_stock_levels")
+    .select("product_id, location_id, quantity, business_locations(name)")
+    .eq("org_id", context.orgId);
+  if (locationId) stockLevelsQuery = stockLevelsQuery.eq("location_id", locationId);
+
+  const [{ data: productRows }, { data: locationRows }, { data: stockLevelRows }, { data: recentItemRows }] = await Promise.all([
+    productsQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
-    supabase
-      .from("product_stock_levels")
-      .select("product_id, location_id, quantity, business_locations(name)")
-      .eq("org_id", context.orgId),
+    stockLevelsQuery,
     supabase
       .from("sale_items")
       .select("product_id, quantity, products(name)")

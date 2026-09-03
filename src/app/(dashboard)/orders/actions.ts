@@ -486,6 +486,13 @@ export interface StockCheckResult {
   ok: boolean;
   allInStock: boolean;
   shortages: { productName: string; requested: number; available: number }[];
+  products: {
+    productId: string;
+    productName: string;
+    requested: number;
+    totalAvailable: number;
+    locations: { locationName: string; quantity: number }[];
+  }[];
 }
 
 export async function checkOrderStock(orderId: string): Promise<StockCheckResult> {
@@ -495,18 +502,37 @@ export async function checkOrderStock(orderId: string): Promise<StockCheckResult
     .select("product_id, product_name, quantity")
     .eq("order_id", orderId);
 
-  if (!items || items.length === 0) return { ok: true, allInStock: true, shortages: [] };
+  if (!items || items.length === 0) return { ok: true, allInStock: true, shortages: [], products: [] };
 
-  const { data: products } = await supabase.from("products").select("id, stock_quantity").in("id", items.map((i) => i.product_id));
+  const productIds = items.map((i) => i.product_id);
+  const { data: products } = await supabase.from("products").select("id, stock_quantity").in("id", productIds);
   const stockById = new Map((products ?? []).map((p) => [p.id, p.stock_quantity]));
+  const { data: stockLevels } = await supabase
+    .from("product_stock_levels")
+    .select("product_id, quantity, business_locations(name)")
+    .in("product_id", productIds);
+  const locationStock = new Map<string, { locationName: string; quantity: number }[]>();
+  for (const row of stockLevels ?? []) {
+    const location = Array.isArray(row.business_locations) ? row.business_locations[0] : row.business_locations;
+    const list = locationStock.get(row.product_id) ?? [];
+    list.push({ locationName: location?.name ?? "Unknown location", quantity: Number(row.quantity ?? 0) });
+    locationStock.set(row.product_id, list);
+  }
+  const productsById = new Map((products ?? []).map((p) => [p.id, p]));
+  const productsSummary = items.map((item) => {
+    const locations = locationStock.get(item.product_id) ?? [];
+    const levelTotal = locations.reduce((sum, location) => sum + location.quantity, 0);
+    const totalAvailable = locations.length > 0 ? levelTotal : Number(productsById.get(item.product_id)?.stock_quantity ?? 0);
+    return { productId: item.product_id, productName: item.product_name, requested: item.quantity, totalAvailable, locations };
+  });
 
   const shortages = items
-    .filter((i) => (stockById.get(i.product_id) ?? 0) < i.quantity)
-    .map((i) => ({ productName: i.product_name, requested: i.quantity, available: stockById.get(i.product_id) ?? 0 }));
+    .filter((i) => (productsSummary.find((product) => product.productId === i.product_id)?.totalAvailable ?? stockById.get(i.product_id) ?? 0) < i.quantity)
+    .map((i) => ({ productName: i.product_name, requested: i.quantity, available: productsSummary.find((product) => product.productId === i.product_id)?.totalAvailable ?? 0 }));
 
   await supabase.from("customer_orders").update({ stock_checked: true }).eq("id", orderId);
   revalidatePath(`/orders/${orderId}`);
-  return { ok: true, allInStock: shortages.length === 0, shortages };
+  return { ok: true, allInStock: shortages.length === 0, shortages, products: productsSummary };
 }
 
 export async function setAdminNotes(orderId: string, notes: string): Promise<SimpleResult> {

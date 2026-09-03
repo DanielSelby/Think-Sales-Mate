@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
@@ -44,7 +44,7 @@ export function TopNav() {
   const [userEmail,         setUserEmail]         = useState("");
   const [notifications,     setNotifications]     = useState<NotificationItem[]>([]);
   const [unreadCount,       setUnreadCount]       = useState(0);
-  const [branchOptions,     setBranchOptions]     = useState<string[]>([]);
+  const [branchOptions,     setBranchOptions]     = useState<Array<{ id: string; name: string }>>([]);
   const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
 
   useEffect(() => {
@@ -75,14 +75,15 @@ export function TopNav() {
           if (orgId) {
             const { data: locations } = await supabase
               .from("business_locations")
-              .select("name")
+              .select("id, name")
               .eq("org_id", orgId)
               .eq("is_active", true)
               .order("name");
-            const names = (locations ?? []).map((location) => location.name);
-            setBranchOptions(names);
-            if (names.length > 0 && !names.includes(useAccountingStore.getState().currentBranch)) {
-              useAccountingStore.getState().setBranch(names[0]);
+            const options = locations ?? [];
+            setBranchOptions(options);
+            const selectedBranch = useAccountingStore.getState().currentBranch;
+            if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
+              useAccountingStore.getState().setBranch("all");
             }
           }
           if (organization?.currency) {
@@ -126,8 +127,19 @@ export function TopNav() {
   };
 
   const { currentBranch, setBranch, currentCurrency, setCurrency } = useAccountingStore();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [showBranches, setShowBranches] = useState(false);
   const [showCurrencies, setShowCurrencies] = useState(false);
+
+  const selectBranch = (branch: { id: string; name: string } | null) => {
+    setBranch(branch?.name ?? "all");
+    const params = new URLSearchParams(searchParams.toString());
+    if (branch) params.set("location", branch.id);
+    else params.delete("location");
+    router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`);
+    setShowBranches(false);
+  };
 
   // Global Ctrl+K / Ctrl+/ shortcut
   useEffect(() => {
@@ -172,7 +184,7 @@ export function TopNav() {
           className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Building2 className="h-3.5 w-3.5 text-white/60" />
-          <span className="hidden sm:block">{branchOptions.length > 0 ? currentBranch : "No locations"}</span>
+          <span className="hidden sm:block">{branchOptions.length > 0 ? (currentBranch === "all" ? "All Branches" : currentBranch) : "No locations"}</span>
           <ChevronDown className="w-3 h-3 opacity-60" />
         </button>
         {showBranches && (
@@ -182,16 +194,27 @@ export function TopNav() {
               <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Branch</p>
               </div>
-              {branchOptions.length > 0 ? branchOptions.map((branch) => (
+              {branchOptions.length > 0 ? (
+                <>
                 <button
-                  key={branch}
-                  onClick={() => { setBranch(branch); setShowBranches(false); }}
+                  onClick={() => selectBranch(null)}
                   className="flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
                 >
-                  <span>{branch}</span>
-                  {currentBranch === branch && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                  <span>All Branches</span>
+                  {currentBranch === "all" && <Check className="h-3.5 w-3.5 text-blue-600" />}
                 </button>
-              )) : (
+                {branchOptions.map((branch) => (
+                <button
+                  key={branch.id}
+                  onClick={() => selectBranch(branch)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                >
+                  <span>{branch.name}</span>
+                  {currentBranch === branch.name && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                </button>
+                ))}
+                </>
+              ) : (
                 <p className="px-3 py-2 text-xs text-slate-500">No active locations configured</p>
               )}
             </div>

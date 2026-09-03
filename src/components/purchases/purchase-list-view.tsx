@@ -20,6 +20,7 @@ import { PurchaseRowMenu } from "@/components/purchases/purchase-row-menu";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import type { PurchaseStatus } from "@/types/database";
 import { useAppStore, THEMES } from "@/store/useAppStore";
+import { useAccountingStore } from "@/lib/accounting/accounting-store";
 
 export interface PurchaseRow {
   id: string;
@@ -77,6 +78,7 @@ interface PurchaseListViewProps {
   currency: string;
   suppliers: string[];
   locations: string[];
+  initialLocation?: string;
   overview: AnalyticsSlice[];
   topSuppliers: TopSupplier[];
   categories: CategoryBreakdown[];
@@ -103,20 +105,26 @@ const DONUT_COLORS: Record<PurchaseStatus, string> = {
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
 export function PurchaseListView({
-  purchases, kpis, currency, suppliers, locations, overview, topSuppliers, categories, recentActivity,
+  purchases, kpis, currency, suppliers, locations, initialLocation = "all", overview, topSuppliers, categories, recentActivity,
 }: PurchaseListViewProps) {
   const { activeTheme } = useAppStore();
+  const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = React.useState<"all" | PurchaseStatus>("all");
   const [query, setQuery] = React.useState("");
   const [supplier, setSupplier] = React.useState(() => searchParams.get("supplier") ?? "all");
-  const [location, setLocation] = React.useState("all");
+  const [location, setLocation] = React.useState(initialLocation);
   const [paymentStatus, setPaymentStatus] = React.useState<"all" | PaymentStatus>("all");
   const [selected, setSelected] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
   const [notice, setNotice] = React.useState<{ message: string; tone: "success" | "error" } | null>(null);
+
+  React.useEffect(() => {
+    setLocation(initialLocation);
+    setPage(1);
+  }, [initialLocation]);
 
   function showNotice(message: string, tone: "success" | "error" = "success") {
     setNotice({ message, tone });
@@ -265,7 +273,7 @@ export function PurchaseListView({
               </div>
               <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Location</label>
-                <Select value={location} onChange={(e) => { setLocation(e.target.value); setPage(1); }}>
+                <Select value={location} onChange={(e) => { setLocation(e.target.value); setBranch(e.target.value); setPage(1); }}>
                   <option value="all">All Locations</option>
                   {locations.map((l) => <option key={l} value={l}>{l}</option>)}
                 </Select>

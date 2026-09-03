@@ -276,7 +276,7 @@ const SEED_AUDIT_LOGS: AccountingAuditLog[] = [
 export const useAccountingStore = create<AccountingState>()(
   persist(
     (set, get) => ({
-      currentBranch: "Main Branch",
+      currentBranch: "all",
       currentCurrency: "GHS",
       dateRange: { from: "2026-05-01", to: "2026-05-31", label: "May 1, 2026 - May 31, 2026" },
       activeTab: "overview",

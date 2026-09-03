@@ -105,6 +105,7 @@ export function OrderDetailView({
 
   const [stockResult, setStockResult] = React.useState<StockCheckResult | null>(null);
   const [checkingStock, setCheckingStock] = React.useState(false);
+  const [stockDialogOpen, setStockDialogOpen] = React.useState(false);
   const [declineOpen, setDeclineOpen] = React.useState(false);
   const [declineReason, setDeclineReason] = React.useState("");
   const [rejectionReason, setRejectReason] = React.useState("");
@@ -147,6 +148,7 @@ export function OrderDetailView({
     setCheckingStock(true);
     checkOrderStock(order.id).then((result) => {
       setStockResult(result);
+      setStockDialogOpen(true);
       setCheckingStock(false);
     });
   }
@@ -427,18 +429,6 @@ export function OrderDetailView({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          {stockResult && (
-            <div className={cn("mb-3 rounded-lg p-3 text-xs font-medium", stockResult.allInStock ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:text-rose-300")}>
-              {stockResult.allInStock
-                ? "All line items are available in stock."
-                : stockResult.shortages.map((s, i) => (
-                    <div key={i}>
-                      Shortage: {s.productName} (Requested: {s.requested}, In Stock: {s.available})
-                    </div>
-                  ))}
-            </div>
-          )}
-
           <div className="overflow-x-auto rounded-lg border border-ledger-100 dark:border-ledger-800">
             <table className="w-full text-left text-xs">
               <thead>
@@ -494,6 +484,43 @@ export function OrderDetailView({
           </div>
         </CardContent>
       </Card>
+      <Dialog
+        open={stockDialogOpen}
+        onClose={() => setStockDialogOpen(false)}
+        title="Inventory stock by branch"
+        description={`Availability for order ${order.orderNumber} across all active branches.`}
+        className="max-w-2xl"
+      >
+        {stockResult && (
+          <div className="space-y-4">
+            <div className={cn("rounded-lg p-3 text-sm font-medium", stockResult.allInStock ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:text-rose-300")}>
+              {stockResult.allInStock ? "All ordered products are available." : "One or more products need attention."}
+            </div>
+            <div className="max-h-[55vh] space-y-3 overflow-y-auto">
+              {stockResult.products.map((product) => (
+                <div key={product.productId} className="rounded-lg border border-ledger-200 p-3 dark:border-ledger-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-ink-900 dark:text-white">{product.productName}</p>
+                    <p className="text-xs text-ledger-500 dark:text-ledger-400">Requested: {product.requested} · Available: {product.totalAvailable}</p>
+                  </div>
+                  {product.locations.length > 0 ? (
+                    <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                      {product.locations.map((location) => (
+                        <div key={location.locationName} className="flex justify-between rounded bg-ledger-50 px-2 py-1.5 text-xs dark:bg-white/[0.04]">
+                          <span className="text-ledger-600 dark:text-ledger-300">{location.locationName}</span>
+                          <span className="font-semibold text-ink-900 dark:text-white">{location.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-ledger-400">No branch stock record; product stock total is used.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Dialog>
 
       {/* Bottom Row: Admin Notes + Timeline */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

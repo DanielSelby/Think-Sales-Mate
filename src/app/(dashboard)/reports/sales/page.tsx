@@ -22,7 +22,7 @@ function defaultRange() {
 export default async function SalesReportPage({
   searchParams
 }: {
-  searchParams: { start?: string; end?: string };
+  searchParams: { start?: string; end?: string; location?: string };
 }) {
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
@@ -33,13 +33,15 @@ export default async function SalesReportPage({
   const end = searchParams.end || defaults.end;
 
   const supabase = await createClient();
-  const { data: sales } = await supabase
+  let salesQuery = supabase
     .from("sales")
     .select("sale_number, customer_name, subtotal, total, created_at")
     .eq("org_id", context.orgId)
     .gte("created_at", `${start}T00:00:00`)
     .lte("created_at", `${end}T23:59:59`)
     .order("created_at", { ascending: false });
+  if (searchParams.location && searchParams.location !== "all") salesQuery = salesQuery.eq("location_id", searchParams.location);
+  const { data: sales } = await salesQuery;
 
   const rows = sales ?? [];
   const totalRevenue = rows.reduce((sum, s) => sum + Number(s.total), 0);

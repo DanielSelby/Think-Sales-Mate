@@ -12,15 +12,19 @@ const ACTIVITY_LABEL: Record<string, string> = {
   "expense.paid": "Expense marked paid",
 };
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({ searchParams }: { searchParams?: { location?: string } }) {
   const context = await getCurrentOrgContext();
   if (!context) return null;
 
   const orgId = context.orgId;
   const supabase = await createClient();
 
+  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  let expensesQuery = supabase.from("expenses").select("*").eq("org_id", orgId).order("expense_date", { ascending: false });
+  if (locationId) expensesQuery = expensesQuery.eq("location_id", locationId);
+
   const [{ data: expenses }, { data: locations }] = await Promise.all([
-    supabase.from("expenses").select("*").eq("org_id", orgId).order("expense_date", { ascending: false }),
+    expensesQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
   ]);
 

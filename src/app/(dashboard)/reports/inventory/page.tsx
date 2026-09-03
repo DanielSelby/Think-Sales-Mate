@@ -10,18 +10,20 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-export default async function InventoryReportPage() {
+export default async function InventoryReportPage({ searchParams }: { searchParams?: { location?: string } }) {
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
   const supabase = await createClient();
-  const { data: rows } = await supabase
+  let productsQuery = supabase
     .from("products")
-    .select("sku, name, unit_price, stock_quantity, is_active")
+    .select("sku, name, unit_price, stock_quantity, is_active, location_id")
     .eq("org_id", context.orgId)
     .eq("is_active", true)
     .order("name");
+  if (searchParams?.location && searchParams.location !== "all") productsQuery = productsQuery.eq("location_id", searchParams.location);
+  const { data: rows } = await productsQuery;
 
   const products = rows ?? [];
   const totalValue = products.reduce((sum, p) => sum + p.unit_price * p.stock_quantity, 0);
