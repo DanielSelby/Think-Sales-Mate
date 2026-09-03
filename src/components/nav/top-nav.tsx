@@ -44,6 +44,8 @@ export function TopNav() {
   const [userEmail,         setUserEmail]         = useState("");
   const [notifications,     setNotifications]     = useState<NotificationItem[]>([]);
   const [unreadCount,       setUnreadCount]       = useState(0);
+  const [branchOptions,     setBranchOptions]     = useState<string[]>([]);
+  const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -57,6 +59,37 @@ export function TopNav() {
             || user.email?.split("@")[0]
             || "User";
           setUserName(name);
+
+          const { data: membership } = await supabase
+            .from("organization_members")
+            .select("org_id, organizations(currency)")
+            .eq("user_id", user.id)
+            .eq("status", "active")
+            .limit(1)
+            .maybeSingle();
+
+          const organization = Array.isArray(membership?.organizations)
+            ? membership.organizations[0]
+            : membership?.organizations;
+          const orgId = membership?.org_id;
+          if (orgId) {
+            const { data: locations } = await supabase
+              .from("business_locations")
+              .select("name")
+              .eq("org_id", orgId)
+              .eq("is_active", true)
+              .order("name");
+            const names = (locations ?? []).map((location) => location.name);
+            setBranchOptions(names);
+            if (names.length > 0 && !names.includes(useAccountingStore.getState().currentBranch)) {
+              useAccountingStore.getState().setBranch(names[0]);
+            }
+          }
+          if (organization?.currency) {
+            const code = organization.currency;
+            setCurrencyOptions([{ code, label: code }]);
+            useAccountingStore.getState().setCurrency(code);
+          }
 
           // Fetch recent notifications
           const { data: notifs } = await supabase
@@ -108,14 +141,6 @@ export function TopNav() {
     return () => window.removeEventListener("keydown", onKey);
   }, [setCommandBarOpen]);
 
-  const BRANCH_OPTIONS = ["Main Branch", "Kumasi Branch", "Takoradi Branch", "Tema Industrial"];
-  const CURRENCY_OPTIONS = [
-    { code: "GHS", label: "GHS (₵)" },
-    { code: "USD", label: "USD ($)" },
-    { code: "EUR", label: "EUR (€)" },
-    { code: "GBP", label: "GBP (£)" },
-  ];
-
   return (
     <>
     <CommandBar open={commandBarOpen} onClose={() => setCommandBarOpen(false)} />
@@ -147,7 +172,7 @@ export function TopNav() {
           className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Building2 className="h-3.5 w-3.5 text-white/60" />
-          <span className="hidden sm:block">{currentBranch}</span>
+          <span className="hidden sm:block">{branchOptions.length > 0 ? currentBranch : "No locations"}</span>
           <ChevronDown className="w-3 h-3 opacity-60" />
         </button>
         {showBranches && (
@@ -157,7 +182,7 @@ export function TopNav() {
               <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Branch</p>
               </div>
-              {BRANCH_OPTIONS.map((branch) => (
+              {branchOptions.length > 0 ? branchOptions.map((branch) => (
                 <button
                   key={branch}
                   onClick={() => { setBranch(branch); setShowBranches(false); }}
@@ -166,7 +191,9 @@ export function TopNav() {
                   <span>{branch}</span>
                   {currentBranch === branch && <Check className="h-3.5 w-3.5 text-blue-600" />}
                 </button>
-              ))}
+              )) : (
+                <p className="px-3 py-2 text-xs text-slate-500">No active locations configured</p>
+              )}
             </div>
           </>
         )}
@@ -179,7 +206,7 @@ export function TopNav() {
           className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Coins className="h-3.5 w-3.5 text-white/60" />
-          <span>{CURRENCY_OPTIONS.find(c => c.code === currentCurrency)?.label || currentCurrency}</span>
+          <span>{currencyOptions.find(c => c.code === currentCurrency)?.label || currentCurrency}</span>
           <ChevronDown className="w-3 h-3 opacity-60" />
         </button>
         {showCurrencies && (
@@ -189,7 +216,7 @@ export function TopNav() {
               <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Currency</p>
               </div>
-              {CURRENCY_OPTIONS.map((curr) => (
+              {currencyOptions.length > 0 ? currencyOptions.map((curr) => (
                 <button
                   key={curr.code}
                   onClick={() => { setCurrency(curr.code); setShowCurrencies(false); }}
@@ -198,7 +225,9 @@ export function TopNav() {
                   <span>{curr.label}</span>
                   {currentCurrency === curr.code && <Check className="h-3.5 w-3.5 text-blue-600" />}
                 </button>
-              ))}
+              )) : (
+                <p className="px-3 py-2 text-xs text-slate-500">No currency configured</p>
+              )}
             </div>
           </>
         )}
