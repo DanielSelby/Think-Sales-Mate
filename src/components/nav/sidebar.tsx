@@ -198,7 +198,16 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const pathname  = usePathname();
   const { activeTheme, toggleSidebar } = useAppStore();
   const theme     = THEMES[activeTheme];
-  const sidebar   = theme.sidebar;
+  const sidebar   = {
+    ...theme.sidebar,
+    background: theme.colors.primaryPale,
+    text: theme.colors.text,
+    textMuted: theme.colors.textMuted,
+    activeBackground: theme.colors.primary,
+    activeText: "#FFFFFF",
+    borderColor: `${theme.colors.primary}22`,
+    hoverBackground: `${theme.colors.primary}12`,
+  };
 
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     // Auto-open the group containing the current path on first render

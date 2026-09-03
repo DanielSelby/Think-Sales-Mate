@@ -33,6 +33,7 @@ export interface PosProduct {
   sku: string;
   barcode: string | null;
   category: string | null;
+  brand: string | null;
   unitPrice: number;
   stockQuantity: number;
   imageUrl?: string | null;
@@ -44,6 +45,7 @@ export interface StockLevel { productId: string; locationId: string; quantity: n
 interface PosViewProps {
   products: PosProduct[];
   categories: string[];
+  brands: string[];
   locations: LocationOption[];
   stockLevels: StockLevel[];
   currency: string;
@@ -64,7 +66,7 @@ function isoToLocalDate(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function PosView({ products, categories, locations, stockLevels, currency, taxRatePercent, cashierName }: PosViewProps) {
+export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -84,6 +86,7 @@ export function PosView({ products, categories, locations, stockLevels, currency
   const [query, setQuery] = React.useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
   const [activeCategory, setActiveCategory] = React.useState("all");
+  const [activeBrand, setActiveBrand] = React.useState("all");
   const [cart, setCart] = React.useState<CartLine[]>([]);
   const [priceEditLine, setPriceEditLine] = React.useState<CartLine | null>(null);
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
@@ -185,10 +188,11 @@ export function PosView({ products, categories, locations, stockLevels, currency
     const q = query.trim().toLowerCase();
     return locationProducts.filter((p) => {
       if (activeCategory !== "all" && p.category !== activeCategory) return false;
+      if (activeBrand !== "all" && p.brand !== activeBrand) return false;
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) && !(p.barcode ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [locationProducts, query, activeCategory]);
+  }, [locationProducts, query, activeCategory, activeBrand]);
 
   // Adding a product opens the price/description popup on that line — a
   // new line at qty 1, or the existing line with its quantity bumped.
@@ -685,7 +689,26 @@ export function PosView({ products, categories, locations, stockLevels, currency
             </div>
           )}
           {browseTab === "brands" && (
-            <p className="text-xs text-ledger-400">This catalog doesn't track a separate brand field yet — showing all products.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setActiveBrand("all")}
+                className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeBrand !== "all" && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                style={activeBrand === "all" ? { background: theme.colors.primary, color: "#fff" } : undefined}
+              >
+                All
+              </button>
+              {brands.map((brand) => (
+                <button
+                  key={brand}
+                  onClick={() => setActiveBrand(brand)}
+                  className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeBrand !== brand && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                  style={activeBrand === brand ? { background: theme.colors.primary, color: "#fff" } : undefined}
+                >
+                  {brand}
+                </button>
+              ))}
+              {brands.length === 0 && <p className="text-xs text-ledger-400">No brands have been assigned to products yet.</p>}
+            </div>
           )}
 
           <div className="grid flex-1 grid-cols-2 gap-3 overflow-y-auto pb-2 sm:grid-cols-3 lg:grid-cols-4">

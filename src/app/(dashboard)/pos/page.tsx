@@ -14,7 +14,7 @@ export default async function PosPage() {
   const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, category, unit_price, stock_quantity, image_urls")
+      .select("id, name, sku, barcode, category, brand, unit_price, stock_quantity, image_urls")
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
@@ -27,6 +27,7 @@ export default async function PosPage() {
 
   const rawProducts = products ?? [];
   const categories = Array.from(new Set(rawProducts.map((p) => p.category).filter(Boolean))) as string[];
+  const brands = Array.from(new Set(rawProducts.map((p) => p.brand).filter(Boolean))) as string[];
 
   return (
     <PosView
@@ -36,11 +37,13 @@ export default async function PosPage() {
         sku: p.sku,
         barcode: p.barcode,
         category: p.category,
+        brand: p.brand,
         unitPrice: p.unit_price,
         stockQuantity: p.stock_quantity,
         imageUrl: p.image_urls?.[0] ?? null,
       }))}
       categories={categories}
+      brands={brands}
       locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name }))}
       stockLevels={(stockLevels ?? []).map((s) => ({ productId: s.product_id, locationId: s.location_id, quantity: s.quantity }))}
       currency={context.currency}
