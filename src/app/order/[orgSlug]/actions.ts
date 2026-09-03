@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyNewCustomerOrder } from "@/lib/notifications";
 import { isPortalActive } from "@/lib/customer-portal/schedule";
 
@@ -24,8 +25,15 @@ export interface PortalContext {
 
 export async function getPortalContext(orgSlug: string): Promise<PortalContext | null> {
   const supabase = await createClient();
+  const publicSupabase = createAdminClient();
 
-  const { data: org } = await supabase.from("organizations").select("id, name, currency").eq("slug", orgSlug).maybeSingle();
+  // Organization membership RLS must not prevent anonymous customers from
+  // resolving the public storefront slug.
+  const { data: org } = await publicSupabase
+    .from("organizations")
+    .select("id, name, currency")
+    .eq("slug", orgSlug)
+    .maybeSingle();
   if (!org) return null;
 
   const { data: settings } = await supabase.from("customer_portal_settings").select("*").eq("org_id", org.id).maybeSingle();
