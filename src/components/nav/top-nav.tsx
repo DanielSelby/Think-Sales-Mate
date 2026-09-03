@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin } from "lucide-react";
+import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
+import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { createClient } from "@/lib/supabase/client";
 
 const THEME_OPTIONS: { key: ThemeKey; label: string }[] = [
@@ -91,10 +92,14 @@ export function TopNav() {
     setUnreadCount(0);
   };
 
-  // Global Ctrl+/ shortcut
+  const { currentBranch, setBranch, currentCurrency, setCurrency } = useAccountingStore();
+  const [showBranches, setShowBranches] = useState(false);
+  const [showCurrencies, setShowCurrencies] = useState(false);
+
+  // Global Ctrl+K / Ctrl+/ shortcut
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K" || e.key === "/")) {
         e.preventDefault();
         setCommandBarOpen(true);
       }
@@ -102,6 +107,14 @@ export function TopNav() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [setCommandBarOpen]);
+
+  const BRANCH_OPTIONS = ["Main Branch", "Kumasi Branch", "Takoradi Branch", "Tema Industrial"];
+  const CURRENCY_OPTIONS = [
+    { code: "GHS", label: "GHS (₵)" },
+    { code: "USD", label: "USD ($)" },
+    { code: "EUR", label: "EUR (€)" },
+    { code: "GBP", label: "GBP (£)" },
+  ];
 
   return (
     <>
@@ -113,20 +126,83 @@ export function TopNav() {
       {/* Search — opens command bar */}
       <button
         onClick={() => setCommandBarOpen(true)}
-        className="flex items-center gap-2 h-8 w-64 rounded-xl border px-3 text-sm transition-all"
-        style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.4)" }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.4)"; }}
+        className="flex items-center gap-2 h-8.5 w-72 rounded-xl border px-3 text-xs transition-all"
+        style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.8)"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)"; }}
       >
-        <Search className="h-3.5 w-3.5 shrink-0" />
-        <span className="flex-1 text-left hidden sm:block">Search orders, customers, products…</span>
-        <kbd className="hidden sm:flex items-center text-[10px] border rounded px-1.5 py-0.5 shrink-0"
-          style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.25)" }}>
-          Ctrl /
+        <Search className="h-3.5 w-3.5 shrink-0 text-white/40" />
+        <span className="flex-1 text-left hidden sm:block truncate">Search anything... (accounts, transactions, reports...)</span>
+        <kbd className="hidden sm:flex items-center text-[10px] border rounded px-1.5 py-0.5 shrink-0 bg-white/5 border-white/20 text-white/50 font-mono">
+          Ctrl + K
         </kbd>
       </button>
 
       <div className="flex-1" />
+
+      {/* Branch Selector */}
+      <div className="relative">
+        <button
+          onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
+          className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
+        >
+          <Building2 className="h-3.5 w-3.5 text-white/60" />
+          <span className="hidden sm:block">{currentBranch}</span>
+          <ChevronDown className="w-3 h-3 opacity-60" />
+        </button>
+        {showBranches && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowBranches(false)} />
+            <div className="absolute right-0 top-10 z-50 w-48 rounded-xl border bg-white shadow-2xl overflow-hidden dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+              <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Branch</p>
+              </div>
+              {BRANCH_OPTIONS.map((branch) => (
+                <button
+                  key={branch}
+                  onClick={() => { setBranch(branch); setShowBranches(false); }}
+                  className="flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                >
+                  <span>{branch}</span>
+                  {currentBranch === branch && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Currency Selector */}
+      <div className="relative">
+        <button
+          onClick={() => { setShowCurrencies(v => !v); setShowBranches(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
+          className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
+        >
+          <Coins className="h-3.5 w-3.5 text-white/60" />
+          <span>{CURRENCY_OPTIONS.find(c => c.code === currentCurrency)?.label || currentCurrency}</span>
+          <ChevronDown className="w-3 h-3 opacity-60" />
+        </button>
+        {showCurrencies && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowCurrencies(false)} />
+            <div className="absolute right-0 top-10 z-50 w-40 rounded-xl border bg-white shadow-2xl overflow-hidden dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+              <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Currency</p>
+              </div>
+              {CURRENCY_OPTIONS.map((curr) => (
+                <button
+                  key={curr.code}
+                  onClick={() => { setCurrency(curr.code); setShowCurrencies(false); }}
+                  className="flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                >
+                  <span>{curr.label}</span>
+                  {currentCurrency === curr.code && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Theme picker */}
       <div className="relative">
@@ -192,22 +268,12 @@ export function TopNav() {
       <div className="relative">
         <button
           onClick={() => { setShowNotifications(v => !v); setShowUser(false); setShowThemes(false); }}
-          className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all"
-          style={{ color: "rgba(255,255,255,0.7)" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
+          className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10"
         >
           <Bell className="h-4 w-4" />
-          {unreadCount > 0 ? (
-            <span
-              className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm"
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          ) : (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-              style={{ background: theme.colors.accent, boxShadow: `0 0 0 2px ${topbar.background}` }} />
-          )}
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm">
+            3
+          </span>
         </button>
 
         {showNotifications && (
@@ -215,72 +281,64 @@ export function TopNav() {
             <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
             <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-800 dark:text-white">Notifications ({unreadCount} new)</p>
-                {unreadCount > 0 && (
-                  <button onClick={markAllRead} className="text-[11px] font-medium text-purple-600 hover:underline">
-                    Mark all read
-                  </button>
-                )}
+                <p className="text-xs font-bold text-slate-800 dark:text-white">Notifications (3 new)</p>
+                <button onClick={markAllRead} className="text-[11px] font-medium text-blue-600 hover:underline">
+                  Mark all read
+                </button>
               </div>
 
               <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-                {notifications.length === 0 ? (
-                  <p className="p-4 text-center text-xs text-slate-400">No recent notifications</p>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => {
-                        if (n.entity_id) {
-                          router.push(`/orders/${n.entity_id}`);
-                        } else {
-                          router.push("/orders");
-                        }
-                        setShowNotifications(false);
-                      }}
-                      className="flex items-start gap-2.5 p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
-                    >
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-300">
-                        <Package className="h-3 w-3" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="font-semibold text-slate-800 dark:text-white">{n.title}</p>
-                          <span className="font-mono text-[10px] text-slate-400">
-                            {new Date(n.created_at).toLocaleTimeString("en-GH", { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-                        <p className="text-slate-600 dark:text-slate-300 line-clamp-2 mt-0.5">{n.message}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
+                <div className="flex items-start gap-2.5 p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
+                    <Package className="h-3 w-3" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-800 dark:text-white">Journal JE-2026-0154 Posted</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">Sales revenue of GHS 3,250.00 reconciled.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300">
+                    <CheckCircle2 className="h-3 w-3" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-800 dark:text-white">Payment Received</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">GHS 2,400.00 from Apex Logistics cleared.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </>
         )}
       </div>
 
-      {/* User menu */}
+      {/* Messages Icon */}
+      <div className="relative">
+        <button
+          onClick={() => router.push("/crm")}
+          className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10"
+        >
+          <MessageSquare className="h-4 w-4" />
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm">
+            5
+          </span>
+        </button>
+      </div>
+
+      {/* User profile menu */}
       <div className="relative">
         <button
           onClick={() => { setShowUser(v => !v); setShowThemes(false); setShowNotifications(false); }}
-          className="flex items-center gap-2 h-8 px-2 rounded-xl transition-all"
-          style={{ color: "rgba(255,255,255,0.7)" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
+          className="flex items-center gap-2.5 h-9 px-2 rounded-xl transition-all hover:bg-white/10"
         >
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold text-white shrink-0"
-            style={{ background: theme.colors.accent }}>
-            {initials}
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-semibold text-xs text-white ring-2 ring-white/20 shrink-0">
+            DS
           </div>
-          {userName && (
-            <span className="hidden sm:block text-xs font-semibold max-w-[100px] truncate"
-              style={{ color: "rgba(255,255,255,0.85)" }}>
-              {userName.split(" ")[0]}
-            </span>
-          )}
-          <ChevronDown className="h-3 w-3 opacity-60" />
+          <div className="text-left hidden md:block">
+            <p className="text-xs font-semibold text-white leading-tight">Daniel K. Selby</p>
+            <p className="text-[10px] text-white/60 leading-tight">Administrator</p>
+          </div>
+          <ChevronDown className="h-3 w-3 text-white/60" />
         </button>
         {showUser && (
           <>

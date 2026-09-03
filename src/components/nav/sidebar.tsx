@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
-  Inbox,
+  Inbox, Headphones,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -127,7 +127,21 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Leave Management", href: "/hrm/leave", icon: ClipboardEdit },
     ],
   },
-  { label: "Accounting",    href: "/accounting", icon: Wallet,       status: "live" },
+  {
+    label: "Accounting",
+    href:  "/accounting",
+    icon:  Wallet,
+    status: "live",
+    children: [
+      { label: "Overview",            href: "/accounting?tab=overview",       icon: LayoutDashboard },
+      { label: "Chart of Accounts",   href: "/accounting?tab=coa",            icon: List },
+      { label: "Journal Entries",     href: "/accounting?tab=journal",        icon: FileText },
+      { label: "Bank Reconciliation", href: "/accounting?tab=reconciliation", icon: Landmark },
+      { label: "Accounts Receivable", href: "/accounting?tab=receivables",    icon: Receipt },
+      { label: "Accounts Payable",    href: "/accounting?tab=payables",       icon: ShoppingBag },
+      { label: "Reports",             href: "/accounting?tab=reports",        icon: BarChart3 },
+    ],
+  },
   { label: "Banking",       href: "/banking",    icon: Landmark,     status: "live" },
   { label: "Assets",        href: "/assets",     icon: Package,      status: "live" },
   { label: "Projects",      href: "/projects",   icon: FolderKanban, status: "live" },
@@ -246,14 +260,13 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       {/* ── Logo ── */}
       <div className="flex h-14 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-bold text-sm"
-          style={{ background: theme.colors.accent, color: theme.colors.primary }}>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-bold text-sm bg-blue-600 text-white shadow-sm">
           S
         </div>
         {!collapsed && (
-          <div className="min-w-0">
-            <p className="text-sm font-bold truncate" style={{ color: sidebar.text }}>SalesMate</p>
-            <p className="text-[10px] truncate"       style={{ color: sidebar.textMuted }}>ERP System</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-bold tracking-tight text-white">ThinkSales</span>
+            <span className="rounded bg-blue-600 px-1 py-0.2 text-[10px] font-bold text-white tracking-wide">Pro</span>
           </div>
         )}
       </div>
@@ -357,6 +370,19 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
             <ChildLinks items={SETTINGS_CHILDREN} sidebar={sidebar} />
           )}
         </div>
+
+        {/* Need Help / Support */}
+        {!collapsed && (
+          <div className="px-3 py-2">
+            <div className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10 cursor-pointer">
+              <Headphones className="h-4 w-4 shrink-0 text-blue-400" />
+              <div>
+                <p className="font-semibold text-white">Need Help?</p>
+                <p className="text-[11px] text-white/60">Contact support</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Collapse toggle */}
         <button
