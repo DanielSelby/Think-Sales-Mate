@@ -12,45 +12,11 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
   if (!siteUrl) return { error: "The application URL is not configured. Set NEXT_PUBLIC_SITE_URL in production." };
   const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/reset-password`;
-  const { data: profile } = await admin
-    .from("company_profile")
-    .select("business_email, company_name")
-    .eq("org_id", (await getCurrentOrgContext())?.orgId ?? "")
-    .maybeSingle();
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || profile?.business_email?.trim();
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey || !from) {
-    const fallback = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
-    if (fallback.error) return { error: fallback.error.message };
-    return { success: true, userId: fallback.data.user?.id };
-  }
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "invite",
-    email,
-    options: { redirectTo, data: { full_name: name, organization_name: orgName } }
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
+    data: { full_name: name, organization_name: orgName }
   });
-  if (error) return { error: error.message };
-  const companyName = profile?.company_name?.trim() || orgName;
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: `${companyName} <${from}>`,
-      to: [email],
-      subject: `You are invited to ${companyName}`,
-      html: `<p>Hello ${name},</p><p>You have been invited to join <strong>${companyName}</strong>.</p><p><a href="${data.properties.action_link}">Accept your invitation</a></p><p>This invitation link is single-use.</p>`
-    })
-  });
-  if (!response.ok) {
-    const details = await response.text();
-    return {
-      error: `Invitation email could not be sent (${response.status}): ${details || "Resend rejected the request. Verify RESEND_API_KEY and RESEND_FROM_EMAIL (or the company email) in production."}`
-    };
-  }
+  if (error) return { error: `Supabase invitation email could not be sent: ${error.message}` };
   return { success: true, userId: data.user?.id };
 }
 
