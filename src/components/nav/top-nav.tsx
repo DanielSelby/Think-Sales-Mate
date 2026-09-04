@@ -30,7 +30,7 @@ interface NotificationItem {
   created_at: string;
 }
 
-export function TopNav({ orgName, logoUrl, canChangeTheme = false }: { orgName: string; logoUrl?: string | null; canChangeTheme?: boolean }) {
+export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, canChangeTheme = false }: { orgName: string; logoUrl?: string | null; userName?: string | null; userRole?: string | null; canChangeTheme?: boolean }) {
   const { activeTheme, setTheme, commandBarOpen, setCommandBarOpen } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -41,7 +41,7 @@ export function TopNav({ orgName, logoUrl, canChangeTheme = false }: { orgName: 
   const [showThemes,        setShowThemes]        = useState(false);
   const [showUser,          setShowUser]          = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [userName,          setUserName]          = useState("");
+  const [userName,         setUserName]         = useState(initialUserName ?? "");
   const [userEmail,         setUserEmail]         = useState("");
   const [notifications,     setNotifications]     = useState<NotificationItem[]>([]);
   const [unreadCount,       setUnreadCount]       = useState(0);
@@ -55,7 +55,8 @@ export function TopNav({ orgName, logoUrl, canChangeTheme = false }: { orgName: 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setUserEmail(user.email ?? "");
-          const name = user.user_metadata?.full_name
+          const name = initialUserName
+            || user.user_metadata?.full_name
             || user.user_metadata?.name
             || user.email?.split("@")[0]
             || "User";
@@ -108,7 +109,7 @@ export function TopNav({ orgName, logoUrl, canChangeTheme = false }: { orgName: 
       } catch { /* silent */ }
     };
     load();
-  }, []);
+  }, [initialUserName]);
 
   const initials = userName
     ? userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
@@ -390,11 +391,11 @@ export function TopNav({ orgName, logoUrl, canChangeTheme = false }: { orgName: 
           className="flex items-center gap-2.5 h-9 px-2 rounded-xl transition-all hover:bg-white/10"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-semibold text-xs text-white ring-2 ring-white/20 shrink-0">
-            DS
+            {initials}
           </div>
           <div className="text-left hidden md:block">
-            <p className="text-xs font-semibold text-white leading-tight">Daniel K. Selby</p>
-            <p className="text-[10px] text-white/60 leading-tight">Administrator</p>
+            <p className="text-xs font-semibold text-white leading-tight">{userName || "User"}</p>
+            <p className="text-[10px] text-white/60 leading-tight">{userRole ? userRole.replace(/_/g, " ") : "User"}</p>
           </div>
           <ChevronDown className="h-3 w-3 text-white/60" />
         </button>

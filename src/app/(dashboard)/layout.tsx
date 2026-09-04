@@ -15,6 +15,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .select("logo_url")
     .eq("org_id", context.orgId)
     .maybeSingle();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", context.userId)
+    .maybeSingle();
   const { data: roleTheme } = await supabase
     .from("organization_role_themes")
     .select("theme_key")
@@ -24,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const selectedTheme = roleTheme?.theme_key as ThemeKey | null;
 
   return (
-    <DashboardShell orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
+    <DashboardShell orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
       {children}
     </DashboardShell>
   );
