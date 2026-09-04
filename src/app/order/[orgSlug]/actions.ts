@@ -216,21 +216,6 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     branchName = loc?.name ?? null;
   }
 
-  // Stock pre-validation check
-  const productIds = input.items.map((i) => i.productId);
-  const { data: products } = await supabase.from("products").select("id, name, stock_quantity").in("id", productIds);
-  const stockMap = new Map((products ?? []).map((p) => [p.id, p.stock_quantity]));
-
-  for (const item of input.items) {
-    const available = stockMap.get(item.productId) ?? 0;
-    if (available < item.quantity) {
-      return {
-        ok: false,
-        error: `Insufficient stock for "${item.productName}". Requested: ${item.quantity}, Available: ${available}. Please adjust your quantity.`,
-      };
-    }
-  }
-
   // Try to match an existing customer record by phone
   const { data: existingCustomer } = await supabase
     .from("customers")
