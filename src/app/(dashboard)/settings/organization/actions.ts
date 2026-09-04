@@ -11,7 +11,7 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
   const admin = createAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
   if (!siteUrl) return { error: "The application URL is not configured. Set NEXT_PUBLIC_SITE_URL in production." };
-  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/reset-password`;
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback/client?next=/reset-password`;
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo,
     data: { full_name: name, organization_name: orgName }

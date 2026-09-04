@@ -36,10 +36,9 @@ export async function GET(request: Request) {
       );
     }
   } else {
-    console.error("Auth callback — no code present in URL:", request.url);
-    return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent("Confirmation link was missing its code.")}`
-    );
+    const clientCallback = new URL("/auth/callback/client", origin);
+    clientCallback.searchParams.set("next", next);
+    return NextResponse.redirect(clientCallback);
   }
 
   return NextResponse.redirect(`${origin}${next}`);
