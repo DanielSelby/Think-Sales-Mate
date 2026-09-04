@@ -9,7 +9,9 @@ import type { MemberRole } from "@/lib/rbac";
 
 async function sendOrganizationInvite(email: string, name: string, orgName: string) {
   const admin = createAdminClient();
-  const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
+  if (!siteUrl) return { error: "The application URL is not configured. Set NEXT_PUBLIC_SITE_URL in production." };
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/dashboard`;
   const { data: profile } = await admin
     .from("company_profile")
     .select("business_email, company_name")
@@ -31,7 +33,10 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${resendKey}`,
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({
       from: `${profile.company_name || orgName} <${from}>`,
       to: [email],
@@ -39,7 +44,12 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
       html: `<p>Hello ${name},</p><p>You have been invited to join <strong>${profile.company_name || orgName}</strong>.</p><p><a href="${data.properties.action_link}">Accept your invitation</a></p><p>This invitation link is single-use.</p>`
     })
   });
-  if (!response.ok) return { error: `Invitation email could not be sent (${response.status}).` };
+  if (!response.ok) {
+    const details = await response.text();
+    return {
+      error: `Invitation email could not be sent (${response.status}): ${details || "Resend rejected the request."}`
+    };
+  }
   return { success: true, userId: data.user?.id };
 }
 

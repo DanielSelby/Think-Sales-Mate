@@ -178,7 +178,7 @@ export function TopNav({ orgName, logoUrl, canChangeTheme = false }: { orgName: 
 
       <div className="flex-1" />
       <div className="hidden items-center gap-2 lg:flex">
-        <img src={logoUrl || "/thinksales-logo.svg"} alt="" width={28} height={28} className="h-7 w-7 rounded-lg object-cover" />
+        <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={28} height={28} className="h-7 w-7 rounded-lg object-cover" />
         <span className="max-w-[180px] truncate text-xs font-semibold text-white/85">{orgName}</span>
       </div>
 

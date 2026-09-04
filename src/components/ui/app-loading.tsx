@@ -15,7 +15,7 @@ export function AppLoading({ className }: { className?: string }) {
           <span className="absolute inset-0 rounded-full border-2 border-[#153b63]/10" />
           <span className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[#153b63] border-r-[#77b82a]" />
           <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#153b63]/20 bg-white p-2 shadow-md">
-            <img src="/thinksales-logo.svg" alt="" className="h-full w-full object-contain" />
+            <img src="/thinksales-logo.jpeg" alt="" className="h-full w-full object-contain" />
           </div>
         </div>
         <p className="mt-3 text-2xl font-extrabold tracking-tight text-[#153b63]">Think<span className="text-[#77b82a]">Sales</span> <span className="text-[#153b63]">Pro</span></p>

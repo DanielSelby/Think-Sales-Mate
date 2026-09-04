@@ -30,7 +30,7 @@ export function NavigationLoading() {
       setLoading(true);
     };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Enter") beginNavigation(event);
     };
 
@@ -41,12 +41,12 @@ export function NavigationLoading() {
       }
     };
 
-    document.addEventListener("click", beginNavigation);
-    document.addEventListener("keyup", handleKeyUp);
+    document.addEventListener("pointerdown", beginNavigation, true);
+    document.addEventListener("keydown", handleKeyDown, true);
     window.addEventListener("popstate", handlePopState);
     return () => {
-      document.removeEventListener("click", beginNavigation);
-      document.removeEventListener("keyup", handleKeyUp);
+      document.removeEventListener("pointerdown", beginNavigation, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("popstate", handlePopState);
     };
   }, [pathname]);
