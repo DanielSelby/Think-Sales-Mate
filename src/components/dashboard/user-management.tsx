@@ -417,9 +417,9 @@ export function UserManagement({
       formData.set("role", user.role);
       formData.set("location_id", user.locationId ?? "");
       const result = await inviteMember(formData);
-      if (result?.error) {
+      if (result && "error" in result) {
         setUsers((prev) => prev.filter((item) => item.id !== user.id));
-        showToast(result.error);
+        showToast(result.error ?? "Unable to create the user.");
         return;
       }
       if ("memberId" in result && result.memberId) {

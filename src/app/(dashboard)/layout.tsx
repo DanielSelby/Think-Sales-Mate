@@ -29,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const selectedTheme = roleTheme?.theme_key as ThemeKey | null;
 
   return (
-    <DashboardShell orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
+    <DashboardShell orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
       {children}
     </DashboardShell>
   );

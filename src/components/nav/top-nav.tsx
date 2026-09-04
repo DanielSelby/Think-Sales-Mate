@@ -30,7 +30,7 @@ interface NotificationItem {
   created_at: string;
 }
 
-export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, canChangeTheme = false }: { orgName: string; logoUrl?: string | null; userName?: string | null; userRole?: string | null; canChangeTheme?: boolean }) {
+export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { orgName: string; logoUrl?: string | null; userName?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
   const { activeTheme, setTheme, commandBarOpen, setCommandBarOpen } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -81,11 +81,15 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
               .eq("org_id", orgId)
               .eq("is_active", true)
               .order("name");
-            const options = locations ?? [];
+            const options = canViewAllBranches
+              ? (locations ?? [])
+              : (locations ?? []).filter((location) => allowedLocationIds.includes(location.id));
             setBranchOptions(options);
             const selectedBranch = useAccountingStore.getState().currentBranch;
-            if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
-              useAccountingStore.getState().setBranch("all");
+            if (!canViewAllBranches && selectedBranch === "all" && options.length > 0) {
+              useAccountingStore.getState().setBranch(options[0].name);
+            } else if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
+              useAccountingStore.getState().setBranch(options[0].name);
             }
           }
           if (organization?.currency) {
@@ -109,7 +113,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       } catch { /* silent */ }
     };
     load();
-  }, [initialUserName]);
+  }, [initialUserName, allowedLocationIds, canViewAllBranches]);
 
   const initials = userName
     ? userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
@@ -186,7 +190,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       {/* Branch Selector */}
       <div className="relative">
         <button
-          disabled={!canChangeTheme}
+          disabled={branchOptions.length === 0}
           onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
           className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
@@ -203,13 +207,13 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
               </div>
               {branchOptions.length > 0 ? (
                 <>
-                <button
+                {canViewAllBranches && <button
                   onClick={() => selectBranch(null)}
                   className="flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
                 >
                   <span>All Branches</span>
                   {currentBranch === "all" && <Check className="h-3.5 w-3.5 text-blue-600" />}
-                </button>
+                </button>}
                 {branchOptions.map((branch) => (
                 <button
                   key={branch.id}

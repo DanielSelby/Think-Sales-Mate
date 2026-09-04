@@ -8,6 +8,9 @@ export interface CurrentOrgContext {
   orgName: string;
   currency: string;
   role: MemberRole;
+  branchScope: "all" | "assigned" | "single";
+  locationId: string | null;
+  secondaryLocationIds: string[];
   memberships: Array<{ orgId: string; orgName: string; role: MemberRole }>;
 }
 
@@ -27,7 +30,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
 
   const { data: memberRows, error } = await supabase
     .from("organization_members")
-    .select("org_id, role, organizations(name, currency)")
+    .select("org_id, role, branch_scope, location_id, secondary_location_ids, organizations(name, currency)")
     .eq("user_id", user.id)
     .eq("status", "active");
 
@@ -41,7 +44,10 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
       orgId: row.org_id,
       orgName: org?.name ?? "Untitled organization",
       currency: org?.currency ?? "USD",
-      role: row.role as MemberRole
+      role: row.role as MemberRole,
+      branchScope: row.branch_scope as "all" | "assigned" | "single",
+      locationId: row.location_id,
+      secondaryLocationIds: row.secondary_location_ids ?? []
     };
   });
 
@@ -54,6 +60,9 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     orgName: active.orgName,
     currency: active.currency,
     role: active.role,
+    branchScope: active.branchScope,
+    locationId: active.locationId,
+    secondaryLocationIds: active.secondaryLocationIds,
     memberships: memberships.map(({ orgId, orgName, role }) => ({ orgId, orgName, role }))
   };
 }

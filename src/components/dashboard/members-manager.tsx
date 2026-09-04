@@ -24,7 +24,7 @@ export function MembersManager({ members, canManage }: { members: MemberRow[]; c
     setError(null);
     startTransition(async () => {
       const result = await inviteMember(formData);
-      if (result?.error) setError(result.error);
+      if (result && "error" in result) setError(result.error ?? "Unable to complete the request.");
     });
   }
 
