@@ -34,23 +34,6 @@ export function NavigationLoading() {
       if (event.key === "Enter") beginNavigation(event);
     };
 
-    const originalPushState = window.history.pushState;
-    const originalReplaceState = window.history.replaceState;
-    const beginHistoryNavigation = (url?: string | URL | null) => {
-      if (!url) return;
-      const destination = new URL(url.toString(), window.location.href);
-      if (destination.origin !== window.location.origin || destination.pathname === window.location.pathname) return;
-      setStartedAt(Date.now());
-      setLoading(true);
-    };
-    window.history.pushState = function pushState(...args) {
-      beginHistoryNavigation(args[2]);
-      return originalPushState.apply(this, args);
-    };
-    window.history.replaceState = function replaceState(...args) {
-      beginHistoryNavigation(args[2]);
-      return originalReplaceState.apply(this, args);
-    };
     const handlePopState = () => {
       if (window.location.pathname !== pathname) {
         setStartedAt(Date.now());
@@ -65,8 +48,6 @@ export function NavigationLoading() {
       document.removeEventListener("pointerdown", beginNavigation, true);
       document.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("popstate", handlePopState);
-      window.history.pushState = originalPushState;
-      window.history.replaceState = originalReplaceState;
     };
   }, [pathname]);
 

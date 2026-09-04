@@ -12,7 +12,7 @@ interface InviteUserModalProps {
   roles: RoleDefinition[];
   branches: UserBranch[];
   invitations: InvitationRecord[];
-  onSendInvite: (invite: { name: string; email: string; role: string; branchId: string }) => void;
+  onSendInvite: (invite: { name: string; email: string; role: string; branchId: string }) => Promise<boolean>;
   onResendInvite: (inviteId: string) => void;
   onRevokeInvite: (inviteId: string) => void;
 }
@@ -36,18 +36,21 @@ export function InviteUserModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !name) return;
 
     setIsSending(true);
-    setTimeout(() => {
-      onSendInvite({ name, email, role, branchId });
+    try {
+      const sent = await onSendInvite({ name, email, role, branchId });
+      if (sent) {
+        setName("");
+        setEmail("");
+        setActiveTab("history");
+      }
+    } finally {
       setIsSending(false);
-      setName("");
-      setEmail("");
-      setActiveTab("history");
-    }, 400);
+    }
   };
 
   return (

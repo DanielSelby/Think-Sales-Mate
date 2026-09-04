@@ -88,7 +88,8 @@ import {
   updateMemberBranch,
   updateMemberStatus,
   removeMember,
-  bulkInviteMembers
+  bulkInviteMembers,
+  resendInvite
 } from "@/app/(dashboard)/settings/organization/actions";
 import { saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
 import { THEMES, type ThemeKey } from "@/store/useAppStore";
@@ -490,12 +491,22 @@ export function UserManagement({
   };
 
   // Send Invitation Handler
-  const handleSendInvite = (inviteData: { name: string; email: string; role: string; branchId: string }) => {
+  const handleSendInvite = async (inviteData: { name: string; email: string; role: string; branchId: string }) => {
     const roleDef = roles.find((r) => r.key === inviteData.role || r.id === inviteData.role);
     const branchDef = branches.find((b) => b.id === inviteData.branchId);
+    const formData = new FormData();
+    formData.set("name", inviteData.name);
+    formData.set("email", inviteData.email);
+    formData.set("role", inviteData.role);
+    formData.set("location_id", inviteData.branchId);
+    const result = await inviteMember(formData);
+    if ("error" in result && result.error) {
+      showToast(result.error);
+      return false;
+    }
 
     const newInvite: InvitationRecord = {
-      id: `inv-${Date.now()}`,
+      id: "memberId" in result && result.memberId ? result.memberId : `inv-${Date.now()}`,
       name: inviteData.name,
       email: inviteData.email,
       role: inviteData.role,
@@ -514,6 +525,7 @@ export function UserManagement({
       newValue: `Role: ${newInvite.roleLabel}, Branch: ${newInvite.branchName}`
     });
     showToast(`Invitation sent to ${inviteData.email}`);
+    return true;
   };
 
   // Bulk Actions Handlers
@@ -1205,7 +1217,12 @@ export function UserManagement({
         branches={branches}
         invitations={invitations}
         onSendInvite={handleSendInvite}
-        onResendInvite={(id) => showToast(`Resent activation link for invitation ${id}`)}
+        onResendInvite={(id) => {
+          startTransition(async () => {
+            const result = await resendInvite(id);
+            showToast(result?.error ?? "Invitation resent successfully");
+          });
+        }}
         onRevokeInvite={(id) => {
           setInvitations((prev) => prev.filter((i) => i.id !== id));
           showToast("Invitation revoked");
