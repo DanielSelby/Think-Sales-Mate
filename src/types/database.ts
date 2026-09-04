@@ -2240,6 +2240,50 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organization_role_themes"]["Row"]>;
         Relationships: [];
       };
+      communication_channels: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          channel_type: "Branch" | "Group" | "Direct" | "Announcement";
+          location_id: string | null;
+          created_by: string | null;
+          archived: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          channel_type?: "Branch" | "Group" | "Direct" | "Announcement";
+          location_id?: string | null;
+          created_by?: string | null;
+          archived?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["communication_channels"]["Row"]>;
+        Relationships: [];
+      };
+      communication_messages: {
+        Row: {
+          id: string;
+          channel_id: string;
+          user_id: string;
+          body: string;
+          pinned: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          channel_id: string;
+          user_id: string;
+          body: string;
+          pinned?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["communication_messages"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       public_product_catalog: {
