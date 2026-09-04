@@ -112,7 +112,9 @@ export function UserDetailsDrawer({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-ledger-400 font-mono truncate">{user.employeeId} • {user.email}</p>
+                <p className="text-xs text-ledger-400 font-mono truncate">
+                  {user.employeeId} • {user.username ? `@${user.username}` : (user.email || "Username login")}
+                </p>
               </div>
             </div>
 
@@ -198,7 +200,7 @@ export function UserDetailsDrawer({
                       <Mail className="h-4 w-4 text-ledger-400" />
                       <div>
                         <p className="text-[10px] text-ledger-400">Email Address</p>
-                        <p className="font-semibold text-ink-900 dark:text-white">{user.email}</p>
+                        <p className="font-semibold text-ink-900 dark:text-white">{user.email || "No email (username login)"}</p>
                       </div>
                     </div>
 

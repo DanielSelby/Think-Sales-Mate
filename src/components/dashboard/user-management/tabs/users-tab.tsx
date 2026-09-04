@@ -352,7 +352,12 @@ export function UsersTab({
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-ledger-400 truncate">{u.email}</p>
+                            <p className="text-[11px] text-ledger-400 truncate">
+                              {u.username ? <span className="font-mono text-blue-600 dark:text-blue-400">@{u.username}</span> : null}
+                              {u.username && u.email ? " · " : ""}
+                              {u.email || "Username login"}
+                            </p>
+                            {u.employeeId && <p className="text-[10px] text-ledger-400 truncate">{u.employeeId}</p>}
                           </div>
                         </div>
                       </td>

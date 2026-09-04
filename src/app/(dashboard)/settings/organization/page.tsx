@@ -14,7 +14,7 @@ export default async function OrganizationSettingsPage() {
   const [{ data: memberRows }, { data: locationRows }] = await Promise.all([
     supabase
       .from("organization_members")
-      .select("id, user_id, invited_email, role, status, location_id, created_at")
+    .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, role, status, location_id, created_at")
       .eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name")
   ]);
@@ -32,38 +32,45 @@ export default async function OrganizationSettingsPage() {
 
   for (let i = 0; i < (memberRows ?? []).length; i++) {
     const row = (memberRows ?? [])[i];
-    let email = row.invited_email ?? "";
+    let email = row.contact_email ?? row.invited_email ?? "";
     let lastSignInAt: string | null = null;
     let nameFromAuth: string | null = null;
 
     if (row.user_id) {
       const { data } = await admin.auth.admin.getUserById(row.user_id);
-      email = data.user?.email ?? email;
+      if (!email && data.user?.email && !data.user.email.endsWith("@internal.thinksales.local")) email = data.user.email;
       lastSignInAt = data.user?.last_sign_in_at ?? null;
       nameFromAuth = data.user?.user_metadata?.full_name || data.user?.user_metadata?.name || null;
     }
 
     const fallbackName = nameFromAuth || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+    const accessRole = typeof row.access_permissions?.role_key === "string"
+      ? row.access_permissions.role_key
+      : row.role;
 
     users.push({
       id: row.id,
       userId: row.user_id,
       name: fallbackName,
       fullName: fallbackName,
+      username: row.username,
       email,
-      phone: "+233 24 123 4567",
-      employeeId: `TS-EMP-0${i + 1}`,
-      role: row.role,
-      roleLabel: row.role ? (row.role.charAt(0).toUpperCase() + row.role.slice(1)) : "Staff",
+      phone: row.phone ?? "",
+      employeeId: row.employee_id ?? `TS-EMP-0${i + 1}`,
+      role: accessRole,
+      roleLabel: accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff",
       status: row.status as any,
-      department: "Sales & Marketing",
+      department: row.department ?? "Sales & Marketing",
       locationId: row.location_id,
       locationName: row.location_id ? branchById.get(row.location_id) ?? null : null,
       lastSignInAt,
       joinedAt: row.created_at,
       isSelf: row.user_id === context.userId,
       twoFactorEnabled: true,
-      branchScope: "assigned"
+      branchScope: row.branch_scope ?? "assigned",
+      secondaryBranches: row.secondary_location_ids ?? [],
+      secondaryBranchNames: (row.secondary_location_ids ?? []).map((id) => branchById.get(id) ?? id),
+      accessPermissions: row.access_permissions ?? {}
     });
   }
 

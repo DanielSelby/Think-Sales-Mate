@@ -32,6 +32,7 @@ import {
   Laptop,
   Activity,
   UserPlus,
+  KeyRound,
   Printer,
   FileSpreadsheet
 } from "lucide-react";
@@ -58,6 +59,7 @@ import { ResetPasswordModal } from "./user-management/modals/reset-password-moda
 import { BulkRoleModal, BulkBranchModal, BulkDeleteModal } from "./user-management/modals/bulk-actions-modal";
 import { SecuritySettingsModal } from "./user-management/modals/security-settings-modal";
 import { InviteUserModal } from "./user-management/modals/invite-user-modal";
+import { CreateStaffAccountModal } from "./user-management/modals/create-staff-account-modal";
 
 // Types & Constants
 import type {
@@ -91,7 +93,7 @@ import {
   bulkInviteMembers,
   resendInvite
 } from "@/app/(dashboard)/settings/organization/actions";
-import { saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
+import { createStaffAccount, saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
 import { THEMES, type ThemeKey } from "@/store/useAppStore";
 
 export type { ManagedUser, UserBranch } from "./user-management/types";
@@ -133,13 +135,14 @@ export function UserManagement({
           phone: u.phone || fallback.phone,
           employeeId: u.employeeId || fallback.employeeId || `TS-EMP-0${idx + 1}`,
           role: u.role || fallback.role,
-          roleLabel: fallback.roleLabel || u.role,
+          roleLabel: u.roleLabel || fallback.roleLabel || u.role,
           status: u.status || "active",
           locationId: u.locationId || fallback.locationId,
           locationName: u.locationName || fallback.locationName,
-          secondaryBranches: fallback.secondaryBranches,
-          secondaryBranchNames: fallback.secondaryBranchNames,
-          approvalPermissions: fallback.approvalPermissions,
+          secondaryBranches: u.secondaryBranches || fallback.secondaryBranches,
+          secondaryBranchNames: u.secondaryBranchNames || fallback.secondaryBranchNames,
+          approvalPermissions: u.approvalPermissions || fallback.approvalPermissions,
+          accessPermissions: u.accessPermissions || fallback.accessPermissions,
           performance: fallback.performance,
           attentionReason: fallback.attentionReason
         };
@@ -176,6 +179,7 @@ export function UserManagement({
   // Modals & Drawers States
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isCreateStaffOpen, setIsCreateStaffOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<ManagedUser | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -286,7 +290,8 @@ export function UserManagement({
         const branchMatch = (u.locationName || "").toLowerCase().includes(q);
         const phoneMatch = (u.phone || "").toLowerCase().includes(q);
         const empMatch = (u.employeeId || "").toLowerCase().includes(q);
-        if (!nameMatch && !emailMatch && !roleMatch && !branchMatch && !phoneMatch && !empMatch) {
+        const usernameMatch = (u.username || "").toLowerCase().includes(q);
+        if (!nameMatch && !emailMatch && !roleMatch && !branchMatch && !phoneMatch && !empMatch && !usernameMatch) {
           return false;
         }
       }
@@ -528,6 +533,48 @@ export function UserManagement({
     return true;
   };
 
+  const handleCreateStaffAccount = async (formData: FormData) => {
+    const result = await createStaffAccount(formData);
+    if (result.error) {
+      showToast(result.error);
+      return result;
+    }
+
+    const roleKey = String(formData.get("role") ?? "staff");
+    const branchId = String(formData.get("location_id") ?? "");
+    const roleDef = roles.find((item) => item.key === roleKey);
+    const branchDef = branches.find((item) => item.id === branchId);
+    const createdUser: ManagedUser = {
+      id: result.memberId ?? `usr-${Date.now()}`,
+      userId: result.userId,
+      name: String(formData.get("full_name") ?? ""),
+      fullName: String(formData.get("full_name") ?? ""),
+      username: result.username ?? String(formData.get("username") ?? ""),
+      email: String(formData.get("email") ?? ""),
+      phone: String(formData.get("phone") ?? ""),
+      employeeId: String(formData.get("employee_id") ?? ""),
+      role: roleKey,
+      roleLabel: roleDef?.name ?? roleKey,
+      status: "active",
+      department: String(formData.get("department") ?? ""),
+      locationId: branchId || null,
+      locationName: branchDef?.name ?? null,
+      secondaryBranches: String(formData.get("secondary_location_ids") ?? "").split(",").filter(Boolean),
+      secondaryBranchNames: [],
+      branchScope: String(formData.get("branch_scope") ?? "assigned") as ManagedUser["branchScope"],
+      lastSignInAt: null,
+      joinedAt: new Date().toISOString(),
+      isSelf: false,
+      twoFactorEnabled: false
+    };
+    setUsers((previous) => [createdUser, ...previous]);
+    recordAudit("Staff Account Created", "User Management", `Created staff account for ${createdUser.fullName} (${createdUser.username})`, {
+      recordId: createdUser.id,
+      newValue: `Role: ${createdUser.roleLabel}, Branch: ${createdUser.locationName ?? "Unassigned"}`
+    });
+    return result;
+  };
+
   // Bulk Actions Handlers
   const handleBulkActivate = (userIds: string[]) => {
     setUsers((prev) =>
@@ -651,6 +698,14 @@ export function UserManagement({
               </Button>
 
               <Button
+                onClick={() => setIsCreateStaffOpen(true)}
+                variant="outline"
+                className="h-9 border-emerald-200 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+              >
+                <KeyRound className="mr-1.5 h-4 w-4" /> Create Staff Account
+              </Button>
+
+              <Button
                 onClick={() => setIsInviteModalOpen(true)}
                 variant="outline"
                 className="h-9 text-xs font-semibold"
@@ -724,7 +779,7 @@ export function UserManagement({
             <Input
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search user, role, email..."
+              placeholder="Search user, username, role..."
               className="h-9 pl-8 text-xs bg-slate-50/50 dark:bg-slate-800/40"
             />
           </div>
@@ -1028,12 +1083,16 @@ export function UserManagement({
           { key: "approvals", label: "Approval Matrix" },
           { key: "branches", label: "Branch Access" },
           { key: "audit", label: "Activity Logs", count: auditLogs.length },
-          { key: "sessions", label: "Login Sessions", count: 6 }
+          { key: "sessions", label: "Login Sessions", count: 6 },
+          { key: "staff_accounts", label: "Create Staff Account" }
         ].map((tab) => (
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key as ActiveTab)}
+            onClick={() => {
+              setActiveTab(tab.key as ActiveTab);
+              if (tab.key === "staff_accounts") setIsCreateStaffOpen(true);
+            }}
             className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3.5 text-xs font-bold transition-all ${
               activeTab === tab.key
                 ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 bg-blue-50/20 dark:bg-blue-950/20"
@@ -1199,6 +1258,18 @@ export function UserManagement({
         {activeTab === "sessions" && (
           <LoginSessionsTab canManage={canManage} />
         )}
+
+        {activeTab === "staff_accounts" && (
+          <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-8 text-center dark:border-emerald-900 dark:bg-emerald-950/20">
+            <div>
+              <h2 className="text-lg font-bold text-ink-900 dark:text-white">Create Staff Account</h2>
+              <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">Create an instant username and password account for staff without email invitations.</p>
+              <Button onClick={() => setIsCreateStaffOpen(true)} className="mt-4 bg-emerald-600 text-white hover:bg-emerald-700">
+                <KeyRound className="mr-1.5 h-4 w-4" /> Open Staff Account Form
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modals & Slide-out Drawers */}
@@ -1208,6 +1279,14 @@ export function UserManagement({
         branches={branches}
         roles={roles}
         onAddUser={handleCreateUser}
+      />
+
+      <CreateStaffAccountModal
+        isOpen={isCreateStaffOpen}
+        onClose={() => setIsCreateStaffOpen(false)}
+        branches={branches}
+        roles={roles}
+        onCreateStaff={handleCreateStaffAccount}
       />
 
       <InviteUserModal

@@ -111,6 +111,7 @@ export interface ManagedUser {
   userId?: string | null;
   name: string;
   fullName?: string;
+  username?: string | null;
   email: string;
   phone: string;
   employeeId: string;
@@ -130,6 +131,7 @@ export interface ManagedUser {
   approvalPermissions?: ApprovalPermission;
   sessions?: UserSession[];
   branchScope?: "all" | "assigned" | "single";
+  accessPermissions?: Record<string, unknown>;
   performance?: UserPerformanceMetrics;
   attentionReason?: "stale" | "failed_logins" | "locked" | "disabled" | "pending_invitation" | null;
 }
@@ -259,4 +261,5 @@ export type ActiveTab =
   | "approvals" 
   | "branches" 
   | "audit" 
-  | "sessions";
+  | "sessions"
+  | "staff_accounts";

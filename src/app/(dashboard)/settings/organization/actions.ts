@@ -30,6 +30,7 @@ export async function inviteMember(formData: FormData) {
   if (!can(context.role, "org.manage_members")) {
     return { error: "You don't have permission to invite members." };
   }
+
   if (!email) return { error: "Email is required." };
 
   const supabase = await createClient();
@@ -48,6 +49,141 @@ export async function inviteMember(formData: FormData) {
 
   revalidatePath("/settings/organization");
   return { success: true, memberId: member?.id };
+}
+
+/**
+ * Creates a staff account immediately with a password selected by an
+ * administrator. Unlike inviteMember this does not send an email and can
+ * create an internal (username-only) account.
+ */
+export async function createStaffAccount(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) return { error: "Session expired." };
+  if (!can(context.role, "org.manage_members")) {
+    return { error: "You don't have permission to create staff accounts." };
+  }
+
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const contactEmail = String(formData.get("email") ?? "").trim().toLowerCase();
+  const employeeId = String(formData.get("employee_id") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const department = String(formData.get("department") ?? "").trim();
+  const requestedRole = String(formData.get("role") ?? "staff").trim().toLowerCase();
+  const locationId = String(formData.get("location_id") ?? "").trim() || null;
+  const branchScope = String(formData.get("branch_scope") ?? "assigned");
+  const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (!fullName) return { error: "Full name is required." };
+  if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)) {
+    return { error: "Username must be 3–32 characters and use only letters, numbers, dots, underscores, or hyphens." };
+  }
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    return { error: "Enter a valid email address or leave email blank." };
+  }
+  if (!["all", "assigned", "single"].includes(branchScope)) return { error: "Invalid branch access scope." };
+
+  // The UI has richer role templates than the database's tenant roles. Keep
+  // the selected template in access_permissions while enforcing the tenant
+  // role enum used by the rest of the application.
+  const role = requestedRole === "administrator" || requestedRole === "admin"
+    ? "admin"
+    : requestedRole === "manager" || requestedRole === "branch_manager"
+      ? "manager"
+      : requestedRole === "viewer"
+        ? "viewer"
+        : "staff";
+
+  const admin = createAdminClient();
+  const { data: duplicateUsername, error: duplicateError } = await admin
+    .from("organization_members")
+    .select("id")
+    .eq("username", username)
+    .limit(1);
+  if (duplicateError) return { error: duplicateError.message };
+  if (duplicateUsername?.length) return { error: "That username is already in use." };
+
+  const { data: validLocations, error: locationError } = await admin
+    .from("business_locations")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .in("id", [locationId, ...secondaryLocationIds].filter((value): value is string => Boolean(value)));
+  if (locationError) return { error: locationError.message };
+  const validLocationIds = new Set((validLocations ?? []).map((location) => location.id));
+  if (locationId && !validLocationIds.has(locationId)) return { error: "Select a valid primary branch." };
+  if (secondaryLocationIds.some((id) => !validLocationIds.has(id))) {
+    return { error: "One or more secondary branches are invalid." };
+  }
+
+  // Supabase Auth needs an email or phone for password accounts. Internal
+  // emails are never shown to users and let username-only accounts use the
+  // same secure password flow as normal email accounts.
+  const authEmail = contactEmail || `${username}.${context.orgId.slice(0, 8)}@internal.thinksales.local`;
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    email: authEmail,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: fullName,
+      username,
+      employee_id: employeeId || null,
+      staff_account: true,
+      must_change_password: true
+    }
+  });
+  if (authError || !authData.user) return { error: authError?.message ?? "Unable to create the authentication account." };
+
+  const accessPermissions = {
+    role_key: requestedRole,
+    approvals: {
+      stockTransfers: formData.get("approval_stock_transfers") === "true",
+      purchases: formData.get("approval_purchases") === "true",
+      expenses: formData.get("approval_expenses") === "true",
+      priceUpdates: formData.get("approval_price_updates") === "true",
+      stockAdjustments: formData.get("approval_stock_adjustments") === "true"
+    }
+  };
+  const { data: member, error: memberError } = await admin
+    .from("organization_members")
+    .insert({
+      org_id: context.orgId,
+      user_id: authData.user.id,
+      invited_email: contactEmail || null,
+      contact_email: contactEmail || null,
+      username,
+      employee_id: employeeId || null,
+      phone: phone || null,
+      department: department || null,
+      role,
+      status: "active",
+      location_id: locationId,
+      branch_scope: branchScope as "all" | "assigned" | "single",
+      secondary_location_ids: secondaryLocationIds,
+      access_permissions: accessPermissions,
+      must_change_password: true
+    })
+    .select("id")
+    .single();
+
+  if (memberError || !member) {
+    await admin.auth.admin.deleteUser(authData.user.id);
+    return { error: memberError?.message ?? "Unable to save the staff profile." };
+  }
+
+  revalidatePath("/settings/organization");
+  return {
+    success: true,
+    memberId: member.id,
+    userId: authData.user.id,
+    username,
+    temporaryPassword: password,
+    email: contactEmail
+  };
 }
 
 export async function resetMemberPassword(memberId: string, mode: "email" | "temporary", temporaryPassword?: string) {

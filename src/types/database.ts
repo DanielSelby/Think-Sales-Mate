@@ -69,7 +69,16 @@ export interface Database {
           role: MemberRole;
           status: MemberStatus;
           location_id: string | null;
-          created_at: string;
+           username: string | null;
+           employee_id: string | null;
+           phone: string | null;
+           department: string | null;
+           contact_email: string | null;
+           branch_scope: "all" | "assigned" | "single";
+           secondary_location_ids: string[];
+           access_permissions: Record<string, unknown>;
+           must_change_password: boolean;
+           created_at: string;
         };
         Insert: {
           id?: string;
@@ -79,6 +88,15 @@ export interface Database {
           role?: MemberRole;
           status?: MemberStatus;
           location_id?: string | null;
+          username?: string | null;
+          employee_id?: string | null;
+          phone?: string | null;
+          department?: string | null;
+          contact_email?: string | null;
+          branch_scope?: "all" | "assigned" | "single";
+          secondary_location_ids?: string[];
+          access_permissions?: Record<string, unknown>;
+          must_change_password?: boolean;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["organization_members"]["Row"]>;

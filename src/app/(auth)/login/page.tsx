@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { loginWithIdentifier } from "./actions";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 
@@ -122,7 +123,7 @@ function LoginForm() {
   const [themeKey, setThemeKey] = useState<LoginThemeKey>("forest");
   const theme = LOGIN_THEMES[themeKey];
 
-  const [email,       setEmail]       = useState("");
+  const [identifier,  setIdentifier]  = useState("");
   const [password,    setPassword]    = useState("");
   const [error,       setError]       = useState<string | null>(searchParams.get("error"));
   const [loading,     setLoading]     = useState(false);
@@ -132,10 +133,9 @@ function LoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError(null);
-    const supabase = createClient();
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    const { error: err } = await loginWithIdentifier(identifier, password);
     setLoading(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(err); return; }
     router.push(searchParams.get("next") ?? "/dashboard");
     router.refresh();
   }
@@ -321,15 +321,15 @@ function LoginForm() {
                   <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
                 )}
 
-                {/* Email */}
+                {/* Email or username */}
                 <div>
-                  <label className="mb-2 block text-[12px] font-semibold" style={{ color: theme.btn.bg }}>Email Address</label>
+                  <label className="mb-2 block text-[12px] font-semibold" style={{ color: theme.btn.bg }}>Email or Username</label>
                   <div className="relative">
                     <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
                     </div>
-                    <Input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="Enter your email address"
+                    <Input type="text" autoComplete="username" required value={identifier} onChange={e => setIdentifier(e.target.value)}
+                      placeholder="Enter your email or username"
                       className="h-12 rounded-xl pl-12 pr-4 text-sm shadow-none placeholder:text-slate-400"
                       style={{ borderColor: theme.input.border }} />
                   </div>
