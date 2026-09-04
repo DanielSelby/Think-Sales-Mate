@@ -291,31 +291,73 @@ export function BrowseView({
             </div>
 
             {/* =================================================
-                HERO
+                HERO + PRODUCT HEADER — pinned below the top nav
             ================================================= */}
+            <div className="sticky top-[90px] z-20 bg-white pb-1 dark:bg-ink-950">
             <div className="relative mb-4 min-h-[145px] overflow-hidden rounded-xl border border-ledger-200 bg-gradient-to-r from-[#eef7ef] via-[#f7faf7] to-[#eef7ef] dark:border-ledger-800 dark:from-ink-900 dark:via-ink-850 dark:to-ink-900">
 
-              {/* Decorative background */}
-              <div className="absolute right-0 top-0 h-full w-1/2 opacity-40">
-                <div className="absolute right-16 top-8 h-20 w-20 rotate-12 rounded-xl border border-signal/20" />
-                <div className="absolute right-32 top-12 h-24 w-24 rounded-xl border border-signal/10" />
-                <div className="absolute right-8 bottom-0 h-28 w-28 rounded-full border border-signal/10" />
-              </div>
+              {/* 3D showcase illustration */}
+              <div className="absolute inset-0 hidden items-center justify-end pr-12 sm:flex">
 
-              {/* Shopping bag illustration */}
-              <div className="absolute bottom-2 right-8 hidden items-end gap-3 sm:flex">
+                {/* Floating spheres */}
+                <div
+                  className="absolute right-[220px] top-5 h-6 w-6 rounded-full shadow-md"
+                  style={{ background: "radial-gradient(circle at 32% 28%, #ffffff, #cfe9d4 55%, #a9d3b1 100%)" }}
+                />
+                <div
+                  className="absolute right-[64px] top-1 h-4 w-4 rounded-full shadow-sm"
+                  style={{ background: "radial-gradient(circle at 32% 28%, #ffffff, #cfe9d4 55%, #a9d3b1 100%)" }}
+                />
+                <div
+                  className="absolute right-[300px] top-16 h-3 w-3 rounded-full shadow-sm"
+                  style={{ background: "radial-gradient(circle at 32% 28%, #ffffff, #cfe9d4 55%, #a9d3b1 100%)" }}
+                />
 
-                <div className="relative h-[88px] w-[70px] rounded-b-lg rounded-t-sm bg-signal shadow-lg">
-                  <div className="absolute left-1/2 top-[-18px] h-8 w-10 -translate-x-1/2 rounded-t-full border-2 border-b-0 border-signal" />
+                {/* Back riser block */}
+                <div
+                  className="absolute right-[150px] bottom-6 h-16 w-16 rounded-2xl opacity-70"
+                  style={{ background: "linear-gradient(135deg, #eaf4ec, #d7ecdc)" }}
+                />
 
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-black text-white">
-                      OG
-                    </span>
+                {/* Podium group */}
+                <div className="relative flex items-end">
+
+                  {/* Cart card, tilted */}
+                  <div className="relative z-10 -mr-4 mb-2 flex h-16 w-14 -rotate-6 items-center justify-center rounded-2xl bg-white shadow-xl">
+                    <ShoppingCart className="h-6 w-6 text-signal" />
+                  </div>
+
+                  {/* Bag + pedestal */}
+                  <div className="relative z-20 flex flex-col items-center">
+
+                    {/* Shopping bag */}
+                    <div
+                      className="relative mb-[-6px] h-[92px] w-[74px] rounded-b-xl rounded-t-md shadow-xl"
+                      style={{ background: "linear-gradient(135deg, #22a05f, #16733f)" }}
+                    >
+                      <div
+                        className="absolute left-1/2 top-[-16px] h-8 w-10 -translate-x-1/2 rounded-t-full border-[3px] border-b-0"
+                        style={{ borderColor: "#16733f" }}
+                      />
+                      <div className="absolute inset-y-2 left-2 w-2 rounded-full bg-white/15" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xl font-black text-white">OG</span>
+                      </div>
+                    </div>
+
+                    {/* Cylindrical pedestal top */}
+                    <div
+                      className="h-8 w-[130px] rounded-[50%] shadow-lg"
+                      style={{ background: "linear-gradient(180deg, #34b872, #1f8f52)" }}
+                    />
+
+                    {/* Ground shadow */}
+                    <div
+                      className="-mt-1 h-3 w-[150px] rounded-[50%]"
+                      style={{ background: "radial-gradient(ellipse at center, rgba(0,0,0,0.15), transparent 70%)" }}
+                    />
                   </div>
                 </div>
-
-                <div className="mb-0 h-14 w-12 rounded-sm bg-white shadow-md dark:bg-ledger-200" />
               </div>
 
               <div className="relative z-10 max-w-xl px-7 py-5">
@@ -386,6 +428,7 @@ export function BrowseView({
                   <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
                 </div>
               </div>
+            </div>
             </div>
 
             {/* =================================================
