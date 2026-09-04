@@ -11,7 +11,7 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
   const admin = createAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
   if (!siteUrl) return { error: "The application URL is not configured. Set NEXT_PUBLIC_SITE_URL in production." };
-  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/dashboard`;
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/reset-password`;
   const { data: profile } = await admin
     .from("company_profile")
     .select("business_email, company_name")
@@ -36,7 +36,7 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
     method: "POST",
     headers: {
       Authorization: `Bearer ${resendKey}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       from: `${companyName} <${from}>`,
