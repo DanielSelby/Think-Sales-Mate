@@ -22,23 +22,8 @@ export type PermissionAction =
   | "export" 
   | "print";
 
-export type ModuleCategory =
-  | "dashboard"
-  | "sales"
-  | "pos"
-  | "orders"
-  | "products"
-  | "inventory"
-  | "transfers"
-  | "purchases"
-  | "expenses"
-  | "customers"
-  | "suppliers"
-  | "accounting"
-  | "hrm_payroll"
-  | "reports"
-  | "user_management"
-  | "settings";
+/** Registry key for a permission module/page. New pages can be added without changing the role schema. */
+export type ModuleCategory = string;
 
 export interface UserBranch {
   id: string;

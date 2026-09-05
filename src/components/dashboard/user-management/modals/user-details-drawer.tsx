@@ -432,7 +432,7 @@ export function UserDetailsDrawer({
                   <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Module Access ({roleDef.name})</h3>
-                      <span className="text-xs font-bold text-blue-600">{roleDef.permissionCount} / 58 enabled</span>
+                      <span className="text-xs font-bold text-blue-600">{Object.values(roleDef.permissions).reduce((count, actions) => count + actions.length, 0)} permissions enabled</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">

@@ -38,6 +38,11 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "hrm_payroll", name: "HRM & Payroll", description: "Employee records, attendance, leaves, and payslips", iconName: "Users", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "reports", name: "Reports", description: "Financial, sales, inventory, and tax reports", iconName: "BarChart3", supportedActions: ["view", "export", "print"] },
   { key: "user_management", name: "User Management", description: "User accounts, roles, access matrix, and audit logs", iconName: "ShieldCheck", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "banking", name: "Banking", description: "Bank accounts, transactions, and reconciliation", iconName: "Landmark", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
+  { key: "assets", name: "Assets", description: "Fixed assets, depreciation, and asset registers", iconName: "Package", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
+  { key: "projects", name: "Projects", description: "Projects, tasks, and operational work", iconName: "FolderKanban", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
+  { key: "ai", name: "AI Assistant", description: "AI-powered business assistance and generation tools", iconName: "Sparkles", supportedActions: ["view", "create"] },
+  { key: "communication", name: "Communication", description: "Private direct messages, group channels, and voice notes", iconName: "MessageSquare", supportedActions: ["view", "create", "edit", "delete"] },
   { key: "settings", name: "Settings", description: "System configuration, currencies, taxes, and integrations", iconName: "Settings", supportedActions: ["view", "create", "edit", "delete", "export", "print"] }
 ];
 
@@ -67,7 +72,7 @@ export const DEFAULT_BRANCHES: UserBranch[] = [
 
 // ── 1-Click Permission Templates ────────────────────────────
 export const PERMISSION_TEMPLATES: { key: string; name: string; description: string; roleKey: string; icon: string }[] = [
-  { key: "super_admin", name: "Super Admin", description: "Unrestricted master access across all 15 modules and global branches", roleKey: "administrator", icon: "Crown" },
+  { key: "super_admin", name: "Super Admin", description: "Unrestricted master access across all registered modules and global branches", roleKey: "owner", icon: "Crown" },
   { key: "administrator", name: "Administrator", description: "Full business administration, user governance, and security controls", roleKey: "administrator", icon: "ShieldAlert" },
   { key: "branch_manager", name: "Branch Manager", description: "Complete branch operational authority, daily approvals, and stock supervision", roleKey: "manager", icon: "Building2" },
   { key: "sales_officer", name: "Sales Officer", description: "Quotation creation, sales order booking, CRM, and customer registry", roleKey: "sales_officer", icon: "Receipt" },

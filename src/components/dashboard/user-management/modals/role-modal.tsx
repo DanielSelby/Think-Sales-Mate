@@ -251,7 +251,7 @@ export function RoleModal({
                 <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">
                   Module Permissions Checklist ({calculateTotalPermissions()} selected)
                 </h3>
-                <p className="text-[11px] text-ledger-400">Toggle individual action rights for each of the 15 enterprise modules</p>
+                <p className="text-[11px] text-ledger-400">Toggle individual action rights for each registered enterprise module</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button type="button" size="sm" variant="outline" onClick={handleGrantAll} className="h-7 text-xs">
@@ -319,7 +319,7 @@ export function RoleModal({
           {/* Modal Footer */}
           <div className="flex items-center justify-between pt-4 border-t border-ledger-100 dark:border-ledger-800">
             <span className="text-xs text-ledger-400 font-mono">
-              Total Permissions: {calculateTotalPermissions()} / 58
+              Total Permissions: {calculateTotalPermissions()}
             </span>
             <div className="flex items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={onClose}>

@@ -176,7 +176,7 @@ export function RolesTab({
                   <div className="flex flex-col p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Permissions</span>
                     <span className="text-sm font-bold text-purple-600 dark:text-purple-400 mt-0.5">
-                      {role.permissionCount} / 58
+                      {Object.values(role.permissions).reduce((count, actions) => count + actions.length, 0)} permissions
                     </span>
                   </div>
                 </div>

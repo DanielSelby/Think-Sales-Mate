@@ -248,7 +248,9 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
 
   if (input.role) {
     const requestedRole = input.role.toLowerCase();
-    const mappedRole = requestedRole === "administrator" || requestedRole === "admin"
+    const mappedRole = requestedRole === "owner" || requestedRole === "super_admin"
+      ? "owner"
+      : requestedRole === "administrator" || requestedRole === "admin"
       ? "admin"
       : requestedRole === "manager" || requestedRole === "branch_manager"
         ? "manager"

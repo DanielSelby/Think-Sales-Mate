@@ -340,7 +340,7 @@ export function UserManagement({
   const inactiveUsersCount = users.filter((u) => u.status === "inactive" || u.status === "suspended").length;
   const pendingInvitationsCount = users.filter((u) => u.status === "pending").length + invitations.filter((i) => i.status === "pending").length;
   const rolesCount = roles.length;
-  const permissionsCount = 58;
+  const permissionsCount = roles.reduce((max, role) => Math.max(max, role.permissionCount), 0);
 
   // Users Requiring Attention Breakdown
   const attentionUsers = useMemo(() => {
