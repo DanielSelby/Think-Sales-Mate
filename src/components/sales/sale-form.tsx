@@ -40,6 +40,7 @@ import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
+import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 
 
 export interface SellableProduct {
@@ -153,6 +154,7 @@ export function SaleForm({
   currency,
   logoUrl,
   showLogoOnInvoices,
+  canCheckCrossBranchStock,
 }: {
   products: SellableProduct[];
   customers: SaleCustomer[];
@@ -168,6 +170,7 @@ export function SaleForm({
   currentUserEmail: string;
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
+  canCheckCrossBranchStock: boolean;
 }) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -266,7 +269,7 @@ export function SaleForm({
       })
       .filter((p) => {
         const rows = stockByProduct.get(p.id);
-        return !rows || rows.has(locationId);
+        return Boolean(rows && (rows.get(locationId) ?? 0) > 0);
       });
   }, [products, stockByProduct, locationId, stockLevels]);
 
@@ -948,6 +951,7 @@ export function SaleForm({
                   </div>
                 )}
               </div>
+              <CrossBranchStockButton query={search} enabled={canCheckCrossBranchStock && Boolean(search.trim()) && filteredProducts.length === 0} />
               <div className="flex shrink-0 items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={addEmptyRow}>
                   <Plus className="h-3.5 w-3.5" /> Add Row

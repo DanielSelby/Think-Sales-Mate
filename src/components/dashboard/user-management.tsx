@@ -144,6 +144,7 @@ export function UserManagement({
           secondaryBranchNames: u.secondaryBranchNames || fallback.secondaryBranchNames,
           branchScope: u.branchScope || fallback.branchScope || "single",
           canViewOtherTransactions: u.canViewOtherTransactions ?? fallback.canViewOtherTransactions ?? true,
+          canCheckCrossBranchStock: u.canCheckCrossBranchStock ?? fallback.canCheckCrossBranchStock ?? false,
           approvalPermissions: u.approvalPermissions || fallback.approvalPermissions,
           accessPermissions: u.accessPermissions || fallback.accessPermissions,
           performance: fallback.performance,
@@ -419,6 +420,10 @@ export function UserManagement({
       formData.set("email", user.email);
       formData.set("role", user.role);
       formData.set("location_id", user.locationId ?? "");
+      formData.set("branch_scope", user.branchScope ?? "assigned");
+      formData.set("secondary_location_ids", (user.secondaryBranches ?? []).join(","));
+      formData.set("can_view_other_users_transactions", String(user.canViewOtherTransactions !== false));
+      formData.set("can_check_cross_branch_stock", String(user.canCheckCrossBranchStock === true));
       const result = await inviteMember(formData);
       if (result && "error" in result) {
         setUsers((prev) => prev.filter((item) => item.id !== user.id));
@@ -473,6 +478,7 @@ export function UserManagement({
         secondaryLocationIds: updates.secondaryBranches ?? oldUser?.secondaryBranches ?? [],
         branchScope: updates.branchScope ?? oldUser?.branchScope ?? "single",
         canViewOtherTransactions: updates.canViewOtherTransactions ?? oldUser?.canViewOtherTransactions ?? true,
+        canCheckCrossBranchStock: updates.canCheckCrossBranchStock ?? oldUser?.canCheckCrossBranchStock ?? false,
         role: updates.role ?? oldUser?.role,
         approvalPermissions: updates.approvalPermissions ?? oldUser?.approvalPermissions
       });

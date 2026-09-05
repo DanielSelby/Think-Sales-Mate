@@ -54,6 +54,7 @@ export default async function PosPage() {
       currency={context.currency}
       taxRatePercent={15}
       cashierName={profile?.full_name || context.userEmail}
+      canCheckCrossBranchStock={context.canCheckCrossBranchStock}
     />
   );
 }

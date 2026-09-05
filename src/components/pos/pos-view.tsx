@@ -26,6 +26,7 @@ import {
   type CashierOption, type RegisterSummary, type RegisterClosureRecord,
 } from "@/app/(dashboard)/pos/actions";
 import type { HeldSaleKind } from "@/types/database";
+import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 
 export interface PosProduct {
   id: string;
@@ -51,6 +52,7 @@ interface PosViewProps {
   currency: string;
   taxRatePercent: number;
   cashierName: string;
+  canCheckCrossBranchStock: boolean;
 }
 
 interface CartLine extends CartItemInput {
@@ -66,7 +68,7 @@ function isoToLocalDate(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName }: PosViewProps) {
+export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -180,7 +182,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       })
       .filter((p) => {
         const rows = stockByProduct.get(p.id);
-        return !rows || rows.has(locationId);
+        return Boolean(rows && (rows.get(locationId) ?? 0) > 0);
       });
   }, [products, stockByProduct, locationId]);
 
@@ -651,6 +653,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         {/* LEFT: images/grid */}
         <div className="flex min-h-0 flex-col gap-3">
           <div className="flex gap-2">
+            <CrossBranchStockButton query={query} enabled={canCheckCrossBranchStock && Boolean(query.trim()) && filteredProducts.length === 0} />
             <button
               onClick={() => setBrowseTab("category")}
               className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab !== "category" && "bg-ledger-300 dark:bg-ledger-700")}

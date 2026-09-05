@@ -132,6 +132,7 @@ export interface ManagedUser {
   sessions?: UserSession[];
   branchScope?: "all" | "assigned" | "single";
   canViewOtherTransactions?: boolean;
+  canCheckCrossBranchStock?: boolean;
   accessPermissions?: Record<string, unknown>;
   performance?: UserPerformanceMetrics;
   attentionReason?: "stale" | "failed_logins" | "locked" | "disabled" | "pending_invitation" | null;

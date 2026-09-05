@@ -78,6 +78,7 @@ export interface Database {
           secondary_location_ids: string[];
           access_permissions: Record<string, unknown>;
           can_view_other_users_transactions: boolean;
+          can_check_cross_branch_stock: boolean;
           must_change_password: boolean;
           created_at: string;
         };
@@ -98,6 +99,7 @@ export interface Database {
           secondary_location_ids?: string[];
           access_permissions?: Record<string, unknown>;
           can_view_other_users_transactions?: boolean;
+          can_check_cross_branch_stock?: boolean;
           must_change_password?: boolean;
           created_at?: string;
         };

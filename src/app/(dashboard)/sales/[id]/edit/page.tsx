@@ -152,6 +152,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       currency={context.currency}
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
+      canCheckCrossBranchStock={context.canCheckCrossBranchStock}
     />
   );
 }

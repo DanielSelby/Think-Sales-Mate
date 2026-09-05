@@ -103,7 +103,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
       imageUrl: p.image_urls?.[0] ?? null,
       stockLevels,
     };
-  });
+  }).filter((product) => !context.isBranchScoped || product.stockQuantity > 0);
 
   const locations: CatalogLocation[] = scopedLocations.map((l) => ({ id: l.id, name: l.name }));
 
@@ -127,6 +127,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
       bestSellers={bestSellers}
       canManage={can(context.role, "inventory.manage")}
       currency={context.currency}
+      canCheckCrossBranchStock={context.canCheckCrossBranchStock}
     />
   );
 }

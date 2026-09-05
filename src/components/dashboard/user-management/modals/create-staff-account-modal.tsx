@@ -53,6 +53,7 @@ export function CreateStaffAccountModal({
   const [branchScope, setBranchScope] = useState<"all" | "assigned" | "single">("assigned");
   const [secondaryBranches, setSecondaryBranches] = useState<string[]>([]);
   const [canViewOtherTransactions, setCanViewOtherTransactions] = useState(true);
+  const [canCheckCrossBranchStock, setCanCheckCrossBranchStock] = useState(false);
   const [approvals, setApprovals] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export function CreateStaffAccountModal({
     formData.set("branch_scope", branchScope);
     formData.set("secondary_location_ids", secondaryBranches.join(","));
     formData.set("can_view_other_users_transactions", String(canViewOtherTransactions));
+    formData.set("can_check_cross_branch_stock", String(canCheckCrossBranchStock));
     Object.entries(approvals).forEach(([key, value]) => formData.set(key, String(value)));
 
     try {
@@ -196,6 +198,10 @@ export function CreateStaffAccountModal({
                       <p className="text-[10px] text-ledger-400 mt-0.5">Limited to transactions created by themselves</p>
                     </button>
                   </div>
+                  <label className="mt-3 flex items-start gap-2 text-xs text-ink-900 dark:text-white">
+                    <input type="checkbox" checked={canCheckCrossBranchStock} onChange={(event) => setCanCheckCrossBranchStock(event.target.checked)} className="mt-0.5" />
+                    <span><span className="block font-semibold">Allow cross-branch stock checks</span><span className="text-[10px] text-ledger-400">Check quantities for products unavailable in assigned branches.</span></span>
+                  </label>
                 </div>
               </section>
 

@@ -36,6 +36,7 @@ export function EditUserModal({
     secondaryBranches: [] as string[],
     branchScope: "single" as "all" | "assigned" | "single",
     canViewOtherTransactions: true,
+    canCheckCrossBranchStock: false,
     twoFactorEnabled: false,
     approvalStockTransfers: false,
     approvalPurchases: false,
@@ -63,6 +64,7 @@ export function EditUserModal({
         secondaryBranches: user.secondaryBranches || [],
         branchScope: user.branchScope || (user.secondaryBranches?.length ? "assigned" : "single"),
         canViewOtherTransactions: user.canViewOtherTransactions !== false,
+        canCheckCrossBranchStock: user.canCheckCrossBranchStock === true,
         twoFactorEnabled: Boolean(user.twoFactorEnabled),
         approvalStockTransfers: Boolean(user.approvalPermissions?.stockTransfers),
         approvalPurchases: Boolean(user.approvalPermissions?.purchases),
@@ -116,6 +118,7 @@ export function EditUserModal({
       secondaryBranchNames: secondaryNames,
       branchScope: formData.branchScope,
       canViewOtherTransactions: formData.canViewOtherTransactions,
+      canCheckCrossBranchStock: formData.canCheckCrossBranchStock,
       twoFactorEnabled: formData.twoFactorEnabled,
       approvalPermissions: {
         stockTransfers: formData.approvalStockTransfers,
@@ -434,6 +437,18 @@ export function EditUserModal({
                     </button>
                   </div>
                 </div>
+                <label className="flex items-start gap-2.5 pt-2 border-t border-ledger-100 dark:border-ledger-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.canCheckCrossBranchStock}
+                    onChange={(e) => setFormData({ ...formData, canCheckCrossBranchStock: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>
+                    <span className="block text-xs font-semibold text-ink-900 dark:text-white">Allow cross-branch stock checks</span>
+                    <span className="block text-[11px] text-ledger-400">Lets this user check quantities for products unavailable in their assigned branch.</span>
+                  </span>
+                </label>
               </div>
             )}
 

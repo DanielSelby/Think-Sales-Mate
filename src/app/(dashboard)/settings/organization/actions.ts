@@ -24,7 +24,10 @@ export async function inviteMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "staff") as MemberRole;
   const locationId = String(formData.get("location_id") ?? "").trim();
+  const branchScope = String(formData.get("branch_scope") ?? "assigned");
+  const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
   const canViewOther = formData.get("can_view_other_users_transactions") !== "false";
+  const canCheckCrossBranchStock = formData.get("can_check_cross_branch_stock") === "true";
 
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
@@ -44,7 +47,10 @@ export async function inviteMember(formData: FormData) {
     role,
     status: "invited",
     location_id: locationId || null,
+    branch_scope: branchScope as "all" | "assigned" | "single",
+    secondary_location_ids: secondaryLocationIds,
     can_view_other_users_transactions: canViewOther,
+    can_check_cross_branch_stock: canCheckCrossBranchStock,
   }).select("id").single();
 
   if (memberError) return { error: memberError.message };
@@ -151,6 +157,7 @@ export async function createStaffAccount(formData: FormData) {
     }
   };
   const canViewOther = formData.get("can_view_other_users_transactions") !== "false";
+  const canCheckCrossBranchStock = formData.get("can_check_cross_branch_stock") === "true";
 
   const { data: member, error: memberError } = await admin
     .from("organization_members")
@@ -170,6 +177,7 @@ export async function createStaffAccount(formData: FormData) {
       secondary_location_ids: secondaryLocationIds,
       access_permissions: accessPermissions,
       can_view_other_users_transactions: canViewOther,
+      can_check_cross_branch_stock: canCheckCrossBranchStock,
       must_change_password: true
     })
     .select("id")
@@ -202,6 +210,7 @@ export interface UpdateMemberAccessScopeInput {
   branchScope?: "all" | "assigned" | "single";
   secondaryLocationIds?: string[];
   canViewOtherTransactions?: boolean;
+  canCheckCrossBranchStock?: boolean;
   status?: "active" | "inactive" | "suspended";
   approvalPermissions?: any;
 }
@@ -219,6 +228,7 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
   if (input.branchScope !== undefined) updatePayload.branch_scope = input.branchScope;
   if (input.secondaryLocationIds !== undefined) updatePayload.secondary_location_ids = input.secondaryLocationIds;
   if (input.canViewOtherTransactions !== undefined) updatePayload.can_view_other_users_transactions = input.canViewOtherTransactions;
+  if (input.canCheckCrossBranchStock !== undefined) updatePayload.can_check_cross_branch_stock = input.canCheckCrossBranchStock;
   if (input.department !== undefined) updatePayload.department = input.department;
   if (input.phone !== undefined) updatePayload.phone = input.phone;
   if (input.employeeId !== undefined) updatePayload.employee_id = input.employeeId;

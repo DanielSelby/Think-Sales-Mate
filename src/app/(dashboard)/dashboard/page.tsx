@@ -26,8 +26,11 @@ export default async function DashboardPage({
     from: params.from || fallback.from,
     to: params.to || fallback.to
   };
-  const locationId = params.branch || null;
+  const requestedLocationId = params.branch || null;
   const category = params.category || null;
+  const locationId = context.isBranchScoped && context.allowedLocationIds.length > 0
+    ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : context.allowedLocationIds[0])
+    : requestedLocationId;
   const filters = { locationId, category };
 
   const supabase = await createClient();
@@ -49,7 +52,9 @@ export default async function DashboardPage({
       supabase.from("products").select("category").eq("org_id", context.orgId).not("category", "is", null)
     ]);
 
-  const branches: FilterOption[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
+  const branches: FilterOption[] = (locationRows ?? [])
+    .filter((l) => !context.isBranchScoped || context.allowedLocationIds.includes(l.id))
+    .map((l) => ({ id: l.id, name: l.name }));
   const categories: FilterOption[] = [...new Set((categoryRows ?? []).map((p) => p.category as string))]
     .sort()
     .map((c) => ({ id: c, name: c }));

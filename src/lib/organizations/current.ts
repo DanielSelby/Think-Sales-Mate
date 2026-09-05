@@ -12,6 +12,7 @@ export interface CurrentOrgContext {
   locationId: string | null;
   secondaryLocationIds: string[];
   canViewOtherTransactions: boolean;
+  canCheckCrossBranchStock: boolean;
   isBranchScoped: boolean;
   allowedLocationIds: string[];
   memberships: Array<{ orgId: string; orgName: string; role: MemberRole }>;
@@ -33,7 +34,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
 
   const { data: memberRows, error } = await supabase
     .from("organization_members")
-    .select("org_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, organizations(name, currency)")
+    .select("org_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, organizations(name, currency)")
     .eq("user_id", user.id)
     .eq("status", "active");
 
@@ -44,6 +45,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     // schema introspection — normalize defensively.
     const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
     const canViewOther = row.can_view_other_users_transactions !== false;
+    const canCheckCrossBranchStock = row.can_check_cross_branch_stock === true;
     const branchScope = (row.branch_scope as "all" | "assigned" | "single") || "assigned";
     const locationId = row.location_id ?? null;
     const secondaryLocationIds = (row.secondary_location_ids as string[]) ?? [];
@@ -62,6 +64,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
       locationId,
       secondaryLocationIds,
       canViewOtherTransactions: canViewOther,
+      canCheckCrossBranchStock,
       isBranchScoped,
       allowedLocationIds,
     };
@@ -80,6 +83,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     locationId: active.locationId,
     secondaryLocationIds: active.secondaryLocationIds,
     canViewOtherTransactions: active.canViewOtherTransactions,
+    canCheckCrossBranchStock: active.canCheckCrossBranchStock,
     isBranchScoped: active.isBranchScoped,
     allowedLocationIds: active.allowedLocationIds,
     memberships: memberships.map(({ orgId, orgName, role }) => ({ orgId, orgName, role }))

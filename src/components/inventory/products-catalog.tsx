@@ -33,6 +33,7 @@ import { useAppStore, THEMES } from "@/store/useAppStore";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { formatMoney } from "@/lib/currency";
 import { deleteProduct, toggleProductActive, duplicateProduct, bulkImportProducts } from "@/app/(dashboard)/inventory/actions";
+import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 
 export interface CatalogProductStockLevel {
   locationId: string;
@@ -127,13 +128,15 @@ export function ProductsCatalog({
   locations,
   bestSellers,
   canManage,
-  currency = "GHS"
+  currency = "GHS",
+  canCheckCrossBranchStock
 }: {
   products: CatalogProduct[];
   locations: CatalogLocation[];
   bestSellers: BestSellerRow[];
   canManage: boolean;
   currency?: string;
+  canCheckCrossBranchStock: boolean;
 }) {
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -511,7 +514,8 @@ export function ProductsCatalog({
 
       {/* Toolbar */}
       <div className="space-y-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-        <div className="relative">
+        <div className="flex items-center gap-2">
+        <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
           <input
             value={search}
@@ -522,6 +526,8 @@ export function ProductsCatalog({
             placeholder="Search by product name, SKU, or barcode…"
             className="h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           />
+        </div>
+        <CrossBranchStockButton query={search} enabled={canCheckCrossBranchStock && Boolean(search.trim()) && filtered.length === 0} />
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

@@ -33,6 +33,7 @@ export function AddUserModal({
     secondaryBranches: [] as string[],
     branchScope: "assigned" as "all" | "assigned" | "single",
     canViewOtherTransactions: true,
+    canCheckCrossBranchStock: false,
     twoFactorEnforced: true,
     sendInviteEmail: true,
     approvalStockTransfers: false,
@@ -89,6 +90,7 @@ export function AddUserModal({
       secondaryBranchNames: secondaryNames,
       branchScope: formData.branchScope,
       canViewOtherTransactions: formData.canViewOtherTransactions,
+      canCheckCrossBranchStock: formData.canCheckCrossBranchStock,
       twoFactorEnabled: formData.twoFactorEnforced,
       joinedAt: new Date().toISOString(),
       lastSignInAt: null,
@@ -125,6 +127,13 @@ export function AddUserModal({
               <h2 className="text-base font-semibold text-ink-900 dark:text-white">Add New User</h2>
               <p className="text-xs text-ledger-500 dark:text-ledger-400">Create a user account, assign roles, branches & approval limits</p>
             </div>
+            <label className="flex items-start gap-2.5 pt-2 border-t border-ledger-100 dark:border-ledger-800 cursor-pointer">
+              <input type="checkbox" checked={formData.canCheckCrossBranchStock} onChange={(e) => setFormData({ ...formData, canCheckCrossBranchStock: e.target.checked })} className="mt-0.5 h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500" />
+              <span>
+                <span className="block text-xs font-semibold text-ink-900 dark:text-white">Allow cross-branch stock checks</span>
+                <span className="block text-[11px] text-ledger-400">Check quantities for products unavailable in assigned branches.</span>
+              </span>
+            </label>
           </div>
           <button
             onClick={onClose}

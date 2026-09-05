@@ -17,6 +17,16 @@ export default async function NewSalePage() {
   if (!context) return null;
 
   const supabase = await createClient();
+  let locationsQuery = supabase
+    .from("business_locations")
+    .select("id, name")
+    .eq("org_id", context.orgId)
+    .eq("is_active", true)
+    .order("is_primary", { ascending: false })
+    .order("name");
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    locationsQuery = locationsQuery.in("id", context.allowedLocationIds);
+  }
 
   const [
     { data: productRows },
@@ -37,13 +47,7 @@ export default async function NewSalePage() {
       .gt("stock_quantity", 0)
       .order("name"),
     supabase.from("customers").select("id, name, email, phone").eq("org_id", context.orgId).order("name"),
-    supabase
-      .from("business_locations")
-      .select("id, name")
-      .eq("org_id", context.orgId)
-      .eq("is_active", true)
-      .order("is_primary", { ascending: false })
-      .order("name"),
+    locationsQuery,
     supabase
       .from("organization_members")
       .select("user_id, invited_email, status")
@@ -81,7 +85,15 @@ export default async function NewSalePage() {
     isReturning: returningCustomerIds.has(c.id)
   }));
 
-  const products: SellableProduct[] = (productRows ?? []).map((p) => ({
+  const availableByProduct = new Map<string, Set<string>>();
+  for (const row of stockLevelRows ?? []) {
+    if (row.quantity <= 0) continue;
+    if (!availableByProduct.has(row.product_id)) availableByProduct.set(row.product_id, new Set());
+    availableByProduct.get(row.product_id)!.add(row.location_id);
+  }
+  const products: SellableProduct[] = (productRows ?? []).filter((p) =>
+    !context.isBranchScoped || availableByProduct.has(p.id)
+  ).map((p) => ({
     id: p.id,
     sku: p.sku,
     name: p.name,
@@ -139,6 +151,7 @@ export default async function NewSalePage() {
       currency={context.currency}
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
+      canCheckCrossBranchStock={context.canCheckCrossBranchStock}
     />
   );
 }
