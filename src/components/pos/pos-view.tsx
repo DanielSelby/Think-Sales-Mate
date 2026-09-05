@@ -618,15 +618,15 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         </div>
         <span className="flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white" style={{ background: theme.colors.primary }}>{dateLabel}</span>
 
-        <div className="ml-auto flex flex-1 items-center justify-end gap-2">
-          <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
-          <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
-          <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
-          <button title="Calculator" onClick={() => setCalcOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><CalculatorIcon className="h-4 w-4" /></button>
-          <button title="Refresh stock" onClick={() => router.refresh()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><RotateCcw className="h-4 w-4" /></button>
-          <button title="Focus search / scan" onClick={() => searchInputRef.current?.focus()} className="flex h-10 w-10 items-center justify-center rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50"><Keyboard className="h-4 w-4" /></button>
-          <button title="Suspended sales" onClick={() => openHeldList("hold")} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><Pause className="h-4 w-4" /></button>
-          <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
+        <div className="ml-auto flex min-w-0 flex-1 items-center justify-around gap-4 px-3">
+          <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
+          <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
+          <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
+          <button title="Calculator" onClick={() => setCalcOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><CalculatorIcon className="h-4 w-4" /></button>
+          <button title="Refresh stock" onClick={() => router.refresh()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><RotateCcw className="h-4 w-4" /></button>
+          <button title="Focus search / scan" onClick={() => searchInputRef.current?.focus()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50"><Keyboard className="h-4 w-4" /></button>
+          <button title="Suspended sales" onClick={() => openHeldList("hold")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><Pause className="h-4 w-4" /></button>
+          <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
         </div>
 
         <div className="ml-2 flex items-center gap-2 border-l border-ledger-200 pl-4 dark:border-ledger-700">
