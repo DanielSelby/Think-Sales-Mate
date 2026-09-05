@@ -96,6 +96,8 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Import Products",        href: "/inventory/import",          icon: Upload       },
       { label: "New Stock Transfer",     href: "/inventory/transfers/new",   icon: PlusCircle   },
       { label: "Stock Transfer Details", href: "/inventory/transfers",       icon: Truck        },
+      { label: "Branch Stock Request",   href: "/inventory/stock-requests",  icon: ClipboardEdit },
+      { label: "Request History",        href: "/inventory/stock-requests/history", icon: FileText },
       { label: "Stock Adjustment",       href: "/inventory/adjustments",     icon: ClipboardEdit },
       { label: "Stock Taking",           href: "/inventory/stock-taking",    icon: Layers       },
       { label: "Adjustment History",      href: "/inventory/history",        icon: FileText     },

@@ -170,6 +170,15 @@ export async function updateTransferStatus(transferId: string, status: TransferS
 
   if (error) return { error: error.message };
 
+  if (status === "completed") {
+    await supabase
+      .from("stock_requests")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("transfer_id", transferId)
+      .eq("org_id", context.orgId);
+    revalidatePath("/inventory/stock-requests");
+  }
+
   revalidatePath("/inventory/transfers");
   revalidatePath(`/inventory/transfers/${transferId}`);
   revalidatePath("/inventory");

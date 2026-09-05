@@ -5,6 +5,7 @@ export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "void";
 export type BankAccountType = "cash" | "checking" | "savings" | "mobile_money" | "other";
 export type BankTransactionType = "deposit" | "withdrawal";
 export type TransferStatus = "pending" | "in_transit" | "completed" | "cancelled";
+export type StockRequestStatus = "draft" | "pending_approval" | "approved" | "rejected" | "completed";
 export type LocationType = "warehouse" | "branch" | "store" | "distribution_center" | "mobile_van";
 export type SaleStatus = "completed" | "returned" | "cancelled";
 export type PurchaseStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
@@ -292,7 +293,114 @@ export interface Database {
           }
         ];
       };
-
+      stock_requests: {
+        Row: {
+          id: string;
+          org_id: string;
+          request_number: number;
+          requested_by: string;
+          requesting_location_id: string;
+          source_location_id: string;
+          status: StockRequestStatus;
+          priority: "low" | "normal" | "high" | "urgent";
+          expected_delivery_date: string | null;
+          reference: string | null;
+          notes: string | null;
+          rejection_reason: string | null;
+          transfer_id: string | null;
+          submitted_at: string | null;
+          approved_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          request_number?: number;
+          requested_by: string;
+          requesting_location_id: string;
+          source_location_id: string;
+          status?: StockRequestStatus;
+          priority?: "low" | "normal" | "high" | "urgent";
+          expected_delivery_date?: string | null;
+          reference?: string | null;
+          notes?: string | null;
+          rejection_reason?: string | null;
+          transfer_id?: string | null;
+          submitted_at?: string | null;
+          approved_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["stock_requests"]["Row"]>;
+        Relationships: [];
+      };
+      stock_request_items: {
+        Row: {
+          id: string;
+          request_id: string;
+          org_id: string;
+          product_id: string;
+          quantity: number;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          request_id: string;
+          org_id: string;
+          product_id: string;
+          quantity: number;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["stock_request_items"]["Row"]>;
+        Relationships: [];
+      };
+      stock_request_approvals: {
+        Row: {
+          id: string;
+          request_id: string;
+          org_id: string;
+          approver_id: string;
+          decision: "approved" | "rejected";
+          comment: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          request_id: string;
+          org_id: string;
+          approver_id: string;
+          decision: "approved" | "rejected";
+          comment?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["stock_request_approvals"]["Row"]>;
+        Relationships: [];
+      };
+      stock_request_timeline: {
+        Row: {
+          id: string;
+          request_id: string;
+          org_id: string;
+          event: string;
+          actor_id: string | null;
+          details: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          request_id: string;
+          org_id: string;
+          event: string;
+          actor_id?: string | null;
+          details?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["stock_request_timeline"]["Row"]>;
+        Relationships: [];
+      };
       stock_adjustments: {
         Row: {
           id: string;
