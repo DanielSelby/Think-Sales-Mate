@@ -103,6 +103,15 @@ export interface StockTransferFormProps {
   currentUserName?: string;
   currentUserRole?: string;
   currency?: string;
+  initialTransfer?: {
+    fromLocationId: string;
+    toLocationId: string;
+    referenceNo?: string | null;
+    transferDate?: string | null;
+    reason?: string | null;
+    notes?: string | null;
+    items: Array<{ productId: string; quantity: number }>;
+  };
 }
 
 export function StockTransferForm({
@@ -114,6 +123,7 @@ export function StockTransferForm({
   currentUserName = "Administrator",
   currentUserRole = "Administrator",
   currency = "GHS",
+  initialTransfer,
 }: StockTransferFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -165,6 +175,34 @@ export function StockTransferForm({
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!initialTransfer) return;
+    setFromLocationId(initialTransfer.fromLocationId);
+    setToLocationId(initialTransfer.toLocationId);
+    if (initialTransfer.referenceNo) setTransferNumber(initialTransfer.referenceNo);
+    if (initialTransfer.transferDate) setTransferDate(initialTransfer.transferDate);
+    if (initialTransfer.reason) setTransferReason(initialTransfer.reason);
+    setReferenceNotes(initialTransfer.notes ?? "");
+    setItems(initialTransfer.items.map((item) => {
+      const product = products.find((candidate) => candidate.id === item.productId);
+      return {
+        id: `request-${item.productId}`,
+        productId: item.productId,
+        name: product?.name ?? "Product",
+        sku: product?.sku ?? "",
+        barcode: product?.barcode,
+        category: product?.category,
+        imageUrl: product?.imageUrl,
+        sourceQtyOnHand: getStockQty(item.productId, initialTransfer.fromLocationId),
+        destinationQtyOnHand: getStockQty(item.productId, initialTransfer.toLocationId),
+        transferQty: item.quantity,
+        unitCost: product?.unitCost ?? 0,
+        unit: "PCS",
+      };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTransfer]);
 
   // Close dropdowns on outside click
   useEffect(() => {

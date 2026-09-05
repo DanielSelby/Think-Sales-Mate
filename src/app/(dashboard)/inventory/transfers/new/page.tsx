@@ -9,12 +9,13 @@ import {
   type RecentTransferSummary
 } from "@/components/inventory/stock-transfer-form";
 
-export default async function NewStockTransferPage() {
+export default async function NewStockTransferPage({ searchParams }: { searchParams: Promise<{ requestId?: string }> }) {
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
   const supabase = await createClient();
+  const { requestId } = await searchParams;
 
   const [{ data: locationRows }, { data: productRows }, { data: stockLevelRows }, { data: recentRows }] = await Promise.all([
     supabase
@@ -72,6 +73,44 @@ export default async function NewStockTransferPage() {
     };
   });
 
+  let initialTransfer:
+    | {
+        fromLocationId: string;
+        toLocationId: string;
+        referenceNo: string | null;
+        transferDate: string | null;
+        reason: string | null;
+        notes: string | null;
+        items: Array<{ productId: string; quantity: number }>;
+      }
+    | undefined;
+  if (requestId) {
+    const [{ data: request }, { data: requestItems }] = await Promise.all([
+      supabase
+        .from("stock_requests")
+        .select("source_location_id, requesting_location_id, reference, notes")
+        .eq("id", requestId)
+        .eq("org_id", context.orgId)
+        .maybeSingle(),
+      supabase
+        .from("stock_request_items")
+        .select("product_id, quantity")
+        .eq("request_id", requestId)
+        .eq("org_id", context.orgId),
+    ]);
+    if (request) {
+      initialTransfer = {
+        fromLocationId: request.source_location_id,
+        toLocationId: request.requesting_location_id,
+        referenceNo: request.reference,
+        transferDate: new Date().toISOString().slice(0, 10),
+        reason: "Approved branch stock request",
+        notes: request.notes,
+        items: (requestItems ?? []).map((item) => ({ productId: item.product_id, quantity: item.quantity })),
+      };
+    }
+  }
+
   return (
     <StockTransferForm
       locations={locations}
@@ -82,6 +121,7 @@ export default async function NewStockTransferPage() {
       currentUserName={context.userEmail ? context.userEmail.split("@")[0] : "Daniel Kofi"}
       currentUserRole={context.role || "Administrator"}
       currency={context.currency || "GHS"}
+      initialTransfer={initialTransfer}
     />
   );
 }
