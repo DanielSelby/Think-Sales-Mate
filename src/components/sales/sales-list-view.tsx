@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Search, Filter, Plus, Download, Eye, Pencil, Printer,
+  Search, Filter, Plus, Download, Eye, Pencil, Printer, FileText, FileSpreadsheet,
   ChevronLeft, ChevronRight, ShoppingCart, Wallet, Clock3, CheckCircle2, Undo2, Gem, XCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -215,8 +215,8 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Sales</h1>
-          <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">View and manage all sales transactions</p>
+          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Sales Documents</h1>
+          <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">Manage your sales drafts, quotations and invoices</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -238,10 +238,28 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
           >
             <Plus className="h-4 w-4" />
-            New Sale
+            New Document
           </Link>
         </div>
       </div>
+
+      <nav className="flex items-center gap-6 overflow-x-auto border-b border-ledger-100 dark:border-ledger-700">
+        {[
+          { label: "Drafts", href: "/sales/drafts", icon: FileText },
+          { label: "Quotations", href: "/sales/drafts", icon: FileText },
+          { label: "Proformas", href: "/sales/drafts", icon: FileText },
+          { label: "Sales Orders", href: "/sales", icon: FileSpreadsheet },
+          { label: "Invoices", href: "/sales", icon: FileText },
+          { label: "Credit Notes", href: "/sales", icon: FileText },
+        ].map(({ label, href, icon: Icon }) => (
+          <Link key={label} href={href} className={cn(
+            "flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium",
+            label === "Invoices" ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900"
+          )}>
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </Link>
+        ))}
+      </nav>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
@@ -291,15 +309,19 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Filter bar */}
-      <Card accent="neutral">
+      <Card accent="neutral" className="sticky top-2 z-20 shadow-sm">
         <CardContent className="pt-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
+            <button type="button" onClick={resetFilters} className="text-xs font-medium text-signal hover:underline">Clear filters</button>
+          </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="relative min-w-[240px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
               <Input
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                placeholder="Search by invoice or customer name..."
+                placeholder="Search by number, customer or reference..."
                 className="pl-9"
               />
             </div>

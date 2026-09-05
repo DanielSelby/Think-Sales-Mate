@@ -2296,6 +2296,20 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["communication_messages"]["Row"]>;
         Relationships: [];
       };
+      communication_channel_members: {
+        Row: {
+          channel_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          channel_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["communication_channel_members"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       public_product_catalog: {

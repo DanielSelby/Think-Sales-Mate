@@ -46,9 +46,10 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
     const canViewOther = row.can_view_other_users_transactions !== false;
     const canCheckCrossBranchStock = row.can_check_cross_branch_stock === true;
-    const branchScope = (row.branch_scope as "all" | "assigned" | "single") || "assigned";
-    const locationId = row.location_id ?? null;
-    const secondaryLocationIds = (row.secondary_location_ids as string[]) ?? [];
+    const isOwner = row.role === "owner";
+    const branchScope = isOwner ? "all" : ((row.branch_scope as "all" | "assigned" | "single") || "assigned");
+    const locationId = isOwner ? null : (row.location_id ?? null);
+    const secondaryLocationIds = isOwner ? [] : ((row.secondary_location_ids as string[]) ?? []);
 
     const isBranchScoped = Boolean(locationId) && (branchScope !== "all" || (row.role !== "admin" && row.role !== "owner"));
     const allowedLocationIds = locationId

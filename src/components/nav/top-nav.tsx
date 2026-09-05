@@ -443,14 +443,22 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
 function playNotificationBeep(type: string) {
   if (typeof window === "undefined") return;
   const context = new AudioContext();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
   const rejected = type.includes("reject");
-  oscillator.type = rejected ? "sawtooth" : "sine";
-  oscillator.frequency.value = rejected ? 320 : type.includes("order") ? 660 : 880;
-  gain.gain.setValueAtTime(0.035, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + (rejected ? 0.28 : 0.16));
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + (rejected ? 0.28 : 0.16));
+  const transaction = type.includes("order") || type.includes("sale") || type.includes("transaction") || type.includes("product");
+  const first = context.createOscillator();
+  const second = context.createOscillator();
+  const gain = context.createGain();
+  first.type = rejected ? "sawtooth" : transaction ? "triangle" : "sine";
+  second.type = first.type;
+  first.frequency.value = rejected ? 260 : transaction ? 740 : 880;
+  second.frequency.value = rejected ? 180 : transaction ? 1040 : 880;
+  gain.gain.setValueAtTime(transaction ? 0.22 : 0.05, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + (transaction ? 0.55 : rejected ? 0.28 : 0.16));
+  first.connect(gain).connect(context.destination);
+  second.connect(gain);
+  first.start();
+  second.start(context.currentTime + (transaction ? 0.12 : 0));
+  first.stop(context.currentTime + (transaction ? 0.32 : rejected ? 0.28 : 0.16));
+  second.stop(context.currentTime + (transaction ? 0.55 : rejected ? 0.28 : 0.16));
+  void context.resume();
 }

@@ -104,13 +104,16 @@ export default function CommunicationPage() {
 
     const { data: memberRows } = await supabase
       .from("organization_members")
-      .select("user_id")
+      .select("user_id, invited_email, username")
       .eq("org_id", membership.org_id)
       .eq("status", "active");
     const memberIds = (memberRows ?? []).map((row) => row.user_id).filter((id): id is string => Boolean(id));
     const { data: profileRows } = memberIds.length ? await supabase.from("profiles").select("id, full_name").in("id", memberIds) : { data: [] };
-    const profileNames = new Map((profileRows ?? []).map((profile) => [profile.id, profile.full_name || "Team member"]));
-    const memberList = memberIds.map((id) => ({ id, name: profileNames.get(id) || "Team member" }));
+    const profileNames = new Map((profileRows ?? []).map((profile) => [profile.id, profile.full_name]));
+    const memberList = memberIds.map((id) => {
+      const row = (memberRows ?? []).find((member) => member.user_id === id);
+      return { id, name: profileNames.get(id) || row?.username || row?.invited_email?.split("@")[0] || `User ${id.slice(0, 6)}` };
+    });
     setMembers(memberList);
 
     const channelIds = (channelRows ?? []).map((row) => row.id);
@@ -118,7 +121,7 @@ export default function CommunicationPage() {
       ? await supabase.from("communication_messages").select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").in("channel_id", channelIds).order("created_at", { ascending: true })
       : { data: [] };
     const names = new Map(memberList.map((member) => [member.id, member.name]));
-    const loadedMessages = (messageRows ?? []).map((row) => ({ ...row, author: row.user_id === auth.user.id ? displayName : names.get(row.user_id) || "Team member" }));
+    const loadedMessages = (messageRows ?? []).map((row) => ({ ...row, author: row.user_id === auth.user.id ? displayName : names.get(row.user_id) || `User ${row.user_id.slice(0, 6)}` }));
     const storedReadAt = JSON.parse(window.localStorage.getItem(`communication-read-${membership.org_id}-${auth.user.id}`) || "{}") as Record<string, string>;
     setReadAt(storedReadAt);
     const incoming = loadedMessages.filter((item) => item.user_id !== auth.user.id && (!storedReadAt[item.channel_id] || item.created_at > storedReadAt[item.channel_id]));
@@ -208,6 +211,8 @@ export default function CommunicationPage() {
     if (existing) { setActiveId(existing.id); return; }
     const { data, error } = await supabase.from("communication_channels").insert({ org_id: orgId, name: member.name, channel_type: "Direct", created_by: userId }).select("id, name, channel_type, location_id, archived").single();
     if (error) { setNotice(error.message); return; }
+    const { error: memberError } = await supabase.from("communication_channel_members").insert([{ channel_id: data.id, user_id: userId }, { channel_id: data.id, user_id: member.id }]);
+    if (memberError) { setNotice(memberError.message); return; }
     const channel = { ...data, memberCount: 2 };
     setChannels((current) => [...current, channel]);
     setActiveId(channel.id);
@@ -267,8 +272,9 @@ function playBeep() {
   const context = new AudioContext();
   const oscillator = context.createOscillator();
   const gain = context.createGain();
+  oscillator.type = "sine";
   oscillator.frequency.value = 880;
-  gain.gain.setValueAtTime(0.04, context.currentTime);
+  gain.gain.setValueAtTime(0.035, context.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.15);
   oscillator.connect(gain).connect(context.destination);
   oscillator.start();
