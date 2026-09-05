@@ -15,12 +15,12 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
 
   const supabase = await createClient();
 
-  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  const requestedLocationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
   let salesQuery = supabase
       .from("sales")
       .select(`
         id, sale_number, customer_name, sale_date, created_at, total, amount_paid,
-        payment_method, sold_by, status, refunded_amount,
+        payment_method, sold_by, status, refunded_amount, location_id,
         location:business_locations ( name ),
         items:sale_items ( quantity, products ( name ) ),
         customer:customers ( phone )
@@ -28,7 +28,20 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       .eq("org_id", orgId)
       .eq("document_status", "final")
       .order("sale_date", { ascending: false });
-  if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId)) {
+      salesQuery = salesQuery.eq("location_id", requestedLocationId);
+    } else {
+      salesQuery = salesQuery.in("location_id", context.allowedLocationIds);
+    }
+  } else if (requestedLocationId) {
+    salesQuery = salesQuery.eq("location_id", requestedLocationId);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    salesQuery = salesQuery.eq("sold_by", context.userId);
+  }
 
   const [{ data: sales }, { data: locations }, { data: companyProfile }] = await Promise.all([
     salesQuery,
@@ -38,6 +51,11 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
 
   const currency = context.currency;
   const rawSales = sales ?? [];
+
+  const rawLocations = locations ?? [];
+  const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
+    ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
+    : rawLocations;
 
   // sold_by has no declared FK relationship on `sales`, so resolve staff
   // names with a separate lookup rather than assuming embedding works.
@@ -83,7 +101,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
     returnedAmount: rows.reduce((sum, r) => sum + r.refundedAmount, 0),
   };
 
-  const locationNames = Array.from(new Set((locations ?? []).map((l) => l.name)));
+  const locationNames = Array.from(new Set(scopedLocations.map((l) => l.name)));
   const salesRepNames = Array.from(new Set(rows.map((r) => r.soldByName).filter((n) => n !== "—")));
 
   return (
@@ -92,7 +110,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       kpis={kpis}
       currency={currency}
       locations={locationNames}
-      initialLocation={locationId ? (locations ?? []).find((l) => l.id === locationId)?.name ?? "all" : "all"}
+      initialLocation={requestedLocationId ? scopedLocations.find((l) => l.id === requestedLocationId)?.name ?? "all" : "all"}
       salesReps={salesRepNames}
       orgName={context.orgName}
       logoUrl={companyProfile?.logo_url ?? null}

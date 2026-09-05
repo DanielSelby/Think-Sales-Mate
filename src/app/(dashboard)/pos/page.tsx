@@ -26,6 +26,11 @@ export default async function PosPage() {
   ]);
 
   const rawProducts = products ?? [];
+  const rawLocations = locations ?? [];
+  const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
+    ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
+    : rawLocations;
+
   const categories = Array.from(new Set(rawProducts.map((p) => p.category).filter(Boolean))) as string[];
   const brands = Array.from(new Set(rawProducts.map((p) => p.brand).filter(Boolean))) as string[];
 
@@ -44,7 +49,7 @@ export default async function PosPage() {
       }))}
       categories={categories}
       brands={brands}
-      locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name }))}
+      locations={scopedLocations.map((l) => ({ id: l.id, name: l.name }))}
       stockLevels={(stockLevels ?? []).map((s) => ({ productId: s.product_id, locationId: s.location_id, quantity: s.quantity }))}
       currency={context.currency}
       taxRatePercent={15}

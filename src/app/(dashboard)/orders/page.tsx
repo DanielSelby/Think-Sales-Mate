@@ -23,7 +23,7 @@ export default async function OrdersPage() {
     : { data: null };
 
   const canViewAll = can(context.role, "orders.view_all");
-  const userLocationId = member?.location_id ?? null;
+  const userLocationId = context.locationId;
 
   // Build query
   let ordersQuery = supabase
@@ -58,9 +58,15 @@ export default async function OrdersPage() {
     .eq("org_id", context.orgId)
     .order("created_at", { ascending: false });
 
-  // If user is branch-scoped and cannot view all, filter by their branch
-  if (!canViewAll && userLocationId) {
+  // Branch and user scoping
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    ordersQuery = ordersQuery.in("location_id", context.allowedLocationIds);
+  } else if (!canViewAll && userLocationId) {
     ordersQuery = ordersQuery.eq("location_id", userLocationId);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    ordersQuery = ordersQuery.eq("sales_person_id", context.userId);
   }
 
   const [{ data: orders }, { data: locations }, { data: members }, { data: customers }] = await Promise.all([
@@ -70,7 +76,12 @@ export default async function OrdersPage() {
     supabase.from("customers").select("id, name, phone, email").eq("org_id", context.orgId).order("name"),
   ]);
 
-  const locationOptions: LocationOption[] = (locations ?? []).map((l) => ({
+  const rawLocations = locations ?? [];
+  const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
+    ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
+    : rawLocations;
+
+  const locationOptions: LocationOption[] = scopedLocations.map((l) => ({
     id: l.id,
     name: l.name,
     city: l.city,

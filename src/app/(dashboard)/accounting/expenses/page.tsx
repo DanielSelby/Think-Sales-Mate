@@ -13,11 +13,21 @@ export default async function ExpensesPage() {
   if (!context) return null;
 
   const supabase = await createClient();
-  const { data: rows } = await supabase
+  let query = supabase
     .from("expenses")
-    .select("id, category, vendor, description, amount, expense_date")
+    .select("id, category, vendor, description, amount, expense_date, location_id, recorded_by")
     .eq("org_id", context.orgId)
     .order("expense_date", { ascending: false });
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    query = query.in("location_id", context.allowedLocationIds);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    query = query.eq("recorded_by", context.userId);
+  }
+
+  const { data: rows } = await query;
 
   const expenses: ExpenseRow[] = (rows ?? []).map((e) => ({
     id: e.id,

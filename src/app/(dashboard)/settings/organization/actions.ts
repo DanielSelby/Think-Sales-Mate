@@ -24,6 +24,7 @@ export async function inviteMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "staff") as MemberRole;
   const locationId = String(formData.get("location_id") ?? "").trim();
+  const canViewOther = formData.get("can_view_other_users_transactions") !== "false";
 
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
@@ -42,7 +43,8 @@ export async function inviteMember(formData: FormData) {
     invited_email: email,
     role,
     status: "invited",
-    location_id: locationId || null
+    location_id: locationId || null,
+    can_view_other_users_transactions: canViewOther,
   }).select("id").single();
 
   if (memberError) return { error: memberError.message };
@@ -148,6 +150,8 @@ export async function createStaffAccount(formData: FormData) {
       stockAdjustments: formData.get("approval_stock_adjustments") === "true"
     }
   };
+  const canViewOther = formData.get("can_view_other_users_transactions") !== "false";
+
   const { data: member, error: memberError } = await admin
     .from("organization_members")
     .insert({
@@ -165,6 +169,7 @@ export async function createStaffAccount(formData: FormData) {
       branch_scope: branchScope as "all" | "assigned" | "single",
       secondary_location_ids: secondaryLocationIds,
       access_permissions: accessPermissions,
+      can_view_other_users_transactions: canViewOther,
       must_change_password: true
     })
     .select("id")
@@ -184,6 +189,75 @@ export async function createStaffAccount(formData: FormData) {
     temporaryPassword: password,
     email: contactEmail
   };
+}
+
+export interface UpdateMemberAccessScopeInput {
+  memberId: string;
+  fullName?: string;
+  role?: string;
+  department?: string;
+  phone?: string;
+  employeeId?: string;
+  locationId?: string | null;
+  branchScope?: "all" | "assigned" | "single";
+  secondaryLocationIds?: string[];
+  canViewOtherTransactions?: boolean;
+  status?: "active" | "inactive" | "suspended";
+  approvalPermissions?: any;
+}
+
+export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInput) {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "org.manage_members")) {
+    return { error: "You don't have permission to update member access." };
+  }
+
+  const admin = createAdminClient();
+
+  const updatePayload: Record<string, any> = {};
+  if (input.locationId !== undefined) updatePayload.location_id = input.locationId || null;
+  if (input.branchScope !== undefined) updatePayload.branch_scope = input.branchScope;
+  if (input.secondaryLocationIds !== undefined) updatePayload.secondary_location_ids = input.secondaryLocationIds;
+  if (input.canViewOtherTransactions !== undefined) updatePayload.can_view_other_users_transactions = input.canViewOtherTransactions;
+  if (input.department !== undefined) updatePayload.department = input.department;
+  if (input.phone !== undefined) updatePayload.phone = input.phone;
+  if (input.employeeId !== undefined) updatePayload.employee_id = input.employeeId;
+  if (input.status !== undefined) updatePayload.status = input.status === "inactive" ? "suspended" : input.status;
+
+  if (input.role) {
+    const requestedRole = input.role.toLowerCase();
+    const mappedRole = requestedRole === "administrator" || requestedRole === "admin"
+      ? "admin"
+      : requestedRole === "manager" || requestedRole === "branch_manager"
+        ? "manager"
+        : requestedRole === "viewer"
+          ? "viewer"
+          : "staff";
+    updatePayload.role = mappedRole;
+  }
+
+  if (input.approvalPermissions) {
+    updatePayload.access_permissions = {
+      role_key: input.role || "staff",
+      approvals: input.approvalPermissions
+    };
+  }
+
+  const { error } = await (admin
+    .from("organization_members") as any)
+    .update(updatePayload)
+    .eq("id", input.memberId)
+    .eq("org_id", context.orgId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/settings/users");
+  revalidatePath("/sales");
+  revalidatePath("/pos");
+  revalidatePath("/inventory");
+  revalidatePath("/orders");
+  return { success: true };
 }
 
 export async function resetMemberPassword(memberId: string, mode: "email" | "temporary", temporaryPassword?: string) {

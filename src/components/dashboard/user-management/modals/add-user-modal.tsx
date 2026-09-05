@@ -32,6 +32,7 @@ export function AddUserModal({
     locationId: branches[0]?.id ?? "b-head",
     secondaryBranches: [] as string[],
     branchScope: "assigned" as "all" | "assigned" | "single",
+    canViewOtherTransactions: true,
     twoFactorEnforced: true,
     sendInviteEmail: true,
     approvalStockTransfers: false,
@@ -87,6 +88,7 @@ export function AddUserModal({
       secondaryBranches: formData.secondaryBranches,
       secondaryBranchNames: secondaryNames,
       branchScope: formData.branchScope,
+      canViewOtherTransactions: formData.canViewOtherTransactions,
       twoFactorEnabled: formData.twoFactorEnforced,
       joinedAt: new Date().toISOString(),
       lastSignInAt: null,
@@ -364,6 +366,55 @@ export function AddUserModal({
                     </div>
                   </div>
                 )}
+
+                {/* Transaction Visibility Scope */}
+                <div className="pt-2 border-t border-ledger-100 dark:border-ledger-800 space-y-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-900 dark:text-white">
+                      Transaction Visibility Scope
+                    </label>
+                    <p className="text-[11px] text-ledger-400 mb-2">
+                      Choose whether this user can see all transactions or only transactions they personally processed.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, canViewOtherTransactions: true })}
+                      className={`rounded-xl border p-3 text-left transition-all ${
+                        formData.canViewOtherTransactions
+                          ? "border-blue-600 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/40"
+                          : "border-ledger-200 hover:border-ledger-300 dark:border-ledger-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-ink-900 dark:text-white">All Branch Transactions</span>
+                        {formData.canViewOtherTransactions && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+                      </div>
+                      <p className="text-[10px] text-ledger-400">
+                        Can view and report on all sales, orders, and expenses in their assigned branch(es).
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, canViewOtherTransactions: false })}
+                      className={`rounded-xl border p-3 text-left transition-all ${
+                        !formData.canViewOtherTransactions
+                          ? "border-blue-600 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/40"
+                          : "border-ledger-200 hover:border-ledger-300 dark:border-ledger-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-ink-900 dark:text-white">Own Transactions Only</span>
+                        {!formData.canViewOtherTransactions && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+                      </div>
+                      <p className="text-[10px] text-ledger-400">
+                        Restricted to seeing only sales, POS records, and drafts created by themselves.
+                      </p>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

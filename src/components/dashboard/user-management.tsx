@@ -91,7 +91,8 @@ import {
   updateMemberStatus,
   removeMember,
   bulkInviteMembers,
-  resendInvite
+  resendInvite,
+  updateMemberAccessScope
 } from "@/app/(dashboard)/settings/organization/actions";
 import { createStaffAccount, saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
 import { THEMES, type ThemeKey } from "@/store/useAppStore";
@@ -141,6 +142,8 @@ export function UserManagement({
           locationName: u.locationName || fallback.locationName,
           secondaryBranches: u.secondaryBranches || fallback.secondaryBranches,
           secondaryBranchNames: u.secondaryBranchNames || fallback.secondaryBranchNames,
+          branchScope: u.branchScope || fallback.branchScope || "single",
+          canViewOtherTransactions: u.canViewOtherTransactions ?? fallback.canViewOtherTransactions ?? true,
           approvalPermissions: u.approvalPermissions || fallback.approvalPermissions,
           accessPermissions: u.accessPermissions || fallback.accessPermissions,
           performance: fallback.performance,
@@ -462,6 +465,21 @@ export function UserManagement({
     );
 
     showToast(`Updated ${updatedUser.fullName}'s profile`);
+
+    startTransition(async () => {
+      const result = await updateMemberAccessScope({
+        memberId: userId,
+        locationId: updates.locationId ?? oldUser?.locationId ?? null,
+        secondaryLocationIds: updates.secondaryBranches ?? oldUser?.secondaryBranches ?? [],
+        branchScope: updates.branchScope ?? oldUser?.branchScope ?? "single",
+        canViewOtherTransactions: updates.canViewOtherTransactions ?? oldUser?.canViewOtherTransactions ?? true,
+        role: updates.role ?? oldUser?.role,
+        approvalPermissions: updates.approvalPermissions ?? oldUser?.approvalPermissions
+      });
+      if (result?.error) {
+        showToast(`Failed to save access changes: ${result.error}`);
+      }
+    });
   }
 };
 

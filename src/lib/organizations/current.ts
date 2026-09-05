@@ -11,6 +11,9 @@ export interface CurrentOrgContext {
   branchScope: "all" | "assigned" | "single";
   locationId: string | null;
   secondaryLocationIds: string[];
+  canViewOtherTransactions: boolean;
+  isBranchScoped: boolean;
+  allowedLocationIds: string[];
   memberships: Array<{ orgId: string; orgName: string; role: MemberRole }>;
 }
 
@@ -30,24 +33,37 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
 
   const { data: memberRows, error } = await supabase
     .from("organization_members")
-    .select("org_id, role, branch_scope, location_id, secondary_location_ids, organizations(name, currency)")
+    .select("org_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, organizations(name, currency)")
     .eq("user_id", user.id)
     .eq("status", "active");
 
   if (error || !memberRows || memberRows.length === 0) return null;
 
-  const memberships = memberRows.map((row) => {
+  const memberships = memberRows.map((row: any) => {
     // organizations relation may resolve as an object or array depending on
     // schema introspection — normalize defensively.
     const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
+    const canViewOther = row.can_view_other_users_transactions !== false;
+    const branchScope = (row.branch_scope as "all" | "assigned" | "single") || "assigned";
+    const locationId = row.location_id ?? null;
+    const secondaryLocationIds = (row.secondary_location_ids as string[]) ?? [];
+
+    const isBranchScoped = Boolean(locationId) && (branchScope !== "all" || (row.role !== "admin" && row.role !== "owner"));
+    const allowedLocationIds = locationId
+      ? Array.from(new Set([locationId, ...secondaryLocationIds]))
+      : [];
+
     return {
       orgId: row.org_id,
       orgName: org?.name ?? "Untitled organization",
       currency: org?.currency ?? "USD",
       role: row.role as MemberRole,
-      branchScope: row.branch_scope as "all" | "assigned" | "single",
-      locationId: row.location_id,
-      secondaryLocationIds: row.secondary_location_ids ?? []
+      branchScope,
+      locationId,
+      secondaryLocationIds,
+      canViewOtherTransactions: canViewOther,
+      isBranchScoped,
+      allowedLocationIds,
     };
   });
 
@@ -63,6 +79,9 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     branchScope: active.branchScope,
     locationId: active.locationId,
     secondaryLocationIds: active.secondaryLocationIds,
+    canViewOtherTransactions: active.canViewOtherTransactions,
+    isBranchScoped: active.isBranchScoped,
+    allowedLocationIds: active.allowedLocationIds,
     memberships: memberships.map(({ orgId, orgName, role }) => ({ orgId, orgName, role }))
   };
 }

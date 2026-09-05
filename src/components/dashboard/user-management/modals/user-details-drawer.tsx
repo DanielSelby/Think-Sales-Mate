@@ -379,6 +379,25 @@ export function UserDetailsDrawer({
                     </p>
                   )}
                 </div>
+
+                <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Transaction Visibility</span>
+                  <div className="p-3 rounded-lg bg-slate-50/70 border border-ledger-100 dark:bg-slate-800/50 dark:border-ledger-800 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-semibold text-ink-900 dark:text-white">
+                        {user.canViewOtherTransactions !== false ? "All Branch Transactions" : "Own Transactions Only"}
+                      </p>
+                      <p className="text-[11px] text-ledger-400">
+                        {user.canViewOtherTransactions !== false
+                          ? "Can view and report on all branch sales and activity."
+                          : "Restricted to viewing and filtering only their own transactions."}
+                      </p>
+                    </div>
+                    <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${user.canViewOtherTransactions !== false ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}`}>
+                      {user.canViewOtherTransactions !== false ? "Full Branch" : "Isolated"}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
 

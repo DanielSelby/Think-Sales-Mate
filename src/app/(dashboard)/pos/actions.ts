@@ -40,7 +40,21 @@ export async function getRecentPosSales(locationId: string | null, limit: number
     .eq("org_id", context.orgId)
     .order("sale_date", { ascending: false })
     .limit(limit);
-  if (locationId) q = q.eq("location_id", locationId);
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (locationId && context.allowedLocationIds.includes(locationId)) {
+      q = q.eq("location_id", locationId);
+    } else {
+      q = q.in("location_id", context.allowedLocationIds);
+    }
+  } else if (locationId) {
+    q = q.eq("location_id", locationId);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    q = q.eq("sold_by", context.userId);
+  }
+
   const { data } = await q;
   const sales = data ?? [];
   if (sales.length === 0) return [];
@@ -205,7 +219,21 @@ export async function getCashiersToday(locationId: string | null): Promise<Cashi
     .eq("org_id", context.orgId)
     .gte("created_at", start)
     .lt("created_at", end);
-  if (locationId) q = q.eq("location_id", locationId);
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (locationId && context.allowedLocationIds.includes(locationId)) {
+      q = q.eq("location_id", locationId);
+    } else {
+      q = q.in("location_id", context.allowedLocationIds);
+    }
+  } else if (locationId) {
+    q = q.eq("location_id", locationId);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    q = q.eq("sold_by", context.userId);
+  }
+
   const { data: soldByRows } = await q;
   const ids = Array.from(new Set((soldByRows ?? []).map((r) => r.sold_by).filter(Boolean))) as string[];
   if (ids.length === 0) return [];
@@ -252,8 +280,22 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
     .eq("org_id", context.orgId)
     .gte("created_at", start)
     .lt("created_at", end);
-  if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
-  if (cashierId) salesQuery = salesQuery.eq("sold_by", cashierId);
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (locationId && context.allowedLocationIds.includes(locationId)) {
+      salesQuery = salesQuery.eq("location_id", locationId);
+    } else {
+      salesQuery = salesQuery.in("location_id", context.allowedLocationIds);
+    }
+  } else if (locationId) {
+    salesQuery = salesQuery.eq("location_id", locationId);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    salesQuery = salesQuery.eq("sold_by", context.userId);
+  } else if (cashierId) {
+    salesQuery = salesQuery.eq("sold_by", cashierId);
+  }
 
   let expensesQuery = supabase
     .from("expenses")
@@ -261,10 +303,16 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
     .eq("org_id", context.orgId)
     .gte("expense_date", start.slice(0, 10))
     .lte("expense_date", end.slice(0, 10));
-  if (locationId) expensesQuery = expensesQuery.eq("location_id", locationId);
-  // Expenses have no cashier attribution in this schema, so an
-  // individual-cashier close still shows the branch's whole expense total
-  // for the day — there's no way to split it by person.
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (locationId && context.allowedLocationIds.includes(locationId)) {
+      expensesQuery = expensesQuery.eq("location_id", locationId);
+    } else {
+      expensesQuery = expensesQuery.in("location_id", context.allowedLocationIds);
+    }
+  } else if (locationId) {
+    expensesQuery = expensesQuery.eq("location_id", locationId);
+  }
 
   const [{ data: salesRows }, { data: expenseRows }] = await Promise.all([salesQuery, expensesQuery]);
 
@@ -348,7 +396,21 @@ export async function listRegisterClosures(locationId: string | null, limit: num
     .eq("org_id", context.orgId)
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (locationId) q = q.eq("location_id", locationId);
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (locationId && context.allowedLocationIds.includes(locationId)) {
+      q = q.eq("location_id", locationId);
+    } else {
+      q = q.in("location_id", context.allowedLocationIds);
+    }
+  } else if (locationId) {
+    q = q.eq("location_id", locationId);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    q = q.eq("closed_by", context.userId);
+  }
+
   const { data } = await q;
 
   return (data ?? []).map((r) => {
@@ -534,12 +596,22 @@ export async function listHeldSales(kind: HeldSaleKind): Promise<HeldSaleSummary
   const context = await getCurrentOrgContext();
   if (!context) return [];
   const supabase = await createClient();
-  const { data } = await supabase
+  let q = supabase
     .from("held_sales")
     .select("id, customer_name, items, total, created_at")
     .eq("org_id", context.orgId)
     .eq("kind", kind)
     .order("created_at", { ascending: false });
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    q = q.in("location_id", context.allowedLocationIds);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    q = q.eq("created_by", context.userId);
+  }
+
+  const { data } = await q;
 
   return (data ?? []).map((h) => ({
     id: h.id,

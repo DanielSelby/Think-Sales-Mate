@@ -52,6 +52,7 @@ export function CreateStaffAccountModal({
   const [locationId, setLocationId] = useState(branches[0]?.id ?? "");
   const [branchScope, setBranchScope] = useState<"all" | "assigned" | "single">("assigned");
   const [secondaryBranches, setSecondaryBranches] = useState<string[]>([]);
+  const [canViewOtherTransactions, setCanViewOtherTransactions] = useState(true);
   const [approvals, setApprovals] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +87,7 @@ export function CreateStaffAccountModal({
     formData.set("location_id", locationId);
     formData.set("branch_scope", branchScope);
     formData.set("secondary_location_ids", secondaryBranches.join(","));
+    formData.set("can_view_other_users_transactions", String(canViewOtherTransactions));
     Object.entries(approvals).forEach(([key, value]) => formData.set(key, String(value)));
 
     try {
@@ -159,8 +161,42 @@ export function CreateStaffAccountModal({
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Department<select value={department} onChange={(event) => setDepartment(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-900 dark:text-white">{DEPARTMENTS.map((item) => <option key={item}>{item}</option>)}</select></label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Primary branch<select required value={locationId} onChange={(event) => setLocationId(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-900 dark:text-white">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-3">{(["all", "assigned", "single"] as const).map((scope) => <button key={scope} type="button" onClick={() => setBranchScope(scope)} className={`rounded-lg border p-2 text-left text-xs ${branchScope === scope ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" : "border-ledger-200 text-ledger-500 dark:border-ledger-700"}`}><span className="font-semibold">{scope === "all" ? "All branches" : scope === "assigned" ? "Primary + assigned" : "Primary only"}</span></button>)}</div>
+                <div>
+                  <p className="text-xs font-semibold text-ink-900 dark:text-white mb-1.5">Branch Access Scope</p>
+                  <div className="grid gap-2 sm:grid-cols-3">{(["all", "assigned", "single"] as const).map((scope) => <button key={scope} type="button" onClick={() => setBranchScope(scope)} className={`rounded-lg border p-2 text-left text-xs ${branchScope === scope ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" : "border-ledger-200 text-ledger-500 dark:border-ledger-700"}`}><span className="font-semibold">{scope === "all" ? "All branches" : scope === "assigned" ? "Primary + assigned" : "Primary only"}</span></button>)}</div>
+                </div>
                 {branchScope === "assigned" && <div className="grid gap-2 sm:grid-cols-2">{branches.filter((item) => item.id !== locationId).map((item) => <label key={item.id} className="flex items-center gap-2 rounded-lg border border-ledger-100 p-2 text-xs dark:border-ledger-800"><input type="checkbox" checked={secondaryBranches.includes(item.id)} onChange={() => toggleBranch(item.id)} />{item.name}</label>)}</div>}
+
+                {/* Personal Transaction Visibility Scope */}
+                <div className="pt-2 border-t border-ledger-100 dark:border-ledger-800">
+                  <p className="text-xs font-semibold text-ink-900 dark:text-white mb-1.5">Transaction Visibility Scope</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setCanViewOtherTransactions(true)}
+                      className={`rounded-lg border p-2.5 text-left text-xs transition-all ${
+                        canViewOtherTransactions
+                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                          : "border-ledger-200 text-ledger-500 dark:border-ledger-700"
+                      }`}
+                    >
+                      <p className="font-semibold">All Branch Transactions</p>
+                      <p className="text-[10px] text-ledger-400 mt-0.5">Can view all transactions within their branch</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCanViewOtherTransactions(false)}
+                      className={`rounded-lg border p-2.5 text-left text-xs transition-all ${
+                        !canViewOtherTransactions
+                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                          : "border-ledger-200 text-ledger-500 dark:border-ledger-700"
+                      }`}
+                    >
+                      <p className="font-semibold">Own Transactions Only</p>
+                      <p className="text-[10px] text-ledger-400 mt-0.5">Limited to transactions created by themselves</p>
+                    </button>
+                  </div>
+                </div>
               </section>
 
               <section className="space-y-3 border-t border-ledger-100 pt-4 dark:border-ledger-800">

@@ -19,7 +19,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
 
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  const requestedLocationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
   let productsQuery = supabase
       .from("products")
       .select(
@@ -27,13 +27,28 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
       )
       .eq("org_id", context.orgId)
       .order("name");
-  if (locationId) productsQuery = productsQuery.eq("location_id", locationId);
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId)) {
+      productsQuery = productsQuery.eq("location_id", requestedLocationId);
+    }
+  } else if (requestedLocationId) {
+    productsQuery = productsQuery.eq("location_id", requestedLocationId);
+  }
 
   let stockLevelsQuery = supabase
     .from("product_stock_levels")
     .select("product_id, location_id, quantity, business_locations(name)")
     .eq("org_id", context.orgId);
-  if (locationId) stockLevelsQuery = stockLevelsQuery.eq("location_id", locationId);
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId)) {
+      stockLevelsQuery = stockLevelsQuery.eq("location_id", requestedLocationId);
+    } else {
+      stockLevelsQuery = stockLevelsQuery.in("location_id", context.allowedLocationIds);
+    }
+  } else if (requestedLocationId) {
+    stockLevelsQuery = stockLevelsQuery.eq("location_id", requestedLocationId);
+  }
 
   const [{ data: productRows }, { data: locationRows }, { data: stockLevelRows }, { data: recentItemRows }] = await Promise.all([
     productsQuery,
@@ -45,6 +60,11 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
       .eq("org_id", context.orgId)
       .gte("created_at", since30d)
   ]);
+
+  const rawLocations = locationRows ?? [];
+  const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
+    ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
+    : rawLocations;
 
   const stockLevelsByProduct = new Map<string, { locationId: string; locationName: string; quantity: number }[]>();
   for (const sl of stockLevelRows ?? []) {
@@ -62,7 +82,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
     const location = Array.isArray(p.business_locations) ? p.business_locations[0] : p.business_locations;
     const stockLevels = stockLevelsByProduct.get(p.id) ?? [];
     const totalLevelStock = stockLevels.reduce((sum, sl) => sum + sl.quantity, 0);
-    const effectiveStock = stockLevels.length > 0 ? totalLevelStock : p.stock_quantity;
+    const effectiveStock = stockLevels.length > 0 ? totalLevelStock : (context.isBranchScoped ? 0 : p.stock_quantity);
 
     return {
       id: p.id,
@@ -85,7 +105,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
     };
   });
 
-  const locations: CatalogLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
+  const locations: CatalogLocation[] = scopedLocations.map((l) => ({ id: l.id, name: l.name }));
 
   const bestSellerMap = new Map<string, { name: string; unitsSold: number }>();
   for (const row of recentItemRows ?? []) {

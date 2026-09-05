@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { SaleStatus } from "@/types/database";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -554,13 +555,24 @@ export interface DraftSaleRow {
 }
 
 export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
+  const context = await getCurrentOrgContext();
   const supabase = await createClient();
-  const { data } = await supabase
+  let q = supabase
     .from("sales")
-    .select("id, sale_number, document_status, customer_name, sale_date, total, created_at")
+    .select("id, sale_number, document_status, customer_name, sale_date, total, created_at, location_id, sold_by")
     .eq("org_id", orgId)
     .in("document_status", ["draft", "quotation", "proforma"])
     .order("created_at", { ascending: false });
+
+  if (context && context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    q = q.in("location_id", context.allowedLocationIds);
+  }
+
+  if (context && !context.canViewOtherTransactions) {
+    q = q.eq("sold_by", context.userId);
+  }
+
+  const { data } = await q;
 
   return (data ?? []).map((s) => ({
     id: s.id,

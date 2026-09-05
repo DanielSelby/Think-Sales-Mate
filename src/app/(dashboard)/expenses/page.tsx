@@ -19,14 +19,32 @@ export default async function ExpensesPage({ searchParams }: { searchParams?: { 
   const orgId = context.orgId;
   const supabase = await createClient();
 
-  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  const requestedLocationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
   let expensesQuery = supabase.from("expenses").select("*").eq("org_id", orgId).order("expense_date", { ascending: false });
-  if (locationId) expensesQuery = expensesQuery.eq("location_id", locationId);
+
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    if (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId)) {
+      expensesQuery = expensesQuery.eq("location_id", requestedLocationId);
+    } else {
+      expensesQuery = expensesQuery.in("location_id", context.allowedLocationIds);
+    }
+  } else if (requestedLocationId) {
+    expensesQuery = expensesQuery.eq("location_id", requestedLocationId);
+  }
+
+  if (!context.canViewOtherTransactions) {
+    expensesQuery = expensesQuery.eq("recorded_by", context.userId);
+  }
 
   const [{ data: expenses }, { data: locations }] = await Promise.all([
     expensesQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
   ]);
+
+  const rawLocations = locations ?? [];
+  const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
+    ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
+    : rawLocations;
 
   const rows = (expenses ?? []).map((e) => ({
     id: e.id,
@@ -101,7 +119,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams?: { 
       categories={categories}
       paymentMethods={paymentMethods}
       departments={departments}
-      locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name }))}
+      locations={scopedLocations.map((l) => ({ id: l.id, name: l.name }))}
       categoryBreakdown={categoryBreakdown}
       recentActivity={recentActivity}
     />
