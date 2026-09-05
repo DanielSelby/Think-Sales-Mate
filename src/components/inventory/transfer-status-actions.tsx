@@ -14,7 +14,7 @@ export function TransferStatusActions({ transferId, status }: { transferId: stri
     });
   }
 
-  if (status === "completed" || status === "cancelled") return null;
+  if (status === "completed" || status === "cancelled" || status === "received") return null;
 
   return (
     <div className="flex gap-2">
@@ -24,8 +24,8 @@ export function TransferStatusActions({ transferId, status }: { transferId: stri
         </Button>
       )}
       {(status === "pending" || status === "in_transit") && (
-        <Button size="sm" disabled={isPending} onClick={() => handleUpdate("completed")}>
-          Mark completed
+        <Button size="sm" disabled={isPending} onClick={() => handleUpdate("received")}>
+          Mark received
         </Button>
       )}
       <Button size="sm" variant="destructive" disabled={isPending} onClick={() => handleUpdate("cancelled")}>

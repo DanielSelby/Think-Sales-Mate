@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
-import type { TransferStatus } from "@/types/database";
+import type { Database, TransferStatus } from "@/types/database";
 
 export interface TransferItemInput {
   productId: string;
@@ -154,17 +154,35 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
 
 export async function updateTransferStatus(transferId: string, status: TransferStatus) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context) {
     return { error: "You don't have permission to update transfers." };
   }
 
   const supabase = await createClient();
+  if (status === "received" && !can(context.role, "inventory.manage")) {
+    const { data: destination } = await supabase
+      .from("stock_transfers")
+      .select("to_location_id")
+      .eq("id", transferId)
+      .eq("org_id", context.orgId)
+      .maybeSingle();
+    if (!destination || !context.allowedLocationIds.includes(destination.to_location_id)) {
+      return { error: "Only the receiving branch can accept this transfer." };
+    }
+  } else if (status !== "received" && !can(context.role, "inventory.manage")) {
+    return { error: "You don't have permission to update transfers." };
+  }
+  const updates: Database["public"]["Tables"]["stock_transfers"]["Update"] = {
+    status,
+    completed_at: status === "completed" ? new Date().toISOString() : null
+  };
+  if (status === "received") {
+    updates.received_at = new Date().toISOString();
+    updates.received_by = context.userId;
+  }
   const { error } = await supabase
     .from("stock_transfers")
-    .update({
-      status,
-      completed_at: status === "completed" ? new Date().toISOString() : null
-    })
+    .update(updates)
     .eq("id", transferId)
     .eq("org_id", context.orgId);
 

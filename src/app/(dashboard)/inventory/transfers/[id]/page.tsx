@@ -25,7 +25,7 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
   const { data: transfer } = await supabase
     .from("stock_transfers")
     .select(
-      "id, transfer_number, reference_no, status, reason, notes, created_at, completed_at, created_by, from:from_location_id(name), to:to_location_id(name)"
+      "id, transfer_number, reference_no, status, reason, notes, created_at, completed_at, created_by, from_location_id, to_location_id, from:from_location_id(name), to:to_location_id(name)"
     )
     .eq("id", id)
     .eq("org_id", context.orgId)
@@ -86,7 +86,7 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
         <p className="text-xs text-ledger-400">Requested by {requestedByEmail}</p>
       </div>
 
-      {can(context.role, "inventory.manage") && (
+      {(can(context.role, "inventory.manage") || (transfer.status === "in_transit" && context.allowedLocationIds.includes(transfer.to_location_id))) && (
         <TransferStatusActions transferId={transfer.id} status={transfer.status} />
       )}
 

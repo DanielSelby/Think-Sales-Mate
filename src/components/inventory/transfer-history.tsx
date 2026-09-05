@@ -404,7 +404,7 @@ export function TransferHistory({
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-ink-900 dark:text-white font-mono">{t.label}</span>
                           <span className="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-400">
-                            {t.status.replace("_", " ")}
+                            {t.status === "received" ? "accepted" : t.status.replace("_", " ")}
                           </span>
                         </div>
                         <p className="text-[11px] text-ledger-600 dark:text-ledger-300 mt-0.5">
@@ -1063,7 +1063,7 @@ export function TransferHistory({
               <div>
                 <span className="text-ledger-400 block text-[10px]">Status</span>
                 <span className="inline-block font-bold text-emerald-700 dark:text-emerald-400 capitalize">
-                  {selectedTransferForDetail.status.replace("_", " ")}
+                  {selectedTransferForDetail.status === "received" ? "accepted" : selectedTransferForDetail.status.replace("_", " ")}
                 </span>
               </div>
               <div>

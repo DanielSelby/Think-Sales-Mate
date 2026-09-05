@@ -16,6 +16,17 @@ import { deleteDraftSale, type DraftSaleRow } from "@/app/(dashboard)/sales/acti
 import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 
+export interface BranchRequestRow {
+  id: string;
+  label: string;
+  source: string;
+  destination: string;
+  createdAt: string;
+  totalQuantity: number;
+  status: string;
+  transferId: string | null;
+}
+
 const DOC_STATUS_LABEL: Record<DraftSaleRow["documentStatus"], string> = {
   draft: "Draft",
   quotation: "Quotation",
@@ -28,7 +39,7 @@ const DOC_STATUS_TONE: Record<DraftSaleRow["documentStatus"], "neutral" | "amber
   proforma: "signal",
 };
 
-export function DraftsListView({ drafts, currency }: { drafts: DraftSaleRow[]; currency: string }) {
+export function DraftsListView({ drafts, currency, branchRequests = [] }: { drafts: DraftSaleRow[]; currency: string; branchRequests?: BranchRequestRow[] }) {
   const [rows, setRows] = useState(drafts);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>("all");
@@ -37,6 +48,7 @@ export function DraftsListView({ drafts, currency }: { drafts: DraftSaleRow[]; c
   const [isPending, startTransition] = useTransition();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+  const [activeTab, setActiveTab] = useState<"documents" | "requests">("documents");
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -103,12 +115,25 @@ export function DraftsListView({ drafts, currency }: { drafts: DraftSaleRow[]; c
           ["Credit Notes", "/sales", FileText, false],
         ].map(([label, href, Icon, active]) => {
           const TabIcon = Icon as typeof FileText;
-          return <Link key={String(label)} href={String(href)} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium", active ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900")}>
+          return <Link key={String(label)} href={String(href)} onClick={() => setActiveTab("documents")} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium", active && activeTab === "documents" ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900")}>
             <TabIcon className="h-3.5 w-3.5" /> {String(label)}
           </Link>;
-        })}
+        }).concat([
+          <button key="branch-requests" type="button" onClick={() => setActiveTab("requests")} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium", activeTab === "requests" ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900")}>
+            <FileText className="h-3.5 w-3.5" /> Branch Requests
+          </button>
+        ])}
       </nav>
 
+      {activeTab === "requests" ? (
+        <Card accent="neutral" className="overflow-hidden rounded-2xl shadow-card">
+          <div className="border-b border-ledger-100 px-4 py-3 text-xs text-ledger-500 dark:border-ledger-700">{branchRequests.length} branch requests</div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-ledger-100 bg-ledger-50/60 text-ledger-500"><th className="px-4 py-3">Request</th><th className="px-3 py-3">From</th><th className="px-3 py-3">Requesting Branch</th><th className="px-3 py-3">Date</th><th className="px-3 py-3">Qty</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
+            {branchRequests.map((request) => <tr key={request.id}><td className="px-4 py-3 font-mono font-medium text-signal">{request.label}</td><td className="px-3 py-3">{request.source}</td><td className="px-3 py-3">{request.destination}</td><td className="px-3 py-3">{new Date(request.createdAt).toLocaleDateString()}</td><td className="px-3 py-3">{request.totalQuantity}</td><td className="px-3 py-3"><Badge tone={request.status === "approved" || request.status === "completed" ? "signal" : request.status === "rejected" ? "alert" : "neutral"}>{request.status.replace("_", " ")}</Badge></td><td className="px-3 py-3 text-right"><Link href={`/inventory/stock-requests/history?request=${request.id}`} className="rounded-md border border-ledger-200 px-2 py-1 font-medium text-signal hover:bg-signal-soft">Review & Edit</Link>{request.transferId && <Link href={`/inventory/transfers/${request.transferId}`} className="ml-2 text-signal underline">Transfer</Link>}</td></tr>)}
+            {!branchRequests.length && <tr><td colSpan={7} className="px-4 py-14 text-center text-ledger-400">No branch requests found.</td></tr>}
+          </tbody></table></div>
+        </Card>
+      ) : <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiFlipCard color="green" label="Total Drafts" value={`${rows.filter((row) => row.documentStatus === "draft").length}`} icon={<FileText className="h-full w-full" />} detail={formatCurrency(totals.draft, currency)} />
         <KpiFlipCard color="blue" label="Total Quotations" value={`${rows.filter((row) => row.documentStatus === "quotation").length}`} icon={<FileText className="h-full w-full" />} detail={formatCurrency(totals.quotation, currency)} />
@@ -161,6 +186,7 @@ export function DraftsListView({ drafts, currency }: { drafts: DraftSaleRow[]; c
         </div>
         <div className="flex items-center justify-between border-t border-ledger-100 px-4 py-3 text-xs text-ledger-500 dark:border-ledger-700"><span>Rows per page: 10</span><span>Page 1 of 1</span></div>
       </Card>
+      </>}
     </div>
   );
 }

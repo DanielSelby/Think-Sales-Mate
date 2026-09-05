@@ -4,7 +4,7 @@ export type OrgPlan = "trial" | "starter" | "growth" | "enterprise";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "void";
 export type BankAccountType = "cash" | "checking" | "savings" | "mobile_money" | "other";
 export type BankTransactionType = "deposit" | "withdrawal";
-export type TransferStatus = "pending" | "in_transit" | "completed" | "cancelled";
+export type TransferStatus = "pending" | "in_transit" | "received" | "completed" | "cancelled";
 export type StockRequestStatus = "draft" | "pending_approval" | "approved" | "rejected" | "completed";
 export type LocationType = "warehouse" | "branch" | "store" | "distribution_center" | "mobile_van";
 export type SaleStatus = "completed" | "returned" | "cancelled";
@@ -222,6 +222,8 @@ export interface Database {
           created_by: string;
           created_at: string;
           completed_at: string | null;
+          received_at: string | null;
+          received_by: string | null;
         };
         Insert: {
           id?: string;
@@ -237,6 +239,8 @@ export interface Database {
           created_by: string;
           created_at?: string;
           completed_at?: string | null;
+          received_at?: string | null;
+          received_by?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["stock_transfers"]["Row"]>;
         Relationships: [
