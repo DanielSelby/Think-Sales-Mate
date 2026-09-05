@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, CheckCheck, Download, FileText, Info, MoreVertical, Paperclip, Pin, Plus, Search, Send, Smile, Users, Volume2, X } from "lucide-react";
+import { Archive, CheckCheck, Download, FileText, Info, Mic, MoreVertical, Paperclip, Pin, Plus, Search, Send, Smile, Users, Volume2, X } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 
@@ -50,6 +50,9 @@ export default function CommunicationPage() {
   const [notice, setNotice] = useState("");
   const [readAt, setReadAt] = useState<Record<string, string>>({});
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousMessageIds = useRef<Set<string>>(new Set());
 
@@ -130,11 +133,17 @@ export default function CommunicationPage() {
     const profileNames = new Map((profileRows ?? []).map((profile) => [profile.id, profile.full_name]));
     const memberList = memberIds.map((id) => {
       const row = (memberRows ?? []).find((member) => member.user_id === id);
-      return { id, name: profileNames.get(id) || row?.username || row?.invited_email?.split("@")[0] || `User ${id.slice(0, 6)}` };
+      return { id, name: id === auth.user.id ? displayName : profileNames.get(id) || row?.username || row?.invited_email?.split("@")[0] || `User ${id.slice(0, 6)}` };
     });
     setMembers(memberList);
 
-    const channelIds = (channelRows ?? []).map((row) => row.id);
+    const { data: directMemberships } = await supabase
+      .from("communication_channel_members")
+      .select("channel_id")
+      .eq("user_id", auth.user.id);
+    const directIds = new Set((directMemberships ?? []).map((row) => row.channel_id));
+    channelRows = (channelRows ?? []).filter((row) => row.channel_type !== "Direct" || directIds.has(row.id));
+    const channelIds = channelRows.map((row) => row.id);
     const { data: messageRows } = channelIds.length
       ? await supabase.from("communication_messages").select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").in("channel_id", channelIds).order("created_at", { ascending: true })
       : { data: [] };
@@ -147,7 +156,7 @@ export default function CommunicationPage() {
     if (silent && incoming.some((item) => !previousMessageIds.current.has(item.id))) playBeep();
     previousMessageIds.current = new Set(loadedMessages.map((item) => item.id));
     setMessages(loadedMessages);
-    setChannels((channelRows ?? []).map((row) => ({
+    setChannels(channelRows.map((row) => ({
       ...row,
       memberCount: memberList.length,
       latest: loadedMessages.filter((item) => item.channel_id === row.id).at(-1),
@@ -193,6 +202,39 @@ export default function CommunicationPage() {
     setMessages((current) => [...current, next]);
     setChannels((current) => current.map((channel) => channel.id === active.id ? { ...channel, latest: next } : channel));
     setMessage("");
+  };
+
+  const sendVoiceNote = async (blob: Blob) => {
+    if (!active || !userId || !orgId) return;
+    const path = `${orgId}/${active.id}/${userId}/${Date.now()}-voice.webm`;
+    const file = new File([blob], "voice-note.webm", { type: blob.type || "audio/webm" });
+    const { error: uploadError } = await supabase.storage.from("communication-files").upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) { setNotice(uploadError.message); return; }
+    const { data, error } = await supabase.from("communication_messages").insert({ channel_id: active.id, user_id: userId, body: null, attachment_name: file.name, attachment_path: path, attachment_type: file.type, attachment_size: file.size }).select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").single();
+    if (error || !data) { setNotice(error?.message ?? "Could not send voice note."); return; }
+    const next = { ...data, author: userName };
+    setMessages((current) => [...current, next]);
+    setChannels((current) => current.map((channel) => channel.id === active.id ? { ...channel, latest: next } : channel));
+  };
+
+  const toggleVoiceRecording = async () => {
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) { setNotice("Voice recording is not supported in this browser."); return; }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    recordingChunksRef.current = [];
+    recorder.ondataavailable = (event) => { if (event.data.size) recordingChunksRef.current.push(event.data); };
+    recorder.onstop = () => {
+      stream.getTracks().forEach((track) => track.stop());
+      void sendVoiceNote(new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" }));
+    };
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+    setIsRecording(true);
   };
 
   const addFileReference = async (file: File | undefined) => {
@@ -266,11 +308,12 @@ export default function CommunicationPage() {
       </aside>
       <section className="flex min-w-0 flex-1 flex-col">
         {active ? <><header className="flex items-center justify-between border-b border-slate-200 px-5 py-3"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><h2 className="text-sm font-bold text-slate-900">{active.name}</h2><p className="text-[10px] text-slate-400">{active.channel_type} · {active.memberCount} members</p></div></div><div className="flex items-center gap-1 text-slate-500"><button onClick={() => setShowDetails((value) => !value)} className="rounded-lg p-2 hover:bg-slate-50" title="Conversation details"><Info className="h-4 w-4" /></button><button onClick={archiveChannel} className="rounded-lg p-2 hover:bg-slate-50" title={active.archived ? "Restore channel" : "Archive channel"}><Archive className="h-4 w-4" /></button><button onClick={() => setNotice("Use the message box to communicate with this channel.")} className="rounded-lg p-2 hover:bg-slate-50" title="More options"><MoreVertical className="h-4 w-4" /></button></div></header>
-          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body && <p>{item.body}</p>}{item.attachment_path && <a href={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} target="_blank" rel="noreferrer" download={item.attachment_name ?? undefined} className="mt-1 flex items-center gap-2 rounded-lg bg-black/10 px-2 py-1.5 underline"><FileText className="h-4 w-4 shrink-0" />{item.attachment_name}<Download className="ml-auto h-3 w-3" /></a>}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
+          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body && <p>{item.body}</p>}{item.attachment_path && (item.attachment_type?.startsWith("audio/") ? <audio controls src={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} className="mt-1 max-w-full" /> : <a href={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} target="_blank" rel="noreferrer" download={item.attachment_name ?? undefined} className="mt-1 flex items-center gap-2 rounded-lg bg-black/10 px-2 py-1.5 underline"><FileText className="h-4 w-4 shrink-0" />{item.attachment_name}<Download className="ml-auto h-3 w-3" /></a>)}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
           <div className="border-t border-slate-200 bg-white p-3">
             <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => { addFileReference(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5">
               <button onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 text-slate-500 hover:bg-white" title="Attach a file"><Paperclip className="h-4 w-4" /></button>
+              <button onClick={() => void toggleVoiceRecording()} className={`rounded-lg p-2 ${isRecording ? "bg-red-100 text-red-600" : "text-slate-500 hover:bg-white"}`} title={isRecording ? "Stop recording" : "Record voice note"}><Mic className="h-4 w-4" /></button>
               <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void sendMessage()} placeholder="Type a message..." className="min-w-0 flex-1 bg-transparent px-1 text-xs outline-none" />
               <button onClick={() => setMessage((current) => `${current}${current ? " " : ""}🙂`)} className="rounded-lg p-2 text-slate-500 hover:bg-white" title="Add emoji"><Smile className="h-4 w-4" /></button>
               <button onClick={() => void sendMessage()} className="rounded-lg p-2 text-white" style={{ background: theme.colors.primary }} title="Send message"><Send className="h-4 w-4" /></button>
