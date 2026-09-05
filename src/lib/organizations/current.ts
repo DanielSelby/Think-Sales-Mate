@@ -60,7 +60,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
       orgId: row.org_id,
       orgName: org?.name ?? "Untitled organization",
       currency: org?.currency ?? "USD",
-      role: row.role as MemberRole,
+      role: isOwner ? "owner" : row.role as MemberRole,
       branchScope,
       locationId,
       secondaryLocationIds,

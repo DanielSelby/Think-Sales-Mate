@@ -7,6 +7,18 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import type { MemberRole } from "@/lib/rbac";
 
+async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("organization_members")
+    .select("role")
+    .eq("id", memberId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.role === "owner";
+}
+
 async function sendOrganizationInvite(email: string, name: string, orgName: string) {
   const admin = createAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
@@ -307,6 +319,9 @@ export async function updateMemberRole(memberId: string, role: MemberRole) {
   if (!context || !can(context.role, "org.manage_members")) {
     return { error: "You don't have permission to change roles." };
   }
+  if (await targetIsOwner(memberId, context.orgId)) {
+    return { error: "The organization owner is the super admin and cannot be demoted." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("organization_members").update({ role }).eq("id", memberId);
@@ -339,6 +354,9 @@ export async function updateMemberStatus(memberId: string, status: "active" | "s
   const context = await getCurrentOrgContext();
   if (!context || !can(context.role, "org.manage_members")) {
     return { error: "You don't have permission to change member status." };
+  }
+  if (await targetIsOwner(memberId, context.orgId)) {
+    return { error: "The organization owner cannot be suspended." };
   }
 
   const supabase = await createClient();
@@ -378,6 +396,9 @@ export async function removeMember(memberId: string) {
   const context = await getCurrentOrgContext();
   if (!context || !can(context.role, "org.manage_members")) {
     return { error: "You don't have permission to remove members." };
+  }
+  if (await targetIsOwner(memberId, context.orgId)) {
+    return { error: "The organization owner cannot be removed." };
   }
 
   const supabase = await createClient();

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { can } from "@/lib/rbac";
+import { can, isSuperAdmin } from "@/lib/rbac";
 import { UserManagement, type ManagedUser, type UserBranch } from "@/components/dashboard/user-management";
 
 export default async function OrganizationSettingsPage() {
@@ -44,7 +44,9 @@ export default async function OrganizationSettingsPage() {
     }
 
     const fallbackName = nameFromAuth || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-    const accessRole = typeof row.access_permissions?.role_key === "string"
+    const accessRole = row.role === "owner"
+      ? "owner"
+      : typeof row.access_permissions?.role_key === "string"
       ? row.access_permissions.role_key
       : row.role;
 
@@ -58,7 +60,7 @@ export default async function OrganizationSettingsPage() {
       phone: row.phone ?? "",
       employeeId: row.employee_id ?? `TS-EMP-0${i + 1}`,
       role: accessRole,
-      roleLabel: accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff",
+      roleLabel: row.role === "owner" ? "Super Admin" : accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff",
       status: row.status as any,
       department: row.department ?? "Sales & Marketing",
       locationId: row.location_id,
@@ -81,10 +83,10 @@ export default async function OrganizationSettingsPage() {
       <UserManagement
         users={users}
         branches={branches}
-        canManage={can(context.role, "org.manage_members")}
+        canManage={isSuperAdmin(context.role) || can(context.role, "org.manage_members")}
         orgName={context.orgName}
         roleThemes={roleThemes}
-        canManageThemes={can(context.role, "org.manage_members")}
+        canManageThemes={isSuperAdmin(context.role) || can(context.role, "org.manage_members")}
       />
     </div>
   );

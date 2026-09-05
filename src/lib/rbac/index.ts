@@ -13,6 +13,11 @@ export function meetsRole(role: MemberRole, minRole: MemberRole): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[minRole];
 }
 
+/** Owners are the organization super administrators and cannot be restricted by module permissions. */
+export function isSuperAdmin(role: MemberRole): boolean {
+  return role === "owner";
+}
+
 /**
  * Per-module capability map. Extend this as each module (POS, Accounting,
  * HRM, ...) is built, rather than scattering role checks through the UI.
@@ -64,5 +69,5 @@ export const CAPABILITIES = {
 export type Capability = keyof typeof CAPABILITIES;
 
 export function can(role: MemberRole, capability: Capability): boolean {
-  return meetsRole(role, CAPABILITIES[capability]);
+  return isSuperAdmin(role) || meetsRole(role, CAPABILITIES[capability]);
 }

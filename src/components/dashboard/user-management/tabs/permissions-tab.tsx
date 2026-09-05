@@ -25,7 +25,7 @@ interface PermissionsTabProps {
 
 export function PermissionsTab({ roles, canManage }: PermissionsTabProps) {
   const [search, setSearch] = useState("");
-  const [selectedRoleKey, setSelectedRoleKey] = useState<string>("administrator");
+  const [selectedRoleKey, setSelectedRoleKey] = useState<string>("owner");
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
     MODULE_CONFIGS.map((m) => m.key)
   );
@@ -59,7 +59,7 @@ export function PermissionsTab({ roles, canManage }: PermissionsTabProps) {
         <div>
           <h2 className="text-base font-bold text-ink-900 dark:text-white">Permission Catalog & Governance</h2>
           <p className="text-xs text-ledger-500 dark:text-ledger-400">
-            Granular action capabilities across all 15 business system modules
+            Granular action capabilities across all {MODULE_CONFIGS.length} registered business system modules
           </p>
         </div>
 
@@ -109,7 +109,7 @@ export function PermissionsTab({ roles, canManage }: PermissionsTabProps) {
         ))}
       </div>
 
-      {/* 15 Modules Categories List */}
+      {/* Registered module/page permission categories */}
       <div className="space-y-3">
         {filteredModules.map((mod) => {
           const isExpanded = expandedCategories.includes(mod.key);

@@ -80,6 +80,29 @@ export const PERMISSION_TEMPLATES: { key: string; name: string; description: str
 
 export const DEFAULT_ROLES: RoleDefinition[] = [
   {
+    id: "role-owner",
+    key: "owner",
+    name: "Super Admin",
+    description: "Organization owner with unrestricted access to every page, role, branch, and permission.",
+    userCount: 1,
+    permissionCount: MODULE_CONFIGS.reduce((count, module) => count + module.supportedActions.length, 0),
+    isSystem: true,
+    scope: "all_branches",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800",
+    permissions: MODULE_CONFIGS.reduce((acc, module) => {
+      acc[module.key] = [...module.supportedActions];
+      return acc;
+    }, {} as Record<ModuleCategory, PermissionAction[]>),
+    approvalCapabilities: {
+      stockTransfers: true,
+      purchases: true,
+      expenses: true,
+      priceUpdates: true,
+      stockAdjustments: true,
+      customerOrders: true
+    }
+  },
+  {
     id: "role-admin",
     key: "administrator",
     name: "Administrator",
