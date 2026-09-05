@@ -15,6 +15,7 @@ import {
   BadgeCheck,
   ChevronDown,
   Grid2X2,
+  List,
   Box,
   FileText,
   Headphones,
@@ -75,6 +76,7 @@ export function BrowseView({
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState("all");
   const [sort, setSort] = React.useState("default");
+  const [view, setView] = React.useState<"grid" | "list">("grid");
 
   const categories = React.useMemo(
     () =>
@@ -293,7 +295,10 @@ export function BrowseView({
             {/* =================================================
                 HERO + PRODUCT HEADER — pinned below the top nav
             ================================================= */}
-            <div className="sticky top-[90px] z-20 bg-white pb-1 dark:bg-ink-950">
+            <div
+              className="sticky top-[90px] z-20 isolate bg-white pb-1 will-change-transform dark:bg-ink-950"
+              style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
+            >
             <div className="relative mb-4 min-h-[145px] overflow-hidden rounded-xl border border-ledger-200 bg-gradient-to-r from-[#eef7ef] via-[#f7faf7] to-[#eef7ef] dark:border-ledger-800 dark:from-ink-900 dark:via-ink-850 dark:to-ink-900">
 
               {/* 3D showcase illustration */}
@@ -401,6 +406,35 @@ export function BrowseView({
               </div>
 
               <div className="flex items-center gap-2">
+                <div className="flex items-center overflow-hidden rounded-lg border border-ledger-200 dark:border-ledger-700">
+                  <button
+                    type="button"
+                    onClick={() => setView("grid")}
+                    title="Grid view"
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center transition",
+                      view === "grid"
+                        ? "bg-signal text-white"
+                        : "text-ledger-400 hover:bg-ledger-100 dark:hover:bg-white/[0.05]"
+                    )}
+                  >
+                    <Grid2X2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView("list")}
+                    title="List view"
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center border-l border-ledger-200 transition dark:border-ledger-700",
+                      view === "list"
+                        ? "bg-signal text-white"
+                        : "text-ledger-400 hover:bg-ledger-100 dark:hover:bg-white/[0.05]"
+                    )}
+                  >
+                    <List className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
                 <span className="hidden text-[11px] text-ledger-400 sm:block">
                   Sort by:
                 </span>
@@ -434,6 +468,7 @@ export function BrowseView({
             {/* =================================================
                 PRODUCTS
             ================================================= */}
+            <div className="relative z-0">
             {filtered.length === 0 ? (
               <div className="rounded-xl border border-dashed border-ledger-300 bg-white py-16 text-center dark:border-ledger-700 dark:bg-ink-900">
                 <Package className="mx-auto h-10 w-10 text-ledger-300" />
@@ -446,7 +481,7 @@ export function BrowseView({
                   Try another search or category.
                 </p>
               </div>
-            ) : (
+            ) : view === "grid" ? (
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
 
                 {filtered.map((product) => (
@@ -467,7 +502,29 @@ export function BrowseView({
                 ))}
 
               </div>
+            ) : (
+              <div className="divide-y divide-ledger-100 overflow-hidden rounded-xl border border-ledger-200 bg-white dark:divide-ledger-800 dark:border-ledger-800 dark:bg-ink-900">
+
+                {filtered.map((product) => (
+                  <ProductListRow
+                    key={product.id}
+                    product={product}
+                    currency={currency}
+                    showPrices={showPrices}
+                    onAdd={() =>
+                      cart.addItem({
+                        productId: product.id,
+                        name: product.name,
+                        unitPrice: product.unitPrice,
+                        maxStock: product.stockQuantity,
+                      })
+                    }
+                  />
+                ))}
+
+              </div>
             )}
+            </div>
           </section>
 
           {/* =====================================================
@@ -825,6 +882,83 @@ function ProductCard({
         </button>
       </div>
     </article>
+  );
+}
+
+/* ===============================================================
+   PRODUCT LIST ROW
+=============================================================== */
+
+function ProductListRow({
+  product,
+  currency,
+  showPrices,
+  onAdd,
+}: {
+  product: CatalogProduct;
+  currency: string;
+  showPrices: boolean;
+  onAdd: () => void;
+}) {
+  const isOutOfStock = product.stockQuantity <= 0;
+
+  return (
+    <div className="flex items-center gap-3 p-3 transition hover:bg-ledger-50 dark:hover:bg-white/[0.03]">
+
+      {/* Thumbnail */}
+      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-ledger-50 dark:bg-ink-800">
+        {product.imageUrl ? (
+          <Image
+            src={product.imageUrl}
+            alt={product.name}
+            fill
+            className="object-contain p-1.5"
+            unoptimized
+          />
+        ) : (
+          <Package className="h-6 w-6 text-ledger-300 dark:text-ledger-600" />
+        )}
+      </div>
+
+      {/* Name / brand */}
+      <div className="min-w-0 flex-1">
+        {product.brand && (
+          <p className="truncate text-[9px] font-semibold uppercase tracking-wide text-ledger-400">
+            {product.brand}
+          </p>
+        )}
+        <p className="truncate text-xs font-semibold text-ink-900 dark:text-white">
+          {product.name}
+        </p>
+        {isOutOfStock && (
+          <span className="mt-0.5 inline-block rounded-md bg-alert px-1.5 py-0.5 text-[9px] font-bold text-white">
+            OUT OF STOCK
+          </span>
+        )}
+      </div>
+
+      {/* Price */}
+      <div className="w-28 shrink-0 text-right">
+        {showPrices ? (
+          <span className="text-xs font-semibold text-ink-900 dark:text-white">
+            {formatCurrency(product.unitPrice, currency)}
+          </span>
+        ) : (
+          <span className="text-[11px] text-ledger-400">Price on request</span>
+        )}
+      </div>
+
+      {/* Add to cart */}
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={isOutOfStock}
+        className="flex h-8 w-28 shrink-0 items-center justify-center gap-1.5 rounded-md bg-signal text-[11px] font-semibold text-white transition hover:bg-signal/90 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {isOutOfStock ? "Sold Out" : "Add"}
+      </button>
+    </div>
   );
 }
 
