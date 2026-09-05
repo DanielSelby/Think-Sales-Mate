@@ -262,7 +262,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </nav>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiFlipCard
           color="blue"
           label="Total Sales"
@@ -279,13 +279,6 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
           featured
         />
         <KpiFlipCard
-          color="amber"
-          label="Outstanding Balance"
-          value={formatCurrency(filteredKpis.outstandingBalance, currency)}
-          icon={<Clock3 className="h-full w-full" />}
-          detail="Total still owed across the filtered sales — each sale's total minus whatever amount has been paid toward it."
-        />
-        <KpiFlipCard
           color="green"
           label="Completed Orders"
           value={`${filteredKpis.completedOrders}`}
@@ -293,18 +286,11 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
           detail="Filtered sales currently marked Completed — excludes any that have since been returned or cancelled."
         />
         <KpiFlipCard
-          color="red"
-          label="Returns"
-          value={formatCurrency(filteredKpis.returnedAmount, currency)}
-          icon={<Undo2 className="h-full w-full" />}
-          detail="Total refunded amount across filtered sales marked as Returned."
-        />
-        <KpiFlipCard
-          color="purple"
-          label="Average Order Value"
-          value={formatCurrency(filteredKpis.averageOrderValue, currency)}
-          icon={<Gem className="h-full w-full" />}
-          detail="Filtered total revenue divided by the number of filtered sales — the typical size of a single transaction."
+          color="amber"
+          label="Outstanding Balance"
+          value={formatCurrency(filteredKpis.outstandingBalance, currency)}
+          icon={<Clock3 className="h-full w-full" />}
+          detail="Total still owed across the filtered sales — each sale's total minus whatever amount has been paid toward it."
         />
       </div>
 

@@ -173,22 +173,6 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
             Purchases <ChevronRight className="h-3.5 w-3.5" /> Purchase Returns <ChevronRight className="h-3.5 w-3.5" /> New Return
           </p>
         </div>
-
-        <div className="flex items-center gap-3 rounded-xl border border-ledger-100 bg-white px-5 py-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
-          {[
-            ["1", "Return Info", true],
-            ["2", "Items", Boolean(purchase)],
-            ["3", "Review & Approval", false],
-          ].map(([number, label, complete], index) => (
-            <React.Fragment key={String(number)}>
-              <div className="flex min-w-0 items-center gap-2">
-                <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold", complete ? "bg-signal text-white" : "border border-ledger-200 text-ledger-400 dark:border-ledger-600")}>{number}</span>
-                <span className={cn("hidden text-xs font-semibold sm:inline", complete ? "text-signal" : "text-ledger-400")}>{label}</span>
-              </div>
-              {index < 2 && <div className="h-px flex-1 bg-ledger-200 dark:bg-ledger-700" />}
-            </React.Fragment>
-          ))}
-        </div>
         <div className="flex items-center gap-3">
           <div className="rounded-md border border-ledger-100 bg-white px-4 py-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900">
             <p className="text-xs text-ledger-400">Return No.</p>
@@ -198,16 +182,34 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
             <p className="text-xs text-ledger-400">Return Date</p>
             <p className="font-medium text-ink-900 dark:text-white">{returnDate}</p>
           </div>
-        </div>
+          </div>
+      </div>
+
+      <div className="flex items-center gap-3 px-2">
+        {[
+          ["1", "Return Info", true],
+          ["2", "Items", Boolean(purchase)],
+          ["3", "Review & Approval", false],
+        ].map(([number, label, complete], index) => (
+          <React.Fragment key={String(number)}>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold", complete ? "bg-signal text-white" : "border border-ledger-200 bg-white text-ledger-400 dark:border-ledger-600 dark:bg-ink-900")}>{number}</span>
+              <span className={cn("text-xs font-semibold", complete ? "text-signal" : "text-ledger-400")}>{label}</span>
+            </div>
+            {index < 2 && <div className="h-px flex-1 bg-ledger-200 dark:bg-ledger-700" />}
+          </React.Fragment>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           {/* Info grid */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <Card accent="neutral" className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Supplier Information</CardTitle></CardHeader>
-              <CardContent className="space-y-3 pt-0">
+          <Card accent="neutral" className="border-l border-l-ledger-100 shadow-sm dark:border-l-ledger-700">
+            <CardHeader className="border-b border-ledger-100 pb-3 dark:border-ledger-700">
+              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Information</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-3">
+              <div className="space-y-3">
                 <Field label="Original Purchase Order" required>
                   <OrderPicker onSelect={loadPurchase} selectedLabel={purchase ? formatReturnNumber(purchase.purchaseNumber).replace("PR-", "PO-") : null} />
                 </Field>
@@ -220,12 +222,9 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
                   <Field label="Phone"><Input value={purchase?.phone ?? ""} disabled className="opacity-70" /></Field>
                 </div>
                 <Field label="Email"><Input value={purchase?.email ?? ""} disabled className="opacity-70" /></Field>
-              </CardContent>
-            </Card>
-
-            <Card accent="neutral">
-              <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Details</CardTitle></CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              </div>
+              <div className="space-y-3">
+                <Field label="Return Date" required><Input type="date" value={returnDate} readOnly /></Field>
                 <Field label="Receiving Location" required>
                   <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
                     <option value="" disabled>Select location</option>
@@ -243,12 +242,8 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
                 <Field label="Reference / Description">
                   <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Short description" />
                 </Field>
-              </CardContent>
-            </Card>
-
-            <Card accent="neutral">
-              <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Additional Information</CardTitle></CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              </div>
+              <div className="space-y-3">
                 <Field label="Notes">
                   <textarea
                     value={notes}
@@ -265,9 +260,10 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
                     <option value="Paid">Paid</option>
                   </Select>
                 </Field>
-              </CardContent>
-            </Card>
-          </div>
+                <Field label="Approval Status"><Input value="Pending Approval" readOnly /></Field>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Returned items table */}
           <Card accent="neutral" className="shadow-sm">
