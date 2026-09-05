@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, CheckCheck, FileText, Info, MoreVertical, Paperclip, Pin, Plus, Search, Send, Smile, Users, X } from "lucide-react";
+import { Archive, CheckCheck, Download, FileText, Info, MoreVertical, Paperclip, Pin, Plus, Search, Send, Smile, Users, Volume2, X } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,7 +19,11 @@ type Message = {
   id: string;
   channel_id: string;
   user_id: string;
-  body: string;
+  body: string | null;
+  attachment_name: string | null;
+  attachment_path: string | null;
+  attachment_type: string | null;
+  attachment_size: number | null;
   pinned: boolean;
   created_at: string;
   author: string;
@@ -44,7 +48,10 @@ export default function CommunicationPage() {
   const [showDetails, setShowDetails] = useState(true);
   const [busy, setBusy] = useState(true);
   const [notice, setNotice] = useState("");
+  const [readAt, setReadAt] = useState<Record<string, string>>({});
+  const [unreadCount, setUnreadCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previousMessageIds = useRef<Set<string>>(new Set());
 
   const loadWorkspace = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -108,10 +115,16 @@ export default function CommunicationPage() {
 
     const channelIds = (channelRows ?? []).map((row) => row.id);
     const { data: messageRows } = channelIds.length
-      ? await supabase.from("communication_messages").select("id, channel_id, user_id, body, pinned, created_at").in("channel_id", channelIds).order("created_at", { ascending: true })
+      ? await supabase.from("communication_messages").select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").in("channel_id", channelIds).order("created_at", { ascending: true })
       : { data: [] };
     const names = new Map(memberList.map((member) => [member.id, member.name]));
     const loadedMessages = (messageRows ?? []).map((row) => ({ ...row, author: row.user_id === auth.user.id ? displayName : names.get(row.user_id) || "Team member" }));
+    const storedReadAt = JSON.parse(window.localStorage.getItem(`communication-read-${membership.org_id}-${auth.user.id}`) || "{}") as Record<string, string>;
+    setReadAt(storedReadAt);
+    const incoming = loadedMessages.filter((item) => item.user_id !== auth.user.id && (!storedReadAt[item.channel_id] || item.created_at > storedReadAt[item.channel_id]));
+    setUnreadCount(incoming.length);
+    if (silent && incoming.some((item) => !previousMessageIds.current.has(item.id))) playBeep();
+    previousMessageIds.current = new Set(loadedMessages.map((item) => item.id));
     setMessages(loadedMessages);
     setChannels((channelRows ?? []).map((row) => ({
       ...row,
@@ -134,14 +147,26 @@ export default function CommunicationPage() {
   const activeMessages = messages.filter((item) => item.channel_id === active?.id);
   const visibleChannels = channels.filter((item) => {
     const matchesSearch = `${item.name} ${item.latest?.body ?? ""}`.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === "All" || (filter === "Archived" && item.archived) || (filter === "Direct" && item.channel_type === "Direct") || (filter === "Groups" && item.channel_type === "Group") || (filter === "Branches" && item.channel_type === "Branch") || (filter === "Announcements" && item.channel_type === "Announcement");
+    const matchesFilter = filter === "All" || (filter === "Unread" && Boolean(item.latest && item.latest.user_id !== userId && (!readAt[item.id] || item.latest.created_at > readAt[item.id]))) || (filter === "Archived" && item.archived) || (filter === "Direct" && item.channel_type === "Direct") || (filter === "Groups" && item.channel_type === "Group") || (filter === "Branches" && item.channel_type === "Branch") || (filter === "Announcements" && item.channel_type === "Announcement");
     return matchesSearch && matchesFilter && (filter === "Archived" || !item.archived);
   });
+
+  useEffect(() => {
+    if (active?.id) markRead(active.id);
+  }, [active?.id]);
+
+  const markRead = (channelId: string) => {
+    const timestamp = new Date().toISOString();
+    const next = { ...readAt, [channelId]: timestamp };
+    setReadAt(next);
+    setUnreadCount(messages.filter((item) => item.user_id !== userId && item.channel_id !== channelId && (!next[item.channel_id] || item.created_at > next[item.channel_id])).length);
+    if (orgId && userId) window.localStorage.setItem(`communication-read-${orgId}-${userId}`, JSON.stringify(next));
+  };
 
   const sendMessage = async () => {
     const body = message.trim();
     if (!body || !active || !userId) return;
-    const { data, error } = await supabase.from("communication_messages").insert({ channel_id: active.id, user_id: userId, body }).select("id, channel_id, user_id, body, pinned, created_at").single();
+    const { data, error } = await supabase.from("communication_messages").insert({ channel_id: active.id, user_id: userId, body }).select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").single();
     if (error) { setNotice(error.message); return; }
     const next = { ...data, author: userName };
     setMessages((current) => [...current, next]);
@@ -149,10 +174,21 @@ export default function CommunicationPage() {
     setMessage("");
   };
 
-  const addFileReference = (file: File | undefined) => {
+  const addFileReference = async (file: File | undefined) => {
     if (!file) return;
-    setMessage((current) => `${current}${current ? " " : ""}[File: ${file.name}]`);
-    setNotice(`Attached ${file.name} to the message.`);
+    if (!active || !orgId || !userId) return;
+    if (file.size > 25 * 1024 * 1024) { setNotice("Files must be 25 MB or smaller."); return; }
+    setNotice(`Uploading ${file.name}...`);
+    const path = `${orgId}/${active.id}/${userId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const { error: uploadError } = await supabase.storage.from("communication-files").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+    if (uploadError) { setNotice(uploadError.message); return; }
+    const { data, error } = await supabase.from("communication_messages").insert({ channel_id: active.id, user_id: userId, body: message.trim() || null, attachment_name: file.name, attachment_path: path, attachment_type: file.type || "application/octet-stream", attachment_size: file.size }).select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").single();
+    if (error) { setNotice(error.message); return; }
+    const next = { ...data, author: userName };
+    setMessages((current) => [...current, next]);
+    setChannels((current) => current.map((channel) => channel.id === active.id ? { ...channel, latest: next } : channel));
+    setMessage("");
+    setNotice(`Attached ${file.name}.`);
   };
 
   const createChannel = async () => {
@@ -162,6 +198,17 @@ export default function CommunicationPage() {
     const { data, error } = await supabase.from("communication_channels").insert({ org_id: orgId, name: name.trim(), channel_type: "Group", created_by: userId }).select("id, name, channel_type, location_id, archived").single();
     if (error) { setNotice(error.message); return; }
     const channel = { ...data, memberCount: members.length };
+    setChannels((current) => [...current, channel]);
+    setActiveId(channel.id);
+  };
+
+  const startDirectChat = async (member: { id: string; name: string }) => {
+    if (!orgId || !userId) return;
+    const existing = channels.find((channel) => channel.channel_type === "Direct" && channel.name === member.name);
+    if (existing) { setActiveId(existing.id); return; }
+    const { data, error } = await supabase.from("communication_channels").insert({ org_id: orgId, name: member.name, channel_type: "Direct", created_by: userId }).select("id, name, channel_type, location_id, archived").single();
+    if (error) { setNotice(error.message); return; }
+    const channel = { ...data, memberCount: 2 };
     setChannels((current) => [...current, channel]);
     setActiveId(channel.id);
   };
@@ -187,14 +234,14 @@ export default function CommunicationPage() {
         <div className="border-b border-slate-100 p-4">
           <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Workspace</p><h1 className="mt-1 text-lg font-bold text-slate-900">Communication</h1></div><button onClick={createChannel} className="rounded-xl p-2 text-blue-600 hover:bg-blue-50" title="Create channel"><Plus className="h-4 w-4" /></button></div>
           <div className="relative mt-4"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search conversations..." className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs outline-none focus:border-blue-400" /></div>
-          <div className="mt-3 flex gap-1 overflow-x-auto pb-1">{tabs.map((tab) => <button key={tab} onClick={() => setFilter(tab)} className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${filter === tab ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50"}`}>{tab}</button>)}</div>
+          <div className="mt-3 flex gap-1 overflow-x-auto pb-1">{tabs.map((tab) => <button key={tab} onClick={() => setFilter(tab)} className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${filter === tab ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50"}`}>{tab}{tab === "Unread" && unreadCount > 0 && <span className="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] text-white">{unreadCount}</span>}</button>)}</div>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">{visibleChannels.map((item) => <button key={item.id} onClick={() => setActiveId(item.id)} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition ${active?.id === item.id ? "bg-blue-50" : "hover:bg-slate-50"}`}><Avatar label={item.name[0]} color={theme.colors.primary} /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2"><strong className="truncate text-xs text-slate-800">{item.name}</strong><span className="shrink-0 text-[10px] text-slate-400">{item.latest ? formatTime(item.latest.created_at) : ""}</span></span><span className="mt-1 block truncate text-[11px] text-slate-500">{item.latest?.body || "No messages yet"}</span><span className="mt-1 flex items-center gap-1 text-[9px] text-slate-400"><Users className="h-3 w-3" /> {item.memberCount} members</span></span></button>)}</div>
-        <div className="border-t border-slate-100 p-3"><button onClick={createChannel} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 p-3 text-left text-xs font-semibold text-blue-700"><Plus className="h-4 w-4" /> New team channel</button></div>
+        <div className="flex-1 overflow-y-auto p-2">{filter === "Direct" && <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Start a direct chat</div>}{filter === "Direct" && members.filter((member) => member.id !== userId).map((member) => <button key={member.id} onClick={() => void startDirectChat(member)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-slate-50"><Avatar label={initials(member.name)} color={theme.colors.primary} /><span className="text-xs font-semibold text-slate-800">{member.name}</span></button>)}{visibleChannels.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); markRead(item.id); }} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition ${active?.id === item.id ? "bg-blue-50" : "hover:bg-slate-50"}`}><Avatar label={item.name[0]} color={theme.colors.primary} /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2"><strong className="truncate text-xs text-slate-800">{item.name}</strong><span className="shrink-0 text-[10px] text-slate-400">{item.latest ? formatTime(item.latest.created_at) : ""}</span></span><span className="mt-1 block truncate text-[11px] text-slate-500">{item.latest?.body || (item.latest?.attachment_name ? `📎 ${item.latest.attachment_name}` : "No messages yet")}</span><span className="mt-1 flex items-center gap-1 text-[9px] text-slate-400"><Users className="h-3 w-3" /> {item.memberCount} members</span></span></button>)}</div>
+        <div className="border-t border-slate-100 p-3"><button onClick={createChannel} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 p-3 text-left text-xs font-semibold text-blue-700"><Plus className="h-4 w-4" /> {filter === "Groups" ? "Create group" : "New team channel"}</button></div>
       </aside>
       <section className="flex min-w-0 flex-1 flex-col">
         {active ? <><header className="flex items-center justify-between border-b border-slate-200 px-5 py-3"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><h2 className="text-sm font-bold text-slate-900">{active.name}</h2><p className="text-[10px] text-slate-400">{active.channel_type} · {active.memberCount} members</p></div></div><div className="flex items-center gap-1 text-slate-500"><button onClick={() => setShowDetails((value) => !value)} className="rounded-lg p-2 hover:bg-slate-50" title="Conversation details"><Info className="h-4 w-4" /></button><button onClick={archiveChannel} className="rounded-lg p-2 hover:bg-slate-50" title={active.archived ? "Restore channel" : "Archive channel"}><Archive className="h-4 w-4" /></button><button onClick={() => setNotice("Use the message box to communicate with this channel.")} className="rounded-lg p-2 hover:bg-slate-50" title="More options"><MoreVertical className="h-4 w-4" /></button></div></header>
-          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
+          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body && <p>{item.body}</p>}{item.attachment_path && <a href={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} target="_blank" rel="noreferrer" download={item.attachment_name ?? undefined} className="mt-1 flex items-center gap-2 rounded-lg bg-black/10 px-2 py-1.5 underline"><FileText className="h-4 w-4 shrink-0" />{item.attachment_name}<Download className="ml-auto h-3 w-3" /></a>}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
           <div className="border-t border-slate-200 bg-white p-3">
             <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => { addFileReference(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5">
@@ -215,3 +262,15 @@ export default function CommunicationPage() {
 function initials(name: string) { return name.split(" ").map((part) => part[0]).join("").toUpperCase().slice(0, 2) || "U"; }
 function formatTime(value: string) { return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(value)); }
 function Avatar({ label, color }: { label: string; color: string }) { return <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: color }}>{label.toUpperCase()}</span>; }
+function playBeep() {
+  if (typeof window === "undefined") return;
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.frequency.value = 880;
+  gain.gain.setValueAtTime(0.04, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.15);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.15);
+}

@@ -2273,17 +2273,25 @@ export interface Database {
           id: string;
           channel_id: string;
           user_id: string;
-          body: string;
+          body: string | null;
           pinned: boolean;
           created_at: string;
+          attachment_name: string | null;
+          attachment_path: string | null;
+          attachment_type: string | null;
+          attachment_size: number | null;
         };
         Insert: {
           id?: string;
           channel_id: string;
           user_id: string;
-          body: string;
+          body?: string | null;
           pinned?: boolean;
           created_at?: string;
+          attachment_name?: string | null;
+          attachment_path?: string | null;
+          attachment_type?: string | null;
+          attachment_size?: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["communication_messages"]["Row"]>;
         Relationships: [];

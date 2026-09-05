@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins } from "lucide-react";
 import { CommandBar } from "./command-bar";
@@ -47,6 +47,8 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
   const [unreadCount,       setUnreadCount]       = useState(0);
   const [branchOptions,     setBranchOptions]     = useState<Array<{ id: string; name: string }>>([]);
   const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
+  const [popupNotification, setPopupNotification] = useState<NotificationItem | null>(null);
+  const previousNotificationIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const load = async () => {
@@ -106,6 +108,14 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
             .limit(10);
 
           if (notifs) {
+            const fresh = notifs.filter((notification) => !previousNotificationIds.current.has(notification.id));
+            if (previousNotificationIds.current.size > 0 && fresh.length > 0) {
+              const latest = fresh[0] as NotificationItem;
+              setPopupNotification(latest);
+              playNotificationBeep(latest.type);
+              window.setTimeout(() => setPopupNotification(null), 5000);
+            }
+            previousNotificationIds.current = new Set(notifs.map((notification) => notification.id));
             setNotifications(notifs as NotificationItem[]);
             setUnreadCount(notifs.filter((n) => !n.is_read).length);
           }
@@ -113,6 +123,8 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       } catch { /* silent */ }
     };
     load();
+    const refreshTimer = window.setInterval(load, 5000);
+    return () => window.clearInterval(refreshTimer);
   }, [initialUserName, allowedLocationIds, canViewAllBranches]);
 
   const initials = userName
@@ -334,9 +346,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
           className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10"
         >
           <Bell className="h-4 w-4" />
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm">
-            3
-          </span>
+          {unreadCount > 0 && <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm">{unreadCount}</span>}
         </button>
 
         {showNotifications && (
@@ -344,31 +354,19 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
             <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
             <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-800 dark:text-white">Notifications (3 new)</p>
+                <p className="text-xs font-bold text-slate-800 dark:text-white">Notifications ({unreadCount} new)</p>
                 <button onClick={markAllRead} className="text-[11px] font-medium text-blue-600 hover:underline">
                   Mark all read
                 </button>
               </div>
 
               <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-                <div className="flex items-start gap-2.5 p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
-                    <Package className="h-3 w-3" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-800 dark:text-white">Journal JE-2026-0154 Posted</p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">Sales revenue of {formatCurrency(3250, currentCurrency)} reconciled.</p>
+                {notifications.length === 0 ? <p className="p-4 text-xs text-slate-400">No notifications.</p> : notifications.map((notification) => (
+                  <div key={notification.id} className="flex items-start gap-2.5 p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
+                    <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${notification.type.includes("reject") ? "bg-rose-100 text-rose-600" : notification.type.includes("order") ? "bg-blue-100 text-blue-600" : "bg-emerald-100 text-emerald-600"}`}><CheckCircle2 className="h-3 w-3" /></span>
+                    <div className="min-w-0 flex-1"><p className="font-semibold text-slate-800 dark:text-white">{notification.title}</p><p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">{notification.message}</p></div>
                   </div>
-                </div>
-                <div className="flex items-start gap-2.5 p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300">
-                    <CheckCircle2 className="h-3 w-3" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-800 dark:text-white">Payment Received</p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">{formatCurrency(2400, currentCurrency)} from Apex Logistics cleared.</p>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </>
@@ -437,6 +435,22 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
         )}
       </div>
     </header>
+    {popupNotification && <div className="fixed right-5 top-20 z-[60] w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900"><div className="flex items-start gap-3"><span className="rounded-full bg-blue-100 p-2 text-blue-600"><Bell className="h-4 w-4" /></span><div className="min-w-0"><p className="text-sm font-semibold text-slate-900 dark:text-white">{popupNotification.title}</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{popupNotification.message}</p></div><button onClick={() => setPopupNotification(null)} className="text-xs text-slate-400">×</button></div></div>}
     </>
   );
+}
+
+function playNotificationBeep(type: string) {
+  if (typeof window === "undefined") return;
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const rejected = type.includes("reject");
+  oscillator.type = rejected ? "sawtooth" : "sine";
+  oscillator.frequency.value = rejected ? 320 : type.includes("order") ? 660 : 880;
+  gain.gain.setValueAtTime(0.035, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + (rejected ? 0.28 : 0.16));
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + (rejected ? 0.28 : 0.16));
 }
