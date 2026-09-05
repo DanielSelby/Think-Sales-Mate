@@ -609,8 +609,8 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{error}</div>}
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-ledger-100 bg-white p-2 dark:border-ledger-700 dark:bg-ink-900">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-ledger-500">Location:</span>
           <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -618,18 +618,18 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         </div>
         <span className="flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white" style={{ background: theme.colors.primary }}>{dateLabel}</span>
 
-       <div className="flex flex-1 items-center justify-end gap-1">
-          <button title="Back" onClick={() => router.back()} className="flex h-9 w-9 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
-          <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-9 w-9 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
-          <Link href="/sales" title="Register / all sales" className="flex h-9 w-9 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
-          <button title="Calculator" onClick={() => setCalcOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><CalculatorIcon className="h-4 w-4" /></button>
-          <button title="Refresh stock" onClick={() => router.refresh()} className="flex h-9 w-9 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><RotateCcw className="h-4 w-4" /></button>
-          <button title="Focus search / scan" onClick={() => searchInputRef.current?.focus()} className="flex h-9 w-9 items-center justify-center rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50"><Keyboard className="h-4 w-4" /></button>
-          <button title="Suspended sales" onClick={() => openHeldList("hold")} className="flex h-9 w-9 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><Pause className="h-4 w-4" /></button>
-          <button title="Close Register" onClick={openRegisterDialog} className="flex h-9 w-9 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
+        <div className="ml-auto flex flex-1 items-center justify-end gap-2">
+          <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
+          <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
+          <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
+          <button title="Calculator" onClick={() => setCalcOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><CalculatorIcon className="h-4 w-4" /></button>
+          <button title="Refresh stock" onClick={() => router.refresh()} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><RotateCcw className="h-4 w-4" /></button>
+          <button title="Focus search / scan" onClick={() => searchInputRef.current?.focus()} className="flex h-10 w-10 items-center justify-center rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50"><Keyboard className="h-4 w-4" /></button>
+          <button title="Suspended sales" onClick={() => openHeldList("hold")} className="flex h-10 w-10 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><Pause className="h-4 w-4" /></button>
+          <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="ml-2 flex items-center gap-2 border-l border-ledger-200 pl-4 dark:border-ledger-700">
           <CrossBranchStockButton query={query} enabled={canCheckCrossBranchStock && Boolean(query.trim()) && filteredProducts.length === 0} />
           <Link href="/accounting/expenses/new">
             <Button
