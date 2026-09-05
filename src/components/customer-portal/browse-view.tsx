@@ -296,7 +296,7 @@ export function BrowseView({
                 HERO + PRODUCT HEADER — pinned below the top nav
             ================================================= */}
             <div
-              className="sticky top-[90px] z-20 isolate overflow-hidden bg-signal pb-1 dark:bg-signal"
+              className="sticky top-[90px] z-20 isolate overflow-hidden bg-white pb-1 dark:bg-ink-950"
               style={{ contain: "paint" }}
             >
             <div className="relative mb-4 min-h-[145px] overflow-hidden rounded-xl border border-ledger-200 bg-gradient-to-r from-[#eef7ef] via-[#f7faf7] to-[#eef7ef] dark:border-ledger-800 dark:from-ink-900 dark:via-ink-850 dark:to-ink-900">
