@@ -2448,6 +2448,15 @@ export interface Database {
         Args: Record<string, never>;
         Returns: number;
       };
+      create_communication_channel: {
+        Args: {
+          p_org_id: string;
+          p_name: string;
+          p_channel_type: string;
+          p_location_id?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["communication_channels"]["Row"][];
+      };
     };
     Enums: {
       org_plan: OrgPlan;

@@ -90,16 +90,34 @@ export default function CommunicationPage() {
         .eq("org_id", membership.org_id)
         .eq("is_active", true)
         .order("name");
-      const defaults: Array<{ org_id: string; name: string; channel_type: "Branch" | "Group"; location_id: string | null; created_by: string }> = (locations ?? []).map((location) => ({
-        org_id: membership.org_id,
-        name: location.name,
-        channel_type: "Branch",
-        location_id: location.id,
-        created_by: auth.user.id,
-      }));
-      defaults.push({ org_id: membership.org_id, name: "Management Team", channel_type: "Group", location_id: null, created_by: auth.user.id });
-      const { data: created } = await supabase.from("communication_channels").insert(defaults).select("id, name, channel_type, location_id, archived");
-      channelRows = created ?? [];
+      const defaults = [
+        ...(locations ?? []).map((location) => ({ name: location.name, channelType: "Branch" as const, locationId: location.id })),
+        { name: "Management Team", channelType: "Group" as const, locationId: null },
+      ];
+      const createdRows = [];
+      for (const channel of defaults) {
+        const { data: created, error: createError } = await supabase.rpc("create_communication_channel", {
+          p_org_id: membership.org_id,
+          p_name: channel.name,
+          p_channel_type: channel.channelType,
+          p_location_id: channel.locationId,
+        });
+        if (createError) {
+          setNotice(createError.message);
+          break;
+        }
+        if (created?.[0]) {
+          const row = created[0];
+          createdRows.push({
+            id: row.id,
+            name: row.name,
+            channel_type: row.channel_type,
+            location_id: row.location_id,
+            archived: row.archived,
+          });
+        }
+      }
+      channelRows = createdRows;
     }
 
     const { data: memberRows } = await supabase
@@ -198,8 +216,9 @@ export default function CommunicationPage() {
     if (!orgId || !userId) return;
     const name = window.prompt("Channel name");
     if (!name?.trim()) return;
-    const { data, error } = await supabase.from("communication_channels").insert({ org_id: orgId, name: name.trim(), channel_type: "Group", created_by: userId }).select("id, name, channel_type, location_id, archived").single();
-    if (error) { setNotice(error.message); return; }
+    const { data: created, error } = await supabase.rpc("create_communication_channel", { p_org_id: orgId, p_name: name.trim(), p_channel_type: "Group", p_location_id: null });
+    const data = created?.[0];
+    if (error || !data) { setNotice(error?.message ?? "Could not create the channel."); return; }
     const channel = { ...data, memberCount: members.length };
     setChannels((current) => [...current, channel]);
     setActiveId(channel.id);
@@ -209,8 +228,9 @@ export default function CommunicationPage() {
     if (!orgId || !userId) return;
     const existing = channels.find((channel) => channel.channel_type === "Direct" && channel.name === member.name);
     if (existing) { setActiveId(existing.id); return; }
-    const { data, error } = await supabase.from("communication_channels").insert({ org_id: orgId, name: member.name, channel_type: "Direct", created_by: userId }).select("id, name, channel_type, location_id, archived").single();
-    if (error) { setNotice(error.message); return; }
+    const { data: created, error } = await supabase.rpc("create_communication_channel", { p_org_id: orgId, p_name: member.name, p_channel_type: "Direct", p_location_id: null });
+    const data = created?.[0];
+    if (error || !data) { setNotice(error?.message ?? "Could not create the direct channel."); return; }
     const { error: memberError } = await supabase.from("communication_channel_members").insert([{ channel_id: data.id, user_id: userId }, { channel_id: data.id, user_id: member.id }]);
     if (memberError) { setNotice(memberError.message); return; }
     const channel = { ...data, memberCount: 2 };
