@@ -5,8 +5,11 @@ import { SearchCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { checkCrossBranchStock, type CrossBranchStockResult } from "@/app/(dashboard)/inventory/stock-actions";
+import { THEMES, useAppStore } from "@/store/useAppStore";
 
 export function CrossBranchStockButton({ query, enabled }: { query: string; enabled: boolean }) {
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<CrossBranchStockResult | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -21,7 +24,21 @@ export function CrossBranchStockButton({ query, enabled }: { query: string; enab
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" disabled={!enabled || isPending} onClick={checkStock} title={!enabled ? "Search for a product not available at this branch first" : "Check stock across branches"}>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!enabled || isPending}
+        onClick={checkStock}
+        title={!enabled ? "Search for a product not available at this branch first" : "Check stock across branches"}
+        className="text-white transition-colors disabled:text-ledger-400"
+        style={{ background: enabled ? theme.colors.primary : undefined }}
+        onMouseEnter={(event) => {
+          if (enabled) event.currentTarget.style.background = theme.colors.primaryMid;
+        }}
+        onMouseLeave={(event) => {
+          if (enabled) event.currentTarget.style.background = theme.colors.primary;
+        }}
+      >
         <SearchCheck className="h-4 w-4" />
         Check stock
       </Button>
