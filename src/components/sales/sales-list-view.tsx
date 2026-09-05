@@ -53,6 +53,13 @@ export interface SalesKpis {
   returnedAmount: number;
 }
 
+export interface SalesDocumentKpis {
+  drafts: number;
+  quotations: number;
+  proformas: number;
+  convertedThisMonth: number;
+}
+
 interface SalesListViewProps {
   sales: SaleListRow[];
   kpis: SalesKpis;
@@ -63,6 +70,7 @@ interface SalesListViewProps {
   orgName: string;
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
+  documentKpis: SalesDocumentKpis;
 }
 
 const STATUS_TABS: { key: "all" | SaleStatus; label: string }[] = [
@@ -86,7 +94,7 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
-export function SalesListView({ sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, logoUrl, showLogoOnInvoices }: SalesListViewProps) {
+export function SalesListView({ sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, logoUrl, showLogoOnInvoices, documentKpis }: SalesListViewProps) {
   const { activeTheme } = useAppStore();
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
@@ -265,32 +273,32 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiFlipCard
           color="blue"
-          label="Total Sales"
-          value={`${filteredKpis.totalOrders} orders`}
+          label="Total Drafts"
+          value={`${documentKpis.drafts}`}
           icon={<ShoppingCart className="h-full w-full" />}
           detail="Total number of sales matching the current filters — across every status: completed, returned, and cancelled."
         />
         <KpiFlipCard
           color="green"
-          label="Total Revenue"
-          value={formatCurrency(filteredKpis.totalRevenue, currency)}
+          label="Total Quotations"
+          value={`${documentKpis.quotations}`}
           icon={<Wallet className="h-full w-full" />}
           detail="Sum of the total on every filtered sale, regardless of how much of it has actually been paid so far."
           featured
         />
         <KpiFlipCard
           color="green"
-          label="Completed Orders"
-          value={`${filteredKpis.completedOrders}`}
+          label="Total Proformas"
+          value={`${documentKpis.proformas}`}
           icon={<CheckCircle2 className="h-full w-full" />}
           detail="Filtered sales currently marked Completed — excludes any that have since been returned or cancelled."
         />
         <KpiFlipCard
           color="amber"
-          label="Outstanding Balance"
-          value={formatCurrency(filteredKpis.outstandingBalance, currency)}
-          icon={<Clock3 className="h-full w-full" />}
-          detail="Total still owed across the filtered sales — each sale's total minus whatever amount has been paid toward it."
+          label="Converted This Month"
+          value={`${documentKpis.convertedThisMonth}`}
+          icon={<CheckCircle2 className="h-full w-full" />}
+          detail="Final sales created during the current month."
         />
       </div>
 
@@ -413,28 +421,21 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-ledger-100 text-ink-900 dark:border-ledger-700 dark:text-white">
-                <th className="w-10 px-4 py-3">
-                  <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" />
-                </th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Invoice</th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Date &amp; Time</th>
-                <th className="px-3 py-3 min-w-[150px] font-semibold whitespace-nowrap">Customer</th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Customer #</th>
-                <th className="px-3 py-3 min-w-[120px] font-semibold whitespace-nowrap">Sold By</th>
-                <th className="px-3 py-3 min-w-[180px] font-semibold whitespace-nowrap">Product</th>
-                <th className="px-3 py-3 min-w-[80px] text-right font-semibold whitespace-nowrap">Items</th>
-                <th className="px-3 py-3 min-w-[120px] text-right font-semibold whitespace-nowrap">Total</th>
-                <th className="px-3 py-3 min-w-[140px] font-semibold whitespace-nowrap">Payment Method</th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Payment Status</th>
-                <th className="px-3 py-3 min-w-[120px] font-semibold whitespace-nowrap">Sales Status</th>
-                <th className="px-3 py-3 min-w-[110px] font-semibold whitespace-nowrap">Branch</th>
-                <th className="px-3 py-3 pr-4 min-w-[160px] text-right font-semibold whitespace-nowrap">Actions</th>
+                <th className="px-3 py-3 min-w-[150px] font-semibold whitespace-nowrap">Document</th>
+                <th className="px-3 py-3 min-w-[170px] font-semibold whitespace-nowrap">Customer</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Branch</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Date</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Expiry Date</th>
+                <th className="px-3 py-3 min-w-[130px] text-right font-semibold whitespace-nowrap">Amount</th>
+                <th className="px-3 py-3 min-w-[120px] font-semibold whitespace-nowrap">Status</th>
+                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Created By</th>
+                <th className="px-3 py-3 pr-4 min-w-[150px] text-right font-semibold whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-4 py-12 text-center text-ledger-400">
+                  <td colSpan={9} className="px-4 py-12 text-center text-ledger-400">
                     No sales match your filters.
                   </td>
                 </tr>
@@ -443,14 +444,6 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                 const { date, time } = formatDateTime(s.saleDate);
                 return (
                   <tr key={s.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(s.id)}
-                        onChange={() => toggleRow(s.id)}
-                        className="h-4 w-4 rounded border-ledger-300 accent-signal"
-                      />
-                    </td>
                     <td className="px-3 py-3">
                       <span className="flex items-center gap-1.5">
                         <Link href={`/sales/${s.id}`} className="font-mono text-[13px] font-medium text-signal hover:underline">
@@ -476,29 +469,17 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                         )}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
-                      {date}
-                      <div className="text-xs text-ledger-400">{time}</div>
-                    </td>
                     <td className="px-3 py-3 text-ink-900 dark:text-white">{s.customerName}</td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.customerPhone ?? "—"}</td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.soldByName}</td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
-                      {s.primaryProductName ?? "—"}
-                      {s.productLineCount > 1 && <span className="text-ledger-400"> +{s.productLineCount - 1} more</span>}
-                    </td>
-                    <td className="px-3 py-3 text-right text-ledger-600 dark:text-ledger-300">{s.itemCount}</td>
+                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.locationName ?? "—"}</td>
+                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{date}<div className="text-xs text-ledger-400">{time}</div></td>
+                    <td className="px-3 py-3 text-ledger-400">—</td>
                     <td className="px-3 py-3 text-right font-medium text-ink-900 dark:text-white">
                       {formatCurrency(s.total, currency)}
-                    </td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.paymentMethod ?? "—"}</td>
-                    <td className="px-3 py-3">
-                      <Badge tone={PAYMENT_BADGE_TONE[s.paymentStatus]}>{PAYMENT_STATUS_LABEL[s.paymentStatus]}</Badge>
                     </td>
                     <td className="px-3 py-3">
                       <Badge tone={SALE_STATUS_BADGE_TONE[s.status]}>{SALE_STATUS_LABEL[s.status]}</Badge>
                     </td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.locationName ?? "—"}</td>
+                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.soldByName}</td>
                     <td className="px-3 py-3 pr-4">
                       <div className="flex items-center justify-end gap-1 text-ledger-400">
                         <Link href={`/sales/${s.id}`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white" title="View">

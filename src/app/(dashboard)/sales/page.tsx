@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { derivePaymentStatus } from "@/lib/sales/format";
-import { SalesListView, type SaleListRow, type SalesKpis } from "@/components/sales/sales-list-view";
+import { SalesListView, type SaleListRow, type SalesKpis, type SalesDocumentKpis } from "@/components/sales/sales-list-view";
+import { getDraftSales } from "@/app/(dashboard)/sales/actions";
 
 export const metadata = { title: "Sales · SalesMate ERP" };
 
@@ -43,10 +44,11 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
     salesQuery = salesQuery.eq("sold_by", context.userId);
   }
 
-  const [{ data: sales }, { data: locations }, { data: companyProfile }] = await Promise.all([
+  const [{ data: sales }, { data: locations }, { data: companyProfile }, drafts] = await Promise.all([
     salesQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
     supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", orgId).maybeSingle(),
+    getDraftSales(orgId),
   ]);
 
   const currency = context.currency;
@@ -115,6 +117,16 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       orgName={context.orgName}
       logoUrl={companyProfile?.logo_url ?? null}
       showLogoOnInvoices={companyProfile?.show_logo_on_invoices ?? true}
-    />
+        documentKpis={{
+          drafts: drafts.filter((draft) => draft.documentStatus === "draft").length,
+          quotations: drafts.filter((draft) => draft.documentStatus === "quotation").length,
+          proformas: drafts.filter((draft) => draft.documentStatus === "proforma").length,
+          convertedThisMonth: rows.filter((row) => {
+            const date = new Date(row.saleDate);
+            const now = new Date();
+            return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+          }).length,
+        }}
+      />
   );
 }

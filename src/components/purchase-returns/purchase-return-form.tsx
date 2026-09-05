@@ -208,59 +208,43 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
             <CardHeader className="border-b border-ledger-100 pb-3 dark:border-ledger-700">
               <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Information</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-3">
+            <CardContent className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-4">
               <div className="space-y-3">
-                <Field label="Original Purchase Order" required>
-                  <OrderPicker onSelect={loadPurchase} selectedLabel={purchase ? formatReturnNumber(purchase.purchaseNumber).replace("PR-", "PO-") : null} />
-                </Field>
-                {loadingPurchase && <p className="flex items-center gap-2 text-sm text-ledger-400"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading purchase...</p>}
+                <Field label="Return Number"><Input value="Auto generated" readOnly /></Field>
+                <Field label="Return Date" required><Input type="date" value={returnDate} readOnly /></Field>
+              </div>
+              <div className="space-y-3">
                 <Field label="Supplier">
                   <Input value={purchase?.supplierName ?? ""} disabled className="opacity-70" />
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Contact Person"><Input value={purchase?.contactPerson ?? ""} disabled className="opacity-70" /></Field>
-                  <Field label="Phone"><Input value={purchase?.phone ?? ""} disabled className="opacity-70" /></Field>
-                </div>
-                <Field label="Email"><Input value={purchase?.email ?? ""} disabled className="opacity-70" /></Field>
+                <Field label="Related Purchase Invoice" required>
+                  <OrderPicker onSelect={loadPurchase} selectedLabel={purchase ? formatReturnNumber(purchase.purchaseNumber).replace("PR-", "PO-") : null} />
+                </Field>
+                {loadingPurchase && <p className="flex items-center gap-2 text-xs text-ledger-400"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading purchase...</p>}
               </div>
               <div className="space-y-3">
-                <Field label="Return Date" required><Input type="date" value={returnDate} readOnly /></Field>
-                <Field label="Receiving Location" required>
+                <Field label="Return To Branch" required>
                   <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
                     <option value="" disabled>Select location</option>
                     {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </Select>
                 </Field>
-                <Field label="Return Reason">
+                <Field label="Reason for Return" required>
                   <Select value={returnReason} onChange={(e) => setReturnReason(e.target.value)}>
                     {RETURN_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
                   </Select>
                 </Field>
-                <Field label="Invoice No.">
-                  <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="e.g. INV-2025-04567" />
-                </Field>
-                <Field label="Reference / Description">
-                  <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Short description" />
-                </Field>
               </div>
               <div className="space-y-3">
-                <Field label="Notes">
+                <Field label="Reference / Note">
                   <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Some items were damaged during transport. Supplier to be notified."
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                    rows={4}
+                    placeholder="Items received with physical damage."
                     className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                   />
                 </Field>
-                <Field label="Payment Status">
-                  <Select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
-                    <option value="Unpaid">Unpaid</option>
-                    <option value="Partially Paid">Partially Paid</option>
-                    <option value="Paid">Paid</option>
-                  </Select>
-                </Field>
-                <Field label="Approval Status"><Input value="Pending Approval" readOnly /></Field>
               </div>
             </CardContent>
           </Card>
@@ -286,14 +270,12 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
                       <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-400 dark:border-ledger-700 dark:bg-white/[0.03]">
                         <th className="w-8 px-3 py-2 font-medium">#</th>
                         <th className="px-3 py-2 font-medium">Product</th>
-                        <th className="px-3 py-2 font-medium">SKU</th>
-                        <th className="w-32 px-3 py-2 font-medium">Batch / Serial</th>
-                        <th className="w-20 px-3 py-2 text-right font-medium">Purchased</th>
+                        <th className="px-3 py-2 font-medium">Description</th>
+                        <th className="w-16 px-3 py-2 font-medium">Unit</th>
+                        <th className="w-20 px-3 py-2 text-right font-medium">Received Qty</th>
                         <th className="w-20 px-3 py-2 text-right font-medium">Return Qty</th>
-                        <th className="w-24 px-3 py-2 text-right font-medium">Unit Cost</th>
-                        <th className="w-28 px-3 py-2 text-right font-medium">Return Value</th>
-                        <th className="w-36 px-3 py-2 font-medium">Reason</th>
-                        <th className="w-32 px-3 py-2 font-medium">Condition</th>
+                        <th className="w-24 px-3 py-2 text-right font-medium">Unit Price</th>
+                        <th className="w-28 px-3 py-2 text-right font-medium">Amount</th>
                         <th className="w-10 px-3 py-2" />
                       </tr>
                     </thead>
@@ -301,16 +283,9 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
                       {visibleLines.map((l, i) => (
                         <tr key={l.purchaseItemId}>
                           <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
-                          <td className="px-3 py-2 text-ink-900 dark:text-white">{l.productName}</td>
-                          <td className="px-3 py-2 font-mono text-xs text-ledger-500">{l.sku}</td>
-                          <td className="px-3 py-2">
-                            <input
-                              value={l.batchSerial}
-                              onChange={(e) => updateLine(l.purchaseItemId, { batchSerial: e.target.value })}
-                              placeholder="—"
-                              className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                            />
-                          </td>
+                          <td className="px-3 py-2 text-ink-900 dark:text-white"><p className="font-medium">{l.productName}</p><p className="font-mono text-[10px] text-ledger-400">{l.sku}</p></td>
+                          <td className="px-3 py-2 text-xs text-ledger-500">Purchased product</td>
+                          <td className="px-3 py-2 text-xs text-ledger-500">PCS</td>
                           <td className="px-3 py-2 text-right text-ledger-500">{l.purchasedQty}</td>
                           <td className="px-3 py-2">
                             <input
@@ -326,24 +301,6 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
                           <td className="px-3 py-2 text-right text-ledger-500">{l.unitCost.toFixed(2)}</td>
                           <td className="px-3 py-2 text-right font-mono font-medium text-ink-900 dark:text-white">
                             {(Number(l.returnQty) * l.unitCost).toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2">
-                            <select
-                              value={l.returnReason}
-                              onChange={(e) => updateLine(l.purchaseItemId, { returnReason: e.target.value })}
-                              className="h-8 w-full rounded border border-ledger-200 bg-white px-1.5 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                            >
-                              {RETURN_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                          </td>
-                          <td className="px-3 py-2">
-                            <select
-                              value={l.condition}
-                              onChange={(e) => updateLine(l.purchaseItemId, { condition: e.target.value })}
-                              className="h-8 w-full rounded border border-ledger-200 bg-white px-1.5 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                            >
-                              {ITEM_CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
                           </td>
                           <td className="px-3 py-2 text-right">
                             <button onClick={() => removeLine(l.purchaseItemId)} className="rounded p-1.5 text-alert/70 hover:bg-alert-soft hover:text-alert">

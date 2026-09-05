@@ -83,20 +83,18 @@ export function AttachmentsDropzone({ files, onChange }: AttachmentsDropzoneProp
       {error && <p className="mt-2 text-xs text-alert">{error}</p>}
 
       {files.length > 0 && (
-        <ul className="mt-3 space-y-1.5">
+        <ul className="mt-3 flex flex-wrap gap-2">
           {files.map((f) => (
             <li
               key={f.id}
-              className="flex items-center justify-between gap-2 rounded-md border border-ledger-100 px-3 py-2 text-sm dark:border-ledger-700"
+              className="group relative h-20 w-20 overflow-hidden rounded-lg border border-ledger-100 bg-ledger-50 dark:border-ledger-700 dark:bg-white/[0.03]"
             >
-              <span className="flex min-w-0 items-center gap-2">
-                <FileText className="h-4 w-4 shrink-0 text-ledger-400" />
-                <span className="truncate text-ink-900 dark:text-white">{f.file.name}</span>
-                <span className="shrink-0 text-xs text-ledger-400">{(f.file.size / 1024).toFixed(0)} KB</span>
-              </span>
+              {f.file.type.startsWith("image/") ? (
+                <img src={URL.createObjectURL(f.file)} alt={f.file.name} className="h-full w-full object-cover" />
+              ) : <div className="flex h-full flex-col items-center justify-center gap-1 text-ledger-400"><FileText className="h-6 w-6" /><span className="max-w-[68px] truncate text-[9px]">{f.file.name}</span></div>}
               <button
                 onClick={() => remove(f.id)}
-                className="shrink-0 rounded-md p-1 text-ledger-400 hover:bg-ledger-100 hover:text-alert dark:hover:bg-white/[0.06]"
+                className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-ledger-500 shadow-sm hover:text-alert"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
