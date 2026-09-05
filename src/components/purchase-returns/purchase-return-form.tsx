@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { Info, Trash2, ChevronRight, Loader2, MoreHorizontal, Search } from "lucide-react";
+import { FileText, Info, Trash2, ChevronRight, Loader2, MoreHorizontal, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,9 +41,7 @@ interface LineState extends ReturnableLine {
   condition: string;
 }
 
-const DONUT_COLORS = ["#1d8f5e", "#a8781f", "#68655c", "#b8402f", "#b3ab97", "#8b8677"];
-
-export function PurchaseReturnForm({ locations, bankAccounts, currency, overview, topSuppliers, recentReturns }: PurchaseReturnFormProps) {
+export function PurchaseReturnForm({ locations, bankAccounts, currency }: PurchaseReturnFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
   const [loadingPurchase, setLoadingPurchase] = React.useState(false);
@@ -160,13 +158,10 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
     });
   }
 
-  const donutTotal = overview.reduce((sum, o) => sum + o.count, 0);
-  const maxSupplierTotal = Math.max(1, ...topSuppliers.map((s) => s.total));
-
   return (
     <div className="space-y-4 pb-24 text-xs">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Purchase Return</h1>
           <p className="mt-1 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">
@@ -174,15 +169,11 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="rounded-md border border-ledger-100 bg-white px-4 py-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900">
-            <p className="text-xs text-ledger-400">Return No.</p>
-            <p className="font-mono font-medium text-ink-900 dark:text-white">Auto-generated on save</p>
-          </div>
-          <div className="rounded-md border border-ledger-100 bg-white px-4 py-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900">
-            <p className="text-xs text-ledger-400">Return Date</p>
-            <p className="font-medium text-ink-900 dark:text-white">{returnDate}</p>
-          </div>
-          </div>
+          <span className="rounded-full bg-amber-soft px-3 py-1 text-xs font-semibold text-amber">Draft</span>
+          <Link href="/purchases" className="inline-flex h-9 items-center rounded-lg border border-ledger-200 bg-white px-3 text-xs font-semibold text-ink-900 shadow-sm hover:border-signal hover:text-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+            View Returns List
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 px-2">
@@ -201,14 +192,14 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
-        <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
+        <div className="space-y-4">
           {/* Info grid */}
-          <Card accent="neutral" className="rounded-2xl border-l border-l-ledger-100 shadow-card dark:border-l-ledger-700">
+          <Card accent="neutral" className="rounded-2xl shadow-card">
             <CardHeader className="border-b border-ledger-100 pb-3 dark:border-ledger-700">
-              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Information</CardTitle>
+              <CardTitle className="flex items-center gap-2 normal-case tracking-normal text-[13px] font-bold text-ink-900 dark:text-white"><span className="flex h-6 w-6 items-center justify-center rounded-md bg-signal-soft text-signal"><FileText className="h-3.5 w-3.5" /></span>Return Information</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-4">
+            <CardContent className="grid grid-cols-1 gap-x-4 gap-y-3 pt-4 md:grid-cols-2 xl:grid-cols-4">
               <div className="space-y-3">
                 <Field label="Return Number"><Input value="Auto generated" readOnly /></Field>
                 <Field label="Return Date" required><Input type="date" value={returnDate} readOnly /></Field>
@@ -254,7 +245,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
             <CardHeader className="pb-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Returned Items</CardTitle>
-                <div className="relative w-64">
+                <div className="relative min-w-[240px] flex-1 md:max-w-md">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
                   <Input value={itemSearch} onChange={(event) => setItemSearch(event.target.value)} placeholder="Search product, SKU or barcode..." className="h-8 pl-8 text-xs" />
                 </div>
@@ -317,15 +308,15 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
           </Card>
 
           {/* Attachments / Refund / Notes */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <Card accent="neutral">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Card accent="neutral" className="rounded-2xl shadow-card">
               <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Attachments</CardTitle></CardHeader>
               <CardContent className="pt-0">
                 <AttachmentsDropzone files={attachments} onChange={setAttachments} />
               </CardContent>
             </Card>
 
-            <Card accent="neutral">
+            <Card accent="neutral" className="rounded-2xl shadow-card">
               <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Refund Details</CardTitle></CardHeader>
               <CardContent className="space-y-3 pt-0">
                 <Field label="Refund Method">
@@ -347,7 +338,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
               </CardContent>
             </Card>
 
-            <Card accent="neutral">
+            <Card accent="neutral" className="rounded-2xl shadow-card md:col-span-2">
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4">
                   <button onClick={() => setNotesTab("purchase")} className={cn("text-[13px] font-semibold pb-1", notesTab === "purchase" ? "border-b-2 border-signal text-ink-900 dark:text-white" : "text-ledger-400")}>Purchase Notes</button>
@@ -379,7 +370,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
 
         {/* Sidebar */}
         <div className="space-y-5">
-          <Card accent="signal" className="shadow-sm xl:sticky xl:top-2">
+          <Card accent="signal" className="rounded-2xl shadow-card xl:sticky xl:top-2">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Summary</CardTitle></CardHeader>
             <CardContent className="space-y-2.5 pt-0 text-sm">
               <SummaryRow label="Total Products" value={`${activeLines.length}`} />
@@ -408,73 +399,6 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
             </CardContent>
           </Card>
 
-          <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Overview</CardTitle></CardHeader>
-            <CardContent className="pt-0">
-              {donutTotal === 0 ? (
-                <p className="text-sm text-ledger-400">No return history yet.</p>
-              ) : (
-                <>
-                  <div className="relative mx-auto h-36 w-36">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={overview.map((o, i) => ({ name: o.reason, value: o.count, color: DONUT_COLORS[i % DONUT_COLORS.length] }))} dataKey="value" innerRadius={42} outerRadius={62} paddingAngle={2}>
-                          {overview.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} stroke="none" />)}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="font-display text-lg font-semibold text-ink-900 dark:text-white">{donutTotal}</span>
-                      <span className="text-[10px] text-ledger-400">Items</span>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {overview.map((o, i) => (
-                      <div key={o.reason} className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1.5 text-ledger-500"><span className="h-2 w-2 rounded-full" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} /> {o.reason}</span>
-                        <span className="font-medium text-ink-900 dark:text-white">{o.count} ({Math.round((o.count / donutTotal) * 100)}%)</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Top Suppliers (By Return Value)</CardTitle></CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              {topSuppliers.length === 0 && <p className="text-sm text-ledger-400">No returns yet.</p>}
-              {topSuppliers.map((s) => (
-                <div key={s.name}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="truncate text-ink-900 dark:text-white">{s.name}</span>
-                    <span className="font-mono text-xs text-ledger-500">{formatCurrency(s.total, currency)}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-ledger-100 dark:bg-white/[0.06]">
-                    <div className="h-1.5 rounded-full bg-amber" style={{ width: `${(s.total / maxSupplierTotal) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Recent Purchase Returns</CardTitle></CardHeader>
-            <CardContent className="space-y-2.5 pt-0">
-              {recentReturns.length === 0 && <p className="text-sm text-ledger-400">No returns yet.</p>}
-              {recentReturns.map((r) => (
-                <div key={r.id} className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-mono text-signal">{formatReturnNumber(r.returnNumber)}</p>
-                    <p className="text-xs text-ledger-400">{r.reason}</p>
-                  </div>
-                  <span className="text-xs text-ledger-400">{new Date(r.createdAt).toLocaleDateString("en-GH", { day: "2-digit", month: "short" })}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </div>
       </div>
 
