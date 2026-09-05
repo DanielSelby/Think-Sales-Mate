@@ -164,11 +164,11 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
   const maxSupplierTotal = Math.max(1, ...topSuppliers.map((s) => s.total));
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-4 pb-24 text-xs">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Purchase Return</h1>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Purchase Return</h1>
           <p className="mt-1 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">
             Purchases <ChevronRight className="h-3.5 w-3.5" /> Purchase Returns <ChevronRight className="h-3.5 w-3.5" /> New Return
           </p>
@@ -204,7 +204,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           {/* Info grid */}
-          <Card accent="neutral" className="border-l border-l-ledger-100 shadow-sm dark:border-l-ledger-700">
+          <Card accent="neutral" className="rounded-2xl border-l border-l-ledger-100 shadow-card dark:border-l-ledger-700">
             <CardHeader className="border-b border-ledger-100 pb-3 dark:border-ledger-700">
               <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Information</CardTitle>
             </CardHeader>
@@ -250,7 +250,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
           </Card>
 
           {/* Returned items table */}
-          <Card accent="neutral" className="shadow-sm">
+          <Card accent="neutral" className="rounded-2xl shadow-card">
             <CardHeader className="pb-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Returned Items</CardTitle>
@@ -265,7 +265,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency, overview
                 <p className="py-10 text-center text-sm text-ledger-400">Select an original purchase order above to load its items.</p>
               ) : (
                 <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-400 dark:border-ledger-700 dark:bg-white/[0.03]">
                         <th className="w-8 px-3 py-2 font-medium">#</th>

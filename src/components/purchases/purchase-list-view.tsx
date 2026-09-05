@@ -195,11 +195,11 @@ export function PurchaseListView({
   const maxCategoryTotal = Math.max(1, ...categories.map((c) => c.total));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 text-xs">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">All Purchases</h1>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">All Purchases</h1>
           <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">
             {purchases.length} purchase orders across all suppliers
           </p>
@@ -336,7 +336,7 @@ export function PurchaseListView({
         {/* Table */}
         <Card accent="neutral" className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-xs">
               <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">
                 <tr className="border-b border-ledger-100 text-ledger-400 dark:border-ledger-700">
                   <th className="w-10 px-4 py-3">

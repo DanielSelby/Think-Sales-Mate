@@ -78,11 +78,11 @@ export function DraftsListView({ drafts, currency }: { drafts: DraftSaleRow[]; c
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs text-ledger-400">Sales &gt; Sales Documents</p>
-          <h1 className="mt-1 font-display text-2xl font-semibold text-ink-900 dark:text-white">Sales Documents</h1>
+          <h1 className="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-white">Sales Documents</h1>
           <p className="text-sm text-ledger-500 dark:text-ledger-400">Manage your sales drafts, quotations and proformas</p>
         </div>
         <div className="flex items-center gap-2">
@@ -116,7 +116,7 @@ export function DraftsListView({ drafts, currency }: { drafts: DraftSaleRow[]; c
         <KpiFlipCard color="amber" label="Total Sales Value" value={formatCurrency(rows.reduce((sum, row) => sum + row.total, 0), currency)} icon={<FileText className="h-full w-full" />} detail="Total value of all saved sales documents." />
       </div>
 
-      <Card accent="neutral" className="shadow-sm">
+      <Card accent="neutral" className="rounded-2xl shadow-card">
         <CardContent className="pt-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
@@ -132,13 +132,13 @@ export function DraftsListView({ drafts, currency }: { drafts: DraftSaleRow[]; c
 
       {notice && <div className={cn("flex items-center justify-between rounded-md border px-4 py-2.5 text-sm", notice.tone === "success" ? "border-signal/30 bg-signal-soft text-ink-900" : "border-alert/30 bg-alert-soft text-alert")}>{notice.message}<button onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button></div>}
 
-      <Card accent="neutral" className="overflow-hidden shadow-sm">
+      <Card accent="neutral" className="overflow-hidden rounded-2xl shadow-card">
         <div className="flex items-center justify-between border-b border-ledger-100 px-4 py-3 text-xs text-ledger-500 dark:border-ledger-700">
           <span>Showing {filtered.length} of {rows.length} documents</span>
           <Button variant="outline" size="sm"><Download className="h-3.5 w-3.5" /> Export</Button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-xs">
             <thead><tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
               <th className="px-4 py-3 font-medium">Document</th><th className="px-3 py-3 font-medium">Customer</th><th className="px-3 py-3 font-medium">Date</th><th className="px-3 py-3 font-medium">Expiry Date</th><th className="px-3 py-3 text-right font-medium">Amount</th><th className="px-3 py-3 font-medium">Status</th><th className="px-3 py-3 font-medium">Created By</th><th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
             </tr></thead>

@@ -219,11 +219,11 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 text-xs">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Sales Documents</h1>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Sales Documents</h1>
           <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">Manage your sales drafts, quotations and invoices</p>
         </div>
         <div className="flex items-center gap-2">
@@ -303,7 +303,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Filter bar */}
-      <Card accent="neutral" className="sticky top-2 z-20 shadow-sm">
+      <Card accent="neutral" className="sticky top-2 z-20 rounded-2xl shadow-card">
         <CardContent className="pt-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
@@ -416,9 +416,9 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Table */}
-      <Card accent="neutral" className="overflow-hidden">
+      <Card accent="neutral" className="overflow-hidden rounded-2xl shadow-card">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-ledger-100 text-ink-900 dark:border-ledger-700 dark:text-white">
                 <th className="px-3 py-3 min-w-[150px] font-semibold whitespace-nowrap">Document</th>

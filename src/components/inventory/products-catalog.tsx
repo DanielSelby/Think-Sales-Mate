@@ -434,7 +434,7 @@ export function ProductsCatalog({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 text-xs">
       <input
         ref={fileInputRef}
         type="file"
@@ -450,7 +450,7 @@ export function ProductsCatalog({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Products</h1>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Products</h1>
           <p className="text-sm text-ledger-500 dark:text-ledger-400">
             Manage your product catalog and track inventory in real time.
           </p>
@@ -513,7 +513,7 @@ export function ProductsCatalog({
       </div>
 
       {/* Toolbar */}
-      <div className="space-y-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
