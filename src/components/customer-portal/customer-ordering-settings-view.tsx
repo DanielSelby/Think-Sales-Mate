@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Copy, Check, MapPin, ShieldCheck, Bell, DollarSign, FileText, CheckCircle2, MessageSquare, Mail } from "lucide-react";
+import { Loader2, Copy, Check, MapPin, ShieldCheck, Bell, DollarSign, FileText, CheckCircle2, MessageSquare, Mail, QrCode, Printer, Globe, Phone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,9 +11,18 @@ import { updatePortalSettings, type PortalSettings } from "@/app/(dashboard)/set
 interface SettingsViewProps {
   initial: PortalSettings;
   portalUrl: string;
+  companyProfile: {
+    company_name: string | null;
+    website: string | null;
+    business_email: string | null;
+    business_phone: string | null;
+    contact_email: string | null;
+    contact_phone: string | null;
+    logo_url: string | null;
+  } | null;
 }
 
-export function CustomerOrderingSettingsView({ initial, portalUrl }: SettingsViewProps) {
+export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfile }: SettingsViewProps) {
   const router = useRouter();
   const [settings, setSettings] = React.useState<PortalSettings>(initial);
   const [isPending, startTransition] = React.useTransition();
@@ -114,6 +123,45 @@ export function CustomerOrderingSettingsView({ initial, portalUrl }: SettingsVie
               Customer ordering is currently disabled. Toggle &quot;Enable Customer Ordering&quot; below to accept orders through this link.
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card accent="signal" className="border-ledger-200/80 dark:border-ledger-700/80 print:shadow-none">
+        <CardHeader className="flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="normal-case tracking-normal text-sm font-semibold text-ink-900 dark:text-white flex items-center gap-2">
+              <QrCode className="h-4 w-4 text-signal" />
+              Storefront Business Card
+            </CardTitle>
+            <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">Generate a shareable business card with your company details and storefront QR code.</p>
+          </div>
+          <button type="button" onClick={() => window.print()} className="print:hidden inline-flex items-center gap-1.5 rounded-md border border-ledger-200 bg-white px-3 py-1.5 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:border-ledger-600 dark:bg-ink-800 dark:text-ledger-200">
+            <Printer className="h-3.5 w-3.5" /> Print Card
+          </button>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="mx-auto grid max-w-2xl overflow-hidden rounded-2xl bg-ink-950 text-white shadow-lg sm:grid-cols-[1fr_180px]">
+            <div className="flex min-h-[210px] flex-col justify-between bg-gradient-to-br from-ink-900 via-ink-900 to-signal/80 p-6">
+              <div className="flex items-center gap-3">
+                {companyProfile?.logo_url ? <img src={companyProfile.logo_url} alt="" className="h-12 w-12 rounded-xl bg-white object-contain p-1" /> : <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-lg font-bold">{(companyProfile?.company_name ?? "S").slice(0, 1).toUpperCase()}</div>}
+                <div>
+                  <p className="text-lg font-bold">{companyProfile?.company_name || "Your Company"}</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/65">Customer Storefront</p>
+                </div>
+              </div>
+              <div className="space-y-1.5 text-xs text-white/85">
+                {(companyProfile?.website || portalUrl) && <p className="flex items-center gap-2"><Globe className="h-3.5 w-3.5 text-white/65" />{companyProfile?.website || portalUrl}</p>}
+                {(companyProfile?.business_email || companyProfile?.contact_email) && <p className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-white/65" />{companyProfile.business_email || companyProfile.contact_email}</p>}
+                {(companyProfile?.business_phone || companyProfile?.contact_phone) && <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-white/65" />{companyProfile.business_phone || companyProfile.contact_phone}</p>}
+              </div>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-3 bg-white p-5 text-center">
+              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(portalUrl)}`} alt="QR code for the customer storefront" className="h-32 w-32 rounded-lg" />
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-900">Scan to shop</p>
+              <p className="max-w-[150px] truncate text-[9px] text-ledger-500">{portalUrl}</p>
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] text-ledger-500 dark:text-ledger-400">The card uses contact details from Company Settings. Update them there if anything is missing.</p>
         </CardContent>
       </Card>
 
