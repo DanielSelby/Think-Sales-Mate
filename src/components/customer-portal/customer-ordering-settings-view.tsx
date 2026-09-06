@@ -274,7 +274,6 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
             <div className="business-card-qr flex flex-col items-center justify-center gap-3 bg-white p-5 text-center">
               <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(portalUrl)}`} alt="QR code for the customer storefront" className="h-32 w-32 rounded-lg" />
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-900">Scan to shop</p>
-              <p className="max-w-[150px] truncate text-[9px] text-ledger-500">{portalUrl}</p>
             </div>
           </div>
           <p className="mt-3 text-[11px] text-ledger-500 dark:text-ledger-400">The card uses contact details from Company Settings. Update them there if anything is missing.</p>
