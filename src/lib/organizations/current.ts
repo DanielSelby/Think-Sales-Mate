@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import type { MemberRole } from "@/lib/rbac";
 
 export interface CurrentOrgContext {
@@ -15,6 +16,7 @@ export interface CurrentOrgContext {
   canCheckCrossBranchStock: boolean;
   isBranchScoped: boolean;
   allowedLocationIds: string[];
+  masterLocationId: string | null;
   memberships: Array<{ orgId: string; orgName: string; role: MemberRole }>;
 }
 
@@ -25,6 +27,8 @@ export interface CurrentOrgContext {
  */
 export async function getCurrentOrgContext(activeOrgId?: string): Promise<CurrentOrgContext | null> {
   const supabase = await createClient();
+  const requestCookies = await cookies();
+  const requestedMasterLocationId = requestCookies.get("master_location_id")?.value ?? null;
 
   const {
     data: { user }
@@ -75,6 +79,17 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
   });
 
   const active = memberships.find((m) => m.orgId === activeOrgId) ?? memberships[0];
+  let masterLocationId: string | null = null;
+  if (active.branchScope === "all" && requestedMasterLocationId) {
+    const { data: selectedLocation } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("org_id", active.orgId)
+      .eq("id", requestedMasterLocationId)
+      .eq("is_active", true)
+      .maybeSingle();
+    masterLocationId = selectedLocation?.id ?? null;
+  }
 
   return {
     userId: user.id,
@@ -90,6 +105,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     canCheckCrossBranchStock: active.canCheckCrossBranchStock,
     isBranchScoped: active.isBranchScoped,
     allowedLocationIds: active.allowedLocationIds,
+    masterLocationId,
     memberships: memberships.map(({ orgId, orgName, role }) => ({ orgId, orgName, role }))
   };
 }

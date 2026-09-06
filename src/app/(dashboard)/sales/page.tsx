@@ -16,7 +16,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
 
   const supabase = await createClient();
 
-  const requestedLocationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  const requestedLocationId = context.masterLocationId ?? (searchParams?.location && searchParams.location !== "all" ? searchParams.location : null);
   let salesQuery = supabase
       .from("sales")
       .select(`

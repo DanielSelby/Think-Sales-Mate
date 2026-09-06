@@ -23,7 +23,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams?: {
   const orgId = context.orgId;
   const supabase = await createClient();
 
-  const locationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  const locationId = context.masterLocationId ?? (searchParams?.location && searchParams.location !== "all" ? searchParams.location : null);
   let purchasesQuery = supabase
       .from("purchases")
       .select(`

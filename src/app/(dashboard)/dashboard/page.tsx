@@ -26,7 +26,7 @@ export default async function DashboardPage({
     from: params.from || fallback.from,
     to: params.to || fallback.to
   };
-  const requestedLocationId = params.branch || null;
+  const requestedLocationId = context.masterLocationId ?? params.branch ?? null;
   const category = params.category || null;
   const locationId = context.isBranchScoped && context.allowedLocationIds.length > 0
     ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : context.allowedLocationIds[0])

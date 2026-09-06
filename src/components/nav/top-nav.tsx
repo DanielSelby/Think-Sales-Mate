@@ -88,7 +88,11 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
               : (locations ?? []).filter((location) => allowedLocationIds.includes(location.id));
             setBranchOptions(options);
             const selectedBranch = useAccountingStore.getState().currentBranch;
-            if (!canViewAllBranches && selectedBranch === "all" && options.length > 0) {
+            const masterLocationId = document.cookie.split("; ").find((item) => item.startsWith("master_location_id="))?.split("=")[1];
+            const masterLocation = options.find((location) => location.id === decodeURIComponent(masterLocationId ?? ""));
+            if (masterLocation) {
+              useAccountingStore.getState().setBranch(masterLocation.name);
+            } else if (!canViewAllBranches && selectedBranch === "all" && options.length > 0) {
               useAccountingStore.getState().setBranch(options[0].name);
             } else if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
               useAccountingStore.getState().setBranch(options[0].name);
@@ -152,6 +156,8 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
 
   const selectBranch = (branch: { id: string; name: string } | null) => {
     setBranch(branch?.name ?? "all");
+    if (branch) document.cookie = `master_location_id=${encodeURIComponent(branch.id)}; path=/; max-age=31536000; samesite=lax`;
+    else document.cookie = "master_location_id=; path=/; max-age=0; samesite=lax";
     const params = new URLSearchParams(searchParams.toString());
     if (branch) params.set("location", branch.id);
     else params.delete("location");

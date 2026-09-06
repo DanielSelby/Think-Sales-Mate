@@ -40,7 +40,8 @@ export default async function SalesReportPage({
     .gte("created_at", `${start}T00:00:00`)
     .lte("created_at", `${end}T23:59:59`)
     .order("created_at", { ascending: false });
-  if (searchParams.location && searchParams.location !== "all") salesQuery = salesQuery.eq("location_id", searchParams.location);
+  const locationId = context.masterLocationId ?? (searchParams.location && searchParams.location !== "all" ? searchParams.location : null);
+  if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
   const { data: sales } = await salesQuery;
 
   const rows = sales ?? [];

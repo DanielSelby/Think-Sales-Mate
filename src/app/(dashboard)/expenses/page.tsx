@@ -19,7 +19,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams?: { 
   const orgId = context.orgId;
   const supabase = await createClient();
 
-  const requestedLocationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  const requestedLocationId = context.masterLocationId ?? (searchParams?.location && searchParams.location !== "all" ? searchParams.location : null);
   let expensesQuery = supabase.from("expenses").select("*").eq("org_id", orgId).order("expense_date", { ascending: false });
 
   if (context.isBranchScoped && context.allowedLocationIds.length > 0) {

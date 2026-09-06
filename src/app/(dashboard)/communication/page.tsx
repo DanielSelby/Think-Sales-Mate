@@ -394,7 +394,7 @@ export default function CommunicationPage() {
     const code = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
     const { data, error } = await (supabase as any).from("communication_templates").insert({
       org_id: orgId, name: name.trim(), category: "Custom Templates", template_code: code,
-      content: content.trim(), channel: "In-App Notification", created_by: userId
+      content: content.trim(), channel: "SMS", created_by: userId
     }).select("id, name, category, template_code, subject, content, channel, branch_scope, status, version, created_at").single();
     if (error) { setNotice(error.message); return; }
     setTemplates((current) => [data as Template, ...current]);

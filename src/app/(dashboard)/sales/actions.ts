@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { SaleStatus } from "@/types/database";
+import { dispatchAutomatedCustomerMessage } from "@/lib/communication/automation";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -222,6 +223,7 @@ export interface RecordSaleInput {
   documentStatus?: "draft" | "quotation" | "proforma" | "final";
   customerId?:     string | null;
   customerName?:   string | null;
+  customerPhone?:  string | null;
   locationId?:     string | null;
   reference?:      string | null;
   note?:           string | null;
@@ -343,6 +345,27 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
             p_org_id: input.orgId,
             p_delta: -l.quantity,
           });
+        }
+      }
+
+      if ((input.documentStatus ?? "final") === "final" && input.customerId) {
+        try {
+          await dispatchAutomatedCustomerMessage({
+            orgId: input.orgId,
+            event: "Customer Places Order",
+            customerId: input.customerId,
+            transactionPhone: input.customerPhone,
+            actorId: user.id,
+            variables: {
+              customer_name: input.customerName,
+              order_number: sale.sale_number,
+              amount: input.total,
+              balance: Math.max(0, input.total - (input.amountPaid ?? 0)),
+              current_date: new Date().toISOString().slice(0, 10)
+            }
+          });
+        } catch (messageError) {
+          console.error("Automated customer message failed after sale creation", messageError);
         }
       }
     }

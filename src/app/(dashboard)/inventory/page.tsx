@@ -19,7 +19,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
 
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const requestedLocationId = searchParams?.location && searchParams.location !== "all" ? searchParams.location : null;
+  const requestedLocationId = context.masterLocationId ?? (searchParams?.location && searchParams.location !== "all" ? searchParams.location : null);
   let productsQuery = supabase
       .from("products")
       .select(

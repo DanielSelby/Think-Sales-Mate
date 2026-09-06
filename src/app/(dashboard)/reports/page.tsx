@@ -32,7 +32,7 @@ export default async function ReportsPage({
   const defaults = defaultDateRange();
   const dateFrom = searchParams.from || defaults.from;
   const dateTo = searchParams.to || defaults.to;
-  const locationId = searchParams.location && searchParams.location !== "all" ? searchParams.location : null;
+  const locationId = context.masterLocationId ?? (searchParams.location && searchParams.location !== "all" ? searchParams.location : null);
   const requestedPeriod = searchParams.period || "monthly";
   const period = (requestedPeriod === "today" || requestedPeriod === "yesterday" || requestedPeriod === "custom"
     ? "daily"
