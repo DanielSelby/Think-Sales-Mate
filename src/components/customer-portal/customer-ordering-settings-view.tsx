@@ -137,11 +137,20 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
           <style>{`
             @media print {
               @page { size: 3.5in 2in; margin: 0; }
+              html, body {
+                width: 3.5in !important;
+                height: 2in !important;
+                min-height: 2in !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                background: white !important;
+              }
               body * { visibility: hidden !important; }
               #business-card-print,
               #business-card-print * { visibility: visible !important; }
               #business-card-print {
-                position: absolute !important;
+                position: fixed !important;
                 left: 0 !important;
                 top: 0 !important;
                 width: 3.5in !important;
@@ -153,6 +162,9 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
                 grid-template-columns: 2.35in 1.15in !important;
                 border-radius: 0.12in !important;
                 overflow: hidden !important;
+                z-index: 2147483647 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
               }
               #business-card-print .business-card-main {
                 min-height: 2in !important;
