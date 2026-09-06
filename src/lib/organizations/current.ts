@@ -34,7 +34,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
 
   const { data: memberRows, error } = await supabase
     .from("organization_members")
-    .select("org_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, organizations(name, currency)")
+    .select("org_id, user_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, organizations(name, currency, created_by)")
     .eq("user_id", user.id)
     .eq("status", "active");
 
@@ -43,15 +43,18 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
   const memberships = memberRows.map((row: any) => {
     // organizations relation may resolve as an object or array depending on
     // schema introspection — normalize defensively.
-    const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-    const isOwner = row.role === "owner";
+    // The workspace creator is the owner even if an older access-management
+    // update wrote an administrative role into the membership row.
+    const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
+    const org = organization;
+    const isOwner = row.role === "owner" || organization?.created_by === user.id;
     const canViewOther = isOwner || row.can_view_other_users_transactions !== false;
     const canCheckCrossBranchStock = isOwner || row.can_check_cross_branch_stock === true;
     const branchScope = isOwner ? "all" : ((row.branch_scope as "all" | "assigned" | "single") || "assigned");
     const locationId = isOwner ? null : (row.location_id ?? null);
     const secondaryLocationIds = isOwner ? [] : ((row.secondary_location_ids as string[]) ?? []);
 
-    const isBranchScoped = Boolean(locationId) && (branchScope !== "all" || (row.role !== "admin" && row.role !== "owner"));
+    const isBranchScoped = Boolean(locationId) && (branchScope !== "all" || (!isOwner && row.role !== "admin"));
     const allowedLocationIds = locationId
       ? Array.from(new Set([locationId, ...secondaryLocationIds]))
       : [];

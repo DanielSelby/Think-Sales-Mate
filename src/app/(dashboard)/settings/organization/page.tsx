@@ -15,7 +15,7 @@ export default async function OrganizationSettingsPage() {
   const [{ data: memberRows }, { data: locationRows }] = await Promise.all([
     supabase
       .from("organization_members")
-      .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, can_view_other_users_transactions, can_check_cross_branch_stock, role, status, location_id, created_at")
+      .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, can_view_other_users_transactions, can_check_cross_branch_stock, role, status, location_id, created_at, organizations(created_by)")
       .eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name")
   ]);
@@ -45,7 +45,9 @@ export default async function OrganizationSettingsPage() {
     }
 
     const fallbackName = nameFromAuth || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-    const accessRole = row.role === "owner"
+    const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
+    const isOwner = row.role === "owner" || organization?.created_by === context.userId;
+    const accessRole = isOwner
       ? "owner"
       : typeof row.access_permissions?.role_key === "string"
       ? row.access_permissions.role_key
@@ -61,8 +63,8 @@ export default async function OrganizationSettingsPage() {
       phone: row.phone ?? "",
       employeeId: row.employee_id ?? `TS-EMP-0${i + 1}`,
       role: accessRole,
-      roleLabel: row.role === "owner" ? "Super Admin" : accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff",
-      status: row.status as any,
+      roleLabel: isOwner ? "Super Admin" : accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff",
+      status: isOwner ? "active" : row.status as any,
       department: row.department ?? "Sales & Marketing",
       locationId: row.location_id,
       locationName: row.location_id ? branchById.get(row.location_id) ?? null : null,
@@ -70,12 +72,12 @@ export default async function OrganizationSettingsPage() {
       joinedAt: row.created_at,
       isSelf: row.user_id === context.userId,
       twoFactorEnabled: true,
-      branchScope: row.branch_scope ?? "assigned",
-      secondaryBranches: row.secondary_location_ids ?? [],
-      secondaryBranchNames: (row.secondary_location_ids ?? []).map((id) => branchById.get(id) ?? id),
-      canViewOtherTransactions: row.can_view_other_users_transactions !== false,
-      canCheckCrossBranchStock: row.can_check_cross_branch_stock === true,
-      approvalPermissions: row.role === "owner"
+      branchScope: isOwner ? "all" : row.branch_scope ?? "assigned",
+      secondaryBranches: isOwner ? [] : row.secondary_location_ids ?? [],
+      secondaryBranchNames: isOwner ? [] : (row.secondary_location_ids ?? []).map((id) => branchById.get(id) ?? id),
+      canViewOtherTransactions: isOwner || row.can_view_other_users_transactions !== false,
+      canCheckCrossBranchStock: isOwner || row.can_check_cross_branch_stock === true,
+      approvalPermissions: isOwner
         ? {
             stockTransfers: true,
             purchases: true,

@@ -11,12 +11,13 @@ async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> 
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("organization_members")
-    .select("role")
+    .select("role, user_id, organizations(created_by)")
     .eq("id", memberId)
     .eq("org_id", orgId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data?.role === "owner";
+  const organization = Array.isArray(data?.organizations) ? data.organizations[0] : data?.organizations;
+  return data?.role === "owner" || Boolean(data?.user_id && organization?.created_by === data.user_id);
 }
 
 async function sendOrganizationInvite(email: string, name: string, orgName: string) {
