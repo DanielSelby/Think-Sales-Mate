@@ -25,7 +25,7 @@ import { OverviewTab } from "./overview-tab";
 import { ChartOfAccountsTab } from "./chart-of-accounts-tab";
 import { JournalEntriesTab } from "./journal-entries-tab";
 import { BankReconciliationTab } from "./bank-reconciliation-tab";
-import { AccountsReceivableTab } from "./accounts-receivable-tab";
+import { CustomerCreditWorkspace } from "./customer-credit-workspace";
 import { AccountsPayableTab } from "./accounts-payable-tab";
 import { FixedAssetsTab } from "./fixed-assets-tab";
 import { FinancialReportsTab } from "./financial-reports-tab";
@@ -92,10 +92,12 @@ export function AccountingDashboard() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Accounting
+            {activeTab === "receivables" ? "Customer Credit Management" : "Accounting"}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Financial management, general ledger, and bookkeeping
+            {activeTab === "receivables"
+              ? "Manage customer balances, receivables, collections, and CRM activity."
+              : "Financial management, general ledger, and bookkeeping"}
           </p>
         </div>
 
@@ -212,7 +214,7 @@ export function AccountingDashboard() {
 
         {activeTab === "reconciliation" && <BankReconciliationTab />}
 
-        {activeTab === "receivables" && <AccountsReceivableTab />}
+        {activeTab === "receivables" && <CustomerCreditWorkspace />}
 
         {activeTab === "payables" && (
           <AccountsPayableTab
