@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, CheckCheck, Download, FileText, Info, Mic, MoreVertical, Paperclip, Pin, Plus, Search, Send, Smile, Users, Volume2, X } from "lucide-react";
+import { Archive, BarChart3, CheckCheck, Download, FileText, Info, ListTodo, Megaphone, Mic, MoreVertical, MonitorUp, Paperclip, Phone, Pin, Plus, Search, Send, Smile, Users, Video, X } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 
@@ -27,8 +27,10 @@ type Message = {
   pinned: boolean;
   created_at: string;
   author: string;
+  reactions?: Array<{ reaction: string; count: number; reacted: boolean }>;
 };
 
+type Announcement = { id: string; title: string; body: string; announcement_type: string; priority: string; created_at: string; };
 const tabs = ["All", "Unread", "Direct", "Groups", "Branches", "Announcements", "Archived"];
 
 export default function CommunicationPage() {
@@ -55,6 +57,10 @@ export default function CommunicationPage() {
   const recordingChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousMessageIds = useRef<Set<string>>(new Set());
+  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "dashboard" | "announcements">("chat");
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [call, setCall] = useState<{ id?: string; type: "voice" | "video"; startedAt: number; stream?: MediaStream } | null>(null);
+  const [screenSharing, setScreenSharing] = useState(false);
 
   const loadWorkspace = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -79,6 +85,13 @@ export default function CommunicationPage() {
       return;
     }
     setOrgId(membership.org_id);
+    const { data: announcementRows } = await (supabase as any)
+      .from("communication_announcements")
+      .select("id, title, body, announcement_type, priority, created_at")
+      .eq("org_id", membership.org_id)
+      .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
+      .order("created_at", { ascending: false });
+    setAnnouncements((announcementRows ?? []) as Announcement[]);
 
     let { data: channelRows } = await supabase
       .from("communication_channels")
@@ -148,7 +161,20 @@ export default function CommunicationPage() {
       ? await supabase.from("communication_messages").select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").in("channel_id", channelIds).order("created_at", { ascending: true })
       : { data: [] };
     const names = new Map(memberList.map((member) => [member.id, member.name]));
-    const loadedMessages = (messageRows ?? []).map((row) => ({ ...row, author: row.user_id === auth.user.id ? displayName : names.get(row.user_id) || `User ${row.user_id.slice(0, 6)}` }));
+    const messageIds = (messageRows ?? []).map((row) => row.id);
+    const { data: reactionRowsRaw } = messageIds.length
+      ? await (supabase as any).from("communication_reactions").select("message_id, reaction, user_id").in("message_id", messageIds)
+      : { data: [] };
+    const reactionRows = (reactionRowsRaw ?? []) as Array<{ message_id: string; reaction: string; user_id: string }>;
+    const loadedMessages = (messageRows ?? []).map((row) => ({
+      ...row,
+      author: row.user_id === auth.user.id ? displayName : names.get(row.user_id) || `User ${row.user_id.slice(0, 6)}`,
+      reactions: Array.from(new Set((reactionRows ?? []).filter((reaction) => reaction.message_id === row.id).map((reaction) => reaction.reaction))).map((reaction) => ({
+        reaction,
+        count: (reactionRows ?? []).filter((item) => item.message_id === row.id && item.reaction === reaction).length,
+        reacted: (reactionRows ?? []).some((item) => item.message_id === row.id && item.reaction === reaction && item.user_id === auth.user.id)
+      }))
+    }));
     const storedReadAt = JSON.parse(window.localStorage.getItem(`communication-read-${membership.org_id}-${auth.user.id}`) || "{}") as Record<string, string>;
     setReadAt(storedReadAt);
     const incoming = loadedMessages.filter((item) => item.user_id !== auth.user.id && (!storedReadAt[item.channel_id] || item.created_at > storedReadAt[item.channel_id]));
@@ -293,10 +319,70 @@ export default function CommunicationPage() {
     setMessages((current) => current.map((messageItem) => messageItem.id === item.id ? { ...messageItem, pinned: !item.pinned } : messageItem));
   };
 
+  const toggleReaction = async (item: Message, reaction = "👍") => {
+    if (!userId) return;
+    const existing = item.reactions?.some((entry) => entry.reaction === reaction && entry.reacted);
+    const query = (supabase as any).from("communication_reactions").delete().eq("message_id", item.id).eq("user_id", userId).eq("reaction", reaction);
+    const result = existing ? await query : await (supabase as any).from("communication_reactions").insert({ message_id: item.id, user_id: userId, reaction });
+    if (result.error) { setNotice(result.error.message); return; }
+    void loadWorkspace(true);
+  };
+
+  const startCall = async (type: "voice" | "video") => {
+    if (!active || !orgId || !userId) return;
+    if (!navigator.mediaDevices?.getUserMedia) { setNotice("Calling is not supported in this browser."); return; }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
+    const { data, error } = await (supabase as any).from("communication_calls").insert({ org_id: orgId, channel_id: active.id, started_by: userId, call_type: type }).select("id").single();
+    if (error) { stream.getTracks().forEach((track) => track.stop()); setNotice(error.message); return; }
+    setCall({ id: data.id, type, startedAt: Date.now(), stream });
+  };
+
+  const endCall = async () => {
+    if (!call) return;
+    call.stream?.getTracks().forEach((track) => track.stop());
+    if (call.id) await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString() }).eq("id", call.id);
+    setCall(null);
+  };
+
+  const toggleScreenShare = async () => {
+    if (screenSharing) { setScreenSharing(false); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia) { setNotice("Screen sharing is not supported in this browser."); return; }
+    await navigator.mediaDevices.getDisplayMedia({ video: true });
+    setScreenSharing(true);
+  };
+
+  const createAnnouncement = async () => {
+    if (!orgId || !userId) return;
+    const title = window.prompt("Announcement title");
+    const body = title ? window.prompt("Announcement message") : null;
+    if (!title?.trim() || !body?.trim()) return;
+    const { data, error } = await (supabase as any).from("communication_announcements")
+      .insert({ org_id: orgId, created_by: userId, title: title.trim(), body: body.trim(), announcement_type: "Company Announcement", priority: "Important" })
+      .select("id, title, body, announcement_type, priority, created_at").single();
+    if (error) { setNotice(error.message); return; }
+    setAnnouncements((current) => [data as Announcement, ...current]);
+  };
+
+  const createTaskFromMessage = async (item: Message) => {
+    if (!orgId || !userId || !active) return;
+    const title = window.prompt("Task title", item.body ?? "Follow up from communication");
+    if (!title?.trim()) return;
+    const { error } = await (supabase as any).from("communication_tasks").insert({ org_id: orgId, channel_id: active.id, message_id: item.id, created_by: userId, title: title.trim() });
+    if (error) setNotice(error.message); else setNotice("Task created.");
+  };
+
   if (busy) return <div className="flex h-[calc(100vh-6.5rem)] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-500">Loading communication workspace...</div>;
 
   return (
     <div className="flex h-[calc(100vh-6.5rem)] min-h-[620px] min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="absolute z-10 ml-3 mt-3 flex gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+        <button onClick={() => setWorkspaceTab("chat")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "chat" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Chats</button>
+        <button onClick={() => setWorkspaceTab("dashboard")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "dashboard" ? "bg-blue-600 text-white" : "text-slate-500"}`}><BarChart3 className="h-3 w-3" />Dashboard</button>
+        <button onClick={() => setWorkspaceTab("announcements")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "announcements" ? "bg-blue-600 text-white" : "text-slate-500"}`}><Megaphone className="h-3 w-3" />Announcements</button>
+      </div>
+      {workspaceTab === "dashboard" && <CommunicationDashboard messages={messages} channels={channels} announcements={announcements} />}
+      {workspaceTab === "announcements" && <AnnouncementCenter announcements={announcements} onCreate={createAnnouncement} />}
+      {workspaceTab !== "chat" ? null : <>
       <aside className="flex w-[300px] shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="border-b border-slate-100 p-4">
           <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Workspace</p><h1 className="mt-1 text-lg font-bold text-slate-900">Communication</h1></div><button onClick={createChannel} className="rounded-xl p-2 text-blue-600 hover:bg-blue-50" title="Create channel"><Plus className="h-4 w-4" /></button></div>
@@ -307,8 +393,8 @@ export default function CommunicationPage() {
         <div className="border-t border-slate-100 p-3"><button onClick={createChannel} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 p-3 text-left text-xs font-semibold text-blue-700"><Plus className="h-4 w-4" /> {filter === "Groups" ? "Create group" : "New team channel"}</button></div>
       </aside>
       <section className="flex min-w-0 flex-1 flex-col">
-        {active ? <><header className="flex items-center justify-between border-b border-slate-200 px-5 py-3"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><h2 className="text-sm font-bold text-slate-900">{active.name}</h2><p className="text-[10px] text-slate-400">{active.channel_type} · {active.memberCount} members</p></div></div><div className="flex items-center gap-1 text-slate-500"><button onClick={() => setShowDetails((value) => !value)} className="rounded-lg p-2 hover:bg-slate-50" title="Conversation details"><Info className="h-4 w-4" /></button><button onClick={archiveChannel} className="rounded-lg p-2 hover:bg-slate-50" title={active.archived ? "Restore channel" : "Archive channel"}><Archive className="h-4 w-4" /></button><button onClick={() => setNotice("Use the message box to communicate with this channel.")} className="rounded-lg p-2 hover:bg-slate-50" title="More options"><MoreVertical className="h-4 w-4" /></button></div></header>
-          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body && <p>{item.body}</p>}{item.attachment_path && (item.attachment_type?.startsWith("audio/") ? <audio controls src={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} className="mt-1 max-w-full" /> : <a href={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} target="_blank" rel="noreferrer" download={item.attachment_name ?? undefined} className="mt-1 flex items-center gap-2 rounded-lg bg-black/10 px-2 py-1.5 underline"><FileText className="h-4 w-4 shrink-0" />{item.attachment_name}<Download className="ml-auto h-3 w-3" /></a>)}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
+        {active ? <>        <header className="flex items-center justify-between border-b border-slate-200 px-5 py-3"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><h2 className="text-sm font-bold text-slate-900">{active.name}</h2><p className="text-[10px] text-slate-400">{active.channel_type} · {active.memberCount} members</p></div></div><div className="flex items-center gap-1 text-slate-500"><button onClick={() => void startCall("voice")} className="rounded-lg p-2 hover:bg-slate-50" title="Start voice call"><Phone className="h-4 w-4" /></button><button onClick={() => void startCall("video")} className="rounded-lg p-2 hover:bg-slate-50" title="Start video meeting"><Video className="h-4 w-4" /></button><button onClick={() => void toggleScreenShare()} className={`rounded-lg p-2 ${screenSharing ? "bg-blue-50 text-blue-600" : "hover:bg-slate-50"}`} title="Share screen"><MonitorUp className="h-4 w-4" /></button><button onClick={() => setShowDetails((value) => !value)} className="rounded-lg p-2 hover:bg-slate-50" title="Conversation details"><Info className="h-4 w-4" /></button><button onClick={archiveChannel} className="rounded-lg p-2 hover:bg-slate-50" title={active.archived ? "Restore channel" : "Archive channel"}><Archive className="h-4 w-4" /></button><button onClick={() => setNotice("Use the message box to communicate with this channel.")} className="rounded-lg p-2 hover:bg-slate-50" title="More options"><MoreVertical className="h-4 w-4" /></button></div></header>
+          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body && <p>{item.body}</p>}{item.attachment_path && (item.attachment_type?.startsWith("audio/") ? <audio controls src={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} className="mt-1 max-w-full" /> : <a href={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} target="_blank" rel="noreferrer" download={item.attachment_name ?? undefined} className="mt-1 flex items-center gap-2 rounded-lg bg-black/10 px-2 py-1.5 underline"><FileText className="h-4 w-4 shrink-0" />{item.attachment_name}<Download className="ml-auto h-3 w-3" /></a>)}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => void toggleReaction(item)} className="rounded px-1 hover:bg-black/10">👍 {item.reactions?.find((reaction) => reaction.reaction === "👍")?.count ?? 0}</button><button onClick={() => void createTaskFromMessage(item)} title="Create task"><ListTodo className="h-3 w-3" /></button><button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
           <div className="border-t border-slate-200 bg-white p-3">
             <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => { addFileReference(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5">
@@ -322,6 +408,9 @@ export default function CommunicationPage() {
         </> : <div className="flex flex-1 items-center justify-center text-sm text-slate-400">Create a channel to start communicating.</div>}
       </section>
       {showDetails && active && <aside className="hidden w-[255px] shrink-0 border-l border-slate-200 bg-white xl:block"><div className="flex items-center justify-between border-b border-slate-100 p-4"><h3 className="text-xs font-bold text-slate-900">Conversation details</h3><button onClick={() => setShowDetails(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-4"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><p className="text-xs font-bold text-slate-800">{active.name}</p><p className="text-[10px] text-slate-400">{active.channel_type} channel</p></div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Members ({members.length})</p><div className="space-y-2">{members.slice(0, 8).map((member) => <div key={member.id} className="flex items-center gap-2"><Avatar label={initials(member.name)} color="#64748b" /><span className="truncate text-xs text-slate-600">{member.name}</span></div>)}</div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pinned messages</p>{activeMessages.filter((item) => item.pinned).map((item) => <div key={item.id} className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] text-slate-600"><Pin className="mr-1 inline h-3 w-3 text-amber-600" />{item.body}</div>)}{!activeMessages.some((item) => item.pinned) && <p className="text-xs text-slate-400">No pinned messages.</p>}</div></div></aside>}
+      {showDetails && active && <aside className="hidden w-[255px] shrink-0 border-l border-slate-200 bg-white xl:block"><div className="flex items-center justify-between border-b border-slate-100 p-4"><h3 className="text-xs font-bold text-slate-900">Conversation details</h3><button onClick={() => setShowDetails(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-4"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><p className="text-xs font-bold text-slate-800">{active.name}</p><p className="text-[10px] text-slate-400">{active.channel_type} channel</p></div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Members ({members.length})</p><div className="space-y-2">{members.slice(0, 8).map((member) => <div key={member.id} className="flex items-center gap-2"><Avatar label={initials(member.name)} color="#64748b" /><span className="truncate text-xs text-slate-600">{member.name}</span></div>)}</div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pinned messages</p>{activeMessages.filter((item) => item.pinned).map((item) => <div key={item.id} className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] text-slate-600"><Pin className="mr-1 inline h-3 w-3 text-amber-600" />{item.body}</div>)}{!activeMessages.some((item) => item.pinned) && <p className="text-xs text-slate-400">No pinned messages.</p>}</div></div></aside>}
+      {call && <div className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-xl"><span className="text-xs font-semibold">{call.type === "video" ? "Video meeting" : "Voice call"} · {active?.name}</span><span className="text-[10px] text-slate-300">{Math.floor((Date.now() - call.startedAt) / 1000)}s</span><button onClick={() => void endCall()} className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-bold">End</button></div>}
+      </>}
       {notice && <button onClick={() => setNotice("")} className="fixed bottom-5 right-5 rounded-xl bg-slate-900 px-4 py-3 text-xs text-white shadow-lg">{notice}</button>}
     </div>
   );
@@ -330,6 +419,18 @@ export default function CommunicationPage() {
 function initials(name: string) { return name.split(" ").map((part) => part[0]).join("").toUpperCase().slice(0, 2) || "U"; }
 function formatTime(value: string) { return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(value)); }
 function Avatar({ label, color }: { label: string; color: string }) { return <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: color }}>{label.toUpperCase()}</span>; }
+function CommunicationDashboard({ messages, channels, announcements }: { messages: Message[]; channels: Channel[]; announcements: Announcement[] }) {
+  const cards = [
+    ["Total messages", messages.length],
+    ["Active conversations", channels.filter((channel) => !channel.archived).length],
+    ["Active users", new Set(messages.map((message) => message.user_id)).size],
+    ["Announcements sent", announcements.length]
+  ];
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><h1 className="text-xl font-bold text-slate-900">Communication dashboard</h1><p className="mt-1 text-xs text-slate-500">A live view of collaboration activity across your workspace.</p><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cards.map(([label, value]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-2 text-2xl font-bold text-slate-900">{value}</p></div>)}</div><div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5"><h2 className="text-sm font-bold text-slate-900">Activity summary</h2><div className="mt-4 space-y-3 text-xs text-slate-600"><p>Messages are grouped by conversation and updated in real time.</p><p>Use pinned messages, reactions, tasks, calls, and announcements directly from Chats.</p></div></div></section>;
+}
+function AnnouncementCenter({ announcements, onCreate }: { announcements: Announcement[]; onCreate: () => void }) {
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><div className="flex items-center justify-between"><div><h1 className="text-xl font-bold text-slate-900">Announcement center</h1><p className="mt-1 text-xs text-slate-500">Publish company and branch notices with priority visibility.</p></div><button onClick={onCreate} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white">New announcement</button></div><div className="mt-6 grid gap-4 lg:grid-cols-2">{announcements.map((announcement) => <article key={announcement.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">{announcement.announcement_type}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${announcement.priority === "Critical" ? "bg-red-50 text-red-700" : announcement.priority === "Important" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{announcement.priority}</span></div><h2 className="mt-3 text-sm font-bold text-slate-900">{announcement.title}</h2><p className="mt-2 text-xs leading-5 text-slate-600">{announcement.body}</p><p className="mt-4 text-[10px] text-slate-400">{new Date(announcement.created_at).toLocaleString()}</p></article>)}{!announcements.length && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-xs text-slate-400">No active announcements.</div>}</div></section>;
+}
 function playBeep() {
   if (typeof window === "undefined") return;
   const context = new AudioContext();
