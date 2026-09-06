@@ -29,7 +29,7 @@ export const metadata = {
   title: "Stock Taking & Adjustment · ThinkSales Pro",
 };
 
-export default async function StockAdjustmentPage() {
+export default async function StockAdjustmentPage({ searchParams }: { searchParams?: Promise<{ mode?: string }> }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -132,6 +132,8 @@ export default async function StockAdjustmentPage() {
     });
   }
 
+  const mode = (await searchParams)?.mode === "adjustment" ? "adjustment_only" : "stock_taking";
+
   return (
     <StockAdjustmentForm
       locations={locations}
@@ -141,6 +143,7 @@ export default async function StockAdjustmentPage() {
       currentUserName={currentUserName}
       currentUserId={context.userId}
       canManage={can(context.role, "inventory.manage")}
+      initialCountType={mode}
     />
   );
 }

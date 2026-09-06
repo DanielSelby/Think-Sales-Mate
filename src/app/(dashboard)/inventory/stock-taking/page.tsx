@@ -4,4 +4,6 @@ export const metadata = {
   title: "Stock Taking & Adjustment · ThinkSales Pro",
 };
 
-export default StockAdjustmentPage;
+export default function StockTakingPage() {
+  return <StockAdjustmentPage searchParams={Promise.resolve({ mode: "stock_taking" })} />;
+}

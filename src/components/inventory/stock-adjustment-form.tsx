@@ -78,6 +78,7 @@ export interface StockAdjustmentFormProps {
   currentUserId?: string;
   /** Gates the actions that actually persist/finalize a count. Server re-checks this regardless. */
   canManage?: boolean;
+  initialCountType?: "stock_taking" | "adjustment_only";
 }
 
 interface TableCountRow {
@@ -134,6 +135,7 @@ export function StockAdjustmentForm({
   currentUserName,
   currentUserId,
   canManage = true,
+  initialCountType = "stock_taking",
 }: StockAdjustmentFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -141,7 +143,7 @@ export function StockAdjustmentForm({
   // 1. Header Parameters State
   const [countReference, setCountReference] = useState<string>(() => suggestedReference());
   const [countDate, setCountDate] = useState<string>(() => todayIso());
-  const [countType, setCountType] = useState<"stock_taking" | "adjustment_only">("stock_taking");
+  const [countType, setCountType] = useState<"stock_taking" | "adjustment_only">(initialCountType);
   const [status, setStatus] = useState<"in_progress" | "draft" | "completed">("in_progress");
   const [selectedLocationId, setSelectedLocationId] = useState<string>(locations[0]?.id || "");
   const [selectedPersonId, setSelectedPersonId] = useState<string>(() => {

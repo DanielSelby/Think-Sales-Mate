@@ -3,9 +3,9 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import { OrdersListView, type OrderRow, type LocationOption, type StaffOption } from "@/components/orders/orders-list-view";
 
-export const metadata = { title: "Order Tracker · ThinkSales Pro" };
+export const metadata = { title: "Orders · ThinkSales Pro" };
 
-export default async function OrdersPage() {
+export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const context = await getCurrentOrgContext();
   if (!context) return null;
 
@@ -149,6 +149,8 @@ export default async function OrdersPage() {
       })),
   }));
 
+  const view = (await searchParams).view === "list" ? "list" : "tracker";
+
   return (
     <OrdersListView
       orders={rows}
@@ -159,6 +161,7 @@ export default async function OrdersPage() {
       userRole={context.role}
       canViewAll={canViewAll}
       userLocationId={userLocationId}
+      view={view}
     />
   );
 }

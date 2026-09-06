@@ -64,6 +64,63 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function printBusinessCard() {
+    const card = document.getElementById("business-card-print");
+    if (!card) return;
+
+    const printWindow = window.open("", "_blank", "width=900,height=600");
+    if (!printWindow) {
+      setNotice({ text: "Please allow pop-ups to print the business card.", type: "error" });
+      return;
+    }
+
+    const cardClone = card.cloneNode(true) as HTMLElement;
+    cardClone.querySelectorAll("style").forEach((style) => style.remove());
+    const stylesheets = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))
+      .map((link) => `<link rel="stylesheet" href="${link.href}">`)
+      .join("");
+
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>${companyProfile?.company_name || "Business Card"}</title>
+          ${stylesheets}
+          <style>
+            @page { size: 3.5in 2in; margin: 0; }
+            html, body { width: 3.5in; height: 2in; margin: 0; padding: 0; overflow: hidden; }
+            body { display: flex; align-items: flex-start; justify-content: flex-start; background: white; }
+            #business-card-print {
+              width: 3.5in !important;
+              height: 2in !important;
+              max-width: none !important;
+              margin: 0 !important;
+              box-shadow: none !important;
+              display: grid !important;
+              grid-template-columns: 2.35in 1.15in !important;
+              border-radius: 0.12in !important;
+              overflow: hidden !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #business-card-print .business-card-main { min-height: 2in !important; padding: 0.2in !important; }
+            #business-card-print .business-card-qr { min-width: 1.15in !important; padding: 0.12in !important; }
+            #business-card-print .business-card-qr img { width: 0.8in !important; height: 0.8in !important; }
+            #business-card-print .business-card-main p:first-child { font-size: 0.15in !important; }
+            #business-card-print .business-card-contact { font-size: 0.085in !important; }
+            #business-card-print .business-card-description { margin-top: 0.08in !important; max-width: 2.05in !important; font-size: 0.075in !important; line-height: 1.25 !important; }
+            #business-card-print .business-card-qr p { font-size: 0.07in !important; }
+          </style>
+        </head>
+        <body>${cardClone.outerHTML}</body>
+      </html>`);
+    printWindow.document.close();
+    printWindow.addEventListener("load", () => {
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    });
+  }
+
   return (
     <div className="space-y-6 max-w-6xl pb-16">
       {/* Header */}
@@ -129,7 +186,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
 
       <Card accent="signal" className="border-ledger-200/80 dark:border-ledger-700/80 print:shadow-none">
         <CardHeader className="flex-row items-center justify-end pb-3">
-          <button type="button" onClick={() => window.print()} className="print:hidden inline-flex items-center gap-1.5 rounded-md border border-ledger-200 bg-white px-3 py-1.5 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:border-ledger-600 dark:bg-ink-800 dark:text-ledger-200">
+          <button type="button" onClick={printBusinessCard} className="print:hidden inline-flex items-center gap-1.5 rounded-md border border-ledger-200 bg-white px-3 py-1.5 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:border-ledger-600 dark:bg-ink-800 dark:text-ledger-200">
             <Printer className="h-3.5 w-3.5" /> Print Card
           </button>
         </CardHeader>

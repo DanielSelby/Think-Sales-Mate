@@ -93,6 +93,7 @@ interface OrdersListViewProps {
   userRole: MemberRole;
   canViewAll: boolean;
   userLocationId: string | null;
+  view: "tracker" | "list";
 }
 
 type TabKey = "all" | CustomerOrderStatus | "unassigned";
@@ -119,6 +120,7 @@ export function OrdersListView({
   userRole,
   canViewAll,
   userLocationId,
+  view,
 }: OrdersListViewProps) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -357,8 +359,8 @@ export function OrdersListView({
     <div className="space-y-6 pb-16">
       {/* Header & Breadcrumbs */}
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white">Order Tracker</h1>
-        <p className="text-xs text-ledger-400 dark:text-ledger-400 mt-0.5">Sales &gt; Orders &gt; Order Tracker</p>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white">{view === "list" ? "Order List" : "Order Tracker"}</h1>
+        <p className="text-xs text-ledger-400 dark:text-ledger-400 mt-0.5">Sales &gt; Orders &gt; {view === "list" ? "Order List" : "Order Tracker"}</p>
       </div>
 
       {/* ── 1. Top KPI Metric Cards (8 Cards) ── */}
