@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, BarChart3, CheckCheck, Download, FileText, Info, ListTodo, Megaphone, Mic, MoreVertical, MonitorUp, Paperclip, Phone, Pin, Plus, Search, Send, Smile, Users, Video, X } from "lucide-react";
+import { Archive, BarChart3, CheckCheck, Download, FileText, Info, ListTodo, Megaphone, Mic, MoreVertical, MonitorUp, Paperclip, Phone, Pin, Plus, Search, Send, Smile, Users, Video, X, Workflow } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 
@@ -31,6 +31,9 @@ type Message = {
 };
 
 type Announcement = { id: string; title: string; body: string; announcement_type: string; priority: string; created_at: string; };
+type Template = { id: string; name: string; category: string; template_code: string; subject: string | null; content: string; channel: string; branch_scope: string; status: string; version: number; created_at: string; };
+type Automation = { id: string; event: string; template_id: string | null; channel: string; enabled: boolean; send_mode: string; };
+type MessageHistory = { id: string; event: string | null; channel: string; recipient: string | null; status: string; rendered_content: string; created_at: string; };
 const tabs = ["All", "Unread", "Direct", "Groups", "Branches", "Announcements", "Archived"];
 
 export default function CommunicationPage() {
@@ -57,10 +60,13 @@ export default function CommunicationPage() {
   const recordingChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousMessageIds = useRef<Set<string>>(new Set());
-  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "dashboard" | "announcements">("chat");
+  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "dashboard" | "announcements" | "templates" | "automations" | "history" | "approvals" | "template-analytics">("chat");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [call, setCall] = useState<{ id?: string; type: "voice" | "video"; startedAt: number; stream?: MediaStream } | null>(null);
   const [screenSharing, setScreenSharing] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [automations, setAutomations] = useState<Automation[]>([]);
+  const [messageHistory, setMessageHistory] = useState<MessageHistory[]>([]);
 
   const loadWorkspace = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -85,6 +91,14 @@ export default function CommunicationPage() {
       return;
     }
     setOrgId(membership.org_id);
+    const [{ data: templateRows }, { data: automationRows }, { data: historyRows }] = await Promise.all([
+      (supabase as any).from("communication_templates").select("id, name, category, template_code, subject, content, channel, branch_scope, status, version, created_at").eq("org_id", membership.org_id).order("created_at", { ascending: false }),
+      (supabase as any).from("communication_automations").select("id, event, template_id, channel, enabled, send_mode").eq("org_id", membership.org_id).order("event"),
+      (supabase as any).from("communication_message_history").select("id, event, channel, recipient, status, rendered_content, created_at").eq("org_id", membership.org_id).order("created_at", { ascending: false }).limit(100)
+    ]);
+    setTemplates((templateRows ?? []) as Template[]);
+    setAutomations((automationRows ?? []) as Automation[]);
+    setMessageHistory((historyRows ?? []) as MessageHistory[]);
     const { data: announcementRows } = await (supabase as any)
       .from("communication_announcements")
       .select("id, title, body, announcement_type, priority, created_at")
@@ -371,6 +385,44 @@ export default function CommunicationPage() {
     if (error) setNotice(error.message); else setNotice("Task created.");
   };
 
+  const createTemplate = async () => {
+    if (!orgId || !userId) return;
+    const name = window.prompt("Template name");
+    if (!name?.trim()) return;
+    const content = window.prompt("Message content. Variables such as {{customer_name}} are supported.");
+    if (!content?.trim()) return;
+    const code = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const { data, error } = await (supabase as any).from("communication_templates").insert({
+      org_id: orgId, name: name.trim(), category: "Custom Templates", template_code: code,
+      content: content.trim(), channel: "In-App Notification", created_by: userId
+    }).select("id, name, category, template_code, subject, content, channel, branch_scope, status, version, created_at").single();
+    if (error) { setNotice(error.message); return; }
+    setTemplates((current) => [data as Template, ...current]);
+  };
+
+  const updateTemplateStatus = async (template: Template, status: string) => {
+    const { error } = await (supabase as any).from("communication_templates").update({ status, updated_at: new Date().toISOString(), approved_by: status === "Approved" ? userId : null }).eq("id", template.id);
+    if (error) { setNotice(error.message); return; }
+    setTemplates((current) => current.map((item) => item.id === template.id ? { ...item, status } : item));
+  };
+
+  const toggleAutomation = async (automation: Automation) => {
+    const { error } = await (supabase as any).from("communication_automations").update({ enabled: !automation.enabled, updated_at: new Date().toISOString() }).eq("id", automation.id);
+    if (error) { setNotice(error.message); return; }
+    setAutomations((current) => current.map((item) => item.id === automation.id ? { ...item, enabled: !item.enabled } : item));
+  };
+
+  const saveAutomation = async () => {
+    if (!orgId || !userId || !templates.length) { setNotice("Create an approved template first."); return; }
+    const event = window.prompt("Automation event", "Payment Received");
+    if (!event?.trim()) return;
+    const { data, error } = await (supabase as any).from("communication_automations").upsert({
+      org_id: orgId, event: event.trim(), template_id: templates[0].id, channel: templates[0].channel, enabled: false, created_by: userId
+    }, { onConflict: "org_id,event" }).select("id, event, template_id, channel, enabled, send_mode").single();
+    if (error) { setNotice(error.message); return; }
+    setAutomations((current) => [...current.filter((item) => item.event !== data.event), data as Automation]);
+  };
+
   if (busy) return <div className="flex h-[calc(100vh-6.5rem)] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-500">Loading communication workspace...</div>;
 
   return (
@@ -379,9 +431,19 @@ export default function CommunicationPage() {
         <button onClick={() => setWorkspaceTab("chat")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "chat" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Chats</button>
         <button onClick={() => setWorkspaceTab("dashboard")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "dashboard" ? "bg-blue-600 text-white" : "text-slate-500"}`}><BarChart3 className="h-3 w-3" />Dashboard</button>
         <button onClick={() => setWorkspaceTab("announcements")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "announcements" ? "bg-blue-600 text-white" : "text-slate-500"}`}><Megaphone className="h-3 w-3" />Announcements</button>
+        <button onClick={() => setWorkspaceTab("templates")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "templates" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Message Templates</button>
+        <button onClick={() => setWorkspaceTab("automations")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "automations" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Automated Messages</button>
+        <button onClick={() => setWorkspaceTab("history")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "history" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Message History</button>
+        <button onClick={() => setWorkspaceTab("approvals")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "approvals" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Template Approvals</button>
+        <button onClick={() => setWorkspaceTab("template-analytics")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "template-analytics" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Template Analytics</button>
       </div>
       {workspaceTab === "dashboard" && <CommunicationDashboard messages={messages} channels={channels} announcements={announcements} />}
       {workspaceTab === "announcements" && <AnnouncementCenter announcements={announcements} onCreate={createAnnouncement} />}
+      {workspaceTab === "templates" && <TemplateCenter templates={templates} onCreate={createTemplate} onStatus={updateTemplateStatus} />}
+      {workspaceTab === "automations" && <AutomationCenter automations={automations} templates={templates} onCreate={saveAutomation} onToggle={toggleAutomation} />}
+      {workspaceTab === "history" && <MessageHistoryCenter history={messageHistory} />}
+      {workspaceTab === "approvals" && <TemplateApprovalCenter templates={templates} onStatus={updateTemplateStatus} />}
+      {workspaceTab === "template-analytics" && <TemplateAnalytics templates={templates} history={messageHistory} />}
       {workspaceTab !== "chat" ? null : <>
       <aside className="flex w-[300px] shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="border-b border-slate-100 p-4">
@@ -431,6 +493,26 @@ function CommunicationDashboard({ messages, channels, announcements }: { message
 function AnnouncementCenter({ announcements, onCreate }: { announcements: Announcement[]; onCreate: () => void }) {
   return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><div className="flex items-center justify-between"><div><h1 className="text-xl font-bold text-slate-900">Announcement center</h1><p className="mt-1 text-xs text-slate-500">Publish company and branch notices with priority visibility.</p></div><button onClick={onCreate} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white">New announcement</button></div><div className="mt-6 grid gap-4 lg:grid-cols-2">{announcements.map((announcement) => <article key={announcement.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">{announcement.announcement_type}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${announcement.priority === "Critical" ? "bg-red-50 text-red-700" : announcement.priority === "Important" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{announcement.priority}</span></div><h2 className="mt-3 text-sm font-bold text-slate-900">{announcement.title}</h2><p className="mt-2 text-xs leading-5 text-slate-600">{announcement.body}</p><p className="mt-4 text-[10px] text-slate-400">{new Date(announcement.created_at).toLocaleString()}</p></article>)}{!announcements.length && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-xs text-slate-400">No active announcements.</div>}</div></section>;
 }
+const templateVariables = ["{{customer_name}}", "{{company_name}}", "{{invoice_number}}", "{{order_number}}", "{{amount}}", "{{balance}}", "{{branch_name}}", "{{current_date}}"];
+function TemplateCenter({ templates, onCreate, onStatus }: { templates: Template[]; onCreate: () => void; onStatus: (template: Template, status: string) => void }) {
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><div className="flex items-center justify-between"><div><h1 className="text-xl font-bold text-slate-900">Message Templates & Automation Center</h1><p className="mt-1 text-xs text-slate-500">Create reusable customer communications with dynamic variables.</p></div><button onClick={onCreate} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><Plus className="mr-1 inline h-3 w-3" />Create template</button></div><div className="mt-5 flex flex-wrap gap-2">{templateVariables.map((variable) => <code key={variable} className="rounded bg-white px-2 py-1 text-[10px] text-blue-700 shadow-sm">{variable}</code>)}</div><div className="mt-6 grid gap-4 lg:grid-cols-2">{templates.map((template) => <article key={template.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">{template.category} · {template.channel}</p><h2 className="mt-1 text-sm font-bold text-slate-900">{template.name}</h2><p className="text-[10px] text-slate-400">{template.template_code} · v{template.version}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{template.status}</span></div><p className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{template.content}</p><div className="mt-4 flex flex-wrap gap-2">{template.status === "Draft" && <button onClick={() => onStatus(template, "Pending Approval")} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-[10px] font-semibold text-blue-700">Submit for approval</button>}{template.status === "Approved" && <button onClick={() => onStatus(template, "Archived")} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600">Archive</button>}</div></article>)}{!templates.length && <EmptyState label="No templates yet." />}</div></section>;
+}
+function AutomationCenter({ automations, templates, onCreate, onToggle }: { automations: Automation[]; templates: Template[]; onCreate: () => void; onToggle: (automation: Automation) => void }) {
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><div className="flex items-center justify-between"><div><h1 className="text-xl font-bold text-slate-900">Automated Messages</h1><p className="mt-1 text-xs text-slate-500">Trigger approved templates from sales, orders, payments, CRM, and accounting events.</p></div><button onClick={onCreate} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white">New automation</button></div><div className="mt-6 space-y-3">{automations.map((automation) => <div key={automation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div><p className="text-sm font-semibold text-slate-900">{automation.event}</p><p className="text-xs text-slate-500">{templates.find((template) => template.id === automation.template_id)?.name ?? "No template selected"} · {automation.channel} · {automation.send_mode}</p></div><button onClick={() => onToggle(automation)} className={`rounded-full px-3 py-1.5 text-[10px] font-bold ${automation.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{automation.enabled ? "Enabled" : "Disabled"}</button></div>)}{!automations.length && <EmptyState label="No automation rules configured." />}</div></section>;
+}
+function MessageHistoryCenter({ history }: { history: MessageHistory[] }) {
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><h1 className="text-xl font-bold text-slate-900">Message History</h1><p className="mt-1 text-xs text-slate-500">Track outgoing automated and manual customer messages.</p><div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="w-full text-left text-xs"><thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400"><tr>{["Date", "Recipient", "Event", "Channel", "Status", "Message"].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody>{history.map((item) => <tr key={item.id} className="border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{new Date(item.created_at).toLocaleString()}</td><td className="px-4 py-3 text-slate-700">{item.recipient ?? "—"}</td><td className="px-4 py-3 text-slate-500">{item.event ?? "Manual"}</td><td className="px-4 py-3 text-slate-500">{item.channel}</td><td className="px-4 py-3 font-semibold text-emerald-600">{item.status}</td><td className="max-w-xs truncate px-4 py-3 text-slate-500">{item.rendered_content}</td></tr>)}</tbody></table>{!history.length && <EmptyState label="No outgoing messages recorded." />}</div></section>;
+}
+function TemplateApprovalCenter({ templates, onStatus }: { templates: Template[]; onStatus: (template: Template, status: string) => void }) {
+  const pending = templates.filter((template) => template.status === "Pending Approval");
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><h1 className="text-xl font-bold text-slate-900">Template Approvals</h1><p className="mt-1 text-xs text-slate-500">Review and publish templates before they can be automated.</p><div className="mt-6 space-y-3">{pending.map((template) => <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-white p-4 shadow-sm"><div><p className="text-sm font-semibold text-slate-900">{template.name}</p><p className="text-xs text-slate-500">{template.category} · version {template.version}</p></div><div className="flex gap-2"><button onClick={() => onStatus(template, "Approved")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-semibold text-white">Approve</button><button onClick={() => onStatus(template, "Rejected")} className="rounded-lg bg-red-50 px-3 py-1.5 text-[10px] font-semibold text-red-700">Reject</button></div></div>)}{!pending.length && <EmptyState label="Approval queue is empty." />}</div></section>;
+}
+function TemplateAnalytics({ templates, history }: { templates: Template[]; history: MessageHistory[] }) {
+  const delivered = history.filter((item) => ["Delivered", "Read"].includes(item.status)).length;
+  const rate = history.length ? Math.round((delivered / history.length) * 100) : 0;
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><h1 className="text-xl font-bold text-slate-900">Template Analytics</h1><p className="mt-1 text-xs text-slate-500">Monitor template usage and delivery performance.</p><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[["Templates", templates.length], ["Messages sent", history.length], ["Delivery rate", `${rate}%`], ["Failed messages", history.filter((item) => item.status === "Failed").length]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-2 text-2xl font-bold text-slate-900">{String(value)}</p></div>)}</div></section>;
+}
+function EmptyState({ label }: { label: string }) { return <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-xs text-slate-400">{label}</div>; }
 function playBeep() {
   if (typeof window === "undefined") return;
   const context = new AudioContext();

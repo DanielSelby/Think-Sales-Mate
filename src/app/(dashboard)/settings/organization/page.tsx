@@ -46,7 +46,7 @@ export default async function OrganizationSettingsPage() {
 
     const fallbackName = nameFromAuth || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
     const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-    const isOwner = row.role === "owner" || organization?.created_by === context.userId;
+    const isOwner = row.role === "owner" || organization?.created_by === row.user_id;
     const accessRole = isOwner
       ? "owner"
       : typeof row.access_permissions?.role_key === "string"
