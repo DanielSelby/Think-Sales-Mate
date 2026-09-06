@@ -140,7 +140,22 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
           </button>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="mx-auto grid max-w-2xl overflow-hidden rounded-2xl bg-ink-950 text-white shadow-lg sm:grid-cols-[1fr_180px]">
+          <style>{`
+            @media print {
+              body * { visibility: hidden !important; }
+              #business-card-print,
+              #business-card-print * { visibility: visible !important; }
+              #business-card-print {
+                position: absolute !important;
+                inset: 0 !important;
+                width: 100% !important;
+                max-width: 760px !important;
+                margin: 0 auto !important;
+                box-shadow: none !important;
+              }
+            }
+          `}</style>
+          <div id="business-card-print" className="mx-auto grid max-w-2xl overflow-hidden rounded-2xl bg-ink-950 text-white shadow-lg sm:grid-cols-[1fr_180px]">
             <div className="flex min-h-[210px] flex-col justify-between bg-gradient-to-br from-ink-900 via-ink-900 to-signal/80 p-6">
               <div className="flex items-center gap-3">
                 {companyProfile?.logo_url ? <img src={companyProfile.logo_url} alt="" className="h-12 w-12 rounded-xl bg-white object-contain p-1" /> : <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-lg font-bold">{(companyProfile?.company_name ?? "S").slice(0, 1).toUpperCase()}</div>}
