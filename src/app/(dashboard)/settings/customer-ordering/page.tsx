@@ -23,7 +23,7 @@ export default async function CustomerOrderingSettingsPage() {
   const supabase = await createClient();
   const [{ data: org }, { data: companyProfile }] = await Promise.all([
     supabase.from("organizations").select("slug").eq("id", context.orgId).single(),
-    supabase.from("company_profile").select("company_name, website, business_email, business_phone, contact_email, contact_phone, logo_url").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("company_profile").select("company_name, description, website, business_email, business_phone, contact_email, contact_phone, logo_url").eq("org_id", context.orgId).maybeSingle(),
   ]);
 
   const settings = await getPortalSettings();
