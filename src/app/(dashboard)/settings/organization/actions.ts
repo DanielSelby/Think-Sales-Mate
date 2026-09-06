@@ -234,19 +234,30 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
   }
 
   const admin = createAdminClient();
+  const targetOwner = await targetIsOwner(input.memberId, context.orgId);
 
   const updatePayload: Record<string, any> = {};
-  if (input.locationId !== undefined) updatePayload.location_id = input.locationId || null;
-  if (input.branchScope !== undefined) updatePayload.branch_scope = input.branchScope;
-  if (input.secondaryLocationIds !== undefined) updatePayload.secondary_location_ids = input.secondaryLocationIds;
-  if (input.canViewOtherTransactions !== undefined) updatePayload.can_view_other_users_transactions = input.canViewOtherTransactions;
-  if (input.canCheckCrossBranchStock !== undefined) updatePayload.can_check_cross_branch_stock = input.canCheckCrossBranchStock;
+  if (targetOwner) {
+    updatePayload.role = "owner";
+    updatePayload.location_id = null;
+    updatePayload.branch_scope = "all";
+    updatePayload.secondary_location_ids = [];
+    updatePayload.can_view_other_users_transactions = true;
+    updatePayload.can_check_cross_branch_stock = true;
+    updatePayload.status = "active";
+  } else {
+    if (input.locationId !== undefined) updatePayload.location_id = input.locationId || null;
+    if (input.branchScope !== undefined) updatePayload.branch_scope = input.branchScope;
+    if (input.secondaryLocationIds !== undefined) updatePayload.secondary_location_ids = input.secondaryLocationIds;
+    if (input.canViewOtherTransactions !== undefined) updatePayload.can_view_other_users_transactions = input.canViewOtherTransactions;
+    if (input.canCheckCrossBranchStock !== undefined) updatePayload.can_check_cross_branch_stock = input.canCheckCrossBranchStock;
+  }
   if (input.department !== undefined) updatePayload.department = input.department;
   if (input.phone !== undefined) updatePayload.phone = input.phone;
   if (input.employeeId !== undefined) updatePayload.employee_id = input.employeeId;
   if (input.status !== undefined) updatePayload.status = input.status === "inactive" ? "suspended" : input.status;
 
-  if (input.role) {
+  if (input.role && !targetOwner) {
     const requestedRole = input.role.toLowerCase();
     const mappedRole = requestedRole === "owner" || requestedRole === "super_admin"
       ? "owner"
@@ -260,10 +271,21 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     updatePayload.role = mappedRole;
   }
 
-  if (input.approvalPermissions) {
+  if (targetOwner || input.approvalPermissions) {
     updatePayload.access_permissions = {
-      role_key: input.role || "staff",
-      approvals: input.approvalPermissions
+      role_key: targetOwner ? "owner" : input.role || "staff",
+      approvals: targetOwner
+        ? {
+            stockTransfers: true,
+            purchases: true,
+            expenses: true,
+            priceUpdates: true,
+            stockAdjustments: true,
+            customerOrders: true,
+            maxExpenseAmount: Number.MAX_SAFE_INTEGER,
+            maxPurchaseAmount: Number.MAX_SAFE_INTEGER
+          }
+        : input.approvalPermissions
     };
   }
 

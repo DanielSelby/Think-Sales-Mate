@@ -84,6 +84,17 @@ export function UserDetailsDrawer({
       { month: "May", sales: 85000, activities: 280 }
     ]
   };
+  const ownerApprovalPermissions = {
+    stockTransfers: true,
+    purchases: true,
+    expenses: true,
+    priceUpdates: true,
+    stockAdjustments: true,
+    customerOrders: true
+  };
+  const effectiveApprovalPermissions = user.role === "owner"
+    ? ownerApprovalPermissions
+    : user.approvalPermissions;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -408,11 +419,11 @@ export function UserDetailsDrawer({
                   <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Approval Authorities</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     {[
-                      { label: "Stock Transfers", allowed: user.approvalPermissions?.stockTransfers, icon: Truck },
-                      { label: "Purchase Orders", allowed: user.approvalPermissions?.purchases, icon: ShoppingBag },
-                      { label: "Operating Expenses", allowed: user.approvalPermissions?.expenses, icon: DollarSign },
-                      { label: "Price Updates", allowed: user.approvalPermissions?.priceUpdates, icon: Lock },
-                      { label: "Stock Adjustments", allowed: user.approvalPermissions?.stockAdjustments, icon: Layers }
+                      { label: "Stock Transfers", allowed: effectiveApprovalPermissions?.stockTransfers, icon: Truck },
+                      { label: "Purchase Orders", allowed: effectiveApprovalPermissions?.purchases, icon: ShoppingBag },
+                      { label: "Operating Expenses", allowed: effectiveApprovalPermissions?.expenses, icon: DollarSign },
+                      { label: "Price Updates", allowed: effectiveApprovalPermissions?.priceUpdates, icon: Lock },
+                      { label: "Stock Adjustments", allowed: effectiveApprovalPermissions?.stockAdjustments, icon: Layers }
                     ].map((item, idx) => (
                       <div key={idx} className={`flex items-center justify-between p-2.5 rounded-lg border ${item.allowed ? "bg-emerald-50/40 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900" : "bg-slate-50/50 border-ledger-100 dark:border-ledger-800 opacity-60"}`}>
                         <div className="flex items-center gap-2">

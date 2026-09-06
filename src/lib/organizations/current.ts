@@ -44,9 +44,9 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     // organizations relation may resolve as an object or array depending on
     // schema introspection — normalize defensively.
     const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-    const canViewOther = row.can_view_other_users_transactions !== false;
-    const canCheckCrossBranchStock = row.can_check_cross_branch_stock === true;
     const isOwner = row.role === "owner";
+    const canViewOther = isOwner || row.can_view_other_users_transactions !== false;
+    const canCheckCrossBranchStock = isOwner || row.can_check_cross_branch_stock === true;
     const branchScope = isOwner ? "all" : ((row.branch_scope as "all" | "assigned" | "single") || "assigned");
     const locationId = isOwner ? null : (row.location_id ?? null);
     const secondaryLocationIds = isOwner ? [] : ((row.secondary_location_ids as string[]) ?? []);

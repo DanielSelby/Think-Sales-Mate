@@ -474,6 +474,10 @@ export function UserManagement({
     startTransition(async () => {
       const result = await updateMemberAccessScope({
         memberId: userId,
+        fullName: updates.fullName ?? oldUser?.fullName,
+        phone: updates.phone ?? oldUser?.phone,
+        employeeId: updates.employeeId ?? oldUser?.employeeId,
+        department: updates.department ?? oldUser?.department,
         locationId: updates.locationId ?? oldUser?.locationId ?? null,
         secondaryLocationIds: updates.secondaryBranches ?? oldUser?.secondaryBranches ?? [],
         branchScope: updates.branchScope ?? oldUser?.branchScope ?? "single",

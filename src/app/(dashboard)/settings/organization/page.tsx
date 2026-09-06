@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { can, isSuperAdmin } from "@/lib/rbac";
 import { UserManagement, type ManagedUser, type UserBranch } from "@/components/dashboard/user-management";
+import type { ApprovalPermission } from "@/components/dashboard/user-management/types";
 
 export default async function OrganizationSettingsPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -74,6 +75,25 @@ export default async function OrganizationSettingsPage() {
       secondaryBranchNames: (row.secondary_location_ids ?? []).map((id) => branchById.get(id) ?? id),
       canViewOtherTransactions: row.can_view_other_users_transactions !== false,
       canCheckCrossBranchStock: row.can_check_cross_branch_stock === true,
+      approvalPermissions: row.role === "owner"
+        ? {
+            stockTransfers: true,
+            purchases: true,
+            expenses: true,
+            priceUpdates: true,
+            stockAdjustments: true,
+            customerOrders: true,
+            maxExpenseAmount: Number.MAX_SAFE_INTEGER,
+            maxPurchaseAmount: Number.MAX_SAFE_INTEGER
+          }
+        : (row.access_permissions?.approvals ?? {
+            stockTransfers: false,
+            purchases: false,
+            expenses: false,
+            priceUpdates: false,
+            stockAdjustments: false,
+            customerOrders: false
+          }) as ApprovalPermission,
       accessPermissions: row.access_permissions ?? {}
     });
   }
