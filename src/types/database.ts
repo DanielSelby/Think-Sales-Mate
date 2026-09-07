@@ -773,6 +773,10 @@ export interface Database {
           has_variants: boolean;
           tags: string[];
           image_urls: string[];
+          status: "active" | "inactive" | "merged";
+          merged_into_product_id: string | null;
+          merged_at: string | null;
+          merged_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -807,6 +811,10 @@ export interface Database {
           has_variants?: boolean;
           tags?: string[];
           image_urls?: string[];
+          status?: "active" | "inactive" | "merged";
+          merged_into_product_id?: string | null;
+          merged_at?: string | null;
+          merged_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -2456,6 +2464,25 @@ export interface Database {
           p_location_id?: string | null;
         };
         Returns: Database["public"]["Tables"]["communication_channels"]["Row"][];
+      };
+      merge_products: {
+        Args: {
+          p_org_id: string;
+          p_master_id: string;
+          p_secondary_ids: string[];
+          p_actor_id: string;
+          p_pricing_strategy?: string;
+          p_custom_price?: number | null;
+          p_custom_cost?: number | null;
+          p_details_options?: Record<string, unknown>;
+        };
+        Returns: {
+          success: boolean;
+          master_product_id: string;
+          merged_count: number;
+          consolidated_stock: number;
+          records_transferred: number;
+        };
       };
     };
     Enums: {
