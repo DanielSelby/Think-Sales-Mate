@@ -623,55 +623,62 @@ export async function validateRemoveProductsFromLocation(
 
   const stockMap = new Map((stockLevels ?? []).map((s) => [s.product_id, s.quantity]));
 
-  // Check sales history at this location
-  const { data: saleRows } = await supabase
-    .from("sale_items")
-    .select("product_id, sales!inner(id, location_id)")
-    .in("product_id", productIds)
-    .eq("org_id", context.orgId)
-    .eq("sales.location_id", locationId);
+  // A product with any historical reference cannot be removed. Checking the
+  // item tables directly avoids relying on optional location relationships and
+  // prevents a product with history at another location from being detached.
+  const [
+    saleRows,
+    purchaseRows,
+    transferRows,
+    adjustmentRows,
+    saleReturnRows,
+    purchaseReturnRows,
+    stockRequestRows,
+    customerOrderRows,
+    auditRows,
+  ] = await Promise.all([
+    supabase.from("sale_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("purchase_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("stock_transfer_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("stock_adjustment_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("sale_return_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("purchase_return_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("stock_request_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("customer_order_items").select("product_id").in("product_id", productIds).eq("org_id", context.orgId),
+    supabase.from("audit_logs").select("entity_id").in("entity_id", productIds).eq("org_id", context.orgId),
+  ]);
 
-  const salesProductIds = new Set((saleRows ?? []).map((r) => r.product_id));
+  const historyError = [
+    saleRows,
+    purchaseRows,
+    transferRows,
+    adjustmentRows,
+    saleReturnRows,
+    purchaseReturnRows,
+    stockRequestRows,
+    customerOrderRows,
+    auditRows,
+  ].find((result) => result.error);
+  if (historyError) {
+    const historyMessage = historyError.error?.message ?? "unknown database error";
+    return {
+      ok: false,
+      error: `Could not validate product history: ${historyMessage}`,
+      products: [],
+      removableCount: 0,
+      blockedCount: 0,
+    };
+  }
 
-  // Check purchases history at this location
-  const { data: purchaseRows } = await supabase
-    .from("purchase_items")
-    .select("product_id, purchases!inner(id, location_id)")
-    .in("product_id", productIds)
-    .eq("org_id", context.orgId)
-    .eq("purchases.location_id", locationId);
-
-  const purchaseProductIds = new Set((purchaseRows ?? []).map((r) => r.product_id));
-
-  // Check stock transfers involving this location
-  const { data: transferRows } = await supabase
-    .from("stock_transfer_items")
-    .select("product_id, stock_transfers!inner(id, from_location_id, to_location_id)")
-    .in("product_id", productIds)
-    .eq("org_id", context.orgId)
-    .or(`stock_transfers.from_location_id.eq.${locationId},stock_transfers.to_location_id.eq.${locationId}`);
-
-  const transferProductIds = new Set((transferRows ?? []).map((r) => r.product_id));
-
-  // Check stock adjustments at this location
-  const { data: adjustmentRows } = await supabase
-    .from("stock_adjustment_items")
-    .select("product_id, stock_adjustments!inner(id, location_id)")
-    .in("product_id", productIds)
-    .eq("org_id", context.orgId)
-    .eq("stock_adjustments.location_id", locationId);
-
-  const adjustmentProductIds = new Set((adjustmentRows ?? []).map((r) => r.product_id));
-
-  // Check sale returns at this location
-  const { data: saleReturnRows } = await supabase
-    .from("sale_return_items")
-    .select("product_id")
-    .in("product_id", productIds)
-    .eq("org_id", context.orgId)
-    .eq("location_id", locationId);
-
-  const saleReturnProductIds = new Set((saleReturnRows ?? []).map((r) => r.product_id));
+  const salesProductIds = new Set((saleRows.data ?? []).map((r) => r.product_id));
+  const purchaseProductIds = new Set((purchaseRows.data ?? []).map((r) => r.product_id));
+  const transferProductIds = new Set((transferRows.data ?? []).map((r) => r.product_id));
+  const adjustmentProductIds = new Set((adjustmentRows.data ?? []).map((r) => r.product_id));
+  const saleReturnProductIds = new Set((saleReturnRows.data ?? []).map((r) => r.product_id));
+  const purchaseReturnProductIds = new Set((purchaseReturnRows.data ?? []).map((r) => r.product_id));
+  const stockRequestProductIds = new Set((stockRequestRows.data ?? []).map((r) => r.product_id));
+  const customerOrderProductIds = new Set((customerOrderRows.data ?? []).map((r) => r.product_id));
+  const auditProductIds = new Set((auditRows.data ?? []).map((r) => r.entity_id).filter((id): id is string => id !== null));
 
   const validationList: ProductValidationResult[] = [];
 
@@ -698,6 +705,18 @@ export async function validateRemoveProductsFromLocation(
     } else if (saleReturnProductIds.has(prod.id)) {
       blocked = true;
       reason = "Has return history";
+    } else if (purchaseReturnProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has purchase return history";
+    } else if (stockRequestProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has stock request history";
+    } else if (customerOrderProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has customer order history";
+    } else if (auditProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has audit history";
     }
 
     validationList.push({

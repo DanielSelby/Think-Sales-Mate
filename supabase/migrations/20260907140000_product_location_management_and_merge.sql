@@ -50,6 +50,9 @@ declare
   v_target_cost numeric;
   v_images text[] := '{}';
   v_stock_record record;
+  v_secondary_count integer;
+  v_target_description text;
+  v_target_barcode text;
 begin
   -- Validate manager role
   if not public.has_org_role(p_org_id, 'manager') then
@@ -80,9 +83,21 @@ begin
     raise exception 'Master product cannot be merged into itself';
   end if;
 
-  -- Validate all secondary products exist in org
+  -- Reject duplicate IDs and ensure every requested product was found.  A
+  -- FOR loop over the matching rows alone would otherwise silently accept
+  -- missing IDs and report a successful partial merge.
+  select count(distinct id) into v_secondary_count
+  from public.products
+  where id = any(p_secondary_ids) and org_id = p_org_id;
+  if v_secondary_count <> array_length(p_secondary_ids, 1)
+     or v_secondary_count <> (select count(distinct x) from unnest(p_secondary_ids) as t(x)) then
+    raise exception 'One or more secondary products were not found or were duplicated';
+  end if;
+
+  -- Validate all secondary products exist in org and have not already been
+  -- consumed by another merge.
   for v_sec in
-    select id, name, sku, unit_price, cost_price, image_urls
+    select id, name, sku, unit_price, cost_price, image_urls, status
     from public.products
     where id = any(p_secondary_ids) and org_id = p_org_id
     for update
@@ -90,12 +105,21 @@ begin
     if v_sec.id is null then
       raise exception 'Secondary product not found';
     end if;
+    if v_sec.status = 'merged' then
+      raise exception 'Cannot merge a product that has already been merged';
+    end if;
   end loop;
 
   -- 1. Determine Pricing
   if p_pricing_strategy = 'keep_master' then
     v_target_price := v_master.unit_price;
     v_target_cost := v_master.cost_price;
+  elsif p_pricing_strategy = 'keep_latest' then
+    select unit_price, cost_price into v_target_price, v_target_cost
+    from public.products
+    where id = p_master_id or id = any(p_secondary_ids)
+    order by created_at desc
+    limit 1;
   elsif p_pricing_strategy = 'highest' then
     select max(unit_price), max(cost_price)
     into v_target_price, v_target_cost
@@ -111,16 +135,19 @@ begin
     into v_target_price, v_target_cost
     from public.products
     where id = p_master_id or id = any(p_secondary_ids);
-  elsif p_pricing_strategy = 'custom' and p_custom_price is not null then
+  elsif p_pricing_strategy = 'custom' then
+    if p_custom_price is null then
+      raise exception 'Custom pricing requires a price';
+    end if;
     v_target_price := p_custom_price;
     v_target_cost := coalesce(p_custom_cost, v_master.cost_price);
   else
-    v_target_price := v_master.unit_price;
-    v_target_cost := v_master.cost_price;
+    raise exception 'Unsupported pricing strategy: %', p_pricing_strategy;
   end if;
 
   -- 2. Image consolidation if requested
-  if coalesce((p_details_options->>'merge_images')::boolean, true) then
+  if coalesce((p_details_options->>'merge_images')::boolean,
+              (p_details_options->>'mergeImages')::boolean, true) then
     select array_agg(distinct img) into v_images
     from (
       select unnest(v_master.image_urls) as img
@@ -132,6 +159,17 @@ begin
     where img is not null and img <> '';
   else
     v_images := v_master.image_urls;
+  end if;
+
+  v_target_description := v_master.description;
+  v_target_barcode := v_master.barcode;
+  if coalesce(p_details_options->>'keep_description', p_details_options->>'keepDescription') = 'latest'
+     or coalesce(p_details_options->>'keep_barcode', p_details_options->>'keepBarcode') = 'latest' then
+    select description, barcode into v_target_description, v_target_barcode
+    from public.products
+    where id = p_master_id or id = any(p_secondary_ids)
+    order by created_at desc
+    limit 1;
   end if;
 
   -- 3. Consolidate Location Stock Levels (product_stock_levels)
@@ -228,6 +266,10 @@ begin
     cost_price = coalesce(v_target_cost, cost_price),
     stock_quantity = v_total_stock,
     image_urls = coalesce(v_images, image_urls),
+    description = case when coalesce(p_details_options->>'keep_description', p_details_options->>'keepDescription') = 'latest'
+                       then v_target_description else description end,
+    barcode = case when coalesce(p_details_options->>'keep_barcode', p_details_options->>'keepBarcode') = 'latest'
+                  then v_target_barcode else barcode end,
     updated_at = now()
   where id = p_master_id;
 

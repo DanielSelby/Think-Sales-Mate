@@ -139,6 +139,22 @@ async function formatProductOptions(rawProducts: any[], supabase: any, orgId: st
   });
 }
 
+export async function getProductsForMerge(productIds: string[]): Promise<MergeProductOption[]> {
+  const context = await getCurrentOrgContext();
+  if (!context || productIds.length === 0) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, name, sku, barcode, category, brand, unit_price, cost_price, stock_quantity, image_urls, created_at, location_id")
+    .in("id", productIds)
+    .eq("org_id", context.orgId)
+    .neq("status", "merged");
+
+  if (error || !data) return [];
+  return formatProductOptions(data, supabase, context.orgId);
+}
+
 /**
  * Generate preview and impact analysis for merging products.
  */
@@ -355,8 +371,13 @@ export async function executeProductMerge(payload: ExecuteMergePayload): Promise
         recordsTransferred: rpcData.records_transferred,
       };
     }
-  } catch {
-    // If RPC is not found in database, execute via resilient server-side transaction emulation
+    // The fallback is not transactional, so never use it for an operational
+    // RPC failure (which could otherwise leave a partially merged catalog).
+    if (rpcError && rpcError.code !== "PGRST202") {
+      return { ok: false, error: rpcError.message || "Product merge failed." };
+    }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Product merge failed." };
   }
 
   // Fallback: Safe Multi-step Execution using Admin Client
@@ -379,8 +400,11 @@ export async function executeProductMerge(payload: ExecuteMergePayload): Promise
       .in("id", secondaryProductIds)
       .eq("org_id", context.orgId);
 
-    if (secErr || !secondaries || secondaries.length === 0) {
+    if (secErr || !secondaries || secondaries.length !== new Set(secondaryProductIds).size) {
       return { ok: false, error: "Secondary products not found." };
+    }
+    if (master.status === "merged" || secondaries.some((product) => product.status === "merged")) {
+      return { ok: false, error: "Merged products cannot be used in another merge." };
     }
 
     // 2. Determine target pricing
@@ -407,6 +431,8 @@ export async function executeProductMerge(payload: ExecuteMergePayload): Promise
     } else if (pricingStrategy === "custom" && customPrice != null) {
       finalPrice = customPrice;
       finalCost = customCost ?? master.cost_price;
+    } else if (pricingStrategy === "custom") {
+      return { ok: false, error: "Custom pricing requires a price." };
     }
 
     // 3. Consolidate Images
@@ -417,6 +443,10 @@ export async function executeProductMerge(payload: ExecuteMergePayload): Promise
       secondaries.forEach((sec) => (sec.image_urls || []).forEach((u: string) => allImages.add(u)));
       mergedImages = Array.from(allImages);
     }
+    const latest = [...allProds].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    const detailUpdates: Record<string, unknown> = {};
+    if (detailsOptions?.keepDescription === "latest") detailUpdates.description = latest.description;
+    if (detailsOptions?.keepBarcode === "latest") detailUpdates.barcode = latest.barcode;
 
     // 4. Consolidate Location Stock Levels
     const { data: secStockLevels } = await admin
@@ -477,21 +507,24 @@ export async function executeProductMerge(payload: ExecuteMergePayload): Promise
     let transferredCount = 0;
 
     const transferTasks = [
-      admin.from("sale_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
-      admin.from("purchase_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
-      admin.from("stock_transfer_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
-      admin.from("stock_adjustment_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
-      admin.from("sale_return_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
-      admin.from("purchase_return_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
-      admin.from("stock_request_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
-      admin.from("customer_order_items").update({ product_id: masterProductId }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("sale_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("purchase_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("stock_transfer_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("stock_adjustment_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("sale_return_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("purchase_return_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("stock_request_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
+      admin.from("customer_order_items").update({ product_id: masterProductId }, { count: "exact" }).in("product_id", secondaryProductIds).eq("org_id", context.orgId),
     ];
 
     const results = await Promise.allSettled(transferTasks);
+    const failedTransfer = results.find((res) => res.status === "fulfilled" && res.value.error);
+    const rejectedTransfer = results.find((res) => res.status === "rejected");
+    if (failedTransfer || rejectedTransfer) {
+      throw new Error("Unable to transfer all product transaction records.");
+    }
     results.forEach((res) => {
-      if (res.status === "fulfilled" && !res.value.error) {
-        transferredCount += (res.value as any).count ?? 1;
-      }
+      if (res.status === "fulfilled") transferredCount += res.value.count ?? 0;
     });
 
     // 6. Update Master Product
@@ -502,6 +535,7 @@ export async function executeProductMerge(payload: ExecuteMergePayload): Promise
         cost_price: finalCost,
         stock_quantity: consolidatedStock,
         image_urls: mergedImages,
+        ...detailUpdates,
         updated_at: new Date().toISOString(),
       })
       .eq("id", masterProductId);
