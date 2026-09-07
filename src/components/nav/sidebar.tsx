@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
-  Inbox, Headphones, MessageSquare, DollarSign, GitMerge,
+  Inbox, Headphones, MessageSquare, DollarSign, GitMerge, ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -34,6 +34,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Dashboard",
     href:  "/dashboard",
     icon:  LayoutDashboard,
+    status: "live",
+  },
+  {
+    label: "Approval Center",
+    href: "/approvals",
+    icon: ClipboardCheck,
     status: "live",
   },
   {
