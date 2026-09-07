@@ -26,13 +26,29 @@ import {
   List,
   X,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  MapPin,
+  GitMerge,
+  CheckCircle2,
+  Loader2,
+  Info
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { formatMoney } from "@/lib/currency";
-import { deleteProduct, toggleProductActive, duplicateProduct, bulkImportProducts } from "@/app/(dashboard)/inventory/actions";
+import {
+  deleteProduct,
+  toggleProductActive,
+  duplicateProduct,
+  bulkImportProducts,
+  bulkAddProductsToLocation,
+  validateRemoveProductsFromLocation,
+  bulkRemoveProductsFromLocation,
+  type ValidationRemoveResult,
+  type ProductValidationResult
+} from "@/app/(dashboard)/inventory/actions";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 
 export interface CatalogProductStockLevel {
@@ -155,12 +171,26 @@ export function ProductsCatalog({
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
+  const router = useRouter();
   const [view, setView] = useState<"table" | "grid">("table");
   const [sortKey, setSortKey] = useState<SortKey>("name-asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Bulk Location Management & Merge state
+  const [showAddLocationModal, setShowAddLocationModal] = useState(false);
+  const [addLocationId, setAddLocationId] = useState(locations[0]?.id || "");
+  const [isAddingLocation, setIsAddingLocation] = useState(false);
+  const [addLocationToast, setAddLocationToast] = useState<{ title: string; countText: string; skipText?: string } | null>(null);
+
+  const [showRemoveLocationModal, setShowRemoveLocationModal] = useState(false);
+  const [removeLocationId, setRemoveLocationId] = useState(locations[0]?.id || "");
+  const [isValidatingRemoval, setIsValidatingRemoval] = useState(false);
+  const [isRemovingLocation, setIsRemovingLocation] = useState(false);
+  const [removalValidation, setRemovalValidation] = useState<ValidationRemoveResult | null>(null);
+  const [removeLocationToast, setRemoveLocationToast] = useState<{ title: string; message: string } | null>(null);
 
   const categories = useMemo(
     () => [...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort(),
@@ -284,6 +314,103 @@ export function ProductsCatalog({
       pageItems.forEach((p) => (allSelected ? next.delete(p.id) : next.add(p.id)));
       return next;
     });
+  }
+
+  function toggleSelectAllGlobal() {
+    setSelectedIds((prev) => {
+      if (prev.size === sorted.length) return new Set();
+      return new Set(sorted.map((p) => p.id));
+    });
+  }
+
+  function openAddLocationModal() {
+    if (selectedIds.size === 0) return;
+    if (!addLocationId && locations.length > 0) {
+      setAddLocationId(locations[0].id);
+    }
+    setShowAddLocationModal(true);
+  }
+
+  async function handleBulkAddLocation() {
+    if (!addLocationId || selectedIds.size === 0) return;
+    setIsAddingLocation(true);
+    try {
+      const res = await bulkAddProductsToLocation(Array.from(selectedIds), addLocationId);
+      if (res.ok) {
+        setShowAddLocationModal(false);
+        setAddLocationToast({
+          title: "Import Successful!",
+          countText: `${res.importedCount} products imported to ${res.locationName}.`,
+          skipText: res.skippedCount > 0 ? `${res.skippedCount} products skipped because SKU already exists in the selected location.` : undefined,
+        });
+        setTimeout(() => setAddLocationToast(null), 8000);
+      } else {
+        setError(res.error || "Failed to add products to location");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to add products to location");
+    } finally {
+      setIsAddingLocation(false);
+    }
+  }
+
+  async function openRemoveLocationModal() {
+    if (selectedIds.size === 0) return;
+    const initialLoc = removeLocationId || locations[0]?.id || "";
+    setRemoveLocationId(initialLoc);
+    setShowRemoveLocationModal(true);
+    if (initialLoc) {
+      await fetchRemovalValidation(initialLoc);
+    }
+  }
+
+  async function fetchRemovalValidation(locId: string) {
+    setIsValidatingRemoval(true);
+    try {
+      const val = await validateRemoveProductsFromLocation(Array.from(selectedIds), locId);
+      if (val.ok) {
+        setRemovalValidation(val);
+      } else {
+        setError(val.error || "Could not validate product removal");
+      }
+    } catch (err: any) {
+      setError(err.message || "Validation error");
+    } finally {
+      setIsValidatingRemoval(false);
+    }
+  }
+
+  async function handleRemoveLocationChange(locId: string) {
+    setRemoveLocationId(locId);
+    await fetchRemovalValidation(locId);
+  }
+
+  async function handleBulkRemoveLocation() {
+    if (!removeLocationId || selectedIds.size === 0) return;
+    setIsRemovingLocation(true);
+    try {
+      const res = await bulkRemoveProductsFromLocation(Array.from(selectedIds), removeLocationId);
+      if (res.ok) {
+        setShowRemoveLocationModal(false);
+        setRemoveLocationToast({
+          title: "Removal Successful!",
+          message: `${res.removedCount} products removed from location.` + (res.blockedCount > 0 ? ` ${res.blockedCount} products kept due to transaction history.` : ""),
+        });
+        setTimeout(() => setRemoveLocationToast(null), 8000);
+      } else {
+        setError(res.error || "Failed to remove products from location");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to remove products from location");
+    } finally {
+      setIsRemovingLocation(false);
+    }
+  }
+
+  function handleMergeProducts() {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds).join(",");
+    router.push(`/inventory/merge?ids=${encodeURIComponent(ids)}`);
   }
 
   function handleDelete(product: CatalogProduct) {
@@ -652,52 +779,101 @@ export function ProductsCatalog({
         )}
       </div>
 
-      {/* View toggle + sort + count */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex overflow-hidden rounded-md border border-ledger-200 dark:border-ledger-700">
+      {/* Bulk Action Toolbar + View Toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ledger-100 bg-white p-3.5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <label className="flex items-center gap-2 rounded-xl border border-ledger-200 bg-ledger-50/70 px-3 py-2 text-xs font-semibold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white cursor-pointer select-none transition hover:border-ledger-300">
+            <input
+              type="checkbox"
+              checked={pageItems.length > 0 && pageItems.every((p) => selectedIds.has(p.id))}
+              onChange={toggleSelectAllOnPage}
+              className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              Select All ({sorted.length})
+              {selectedIds.size > 0 && (
+                <span className="ml-1.5 text-blue-600 dark:text-blue-400 font-bold">({selectedIds.size} selected)</span>
+              )}
+            </span>
+          </label>
+
           <button
-            onClick={() => setView("table")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm ${view === "table" ? "bg-signal text-white" : "text-ledger-500 hover:bg-ledger-50 dark:text-ledger-400 dark:hover:bg-white/[0.06]"}`}
+            type="button"
+            onClick={openAddLocationModal}
+            disabled={selectedIds.size === 0}
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <List className="h-3.5 w-3.5" /> Table view
+            <MapPin className="h-3.5 w-3.5" />
+            Add To Locations
           </button>
+
           <button
-            onClick={() => setView("grid")}
-            className={`flex items-center gap-1.5 border-l border-ledger-200 px-3 py-1.5 text-sm dark:border-ledger-700 ${view === "grid" ? "bg-signal text-white" : "text-ledger-500 hover:bg-ledger-50 dark:text-ledger-400 dark:hover:bg-white/[0.06]"}`}
+            type="button"
+            onClick={openRemoveLocationModal}
+            disabled={selectedIds.size === 0}
+            className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <LayoutGrid className="h-3.5 w-3.5" /> Grid view
+            <Trash2 className="h-3.5 w-3.5" />
+            Remove From Location
+          </button>
+
+          <button
+            type="button"
+            onClick={handleMergeProducts}
+            disabled={selectedIds.size === 0}
+            className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-800 dark:hover:bg-slate-700"
+          >
+            <GitMerge className="h-3.5 w-3.5" />
+            Merge Products
           </button>
         </div>
 
-        <div className="flex items-center gap-3 text-sm text-ledger-500 dark:text-ledger-400">
-          <span>
-            {sorted.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, sorted.length)} of{" "}
-            {sorted.length}
-          </span>
-          <label className="flex items-center gap-1.5">
-            Show
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex overflow-hidden rounded-md border border-ledger-200 dark:border-ledger-700">
+            <button
+              onClick={() => setView("table")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm ${view === "table" ? "bg-signal text-white" : "text-ledger-500 hover:bg-ledger-50 dark:text-ledger-400 dark:hover:bg-white/[0.06]"}`}
+            >
+              <List className="h-3.5 w-3.5" /> Table view
+            </button>
+            <button
+              onClick={() => setView("grid")}
+              className={`flex items-center gap-1.5 border-l border-ledger-200 px-3 py-1.5 text-sm dark:border-ledger-700 ${view === "grid" ? "bg-signal text-white" : "text-ledger-500 hover:bg-ledger-50 dark:text-ledger-400 dark:hover:bg-white/[0.06]"}`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> Grid view
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 text-sm text-ledger-500 dark:text-ledger-400">
+            <span>
+              {sorted.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, sorted.length)} of{" "}
+              {sorted.length}
+            </span>
+            <label className="flex items-center gap-1.5">
+              Show
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                className="h-8 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+              >
+                {[25, 50, 100, 200, 500, 1000].map((n) => <option key={n} value={n}>{n}</option>)}
+                <option value={sorted.length || 1}>All</option>
+              </select>
+              entries
+            </label>
             <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
               className="h-8 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
             >
-              {[25, 50, 100, 200, 500, 1000].map((n) => <option key={n} value={n}>{n}</option>)}
-              <option value={sorted.length || 1}>All</option>
+              <option value="name-asc">Sort: Name (A–Z)</option>
+              <option value="name-desc">Sort: Name (Z–A)</option>
+              <option value="stock-desc">Sort: Stock (high–low)</option>
+              <option value="stock-asc">Sort: Stock (low–high)</option>
+              <option value="price-desc">Sort: Price (high–low)</option>
+              <option value="price-asc">Sort: Price (low–high)</option>
             </select>
-            entries
-          </label>
-          <select
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value as SortKey)}
-            className="h-8 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-          >
-            <option value="name-asc">Sort: Name (A–Z)</option>
-            <option value="name-desc">Sort: Name (Z–A)</option>
-            <option value="stock-desc">Sort: Stock (high–low)</option>
-            <option value="stock-asc">Sort: Stock (low–high)</option>
-            <option value="price-desc">Sort: Price (high–low)</option>
-            <option value="price-asc">Sort: Price (low–high)</option>
-          </select>
+          </div>
         </div>
       </div>
 
@@ -725,7 +901,7 @@ export function ProductsCatalog({
                 <th className="px-2 py-3 min-w-[120px] text-right whitespace-nowrap">Buying price</th>
                 <th className="px-2 py-3 min-w-[120px] text-right whitespace-nowrap">Selling price</th>
                 <th className="px-2 py-3 min-w-[110px] text-right whitespace-nowrap">Stock</th>
-                <th className="px-2 py-3 min-w-[130px] whitespace-nowrap">Warehouse</th>
+                <th className="px-2 py-3 min-w-[150px] whitespace-nowrap">Location(s)</th>
                 <th className="px-2 py-3 min-w-[150px] whitespace-nowrap">Supplier</th>
                 <th className="px-2 py-3 min-w-[110px] whitespace-nowrap">Status</th>
                 {canManage && <th className="w-16 px-2 py-3 min-w-[80px]" />}
@@ -789,15 +965,13 @@ export function ProductsCatalog({
                     <td className="px-2 py-3 text-ledger-500 dark:text-ledger-400">
                       {warehouse !== "all" ? (
                         <span>{locations.find((l) => l.id === warehouse)?.name ?? p.locationName ?? "—"}</span>
-                      ) : p.stockLevels && p.stockLevels.filter((sl) => sl.quantity > 0).length > 1 ? (
+                      ) : p.stockLevels && p.stockLevels.length > 0 ? (
                         <span
-                          className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                          title={p.stockLevels.filter((sl) => sl.quantity > 0).map((sl) => `${sl.locationName}: ${sl.quantity}`).join(" | ")}
+                          className="font-medium text-ledger-700 dark:text-ledger-200"
+                          title={p.stockLevels.map((sl) => `${sl.locationName}: ${sl.quantity} units`).join(" | ")}
                         >
-                          Multiple ({p.stockLevels.filter((sl) => sl.quantity > 0).length})
+                          {p.stockLevels.map((sl) => sl.locationName).join(", ")}
                         </span>
-                      ) : p.stockLevels && p.stockLevels.filter((sl) => sl.quantity > 0).length === 1 ? (
-                        <span>{p.stockLevels.find((sl) => sl.quantity > 0)?.locationName ?? p.locationName ?? "—"}</span>
                       ) : (
                         <span>{p.locationName ?? "—"}</span>
                       )}
@@ -1005,6 +1179,309 @@ export function ProductsCatalog({
           </ul>
         </div>
       </div>
+
+      {/* ── Toast Notifications ─────────────────────────────────────── */}
+      {addLocationToast && (
+        <div className="fixed top-6 right-6 z-50 flex max-w-md items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-xl dark:border-emerald-800/60 dark:bg-ink-900 animate-in slide-in-from-top-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div className="flex-1 pr-2">
+            <h4 className="text-sm font-bold text-ink-900 dark:text-white">{addLocationToast.title}</h4>
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">{addLocationToast.countText}</p>
+            {addLocationToast.skipText && (
+              <p className="text-xs text-ledger-500 dark:text-ledger-400 mt-1">{addLocationToast.skipText}</p>
+            )}
+          </div>
+          <button
+            onClick={() => setAddLocationToast(null)}
+            className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
+            aria-label="Close notification"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {removeLocationToast && (
+        <div className="fixed top-6 right-6 z-50 flex max-w-md items-start gap-3 rounded-2xl border border-blue-200 bg-white p-4 shadow-xl dark:border-blue-800/60 dark:bg-ink-900 animate-in slide-in-from-top-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div className="flex-1 pr-2">
+            <h4 className="text-sm font-bold text-ink-900 dark:text-white">{removeLocationToast.title}</h4>
+            <p className="text-xs text-ledger-600 dark:text-ledger-300 mt-0.5">{removeLocationToast.message}</p>
+          </div>
+          <button
+            onClick={() => setRemoveLocationToast(null)}
+            className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
+            aria-label="Close notification"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Modal: Add To Locations ─────────────────────────────────── */}
+      {showAddLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-ink-900 dark:text-white">Add To Locations</h3>
+                  <span className="inline-block mt-0.5 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
+                    {selectedIds.size} products selected
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddLocationModal(false)}
+                className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-ledger-800 dark:hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-ledger-500 dark:text-ledger-400">
+              The selected products will be added to the selected location(s). The system will check for existing products using SKU to avoid duplicates.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-ink-900 dark:text-white mb-1.5">
+                  Select Location / Branch
+                </label>
+                <select
+                  value={addLocationId}
+                  onChange={(e) => setAddLocationId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 focus:border-blue-500 focus:outline-none dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
+                >
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Info notice banner */}
+              <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-200">
+                <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                <p className="leading-relaxed">
+                  Products will be imported using <span className="font-semibold">SKU</span>. If a product with the same SKU already exists in the selected location, it will be skipped.
+                </p>
+              </div>
+
+              {/* Import Summary Section */}
+              {(() => {
+                const targetLoc = locations.find((l) => l.id === addLocationId);
+                const selectedProductsList = products.filter((p) => selectedIds.has(p.id));
+                const alreadyPresentCount = selectedProductsList.filter(
+                  (p) => p.locationId === addLocationId || p.stockLevels?.some((sl) => sl.locationId === addLocationId)
+                ).length;
+                const newToAddCount = selectedProductsList.length - alreadyPresentCount;
+
+                return (
+                  <div className="rounded-xl border border-ledger-100 bg-ledger-50/60 p-4 dark:border-ledger-700/60 dark:bg-white/[0.02] space-y-2">
+                    <h5 className="text-[11px] font-bold uppercase tracking-wider text-ledger-400">Import Summary</h5>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-ledger-500">Selected Products:</span>
+                      <span className="font-semibold text-ink-900 dark:text-white">{selectedIds.size}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-ledger-500">Target Location:</span>
+                      <span className="font-semibold text-ink-900 dark:text-white">{targetLoc?.name ?? "None"}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-ledger-500">Existing at location (will skip):</span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">{alreadyPresentCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-ledger-500">New products to import:</span>
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">{newToAddCount}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3 border-t border-ledger-100 pt-4 dark:border-ledger-700">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddLocationModal(false)}
+                disabled={isAddingLocation}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={isAddingLocation || !addLocationId}
+                onClick={handleBulkAddLocation}
+              >
+                {isAddingLocation ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  "Import"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Remove From Location ─────────────────────────────── */}
+      {showRemoveLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-xl rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-ink-900 dark:text-white">Remove From Location</h3>
+                  <span className="inline-block mt-0.5 rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">
+                    {selectedIds.size} products selected
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRemoveLocationModal(false)}
+                className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-ledger-800 dark:hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-ledger-500 dark:text-ledger-400">
+              The selected products will be removed from the selected location. This action cannot be undone.
+            </p>
+
+            {/* Warning banner if blocked products exist */}
+            {removalValidation && removalValidation.blockedCount > 0 && (
+              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+                <p className="leading-relaxed">
+                  Some products cannot be removed because they have transactional history (sales, purchases, or stock movements).
+                </p>
+              </div>
+            )}
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-ink-900 dark:text-white mb-1.5">
+                  Select Location
+                </label>
+                <select
+                  value={removeLocationId}
+                  onChange={(e) => handleRemoveLocationChange(e.target.value)}
+                  disabled={isValidatingRemoval || isRemovingLocation}
+                  className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 focus:border-rose-500 focus:outline-none dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
+                >
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {isValidatingRemoval ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-xs text-ledger-500">
+                  <Loader2 className="h-4 w-4 animate-spin text-rose-600" />
+                  Checking transaction history across all modules...
+                </div>
+              ) : removalValidation ? (
+                <div className="space-y-3">
+                  {/* Blocked products list */}
+                  {removalValidation.blockedCount > 0 && (
+                    <div className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20">
+                      <h5 className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-300">
+                        <Info className="h-3.5 w-3.5" /> The following products will NOT be removed:
+                      </h5>
+                      <div className="mt-2.5 max-h-48 overflow-y-auto rounded-lg border border-amber-200/60 bg-white dark:border-ledger-700 dark:bg-ink-900">
+                        <table className="w-full text-left text-xs">
+                          <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+                            <tr>
+                              <th className="px-3 py-2">Product Name</th>
+                              <th className="px-3 py-2">SKU</th>
+                              <th className="px-3 py-2">Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
+                            {removalValidation.products
+                              .filter((p) => p.blocked)
+                              .map((p) => (
+                                <tr key={p.id}>
+                                  <td className="px-3 py-2 font-medium text-ink-900 dark:text-white">{p.name}</td>
+                                  <td className="px-3 py-2 font-mono text-[11px] text-ledger-500">{p.sku}</td>
+                                  <td className="px-3 py-2 font-semibold text-rose-600 dark:text-rose-400">{p.reason}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary outcome banner */}
+                  <div className="flex items-center justify-between rounded-xl border border-ledger-100 bg-ledger-50/50 p-3 text-xs dark:border-ledger-700 dark:bg-white/[0.02]">
+                    <span className="text-ledger-600 dark:text-ledger-300">
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{removalValidation.removableCount}</span> eligible for removal
+                      {removalValidation.blockedCount > 0 && (
+                        <> · <span className="font-bold text-rose-600 dark:text-rose-400">{removalValidation.blockedCount}</span> blocked</>
+                      )}
+                    </span>
+                    <span className="font-medium text-ledger-500">{removalValidation.locationName}</span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3 border-t border-ledger-100 pt-4 dark:border-ledger-700">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowRemoveLocationModal(false)}
+                disabled={isRemovingLocation}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                disabled={
+                  isRemovingLocation ||
+                  isValidatingRemoval ||
+                  !removalValidation ||
+                  removalValidation.removableCount === 0
+                }
+                onClick={handleBulkRemoveLocation}
+              >
+                {isRemovingLocation ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  `Remove (${removalValidation?.removableCount ?? 0})`
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

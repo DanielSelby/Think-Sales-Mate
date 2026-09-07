@@ -415,3 +415,391 @@ export async function getCategoryAndBrandOptions(): Promise<{ categories: string
   const brands = Array.from(new Set((data ?? []).map((p) => p.brand).filter(Boolean))) as string[];
   return { categories: categories.sort(), brands: brands.sort() };
 }
+
+// ---------------------------------------------------------------------------
+// Product Location Management (Add to Locations & Remove from Location)
+// ---------------------------------------------------------------------------
+
+export interface BulkAddLocationResult {
+  ok: boolean;
+  error?: string;
+  locationName?: string;
+  importedCount: number;
+  skippedCount: number;
+  skippedProducts: { id: string; name: string; sku: string; reason: string }[];
+  importedProducts: { id: string; name: string; sku: string }[];
+}
+
+export async function bulkAddProductsToLocation(
+  productIds: string[],
+  locationId: string
+): Promise<BulkAddLocationResult> {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "inventory.manage")) {
+    return { ok: false, error: "You don't have permission to manage product locations.", importedCount: 0, skippedCount: 0, skippedProducts: [], importedProducts: [] };
+  }
+
+  if (!productIds || productIds.length === 0) {
+    return { ok: false, error: "No products selected.", importedCount: 0, skippedCount: 0, skippedProducts: [], importedProducts: [] };
+  }
+
+  if (!locationId) {
+    return { ok: false, error: "Please select a target location.", importedCount: 0, skippedCount: 0, skippedProducts: [], importedProducts: [] };
+  }
+
+  const supabase = await createClient();
+
+  // 1. Fetch location details
+  const { data: location, error: locError } = await supabase
+    .from("business_locations")
+    .select("id, name")
+    .eq("id", locationId)
+    .eq("org_id", context.orgId)
+    .single();
+
+  if (locError || !location) {
+    return { ok: false, error: "Target location not found.", importedCount: 0, skippedCount: 0, skippedProducts: [], importedProducts: [] };
+  }
+
+  // 2. Fetch selected products
+  const { data: selectedProducts, error: prodError } = await supabase
+    .from("products")
+    .select("id, name, sku, stock_quantity, location_id")
+    .in("id", productIds)
+    .eq("org_id", context.orgId);
+
+  if (prodError || !selectedProducts || selectedProducts.length === 0) {
+    return { ok: false, error: "Selected products could not be retrieved.", importedCount: 0, skippedCount: 0, skippedProducts: [], importedProducts: [] };
+  }
+
+  // 3. Find existing stock levels at target location to check for duplicate SKUs
+  const { data: existingStockLevels } = await supabase
+    .from("product_stock_levels")
+    .select("product_id, products(sku)")
+    .eq("location_id", locationId)
+    .eq("org_id", context.orgId);
+
+  const existingProductIds = new Set((existingStockLevels ?? []).map((s) => s.product_id));
+  const existingSkus = new Set(
+    (existingStockLevels ?? []).map((s) => {
+      const prod = Array.isArray(s.products) ? s.products[0] : s.products;
+      return prod?.sku;
+    }).filter(Boolean)
+  );
+
+  const importedProducts: { id: string; name: string; sku: string }[] = [];
+  const skippedProducts: { id: string; name: string; sku: string; reason: string }[] = [];
+
+  for (const prod of selectedProducts) {
+    const isAlreadyAtLocation = existingProductIds.has(prod.id) || existingSkus.has(prod.sku) || prod.location_id === locationId;
+
+    if (isAlreadyAtLocation) {
+      skippedProducts.push({
+        id: prod.id,
+        name: prod.name,
+        sku: prod.sku,
+        reason: `SKU already exists in ${location.name}`,
+      });
+    } else {
+      // Create location record in product_stock_levels with 0 units
+      const { error: insertError } = await supabase.from("product_stock_levels").insert({
+        org_id: context.orgId,
+        product_id: prod.id,
+        location_id: locationId,
+        quantity: 0,
+      });
+
+      if (!insertError) {
+        importedProducts.push({
+          id: prod.id,
+          name: prod.name,
+          sku: prod.sku,
+        });
+        existingProductIds.add(prod.id);
+        existingSkus.add(prod.sku);
+
+        // If product didn't have any location_id set, assign this as primary
+        if (!prod.location_id) {
+          await supabase.from("products").update({ location_id: locationId }).eq("id", prod.id);
+        }
+      } else {
+        skippedProducts.push({
+          id: prod.id,
+          name: prod.name,
+          sku: prod.sku,
+          reason: insertError.message || "Failed to add to location",
+        });
+      }
+    }
+  }
+
+  // Log in audit_logs
+  try {
+    await supabase.from("audit_logs").insert({
+      org_id: context.orgId,
+      actor_id: context.userId,
+      action: "products.bulk_add_to_location",
+      entity_type: "business_locations",
+      entity_id: locationId,
+      metadata: {
+        location_id: locationId,
+        location_name: location.name,
+        imported_count: importedProducts.length,
+        skipped_count: skippedProducts.length,
+        imported_skus: importedProducts.map((p) => p.sku),
+      },
+    });
+  } catch (err) {
+    console.error("Audit log error on bulk add:", err);
+  }
+
+  revalidatePath("/inventory");
+  return {
+    ok: true,
+    locationName: location.name,
+    importedCount: importedProducts.length,
+    skippedCount: skippedProducts.length,
+    importedProducts,
+    skippedProducts,
+  };
+}
+
+export interface ProductValidationResult {
+  id: string;
+  name: string;
+  sku: string;
+  blocked: boolean;
+  reason?: string;
+}
+
+export interface ValidationRemoveResult {
+  ok: boolean;
+  error?: string;
+  locationName?: string;
+  products: ProductValidationResult[];
+  removableCount: number;
+  blockedCount: number;
+}
+
+export async function validateRemoveProductsFromLocation(
+  productIds: string[],
+  locationId: string
+): Promise<ValidationRemoveResult> {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "inventory.manage")) {
+    return { ok: false, error: "You don't have permission to manage product locations.", products: [], removableCount: 0, blockedCount: 0 };
+  }
+
+  if (!productIds || productIds.length === 0 || !locationId) {
+    return { ok: false, error: "Products and target location are required.", products: [], removableCount: 0, blockedCount: 0 };
+  }
+
+  const supabase = await createClient();
+
+  const { data: location } = await supabase
+    .from("business_locations")
+    .select("id, name")
+    .eq("id", locationId)
+    .eq("org_id", context.orgId)
+    .single();
+
+  const { data: selectedProducts } = await supabase
+    .from("products")
+    .select("id, name, sku, location_id")
+    .in("id", productIds)
+    .eq("org_id", context.orgId);
+
+  if (!selectedProducts || selectedProducts.length === 0) {
+    return { ok: false, error: "No matching products found.", products: [], removableCount: 0, blockedCount: 0 };
+  }
+
+  // Check stock levels at this location
+  const { data: stockLevels } = await supabase
+    .from("product_stock_levels")
+    .select("product_id, quantity")
+    .in("product_id", productIds)
+    .eq("location_id", locationId)
+    .eq("org_id", context.orgId);
+
+  const stockMap = new Map((stockLevels ?? []).map((s) => [s.product_id, s.quantity]));
+
+  // Check sales history at this location
+  const { data: saleRows } = await supabase
+    .from("sale_items")
+    .select("product_id, sales!inner(id, location_id)")
+    .in("product_id", productIds)
+    .eq("org_id", context.orgId)
+    .eq("sales.location_id", locationId);
+
+  const salesProductIds = new Set((saleRows ?? []).map((r) => r.product_id));
+
+  // Check purchases history at this location
+  const { data: purchaseRows } = await supabase
+    .from("purchase_items")
+    .select("product_id, purchases!inner(id, location_id)")
+    .in("product_id", productIds)
+    .eq("org_id", context.orgId)
+    .eq("purchases.location_id", locationId);
+
+  const purchaseProductIds = new Set((purchaseRows ?? []).map((r) => r.product_id));
+
+  // Check stock transfers involving this location
+  const { data: transferRows } = await supabase
+    .from("stock_transfer_items")
+    .select("product_id, stock_transfers!inner(id, from_location_id, to_location_id)")
+    .in("product_id", productIds)
+    .eq("org_id", context.orgId)
+    .or(`stock_transfers.from_location_id.eq.${locationId},stock_transfers.to_location_id.eq.${locationId}`);
+
+  const transferProductIds = new Set((transferRows ?? []).map((r) => r.product_id));
+
+  // Check stock adjustments at this location
+  const { data: adjustmentRows } = await supabase
+    .from("stock_adjustment_items")
+    .select("product_id, stock_adjustments!inner(id, location_id)")
+    .in("product_id", productIds)
+    .eq("org_id", context.orgId)
+    .eq("stock_adjustments.location_id", locationId);
+
+  const adjustmentProductIds = new Set((adjustmentRows ?? []).map((r) => r.product_id));
+
+  // Check sale returns at this location
+  const { data: saleReturnRows } = await supabase
+    .from("sale_return_items")
+    .select("product_id")
+    .in("product_id", productIds)
+    .eq("org_id", context.orgId)
+    .eq("location_id", locationId);
+
+  const saleReturnProductIds = new Set((saleReturnRows ?? []).map((r) => r.product_id));
+
+  const validationList: ProductValidationResult[] = [];
+
+  for (const prod of selectedProducts) {
+    const currentStock = stockMap.get(prod.id) ?? 0;
+    let blocked = false;
+    let reason = "";
+
+    if (currentStock > 0) {
+      blocked = true;
+      reason = `Has stock on hand (${currentStock} units)`;
+    } else if (salesProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has sales history";
+    } else if (purchaseProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has purchase history";
+    } else if (transferProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has stock movements";
+    } else if (adjustmentProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has stock adjustments";
+    } else if (saleReturnProductIds.has(prod.id)) {
+      blocked = true;
+      reason = "Has return history";
+    }
+
+    validationList.push({
+      id: prod.id,
+      name: prod.name,
+      sku: prod.sku,
+      blocked,
+      reason: blocked ? reason : undefined,
+    });
+  }
+
+  const blockedCount = validationList.filter((p) => p.blocked).length;
+  const removableCount = validationList.length - blockedCount;
+
+  return {
+    ok: true,
+    locationName: location?.name ?? "Selected Location",
+    products: validationList,
+    removableCount,
+    blockedCount,
+  };
+}
+
+export interface BulkRemoveLocationResult {
+  ok: boolean;
+  error?: string;
+  removedCount: number;
+  blockedCount: number;
+  blockedProducts: { id: string; name: string; sku: string; reason: string }[];
+  removedProducts: { id: string; name: string; sku: string }[];
+}
+
+export async function bulkRemoveProductsFromLocation(
+  productIds: string[],
+  locationId: string
+): Promise<BulkRemoveLocationResult> {
+  const validation = await validateRemoveProductsFromLocation(productIds, locationId);
+  if (!validation.ok) {
+    return { ok: false, error: validation.error, removedCount: 0, blockedCount: 0, blockedProducts: [], removedProducts: [] };
+  }
+
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "Session expired", removedCount: 0, blockedCount: 0, blockedProducts: [], removedProducts: [] };
+
+  const supabase = await createClient();
+
+  const allowed = validation.products.filter((p) => !p.blocked);
+  const blocked = validation.products.filter((p) => p.blocked).map((p) => ({
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    reason: p.reason ?? "Has transaction history",
+  }));
+
+  const removedProducts: { id: string; name: string; sku: string }[] = [];
+
+  for (const item of allowed) {
+    // Delete location stock level row
+    const { error: delError } = await supabase
+      .from("product_stock_levels")
+      .delete()
+      .eq("product_id", item.id)
+      .eq("location_id", locationId)
+      .eq("org_id", context.orgId);
+
+    if (!delError) {
+      removedProducts.push({ id: item.id, name: item.name, sku: item.sku });
+      // If product's primary location_id was this location, set it to another location or null
+      await supabase
+        .from("products")
+        .update({ location_id: null })
+        .eq("id", item.id)
+        .eq("location_id", locationId);
+    }
+  }
+
+  // Audit log
+  try {
+    await supabase.from("audit_logs").insert({
+      org_id: context.orgId,
+      actor_id: context.userId,
+      action: "products.remove_from_location",
+      entity_type: "business_locations",
+      entity_id: locationId,
+      metadata: {
+        location_id: locationId,
+        location_name: validation.locationName,
+        removed_count: removedProducts.length,
+        blocked_count: blocked.length,
+        removed_skus: removedProducts.map((p) => p.sku),
+      },
+    });
+  } catch (err) {
+    console.error("Audit log error on remove:", err);
+  }
+
+  revalidatePath("/inventory");
+  return {
+    ok: true,
+    removedCount: removedProducts.length,
+    blockedCount: blocked.length,
+    blockedProducts: blocked,
+    removedProducts,
+  };
+}
