@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
-  Inbox, Headphones, MessageSquare,
+  Inbox, Headphones, MessageSquare, DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -93,6 +93,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "All Products",           href: "/inventory",                icon: List         },
       { label: "Add Product",            href: "/inventory/new",             icon: PlusCircle   },
       { label: "Import Products",        href: "/inventory/import",          icon: Upload       },
+      { label: "Price Management",       href: "/inventory/prices",           icon: DollarSign   },
     ],
   },
   {
