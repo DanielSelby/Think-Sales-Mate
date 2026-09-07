@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Search, Download, History, Upload, Save, RefreshCw, TrendingUp, Package, Clock3, Layers3 } from "lucide-react";
-import { bulkUpdateProductPrices, updateProductPrice } from "@/app/(dashboard)/inventory/prices/actions";
+import { bulkUpdateProductPrices, getPriceHistory, updateProductPrice } from "@/app/(dashboard)/inventory/prices/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,8 @@ export function PriceManagementView({ products, currency, canManage }: { product
   const [brand, setBrand] = React.useState("all");
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
   const [notice, setNotice] = React.useState<string | null>(null);
+  const [history, setHistory] = React.useState<any[] | null>(null);
+  const bulkFileRef = React.useRef<HTMLInputElement>(null);
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
   const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))] as string[];
   const filtered = products.filter((product) => {
@@ -72,6 +74,48 @@ export function PriceManagementView({ products, currency, canManage }: { product
     URL.revokeObjectURL(link.href);
   }
 
+  async function showHistory() {
+    const result = await getPriceHistory();
+    if (!result.ok) {
+      setNotice(result.error ?? "Could not load price history.");
+      return;
+    }
+    setHistory(result.entries);
+  }
+
+  function importBulkPrices(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = String(reader.result ?? "").split(/\r?\n/).filter(Boolean);
+      if (rows.length < 2) {
+        setNotice("The price file must include a header and at least one row.");
+        return;
+      }
+      const headers = rows[0].split(",").map((header) => header.trim().toLowerCase());
+      const skuIndex = headers.indexOf("sku");
+      const priceIndex = headers.findIndex((header) => ["new price", "new_price", "price"].includes(header));
+      if (skuIndex < 0 || priceIndex < 0) {
+        setNotice("CSV must include SKU and New Price columns.");
+        return;
+      }
+      const bySku = new Map(products.map((product) => [product.sku.toLowerCase(), product]));
+      const nextDrafts: Record<string, string> = {};
+      let matched = 0;
+      for (const row of rows.slice(1)) {
+        const cells = row.split(",");
+        const product = bySku.get((cells[skuIndex] ?? "").trim().toLowerCase());
+        const value = Number((cells[priceIndex] ?? "").trim());
+        if (product && Number.isFinite(value) && value >= 0) {
+          nextDrafts[product.id] = String(value);
+          matched++;
+        }
+      }
+      setDrafts(nextDrafts);
+      setNotice(matched ? `${matched} price changes loaded. Review them, then click Update.` : "No matching valid SKU prices were found.");
+    };
+    reader.readAsText(file);
+  }
+
   return <div className="mx-auto max-w-[1600px] space-y-5 pb-12">
     <div>
       <p className="text-xs text-ledger-400">Inventory &gt; Price Management</p>
@@ -82,30 +126,37 @@ export function PriceManagementView({ products, currency, canManage }: { product
       {([["update", "Update Price"], ["import", "Import Price"], ["groups", "Price Groupings"]] as const).map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={cn("border-b-2 px-4 py-3 text-sm font-semibold", tab === key ? "border-signal text-signal" : "border-transparent text-ledger-500")}>{label}</button>)}
     </div>
     {notice && <div className="rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm text-ink-900">{notice}</div>}
-    {tab === "update" && <UpdateTabV2 products={filtered} allProducts={products} currency={currency} query={query} setQuery={setQuery} category={category} setCategory={setCategory} brand={brand} setBrand={setBrand} categories={categories} brands={brands} drafts={drafts} setDrafts={setDrafts} save={save} updateAll={updateAll} canManage={canManage} money={money} />}
+    {tab === "update" && <UpdateTabV2 products={filtered} allProducts={products} currency={currency} query={query} setQuery={setQuery} category={category} setCategory={setCategory} brand={brand} setBrand={setBrand} categories={categories} brands={brands} drafts={drafts} setDrafts={setDrafts} save={save} updateAll={updateAll} showHistory={showHistory} bulkFileRef={bulkFileRef} canManage={canManage} money={money} />}
+    {history && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setHistory(null)}><Card className="max-h-[80vh] w-full max-w-2xl overflow-hidden" onClick={(event: React.MouseEvent) => event.stopPropagation()}><CardContent className="space-y-4 p-5"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Price History</h2><Button variant="outline" onClick={() => setHistory(null)}>Close</Button></div><div className="max-h-[60vh] overflow-y-auto">{history.length === 0 ? <p className="text-sm text-ledger-500">No price changes recorded yet.</p> : history.map((entry) => <div key={entry.id} className="flex justify-between border-b border-ledger-100 py-3 text-sm"><span>Product {entry.entity_id}<br /><span className="text-xs text-ledger-500">{new Date(entry.created_at).toLocaleString()}</span></span><strong>{entry.metadata?.new_price ?? "—"}</strong></div>)}</div></CardContent></Card></div>}
     {tab === "import" && <Card><CardContent className="space-y-5 p-6"><h2 className="text-base font-bold">Import Price</h2><p className="text-sm text-ledger-500">Download the template, update prices in Excel or CSV, then upload it for validation before applying changes.</p><Button variant="secondary" onClick={downloadTemplate}><Download className="h-4 w-4" /> Download CSV Template</Button><label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-ledger-200 bg-ledger-50/50 text-center dark:border-ledger-700 dark:bg-white/[0.03]"><Upload className="h-7 w-7 text-signal" /><span className="mt-2 text-sm font-semibold">Drop CSV or Excel file here</span><span className="text-xs text-ledger-500">Validation preview will appear before import</span><input type="file" accept=".csv,.xlsx" className="hidden" onChange={(event) => setNotice(event.target.files?.[0] ? `${event.target.files[0].name} selected. Review and import after validation.` : null)} /></label></CardContent></Card>}
     {tab === "groups" && <GroupsTab products={products} currency={currency} />}
   </div>;
 }
 
-function UpdateTabV2({ products, allProducts, currency, query, setQuery, category, setCategory, brand, setBrand, categories, brands, drafts, setDrafts, save, updateAll, canManage, money }: any) {
+function UpdateTabV2({ products, allProducts, currency, query, setQuery, category, setCategory, brand, setBrand, categories, brands, drafts, setDrafts, save, updateAll, showHistory, bulkFileRef, canManage, money }: any) {
   const today = new Date().toISOString().slice(0, 10);
   const cards = [
-    ["Total Products", allProducts.length, Package, "from-blue-500 to-cyan-500"],
-    ["Updated Today", allProducts.filter((p: PriceProduct) => p.updatedAt.slice(0, 10) === today).length, TrendingUp, "from-emerald-500 to-teal-500"],
-    ["Pending Updates", Object.keys(drafts).length, Clock3, "from-amber-500 to-orange-500"],
-    ["Price Groups", 2, Layers3, "from-violet-500 to-fuchsia-500"],
+    ["Total Products", allProducts.length, Package, "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400", "All active products"],
+    ["Updated Today", allProducts.filter((p: PriceProduct) => p.updatedAt.slice(0, 10) === today).length, TrendingUp, "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400", "Price changes today"],
+    ["Pending Updates", Object.keys(drafts).length, Clock3, "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400", "Changes awaiting update"],
+    ["Price Groups", 2, Layers3, "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400", "Configured price groups"],
   ];
   return <div className="space-y-5">
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      {cards.map(([label, value, Icon, gradient]: any) => <div key={label} className={`rounded-2xl bg-gradient-to-br ${gradient} p-4 text-white shadow-lg`}>
-        <div className="flex items-center justify-between text-xs font-semibold text-white/80"><span>{label}</span><Icon className="h-5 w-5" /></div>
-        <p className="mt-3 text-2xl font-bold">{value}</p>
+      {cards.map(([label, value, Icon, iconStyle, description]: any) => <div key={label} className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex items-center gap-3">
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconStyle}`}><Icon className="h-5 w-5" /></div>
+          <div>
+            <p className="text-[11px] font-medium text-ledger-400">{label}</p>
+            <p className="font-display text-xl font-bold text-ink-900 dark:text-white">{value}</p>
+          </div>
+        </div>
+        <p className="mt-2 text-[10px] text-ledger-400">{description}</p>
       </div>)}
     </div>
     <div className="space-y-5">
       <div className="space-y-4">
-        <Card><CardContent className="flex flex-wrap items-center gap-3 p-4"><h3 className="mr-2 text-sm font-bold">Quick Actions</h3><Button variant="secondary"><History className="h-4 w-4" /> View Price History</Button><Button variant="secondary"><Upload className="h-4 w-4" /> Bulk Update Prices</Button></CardContent></Card>
+        <Card><CardContent className="flex flex-wrap items-center gap-3 p-4"><h3 className="mr-2 text-sm font-bold">Quick Actions</h3><Button variant="secondary" onClick={showHistory}><History className="h-4 w-4" /> View Price History</Button><Button variant="secondary" disabled={!canManage} onClick={() => bulkFileRef.current?.click()}><Upload className="h-4 w-4" /> Bulk Update Prices</Button><input ref={bulkFileRef} type="file" accept=".csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => { const rows = String(reader.result ?? "").split(/\r?\n/).filter(Boolean); if (rows.length < 2) return; const headers = rows[0].split(",").map((header) => header.trim().toLowerCase()); const skuIndex = headers.indexOf("sku"); const priceIndex = headers.findIndex((header) => ["new price", "new_price", "price"].includes(header)); if (skuIndex < 0 || priceIndex < 0) return; const bySku = new Map(allProducts.map((product: PriceProduct) => [product.sku.toLowerCase(), product])); const next: Record<string, string> = {}; rows.slice(1).forEach((row) => { const cells = row.split(",");         const product = bySku.get((cells[skuIndex] ?? "").trim().toLowerCase()) as PriceProduct | undefined; const value = Number((cells[priceIndex] ?? "").trim()); if (product && Number.isFinite(value) && value >= 0) next[product.id] = String(value); }); setDrafts(next); }; reader.readAsText(file); } event.target.value = ""; }} /></CardContent></Card>
         <Card><CardContent className="flex flex-wrap gap-2 p-4">
           <div className="relative min-w-[240px] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-ledger-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search product name, SKU, barcode or category" className="h-9 w-full rounded-lg border border-ledger-200 bg-white pl-9 pr-3 text-xs dark:border-ledger-700 dark:bg-ink-900" /></div>
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="h-9 rounded-lg border border-ledger-200 px-3 text-xs dark:border-ledger-700 dark:bg-ink-900"><option value="all">All Categories</option>{categories.map((value: string) => <option key={value}>{value}</option>)}</select>
