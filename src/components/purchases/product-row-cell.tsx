@@ -9,14 +9,16 @@ interface ProductRowCellProps {
   products: PickableProduct[];
   currentName: string;
   onSelect: (product: PickableProduct) => void;
+  onClose?: () => void;
+  autoOpen?: boolean;
 }
 
 // Inline, per-row product combobox for the Purchase Items table. Each
 // instance holds its own open/query state, so it never touches — and is
 // never touched by — the long "Search by product name..." bar (ProductPicker)
 // above the table. Selecting a product here replaces this row only.
-export function ProductRowCell({ products, currentName, onSelect }: ProductRowCellProps) {
-  const [open, setOpen] = React.useState(false);
+export function ProductRowCell({ products, currentName, onSelect, onClose, autoOpen = false }: ProductRowCellProps) {
+  const [open, setOpen] = React.useState(autoOpen);
   const [query, setQuery] = React.useState("");
   const containerRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -27,11 +29,12 @@ export function ProductRowCell({ products, currentName, onSelect }: ProductRowCe
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
         setQuery("");
+        onClose?.();
       }
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
+  }, [open, onClose]);
 
   React.useEffect(() => {
     if (open) inputRef.current?.focus();

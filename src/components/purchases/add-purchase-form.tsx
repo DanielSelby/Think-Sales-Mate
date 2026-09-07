@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2, ClipboardList, Eye, EyeOff, Lock,
+  Info, Plus, Trash2, Sparkles, ChevronRight, Loader2, ClipboardList, Eye, EyeOff, Lock, Pencil, Check,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -208,6 +208,7 @@ export function AddPurchaseForm({
   // refreshed `suppliers` prop includes it.
   const [addSupplierOpen, setAddSupplierOpen] = React.useState(false);
   const [pendingSupplierName, setPendingSupplierName] = React.useState<string | null>(null);
+  const [editingLineId, setEditingLineId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!pendingSupplierName) return;
@@ -285,6 +286,7 @@ export function AddPurchaseForm({
           : l
       )
     );
+    setEditingLineId(null);
   }
 
   // Placeholder until the Add Product component is provided — it should
@@ -676,11 +678,17 @@ export function AddPurchaseForm({
                         <tr key={line.key}>
                           <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
                           <td className="px-3 py-2">
-                            <ProductRowCell
-                              products={products}
-                              currentName={line.name}
-                              onSelect={(p) => selectProductForLine(line.key, p)}
-                            />
+                            {editingLineId === line.key || !line.productId ? (
+                              <ProductRowCell
+                                products={products}
+                                currentName={line.name}
+                                onSelect={(p) => selectProductForLine(line.key, p)}
+                                onClose={() => setEditingLineId(null)}
+                                autoOpen={editingLineId === line.key}
+                              />
+                            ) : (
+                              <span className="font-medium text-ink-900 dark:text-white">{line.name}</span>
+                            )}
                           </td>
                           <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.sku || "—"}</td>
                           <td className="px-3 py-2 font-mono text-xs text-ledger-500">{line.barcode ?? "—"}</td>
@@ -748,13 +756,24 @@ export function AddPurchaseForm({
                             {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </td>
                           <td className="px-3 py-2 text-right">
+                            {editingLineId !== line.key && line.productId && (
+                            <button type="button" onClick={() => setEditingLineId(line.key)} className="rounded p-1.5 text-ledger-400 hover:bg-ledger-50 hover:text-signal" aria-label="Edit product">
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            )}
+                            {editingLineId === line.key && (
+                            <button type="button" onClick={() => setEditingLineId(null)} className="rounded p-1.5 text-ledger-400 hover:bg-ledger-50 hover:text-signal" aria-label="Done editing">
+                              <Check className="h-4 w-4" />
+                            </button>
+                            )}
                             <button
-                              onClick={() => removeLine(line.key)}
-                              disabled={locked}
-                              title={locked ? `${line.quantityReceived} already received — can't remove` : undefined}
-                              className="rounded p-1.5 text-alert/70 hover:bg-alert-soft hover:text-alert disabled:cursor-not-allowed disabled:text-ledger-300 disabled:hover:bg-transparent"
+                            type="button"
+                            onClick={() => removeLine(line.key)}
+                            disabled={locked}
+                            title={locked ? `${line.quantityReceived} already received — can't remove` : undefined}
+                            className="rounded p-1.5 text-alert/70 hover:bg-alert-soft hover:text-alert disabled:cursor-not-allowed disabled:text-ledger-300 disabled:hover:bg-transparent"
                             >
-                              {locked ? <Lock className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                            {locked ? <Lock className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
                             </button>
                           </td>
                         </tr>
