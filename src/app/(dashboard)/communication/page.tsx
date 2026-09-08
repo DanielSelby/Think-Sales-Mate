@@ -64,6 +64,12 @@ export default function CommunicationPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [call, setCall] = useState<{ id?: string; type: "voice" | "video"; startedAt: number; stream?: MediaStream } | null>(null);
   const [screenSharing, setScreenSharing] = useState(false);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const [callMuted, setCallMuted] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const callVideoRef = useRef<HTMLVideoElement>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [messageHistory, setMessageHistory] = useState<MessageHistory[]>([]);
@@ -213,6 +219,22 @@ export default function CommunicationPage() {
     return () => window.clearInterval(refreshTimer);
   }, [loadWorkspace]);
 
+  useEffect(() => {
+    if (!call) return;
+    const timer = window.setInterval(() => setCallSeconds(Math.floor((Date.now() - call.startedAt) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [call]);
+
+  useEffect(() => {
+    if (callVideoRef.current) {
+      callVideoRef.current.srcObject = call?.type === "video" ? call.stream ?? null : null;
+    }
+  }, [call]);
+
+  useEffect(() => {
+    if (screenVideoRef.current) screenVideoRef.current.srcObject = screenStream;
+  }, [screenStream]);
+
   const active = channels.find((item) => item.id === activeId) ?? channels[0];
   const activeMessages = messages.filter((item) => item.channel_id === active?.id);
   const visibleChannels = channels.filter((item) => {
@@ -345,24 +367,70 @@ export default function CommunicationPage() {
   const startCall = async (type: "voice" | "video") => {
     if (!active || !orgId || !userId) return;
     if (!navigator.mediaDevices?.getUserMedia) { setNotice("Calling is not supported in this browser."); return; }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
+    } catch (error) {
+      setNotice(error instanceof DOMException && error.name === "NotAllowedError"
+        ? "Microphone/camera permission was denied. Allow access in your browser settings and try again."
+        : "Could not access your microphone or camera.");
+      return;
+    }
     const { data, error } = await (supabase as any).from("communication_calls").insert({ org_id: orgId, channel_id: active.id, started_by: userId, call_type: type }).select("id").single();
     if (error) { stream.getTracks().forEach((track) => track.stop()); setNotice(error.message); return; }
+    setCallSeconds(0);
+    setCallMuted(false);
+    setCameraEnabled(type === "video");
     setCall({ id: data.id, type, startedAt: Date.now(), stream });
   };
 
   const endCall = async () => {
     if (!call) return;
     call.stream?.getTracks().forEach((track) => track.stop());
+    screenStream?.getTracks().forEach((track) => track.stop());
     if (call.id) await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString() }).eq("id", call.id);
     setCall(null);
+    setScreenStream(null);
+    setScreenSharing(false);
   };
 
   const toggleScreenShare = async () => {
-    if (screenSharing) { setScreenSharing(false); return; }
+    if (screenSharing) {
+      screenStream?.getTracks().forEach((track) => track.stop());
+      setScreenStream(null);
+      setScreenSharing(false);
+      return;
+    }
     if (!navigator.mediaDevices?.getDisplayMedia) { setNotice("Screen sharing is not supported in this browser."); return; }
-    await navigator.mediaDevices.getDisplayMedia({ video: true });
+    if (!call) { setNotice("Start a voice or video call before sharing your screen."); return; }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError") return;
+      setNotice("Could not start screen sharing.");
+      return;
+    }
+    stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+      setScreenStream(null);
+      setScreenSharing(false);
+    });
+    setScreenStream(stream);
     setScreenSharing(true);
+  };
+
+  const toggleCallMute = () => {
+    if (!call?.stream) return;
+    const nextMuted = !callMuted;
+    call.stream.getAudioTracks().forEach((track) => { track.enabled = !nextMuted; });
+    setCallMuted(nextMuted);
+  };
+
+  const toggleCamera = () => {
+    if (!call?.stream || call.type !== "video") return;
+    const nextEnabled = !cameraEnabled;
+    call.stream.getVideoTracks().forEach((track) => { track.enabled = nextEnabled; });
+    setCameraEnabled(nextEnabled);
   };
 
   const createAnnouncement = async () => {
@@ -471,7 +539,25 @@ export default function CommunicationPage() {
       </section>
       {showDetails && active && <aside className="hidden w-[255px] shrink-0 border-l border-slate-200 bg-white xl:block"><div className="flex items-center justify-between border-b border-slate-100 p-4"><h3 className="text-xs font-bold text-slate-900">Conversation details</h3><button onClick={() => setShowDetails(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-4"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><p className="text-xs font-bold text-slate-800">{active.name}</p><p className="text-[10px] text-slate-400">{active.channel_type} channel</p></div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Members ({members.length})</p><div className="space-y-2">{members.slice(0, 8).map((member) => <div key={member.id} className="flex items-center gap-2"><Avatar label={initials(member.name)} color="#64748b" /><span className="truncate text-xs text-slate-600">{member.name}</span></div>)}</div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pinned messages</p>{activeMessages.filter((item) => item.pinned).map((item) => <div key={item.id} className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] text-slate-600"><Pin className="mr-1 inline h-3 w-3 text-amber-600" />{item.body}</div>)}{!activeMessages.some((item) => item.pinned) && <p className="text-xs text-slate-400">No pinned messages.</p>}</div></div></aside>}
       {showDetails && active && <aside className="hidden w-[255px] shrink-0 border-l border-slate-200 bg-white xl:block"><div className="flex items-center justify-between border-b border-slate-100 p-4"><h3 className="text-xs font-bold text-slate-900">Conversation details</h3><button onClick={() => setShowDetails(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-4"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><p className="text-xs font-bold text-slate-800">{active.name}</p><p className="text-[10px] text-slate-400">{active.channel_type} channel</p></div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Members ({members.length})</p><div className="space-y-2">{members.slice(0, 8).map((member) => <div key={member.id} className="flex items-center gap-2"><Avatar label={initials(member.name)} color="#64748b" /><span className="truncate text-xs text-slate-600">{member.name}</span></div>)}</div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pinned messages</p>{activeMessages.filter((item) => item.pinned).map((item) => <div key={item.id} className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] text-slate-600"><Pin className="mr-1 inline h-3 w-3 text-amber-600" />{item.body}</div>)}{!activeMessages.some((item) => item.pinned) && <p className="text-xs text-slate-400">No pinned messages.</p>}</div></div></aside>}
-      {call && <div className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-xl"><span className="text-xs font-semibold">{call.type === "video" ? "Video meeting" : "Voice call"} · {active?.name}</span><span className="text-[10px] text-slate-300">{Math.floor((Date.now() - call.startedAt) / 1000)}s</span><button onClick={() => void endCall()} className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-bold">End</button></div>}
+      {call && <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 p-4">
+        <div className="flex h-full max-h-[760px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-slate-900 shadow-2xl">
+          <header className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-white">
+            <div><p className="text-sm font-semibold">{call.type === "video" ? "Video meeting" : "Voice call"}</p><p className="text-xs text-slate-400">{active?.name} · {String(Math.floor(callSeconds / 60)).padStart(2, "0")}:{String(callSeconds % 60).padStart(2, "0")}</p></div>
+            <button onClick={() => void endCall()} className="rounded-lg p-2 text-slate-400 hover:bg-white/10" title="Close call"><X className="h-5 w-5" /></button>
+          </header>
+          <div className="relative flex min-h-0 flex-1 items-center justify-center bg-slate-950 p-4">
+            {call.type === "video" ? <video ref={callVideoRef} autoPlay muted playsInline className={`h-full w-full rounded-xl object-contain ${cameraEnabled ? "" : "opacity-0"}`} /> : <div className="flex flex-col items-center gap-3 text-white"><div className="flex h-24 w-24 items-center justify-center rounded-full bg-blue-600 text-3xl font-bold">{active?.name?.[0] ?? "?"}</div><p className="text-sm text-slate-300">Microphone connected</p></div>}
+            {screenStream && <video ref={screenVideoRef} autoPlay muted playsInline className="absolute inset-8 h-[calc(100%-4rem)] w-[calc(100%-4rem)] rounded-xl bg-black object-contain shadow-2xl" />}
+            {call.type === "video" && !cameraEnabled && <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">Camera is off</div>}
+          </div>
+          <footer className="flex items-center justify-center gap-3 border-t border-white/10 px-5 py-4">
+            <button onClick={toggleCallMute} className={`rounded-full p-3 text-white ${callMuted ? "bg-red-600" : "bg-white/10 hover:bg-white/20"}`} title={callMuted ? "Unmute microphone" : "Mute microphone"}><Mic className="h-5 w-5" /></button>
+            {call.type === "video" && <button onClick={toggleCamera} className={`rounded-full p-3 text-white ${!cameraEnabled ? "bg-red-600" : "bg-white/10 hover:bg-white/20"}`} title={cameraEnabled ? "Turn camera off" : "Turn camera on"}><Video className="h-5 w-5" /></button>}
+            <button onClick={() => void toggleScreenShare()} className={`rounded-full p-3 text-white ${screenSharing ? "bg-blue-600" : "bg-white/10 hover:bg-white/20"}`} title={screenSharing ? "Stop sharing" : "Share screen"}><MonitorUp className="h-5 w-5" /></button>
+            <button onClick={() => void endCall()} className="rounded-full bg-red-600 p-3 text-white hover:bg-red-500" title="End call"><Phone className="h-5 w-5 rotate-[135deg]" /></button>
+          </footer>
+        </div>
+      </div>}
       </>}
       {notice && <button onClick={() => setNotice("")} className="fixed bottom-5 right-5 rounded-xl bg-slate-900 px-4 py-3 text-xs text-white shadow-lg">{notice}</button>}
     </div>

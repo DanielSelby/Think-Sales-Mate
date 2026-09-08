@@ -72,7 +72,7 @@ export async function getDuplicateReviewRows() {
   const supabase = await createClient();
   const { data } = await supabase.from("products").select("id, name, sku, brand, category, barcode, stock_quantity").eq("org_id", context.orgId).eq("is_active", true).neq("status", "merged").order("name").limit(500);
   const products = data ?? [];
-  const rows: Array<{ id: string; name: string; sku: string; brand: string | null; category: string | null; barcode: string | null; score: number; type: "exact" | "similar" | "barcode" }> = [];
+  const rows: Array<{ id: string; name: string; sku: string; brand: string | null; category: string | null; barcode: string | null; score: number; type: "exact" | "similar" | "barcode" | "brand_model" }> = [];
   for (let index = 0; index < products.length; index++) {
     for (let next = index + 1; next < products.length; next++) {
       const left = products[index];
@@ -80,6 +80,9 @@ export async function getDuplicateReviewRows() {
       const score = productNameScore(left.name, right.name);
       if (score >= 70) rows.push({ id: `${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand ?? right.brand, category: left.category ?? right.category, barcode: null, score, type: score === 100 ? "exact" : "similar" });
       if (left.barcode && right.barcode && left.barcode === right.barcode) rows.push({ id: `barcode-${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand ?? right.brand, category: left.category ?? right.category, barcode: left.barcode, score: 100, type: "barcode" });
+      if (left.brand && right.brand && normalizeProductName(left.brand) === normalizeProductName(right.brand) && left.category === right.category && score >= 55 && score < 100) {
+        rows.push({ id: `brand-model-${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand, category: left.category, barcode: null, score, type: "brand_model" });
+      }
     }
   }
   return rows.slice(0, 200);
