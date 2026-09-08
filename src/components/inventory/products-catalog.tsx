@@ -46,6 +46,7 @@ import {
   bulkAddProductsToLocation,
   validateRemoveProductsFromLocation,
   bulkRemoveProductsFromLocation,
+  bulkDeactivateProducts,
   type ValidationRemoveResult,
   type ProductValidationResult
 } from "@/app/(dashboard)/inventory/actions";
@@ -178,6 +179,7 @@ export function ProductsCatalog({
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
 
   // Bulk Location Management & Merge state
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
@@ -411,6 +413,25 @@ export function ProductsCatalog({
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds).join(",");
     router.push(`/inventory/merge?ids=${encodeURIComponent(ids)}`);
+  }
+
+  async function handleBulkDeactivate() {
+    if (!selectedIds.size || isDeactivating) return;
+    if (!confirm(`Deactivate ${selectedIds.size} selected product${selectedIds.size === 1 ? "" : "s"}? Products with available stock will be blocked.`)) return;
+    setIsDeactivating(true);
+    setError(null);
+    try {
+      const result = await bulkDeactivateProducts(Array.from(selectedIds));
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setSelectedIds(new Set());
+        setImportMessage(`${result.deactivatedCount} product${result.deactivatedCount === 1 ? "" : "s"} deactivated successfully.`);
+        setTimeout(() => setImportMessage(null), 6000);
+      }
+    } finally {
+      setIsDeactivating(false);
+    }
   }
 
   function handleDelete(product: CatalogProduct) {
@@ -825,6 +846,15 @@ export function ProductsCatalog({
           >
             <GitMerge className="h-3.5 w-3.5" />
             Merge Products
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleBulkDeactivate()}
+            disabled={selectedIds.size === 0 || isDeactivating}
+            className="flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+            {isDeactivating ? "Deactivating..." : "Deactivate Products"}
           </button>
         </div>
 

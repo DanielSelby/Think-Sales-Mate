@@ -211,7 +211,17 @@ export async function deleteProduct(productId: string) {
   return { success: true };
 }
 
-export async function toggleProductActive(productId: string, isActive: boolean) {
+type ProductActivationResult = {
+  success?: boolean;
+  error?: string;
+  blocked?: { name: string; quantity: number }[];
+  deactivatedCount?: number;
+};
+
+export async function toggleProductActive(productId: string, isActive: boolean): Promise<ProductActivationResult> {
+  if (!isActive) {
+    return bulkDeactivateProducts([productId]);
+  }
   const context = await getCurrentOrgContext();
   if (!context || !can(context.role, "inventory.manage")) {
     return { error: "You don't have permission to update products." };
@@ -228,6 +238,47 @@ export async function toggleProductActive(productId: string, isActive: boolean) 
 
   revalidatePath("/inventory");
   return { success: true };
+}
+
+export async function bulkDeactivateProducts(productIds: string[]): Promise<ProductActivationResult> {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "inventory.manage")) {
+    return { error: "You don't have permission to deactivate products." };
+  }
+  const ids = [...new Set(productIds.filter(Boolean))];
+  if (!ids.length) return { error: "Select at least one product." };
+
+  const supabase = await createClient();
+  const [{ data: products, error: productsError }, { data: stockLevels, error: stockError }] = await Promise.all([
+    supabase.from("products").select("id, name, stock_quantity, is_active").eq("org_id", context.orgId).in("id", ids),
+    supabase.from("product_stock_levels").select("product_id, quantity").eq("org_id", context.orgId).in("product_id", ids),
+  ]);
+  if (productsError) return { error: productsError.message };
+  if (stockError) return { error: stockError.message };
+  if ((products ?? []).length !== ids.length) return { error: "One or more selected products could not be found." };
+
+  const levelTotals = new Map<string, number>();
+  for (const level of stockLevels ?? []) {
+    levelTotals.set(level.product_id, (levelTotals.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+  }
+  const blocked = (products ?? [])
+    .map((product) => ({ name: product.name, quantity: Math.max(Number(product.stock_quantity ?? 0), levelTotals.get(product.id) ?? 0) }))
+    .filter((product) => product.quantity > 0);
+  if (blocked.length) {
+    return {
+      error: `Cannot deactivate ${blocked.length} product${blocked.length === 1 ? "" : "s"} while stock is available: ${blocked.map((product) => `${product.name} (${product.quantity})`).join(", ")}.`,
+      blocked,
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq("org_id", context.orgId)
+    .in("id", ids);
+  if (updateError) return { error: updateError.message };
+  revalidatePath("/inventory");
+  return { success: true, deactivatedCount: ids.length };
 }
 
 export async function duplicateProduct(productId: string) {
