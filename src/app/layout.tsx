@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { PwaProvider } from "@/components/pwa/pwa-provider";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -23,14 +24,24 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SalesMate ERP",
+  title: "ThinkSales Pro",
   description: "Run sales, inventory, accounting, and your team from one workspace."
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0b3b91",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
-      <body className="font-body">{children}</body>
+      <body className="font-body">
+        {children}
+        <PwaProvider />
+      </body>
     </html>
   );
 }

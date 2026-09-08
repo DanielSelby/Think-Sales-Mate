@@ -448,23 +448,36 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
 
 function playNotificationBeep(type: string) {
   if (typeof window === "undefined") return;
-  const context = new AudioContext();
+  const AudioContextConstructor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextConstructor) return;
+  const context = new AudioContextConstructor();
   const rejected = type.includes("reject");
-  const transaction = type.includes("order") || type.includes("sale") || type.includes("transaction") || type.includes("product");
+  const warning = type.includes("warning") || type.includes("pending") || type.includes("approval");
+  const transaction = type.includes("order") || type.includes("sale") || type.includes("purchase") || type.includes("transfer") || type.includes("expense") || type.includes("transaction") || type.includes("product");
   const first = context.createOscillator();
   const second = context.createOscillator();
+  const third = context.createOscillator();
   const gain = context.createGain();
-  first.type = rejected ? "sawtooth" : transaction ? "triangle" : "sine";
+  first.type = rejected ? "sawtooth" : transaction ? "square" : "sine";
   second.type = first.type;
-  first.frequency.value = rejected ? 260 : transaction ? 740 : 880;
-  second.frequency.value = rejected ? 180 : transaction ? 1040 : 880;
-  gain.gain.setValueAtTime(transaction ? 0.22 : 0.05, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + (transaction ? 0.55 : rejected ? 0.28 : 0.16));
+  third.type = first.type;
+  first.frequency.value = rejected ? 260 : warning ? 520 : transaction ? 760 : 900;
+  second.frequency.value = rejected ? 180 : warning ? 420 : transaction ? 1040 : 900;
+  third.frequency.value = rejected ? 130 : warning ? 320 : transaction ? 1280 : 900;
+  const duration = rejected || warning ? 0.7 : transaction ? 0.95 : 0.6;
+  gain.gain.setValueAtTime(0.001, context.currentTime);
+  gain.gain.linearRampToValueAtTime(rejected || warning ? 0.42 : 0.58, context.currentTime + 0.025);
+  gain.gain.setValueAtTime(rejected || warning ? 0.42 : 0.58, context.currentTime + duration * 0.65);
+  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + duration);
   first.connect(gain).connect(context.destination);
   second.connect(gain);
+  third.connect(gain);
   first.start();
-  second.start(context.currentTime + (transaction ? 0.12 : 0));
-  first.stop(context.currentTime + (transaction ? 0.32 : rejected ? 0.28 : 0.16));
-  second.stop(context.currentTime + (transaction ? 0.55 : rejected ? 0.28 : 0.16));
-  void context.resume();
+  second.start(context.currentTime + 0.1);
+  third.start(context.currentTime + 0.2);
+  first.stop(context.currentTime + duration);
+  second.stop(context.currentTime + duration);
+  third.stop(context.currentTime + duration);
+  void context.resume().catch(() => undefined);
+  window.setTimeout(() => void context.close(), (duration + 0.2) * 1000);
 }
