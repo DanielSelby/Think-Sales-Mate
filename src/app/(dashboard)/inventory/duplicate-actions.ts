@@ -70,18 +70,45 @@ export async function getDuplicateReviewRows() {
   const context = await getCurrentOrgContext();
   if (!context) return [];
   const supabase = await createClient();
-  const { data } = await supabase.from("products").select("id, name, sku, brand, category, barcode, stock_quantity").eq("org_id", context.orgId).eq("is_active", true).neq("status", "merged").order("name").limit(500);
+  const { data } = await supabase.from("products").select("id, name, sku, brand, category, barcode, stock_quantity, location_id").eq("org_id", context.orgId).eq("is_active", true).neq("status", "merged").order("name").limit(500);
   const products = data ?? [];
-  const rows: Array<{ id: string; name: string; sku: string; brand: string | null; category: string | null; barcode: string | null; score: number; type: "exact" | "similar" | "barcode" | "brand_model" }> = [];
+  const productIds = products.map((product) => product.id);
+  const { data: stockLevels } = productIds.length
+    ? await supabase.from("product_stock_levels").select("product_id, location_id").in("product_id", productIds)
+    : { data: [] };
+  const locationIds = [...new Set([
+    ...products.map((product) => product.location_id).filter((id): id is string => Boolean(id)),
+    ...(stockLevels ?? []).map((level) => level.location_id),
+  ])];
+  const { data: locations } = locationIds.length
+    ? await supabase.from("business_locations").select("id, name").in("id", locationIds)
+    : { data: [] };
+  const locationById = new Map((locations ?? []).map((location) => [location.id, location.name]));
+  const locationsByProduct = new Map<string, string[]>();
+  for (const product of products) {
+    const names = product.location_id && locationById.get(product.location_id) ? [locationById.get(product.location_id)!] : [];
+    locationsByProduct.set(product.id, names);
+  }
+  for (const level of stockLevels ?? []) {
+    const name = locationById.get(level.location_id);
+    if (!name) continue;
+    const names = locationsByProduct.get(level.product_id) ?? [];
+    if (!names.includes(name)) names.push(name);
+    locationsByProduct.set(level.product_id, names);
+  }
+  const rows: Array<{ id: string; name: string; sku: string; brand: string | null; category: string | null; barcode: string | null; locations: string; score: number; type: "exact" | "similar" | "barcode" | "brand_model" }> = [];
   for (let index = 0; index < products.length; index++) {
     for (let next = index + 1; next < products.length; next++) {
       const left = products[index];
       const right = products[next];
       const score = productNameScore(left.name, right.name);
-      if (score >= 70) rows.push({ id: `${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand ?? right.brand, category: left.category ?? right.category, barcode: null, score, type: score === 100 ? "exact" : "similar" });
-      if (left.barcode && right.barcode && left.barcode === right.barcode) rows.push({ id: `barcode-${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand ?? right.brand, category: left.category ?? right.category, barcode: left.barcode, score: 100, type: "barcode" });
+      const leftLocations = locationsByProduct.get(left.id) ?? [];
+      const rightLocations = locationsByProduct.get(right.id) ?? [];
+      const locations = `${left.name}: ${leftLocations.join(", ") || "No location"} | ${right.name}: ${rightLocations.join(", ") || "No location"}`;
+      if (score >= 70) rows.push({ id: `${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand ?? right.brand, category: left.category ?? right.category, barcode: null, locations, score, type: score === 100 ? "exact" : "similar" });
+      if (left.barcode && right.barcode && left.barcode === right.barcode) rows.push({ id: `barcode-${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand ?? right.brand, category: left.category ?? right.category, barcode: left.barcode, locations, score: 100, type: "barcode" });
       if (left.brand && right.brand && normalizeProductName(left.brand) === normalizeProductName(right.brand) && left.category === right.category && score >= 55 && score < 100) {
-        rows.push({ id: `brand-model-${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand, category: left.category, barcode: null, score, type: "brand_model" });
+        rows.push({ id: `brand-model-${left.id}-${right.id}`, name: `${left.name} / ${right.name}`, sku: `${left.sku} · ${right.sku}`, brand: left.brand, category: left.category, barcode: null, locations, score, type: "brand_model" });
       }
     }
   }
