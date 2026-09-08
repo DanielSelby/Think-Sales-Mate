@@ -32,7 +32,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     .select(`
       id, sku, barcode, name, description, category, brand, supplier, unit,
       unit_price, cost_price, tax_rate, stock_quantity, low_stock_threshold,
-      is_active, product_type, hsn_code, warranty_months, expiry_date,
+      is_active, product_type, is_imported, hsn_code, warranty_months, expiry_date,
       created_at, image_urls
     `)
     .eq("id", id)
@@ -394,9 +394,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
       dateTime: createdDate.toISOString(),
       dateFormatted: createdDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       timeFormatted: createdDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      type: "Opening Stock",
+      type: product.is_imported ? "Import" : "Opening Stock",
       referenceNo: `INIT-${product.sku}`,
-      referenceType: "Opening Balance",
+      referenceType: product.is_imported ? "Product Import" : "Opening Balance",
       branchName: branches.find((b) => b.quantity > 0)?.name || locationRows?.[0]?.name || "Main Warehouse",
       inQty: currentActualStock,
       outQty: null,
@@ -446,6 +446,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     lowStockThreshold: product.low_stock_threshold || 5,
     isActive: product.is_active ?? true,
     productType: product.product_type || "standard",
+    isImported: product.is_imported ?? false,
     hsnCode: product.hsn_code,
     warrantyMonths: product.warranty_months,
     expiryDate: product.expiry_date,

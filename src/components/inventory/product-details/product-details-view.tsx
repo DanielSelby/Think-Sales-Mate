@@ -876,6 +876,11 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                                         {m.subTypeNote}
                                       </span>
                                     )}
+                                    {m.type === "Import" && (
+                                      <span className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+                                        Import
+                                      </span>
+                                    )}
                                   </div>
                                 )}
                                 {isReturn && (

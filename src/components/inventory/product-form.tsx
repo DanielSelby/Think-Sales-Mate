@@ -555,7 +555,12 @@ export function ProductForm({
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-ledger-100 pt-4 dark:border-ledger-700">
         <Button type="button" variant="outline" onClick={() => history.back()}>Cancel</Button>
-        <Button type="submit">{submitLabel}</Button>
+        <Button
+          type="submit"
+          className={isEdit ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-emerald-600 text-white hover:bg-emerald-700"}
+        >
+          {isEdit ? "Update Product" : submitLabel}
+        </Button>
       </div>
       {showDuplicateModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-5 shadow-xl dark:border-amber-900 dark:bg-ink-900"><div className="flex items-start gap-3"><div className="rounded-xl bg-amber-100 p-2 font-bold text-amber-700">!</div><div><h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">Duplicate Product Detected</h2><p className="mt-1 text-sm text-ledger-500">An existing product has the same normalized name. Review it before creating another record.</p></div></div><div className="mt-4 space-y-2">{duplicateMatches.filter((match) => match.exact).slice(0, 2).map((match) => <div key={match.id} className="rounded-xl border border-ledger-100 p-3 dark:border-ledger-700"><p className="font-semibold">{match.name}</p><p className="text-xs text-ledger-500">{match.sku} · {match.brand ?? "No brand"} · {match.category ?? "No category"} · {match.stockQuantity} in stock</p><p className="mt-1 text-xs text-ledger-400">{match.locations.join(", ") || "No locations assigned"}</p></div>)}</div><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setShowDuplicateModal(false)} className="rounded-xl border border-ledger-200 px-4 py-2 text-sm">Cancel</button><button type="button" onClick={() => { setDuplicateOverride(true); setShowDuplicateModal(false); window.setTimeout(() => formRef.current?.requestSubmit(), 0); }} className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Continue Anyway</button></div></div></div>}
     </form>

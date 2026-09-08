@@ -204,6 +204,15 @@ export async function updateProduct(productId: string, formData: FormData): Prom
   }
 
   const supabase = await createClient();
+  const { data: existingProduct, error: existingError } = await supabase
+    .from("products")
+    .select("location_id")
+    .eq("id", productId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (existingError || !existingProduct) {
+    redirectWithError(`/inventory/${productId}/edit`, existingError?.message ?? "Product not found.");
+  }
   const { error } = await supabase
     .from("products")
     .update({
@@ -217,7 +226,20 @@ export async function updateProduct(productId: string, formData: FormData): Prom
     redirectWithError(`/inventory/${productId}/edit`, error.message);
   }
 
+  if (existingProduct.location_id) {
+    const { error: stockError } = await supabase
+      .from("product_stock_levels")
+      .upsert({
+        org_id: context.orgId,
+        product_id: productId,
+        location_id: existingProduct.location_id,
+        quantity: Math.max(0, Number(fields.stock_quantity ?? 0)),
+      }, { onConflict: "product_id,location_id" });
+    if (stockError) redirectWithError(`/inventory/${productId}/edit`, stockError.message);
+  }
+
   revalidatePath("/inventory");
+  revalidatePath(`/inventory/${productId}`);
   redirect("/inventory");
 }
 

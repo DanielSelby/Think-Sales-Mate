@@ -760,6 +760,7 @@ export interface Database {
           unit: string;
           is_active: boolean;
           product_type: "standard" | "service" | "digital";
+          is_imported: boolean;
           hsn_code: string | null;
           tax_rate: number | null;
           expiry_date: string | null;
@@ -798,6 +799,7 @@ export interface Database {
           unit?: string;
           is_active?: boolean;
           product_type?: "standard" | "service" | "digital";
+          is_imported?: boolean;
           hsn_code?: string | null;
           tax_rate?: number | null;
           expiry_date?: string | null;

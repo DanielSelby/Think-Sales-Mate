@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TransferStatusBadge } from "@/components/inventory/transfer-status-badge";
 import { TransferStatusActions } from "@/components/inventory/transfer-status-actions";
 import { formatCurrency } from "@/lib/sales/format";
+import { PrintTransferButton } from "@/components/inventory/print-transfer-button";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -73,11 +74,12 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to stock transfer history
         </Link>
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">
             {transfer.reference_no || `Transfer #${String(transfer.transfer_number).padStart(4, "0")}`}
           </h1>
           <TransferStatusBadge status={transfer.status} />
+          <PrintTransferButton />
         </div>
         <p className="text-sm text-ledger-500 dark:text-ledger-400">
           {from?.name ?? "Unknown"} → {to?.name ?? "Unknown"} · {new Date(transfer.created_at).toLocaleString()}

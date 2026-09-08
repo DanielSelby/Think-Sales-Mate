@@ -10,7 +10,8 @@ export type TransactionType =
   | "Purchase Return"
   | "Sales Return"
   | "Return"
-  | "Opening Stock";
+  | "Opening Stock"
+  | "Import";
 
 export type ReferenceType =
   | "Invoice"
@@ -20,7 +21,8 @@ export type ReferenceType =
   | "Sales Return"
   | "Purchase Return"
   | "Opening Balance"
-  | "Manual Entry";
+  | "Manual Entry"
+  | "Product Import";
 
 export interface StockMovement {
   id: string;
@@ -89,6 +91,7 @@ export interface ProductDetailsData {
   lowStockThreshold: number;
   isActive: boolean;
   productType: "standard" | "service" | "digital";
+  isImported: boolean;
   hsnCode?: string | null;
   warrantyMonths?: number | null;
   expiryDate?: string | null;

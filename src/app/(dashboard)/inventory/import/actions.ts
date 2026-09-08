@@ -139,7 +139,8 @@ export async function commitProductImport(fileName: string, rows: ImportRowInput
         cost_price: row.costPrice,
         stock_quantity: row.openingStock,
         low_stock_threshold: row.minStock,
-        is_active: row.isActive
+        is_active: row.isActive,
+        is_imported: true
       })
       .select("id")
       .single();
