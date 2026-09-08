@@ -183,7 +183,7 @@ export function ProductsCatalog({
 
   // Bulk Location Management & Merge state
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
-  const [addLocationId, setAddLocationId] = useState(locations[0]?.id || "");
+  const [addLocationIds, setAddLocationIds] = useState<string[]>(locations[0]?.id ? [locations[0].id] : []);
   const [isAddingLocation, setIsAddingLocation] = useState(false);
   const [addLocationToast, setAddLocationToast] = useState<{ title: string; countText: string; skipText?: string } | null>(null);
 
@@ -327,23 +327,23 @@ export function ProductsCatalog({
 
   function openAddLocationModal() {
     if (selectedIds.size === 0) return;
-    if (!addLocationId && locations.length > 0) {
-      setAddLocationId(locations[0].id);
+    if (addLocationIds.length === 0 && locations.length > 0) {
+      setAddLocationIds([locations[0].id]);
     }
     setShowAddLocationModal(true);
   }
 
   async function handleBulkAddLocation() {
-    if (!addLocationId || selectedIds.size === 0) return;
+    if (addLocationIds.length === 0 || selectedIds.size === 0) return;
     setIsAddingLocation(true);
     try {
-      const res = await bulkAddProductsToLocation(Array.from(selectedIds), addLocationId);
+      const res = await bulkAddProductsToLocation(Array.from(selectedIds), addLocationIds);
       if (res.ok) {
         setShowAddLocationModal(false);
         setAddLocationToast({
           title: "Import Successful!",
           countText: `${res.importedCount} products imported to ${res.locationName}.`,
-          skipText: res.skippedCount > 0 ? `${res.skippedCount} products skipped because SKU already exists in the selected location.` : undefined,
+          skipText: res.skippedCount > 0 ? `${res.skippedCount} products skipped because SKU already exists in one of the selected locations.` : undefined,
         });
         setTimeout(() => setAddLocationToast(null), 8000);
       } else {
@@ -1287,8 +1287,8 @@ export function ProductsCatalog({
                   Select Location / Branch
                 </label>
                 <select
-                  value={addLocationId}
-                  onChange={(e) => setAddLocationId(e.target.value)}
+                  value={addLocationIds[0] ?? ""}
+                  onChange={(e) => setAddLocationIds(e.target.value ? [e.target.value] : [])}
                   className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 focus:border-blue-500 focus:outline-none dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
                 >
                   {locations.map((l) => (
@@ -1297,6 +1297,24 @@ export function ProductsCatalog({
                     </option>
                   ))}
                 </select>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {locations.map((location) => {
+                    const selected = addLocationIds.includes(location.id);
+                    return (
+                      <button
+                        key={location.id}
+                        type="button"
+                        onClick={() => setAddLocationIds((current) => selected ? current.filter((id) => id !== location.id) : [...current, location.id])}
+                        className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${selected ? "border-blue-600 bg-blue-600 text-white" : "border-ledger-200 bg-white text-ledger-600 hover:border-blue-300 dark:border-ledger-700 dark:bg-ink-800 dark:text-ledger-300"}`}
+                      >
+                        {selected ? "✓ " : ""}{location.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[11px] text-ledger-400">
+                  Select one location above, or choose multiple locations below.
+                </p>
               </div>
 
               {/* Info notice banner */}
@@ -1309,12 +1327,12 @@ export function ProductsCatalog({
 
               {/* Import Summary Section */}
               {(() => {
-                const targetLoc = locations.find((l) => l.id === addLocationId);
+                const targetLocations = locations.filter((l) => addLocationIds.includes(l.id));
                 const selectedProductsList = products.filter((p) => selectedIds.has(p.id));
-                const alreadyPresentCount = selectedProductsList.filter(
-                  (p) => p.locationId === addLocationId || p.stockLevels?.some((sl) => sl.locationId === addLocationId)
-                ).length;
-                const newToAddCount = selectedProductsList.length - alreadyPresentCount;
+                const alreadyPresentCount = targetLocations.reduce((count, location) => count + selectedProductsList.filter(
+                  (p) => p.locationId === location.id || p.stockLevels?.some((sl) => sl.locationId === location.id)
+                ).length, 0);
+                const newToAddCount = selectedProductsList.length * targetLocations.length - alreadyPresentCount;
 
                 return (
                   <div className="rounded-xl border border-ledger-100 bg-ledger-50/60 p-4 dark:border-ledger-700/60 dark:bg-white/[0.02] space-y-2">
@@ -1324,8 +1342,8 @@ export function ProductsCatalog({
                       <span className="font-semibold text-ink-900 dark:text-white">{selectedIds.size}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-ledger-500">Target Location:</span>
-                      <span className="font-semibold text-ink-900 dark:text-white">{targetLoc?.name ?? "None"}</span>
+                      <span className="text-ledger-500">Target Locations:</span>
+                      <span className="max-w-[65%] text-right font-semibold text-ink-900 dark:text-white">{targetLocations.map((location) => location.name).join(", ") || "None"}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-ledger-500">Existing at location (will skip):</span>
@@ -1352,7 +1370,7 @@ export function ProductsCatalog({
               <Button
                 type="button"
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={isAddingLocation || !addLocationId}
+                disabled={isAddingLocation || addLocationIds.length === 0}
                 onClick={handleBulkAddLocation}
               >
                 {isAddingLocation ? (

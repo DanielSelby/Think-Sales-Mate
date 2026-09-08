@@ -39,6 +39,7 @@ function parseProductForm(formData: FormData) {
   const barcode = String(formData.get("barcode") ?? "").trim();
   const hsnCode = String(formData.get("hsn_code") ?? "").trim();
   const locationId = String(formData.get("location_id") ?? "").trim();
+  const locationIds = [...new Set(formData.getAll("location_ids").map((value) => String(value).trim()).filter(Boolean))];
   const unit = String(formData.get("unit") ?? "pcs").trim() || "pcs";
   const productType = String(formData.get("product_type") ?? "standard").trim();
 
@@ -72,6 +73,7 @@ function parseProductForm(formData: FormData) {
     barcode: barcode || null,
     hsn_code: hsnCode || null,
     location_id: locationId || null,
+    location_ids: locationIds,
     unit,
     product_type: (productType === "service" || productType === "digital" ? productType : "standard") as "standard" | "service" | "digital",
     unit_price: unitPrice,
@@ -137,13 +139,28 @@ export async function createProduct(formData: FormData): Promise<void> {
       .maybeSingle();
     targetLocationId = primaryLoc?.id ?? null;
   }
+  const selectedLocationIds = [...new Set([
+    ...(fields.location_ids ?? []),
+    ...(targetLocationId ? [targetLocationId] : []),
+  ])];
+  if (selectedLocationIds.length > 0) {
+    const { data: validLocations, error: locationError } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("is_active", true)
+      .in("id", selectedLocationIds);
+    if (locationError || (validLocations ?? []).length !== selectedLocationIds.length) {
+      redirectWithError("/inventory/new", "One or more selected locations are invalid.");
+    }
+  }
 
   const { data: createdProduct, error } = await supabase
     .from("products")
     .insert({
       org_id: context.orgId,
       sku,
-      ...fields,
+      ...(({ location_ids: _locationIds, ...productFields }) => productFields)(fields),
       location_id: targetLocationId ?? fields.location_id,
     })
     .select("id, stock_quantity")
@@ -154,16 +171,20 @@ export async function createProduct(formData: FormData): Promise<void> {
   }
 
   // Seed product_stock_levels so location-aware inventory and transfers recognize the initial stock
-  if (createdProduct.stock_quantity > 0 && targetLocationId) {
-    await supabase.from("product_stock_levels").upsert(
-      {
+  if (selectedLocationIds.length > 0) {
+    const { error: stockLevelError } = await supabase.from("product_stock_levels").upsert(
+      selectedLocationIds.map((locationId) => ({
         org_id: context.orgId,
         product_id: createdProduct.id,
-        location_id: targetLocationId,
-        quantity: createdProduct.stock_quantity,
-      },
+        location_id: locationId,
+        quantity: locationId === targetLocationId ? createdProduct.stock_quantity : 0,
+      })),
       { onConflict: "product_id,location_id" }
     );
+    if (stockLevelError) {
+      await supabase.from("products").delete().eq("id", createdProduct.id).eq("org_id", context.orgId);
+      redirectWithError("/inventory/new", stockLevelError.message);
+    }
   }
 
   revalidatePath("/inventory");
@@ -185,7 +206,10 @@ export async function updateProduct(productId: string, formData: FormData): Prom
   const supabase = await createClient();
   const { error } = await supabase
     .from("products")
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .update({
+      ...(({ location_ids: _locationIds, ...productFields }) => productFields)(fields),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", productId)
     .eq("org_id", context.orgId);
 
@@ -496,7 +520,7 @@ export interface BulkAddLocationResult {
   importedProducts: { id: string; name: string; sku: string }[];
 }
 
-export async function bulkAddProductsToLocation(
+async function bulkAddProductsToSingleLocation(
   productIds: string[],
   locationId: string
 ): Promise<BulkAddLocationResult> {
@@ -623,6 +647,36 @@ export async function bulkAddProductsToLocation(
   return {
     ok: true,
     locationName: location.name,
+    importedCount: importedProducts.length,
+    skippedCount: skippedProducts.length,
+    importedProducts,
+    skippedProducts,
+  };
+}
+
+export async function bulkAddProductsToLocation(
+  productIds: string[],
+  locationIds: string | string[]
+): Promise<BulkAddLocationResult> {
+  const destinations = [...new Set((Array.isArray(locationIds) ? locationIds : [locationIds]).filter(Boolean))];
+  if (destinations.length <= 1) {
+    return bulkAddProductsToSingleLocation(productIds, destinations[0] ?? "");
+  }
+
+  const results = await Promise.all(destinations.map((locationId) => bulkAddProductsToSingleLocation(productIds, locationId)));
+  const failed = results.find((result) => !result.ok);
+  const importedProducts = results.flatMap((result) => result.importedProducts);
+  const skippedProducts = results.flatMap((result) => result.skippedProducts);
+  const locationNames = results.map((result) => result.locationName).filter(Boolean);
+
+  if (failed && importedProducts.length === 0) {
+    return failed;
+  }
+
+  return {
+    ok: !failed,
+    error: failed ? `Some locations could not be updated: ${failed.error}` : undefined,
+    locationName: locationNames.join(", "),
     importedCount: importedProducts.length,
     skippedCount: skippedProducts.length,
     importedProducts,

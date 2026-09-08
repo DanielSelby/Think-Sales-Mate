@@ -126,6 +126,9 @@ export function ProductForm({
   const [skuPreview] = React.useState(() => initialValues?.sku ?? makeSkuPreview());
 
   const [locationId, setLocationId] = React.useState(initialValues?.location_id ?? "");
+  const [locationIds, setLocationIds] = React.useState<string[]>(
+    initialValues?.location_id ? [initialValues.location_id] : []
+  );
   const [productType, setProductType] = React.useState(initialValues?.product_type ?? "standard");
   const [isService, setIsService] = React.useState(initialValues?.product_type === "service");
 
@@ -239,6 +242,9 @@ export function ProductForm({
   return (
     <form ref={formRef} action={action} onSubmit={handleSubmit} className="space-y-4">
       <input type="hidden" name="duplicate_override" value={duplicateOverride ? "true" : "false"} />
+      {!isEdit && locationIds.map((selectedLocationId) => (
+        <input key={selectedLocationId} type="hidden" name="location_ids" value={selectedLocationId} />
+      ))}
       {error && <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
       {imageError && <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{imageError}</p>}
 
@@ -306,10 +312,52 @@ export function ProductForm({
               </div>
               <div className="space-y-1.5">
                 <FieldLabel htmlFor="location_id">Default Location *</FieldLabel>
-                <Select id="location_id" name="location_id" required value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+                <Select
+                  id="location_id"
+                  name="location_id"
+                  required
+                  value={locationId}
+                  onChange={(e) => {
+                    setLocationId(e.target.value);
+                    setLocationIds((current) => [e.target.value, ...current.filter((id) => id !== e.target.value)]);
+                  }}
+                >
                   <option value="" disabled>Select location</option>
                   {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </Select>
+                {!isEdit && (
+                  <>
+                    <p className="mt-2 text-[11px] text-ledger-500 dark:text-ledger-400">
+                      Select additional branches where this product should be available.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {locations.map((loc) => {
+                        const selected = locationIds.includes(loc.id);
+                        const isDefault = locationId === loc.id;
+                        return (
+                          <button
+                            key={loc.id}
+                            type="button"
+                            onClick={() => {
+                              if (isDefault) return;
+                              setLocationIds((current) => selected
+                                ? current.filter((id) => id !== loc.id)
+                                : [...current, loc.id]);
+                            }}
+                            className={cn(
+                              "rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition",
+                              selected
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-ledger-200 bg-white text-ledger-600 hover:border-blue-300 dark:border-ledger-700 dark:bg-ink-800 dark:text-ledger-300"
+                            )}
+                          >
+                            {selected ? "✓ " : ""}{loc.name}{isDefault ? " (default)" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">

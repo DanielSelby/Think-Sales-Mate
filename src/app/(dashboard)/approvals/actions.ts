@@ -19,6 +19,7 @@ export async function decideApproval(input: ApprovalDecisionInput) {
   if (!context || !can(context.role, "inventory.stock_request.approve")) {
     return { error: "You do not have permission to manage approvals." };
   }
+
   if (input.decision === "rejected" && !input.reason?.trim()) {
     return { error: "Provide a reason before rejecting a request." };
   }
@@ -68,5 +69,24 @@ export async function decideApproval(input: ApprovalDecisionInput) {
   revalidatePath("/inventory/stock-requests");
   revalidatePath("/expenses");
   revalidatePath("/purchases/returns/new");
+  return { success: true };
+}
+
+export async function markApprovalDone(input: Pick<ApprovalDecisionInput, "type" | "id">) {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "inventory.stock_request.approve")) {
+    return { error: "You do not have permission to update approval history." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("audit_logs").insert({
+    org_id: context.orgId,
+    actor_id: context.userId,
+    action: "approval.completed",
+    entity_type: input.type,
+    entity_id: input.id,
+    metadata: { approval_type: input.type, approval_id: input.id },
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/approvals");
   return { success: true };
 }
