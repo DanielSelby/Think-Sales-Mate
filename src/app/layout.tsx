@@ -25,7 +25,14 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "ThinkSales Pro",
-  description: "Run sales, inventory, accounting, and your team from one workspace."
+  description: "Run sales, inventory, accounting, and your team from one workspace.",
+  icons: {
+    icon: [
+      { url: "/thinksales-logo.jpeg", type: "image/jpeg" },
+      { url: "/thinksales-logo.svg", type: "image/svg+xml" },
+    ],
+    apple: "/thinksales-logo.jpeg",
+  },
 };
 
 export const viewport = {
