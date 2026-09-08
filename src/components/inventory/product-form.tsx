@@ -8,6 +8,8 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { uploadProductImage } from "@/app/(dashboard)/inventory/actions";
+import { findProductDuplicates } from "@/app/(dashboard)/inventory/duplicate-actions";
+import type { ProductDuplicateMatch } from "@/lib/inventory/duplicate-products";
 
 export interface ProductFormValues {
   sku?: string;
@@ -139,6 +141,12 @@ export function ProductForm({
   const [uploading, setUploading] = React.useState(false);
   const [imageError, setImageError] = React.useState<string | null>(null);
   const [imageUrlInput, setImageUrlInput] = React.useState("");
+  const [productName, setProductName] = React.useState(initialValues?.name ?? "");
+  const [duplicateMatches, setDuplicateMatches] = React.useState<ProductDuplicateMatch[]>([]);
+  const [duplicateChecking, setDuplicateChecking] = React.useState(false);
+  const [duplicateOverride, setDuplicateOverride] = React.useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = React.useState(false);
+  const formRef = React.useRef<HTMLFormElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [tags, setTags] = React.useState<string[]>(initialValues?.tags ?? []);
@@ -207,8 +215,30 @@ export function ProductForm({
     setTags((prev) => prev.filter((x) => x !== t));
   }
 
+  React.useEffect(() => {
+    if (isEdit || productName.trim().length < 3) {
+      setDuplicateMatches([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setDuplicateChecking(true);
+      const result = await findProductDuplicates(productName);
+      setDuplicateMatches(result.matches);
+      setDuplicateChecking(false);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [isEdit, productName]);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    if (!isEdit && duplicateMatches.some((match) => match.exact) && !duplicateOverride) {
+      event.preventDefault();
+      setShowDuplicateModal(true);
+    }
+  }
+
   return (
-    <form action={action} className="space-y-4">
+    <form ref={formRef} action={action} onSubmit={handleSubmit} className="space-y-4">
+      <input type="hidden" name="duplicate_override" value={duplicateOverride ? "true" : "false"} />
       {error && <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
       {imageError && <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{imageError}</p>}
 
@@ -219,7 +249,11 @@ export function ProductForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5 sm:col-span-2">
                 <FieldLabel htmlFor="name">Product Name *</FieldLabel>
-                <Input id="name" name="name" required defaultValue={initialValues?.name} placeholder="Enter product name" />
+                <Input id="name" name="name" required value={productName} onChange={(event) => { setProductName(event.target.value); setDuplicateOverride(false); }} placeholder="Enter product name" />
+                {!isEdit && (duplicateChecking || duplicateMatches.length > 0) && <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+                  <div className="flex items-center justify-between"><p className="text-xs font-bold text-amber-800 dark:text-amber-300">{duplicateChecking ? "Checking for similar products…" : "Possible matches found"}</p>{duplicateMatches.length > 0 && <span className="text-[10px] text-amber-700">{duplicateMatches.length} result{duplicateMatches.length === 1 ? "" : "s"}</span>}</div>
+                  <div className="mt-2 space-y-2">{duplicateMatches.slice(0, 3).map((match) => <div key={match.id} className="flex items-center justify-between gap-2 rounded-lg bg-white p-2 text-xs shadow-sm dark:bg-ink-900"><div className="min-w-0"><p className="truncate font-semibold text-ink-900 dark:text-white">{match.name}</p><p className="text-ledger-400">{match.sku} · {match.locations.join(", ") || "No location"}</p></div><span className={`shrink-0 rounded-full px-2 py-1 font-bold ${match.exact ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{match.score}%</span></div>)}</div>
+                </div>}
               </div>
               <div className="space-y-1.5">
                 <FieldLabel htmlFor="category">Category</FieldLabel>
@@ -475,6 +509,7 @@ export function ProductForm({
         <Button type="button" variant="outline" onClick={() => history.back()}>Cancel</Button>
         <Button type="submit">{submitLabel}</Button>
       </div>
+      {showDuplicateModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-5 shadow-xl dark:border-amber-900 dark:bg-ink-900"><div className="flex items-start gap-3"><div className="rounded-xl bg-amber-100 p-2 font-bold text-amber-700">!</div><div><h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">Duplicate Product Detected</h2><p className="mt-1 text-sm text-ledger-500">An existing product has the same normalized name. Review it before creating another record.</p></div></div><div className="mt-4 space-y-2">{duplicateMatches.filter((match) => match.exact).slice(0, 2).map((match) => <div key={match.id} className="rounded-xl border border-ledger-100 p-3 dark:border-ledger-700"><p className="font-semibold">{match.name}</p><p className="text-xs text-ledger-500">{match.sku} · {match.brand ?? "No brand"} · {match.category ?? "No category"} · {match.stockQuantity} in stock</p><p className="mt-1 text-xs text-ledger-400">{match.locations.join(", ") || "No locations assigned"}</p></div>)}</div><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setShowDuplicateModal(false)} className="rounded-xl border border-ledger-200 px-4 py-2 text-sm">Cancel</button><button type="button" onClick={() => { setDuplicateOverride(true); setShowDuplicateModal(false); window.setTimeout(() => formRef.current?.requestSubmit(), 0); }} className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Continue Anyway</button></div></div></div>}
     </form>
   );
 }

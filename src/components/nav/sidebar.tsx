@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
-  Inbox, Headphones, MessageSquare, DollarSign, GitMerge, ClipboardCheck,
+  Inbox, Headphones, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -101,6 +101,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Import Products",        href: "/inventory/import",          icon: Upload       },
       { label: "Price Management",       href: "/inventory/prices",           icon: DollarSign   },
       { label: "Merge Products",         href: "/inventory/merge",            icon: GitMerge     },
+      { label: "Duplicate Review Center", href: "/inventory/duplicates",       icon: ClipboardCheck },
     ],
   },
   {
@@ -186,6 +187,7 @@ const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Billing",       href: "/settings/billing"      },
   { label: "Members",       href: "/settings/members"      },
   { label: "Integrations", href: "/settings/integrations" },
+  { label: "Duplicate Product Control", href: "/settings/products/duplicates", icon: ShieldCheck },
 ];
 
 // ── Reusable child list ───────────────────────────────────────

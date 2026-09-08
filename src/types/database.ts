@@ -2430,6 +2430,24 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["communication_channel_members"]["Row"]>;
         Relationships: [];
       };
+      product_duplicate_settings: {
+        Row: {
+          org_id: string;
+          control_mode: "allow" | "warn" | "block_exact" | "block_exact_similar";
+          similarity_threshold: number;
+          barcode_validation: "allow" | "warn" | "block";
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          control_mode?: "allow" | "warn" | "block_exact" | "block_exact_similar";
+          similarity_threshold?: number;
+          barcode_validation?: "allow" | "warn" | "block";
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["product_duplicate_settings"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       public_product_catalog: {

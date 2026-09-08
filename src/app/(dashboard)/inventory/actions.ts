@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
+import { findProductDuplicates, getDuplicateSettings } from "@/app/(dashboard)/inventory/duplicate-actions";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -109,6 +110,20 @@ export async function createProduct(formData: FormData): Promise<void> {
   }
 
   const supabase = await createClient();
+  const duplicateOverride = formData.get("duplicate_override") === "true";
+  const [duplicateSettings, duplicateMatches] = await Promise.all([
+    getDuplicateSettings(),
+    findProductDuplicates(fields.name, fields.barcode),
+  ]);
+  const exactMatch = duplicateMatches.matches.some((match) => match.exact);
+  const similarMatch = duplicateMatches.matches.some((match) => match.score >= duplicateSettings.similarityThreshold);
+  const shouldBlock = duplicateSettings.controlMode === "block_exact"
+    ? exactMatch
+    : duplicateSettings.controlMode === "block_exact_similar" && (exactMatch || similarMatch);
+  const barcodeBlocked = Boolean(duplicateMatches.barcodeMatch) && duplicateSettings.barcodeValidation === "block";
+  if (!duplicateOverride && (shouldBlock || barcodeBlocked)) {
+    redirectWithError("/inventory/new", barcodeBlocked ? "This barcode already belongs to an existing product." : "A duplicate or highly similar product already exists. Review it before continuing.");
+  }
   const sku = await generateSku(supabase, context.orgId, context.orgName);
 
   // Resolve target location (user selected location, or org primary location)
