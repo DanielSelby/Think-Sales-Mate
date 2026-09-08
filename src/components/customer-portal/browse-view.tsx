@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
 import { useCart } from "@/components/customer-portal/cart-context";
 import type { CatalogProduct } from "@/app/order/[orgSlug]/actions";
+import { TrackOrderLink } from "@/components/customer-portal/track-order-link";
 
 interface BrowseViewProps {
   orgSlug: string;
@@ -162,6 +163,8 @@ export function BrowseView({
               </p>
             </div>
           </Link>
+
+          <TrackOrderLink orgSlug={orgSlug} />
 
           {/* Cart button */}
           <Link

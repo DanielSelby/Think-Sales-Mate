@@ -5,6 +5,7 @@ import { trackOrder } from "@/app/order/[orgSlug]/track/[token]/actions";
 import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE } from "@/lib/customer-portal/format";
 import { Badge } from "@/components/ui/badge";
 import type { CustomerOrderStatus } from "@/types/database";
+import { OrderTrackingActions } from "@/components/customer-portal/order-tracking-actions";
 
 export default async function TrackOrderPage({ params }: { params: Promise<{ orgSlug: string; token: string }> }) {
   const { orgSlug, token } = await params;
@@ -27,6 +28,14 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
 
   const isCompleted = order.status === "completed";
   const isCancelled = order.status === "cancelled";
+  const stageIndex = order.status === "new" ? 0 : ["reviewed", "processing", "approved", "picking", "packing"].includes(order.status) ? 1 : order.status === "delivery" ? 3 : order.status === "completed" ? 4 : 0;
+  const stages = [
+    "Order Created and Sent",
+    "Review and In Process",
+    "Order Ready For Dispatch",
+    "Order Dispatch To Destination",
+    "Order Received",
+  ];
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-20 pt-8">
@@ -54,34 +63,38 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
 
       <div className="space-y-5">
         {/* Timeline tracker */}
-        {order.timeline.length > 0 && (
+        {(
           <div className="rounded-xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
             <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-ledger-400">Order Progress Timeline</h2>
-            <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-ledger-200 dark:before:bg-ledger-700">
-              {order.timeline.map((event, idx) => (
-                <div key={idx} className="relative">
-                  <span className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-signal text-white ring-4 ring-white dark:ring-ink-900">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+            <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-ledger-200 dark:before:bg-ledger-700">
+              {stages.map((title, idx) => {
+                const completed = order.customerReceivedAt ? idx <= 4 : idx < stageIndex;
+                const current = !order.customerReceivedAt && idx === stageIndex;
+                const event = order.timeline.find((item) => item.title === title);
+                return (
+                <div key={title} className="relative">
+                  <span className={`absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900 ${completed || current ? "bg-signal text-white" : "bg-ledger-200 dark:bg-ledger-700"}`}>
+                    {(completed || current) && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                   </span>
                   <div>
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-xs font-semibold text-ink-900 dark:text-white">{event.title}</p>
-                      <span className="font-mono text-[10px] text-ledger-400">
-                        {new Date(event.createdAt).toLocaleTimeString("en-GH", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
+                      <p className={`text-xs font-semibold ${completed || current ? "text-ink-900 dark:text-white" : "text-ledger-400"}`}>{title}</p>
+                      {event && <span className="font-mono text-[10px] text-ledger-400">{new Date(event.createdAt).toLocaleTimeString("en-GH", { hour: "2-digit", minute: "2-digit" })}</span>}
                     </div>
-                    {event.actorName && (
+                    {event?.actorName && (
                       <p className="text-[11px] text-ledger-500 dark:text-ledger-400">By {event.actorName}</p>
                     )}
-                    {event.notes && (
+                    {event?.notes && (
                       <p className="mt-0.5 text-[11px] text-ledger-400 italic">{event.notes}</p>
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
+        <OrderTrackingActions token={token} canConfirm={isCompleted} alreadyReceived={Boolean(order.customerReceivedAt)} />
 
         {/* Order Details & Summary */}
         <div className="rounded-xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900">

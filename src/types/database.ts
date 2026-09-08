@@ -2015,6 +2015,8 @@ export interface Database {
           access_token: string;
           created_at: string;
           updated_at: string;
+          customer_received_at: string | null;
+          customer_feedback: string | null;
         };
         Insert: {
           id?: string;
@@ -2048,6 +2050,8 @@ export interface Database {
           access_token?: string;
           created_at?: string;
           updated_at?: string;
+          customer_received_at?: string | null;
+          customer_feedback?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["customer_orders"]["Row"]>;
         Relationships: [

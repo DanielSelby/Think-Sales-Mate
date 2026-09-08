@@ -18,6 +18,7 @@ export interface TrackedTimelineItem {
 }
 
 export interface TrackedOrder {
+  id: string;
   orderNumber: string;
   status: string;
   paymentStatus: string;
@@ -36,6 +37,7 @@ export interface TrackedOrder {
   timeline: TrackedTimelineItem[];
   showPrices: boolean;
   currency: string;
+  customerReceivedAt: string | null;
 }
 
 export async function trackOrder(token: string): Promise<TrackedOrder | null> {
@@ -43,7 +45,7 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
 
   const { data: order } = await supabase
     .from("customer_orders")
-    .select("id, org_id, order_number, status, payment_status, delivery_status, location_id, guest_name, guest_phone, delivery_address, delivery_option, delivery_fee, subtotal, total, notes, created_at")
+    .select("id, org_id, order_number, status, payment_status, delivery_status, location_id, guest_name, guest_phone, delivery_address, delivery_option, delivery_fee, subtotal, total, notes, created_at, customer_received_at")
     .eq("access_token", token)
     .maybeSingle();
   if (!order) return null;
@@ -59,6 +61,7 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
   if (settings && !settings.allow_view_order_status) return null;
 
   return {
+    id: order.id,
     orderNumber: order.order_number,
     status: order.status,
     paymentStatus: order.payment_status ?? "unpaid",
@@ -83,5 +86,35 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     })),
     showPrices: settings?.show_prices_to_customers ?? true,
     currency: org?.currency ?? "GHS",
+    customerReceivedAt: order.customer_received_at,
   };
+}
+
+export async function confirmOrderReceived(token: string, feedback: string) {
+  const supabase = await createClient();
+  const { data: order } = await supabase
+    .from("customer_orders")
+    .select("id, org_id, status, customer_received_at")
+    .eq("access_token", token)
+    .maybeSingle();
+  if (!order) return { error: "This tracking link is invalid or expired." };
+  if (order.customer_received_at) return { error: "This order has already been marked as received." };
+  if (order.status !== "completed") return { error: "The order can only be confirmed after delivery." };
+
+  const receivedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("customer_orders")
+    .update({ customer_received_at: receivedAt, customer_feedback: feedback.trim() || null })
+    .eq("id", order.id)
+    .eq("access_token", token);
+  if (error) return { error: error.message };
+  await supabase.from("customer_order_timeline").insert({
+    order_id: order.id,
+    org_id: order.org_id,
+    title: "Order Received",
+    actor_name: "Customer",
+    status: "received",
+    notes: feedback.trim() || "Customer confirmed receipt.",
+  });
+  return { success: true };
 }

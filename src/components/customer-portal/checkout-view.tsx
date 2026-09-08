@@ -218,6 +218,7 @@ export function CheckoutView({
       }
 
       cart.clear();
+      if (result.accessToken) window.localStorage.setItem(`thinksales-last-order-${orgSlug}`, result.accessToken);
       router.push(`/order/${orgSlug}/track/${result.accessToken}`);
     });
   }
