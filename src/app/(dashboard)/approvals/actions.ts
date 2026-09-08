@@ -8,7 +8,7 @@ import { approveStockRequest, rejectStockRequest } from "@/app/(dashboard)/inven
 import { approveExpense, rejectExpense } from "@/app/(dashboard)/expenses/actions";
 
 export type ApprovalDecisionInput = {
-  type: "stock_request" | "expense" | "purchase_return";
+  type: "stock_request" | "expense" | "purchase_return" | "customer_order";
   id: string;
   decision: "approved" | "rejected";
   reason?: string;
@@ -34,7 +34,7 @@ export async function decideApproval(input: ApprovalDecisionInput) {
       ? await approveExpense(input.id)
       : await rejectExpense(input.id, input.reason!.trim());
     if (!result.ok) return { error: result.error };
-  } else {
+  } else if (input.type === "purchase_return") {
     const supabase = await createClient();
     const { data: row, error: findError } = await supabase
       .from("purchase_returns")
@@ -63,6 +63,12 @@ export async function decideApproval(input: ApprovalDecisionInput) {
       entity_id: input.id,
       metadata: { reason: input.reason?.trim() ?? null },
     });
+  } else {
+    const supabase = await createClient();
+    const { error } = await supabase.from("customer_orders").update({
+      status: input.decision === "approved" ? "processing" : "cancelled",
+    }).eq("id", input.id).eq("org_id", context.orgId).eq("status", "new");
+    if (error) return { error: error.message };
   }
 
   revalidatePath("/approvals");

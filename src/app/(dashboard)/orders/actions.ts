@@ -140,7 +140,7 @@ export async function approveAndProcessOrder({ orderId, locationId }: ApproveOrd
   const { error: updateError } = await supabase
     .from("customer_orders")
     .update({
-      status: "approved",
+      status: "processing",
       location_id: targetLocationId,
       approved_by: user.id,
       approved_at: new Date().toISOString(),

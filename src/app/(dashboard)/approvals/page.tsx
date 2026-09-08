@@ -13,10 +13,11 @@ export default async function ApprovalCenterPage() {
   if (!can(context.role, "inventory.stock_request.approve")) redirect("/dashboard");
 
   const supabase = await createClient();
-  const [{ data: requests }, { data: expenses }, { data: returns }, { data: completed }, { data: locations }] = await Promise.all([
+  const [{ data: requests }, { data: expenses }, { data: returns }, { data: customerOrders }, { data: completed }, { data: locations }] = await Promise.all([
     supabase.from("stock_requests").select("id, request_number, requested_by, requesting_location_id, source_location_id, status, priority, submitted_at, created_at").eq("org_id", context.orgId).eq("status", "pending_approval").order("created_at", { ascending: false }),
     supabase.from("expenses").select("id, expense_number, recorded_by, location_id, category, description, amount, status, expense_date, created_at").eq("org_id", context.orgId).eq("status", "pending_approval").order("created_at", { ascending: false }),
     supabase.from("purchase_returns").select("id, return_number, created_by, location_id, total_return_value, status, return_date, created_at").eq("org_id", context.orgId).eq("status", "submitted").order("created_at", { ascending: false }),
+    supabase.from("customer_orders").select("id, order_number, guest_name, location_id, total, status, created_at").eq("org_id", context.orgId).eq("status", "new").order("created_at", { ascending: false }),
     supabase.from("audit_logs").select("entity_type, entity_id").eq("org_id", context.orgId).eq("action", "approval.completed"),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId),
   ]);
@@ -51,6 +52,11 @@ export default async function ApprovalCenterPage() {
       title: "Purchase Return", requester: profileById.get(row.created_by)?.full_name ?? "Unknown user",
       branch: locationById.get(row.location_id) ?? "—", date: row.return_date ?? row.created_at,
       amount: row.total_return_value, status: row.status, priority: row.total_return_value >= 10000 ? "high" : "normal", href: "/purchases/returns/new",
+    })),
+    ...(customerOrders ?? []).map((row) => ({
+      id: row.id, type: "customer_order" as const, document: row.order_number,
+      title: "Customer Order", requester: row.guest_name, branch: locationById.get(row.location_id ?? "") ?? "—",
+      date: row.created_at, amount: row.total, status: row.status, priority: row.total >= 10000 ? "high" : "normal", href: `/orders/${row.id}`,
     })),
   ];
 

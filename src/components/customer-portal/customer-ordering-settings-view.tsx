@@ -422,6 +422,12 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
               onChange={(v) => patch("allowOrderNotes", v)}
             />
             <ToggleRow
+              label="Allow Customers to Download Completed Invoices"
+              description="Show a printable invoice download button on the customer tracking page after an order is completed."
+              checked={settings.allowCustomerInvoiceDownload}
+              onChange={(v) => patch("allowCustomerInvoiceDownload", v)}
+            />
+            <ToggleRow
               label="Allow Customer Delivery Selection"
               description="Let customers choose between Standard Delivery, Express Delivery, or In-store Pickup."
               checked={settings.allowCustomerSelectDelivery}

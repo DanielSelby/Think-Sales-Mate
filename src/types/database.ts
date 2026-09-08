@@ -1951,6 +1951,7 @@ export interface Database {
           auto_reserve_stock_on_approval: boolean;
           send_email_notifications: boolean;
           send_whatsapp_notifications: boolean;
+          allow_customer_invoice_download: boolean;
           updated_by: string | null;
           updated_at: string;
         };
@@ -1976,6 +1977,7 @@ export interface Database {
           auto_reserve_stock_on_approval?: boolean;
           send_email_notifications?: boolean;
           send_whatsapp_notifications?: boolean;
+          allow_customer_invoice_download?: boolean;
           updated_by?: string | null;
           updated_at?: string;
         };

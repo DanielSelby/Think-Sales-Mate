@@ -25,6 +25,7 @@ export interface PortalSettings {
   autoReserveStockOnApproval: boolean;
   sendEmailNotifications: boolean;
   sendWhatsAppNotifications: boolean;
+  allowCustomerInvoiceDownload: boolean;
 }
 
 export async function getPortalSettings(): Promise<PortalSettings> {
@@ -49,6 +50,7 @@ export async function getPortalSettings(): Promise<PortalSettings> {
     autoReserveStockOnApproval: true,
     sendEmailNotifications: true,
     sendWhatsAppNotifications: false,
+    allowCustomerInvoiceDownload: true,
   };
   if (!context) return defaults;
 
@@ -76,6 +78,7 @@ export async function getPortalSettings(): Promise<PortalSettings> {
     autoReserveStockOnApproval: data.auto_reserve_stock_on_approval ?? defaults.autoReserveStockOnApproval,
     sendEmailNotifications: data.send_email_notifications ?? defaults.sendEmailNotifications,
     sendWhatsAppNotifications: data.send_whatsapp_notifications ?? defaults.sendWhatsAppNotifications,
+    allowCustomerInvoiceDownload: data.allow_customer_invoice_download ?? defaults.allowCustomerInvoiceDownload,
   };
 }
 
@@ -128,6 +131,7 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
       auto_reserve_stock_on_approval: settings.autoReserveStockOnApproval,
       send_email_notifications: settings.sendEmailNotifications,
       send_whatsapp_notifications: settings.sendWhatsAppNotifications,
+      allow_customer_invoice_download: settings.allowCustomerInvoiceDownload,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     },

@@ -6,6 +6,8 @@ import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE } from "@/lib/customer-portal/for
 import { Badge } from "@/components/ui/badge";
 import type { CustomerOrderStatus } from "@/types/database";
 import { OrderTrackingActions } from "@/components/customer-portal/order-tracking-actions";
+import { DownloadInvoiceButton } from "@/components/customer-portal/download-invoice-button";
+import { TrackingAutoRefresh } from "@/components/customer-portal/tracking-auto-refresh";
 
 export default async function TrackOrderPage({ params }: { params: Promise<{ orgSlug: string; token: string }> }) {
   const { orgSlug, token } = await params;
@@ -39,6 +41,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-20 pt-8">
+      <TrackingAutoRefresh />
       {/* Top success / status card */}
       <div className="mb-6 flex flex-col items-center text-center">
         <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-signal-soft text-signal dark:bg-signal/15">
@@ -95,6 +98,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
           </div>
         )}
         <OrderTrackingActions token={token} canConfirm={isCompleted} alreadyReceived={Boolean(order.customerReceivedAt)} />
+        {isCompleted && order.allowInvoiceDownload && <DownloadInvoiceButton href={`/order/${orgSlug}/track/${token}/invoice`} />}
 
         {/* Order Details & Summary */}
         <div className="rounded-xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900">

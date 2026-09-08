@@ -38,6 +38,7 @@ export interface TrackedOrder {
   showPrices: boolean;
   currency: string;
   customerReceivedAt: string | null;
+  allowInvoiceDownload: boolean;
 }
 
 export async function trackOrder(token: string): Promise<TrackedOrder | null> {
@@ -52,7 +53,7 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
 
   const [{ data: items }, { data: settings }, { data: org }, { data: loc }, { data: timeline }] = await Promise.all([
     supabase.from("customer_order_items").select("product_name, quantity, unit_price, line_total").eq("order_id", order.id),
-    supabase.from("customer_portal_settings").select("show_prices_to_customers, allow_view_order_status").eq("org_id", order.org_id).maybeSingle(),
+    supabase.from("customer_portal_settings").select("show_prices_to_customers, allow_view_order_status, allow_customer_invoice_download").eq("org_id", order.org_id).maybeSingle(),
     supabase.from("organizations").select("currency").eq("id", order.org_id).single(),
     order.location_id ? supabase.from("business_locations").select("name").eq("id", order.location_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("customer_order_timeline").select("title, actor_name, status, notes, created_at").eq("order_id", order.id).order("created_at", { ascending: true }),
@@ -87,6 +88,7 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     showPrices: settings?.show_prices_to_customers ?? true,
     currency: org?.currency ?? "GHS",
     customerReceivedAt: order.customer_received_at,
+    allowInvoiceDownload: settings?.allow_customer_invoice_download ?? true,
   };
 }
 

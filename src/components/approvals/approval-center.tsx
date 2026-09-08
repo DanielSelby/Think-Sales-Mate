@@ -19,8 +19,8 @@ export type ApprovalRow = {
   href: string;
 };
 
-const labels = { stock_request: "Stock Request", expense: "Expense", purchase_return: "Purchase Return" };
-const icons = { stock_request: Truck, expense: FileText, purchase_return: ShoppingBag };
+const labels = { stock_request: "Stock Request", expense: "Expense", purchase_return: "Purchase Return", customer_order: "Customer Order" };
+const icons = { stock_request: Truck, expense: FileText, purchase_return: ShoppingBag, customer_order: ShoppingBag };
 
 export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { rows: ApprovalRow[]; approvedRows: ApprovalRow[]; historyRows: ApprovalRow[]; currency: string }) {
   const [tab, setTab] = useState<"pending" | "approved" | "history">("pending");
@@ -100,7 +100,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {(["all", "stock_request", "expense", "purchase_return"] as const).map((key) => {
+        {(["all", "stock_request", "expense", "purchase_return", "customer_order"] as const).map((key) => {
           const count = key === "all" ? rows.length : rows.filter((row) => row.type === key).length;
           return <button key={key} onClick={() => setType(key)} className={`rounded-2xl border p-4 text-left shadow-card transition ${type === key ? "border-brand-300 ring-2 ring-brand-100" : "border-ledger-100 bg-white dark:border-ledger-700 dark:bg-ink-900"}`}><div className="flex items-center justify-between text-xs text-ledger-500"><span>{key === "all" ? "All Requests" : labels[key]}</span><ChevronRight className="h-4 w-4" /></div><p className="mt-2 text-2xl font-bold text-ink-900 dark:text-white">{count}</p><p className="mt-1 text-xs text-ledger-400">Pending approval</p></button>;
         })}
