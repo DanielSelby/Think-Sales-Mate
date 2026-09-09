@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { loginPlatformAdmin } from "./actions";
 
@@ -40,6 +41,7 @@ export default function PlatformAdminLoginPage() {
         </label>
         {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <button disabled={busy} className="mt-6 h-11 w-full rounded-lg bg-blue-600 font-semibold text-white disabled:opacity-50">{busy ? "Signing in..." : "Sign in to Platform Admin"}</button>
+        <Link href="/platform-admin/forgot-password" className="mt-4 block text-center text-sm font-semibold text-blue-600 hover:text-blue-800">Forgot password?</Link>
       </form>
     </main>
   );
