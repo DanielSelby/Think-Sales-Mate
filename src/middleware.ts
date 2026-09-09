@@ -8,6 +8,15 @@ export async function middleware(request: NextRequest) {
 
   let response = NextResponse.next({ request: { headers: request.headers } });
 
+  if (request.nextUrl.pathname.startsWith("/platform-admin")) {
+    if (request.nextUrl.pathname === "/platform-admin/login") {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-platform-public", "true");
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+    return response;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
