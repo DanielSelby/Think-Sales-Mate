@@ -278,7 +278,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   return (
     <aside
       className={cn(
-        "relative flex h-screen flex-col transition-[width] duration-200 shrink-0",
+        "relative hidden h-screen flex-col transition-[width] duration-200 shrink-0 md:flex",
         collapsed ? "w-16" : "w-60"
       )}
       style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}

@@ -618,7 +618,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         </div>
         <span className="flex h-10 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:w-auto" style={{ background: theme.colors.primary }}>{dateLabel}</span>
 
-        <div className="flex min-w-0 flex-wrap items-center justify-center gap-2 px-1 sm:ml-auto sm:flex-1 sm:justify-around sm:gap-4 sm:px-3">
+        <div className="grid min-w-0 grid-cols-4 items-center justify-items-center gap-2 px-1 sm:ml-auto sm:flex sm:flex-1 sm:justify-around sm:gap-4 sm:px-3">
           <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
           <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
           <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
@@ -629,7 +629,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
           <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-ledger-200 pt-2 sm:ml-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-ledger-700">
+        <div className="grid grid-cols-2 items-center gap-2 border-t border-ledger-200 pt-2 sm:flex sm:items-center sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-ledger-700">
           <CrossBranchStockButton query={query} enabled={canCheckCrossBranchStock && Boolean(query.trim()) && filteredProducts.length === 0} />
           <Link href="/accounting/expenses/new">
             <Button
@@ -924,7 +924,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       </div>
 
       {/* Bottom action bar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ledger-100 bg-white p-2 pb-3 dark:border-ledger-700 dark:bg-ink-900">
+      <div className="grid grid-cols-2 items-center gap-2 rounded-xl border border-ledger-100 bg-white p-2 pb-3 sm:flex sm:flex-wrap dark:border-ledger-700 dark:bg-ink-900">
         {editingSaleId ? (
           <>
             <div className="flex items-center gap-1.5 rounded-md bg-signal-soft px-2.5 py-1.5 text-xs font-semibold text-signal">
@@ -950,16 +950,16 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
               <CreditCard className="h-4 w-4" /> Card
             </button>
 
-            <Button variant="primary" className="bg-ink-900 hover:bg-ink-900/90" onClick={() => setMultiPayOpen(true)} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full bg-ink-900 hover:bg-ink-900/90 sm:w-auto" onClick={() => setMultiPayOpen(true)} disabled={isPending || cart.length === 0}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Multiple Pay
             </Button>
-            <Button variant="primary" className="bg-signal hover:bg-signal/90" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full bg-signal hover:bg-signal/90 sm:w-auto" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
               <Banknote className="h-4 w-4" /> Cash
             </Button>
-            <Button variant="primary" className="bg-amber hover:bg-amber/90" onClick={() => handleCompleteSale("Mobile Money")} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full bg-amber hover:bg-amber/90 sm:w-auto" onClick={() => handleCompleteSale("Mobile Money")} disabled={isPending || cart.length === 0}>
               <Smartphone className="h-4 w-4" /> MOMO
             </Button>
-            <Button variant="primary" className="bg-alert hover:bg-alert/90" onClick={handleVoid} disabled={cart.length === 0}>
+            <Button variant="primary" className="w-full bg-alert hover:bg-alert/90 sm:w-auto" onClick={handleVoid} disabled={cart.length === 0}>
               <X className="h-4 w-4" /> Cancel
             </Button>
           </>
