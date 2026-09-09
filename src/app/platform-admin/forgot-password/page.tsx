@@ -16,7 +16,7 @@ export default function PlatformForgotPasswordPage() {
     setError(null);
     const siteUrl = window.location.origin;
     const { error: resetError } = await createPlatformClient().auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${siteUrl}/platform-admin/auth/callback?next=/platform-admin/reset-password`,
+      redirectTo: `${siteUrl}/platform-admin/auth/callback`,
     });
     if (resetError) setError(resetError.message);
     else setSent(true);
