@@ -604,21 +604,21 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const dateLabel = now.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" }) + " " + now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex min-h-0 h-full flex-col gap-3 overflow-x-hidden pb-16 lg:pb-0">
       {notice && <div className="rounded-md border border-signal/30 bg-signal-soft px-3 py-2 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">{notice}</div>}
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{error}</div>}
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 dark:border-ledger-700 dark:bg-ink-900">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="text-xs font-medium text-ledger-500">Location:</span>
-          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
+          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
-        <span className="flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white" style={{ background: theme.colors.primary }}>{dateLabel}</span>
+        <span className="flex h-10 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:w-auto" style={{ background: theme.colors.primary }}>{dateLabel}</span>
 
-        <div className="ml-auto flex min-w-0 flex-1 items-center justify-around gap-4 px-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-2 px-1 sm:ml-auto sm:flex-1 sm:justify-around sm:gap-4 sm:px-3">
           <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
           <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
           <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
@@ -629,7 +629,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
           <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
         </div>
 
-        <div className="ml-2 flex items-center gap-2 border-l border-ledger-200 pl-4 dark:border-ledger-700">
+        <div className="flex items-center justify-end gap-2 border-t border-ledger-200 pt-2 sm:ml-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-ledger-700">
           <CrossBranchStockButton query={query} enabled={canCheckCrossBranchStock && Boolean(query.trim()) && filteredProducts.length === 0} />
           <Link href="/accounting/expenses/new">
             <Button
@@ -649,7 +649,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
           is dynamic (toggled by the expand button on the cart panel) since
           Tailwind can't interpolate an arbitrary grid-template from state. */}
       <div
-        className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[var(--pos-left)_var(--pos-right)]"
+        className="grid min-h-0 flex-none grid-cols-1 gap-3 xl:flex-1 xl:grid-cols-[var(--pos-left)_var(--pos-right)]"
         style={{ "--pos-left": `${100 - cartWidthPercent}%`, "--pos-right": `${cartWidthPercent}%` } as React.CSSProperties}      >
         {/* LEFT: images/grid */}
         <div className="flex min-h-0 flex-col gap-3">
@@ -714,7 +714,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
             </div>
           )}
 
-          <div className="grid flex-1 grid-cols-2 gap-3 overflow-y-auto pb-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 overflow-y-auto pb-2 sm:grid-cols-3 lg:grid-cols-4 xl:flex-1">
             {filteredProducts.length === 0 && <p className="col-span-full py-10 text-center text-sm text-ledger-400">No products match your search.</p>}
             {filteredProducts.map((p) => (
               <button
@@ -767,8 +767,8 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
               </div>
             )}
           </div>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pt-5">
-            <div className="grid grid-cols-2 gap-2">
+          <CardContent className="flex min-h-0 flex-col gap-3 pt-5 xl:flex-1">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="relative">
                 {customer ? (
                   <div className="flex h-10 items-center justify-between rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
@@ -840,7 +840,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
               </div>
               {/* Select date — under the Walk-In Customer field. sale_date is a
                   DATE column (no time component), so this is date-only. */}
-              <div className="relative col-span-1">
+              <div className="relative">
                 <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
                 <input
                   type="date"
@@ -924,7 +924,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       </div>
 
       {/* Bottom action bar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ledger-100 bg-white p-2 dark:border-ledger-700 dark:bg-ink-900">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ledger-100 bg-white p-2 pb-3 dark:border-ledger-700 dark:bg-ink-900">
         {editingSaleId ? (
           <>
             <div className="flex items-center gap-1.5 rounded-md bg-signal-soft px-2.5 py-1.5 text-xs font-semibold text-signal">
@@ -965,12 +965,12 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
           </>
         )}
 
-        <div className="ml-2">
+        <div className="ml-0 min-w-[110px]">
           <p className="text-xs font-semibold text-ledger-500">Total Payable:</p>
           <p className="font-display text-xl font-bold" style={{ color: theme.colors.primary }}>{formatCurrency(total, currency)}</p>
         </div>
 
-        <div className="ml-auto">
+        <div className="ml-auto w-full sm:w-auto">
           <Button variant="outline" size="sm" onClick={openRecentTransactions}><History className="h-3.5 w-3.5" /> Recent Transactions</Button>
         </div>
       </div>

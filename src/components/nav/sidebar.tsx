@@ -301,11 +301,9 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   </button>
 
       {/* ── Logo ── */}
-      <div className="flex h-14 items-center gap-3 px-4 shrink-0"
+      <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-bold text-sm bg-blue-600 text-white shadow-sm">
-          S
-        </div>
+        <img src="/thinksales-logo.svg" alt="ThinkSales" className="h-10 w-10 shrink-0 rounded-xl object-cover shadow-sm" />
         {!collapsed && (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>ThinkSales</span>
