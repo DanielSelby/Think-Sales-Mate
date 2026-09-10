@@ -1,5 +1,5 @@
 import "server-only";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { PlatformDatabase } from "@/types/platform-database";
 
@@ -13,14 +13,22 @@ export async function createPlatformServerClient() {
     {
       cookieOptions: { name: PLATFORM_COOKIE_NAME },
       cookies: {
-        get(name) {
+        get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name, value, options) {
-          cookieStore.set({ name, value, ...options });
+        set(name: string, value: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value, ...options });
+          } catch {
+            // Server Components cannot always mutate cookies during a session refresh.
+          }
         },
-        remove(name, options) {
-          cookieStore.set({ name, value: "", ...options });
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value: "", ...options });
+          } catch {
+            // Middleware or a route handler will persist the refreshed session.
+          }
         },
       },
     },
