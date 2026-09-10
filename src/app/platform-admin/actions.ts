@@ -193,7 +193,7 @@ export async function setOrganizationFeatureAccess(
   }
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, organization_id: organizationId, action: "feature_access_updated", module: "feature_access", metadata: { feature: module, accessMode } });
   revalidatePath("/platform-admin");
-  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
 }
 
 export async function setFeatureFlag(id: string, enabled: boolean) {
