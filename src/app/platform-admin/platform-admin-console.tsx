@@ -11,7 +11,6 @@ import {
   updateSubscriptionPlan,
   archiveSubscriptionPlan,
   setFeatureFlag,
-  setOrganizationFeatureAccess,
   reviewPlatformApproval,
   updatePlatformSetting,
 } from "./actions";
@@ -294,7 +293,13 @@ export default function PlatformAdminConsole({
     setBusy(true);
     setMessage(null);
     try {
-      await setOrganizationFeatureAccess(organizationId, module, accessMode);
+      const response = await fetch("/platform-admin/feature-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, module, accessMode }),
+      });
+      const result = await response.json() as { data?: unknown; error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Feature access could not be saved.");
       setMessage(`${module} access updated.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Feature access could not be saved.");
