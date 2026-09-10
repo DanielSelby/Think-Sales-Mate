@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   createPlatformOrganization,
   createSubscriptionPlan,
@@ -9,6 +9,7 @@ import {
   updatePlatformOrganization,
 } from "./actions";
 import type { PlatformModule } from "@/types/platform-database";
+import { PLATFORM_MODULES } from "@/lib/platform-modules";
 
 type Organization = {
   id: string;
@@ -57,7 +58,7 @@ const tabs: { label: Tab; icon: string }[] = [
   { label: "Feature Flags", icon: "⚑" },
   { label: "Audit Logs", icon: "▤" },
 ];
-const modules: PlatformModule[] = ["Dashboard", "POS", "Sales", "Orders", "CRM", "Inventory", "Purchases", "Accounting", "Banking", "Assets", "Projects", "Communication", "HRM & Payroll", "Reports", "AI Assistant"];
+const modules: PlatformModule[] = PLATFORM_MODULES.map((module) => module.key);
 
 function Card({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
   return (
@@ -85,9 +86,11 @@ function Modal({ title, children, close }: { title: string; children: React.Reac
 export default function PlatformAdminConsole({
   organizations,
   plans,
+  features,
 }: {
   organizations: Organization[];
   plans: Plan[];
+  features: { organization_id: string; module: string; enabled: boolean }[];
 }) {
   const [tab, setTab] = useState<Tab>("Organizations");
   const [search, setSearch] = useState("");
@@ -95,7 +98,9 @@ export default function PlatformAdminConsole({
   const [modal, setModal] = useState<"organization" | "plan" | null>(null);
   const [busy, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [featureState, setFeatureState] = useState<Record<string, boolean>>({});
+  const [featureState, setFeatureState] = useState<Record<string, boolean>>(
+    Object.fromEntries(features.filter((feature) => feature.organization_id === organizations[0]?.organization_id).map((feature) => [feature.module, feature.enabled])),
+  );
   const [orgForm, setOrgForm] = useState({
     organizationId: "",
     name: "",
@@ -121,6 +126,10 @@ export default function PlatformAdminConsole({
     [organizations, search],
   );
   const selected = organizations.find((org) => org.id === selectedId) ?? filteredOrganizations[0];
+  useEffect(() => {
+    if (!selected) return;
+    setFeatureState(Object.fromEntries(features.filter((feature) => feature.organization_id === selected.organization_id).map((feature) => [feature.module, feature.enabled])));
+  }, [features, selected]);
   const counts = {
     total: organizations.length,
     active: organizations.filter((org) => org.status === "active").length,
