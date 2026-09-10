@@ -137,14 +137,25 @@ export interface PlatformDatabase {
         organization_id: string;
         module: string;
         enabled: boolean;
+        access_mode: "enabled" | "disabled" | "read_only";
         updated_by: string | null;
         updated_at: string;
       }, {
         organization_id: string;
         module: string;
         enabled?: boolean;
+        access_mode?: "enabled" | "disabled" | "read_only";
         updated_by?: string | null;
         updated_at?: string;
+      }>;
+      platform_plan_features: PlatformTable<{
+        plan_id: string;
+        module: string;
+        access_mode: "enabled" | "disabled" | "read_only";
+      }, {
+        plan_id: string;
+        module: string;
+        access_mode?: "enabled" | "disabled" | "read_only";
       }>;
       platform_feature_flags: PlatformTable<{
         id: string;

@@ -96,8 +96,10 @@ export async function createSubscriptionPlan(input: {
   maxBranches?: number;
   storageLimitGb?: number;
   monthlyPrice?: number;
+  annualPrice?: number;
   aiAccess: boolean;
   apiAccess: boolean;
+  includedModules?: string[];
 }) {
   const { admin, supabase } = await requirePlatformPermission("manage_billing");
   const { data, error } = await supabase
@@ -108,8 +110,10 @@ export async function createSubscriptionPlan(input: {
       max_branches: input.maxBranches ?? null,
       storage_limit_gb: input.storageLimitGb ?? null,
       monthly_price: input.monthlyPrice ?? 0,
+      annual_price: input.annualPrice ?? null,
       ai_access: input.aiAccess,
       api_access: input.apiAccess,
+      included_modules: input.includedModules ?? [],
     })
     .select("*")
     .single();
@@ -122,6 +126,84 @@ export async function createSubscriptionPlan(input: {
   });
   revalidatePath("/platform-admin");
   return data;
+}
+
+export async function updateSubscriptionPlan(id: string, input: {
+  name?: string;
+  monthlyPrice?: number;
+  annualPrice?: number | null;
+  maxUsers?: number | null;
+  maxBranches?: number | null;
+  storageLimitGb?: number | null;
+  aiAccess?: boolean;
+  apiAccess?: boolean;
+}) {
+  const { admin, supabase } = await requirePlatformPermission("manage_billing");
+  const update = {
+    ...(input.name === undefined ? {} : { name: input.name.trim() }),
+    ...(input.monthlyPrice === undefined ? {} : { monthly_price: input.monthlyPrice }),
+    ...(input.annualPrice === undefined ? {} : { annual_price: input.annualPrice }),
+    ...(input.maxUsers === undefined ? {} : { max_users: input.maxUsers }),
+    ...(input.maxBranches === undefined ? {} : { max_branches: input.maxBranches }),
+    ...(input.storageLimitGb === undefined ? {} : { storage_limit_gb: input.storageLimitGb }),
+    ...(input.aiAccess === undefined ? {} : { ai_access: input.aiAccess }),
+    ...(input.apiAccess === undefined ? {} : { api_access: input.apiAccess }),
+  };
+  const { error } = await supabase.from("subscription_plans").update(update).eq("id", id);
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "subscription_plan_updated", module: "subscription_plans", metadata: { planId: id, update } });
+  revalidatePath("/platform-admin");
+}
+
+export async function archiveSubscriptionPlan(id: string) {
+  const { admin, supabase } = await requirePlatformPermission("manage_billing");
+  const { error } = await supabase.from("subscription_plans").update({ is_active: false, archived_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "subscription_plan_archived", module: "subscription_plans", metadata: { planId: id } });
+  revalidatePath("/platform-admin");
+}
+
+export async function setOrganizationFeatureAccess(
+  organizationId: string,
+  module: PlatformModule,
+  accessMode: "enabled" | "disabled" | "read_only",
+) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const { error } = await supabase.from("platform_organization_features").upsert({
+    organization_id: organizationId,
+    module,
+    enabled: accessMode !== "disabled",
+    access_mode: accessMode,
+    updated_by: admin.id,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, organization_id: organizationId, action: "feature_access_updated", module: "feature_access", metadata: { feature: module, accessMode } });
+  revalidatePath("/platform-admin");
+}
+
+export async function setFeatureFlag(id: string, enabled: boolean) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const { error } = await supabase.from("platform_feature_flags").update({ enabled, updated_by: admin.id, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: enabled ? "feature_flag_enabled" : "feature_flag_disabled", module: "feature_flags", metadata: { flagId: id, enabled } });
+  revalidatePath("/platform-admin");
+}
+
+export async function updatePlatformSetting(key: string, value: Record<string, unknown>) {
+  const { admin, supabase } = await requirePlatformPermission("manage_platform");
+  const { error } = await supabase.from("platform_settings").upsert({ key, value, updated_by: admin.id, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "platform_setting_updated", module: "system_settings", metadata: { key } });
+  revalidatePath("/platform-admin");
+}
+
+export async function reviewPlatformApproval(id: string, status: "approved" | "rejected") {
+  const { admin, supabase } = await requirePlatformManagement();
+  const { error } = await supabase.from("platform_approvals").update({ status, reviewed_by: admin.id, reviewed_at: new Date().toISOString() }).eq("id", id).eq("status", "pending");
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: `approval_${status}`, module: "approvals", metadata: { approvalId: id } });
+  revalidatePath("/platform-admin");
 }
 
 export async function setOrganizationFeature(organizationId: string, module: PlatformModule, enabled: boolean) {
