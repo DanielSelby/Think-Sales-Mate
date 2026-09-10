@@ -186,14 +186,13 @@ export async function setOrganizationFeatureAccess(
     access_mode: accessMode,
     updated_by: admin.id,
     updated_at: new Date().toISOString(),
-  }).select("organization_id, module, enabled, access_mode").single();
+  }, { onConflict: "organization_id,module" }).select("organization_id, module, enabled, access_mode").single();
   if (error) throw new Error(error.message);
   if (!savedFeature || savedFeature.organization_id !== organizationId || savedFeature.module !== module) {
     throw new Error("Feature access was not saved for the selected organization.");
   }
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, organization_id: organizationId, action: "feature_access_updated", module: "feature_access", metadata: { feature: module, accessMode } });
   revalidatePath("/platform-admin");
-  revalidatePath("/dashboard");
 }
 
 export async function setFeatureFlag(id: string, enabled: boolean) {
