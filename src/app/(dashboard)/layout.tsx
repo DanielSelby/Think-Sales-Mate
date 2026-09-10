@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { ThemeKey } from "@/store/useAppStore";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context     = await getCurrentOrgContext(activeOrgId);

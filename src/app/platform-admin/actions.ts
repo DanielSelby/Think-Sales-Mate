@@ -173,15 +173,18 @@ export async function setOrganizationFeatureAccess(
   accessMode: "enabled" | "disabled" | "read_only",
 ) {
   const { admin, supabase } = await requirePlatformManagement();
-  const { error } = await supabase.from("platform_organization_features").upsert({
+  const { data: savedFeature, error } = await supabase.from("platform_organization_features").upsert({
     organization_id: organizationId,
     module,
     enabled: accessMode !== "disabled",
     access_mode: accessMode,
     updated_by: admin.id,
     updated_at: new Date().toISOString(),
-  });
+  }).select("organization_id, module, enabled, access_mode").single();
   if (error) throw new Error(error.message);
+  if (!savedFeature || savedFeature.organization_id !== organizationId || savedFeature.module !== module) {
+    throw new Error("Feature access was not saved for the selected organization.");
+  }
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, organization_id: organizationId, action: "feature_access_updated", module: "feature_access", metadata: { feature: module, accessMode } });
   revalidatePath("/platform-admin");
 }
