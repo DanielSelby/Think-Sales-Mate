@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
+import { NAV_ITEMS as SHARED_NAV_ITEMS } from "./navigation";
+export { NAV_ITEMS } from "./navigation";
 
 export interface NavChild {
   label: string;
@@ -29,7 +31,7 @@ export interface NavItem {
   children?: NavChild[];
 }
 
-export const NAV_ITEMS: NavItem[] = [
+const LEGACY_NAV_ITEMS: NavItem[] = [
   {
     label: "Dashboard",
     href:  "/dashboard",
@@ -245,7 +247,7 @@ export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; ena
 
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     // Auto-open the group containing the current path on first render
-    const active = NAV_ITEMS.find(item =>
+    const active = SHARED_NAV_ITEMS.find(item =>
       item.children?.some(c => pathname.startsWith(c.href))
     );
     return active?.href ?? null;
@@ -314,7 +316,7 @@ export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; ena
 
       {/* ── Nav ── */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {NAV_ITEMS.filter((item) => !enabledModules || enabledModules.includes(item.label) || item.label === "Approval Center" || item.label === "Stock Transfer" || item.label === "Stock Adjustment" || item.label === "Expenses" || item.label === "Fraud & Anomaly Detection" || item.label === "User Management").map(item => {
+        {SHARED_NAV_ITEMS.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
           const isActive = !item.children && (pathname === item.href || pathname.startsWith(item.href + "/"));

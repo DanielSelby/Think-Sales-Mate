@@ -5,10 +5,7 @@ export type PlatformRole =
   | "billing_administrator"
   | "technical_administrator";
 
-export type PlatformModule =
-  | "Dashboard" | "POS" | "Sales" | "Orders" | "CRM" | "Inventory"
-  | "Purchases" | "Accounting" | "Banking" | "Assets" | "Projects"
-  | "Communication" | "HRM & Payroll" | "Reports" | "AI Assistant";
+export type PlatformModule = string;
 
 type PlatformTable<Row, Insert = Row> = {
   Row: Row;
