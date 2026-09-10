@@ -310,7 +310,7 @@ export default function PlatformAdminConsole({
 
   return (
     <div className="flex min-h-[calc(100vh-74px)] bg-[#f5f8fc]">
-      <aside className="hidden w-56 shrink-0 bg-[#06294a] text-white lg:block">
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 self-start overflow-y-auto bg-[#06294a] text-white lg:block">
         <div className="border-b border-white/10 px-4 py-5">
           <div className="flex items-center gap-2">
             <img src="/thinksales-logo.svg" alt="" className="h-8 w-8 rounded-lg" />

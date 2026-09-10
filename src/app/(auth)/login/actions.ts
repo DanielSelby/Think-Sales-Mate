@@ -3,6 +3,21 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
+import { headers } from "next/headers";
+
+function getLoginClientDetails(requestHeaders: Headers) {
+  const userAgent = requestHeaders.get("user-agent") ?? "";
+  const ipAddress = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? requestHeaders.get("x-real-ip")
+    ?? null;
+  const browser = /Edg\//.test(userAgent) ? "Edge"
+    : /Chrome\//.test(userAgent) ? "Chrome"
+    : /Firefox\//.test(userAgent) ? "Firefox"
+    : /Safari\//.test(userAgent) ? "Safari"
+    : "Unknown";
+  const device = /Mobi|Android|iPhone|iPad/i.test(userAgent) ? "Mobile" : "Desktop";
+  return { browser, device, ipAddress, userAgent };
+}
 
 /**
  * Resolves a staff username to its internal Auth email, then signs in using
@@ -36,6 +51,8 @@ export async function loginWithIdentifier(identifier: string, password: string) 
   if (error) return { error: error.message };
 
   try {
+    const requestHeaders = await headers();
+    const clientDetails = getLoginClientDetails(requestHeaders);
     const userId = sessionData.user.id;
     const admin = createAdminClient();
     const { data: memberships } = await admin
@@ -44,14 +61,17 @@ export async function loginWithIdentifier(identifier: string, password: string) 
       .eq("user_id", userId)
       .eq("status", "active");
     const platform = createPlatformAdminClient();
-    await platform.from("platform_audit_logs").insert(
+    const { error: auditError } = await platform.from("platform_audit_logs").insert(
       (memberships ?? []).map((membership) => ({
         organization_id: membership.org_id,
         action: "user_login",
         module: "authentication",
-        metadata: { userId, email: authEmail },
+        metadata: { userId, email: authEmail, device: clientDetails.device, browser: clientDetails.browser },
+        ip_address: clientDetails.ipAddress,
+        user_agent: clientDetails.userAgent,
       })),
     );
+    if (auditError) throw auditError;
   } catch (auditError) {
     console.error("Organization login audit recording failed:", auditError);
   }

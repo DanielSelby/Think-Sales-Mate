@@ -27,7 +27,14 @@ export async function POST(request: Request) {
     updated_at: new Date().toISOString(),
   }, { onConflict: "organization_id,module" }).select("organization_id, module, enabled, access_mode").single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) {
+    const schemaError = error.message.includes("access_mode") && error.message.includes("schema cache");
+    return NextResponse.json({
+      error: schemaError
+        ? "Feature access schema is not loaded in Platform Supabase. Apply 0004_repair_feature_access_schema.sql, then retry."
+        : error.message,
+    }, { status: 400 });
+  }
   await supabase.from("platform_audit_logs").insert({
     admin_id: admin.id,
     organization_id: body.organizationId,
