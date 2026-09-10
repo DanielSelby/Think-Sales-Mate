@@ -39,10 +39,10 @@ const DOC_STATUS_TONE: Record<DraftSaleRow["documentStatus"], "neutral" | "amber
   proforma: "signal",
 };
 
-export function DraftsListView({ drafts, currency, branchRequests = [] }: { drafts: DraftSaleRow[]; currency: string; branchRequests?: BranchRequestRow[] }) {
+export function DraftsListView({ drafts, currency, branchRequests = [], initialType = "all" }: { drafts: DraftSaleRow[]; currency: string; branchRequests?: BranchRequestRow[]; initialType?: "all" | DraftSaleRow["documentStatus"] }) {
   const [rows, setRows] = useState(drafts);
   const [query, setQuery] = useState("");
-  const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>("all");
+  const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>(initialType);
   const [dateRange, setDateRange] = useState("all");
   const [showFilters, setShowFilters] = useState(true);
   const [isPending, startTransition] = useTransition();
@@ -107,15 +107,16 @@ export function DraftsListView({ drafts, currency, branchRequests = [] }: { draf
 
       <nav className="flex items-center gap-6 overflow-x-auto border-b border-ledger-100 dark:border-ledger-700">
         {[
-          ["Drafts", "/sales/drafts", FileText, true],
-          ["Quotations", "/sales/drafts", FileText, false],
-          ["Proformas", "/sales/drafts", FileText, false],
-          ["Sales Orders", "/sales", FileSpreadsheet, false],
-          ["Invoices", "/sales", FileText, false],
-          ["Credit Notes", "/sales", FileText, false],
-        ].map(([label, href, Icon, active]) => {
+          ["Drafts", "/sales/drafts?type=draft", "draft", FileText],
+          ["Quotations", "/sales/drafts?type=quotation", "quotation", FileText],
+          ["Proformas", "/sales/drafts?type=proforma", "proforma", FileText],
+          ["Sales Orders", "/orders?view=list", "external", FileSpreadsheet],
+          ["Invoices", "/accounting/invoices", "external", FileText],
+          ["Credit Notes", "/accounting/invoices?tab=credit-notes", "external", FileText],
+        ].map(([label, href, tabType, Icon]) => {
           const TabIcon = Icon as typeof FileText;
-          return <Link key={String(label)} href={String(href)} onClick={() => setActiveTab("documents")} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium", active && activeTab === "documents" ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900")}>
+          const isActive = activeTab === "documents" && (tabType === type || (tabType === "external" && !["draft", "quotation", "proforma"].includes(type)));
+          return <Link key={String(label)} href={String(href)} onClick={() => { setActiveTab("documents"); if (tabType !== "external") setType(tabType as typeof type); }} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium", isActive ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900")}>
             <TabIcon className="h-3.5 w-3.5" /> {String(label)}
           </Link>;
         }).concat([

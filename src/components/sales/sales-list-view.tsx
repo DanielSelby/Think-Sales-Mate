@@ -253,12 +253,12 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
 
       <nav className="flex items-center gap-6 overflow-x-auto border-b border-ledger-100 dark:border-ledger-700">
         {[
-          { label: "Drafts", href: "/sales/drafts", icon: FileText },
-          { label: "Quotations", href: "/sales/drafts", icon: FileText },
-          { label: "Proformas", href: "/sales/drafts", icon: FileText },
-          { label: "Sales Orders", href: "/sales", icon: FileSpreadsheet },
-          { label: "Invoices", href: "/sales", icon: FileText },
-          { label: "Credit Notes", href: "/sales", icon: FileText },
+          { label: "Drafts", href: "/sales/drafts?type=draft", icon: FileText },
+          { label: "Quotations", href: "/sales/drafts?type=quotation", icon: FileText },
+          { label: "Proformas", href: "/sales/drafts?type=proforma", icon: FileText },
+          { label: "Sales Orders", href: "/orders?view=list", icon: FileSpreadsheet },
+          { label: "Invoices", href: "/accounting/invoices", icon: FileText },
+          { label: "Credit Notes", href: "/accounting/invoices?tab=credit-notes", icon: FileText },
         ].map(({ label, href, icon: Icon }) => (
           <Link key={label} href={href} className={cn(
             "flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium",

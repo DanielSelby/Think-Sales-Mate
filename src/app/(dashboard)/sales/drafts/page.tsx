@@ -6,7 +6,7 @@ import { DraftsListView } from "@/components/sales/drafts-list-view";
 
 export const metadata = { title: "Drafts & Quotations · SalesMate ERP" };
 
-export default async function DraftsPage() {
+export default async function DraftsPage({ searchParams }: { searchParams?: { type?: string } }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -22,7 +22,11 @@ export default async function DraftsPage() {
   const quantities = new Map<string, number>();
   for (const item of items ?? []) quantities.set(item.request_id, (quantities.get(item.request_id) ?? 0) + item.quantity);
 
-  return <DraftsListView drafts={drafts} currency={context.currency} branchRequests={(requests ?? []).map((request) => ({
+  const initialType = searchParams?.type === "quotation" || searchParams?.type === "proforma" || searchParams?.type === "draft"
+    ? searchParams.type
+    : "all";
+
+  return <DraftsListView initialType={initialType} drafts={drafts} currency={context.currency} branchRequests={(requests ?? []).map((request) => ({
     id: request.id,
     label: `REQ-${String(request.request_number).padStart(4, "0")}`,
     source: locationNames.get(request.source_location_id) ?? "—",
