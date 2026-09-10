@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/sales/format";
 import { useCart } from "@/components/customer-portal/cart-context";
 import { placeOrder, uploadVoiceNote, type StorefrontLocation } from "@/app/order/[orgSlug]/actions";
 import { cn } from "@/lib/utils";
+import { RefreshButton } from "@/components/refresh-button";
 
 interface CheckoutViewProps {
   orgSlug: string;
@@ -239,9 +240,12 @@ export function CheckoutView({
           </h1>
           <p className="mt-0.5 text-xs text-ledger-500">{orgName} Storefront</p>
         </div>
-        <span className="rounded-full bg-signal-soft px-3 py-1 text-xs font-semibold text-signal dark:bg-signal/10">
-          {cart.items.length} {cart.items.length === 1 ? "Item" : "Items"} in Cart
-        </span>
+        <div className="flex items-center gap-2">
+          <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
+          <span className="rounded-full bg-signal-soft px-3 py-1 text-xs font-semibold text-signal dark:bg-signal/10">
+            {cart.items.length} {cart.items.length === 1 ? "Item" : "Items"} in Cart
+          </span>
+        </div>
       </div>
 
       {cart.items.length === 0 ? (

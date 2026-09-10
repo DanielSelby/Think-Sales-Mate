@@ -8,6 +8,7 @@ import type { CustomerOrderStatus } from "@/types/database";
 import { OrderTrackingActions } from "@/components/customer-portal/order-tracking-actions";
 import { DownloadInvoiceButton } from "@/components/customer-portal/download-invoice-button";
 import { TrackingAutoRefresh } from "@/components/customer-portal/tracking-auto-refresh";
+import { RefreshButton } from "@/components/refresh-button";
 
 export default async function TrackOrderPage({ params }: { params: Promise<{ orgSlug: string; token: string }> }) {
   const { orgSlug, token } = await params;
@@ -44,6 +45,9 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
       <TrackingAutoRefresh />
       {/* Top success / status card */}
       <div className="mb-6 flex flex-col items-center text-center">
+        <div className="mb-3 flex w-full justify-end">
+          <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
+        </div>
         <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-signal-soft text-signal dark:bg-signal/15">
           {isCompleted ? <Check className="h-7 w-7" /> : <CheckCircle2 className="h-7 w-7" />}
         </span>

@@ -35,6 +35,7 @@ import { formatCurrency } from "@/lib/sales/format";
 import { useCart } from "@/components/customer-portal/cart-context";
 import type { CatalogProduct } from "@/app/order/[orgSlug]/actions";
 import { TrackOrderLink } from "@/components/customer-portal/track-order-link";
+import { RefreshButton } from "@/components/refresh-button";
 
 interface BrowseViewProps {
   orgSlug: string;
@@ -164,7 +165,10 @@ export function BrowseView({
             </div>
           </Link>
 
-          <TrackOrderLink orgSlug={orgSlug} />
+          <div className="flex items-center gap-2">
+            <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
+            <TrackOrderLink orgSlug={orgSlug} />
+          </div>
 
           {/* Cart button */}
           <Link

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins } from "lucide-react";
 import { CommandBar } from "./command-bar";
+import { RefreshButton } from "@/components/refresh-button";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { createClient } from "@/lib/supabase/client";
@@ -200,6 +201,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       </button>
 
       <div className="flex-1" />
+      <RefreshButton className="text-white/70 hover:bg-white/10" />
       <div className="hidden items-center gap-2 lg:flex">
         <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
         <span className="max-w-[180px] truncate text-xs font-semibold text-white/85">{orgName}</span>
