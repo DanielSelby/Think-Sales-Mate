@@ -101,23 +101,27 @@ export async function createSubscriptionPlan(input: {
   apiAccess: boolean;
   includedModules?: string[];
 }) {
-  const { admin, supabase } = await requirePlatformPermission("manage_billing");
+  const { admin, supabase } = await requirePlatformManagement();
+  const planValues = {
+    name: input.name.trim(),
+    max_users: input.maxUsers ?? null,
+    max_branches: input.maxBranches ?? null,
+    storage_limit_gb: input.storageLimitGb ?? null,
+    monthly_price: input.monthlyPrice ?? 0,
+    ai_access: input.aiAccess,
+    api_access: input.apiAccess,
+    included_modules: input.includedModules ?? [],
+    ...(input.annualPrice === undefined ? {} : { annual_price: input.annualPrice }),
+  };
   const { data, error } = await supabase
     .from("subscription_plans")
-    .insert({
-      name: input.name.trim(),
-      max_users: input.maxUsers ?? null,
-      max_branches: input.maxBranches ?? null,
-      storage_limit_gb: input.storageLimitGb ?? null,
-      monthly_price: input.monthlyPrice ?? 0,
-      annual_price: input.annualPrice ?? null,
-      ai_access: input.aiAccess,
-      api_access: input.apiAccess,
-      included_modules: input.includedModules ?? [],
-    })
+    .insert(planValues)
     .select("*")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505") throw new Error(`A subscription plan named "${input.name.trim()}" already exists.`);
+    throw new Error(`Could not create subscription plan: ${error.message}`);
+  }
   await supabase.from("platform_audit_logs").insert({
     admin_id: admin.id,
     action: "subscription_plan_created",
@@ -138,7 +142,7 @@ export async function updateSubscriptionPlan(id: string, input: {
   aiAccess?: boolean;
   apiAccess?: boolean;
 }) {
-  const { admin, supabase } = await requirePlatformPermission("manage_billing");
+  const { admin, supabase } = await requirePlatformManagement();
   const update = {
     ...(input.name === undefined ? {} : { name: input.name.trim() }),
     ...(input.monthlyPrice === undefined ? {} : { monthly_price: input.monthlyPrice }),
@@ -156,7 +160,7 @@ export async function updateSubscriptionPlan(id: string, input: {
 }
 
 export async function archiveSubscriptionPlan(id: string) {
-  const { admin, supabase } = await requirePlatformPermission("manage_billing");
+  const { admin, supabase } = await requirePlatformManagement();
   const { error } = await supabase.from("subscription_plans").update({ is_active: false, archived_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "subscription_plan_archived", module: "subscription_plans", metadata: { planId: id } });
