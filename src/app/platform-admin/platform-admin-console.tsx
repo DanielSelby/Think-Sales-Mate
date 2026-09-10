@@ -5,8 +5,10 @@ import {
   createPlatformOrganization,
   createSubscriptionPlan,
   deletePlatformOrganization,
+  setOrganizationFeature,
   updatePlatformOrganization,
 } from "./actions";
+import type { PlatformModule } from "@/types/platform-database";
 
 type Organization = {
   id: string;
@@ -55,6 +57,7 @@ const tabs: { label: Tab; icon: string }[] = [
   { label: "Feature Flags", icon: "⚑" },
   { label: "Audit Logs", icon: "▤" },
 ];
+const modules: PlatformModule[] = ["Dashboard", "POS", "Sales", "Orders", "CRM", "Inventory", "Purchases", "Accounting", "Banking", "Assets", "Projects", "Communication", "HRM & Payroll", "Reports", "AI Assistant"];
 
 function Card({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
   return (
@@ -92,6 +95,7 @@ export default function PlatformAdminConsole({
   const [modal, setModal] = useState<"organization" | "plan" | null>(null);
   const [busy, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [featureState, setFeatureState] = useState<Record<string, boolean>>({});
   const [orgForm, setOrgForm] = useState({
     organizationId: "",
     name: "",
@@ -220,7 +224,7 @@ export default function PlatformAdminConsole({
                 <Card title="Quick Actions">{["Impersonate Organization", "View Organization Details", "Manage Users", "Manage Branches"].map((item) => <button key={item} onClick={() => setMessage(`${item} is available after selecting an organization.`)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-slate-100 p-3 text-left text-xs font-semibold hover:bg-slate-50">{item}<span>›</span></button>)}</Card>
               </div>
             </div>
-            <div className="mt-5 grid gap-5 lg:grid-cols-3"><Card title="Feature Access"><p className="mt-2 text-xs text-slate-500">Enabled modules for the selected organization.</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs">{["Dashboard", "Sales", "Inventory", "Purchases", "CRM", "Accounting", "AI Assistant", "API Access"].map((module) => <label key={module} className="flex items-center justify-between rounded border p-2">{module}<input type="checkbox" defaultChecked /></label>)}</div></Card><Card title="Subscription Plan"><p className="mt-3 text-lg font-bold">{selected ? plans.find((plan) => plan.id === selected.plan_id)?.name ?? "Not assigned" : "—"}</p><p className="mt-1 text-xs text-slate-500">Plan limits and included modules</p></Card><Card title="Recent Activity"><div className="mt-3 space-y-3 text-xs text-slate-500"><p>Organization records are audited in Platform Supabase.</p><p>Use Audit Logs to review platform actions.</p></div></Card></div>
+            <div className="mt-5 grid gap-5 lg:grid-cols-3"><Card title="Feature Access"><p className="mt-2 text-xs text-slate-500">Changes are saved to the platform entitlement store.</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs">{modules.map((module) => <label key={module} className="flex items-center justify-between rounded border p-2">{module}<input type="checkbox" checked={featureState[module] ?? false} onChange={(event) => { if (!selected) return; const enabled = event.target.checked; setFeatureState((current) => ({ ...current, [module]: enabled })); run(() => setOrganizationFeature(selected.organization_id, module, enabled), `${module} access updated.`); }} /></label>)}</div></Card><Card title="Subscription Plan"><p className="mt-3 text-lg font-bold">{selected ? plans.find((plan) => plan.id === selected.plan_id)?.name ?? "Not assigned" : "—"}</p><p className="mt-1 text-xs text-slate-500">Plan limits and included modules</p></Card><Card title="Recent Activity"><div className="mt-3 space-y-3 text-xs text-slate-500"><p>Organization actions are audited in Platform Supabase.</p><p>Use Audit Logs to review platform actions.</p></div></Card></div>
           </>
         ) : tab === "Subscription Plans" ? <Card title="Subscription Plans"><div className="mb-4 flex justify-end"><button onClick={() => setModal("plan")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Create plan</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{plans.map((plan) => <div key={plan.id} className="rounded-xl border p-4"><p className="font-semibold">{plan.name}</p><p className="mt-2 text-2xl font-bold">${Number(plan.monthly_price).toLocaleString()}<span className="text-xs font-normal text-slate-500">/month</span></p><p className="mt-3 text-xs text-slate-500">{plan.max_users ?? "Unlimited"} users · {plan.max_branches ?? "Unlimited"} branches · {plan.storage_limit_gb ?? "Unlimited"} GB</p></div>)}</div></Card> : <div className="grid gap-5 lg:grid-cols-2"><Card title={tab}><p className="mt-3 text-sm text-slate-500">This workspace is ready for platform {tab.toLowerCase()} data. Use the sidebar to switch modules.</p></Card><Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <div key={org.id} className="flex justify-between py-3 text-sm"><span>{org.name}</span><span className="text-xs text-slate-500">{org.status}</span></div>)}</div></Card></div>}
       </main>

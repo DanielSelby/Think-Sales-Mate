@@ -22,6 +22,13 @@ export async function loginPlatformAdmin(email: string, password: string) {
     .maybeSingle();
   if (adminError) return { error: "Platform sign-in succeeded, but the platform administrator record could not be verified." };
   if (!admin) return { error: "This account is authenticated but is not assigned as an active platform administrator." };
+  await supabase.from("platform_admins").update({ last_login_at: new Date().toISOString() }).eq("id", admin.id);
+  await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "platform_user_login",
+    module: "security",
+    metadata: { email: data.user.email ?? email.trim().toLowerCase() },
+  });
   return { success: true };
 }
 

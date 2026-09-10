@@ -3,11 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
+import type { PlatformModule } from "@/types/platform-database";
 
 async function requirePlatformManagement() {
   const admin = await getPlatformAdmin();
   if (!admin || !platformRoleCan(admin.role, "manage_platform")) {
     throw new Error("You do not have permission to manage platform data.");
+  }
+
+  return { admin, supabase: await createPlatformServerClient() };
+}
+
+async function requirePlatformPermission(permission: "manage_platform" | "manage_billing" | "manage_support") {
+  const admin = await getPlatformAdmin();
+  if (!admin || !platformRoleCan(admin.role, permission)) {
+    throw new Error("You do not have permission to perform this platform action.");
   }
   return { admin, supabase: await createPlatformServerClient() };
 }
@@ -89,7 +99,7 @@ export async function createSubscriptionPlan(input: {
   aiAccess: boolean;
   apiAccess: boolean;
 }) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformPermission("manage_billing");
   const { data, error } = await supabase
     .from("subscription_plans")
     .insert({
@@ -111,5 +121,36 @@ export async function createSubscriptionPlan(input: {
     metadata: { name: data.name },
   });
   revalidatePath("/platform-admin");
+  return data;
+}
+
+export async function setOrganizationFeature(organizationId: string, module: PlatformModule, enabled: boolean) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const { error } = await supabase.from("platform_organization_features").upsert({
+    organization_id: organizationId,
+    module,
+    enabled,
+    updated_by: admin.id,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    organization_id: organizationId,
+    action: enabled ? "feature_enabled" : "feature_disabled",
+    module: "feature_access",
+    metadata: { feature: module },
+  });
+  if (auditError) throw new Error(auditError.message);
+  revalidatePath("/platform-admin");
+}
+
+export async function getOrganizationFeatures(organizationId: string) {
+  const { supabase } = await requirePlatformManagement();
+  const { data, error } = await supabase
+    .from("platform_organization_features")
+    .select("module, enabled")
+    .eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
   return data;
 }
