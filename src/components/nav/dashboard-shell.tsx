@@ -19,9 +19,10 @@ interface Props {
   allowedLocationIds?: string[];
   canViewAllBranches?: boolean;
   canChangeTheme?: boolean;
+  enabledModules?: string[];
 }
 
-export function DashboardShell({ children, orgName, logoUrl, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: Props) {
+export function DashboardShell({ children, orgName, logoUrl, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
   const { sidebarCollapsed, activeTheme, setTheme } = useAppStore();
   React.useEffect(() => {
     if (roleTheme) setTheme(roleTheme);
@@ -33,7 +34,7 @@ export function DashboardShell({ children, orgName, logoUrl, roleTheme, userName
     <SessionTimeout>
       <NavigationLoading />
       <div className="flex h-screen overflow-hidden" style={{ background: theme.colors.background }}>
-        <Sidebar collapsed={sidebarCollapsed} />
+        <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
           <TopNav orgName={orgName} logoUrl={logoUrl} userName={userName} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
           <main className="page-canvas flex-1 overflow-y-auto p-4 sm:p-5">

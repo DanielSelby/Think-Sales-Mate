@@ -228,7 +228,7 @@ function ChildLinks({ items, sidebar }: {
   );
 }
 
-export function Sidebar({ collapsed }: { collapsed: boolean }) {
+export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; enabledModules?: string[] }) {
   const pathname  = usePathname();
   const { activeTheme, toggleSidebar } = useAppStore();
   const theme     = THEMES[activeTheme];
@@ -314,7 +314,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
 
       {/* ── Nav ── */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {NAV_ITEMS.map(item => {
+        {NAV_ITEMS.filter((item) => !enabledModules || enabledModules.includes(item.label) || item.label === "Approval Center" || item.label === "Stock Transfer" || item.label === "Stock Adjustment" || item.label === "Expenses" || item.label === "Fraud & Anomaly Detection" || item.label === "User Management").map(item => {
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
           const isActive = !item.children && (pathname === item.href || pathname.startsWith(item.href + "/"));

@@ -4,6 +4,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { DashboardShell } from "@/components/nav/dashboard-shell";
 import { createClient } from "@/lib/supabase/server";
 import type { ThemeKey } from "@/store/useAppStore";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -27,9 +28,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq("role_key", context.role)
     .maybeSingle();
   const selectedTheme = roleTheme?.theme_key as ThemeKey | null;
+  let enabledModules: string[] | undefined;
+  try {
+    enabledModules = await getEnabledOrganizationModules(context.orgId);
+  } catch (error) {
+    console.error("Platform feature access could not be loaded:", error);
+  }
 
   return (
-    <DashboardShell orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
+    <DashboardShell enabledModules={enabledModules} orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
       {children}
     </DashboardShell>
   );

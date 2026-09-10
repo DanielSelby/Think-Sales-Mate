@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncOrganizationToPlatform } from "@/lib/supabase/platform-admin";
 
 function slugify(name: string) {
   return name
@@ -61,6 +62,12 @@ export async function createOrganization(formData: FormData): Promise<void> {
 
   if (memberError) {
     redirectWithError(memberError.message);
+  }
+
+  try {
+    await syncOrganizationToPlatform({ id: org.id, name });
+  } catch (syncError) {
+    console.error("Platform organization synchronization failed:", syncError);
   }
 
   redirect("/dashboard");
