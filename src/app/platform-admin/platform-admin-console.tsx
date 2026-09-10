@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   createPlatformOrganization,
   createSubscriptionPlan,
@@ -154,7 +155,8 @@ export default function PlatformAdminConsole({
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(organizations[0]?.id ?? null);
   const [modal, setModal] = useState<"organization" | "plan" | null>(null);
-  const [busy, startTransition] = useTransition();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [featureState, setFeatureState] = useState<Record<string, boolean>>(
     Object.fromEntries(features.filter((feature) => feature.organization_id === organizations[0]?.organization_id).map((feature) => [feature.module, feature.enabled])),
@@ -199,17 +201,20 @@ export default function PlatformAdminConsole({
   const monthlyRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.monthly_price || 0), 0);
   const annualRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.annual_price || 0), 0);
   const expiringSubscriptions = organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000).length;
-  const run = (work: () => Promise<unknown>, success: string) =>
-    startTransition(async () => {
-      try {
-        await work();
-        setModal(null);
-        setMessage(success);
-        window.location.reload();
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Action failed.");
-      }
-    });
+  const run = async (work: () => Promise<unknown>, success: string) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await work();
+      setModal(null);
+      setMessage(success);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="flex min-h-[calc(100vh-74px)] bg-[#f5f8fc]">
@@ -246,7 +251,7 @@ export default function PlatformAdminConsole({
 
       {modal === "organization" && (
         <Modal title="Add organization" close={() => setModal(null)}>
-          <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); run(() => createPlatformOrganization(orgForm), "Organization added."); }}>
+          <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); void run(() => createPlatformOrganization(orgForm), "Organization added."); }}>
             <div>
               <input required placeholder="Organization UUID" value={orgForm.organizationId} onChange={(e) => setOrgForm({ ...orgForm, organizationId: e.target.value })} className="h-11 w-full rounded-lg border px-3 text-sm" />
               <p className="mt-1 text-[11px] text-slate-500">Find it in the organization Supabase project: Table Editor → organizations → id.</p>
@@ -263,7 +268,7 @@ export default function PlatformAdminConsole({
       )}
       {modal === "plan" && (
         <Modal title="Create subscription plan" close={() => setModal(null)}>
-          <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); run(() => createSubscriptionPlan({ name: planForm.name, maxUsers: Number(planForm.maxUsers) || undefined, maxBranches: Number(planForm.maxBranches) || undefined, storageLimitGb: Number(planForm.storageLimitGb) || undefined, monthlyPrice: Number(planForm.monthlyPrice) || 0, aiAccess: planForm.aiAccess, apiAccess: planForm.apiAccess }), "Subscription plan created."); }}>
+          <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); void run(() => createSubscriptionPlan({ name: planForm.name, maxUsers: Number(planForm.maxUsers) || undefined, maxBranches: Number(planForm.maxBranches) || undefined, storageLimitGb: Number(planForm.storageLimitGb) || undefined, monthlyPrice: Number(planForm.monthlyPrice) || 0, aiAccess: planForm.aiAccess, apiAccess: planForm.apiAccess }), "Subscription plan created."); }}>
             <input required placeholder="Plan name" value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} className="h-11 w-full rounded-lg border px-3 text-sm" />
             <div className="grid grid-cols-2 gap-3">{(["maxUsers", "maxBranches", "storageLimitGb", "monthlyPrice"] as const).map((field) => <input key={field} type="number" min="0" placeholder={field.replace(/([A-Z])/g, " $1")} value={planForm[field]} onChange={(e) => setPlanForm({ ...planForm, [field]: e.target.value })} className="h-11 rounded-lg border px-3 text-sm" />)}</div>
             <label className="flex gap-2 text-sm"><input type="checkbox" checked={planForm.aiAccess} onChange={(e) => setPlanForm({ ...planForm, aiAccess: e.target.checked })} /> AI access</label>
@@ -276,7 +281,7 @@ export default function PlatformAdminConsole({
       <main className="min-w-0 flex-1 p-4 md:p-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div>
-          <div className="flex flex-wrap gap-2"><button onClick={() => setModal("organization")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button><button onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div>
+          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setModal("organization")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button><button type="button" onClick={() => router.refresh()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div>
         </div>
         {message && <button onClick={() => setMessage(null)} className="mb-4 w-full rounded-lg bg-blue-50 p-3 text-left text-sm text-blue-800">{message} ×</button>}
 
@@ -307,12 +312,12 @@ export default function PlatformAdminConsole({
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_290px]">
               <Card title="Organizations" className="overflow-hidden">
                 <div className="mb-4 flex flex-wrap gap-2"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search organization name..." className="h-10 min-w-[220px] flex-1 rounded-lg border px-3 text-sm" /><select className="h-10 rounded-lg border px-3 text-xs"><option>All Plans</option>{plans.map((plan) => <option key={plan.id}>{plan.name}</option>)}</select><select className="h-10 rounded-lg border px-3 text-xs"><option>All Status</option><option>Active</option><option>Suspended</option><option>Expired</option></select><button className="rounded-lg border px-3 text-xs font-semibold">☷ Filters</button></div>
-                <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="border-y bg-slate-50 text-[11px] uppercase text-slate-500"><tr>{["Organization", "Plan", "Users", "Branches", "Status", "Expiry Date", "Actions"].map((heading) => <th key={heading} className="px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y">{filteredOrganizations.map((org) => <tr key={org.id} onClick={() => setSelectedId(org.id)} className={`cursor-pointer hover:bg-blue-50 ${selected?.id === org.id ? "bg-blue-50/60" : ""}`}><td className="px-3 py-3"><p className="font-semibold">{org.name}</p><p className="text-[10px] text-slate-400">{org.organization_id}</p></td><td className="px-3 py-3">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "—"}</td><td className="px-3 py-3">—</td><td className="px-3 py-3">—</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[11px] ${org.status === "active" ? "bg-emerald-50 text-emerald-700" : org.status === "suspended" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{org.status}</span></td><td className="px-3 py-3">{org.expires_at ? new Date(org.expires_at).toLocaleDateString() : "—"}</td><td className="px-3 py-3"><button onClick={(event) => { event.stopPropagation(); run(() => updatePlatformOrganization(org.id, { status: org.status === "suspended" ? "active" : "suspended" }), "Organization status updated."); }} className="rounded border px-2 py-1 text-[11px]">{org.status === "suspended" ? "Activate" : "Suspend"}</button><button onClick={(event) => { event.stopPropagation(); if (window.confirm(`Delete ${org.name}?`)) run(() => deletePlatformOrganization(org.id), "Organization deleted."); }} className="ml-1 rounded border border-red-200 px-2 py-1 text-[11px] text-red-600">Delete</button></td></tr>)}</tbody></table>{filteredOrganizations.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No organizations registered yet.</p>}</div>
+                <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="border-y bg-slate-50 text-[11px] uppercase text-slate-500"><tr>{["Organization", "Plan", "Users", "Branches", "Status", "Expiry Date", "Actions"].map((heading) => <th key={heading} className="px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y">{filteredOrganizations.map((org) => <tr key={org.id} onClick={() => setSelectedId(org.id)} className={`cursor-pointer hover:bg-blue-50 ${selected?.id === org.id ? "bg-blue-50/60" : ""}`}><td className="px-3 py-3"><p className="font-semibold">{org.name}</p><p className="text-[10px] text-slate-400">{org.organization_id}</p></td><td className="px-3 py-3">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "—"}</td><td className="px-3 py-3">—</td><td className="px-3 py-3">—</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[11px] ${org.status === "active" ? "bg-emerald-50 text-emerald-700" : org.status === "suspended" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{org.status}</span></td><td className="px-3 py-3">{org.expires_at ? new Date(org.expires_at).toLocaleDateString() : "—"}</td><td className="px-3 py-3"><button type="button" onClick={(event) => { event.stopPropagation(); void run(() => updatePlatformOrganization(org.id, { status: org.status === "suspended" ? "active" : "suspended" }), "Organization status updated."); }} className="rounded border px-2 py-1 text-[11px]">{org.status === "suspended" ? "Activate" : "Suspend"}</button><button type="button" onClick={(event) => { event.stopPropagation(); if (window.confirm(`Delete ${org.name}?`)) void run(() => deletePlatformOrganization(org.id), "Organization deleted."); }} className="ml-1 rounded border border-red-200 px-2 py-1 text-[11px] text-red-600">Delete</button></td></tr>)}</tbody></table>{filteredOrganizations.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No organizations registered yet.</p>}</div>
                 <p className="mt-3 text-[11px] text-slate-400">Showing {filteredOrganizations.length} of {organizations.length} organizations</p>
               </Card>
               <div className="space-y-5">
-                <Card title="Organization Details">{selected ? <><div className="mt-4 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 font-bold text-white">{selected.name.slice(0, 2).toUpperCase()}</div><div><p className="font-semibold">{selected.name}</p><p className="text-xs text-emerald-600">● {selected.status}</p></div></div><dl className="mt-4 space-y-3 text-xs"><div className="flex justify-between gap-3"><dt className="text-slate-500">Organization ID</dt><dd className="max-w-[150px] truncate font-medium" title={selected.organization_id}>{selected.organization_id}</dd></div><div className="flex justify-between"><dt className="text-slate-500">Plan</dt><dd>{plans.find((plan) => plan.id === selected.plan_id)?.name ?? "Not assigned"}</dd></div><div className="flex justify-between"><dt className="text-slate-500">Expiry</dt><dd>{selected.expires_at ? new Date(selected.expires_at).toLocaleDateString() : "Not set"}</dd></div></dl><div className="mt-5 grid grid-cols-2 gap-2"><button className="rounded-lg border px-2 py-2 text-xs">View details</button><button className="rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white">Manage subscription</button></div></> : <p className="mt-4 text-sm text-slate-500">Select an organization to view details.</p>}</Card>
-                <Card title="Quick Actions">{["Impersonate Organization", "View Organization Details", "Manage Users", "Manage Branches"].map((item) => <button key={item} onClick={() => setMessage(`${item} is available after selecting an organization.`)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-slate-100 p-3 text-left text-xs font-semibold hover:bg-slate-50">{item}<span>›</span></button>)}</Card>
+                <Card title="Organization Details">{selected ? <><div className="mt-4 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 font-bold text-white">{selected.name.slice(0, 2).toUpperCase()}</div><div><p className="font-semibold">{selected.name}</p><p className="text-xs text-emerald-600">● {selected.status}</p></div></div><dl className="mt-4 space-y-3 text-xs"><div className="flex justify-between gap-3"><dt className="text-slate-500">Organization ID</dt><dd className="max-w-[150px] truncate font-medium" title={selected.organization_id}>{selected.organization_id}</dd></div><div className="flex justify-between"><dt className="text-slate-500">Plan</dt><dd>{plans.find((plan) => plan.id === selected.plan_id)?.name ?? "Not assigned"}</dd></div><div className="flex justify-between"><dt className="text-slate-500">Expiry</dt><dd>{selected.expires_at ? new Date(selected.expires_at).toLocaleDateString() : "Not set"}</dd></div></dl><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setTab("Activity Logs")} className="rounded-lg border px-2 py-2 text-xs">View activity</button><button type="button" onClick={() => setTab("Billing & Subscriptions")} className="rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white">Manage subscription</button></div></> : <p className="mt-4 text-sm text-slate-500">Select an organization to view details.</p>}</Card>
+                <Card title="Quick Actions">{[["Impersonate Organization", "Impersonation"], ["View Organization Details", "Organizations"], ["Manage Users", "Usage & Analytics"], ["Manage Branches", "Organizations"]].map(([item, target]) => <button type="button" key={item} onClick={() => setTab(target as Tab)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-slate-100 p-3 text-left text-xs font-semibold hover:bg-slate-50">{item}<span>›</span></button>)}</Card>
               </div>
             </div>
             <div className="mt-5 grid gap-5 lg:grid-cols-3"><Card title="Feature Access"><p className="mt-2 text-xs text-slate-500">Changes are saved to the platform entitlement store.</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs">{modules.map((module) => <label key={module} className="flex items-center justify-between rounded border p-2">{module}<input type="checkbox" checked={featureState[module] ?? false} onChange={(event) => { if (!selected) return; const enabled = event.target.checked; setFeatureState((current) => ({ ...current, [module]: enabled })); run(() => setOrganizationFeature(selected.organization_id, module, enabled), `${module} access updated.`); }} /></label>)}</div></Card><Card title="Subscription Plan"><p className="mt-3 text-lg font-bold">{selected ? plans.find((plan) => plan.id === selected.plan_id)?.name ?? "Not assigned" : "—"}</p><p className="mt-1 text-xs text-slate-500">Plan limits and included modules</p></Card><Card title="Recent Activity"><div className="mt-3 space-y-3 text-xs text-slate-500"><p>Organization actions are audited in Platform Supabase.</p><p>Use Audit Logs to review platform actions.</p></div></Card></div>
