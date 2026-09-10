@@ -30,6 +30,15 @@ type Plan = {
   ai_access: boolean;
   api_access: boolean;
 };
+type AuditLog = {
+  id: string;
+  admin_id: string | null;
+  organization_id: string | null;
+  action: string;
+  module: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
 type Tab =
   | "Overview"
   | "Organizations"
@@ -87,10 +96,12 @@ export default function PlatformAdminConsole({
   organizations,
   plans,
   features,
+  auditLogs,
 }: {
   organizations: Organization[];
   plans: Plan[];
   features: { organization_id: string; module: string; enabled: boolean }[];
+  auditLogs: AuditLog[];
 }) {
   const [tab, setTab] = useState<Tab>("Organizations");
   const [search, setSearch] = useState("");
@@ -159,7 +170,7 @@ export default function PlatformAdminConsole({
         </div>
         <nav className="space-y-1 p-3">
           <button className="mb-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-white/10">⌂ Dashboard</button>
-          <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-blue-300">Platform Admin</p>
+          <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-blue-300">System Administration Platform</p>
           {tabs.slice(0, 9).map((item) => (
             <button
               key={item.label}
@@ -212,7 +223,7 @@ export default function PlatformAdminConsole({
 
       <main className="min-w-0 flex-1 p-4 md:p-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-          <div><p className="text-xs text-slate-400">Platform Admin <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div>
+          <div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div>
           <div className="flex flex-wrap gap-2"><button onClick={() => setModal("organization")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button><button onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div>
         </div>
         {message && <button onClick={() => setMessage(null)} className="mb-4 w-full rounded-lg bg-blue-50 p-3 text-left text-sm text-blue-800">{message} ×</button>}
@@ -235,7 +246,7 @@ export default function PlatformAdminConsole({
             </div>
             <div className="mt-5 grid gap-5 lg:grid-cols-3"><Card title="Feature Access"><p className="mt-2 text-xs text-slate-500">Changes are saved to the platform entitlement store.</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs">{modules.map((module) => <label key={module} className="flex items-center justify-between rounded border p-2">{module}<input type="checkbox" checked={featureState[module] ?? false} onChange={(event) => { if (!selected) return; const enabled = event.target.checked; setFeatureState((current) => ({ ...current, [module]: enabled })); run(() => setOrganizationFeature(selected.organization_id, module, enabled), `${module} access updated.`); }} /></label>)}</div></Card><Card title="Subscription Plan"><p className="mt-3 text-lg font-bold">{selected ? plans.find((plan) => plan.id === selected.plan_id)?.name ?? "Not assigned" : "—"}</p><p className="mt-1 text-xs text-slate-500">Plan limits and included modules</p></Card><Card title="Recent Activity"><div className="mt-3 space-y-3 text-xs text-slate-500"><p>Organization actions are audited in Platform Supabase.</p><p>Use Audit Logs to review platform actions.</p></div></Card></div>
           </>
-        ) : tab === "Subscription Plans" ? <Card title="Subscription Plans"><div className="mb-4 flex justify-end"><button onClick={() => setModal("plan")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Create plan</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{plans.map((plan) => <div key={plan.id} className="rounded-xl border p-4"><p className="font-semibold">{plan.name}</p><p className="mt-2 text-2xl font-bold">${Number(plan.monthly_price).toLocaleString()}<span className="text-xs font-normal text-slate-500">/month</span></p><p className="mt-3 text-xs text-slate-500">{plan.max_users ?? "Unlimited"} users · {plan.max_branches ?? "Unlimited"} branches · {plan.storage_limit_gb ?? "Unlimited"} GB</p></div>)}</div></Card> : <div className="grid gap-5 lg:grid-cols-2"><Card title={tab}><p className="mt-3 text-sm text-slate-500">This workspace is ready for platform {tab.toLowerCase()} data. Use the sidebar to switch modules.</p></Card><Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <div key={org.id} className="flex justify-between py-3 text-sm"><span>{org.name}</span><span className="text-xs text-slate-500">{org.status}</span></div>)}</div></Card></div>}
+        ) : tab === "Subscription Plans" ? <Card title="Subscription Plans"><div className="mb-4 flex justify-end"><button onClick={() => setModal("plan")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Create plan</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{plans.map((plan) => <div key={plan.id} className="rounded-xl border p-4"><p className="font-semibold">{plan.name}</p><p className="mt-2 text-2xl font-bold">${Number(plan.monthly_price).toLocaleString()}<span className="text-xs font-normal text-slate-500">/month</span></p><p className="mt-3 text-xs text-slate-500">{plan.max_users ?? "Unlimited"} users · {plan.max_branches ?? "Unlimited"} branches · {plan.storage_limit_gb ?? "Unlimited"} GB</p></div>)}</div></Card> : tab === "Activity Logs" || tab === "Audit Logs" ? <Card title={tab}><p className="mt-2 text-xs text-slate-500">Recorded platform actions, including logins, organization changes, plan changes, and feature access updates.</p><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-y bg-slate-50 text-[11px] uppercase text-slate-500"><tr>{["Time", "Action", "Module", "Organization", "Details"].map((heading) => <th key={heading} className="px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y">{auditLogs.map((log) => <tr key={log.id} className="hover:bg-slate-50"><td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</td><td className="px-3 py-3 font-semibold">{log.action.replaceAll("_", " ")}</td><td className="px-3 py-3 text-xs text-slate-500">{log.module}</td><td className="px-3 py-3 text-xs">{organizations.find((org) => org.organization_id === log.organization_id)?.name ?? (log.organization_id ?? "Platform-wide")}</td><td className="max-w-[280px] truncate px-3 py-3 text-xs text-slate-500" title={JSON.stringify(log.metadata)}>{Object.entries(log.metadata).map(([key, value]) => `${key}: ${String(value)}`).join(" · ") || "—"}</td></tr>)}</tbody></table>{auditLogs.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No platform activity has been recorded yet.</p>}</div></Card> : <div className="grid gap-5 lg:grid-cols-2"><Card title={tab}><p className="mt-3 text-sm text-slate-500">This workspace is ready for platform {tab.toLowerCase()} data. Use the sidebar to switch modules.</p></Card><Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <div key={org.id} className="flex justify-between py-3 text-sm"><span>{org.name}</span><span className="text-xs text-slate-500">{org.status}</span></div>)}</div></Card></div>}
       </main>
     </div>
   );
