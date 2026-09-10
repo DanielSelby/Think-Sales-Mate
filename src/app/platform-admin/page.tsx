@@ -18,7 +18,7 @@ export default async function PlatformAdminPage() {
     supabase.from("platform_organizations").select("id, organization_id, name, plan_id, status, expires_at, created_at, updated_at, industry, suspended_at, suspension_reason").order("updated_at", { ascending: false }),
     supabase.from("subscription_plans").select("id, name, max_users, max_branches, storage_limit_gb, monthly_price, annual_price, ai_access, api_access, included_modules, is_active, archived_at").eq("is_active", true).order("monthly_price"),
     supabase.from("platform_organization_features").select("organization_id, module, enabled, access_mode"),
-    supabase.from("platform_audit_logs").select("id, admin_id, organization_id, action, module, metadata, created_at").order("created_at", { ascending: false }).limit(100),
+    supabase.from("platform_audit_logs").select("id, admin_id, organization_id, action, module, metadata, ip_address, user_agent, created_at").order("created_at", { ascending: false }).limit(100),
     supabase.from("platform_usage_metrics").select("*").order("updated_at", { ascending: false }),
     supabase.from("platform_billing_records").select("*").order("issued_at", { ascending: false }).limit(100),
     supabase.from("platform_feature_flags").select("*").order("name"),

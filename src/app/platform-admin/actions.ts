@@ -58,6 +58,12 @@ export async function updatePlatformOrganization(
   update: { status?: "active" | "trial" | "suspended" | "expired"; planId?: string | null; expiresAt?: string | null },
 ) {
   const { admin, supabase } = await requirePlatformManagement();
+  const { data: organization, error: organizationError } = await supabase
+    .from("platform_organizations")
+    .select("organization_id")
+    .eq("id", id)
+    .single();
+  if (organizationError) throw new Error(organizationError.message);
   const values: { status?: typeof update.status; plan_id?: string | null; expires_at?: string | null; updated_at: string } = {
     updated_at: new Date().toISOString(),
   };
@@ -68,7 +74,7 @@ export async function updatePlatformOrganization(
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({
     admin_id: admin.id,
-    organization_id: id,
+    organization_id: organization.organization_id,
     action: "organization_updated",
     module: "organizations",
     metadata: update,
@@ -187,6 +193,7 @@ export async function setOrganizationFeatureAccess(
   }
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, organization_id: organizationId, action: "feature_access_updated", module: "feature_access", metadata: { feature: module, accessMode } });
   revalidatePath("/platform-admin");
+  revalidatePath("/", "layout");
 }
 
 export async function setFeatureFlag(id: string, enabled: boolean) {
