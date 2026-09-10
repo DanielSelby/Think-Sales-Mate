@@ -18,6 +18,8 @@ type Organization = {
   plan_id: string | null;
   status: "active" | "trial" | "suspended" | "expired";
   expires_at: string | null;
+  created_at: string;
+  industry: string | null;
   updated_at: string;
 };
 type Plan = {
@@ -27,6 +29,7 @@ type Plan = {
   max_branches: number | null;
   storage_limit_gb: number | null;
   monthly_price: number;
+  annual_price: number | null;
   ai_access: boolean;
   api_access: boolean;
 };
@@ -37,6 +40,40 @@ type AuditLog = {
   action: string;
   module: string;
   metadata: Record<string, unknown>;
+  created_at: string;
+};
+type UsageMetric = {
+  organization_id: string;
+  active_users: number;
+  branches: number;
+  orders: number;
+  sales_volume: number;
+  storage_used_gb: number;
+  api_usage: number;
+  updated_at: string;
+};
+type BillingRecord = {
+  id: string;
+  organization_id: string;
+  invoice_number: string;
+  amount: number;
+  status: "paid" | "outstanding" | "refunded" | "void";
+  issued_at: string;
+  due_at: string | null;
+};
+type FeatureFlag = {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  scope: "platform" | "plan" | "organization";
+};
+type Approval = {
+  id: string;
+  organization_id: string | null;
+  approval_type: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
   created_at: string;
 };
 type Tab =
@@ -97,11 +134,21 @@ export default function PlatformAdminConsole({
   plans,
   features,
   auditLogs,
+  usage,
+  billing,
+  flags,
+  approvals,
+  notifications,
 }: {
   organizations: Organization[];
   plans: Plan[];
   features: { organization_id: string; module: string; enabled: boolean }[];
   auditLogs: AuditLog[];
+  usage: UsageMetric[];
+  billing: BillingRecord[];
+  flags: FeatureFlag[];
+  approvals: Approval[];
+  notifications: { id: string; severity: string; title: string; message: string; created_at: string }[];
 }) {
   const [tab, setTab] = useState<Tab>("Organizations");
   const [search, setSearch] = useState("");
@@ -146,7 +193,12 @@ export default function PlatformAdminConsole({
     active: organizations.filter((org) => org.status === "active").length,
     suspended: organizations.filter((org) => org.status === "suspended").length,
     expired: organizations.filter((org) => org.status === "expired").length,
+    trial: organizations.filter((org) => org.status === "trial").length,
   };
+  const totalUsers = usage.reduce((sum, metric) => sum + Number(metric.active_users || 0), 0);
+  const monthlyRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.monthly_price || 0), 0);
+  const annualRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.annual_price || 0), 0);
+  const expiringSubscriptions = organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000).length;
   const run = (work: () => Promise<unknown>, success: string) =>
     startTransition(async () => {
       try {
@@ -228,10 +280,29 @@ export default function PlatformAdminConsole({
         </div>
         {message && <button onClick={() => setMessage(null)} className="mb-4 w-full rounded-lg bg-blue-50 p-3 text-left text-sm text-blue-800">{message} ×</button>}
 
-        {tab === "Organizations" ? (
+        {tab === "Overview" ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ["Total Organizations", counts.total, "bg-blue-50"],
+                ["Active Organizations", counts.active, "bg-emerald-50"],
+                ["Trial Organizations", counts.trial, "bg-violet-50"],
+                ["Suspended Organizations", counts.suspended, "bg-amber-50"],
+                ["Total Users", totalUsers, "bg-cyan-50"],
+                ["Monthly Revenue", monthlyRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" }), "bg-indigo-50"],
+                ["Annual Revenue", annualRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" }), "bg-fuchsia-50"],
+                ["Expiring in 30 Days", expiringSubscriptions, "bg-rose-50"],
+              ].map(([label, value, color]) => <div key={String(label)} className={`rounded-xl border border-slate-200 ${color} p-4 shadow-sm`}><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{value}</p></div>)}
+            </div>
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <Card title="Recent Signups"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <div key={org.id} className="flex items-center justify-between py-3 text-sm"><span className="font-medium">{org.name}</span><span className="text-xs text-slate-500">{new Date(org.created_at).toLocaleDateString()}</span></div>)}</div></Card>
+              <Card title="System Alerts"><div className="mt-3 space-y-3">{notifications.length ? notifications.map((notice) => <div key={notice.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-sm font-semibold">{notice.title}</p><p className="mt-1 text-xs text-slate-500">{notice.message}</p></div>) : <p className="text-sm text-slate-500">No unread system alerts.</p>}</div></Card>
+            </div>
+          </>
+        ) : tab === "Organizations" ? (
           <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {[["Total Organizations", counts.total, "bg-blue-50"], ["Active Organizations", counts.active, "bg-emerald-50"], ["Suspended", counts.suspended, "bg-amber-50"], ["Expired Subscriptions", counts.expired, "bg-rose-50"], ["Total Monthly Revenue", "—", "bg-violet-50"]].map(([label, value, color]) => <div key={String(label)} className={`rounded-xl border border-slate-200 ${color} p-4 shadow-sm`}><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{value}</p><p className="mt-1 text-[11px] text-emerald-600">↑ Platform metric</p></div>)}
+              {[["Total Organizations", counts.total, "bg-blue-50"], ["Active Organizations", counts.active, "bg-emerald-50"], ["Trial Organizations", counts.trial, "bg-violet-50"], ["Suspended", counts.suspended, "bg-amber-50"], ["Expiring Subscriptions", expiringSubscriptions, "bg-rose-50"]].map(([label, value, color]) => <div key={String(label)} className={`rounded-xl border border-slate-200 ${color} p-4 shadow-sm`}><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{value}</p></div>)}
             </div>
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_290px]">
               <Card title="Organizations" className="overflow-hidden">
@@ -246,7 +317,7 @@ export default function PlatformAdminConsole({
             </div>
             <div className="mt-5 grid gap-5 lg:grid-cols-3"><Card title="Feature Access"><p className="mt-2 text-xs text-slate-500">Changes are saved to the platform entitlement store.</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs">{modules.map((module) => <label key={module} className="flex items-center justify-between rounded border p-2">{module}<input type="checkbox" checked={featureState[module] ?? false} onChange={(event) => { if (!selected) return; const enabled = event.target.checked; setFeatureState((current) => ({ ...current, [module]: enabled })); run(() => setOrganizationFeature(selected.organization_id, module, enabled), `${module} access updated.`); }} /></label>)}</div></Card><Card title="Subscription Plan"><p className="mt-3 text-lg font-bold">{selected ? plans.find((plan) => plan.id === selected.plan_id)?.name ?? "Not assigned" : "—"}</p><p className="mt-1 text-xs text-slate-500">Plan limits and included modules</p></Card><Card title="Recent Activity"><div className="mt-3 space-y-3 text-xs text-slate-500"><p>Organization actions are audited in Platform Supabase.</p><p>Use Audit Logs to review platform actions.</p></div></Card></div>
           </>
-        ) : tab === "Subscription Plans" ? <Card title="Subscription Plans"><div className="mb-4 flex justify-end"><button onClick={() => setModal("plan")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Create plan</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{plans.map((plan) => <div key={plan.id} className="rounded-xl border p-4"><p className="font-semibold">{plan.name}</p><p className="mt-2 text-2xl font-bold">${Number(plan.monthly_price).toLocaleString()}<span className="text-xs font-normal text-slate-500">/month</span></p><p className="mt-3 text-xs text-slate-500">{plan.max_users ?? "Unlimited"} users · {plan.max_branches ?? "Unlimited"} branches · {plan.storage_limit_gb ?? "Unlimited"} GB</p></div>)}</div></Card> : tab === "Activity Logs" || tab === "Audit Logs" ? <Card title={tab}><p className="mt-2 text-xs text-slate-500">Recorded platform actions, including logins, organization changes, plan changes, and feature access updates.</p><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-y bg-slate-50 text-[11px] uppercase text-slate-500"><tr>{["Time", "Action", "Module", "Organization", "Details"].map((heading) => <th key={heading} className="px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y">{auditLogs.map((log) => <tr key={log.id} className="hover:bg-slate-50"><td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</td><td className="px-3 py-3 font-semibold">{log.action.replaceAll("_", " ")}</td><td className="px-3 py-3 text-xs text-slate-500">{log.module}</td><td className="px-3 py-3 text-xs">{organizations.find((org) => org.organization_id === log.organization_id)?.name ?? (log.organization_id ?? "Platform-wide")}</td><td className="max-w-[280px] truncate px-3 py-3 text-xs text-slate-500" title={JSON.stringify(log.metadata)}>{Object.entries(log.metadata).map(([key, value]) => `${key}: ${String(value)}`).join(" · ") || "—"}</td></tr>)}</tbody></table>{auditLogs.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No platform activity has been recorded yet.</p>}</div></Card> : <div className="grid gap-5 lg:grid-cols-2"><Card title={tab}><p className="mt-3 text-sm text-slate-500">This workspace is ready for platform {tab.toLowerCase()} data. Use the sidebar to switch modules.</p></Card><Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <div key={org.id} className="flex justify-between py-3 text-sm"><span>{org.name}</span><span className="text-xs text-slate-500">{org.status}</span></div>)}</div></Card></div>}
+        ) : tab === "Subscription Plans" ? <Card title="Subscription Plans"><div className="mb-4 flex justify-end"><button onClick={() => setModal("plan")} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Create plan</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{plans.map((plan) => <div key={plan.id} className="rounded-xl border p-4"><p className="font-semibold">{plan.name}</p><p className="mt-2 text-2xl font-bold">${Number(plan.monthly_price).toLocaleString()}<span className="text-xs font-normal text-slate-500">/month</span></p><p className="mt-3 text-xs text-slate-500">{plan.max_users ?? "Unlimited"} users · {plan.max_branches ?? "Unlimited"} branches · {plan.storage_limit_gb ?? "Unlimited"} GB</p></div>)}</div></Card> : tab === "Feature Flags" ? <Card title="Feature Flags"><div className="divide-y">{flags.map((flag) => <div key={flag.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-semibold">{flag.name}</p><p className="text-xs text-slate-500">{flag.description}</p></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${flag.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{flag.enabled ? "Enabled" : "Disabled"} · {flag.scope}</span></div>)}</div>{flags.length === 0 && <p className="mt-3 text-sm text-slate-500">No feature flags configured.</p>}</Card> : tab === "Usage & Analytics" ? <Card title="Usage & Analytics"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Transactions", usage.reduce((sum, item) => sum + Number(item.orders || 0), 0)], ["Sales Volume", usage.reduce((sum, item) => sum + Number(item.sales_volume || 0), 0).toLocaleString()], ["Active Users", totalUsers], ["Storage Used (GB)", usage.reduce((sum, item) => sum + Number(item.storage_used_gb || 0), 0).toLocaleString()]].map(([label, value]) => <div key={String(label)} className="rounded-lg border bg-slate-50 p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p></div>)}</div><div className="mt-5 divide-y">{usage.map((item) => <div key={item.organization_id} className="flex justify-between py-3 text-sm"><span>{organizations.find((org) => org.organization_id === item.organization_id)?.name ?? item.organization_id}</span><span className="text-xs text-slate-500">{item.active_users} users · {item.orders} transactions</span></div>)}</div></Card> : tab === "Billing & Subscriptions" ? <Card title="Billing & Subscriptions"><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-emerald-50 p-4"><p className="text-xs text-slate-500">Paid</p><p className="mt-2 text-2xl font-bold">{billing.filter((item) => item.status === "paid").length}</p></div><div className="rounded-lg bg-amber-50 p-4"><p className="text-xs text-slate-500">Outstanding</p><p className="mt-2 text-2xl font-bold">{billing.filter((item) => item.status === "outstanding").length}</p></div><div className="rounded-lg bg-blue-50 p-4"><p className="text-xs text-slate-500">Revenue</p><p className="mt-2 text-2xl font-bold">{billing.reduce((sum, item) => sum + Number(item.amount || 0), 0).toLocaleString()}</p></div></div><div className="mt-5 divide-y">{billing.map((item) => <div key={item.id} className="flex justify-between py-3 text-sm"><span>{item.invoice_number}</span><span>{Number(item.amount).toLocaleString()} · {item.status}</span></div>)}</div></Card> : tab === "Activity Logs" || tab === "Audit Logs" ? <Card title={tab}><p className="mt-2 text-xs text-slate-500">Recorded platform actions, including logins, organization changes, plan changes, and feature access updates.</p><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-y bg-slate-50 text-[11px] uppercase text-slate-500"><tr>{["Time", "Action", "Module", "Organization", "Details"].map((heading) => <th key={heading} className="px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y">{auditLogs.map((log) => <tr key={log.id} className="hover:bg-slate-50"><td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</td><td className="px-3 py-3 font-semibold">{log.action.replaceAll("_", " ")}</td><td className="px-3 py-3 text-xs text-slate-500">{log.module}</td><td className="px-3 py-3 text-xs">{organizations.find((org) => org.organization_id === log.organization_id)?.name ?? (log.organization_id ?? "Platform-wide")}</td><td className="max-w-[280px] truncate px-3 py-3 text-xs text-slate-500" title={JSON.stringify(log.metadata)}>{Object.entries(log.metadata).map(([key, value]) => `${key}: ${String(value)}`).join(" · ") || "—"}</td></tr>)}</tbody></table>{auditLogs.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No platform activity has been recorded yet.</p>}</div></Card> : tab === "Organization Builder" ? <Card title="Organization Builder"><p className="text-sm text-slate-500">Use the Add Organization workflow to provision an organization registry record, subscription, and default feature access.</p><button onClick={() => setModal("organization")} className="mt-4 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Start Builder</button></Card> : tab === "Impersonation" ? <Card title="Impersonation"><p className="text-sm text-slate-500">No active impersonation sessions are available.</p></Card> : tab === "System Settings" ? <Card title="System Settings"><p className="text-sm text-slate-500">Platform settings are stored in the platform settings store and are ready for provider configuration.</p></Card> : <Card title={tab}><p className="mt-3 text-sm text-slate-500">No records are available for this workspace yet.</p><div className="mt-4 divide-y">{approvals.map((approval) => <div key={approval.id} className="flex justify-between py-3 text-sm"><span>{approval.approval_type.replaceAll("_", " ")}</span><span className="text-xs text-slate-500">{approval.status}</span></div>)}</div></Card>}
       </main>
     </div>
   );

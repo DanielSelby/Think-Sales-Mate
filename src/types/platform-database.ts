@@ -53,6 +53,9 @@ export interface PlatformDatabase {
           expires_at: string | null;
           created_at: string;
           updated_at: string;
+           industry: string | null;
+           suspended_at: string | null;
+           suspension_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -63,6 +66,9 @@ export interface PlatformDatabase {
           expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
+           industry?: string | null;
+           suspended_at?: string | null;
+           suspension_reason?: string | null;
         };
         Update: Partial<PlatformDatabase["public"]["Tables"]["platform_organizations"]["Row"]>;
         Relationships: [];
@@ -75,6 +81,8 @@ export interface PlatformDatabase {
           max_branches: number | null;
           storage_limit_gb: number | null;
           monthly_price: number;
+           annual_price: number | null;
+           archived_at: string | null;
           ai_access: boolean;
           api_access: boolean;
           included_modules: string[];
@@ -88,6 +96,8 @@ export interface PlatformDatabase {
           max_branches?: number | null;
           storage_limit_gb?: number | null;
           monthly_price?: number;
+           annual_price?: number | null;
+           archived_at?: string | null;
           ai_access?: boolean;
           api_access?: boolean;
           included_modules?: string[];
@@ -135,6 +145,67 @@ export interface PlatformDatabase {
         enabled?: boolean;
         updated_by?: string | null;
         updated_at?: string;
+      }>;
+      platform_feature_flags: PlatformTable<{
+        id: string;
+        key: string;
+        name: string;
+        description: string;
+        enabled: boolean;
+        scope: "platform" | "plan" | "organization";
+        plan_id: string | null;
+        organization_id: string | null;
+        updated_by: string | null;
+        updated_at: string;
+      }, {
+        id?: string;
+        key: string;
+        name: string;
+        description?: string;
+        enabled?: boolean;
+        scope?: "platform" | "plan" | "organization";
+        plan_id?: string | null;
+        organization_id?: string | null;
+        updated_by?: string | null;
+        updated_at?: string;
+      }>;
+      platform_approvals: PlatformTable<{
+        id: string;
+        organization_id: string | null;
+        requested_by: string;
+        approval_type: string;
+        status: "pending" | "approved" | "rejected" | "cancelled";
+        payload: Record<string, unknown>;
+        reviewed_by: string | null;
+        reviewed_at: string | null;
+        created_at: string;
+      }, {
+        id?: string;
+        organization_id?: string | null;
+        requested_by: string;
+        approval_type: string;
+        status?: "pending" | "approved" | "rejected" | "cancelled";
+        payload?: Record<string, unknown>;
+        reviewed_by?: string | null;
+        reviewed_at?: string | null;
+        created_at?: string;
+      }>;
+      platform_notifications: PlatformTable<{
+        id: string;
+        admin_id: string | null;
+        severity: "info" | "success" | "warning" | "critical";
+        title: string;
+        message: string;
+        read_at: string | null;
+        created_at: string;
+      }, {
+        id?: string;
+        admin_id?: string | null;
+        severity?: "info" | "success" | "warning" | "critical";
+        title: string;
+        message: string;
+        read_at?: string | null;
+        created_at?: string;
       }>;
       platform_usage_metrics: PlatformTable<{
         organization_id: string;
