@@ -225,6 +225,7 @@ export interface PlatformDatabase {
         products: number;
         customers: number;
         orders: number;
+        purchase_count: number;
         sales_volume: number;
         storage_used_gb: number;
         ai_usage: number;
