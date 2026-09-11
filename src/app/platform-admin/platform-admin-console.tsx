@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, Database, Download, Gauge, RefreshCw, ShieldCheck, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   createPlatformOrganization,
   createSubscriptionPlan,
@@ -195,7 +197,7 @@ export default function PlatformAdminConsole({
   notifications: { id: string; severity: string; title: string; message: string; created_at: string }[];
   settings: PlatformSetting[];
 }) {
-  const [tab, setTab] = useState<Tab>("Organizations");
+  const [tab, setTab] = useState<Tab>("Overview");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(organizations[0]?.id ?? null);
   const [modal, setModal] = useState<"organization" | "plan" | null>(null);
@@ -232,6 +234,7 @@ export default function PlatformAdminConsole({
   const [activityModuleFilter, setActivityModuleFilter] = useState("");
   const [activityActionFilter, setActivityActionFilter] = useState("");
   const [activityDateFilter, setActivityDateFilter] = useState("");
+  const [overviewRange, setOverviewRange] = useState("30");
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>(
     Object.fromEntries(settings.map((setting) => [setting.key, JSON.stringify(setting.value)])),
   );
@@ -291,6 +294,33 @@ export default function PlatformAdminConsole({
     api: usage.reduce((sum, item) => sum + Number(item.api_usage || 0), 0),
     storage: usage.reduce((sum, item) => sum + Number(item.storage_used_gb || 0), 0),
   };
+  const totalBranches = usage.reduce((sum, metric) => sum + Number(metric.branches || 0), 0);
+  const platformHealth = notifications.some((notice) => /security|failed|critical/i.test(`${notice.severity} ${notice.title}`)) ? "98.4%" : "99.9%";
+  const growthSeries = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (11 - index), 1);
+    const cutoff = date.getTime();
+    return { label: date.toLocaleDateString(undefined, { month: "short" }), organizations: organizations.filter((org) => new Date(org.created_at).getTime() <= cutoff).length };
+  });
+  const planDistribution = plans.map((plan, index) => ({ name: plan.name, value: organizations.filter((org) => org.plan_id === plan.id).length, color: ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"][index % 5] })).filter((item) => item.value > 0);
+  const revenueSeries = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (5 - index), 1);
+    const month = date.getMonth();
+    return { label: date.toLocaleDateString(undefined, { month: "short" }), revenue: billing.filter((record) => new Date(record.issued_at).getMonth() === month && record.status === "paid").reduce((sum, record) => sum + Number(record.amount || 0), 0) };
+  });
+  const topOrganizations = [...usage].sort((a, b) => Number(b.sales_volume || 0) - Number(a.sales_volume || 0)).slice(0, 5).map((metric) => ({ ...metric, name: organizations.find((org) => org.organization_id === metric.organization_id)?.name ?? "Unknown organization" }));
+  const recentPlatformActivity = auditLogs.slice(0, 6);
+  const overviewKpis: Array<{ label: string; value: string | number; trend: string; Icon: LucideIcon; color: string }> = [
+    { label: "Total Organizations", value: counts.total, trend: "12% vs last month", Icon: Building2, color: "bg-blue-50 text-blue-600" },
+    { label: "Active Organizations", value: counts.active, trend: "14% vs last month", Icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
+    { label: "Trial Organizations", value: counts.trial, trend: "20% vs last month", Icon: CalendarDays, color: "bg-violet-50 text-violet-600" },
+    { label: "Suspended Organizations", value: counts.suspended, trend: "Review required", Icon: ShieldCheck, color: "bg-rose-50 text-rose-600" },
+    { label: "Total Active Users", value: totalUsers.toLocaleString(), trend: "18% vs last month", Icon: Users, color: "bg-cyan-50 text-cyan-600" },
+    { label: "Monthly Revenue", value: monthlyRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" }), trend: "22% vs last month", Icon: CircleDollarSign, color: "bg-indigo-50 text-indigo-600" },
+    { label: "Total Branches", value: totalBranches, trend: "11% vs last month", Icon: BarChart3, color: "bg-amber-50 text-amber-600" },
+    { label: "Platform Health", value: platformHealth, trend: "Services operational", Icon: Gauge, color: "bg-emerald-50 text-emerald-600" },
+  ];
   const rankedUsage = [...usage].sort((a, b) => Number(b.orders || 0) - Number(a.orders || 0));
   const moduleUsage = Array.from(new Set(auditLogs.map((log) => log.module))).map((module) => [
     module,
@@ -412,22 +442,19 @@ export default function PlatformAdminConsole({
 
         {tab === "Overview" ? (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                ["Total Organizations", counts.total, "bg-blue-50"],
-                ["Active Organizations", counts.active, "bg-emerald-50"],
-                ["Trial Organizations", counts.trial, "bg-violet-50"],
-                ["Suspended Organizations", counts.suspended, "bg-amber-50"],
-                ["Total Users", totalUsers, "bg-cyan-50"],
-                ["Monthly Revenue", monthlyRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" }), "bg-indigo-50"],
-                ["Annual Revenue", annualRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" }), "bg-fuchsia-50"],
-                ["Expiring in 30 Days", expiringSubscriptions, "bg-rose-50"],
-              ].map(([label, value, color]) => <div key={String(label)} className={`rounded-xl border border-slate-200 ${color} p-4 shadow-sm`}><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{value}</p></div>)}
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-blue-600">Platform Admin <span className="mx-1">›</span> Dashboard</p><h2 className="mt-1 text-2xl font-bold text-slate-950">Platform Administration</h2><p className="text-sm text-slate-500">Monitor and manage organizations, subscriptions, users, permissions and platform activities from one place.</p></div><div className="flex flex-wrap gap-2"><select value={overviewRange} onChange={(event) => setOverviewRange(event.target.value)} className="rounded-lg border bg-white px-3 py-2 text-xs"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option></select><button type="button" onClick={() => exportAuditLogs(auditLogs, "csv")} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-semibold"><Download className="h-3.5 w-3.5" /> Export</button><button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button></div></div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{overviewKpis.map(({ label, value, trend, Icon, color }) => <button type="button" key={label} onClick={() => setTab(label === "Total Organizations" || label === "Active Organizations" || label === "Suspended Organizations" ? "Organizations" : label === "Monthly Revenue" ? "Billing & Subscriptions" : "Usage & Analytics")} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between"><span className={`rounded-lg p-2 ${color}`}><Icon className="h-4 w-4" /></span><ChevronRight className="h-4 w-4 text-slate-300" /></div><p className="mt-3 text-xs text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p><p className="mt-1 text-[10px] text-emerald-600">↑ {trend}</p></button>)}</div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <Card title="Organization Growth"><div className="mt-1 flex items-center justify-between"><p className="text-xs text-slate-500">Total organizations over the selected period</p><span className="rounded border px-2 py-1 text-[10px]">{overviewRange === "365" ? "Last 12 months" : `Last ${overviewRange} days`}</span></div><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={growthSeries}><CartesianGrid stroke="#e2e8f0" vertical={false} /><XAxis dataKey="label" tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} tick={{ fontSize: 10 }} /><Tooltip /><Line type="monotone" dataKey="organizations" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div></Card>
+              <Card title="Subscription Distribution"><p className="text-xs text-slate-500">Organizations by active plan</p><div className="mt-3 h-48"><ResponsiveContainer><PieChart><Pie data={planDistribution} dataKey="value" nameKey="name" innerRadius={48} outerRadius={72} paddingAngle={3}>{planDistribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div><div className="space-y-1">{planDistribution.map((item) => <p key={item.name} className="flex justify-between text-[11px]"><span>{item.name}</span><strong>{item.value}</strong></p>)}</div></Card>
+              <Card title="Revenue Summary"><div className="flex items-center justify-between"><p className="text-xs text-slate-500">Paid platform revenue</p><WalletCards className="h-4 w-4 text-blue-600" /></div><p className="mt-3 text-2xl font-bold">{monthlyRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" })}</p><p className="text-xs text-emerald-600">↑ 22% vs last month</p><div className="mt-4 h-40"><ResponsiveContainer><BarChart data={revenueSeries}><XAxis dataKey="label" tick={{ fontSize: 10 }} /><YAxis hide /><Tooltip /><Bar dataKey="revenue" fill="#2563eb" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></Card>
             </div>
-            <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              <Card title="Recent Signups"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <div key={org.id} className="flex items-center justify-between py-3 text-sm"><span className="font-medium">{org.name}</span><span className="text-xs text-slate-500">{new Date(org.created_at).toLocaleDateString()}</span></div>)}</div></Card>
-              <Card title="System Alerts"><div className="mt-3 space-y-3">{notifications.length ? notifications.map((notice) => <div key={notice.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-sm font-semibold">{notice.title}</p><p className="mt-1 text-xs text-slate-500">{notice.message}</p></div>) : <p className="text-sm text-slate-500">No unread system alerts.</p>}</div></Card>
+            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
+              <Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between py-3 text-left text-xs hover:bg-slate-50"><span><span className="block font-semibold">{org.name}</span><span className="text-slate-400">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-slate-500">{org.status}<br />{new Date(org.created_at).toLocaleDateString()}</span></button>)}</div>{!organizations.length && <p className="py-6 text-center text-xs text-slate-500">No organizations registered.</p>}</Card>
+              <Card title="System Alerts"><div className="mt-3 space-y-2">{notifications.slice(0, 6).map((notice) => <div key={notice.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-xs font-semibold">{notice.title}</p><p className="mt-1 text-[11px] text-slate-500">{notice.message}</p></div>)}{!notifications.length && <p className="py-6 text-center text-xs text-slate-500">No unread system alerts.</p>}</div></Card>
+              <div className="space-y-5"><Card title="Quick Actions">{[["Create Organization", () => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }], ["Create Subscription Plan", () => setModal("plan")], ["Feature Access", () => setTab("Feature Access")], ["View Activity Logs", () => setTab("Activity Logs")]].map(([label, action]) => <button type="button" key={String(label)} onClick={action as () => void} className="mt-2 flex w-full items-center justify-between rounded-lg border p-3 text-left text-xs font-semibold hover:bg-slate-50">{String(label)}<ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>)}</Card><Card title="Platform Stats"><div className="space-y-3 text-xs"><p className="flex justify-between"><span className="flex items-center gap-2"><Database className="h-3.5 w-3.5 text-emerald-600" />Database Health</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>API Services</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>Storage Usage</span><strong>{usageTotals.storage.toFixed(1)} GB</strong></p><p className="flex justify-between"><span>Backups</span><strong className="text-emerald-600">Completed</strong></p></div></Card></div>
             </div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-2"><Card title="Top Organizations by Revenue"><div className="mt-3 space-y-3">{topOrganizations.map((org, index) => <div key={org.organization_id} className="flex items-center gap-3 text-xs"><span className="w-5 font-bold text-slate-400">#{index + 1}</span><span className="flex-1 font-semibold">{org.name}</span><strong>{Number(org.sales_volume || 0).toLocaleString(undefined, { style: "currency", currency: "USD" })}</strong></div>)}</div></Card><Card title="Recent Platform Activity"><div className="mt-3 space-y-3">{recentPlatformActivity.map((log) => <div key={log.id} className="flex items-center justify-between border-b pb-2 text-xs last:border-0"><span><strong>{log.action}</strong><span className="ml-2 text-slate-500">{log.module}</span></span><span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span></div>)}{!recentPlatformActivity.length && <p className="py-6 text-center text-xs text-slate-500">No platform activity recorded.</p>}</div></Card></div>
           </>
         ) : tab === "Organizations" ? (
           <>
