@@ -138,6 +138,7 @@ export interface PlatformDatabase {
         module: string;
         enabled: boolean;
         access_mode: "enabled" | "disabled" | "read_only";
+        permission_options: Record<string, boolean>;
         updated_by: string | null;
         updated_at: string;
       }, {
@@ -145,6 +146,7 @@ export interface PlatformDatabase {
         module: string;
         enabled?: boolean;
         access_mode?: "enabled" | "disabled" | "read_only";
+        permission_options?: Record<string, boolean>;
         updated_by?: string | null;
         updated_at?: string;
       }>;
