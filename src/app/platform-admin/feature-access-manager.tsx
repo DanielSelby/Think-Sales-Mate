@@ -102,12 +102,31 @@ export function FeatureAccessManager({ organizations, plans, features, auditLogs
     setSaving(true);
     setMessage("");
     try {
-      for (const record of Object.values(draft)) {
+      const pending = { ...draft };
+      for (const module of MODULES) {
+        const keys = featureKeys(module);
+        const changed = keys.some((key) => pending[key]);
+        if (changed) {
+          const modes = keys.map((key) => pending[key]?.access_mode ?? records[key]?.access_mode ?? records[module.name]?.access_mode ?? "disabled");
+          const moduleMode: AccessMode = modes.every((mode) => mode === "disabled")
+            ? "disabled"
+            : modes.every((mode) => mode === "read_only")
+              ? "read_only"
+              : "enabled";
+          pending[module.name] = {
+            organization_id: organizationId,
+            module: module.name,
+            enabled: moduleMode !== "disabled",
+            access_mode: moduleMode,
+            permission_options: records[module.name]?.permission_options ?? {},
+          };
+        }
+      }
+      for (const record of Object.values(pending)) {
         const response = await fetch("/platform-admin/feature-access", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, module: record.module, accessMode: record.access_mode, permissionOptions: record.permission_options ?? {} }) });
         const result = await response.json() as { error?: string };
         if (!response.ok) throw new Error(result.error ?? "Feature access could not be saved.");
       }
-      setDraft({});
       setMessage("Feature permissions saved and applied immediately.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Feature permissions could not be saved.");
