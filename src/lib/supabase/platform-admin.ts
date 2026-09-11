@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import type { PlatformDatabase } from "@/types/platform-database";
 import { PLATFORM_MODULES } from "@/lib/platform-modules";
+import { getCanonicalFeatureModule } from "@/components/nav/navigation";
 
 export function createPlatformAdminClient() {
   const key = process.env.PLATFORM_SUPABASE_SERVICE_ROLE_KEY;
@@ -68,16 +69,25 @@ export async function getEnabledOrganizationModules(organizationId: string) {
   const enabledModules = new Set<string>();
   const configuredChildren = new Set<string>();
   const enabledChildren = new Set<string>();
+  const normalizedRecords = new Map<string, { enabled: boolean; permission_options?: Record<string, boolean>; priority: number }>();
   // Load disabled child rows as well: their presence tells the sidebar that
   // the module has explicit child permissions and should not inherit access.
   (data ?? []).forEach((item) => {
-    if (!item.module.includes(":")) {
-      if (item.enabled) enabledModules.add(item.module);
+    const module = getCanonicalFeatureModule(item.module);
+    const priority = module === item.module ? 1 : 2;
+    const previous = normalizedRecords.get(module);
+    if (!previous || priority >= previous.priority) {
+      normalizedRecords.set(module, { enabled: item.enabled, permission_options: item.permission_options, priority });
+    }
+  });
+  normalizedRecords.forEach((item, module) => {
+    if (!module.includes(":")) {
+      if (item.enabled) enabledModules.add(module);
       return;
     }
-    const [parent] = item.module.split(":");
+    const [parent] = module.split(":");
     configuredChildren.add(parent);
-    if (item.enabled && !item.permission_options?.hiddenFromMenu) enabledChildren.add(item.module);
+    if (item.enabled && !item.permission_options?.hiddenFromMenu) enabledChildren.add(module);
   });
   configuredChildren.forEach((module) => enabledModules.add(`__children:${module}`));
   return [...enabledModules, ...enabledChildren];

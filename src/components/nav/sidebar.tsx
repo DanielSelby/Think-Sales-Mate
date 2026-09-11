@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore, THEMES } from "@/store/useAppStore";
-import { NAV_ITEMS as SHARED_NAV_ITEMS } from "./navigation";
+import { NAV_ITEMS as SHARED_NAV_ITEMS, SETTINGS_CHILDREN as SHARED_SETTINGS_CHILDREN } from "./navigation";
 export { NAV_ITEMS } from "./navigation";
 
 export interface NavChild {
@@ -183,20 +183,6 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
   { label: "AI Assistant",  href: "/ai",         icon: Sparkles,     status: "live" },
   { label: "Communication", href: "/communication", icon: MessageSquare, status: "live" },
   { label: "User Management", href: "/settings/organization", icon: Users2, status: "live" },
-];
-
-const SETTINGS_CHILDREN: NavChild[] = [
-  { label: "Overview",      href: "/settings"              },
-  { label: "Company",       href: "/settings/company"      },
-  { label: "Users",         href: "/settings/organization" },
-  { label: "Team",          href: "/settings/team"         },
-  { label: "Locations",     href: "/settings/locations"    },
-  { label: "Currencies",    href: "/settings/currencies"   },
-  { label: "Customer Ordering", href: "/settings/customer-ordering" },
-  { label: "Billing",       href: "/settings/billing"      },
-  { label: "Members",       href: "/settings/members"      },
-  { label: "Integrations", href: "/settings/integrations" },
-  { label: "Duplicate Product Control", href: "/settings/products/duplicates", icon: ShieldCheck },
 ];
 
 // ── Reusable child list ───────────────────────────────────────
@@ -412,7 +398,13 @@ export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; ena
             )}
           </button>
           {!collapsed && openGroup === "settings" && (
-            <ChildLinks items={SETTINGS_CHILDREN} sidebar={sidebar} />
+            <ChildLinks
+              items={SHARED_SETTINGS_CHILDREN.filter((child) =>
+                !enabledModules?.includes("__children:Settings")
+                || enabledModules.includes(`Settings:${child.label}`)
+              )}
+              sidebar={sidebar}
+            />
           )}
         </div>
 

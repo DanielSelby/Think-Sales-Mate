@@ -140,4 +140,19 @@ export const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Duplicate Product Control", href: "/settings/products/duplicates", icon: ShieldCheck },
 ];
 
+// Feature Access keeps some business-facing names that differ from the
+// navigation labels. Normalize those names before applying organization access.
+export const FEATURE_ACCESS_MODULE_ALIASES: Record<string, string[]> = {
+  Orders: ["Customer Ordering"],
+  "User Management": ["Users"],
+};
+
+export function getCanonicalFeatureModule(module: string) {
+  const separator = module.indexOf(":");
+  const moduleName = separator === -1 ? module : module.slice(0, separator);
+  const suffix = separator === -1 ? "" : module.slice(separator);
+  const canonical = Object.entries(FEATURE_ACCESS_MODULE_ALIASES).find(([, aliases]) => aliases.includes(moduleName))?.[0] ?? moduleName;
+  return `${canonical}${suffix}`;
+}
+
 export { ChevronLeft, ChevronRight, ChevronDown };
