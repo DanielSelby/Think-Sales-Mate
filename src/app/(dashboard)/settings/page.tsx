@@ -8,7 +8,8 @@ import {
   Percent,
   CreditCard,
   Mail,
-  ShoppingBag
+  ShoppingBag,
+  ShieldCheck
 } from "lucide-react";
 
 const SECTIONS = [
@@ -20,7 +21,8 @@ const SECTIONS = [
   { label: "Taxes", desc: "Tax rates & rules", href: "/settings/taxes", icon: Percent },
   { label: "Payments", desc: "Payment methods", href: "/settings/payments", icon: CreditCard },
   { label: "Email", desc: "Email templates", href: "/settings/email", icon: Mail },
-  { label: "Customer Ordering", desc: "Storefront & order settings", href: "/settings/customer-ordering", icon: ShoppingBag }
+  { label: "Customer Ordering", desc: "Storefront & order settings", href: "/settings/customer-ordering", icon: ShoppingBag },
+  { label: "Duplicate Product Control", desc: "Prevent duplicate catalog items", href: "/settings/products/duplicates", icon: ShieldCheck }
 ];
 
 export default function SettingsHubPage() {

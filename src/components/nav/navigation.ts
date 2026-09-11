@@ -52,7 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    label: "Inventory", href: "/inventory", icon: Boxes, status: "live",
+    label: "Products", href: "/inventory", icon: Boxes, status: "live",
     children: [
       { label: "All Products", href: "/inventory", icon: List },
       { label: "Add Product", href: "/inventory/new", icon: PlusCircle },
@@ -60,6 +60,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Price Management", href: "/inventory/prices", icon: DollarSign },
       { label: "Merge Products", href: "/inventory/merge", icon: GitMerge },
       { label: "Duplicate Review Center", href: "/inventory/duplicates", icon: ClipboardCheck },
+      { label: "Duplicate Product Control", href: "/settings/products/duplicates", icon: ShieldCheck },
     ],
   },
   {
