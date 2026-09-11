@@ -55,14 +55,12 @@ export async function getEnabledOrganizationModules(organizationId: string) {
   let { data, error } = await platform
     .from("platform_organization_features")
     .select("module, enabled, permission_options")
-    .eq("organization_id", organizationId)
-    .eq("enabled", true);
+    .eq("organization_id", organizationId);
   if (error && /permission_options|schema cache/i.test(error.message)) {
     const fallback = await platform
       .from("platform_organization_features")
       .select("module, enabled")
-      .eq("organization_id", organizationId)
-      .eq("enabled", true);
+      .eq("organization_id", organizationId);
     data = fallback.data?.map((item) => ({ ...item, permission_options: {} })) ?? null;
     error = fallback.error;
   }
@@ -70,6 +68,8 @@ export async function getEnabledOrganizationModules(organizationId: string) {
   const enabledModules = new Set<string>();
   const configuredChildren = new Set<string>();
   const enabledChildren = new Set<string>();
+  // Load disabled child rows as well: their presence tells the sidebar that
+  // the module has explicit child permissions and should not inherit access.
   (data ?? []).forEach((item) => {
     if (!item.module.includes(":")) {
       if (item.enabled) enabledModules.add(item.module);
