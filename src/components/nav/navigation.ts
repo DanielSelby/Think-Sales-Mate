@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
   Wallet, Landmark, Receipt, Package, FolderKanban,
-  BarChart3, Settings, Sparkles,
+  BarChart3, Settings, Sparkles, TrendingUp,
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
@@ -117,6 +117,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: "Reports Overview", href: "/reports", icon: BarChart3 },
       { label: "Branch Performance", href: "/reports/branch-performance", icon: BarChart3 },
+      { label: "Sales Forecasting", href: "/reports/forecasting", icon: TrendingUp },
     ],
   },
   { label: "Audit Center", href: "/audit", icon: ShieldCheck, status: "live" },
