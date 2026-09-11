@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { NAV_ITEMS, SETTINGS_CHILDREN } from "@/components/nav/navigation";
 
 type AccessMode = "enabled" | "disabled" | "read_only";
 type Organization = { id: string; organization_id: string; name: string; plan_id: string | null };
@@ -16,7 +17,7 @@ type FeatureRecord = {
 type FeatureDefinition = { name: string; children?: string[] };
 type ModuleDefinition = { name: string; features: FeatureDefinition[] };
 
-const MODULES: ModuleDefinition[] = [
+const DETAIL_MODULES: ModuleDefinition[] = [
   { name: "Sales", features: [{ name: "Sales Dashboard", children: ["View Dashboard", "Sales Analytics", "Quick Stats"] }, { name: "Sales Transactions", children: ["New Sale", "Sales List", "Sales History", "Sales Returns", "Sales Documents", "Drafts", "Quotations", "Proformas", "Credit Notes", "Customer Payments", "Customer Owing Page"] }, { name: "Sales Analytics" }] },
   { name: "Inventory", features: [{ name: "Products", children: ["Product List", "Add Product", "Edit Product", "Delete Product", "Product Merge", "Duplicate Product Prevention", "Smart Product Detection", "Product History", "Barcode Management", "SKU Management"] }, { name: "Stock Transfer", children: ["Create Transfer", "Approve Transfer", "Reject Transfer", "Transfer History", "In Transit", "Completed Transfers"] }, { name: "Stock Adjustment", children: ["New Adjustment", "Adjustment History", "Stock Taking", "Cycle Count", "Variance Review"] }, { name: "Warehouses", children: ["Add Warehouse", "Edit Warehouse", "Delete Warehouse"] }] },
   { name: "Purchases", features: [{ name: "Purchases", children: ["Purchase Orders", "Purchase List", "Purchase Returns", "Goods Received", "Supplier Management", "Supplier Payments", "Purchase Analytics"] }] },
@@ -30,6 +31,38 @@ const MODULES: ModuleDefinition[] = [
   { name: "Reports", features: [{ name: "Reports", children: ["Financial Reports", "Sales Reports", "Purchase Reports", "Inventory Reports", "Customer Reports", "HR Reports", "Export Reports"] }] },
   { name: "Settings", features: [{ name: "Settings", children: ["Company Settings", "Branch Settings", "Currency Settings", "Tax Settings", "Email Settings", "SMS Settings", "Notification Settings"] }] },
 ];
+
+function mergeFeatures(base: FeatureDefinition[], generated: FeatureDefinition[]) {
+  const merged: FeatureDefinition[] = base.map((feature) => ({ ...feature, children: feature.children ? [...feature.children] : undefined }));
+  generated.forEach((feature) => {
+    const existing = merged.find((item) => item.name === feature.name);
+    if (!existing) {
+      merged.push(feature);
+      return;
+    }
+    existing.children = [...new Set([...(existing.children ?? []), ...(feature.children ?? [])])];
+  });
+  return merged;
+}
+
+// The shared navigation catalog is the source of truth so new application
+// modules and pages appear here automatically after they are added.
+const MODULES: ModuleDefinition[] = NAV_ITEMS.map((item) => {
+  const detail = DETAIL_MODULES.find((module) => module.name === item.label);
+  const generatedFeatures: FeatureDefinition[] = item.children?.length
+    ? [{ name: item.label, children: item.children.map((child) => child.label) }]
+    : [{ name: item.label }];
+  return {
+    name: item.label,
+    features: mergeFeatures(detail?.features ?? [], generatedFeatures),
+  };
+}).concat([{
+  name: "Settings",
+  features: mergeFeatures(
+    DETAIL_MODULES.find((module) => module.name === "Settings")?.features ?? [],
+    [{ name: "Settings", children: SETTINGS_CHILDREN.map((child) => child.label) }],
+  ),
+}].filter((module) => !NAV_ITEMS.some((item) => item.label === module.name)));
 
 const options = ["requireApproval", "hiddenFromMenu"] as const;
 type PermissionOption = (typeof options)[number];
