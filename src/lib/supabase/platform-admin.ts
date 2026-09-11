@@ -52,11 +52,33 @@ export async function syncAllOrganizationsToPlatform() {
 
 export async function getEnabledOrganizationModules(organizationId: string) {
   const platform = createPlatformAdminClient();
-  const { data, error } = await platform
+  let { data, error } = await platform
     .from("platform_organization_features")
-    .select("module")
+    .select("module, enabled, permission_options")
     .eq("organization_id", organizationId)
     .eq("enabled", true);
+  if (error && /permission_options|schema cache/i.test(error.message)) {
+    const fallback = await platform
+      .from("platform_organization_features")
+      .select("module, enabled")
+      .eq("organization_id", organizationId)
+      .eq("enabled", true);
+    data = fallback.data?.map((item) => ({ ...item, permission_options: {} })) ?? null;
+    error = fallback.error;
+  }
   if (error) throw new Error(`Could not load organization feature access: ${error.message}`);
-  return data.map((item) => item.module);
+  const enabledModules = new Set<string>();
+  const configuredChildren = new Set<string>();
+  const enabledChildren = new Set<string>();
+  (data ?? []).forEach((item) => {
+    if (!item.module.includes(":")) {
+      if (item.enabled) enabledModules.add(item.module);
+      return;
+    }
+    const [parent] = item.module.split(":");
+    configuredChildren.add(parent);
+    if (item.enabled && !item.permission_options?.hiddenFromMenu) enabledChildren.add(item.module);
+  });
+  configuredChildren.forEach((module) => enabledModules.add(`__children:${module}`));
+  return [...enabledModules, ...enabledChildren];
 }

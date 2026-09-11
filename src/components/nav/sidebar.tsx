@@ -319,8 +319,12 @@ export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; ena
         {SHARED_NAV_ITEMS.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
+          const childItems = item.children?.filter((child) =>
+            !enabledModules?.includes(`__children:${item.label}`)
+            || enabledModules.includes(`${item.label}:${child.label}`)
+          ) ?? [];
           const isActive = !item.children && (pathname === item.href || pathname.startsWith(item.href + "/"));
-          const isGroupActive = !!item.children && (pathname === item.href || item.children.some(c => pathname.startsWith(c.href)));
+          const isGroupActive = !!item.children && (pathname === item.href || childItems?.some(c => pathname.startsWith(c.href)));
           const isOpen   = !collapsed && openGroup === item.href;
 
           // ── Collapsible group ──
@@ -350,9 +354,7 @@ export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; ena
                     </>
                   )}
                 </button>
-                {isOpen && (
-                  <ChildLinks items={item.children} sidebar={sidebar} />
-                )}
+                {isOpen && childItems?.length ? <ChildLinks items={childItems} sidebar={sidebar} /> : null}
               </div>
             );
           }

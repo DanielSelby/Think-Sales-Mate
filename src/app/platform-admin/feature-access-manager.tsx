@@ -47,7 +47,7 @@ function mergeFeatures(base: FeatureDefinition[], generated: FeatureDefinition[]
 
 // The shared navigation catalog is the source of truth so new application
 // modules and pages appear here automatically after they are added.
-const MODULES: ModuleDefinition[] = NAV_ITEMS.map((item) => {
+const navigationModules: ModuleDefinition[] = NAV_ITEMS.map((item) => {
   const detail = DETAIL_MODULES.find((module) => module.name === item.label);
   const generatedFeatures: FeatureDefinition[] = item.children?.length
     ? [{ name: item.label, children: item.children.map((child) => child.label) }]
@@ -56,13 +56,18 @@ const MODULES: ModuleDefinition[] = NAV_ITEMS.map((item) => {
     name: item.label,
     features: mergeFeatures(detail?.features ?? [], generatedFeatures),
   };
-}).concat([{
-  name: "Settings",
-  features: mergeFeatures(
-    DETAIL_MODULES.find((module) => module.name === "Settings")?.features ?? [],
-    [{ name: "Settings", children: SETTINGS_CHILDREN.map((child) => child.label) }],
-  ),
-}].filter((module) => !NAV_ITEMS.some((item) => item.label === module.name)));
+});
+
+const MODULES: ModuleDefinition[] = navigationModules
+  .concat(
+    DETAIL_MODULES.filter((module) => !navigationModules.some((item) => item.name === module.name)),
+  )
+  .map((module) => module.name === "Settings"
+    ? {
+        ...module,
+        features: mergeFeatures(module.features, [{ name: "Settings", children: SETTINGS_CHILDREN.map((child) => child.label) }]),
+      }
+    : module);
 
 const options = ["requireApproval", "hiddenFromMenu"] as const;
 type PermissionOption = (typeof options)[number];
@@ -86,6 +91,13 @@ export function FeatureAccessManager({ organizations, plans, features, auditLogs
   const records = useMemo(() => {
     const result: Record<string, FeatureRecord> = {};
     features.filter((item) => item.organization_id === organizationId).forEach((item) => { result[item.module] = item; });
+    MODULES.forEach((module) => {
+      const parent = result[module.name];
+      if (!parent) return;
+      featureKeys(module).forEach((key) => {
+        if (!result[key]) result[key] = { ...parent, module: key };
+      });
+    });
     return { ...result, ...draft };
   }, [draft, features, organizationId]);
   const visibleModules = MODULES.filter((module) => module.name.toLowerCase().includes(search.toLowerCase()) || module.features.some((feature) => `${feature.name} ${(feature.children ?? []).join(" ")}`.toLowerCase().includes(search.toLowerCase())));
