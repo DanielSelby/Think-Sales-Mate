@@ -12,6 +12,7 @@ type FeatureRecord = {
   enabled: boolean;
   access_mode: AccessMode;
   permission_options?: Record<string, boolean>;
+  updated_at?: string;
 };
 
 type FeatureDefinition = { name: string; children?: string[] };
@@ -107,7 +108,14 @@ export function FeatureAccessManager({ organizations, plans, features, auditLogs
   const disabled = allKeys.filter((key) => (records[key]?.access_mode ?? "disabled") === "disabled").length;
   const readOnly = allKeys.filter((key) => records[key]?.access_mode === "read_only").length;
   const custom = allKeys.filter((key) => records[key]?.permission_options && Object.values(records[key].permission_options ?? {}).some(Boolean)).length;
-  const lastModified = auditLogs.find((log) => log.organization_id === organizationId && log.module === "feature_access")?.created_at;
+  const lastModified = [
+    ...auditLogs
+      .filter((log) => log.organization_id === organizationId && (log.module === "feature_access" || log.module === "feature_access_updated"))
+      .map((log) => log.created_at),
+    ...features
+      .filter((feature) => feature.organization_id === organizationId && feature.updated_at)
+      .map((feature) => feature.updated_at as string),
+  ].sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
   const updateDraft = (key: string, accessMode: AccessMode, permissionOptions = records[key]?.permission_options ?? {}) => {
     setDraft((current) => ({ ...current, [key]: { organization_id: organizationId, module: key, enabled: accessMode !== "disabled", access_mode: accessMode, permission_options: permissionOptions } }));
   };
@@ -148,6 +156,10 @@ export function FeatureAccessManager({ organizations, plans, features, auditLogs
     }
   };
   const setModuleMode = (module: ModuleDefinition, mode: AccessMode) => module.features.flatMap((feature) => [feature.name, ...(feature.children ?? [])]).forEach((name) => updateDraft(`${module.name}:${name}`, mode));
+  const setAllModulesMode = (mode: AccessMode) => {
+    MODULES.forEach((module) => setModuleMode(module, mode));
+    setMessage(`${mode === "read_only" ? "Read-only" : mode === "enabled" ? "Enabled" : "Disabled"} access applied to all modules as a draft. Select Save Changes to persist it.`);
+  };
   const applyPlanTemplate = () => {
     if (!selectedPlan) {
       setMessage("Select a subscription plan before applying its template.");
@@ -202,9 +214,9 @@ export function FeatureAccessManager({ organizations, plans, features, auditLogs
           <div className="rounded-xl border bg-white p-4">
             <h3 className="font-semibold">Bulk Actions</h3>
             <p className="mt-1 text-xs text-slate-500">Apply changes to every feature in {active.name}.</p>
-            <button type="button" onClick={() => setModuleMode(active, "enabled")} className="mt-3 flex w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs font-semibold text-emerald-700">Enable Entire Module</button>
-            <button type="button" onClick={() => setModuleMode(active, "disabled")} className="mt-2 flex w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-left text-xs font-semibold text-rose-700">Disable Entire Module</button>
-            <button type="button" onClick={() => setModuleMode(active, "read_only")} className="mt-2 flex w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-blue-700">Set Module Read Only</button>
+            <button type="button" onClick={() => setAllModulesMode("enabled")} className="mt-3 flex w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs font-semibold text-emerald-700">Enable Entire Platform</button>
+            <button type="button" onClick={() => setAllModulesMode("disabled")} className="mt-2 flex w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-left text-xs font-semibold text-rose-700">Disable Entire Platform</button>
+            <button type="button" onClick={() => setAllModulesMode("read_only")} className="mt-2 flex w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-blue-700">Set Entire Platform Read Only</button>
             <select defaultValue="" onChange={(event) => cloneFrom(event.target.value)} className="mt-2 h-9 w-full rounded-lg border px-2 text-xs"><option value="">Copy Permissions From Another Organization</option>{organizations.filter((item) => item.organization_id !== organizationId).map((item) => <option key={item.organization_id} value={item.organization_id}>{item.name}</option>)}</select>
             <button type="button" onClick={applyPlanTemplate} className="mt-2 flex w-full rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs font-semibold text-purple-700">Apply Permission Template</button>
           </div>

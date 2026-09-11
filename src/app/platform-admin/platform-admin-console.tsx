@@ -186,7 +186,7 @@ export default function PlatformAdminConsole({
 }: {
   organizations: Organization[];
   plans: Plan[];
-  features: { organization_id: string; module: string; enabled: boolean; access_mode: "enabled" | "disabled" | "read_only"; permission_options?: Record<string, boolean> }[];
+  features: { organization_id: string; module: string; enabled: boolean; access_mode: "enabled" | "disabled" | "read_only"; permission_options?: Record<string, boolean>; updated_at?: string }[];
   auditLogs: AuditLog[];
   usage: UsageMetric[];
   billing: BillingRecord[];
