@@ -324,6 +324,47 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
       if (itemsError) throw new Error(itemsError.message);
     }
 
+    const productIds = [...new Set(allLines.map((line) => line.product_id))];
+    if (productIds.length) {
+      const { data: products, error: productsError } = await supabase
+        .from("products")
+        .select("id, name, unit_price")
+        .in("id", productIds);
+      if (productsError) throw new Error(productsError.message);
+
+      const systemPrices = new Map((products ?? []).map((product) => [product.id, { name: product.name, price: Number(product.unit_price) }]));
+      const priceOverrides = allLines.flatMap((line) => {
+        const product = systemPrices.get(line.product_id);
+        if (!product || Number(line.unit_price) === product.price) return [];
+        return [{
+          product_id: line.product_id,
+          product_name: product.name,
+          system_price: product.price,
+          transaction_price: Number(line.unit_price),
+          quantity: line.quantity,
+        }];
+      });
+
+      if (priceOverrides.length) {
+        const { error: auditError } = await supabase.from("audit_logs").insert({
+          org_id: input.orgId,
+          actor_id: user.id,
+          action: "price_override",
+          entity_type: "sale",
+          entity_id: sale.id,
+          metadata: {
+            module: "Sales",
+            description: `Transaction price override on sale #${sale.sale_number}`,
+            branch_id: input.locationId ?? null,
+            sale_number: sale.sale_number,
+            previous_values: { price_source: "system catalog price" },
+            new_values: { price_overrides: priceOverrides },
+          },
+        });
+        if (auditError) throw new Error(auditError.message);
+      }
+    }
+
     // Only a "final" document is a real sale — drafts, quotations, and
     // proformas must not touch inventory until they're actually finalized.
     if ((input.documentStatus ?? "final") === "final") {

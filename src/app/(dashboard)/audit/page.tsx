@@ -23,11 +23,26 @@ export default async function AuditPage() {
     ? await supabase.from("profiles").select("id, full_name").in("id", actorIds)
     : { data: [] };
   const names = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name || "Unknown user"]));
+  const locationIds = [...new Set((data ?? []).flatMap((record) => {
+    const metadata = (record.metadata ?? {}) as Record<string, unknown>;
+    return [metadata.branch_id, metadata.location_id].filter((value): value is string => typeof value === "string");
+  }))];
+  const { data: locations } = locationIds.length
+    ? await supabase.from("business_locations").select("id, name").in("id", locationIds)
+    : { data: [] };
+  const locationNames = new Map((locations ?? []).map((location) => [location.id, location.name]));
 
   const records: AuditRecord[] = (data ?? []).map((record) => ({
     ...record,
     actor_name: record.actor_id ? names.get(record.actor_id) ?? "Unknown user" : "System",
-    metadata: record.metadata ?? {},
+    metadata: (() => {
+      const metadata = (record.metadata ?? {}) as Record<string, unknown>;
+      const locationId = typeof metadata.branch_id === "string" ? metadata.branch_id : typeof metadata.location_id === "string" ? metadata.location_id : "";
+      return {
+        ...metadata,
+        ...(locationId && locationNames.has(locationId) ? { branch_name: locationNames.get(locationId) } : {}),
+      };
+    })(),
   }));
 
   return <AuditCenter records={records} />;
