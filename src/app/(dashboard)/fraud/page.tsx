@@ -4,6 +4,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import { FraudDetectionView, type FraudAlert, type FraudTrendPoint } from "@/components/fraud/fraud-detection-view";
+import { evaluatePriceOverride, evaluateTransaction } from "@/lib/fraud/anomaly-engine";
 
 function range(searchParams?: { from?: string; to?: string }) {
   const now = new Date();
@@ -18,12 +19,13 @@ export default async function FraudDetectionPage({ searchParams }: { searchParam
   if (!can(context.role, "reports.view")) redirect("/dashboard");
   const dates = range(searchParams);
   const supabase = await createClient();
-  const [{ data: sales }, { data: purchases }, { data: adjustments }, { data: expenses }, { data: reviewed }] = await Promise.all([
+  const [{ data: sales }, { data: purchases }, { data: adjustments }, { data: expenses }, { data: reviewed }, { data: auditEvents }] = await Promise.all([
     supabase.from("sales").select("id, sale_number, sale_date, total, discount_amount, customer_name, location_id").eq("org_id", context.orgId).gte("sale_date", dates.from).lte("sale_date", dates.to).order("sale_date", { ascending: false }).limit(1000),
     supabase.from("purchases").select("id, purchase_number, purchase_date, total, supplier_id, location_id").eq("org_id", context.orgId).gte("purchase_date", dates.from).lte("purchase_date", dates.to).order("purchase_date", { ascending: false }).limit(1000),
     supabase.from("stock_adjustments").select("id, adjustment_number, adjustment_date, reason, location_id").eq("org_id", context.orgId).gte("adjustment_date", dates.from).lte("adjustment_date", dates.to).order("adjustment_date", { ascending: false }).limit(1000),
     supabase.from("expenses").select("id, expense_number, expense_date, amount, category, location_id").eq("org_id", context.orgId).gte("expense_date", dates.from).lte("expense_date", dates.to).limit(1000),
     supabase.from("audit_logs").select("entity_id, action").eq("org_id", context.orgId).eq("entity_type", "fraud_alert").in("action", ["fraud_alert.reviewed", "fraud_alert.false_positive"]),
+    supabase.from("audit_logs").select("id, entity_id, action, metadata, created_at").eq("org_id", context.orgId).gte("created_at", `${dates.from}T00:00:00`).lte("created_at", `${dates.to}T23:59:59`).in("action", ["price_override"]),
   ]);
   const [{ data: locations }, { data: suppliers }] = await Promise.all([
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId),
@@ -35,8 +37,15 @@ export default async function FraudDetectionPage({ searchParams }: { searchParam
   const alerts: FraudAlert[] = [];
   for (const sale of sales ?? []) {
     const discountRate = sale.total > 0 ? (sale.discount_amount / (sale.total + sale.discount_amount)) * 100 : 0;
-    if (discountRate >= 30) alerts.push({ id: `sale-discount-${sale.id}`, type: "Sales", document: `INV-${String(sale.sale_number).padStart(6, "0")}`, description: `Unusual discount applied (${Math.round(discountRate)}%)`, entity: sale.customer_name ?? "Walk-in customer", date: sale.sale_date, amount: sale.total, risk: discountRate >= 50 ? "High" : "Medium", status: "Pending Review", href: `/sales/${sale.id}` });
-    if (sale.total >= 10000) alerts.push({ id: `sale-value-${sale.id}`, type: "Sales", document: `INV-${String(sale.sale_number).padStart(6, "0")}`, description: "High value transaction", entity: sale.customer_name ?? "Walk-in customer", date: sale.sale_date, amount: sale.total, risk: "High", status: "Pending Review", href: `/sales/${sale.id}` });
+    const result = evaluateTransaction({ amount: sale.total, discountRate });
+    if (result.detected) alerts.push({ id: `sale-${sale.id}`, type: "Sales", document: `INV-${String(sale.sale_number).padStart(6, "0")}`, description: `${result.reason} Risk ${result.severity.toLowerCase()} (${result.riskScore}/100).`, entity: sale.customer_name ?? "Walk-in customer", date: sale.sale_date, amount: sale.total, risk: result.severity === "Critical" || result.severity === "High" ? "High" : result.severity, status: "Pending Review", href: `/sales/${sale.id}` });
+  }
+  for (const event of auditEvents ?? []) {
+    const overrides = (event.metadata as Record<string, unknown>).new_values as { price_overrides?: Array<{ product_name?: string; system_price?: number; transaction_price?: number }> } | undefined;
+    for (const override of overrides?.price_overrides ?? []) {
+      const result = evaluatePriceOverride(Number(override.system_price ?? 0), Number(override.transaction_price ?? 0));
+      alerts.push({ id: `price-override-${event.id}-${override.product_name ?? "product"}`, type: "Sales", document: `Sale ${event.entity_id ?? ""}`, description: `${override.product_name ?? "Product"}: ${result.reason} Risk ${result.severity.toLowerCase()} (${result.riskScore}/100).`, entity: override.product_name ?? "Product", date: event.created_at, amount: Number(override.transaction_price ?? 0), risk: result.severity === "Critical" || result.severity === "High" ? "High" : result.severity, status: "Pending Review", href: event.entity_id ? `/sales/${event.entity_id}` : "/sales" });
+    }
   }
   for (const adjustment of adjustments ?? []) alerts.push({ id: `adjustment-${adjustment.id}`, type: "Inventory", document: `SA-${String(adjustment.adjustment_number).padStart(6, "0")}`, description: adjustment.reason || "Stock adjustment requires review", entity: locationById.get(adjustment.location_id ?? "") ?? "Unassigned location", date: adjustment.adjustment_date, amount: null, risk: "Medium", status: "Pending Review", href: "/inventory/history" });
   for (const expense of expenses ?? []) if (expense.amount >= 10000) alerts.push({ id: `expense-${expense.id}`, type: "Expense", document: `EXP-${String(expense.expense_number).padStart(6, "0")}`, description: `High value expense: ${expense.category}`, entity: locationById.get(expense.location_id ?? "") ?? "Unassigned location", date: expense.expense_date, amount: expense.amount, risk: "High", status: "Pending Review", href: `/expenses/${expense.id}` });
