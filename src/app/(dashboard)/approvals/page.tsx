@@ -39,7 +39,7 @@ export default async function ApprovalCenterPage() {
       id: row.id, type: "stock_request" as const, document: `REQ-${String(row.request_number).padStart(6, "0")}`,
       title: "Stock Request", requester: profileById.get(row.requested_by)?.full_name ?? "Unknown user",
       branch: locationById.get(row.requesting_location_id) ?? "—", date: row.submitted_at ?? row.created_at,
-      amount: null, status: "pending_approval", priority: row.priority, href: `/inventory/stock-requests?id=${row.id}`,
+      amount: null, status: "pending_approval", priority: row.priority, href: `/inventory/stock-requests/history?id=${row.id}`,
     })),
     ...(expenses ?? []).map((row) => ({
       id: row.id, type: "expense" as const, document: `EXP-${String(row.expense_number).padStart(6, "0")}`,
@@ -82,7 +82,7 @@ async function getApprovedRows(
     supabase.from("purchase_returns").select("id, return_number, created_by, location_id, total_return_value, return_date, created_at, status").eq("org_id", orgId).eq("status", "approved"),
   ]);
   return [
-    ...(requests ?? []).map((row) => ({ id: row.id, type: "stock_request" as const, document: `REQ-${String(row.request_number).padStart(6, "0")}`, title: "Stock Request", requester: profileById.get(row.requested_by)?.full_name ?? "Unknown user", branch: locationById.get(row.requesting_location_id) ?? "—", date: row.submitted_at ?? row.created_at, amount: null, status: row.status, priority: row.priority, href: `/inventory/stock-requests?id=${row.id}` })),
+    ...(requests ?? []).map((row) => ({ id: row.id, type: "stock_request" as const, document: `REQ-${String(row.request_number).padStart(6, "0")}`, title: "Stock Request", requester: profileById.get(row.requested_by)?.full_name ?? "Unknown user", branch: locationById.get(row.requesting_location_id) ?? "—", date: row.submitted_at ?? row.created_at, amount: null, status: row.status, priority: row.priority, href: `/inventory/stock-requests/history?id=${row.id}` })),
     ...(expenses ?? []).map((row) => ({ id: row.id, type: "expense" as const, document: `EXP-${String(row.expense_number).padStart(6, "0")}`, title: row.category, requester: profileById.get(row.recorded_by)?.full_name ?? "Unknown user", branch: locationById.get(row.location_id ?? "") ?? "—", date: row.expense_date ?? row.created_at, amount: row.amount, status: row.status, priority: row.amount >= 10000 ? "high" : "normal", href: `/expenses/${row.id}` })),
     ...(returns ?? []).map((row) => ({ id: row.id, type: "purchase_return" as const, document: `RET-${String(row.return_number).padStart(6, "0")}`, title: "Purchase Return", requester: profileById.get(row.created_by)?.full_name ?? "Unknown user", branch: locationById.get(row.location_id) ?? "—", date: row.return_date ?? row.created_at, amount: row.total_return_value, status: row.status, priority: row.total_return_value >= 10000 ? "high" : "normal", href: "/purchases/returns/new" })),
   ];
