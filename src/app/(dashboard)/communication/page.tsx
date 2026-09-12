@@ -38,9 +38,12 @@ type Announcement = { id: string; title: string; body: string; announcement_type
 type Template = { id: string; name: string; category: string; template_code: string; subject: string | null; content: string; channel: string; branch_scope: string; status: string; version: number; created_at: string; };
 type Automation = { id: string; event: string; template_id: string | null; channel: string; enabled: boolean; send_mode: string; };
 type MessageHistory = { id: string; event: string | null; channel: string; recipient: string | null; status: string; rendered_content: string; created_at: string; };
+type CallHistory = { id: string; callType: "voice" | "video"; status: "Answered" | "Declined" | "Unanswered"; timestamp: string; caller: string; channel: string; channelType: string; branch: string };
 type CallMetadata = {
   status?: string;
   accepted_by?: string;
+  completed_at?: string;
+  cancelled_at?: string;
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;
   callerCandidates?: RTCIceCandidateInit[];
@@ -76,7 +79,7 @@ export default function CommunicationPage() {
   const recordingChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousMessageIds = useRef<Set<string>>(new Set());
-  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "dashboard" | "announcements" | "templates" | "automations" | "history" | "approvals" | "template-analytics">("chat");
+  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "dashboard" | "announcements" | "templates" | "automations" | "history" | "calls" | "approvals" | "template-analytics">("chat");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [call, setCall] = useState<{ id?: string; type: "voice" | "video"; startedAt: number; stream?: MediaStream } | null>(null);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -92,6 +95,7 @@ export default function CommunicationPage() {
   const screenVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const videoSenderRef = useRef<RTCRtpSender | null>(null);
   const callIdRef = useRef<string | null>(null);
@@ -100,6 +104,7 @@ export default function CommunicationPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [messageHistory, setMessageHistory] = useState<MessageHistory[]>([]);
+  const [callHistory, setCallHistory] = useState<CallHistory[]>([]);
   const [showTeamComposer, setShowTeamComposer] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
@@ -219,6 +224,27 @@ export default function CommunicationPage() {
       };
     });
     setMembers(memberList);
+    const channelById = new Map((channelRows ?? []).map((channel) => [channel.id, channel]));
+    const branchById = new Map((locationRows ?? []).map((location) => [location.id, location.name]));
+    const { data: callRows } = await (supabase as any).from("communication_calls")
+      .select("id, channel_id, started_by, call_type, started_at, ended_at, metadata")
+      .eq("org_id", membership.org_id).order("started_at", { ascending: false }).limit(100);
+    const callProfileIds = Array.from(new Set((callRows ?? []).map((row: any) => row.started_by)));
+    const { data: callProfiles } = callProfileIds.length ? await supabase.from("profiles").select("id, full_name").in("id", callProfileIds as string[]) : { data: [] };
+    const callNames = new Map((callProfiles ?? []).map((profile) => [profile.id, profile.full_name]));
+    setCallHistory((callRows ?? []).map((row: any) => {
+      const status = row.metadata?.status;
+      return {
+        id: row.id,
+        callType: row.call_type,
+        status: status === "accepted" || status === "completed" ? "Answered" : status === "declined" || status === "cancelled" ? "Declined" : "Unanswered",
+        timestamp: row.started_at,
+        caller: callNames.get(row.started_by) || (row.started_by === auth.user.id ? displayName : "A team member"),
+        channel: channelById.get(row.channel_id)?.name || "Conversation",
+        channelType: channelById.get(row.channel_id)?.channel_type || "Channel",
+        branch: branchById.get(channelById.get(row.channel_id)?.location_id ?? "") || "All branches"
+      } as CallHistory;
+    }));
 
     const { data: directMemberships } = await supabase
       .from("communication_channel_members")
@@ -318,7 +344,11 @@ export default function CommunicationPage() {
 
   useEffect(() => {
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      void remoteAudioRef.current.play().catch(() => undefined);
+    }
+    if (remoteVideoRef.current) void remoteVideoRef.current.play().catch(() => undefined);
   }, [remoteStream]);
 
   useEffect(() => {
@@ -567,6 +597,7 @@ export default function CommunicationPage() {
     screenStreamStateRef.current?.getTracks().forEach((track) => track.stop());
     peerConnectionRef.current?.close();
     peerConnectionRef.current = null;
+    remoteStreamRef.current = null;
     videoSenderRef.current = null;
     callIdRef.current = null;
     callRoleRef.current = null;
@@ -617,10 +648,16 @@ export default function CommunicationPage() {
     setCallMuted(false);
     setCameraEnabled(type === "video");
     const pc = new RTCPeerConnection();
+    remoteStreamRef.current = null;
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     if (type === "voice") videoSenderRef.current = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
     else videoSenderRef.current = pc.getSenders().find((sender) => sender.track?.kind === "video") ?? null;
-    pc.ontrack = (event) => setRemoteStream(event.streams[0] ?? new MediaStream([event.track]));
+    pc.ontrack = (event) => {
+      const stream = remoteStreamRef.current ?? new MediaStream();
+      if (!stream.getTracks().some((track) => track.id === event.track.id)) stream.addTrack(event.track);
+      remoteStreamRef.current = stream;
+      setRemoteStream(stream);
+    };
     pc.onicecandidate = (event) => {
       if (event.candidate) void updateCallMetadata(data.id, { callerCandidates: [{ candidate: event.candidate.candidate, sdpMid: event.candidate.sdpMid, sdpMLineIndex: event.candidate.sdpMLineIndex }] });
     };
@@ -636,7 +673,13 @@ export default function CommunicationPage() {
 
   const endCall = async () => {
     if (!call) return;
-    if (call.id) await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString() }).eq("id", call.id);
+    if (call.id) {
+      const { data: row } = await (supabase as any).from("communication_calls").select("metadata").eq("id", call.id).maybeSingle();
+      await updateCallMetadata(call.id, row?.metadata?.status === "accepted"
+        ? { status: "completed", completed_at: new Date().toISOString() }
+        : { status: "cancelled", cancelled_at: new Date().toISOString() });
+      await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString() }).eq("id", call.id);
+    }
     closeCallLocally();
   };
 
@@ -763,6 +806,7 @@ export default function CommunicationPage() {
         <button onClick={() => setWorkspaceTab("templates")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "templates" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Message Templates</button>
         <button onClick={() => setWorkspaceTab("automations")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "automations" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Automated Messages</button>
         <button onClick={() => setWorkspaceTab("history")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "history" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Message History</button>
+        <button onClick={() => setWorkspaceTab("calls")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "calls" ? "bg-blue-600 text-white" : "text-slate-500"}`}><Phone className="h-3 w-3" />Calls History</button>
         <button onClick={() => setWorkspaceTab("approvals")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "approvals" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Template Approvals</button>
         <button onClick={() => setWorkspaceTab("template-analytics")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "template-analytics" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Template Analytics</button>
       </div>
@@ -780,6 +824,7 @@ export default function CommunicationPage() {
       {workspaceTab === "templates" && <TemplateCenter templates={templates} onCreate={createTemplate} onStatus={updateTemplateStatus} />}
       {workspaceTab === "automations" && <AutomationCenter automations={automations} templates={templates} onCreate={saveAutomation} onToggle={toggleAutomation} />}
       {workspaceTab === "history" && <MessageHistoryCenter history={messageHistory} />}
+      {workspaceTab === "calls" && <CallHistoryCenter history={callHistory} />}
       {workspaceTab === "approvals" && <TemplateApprovalCenter templates={templates} onStatus={updateTemplateStatus} />}
       {workspaceTab === "template-analytics" && <TemplateAnalytics templates={templates} history={messageHistory} />}
       {workspaceTab !== "chat" ? null : <>
@@ -860,6 +905,9 @@ function AutomationCenter({ automations, templates, onCreate, onToggle }: { auto
 }
 function MessageHistoryCenter({ history }: { history: MessageHistory[] }) {
   return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><h1 className="text-xl font-bold text-slate-900">Message History</h1><p className="mt-1 text-xs text-slate-500">Track outgoing automated and manual customer messages.</p><div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="w-full text-left text-xs"><thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400"><tr>{["Date", "Recipient", "Event", "Channel", "Status", "Message"].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody>{history.map((item) => <tr key={item.id} className="border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{new Date(item.created_at).toLocaleString()}</td><td className="px-4 py-3 text-slate-700">{item.recipient ?? "—"}</td><td className="px-4 py-3 text-slate-500">{item.event ?? "Manual"}</td><td className="px-4 py-3 text-slate-500">{item.channel}</td><td className="px-4 py-3 font-semibold text-emerald-600">{item.status}</td><td className="max-w-xs truncate px-4 py-3 text-slate-500">{item.rendered_content}</td></tr>)}</tbody></table>{!history.length && <EmptyState label="No outgoing messages recorded." />}</div></section>;
+}
+function CallHistoryCenter({ history }: { history: CallHistory[] }) {
+  return <section className="flex flex-1 flex-col overflow-y-auto bg-slate-50 p-8 pt-20"><h1 className="text-xl font-bold text-slate-900">Calls History</h1><p className="mt-1 text-xs text-slate-500">Answered, declined, and unanswered voice and video calls.</p><div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="w-full text-left text-xs"><thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400"><tr>{["Timestamp", "Caller", "Type", "Status", "Branch", "Team / channel"].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody>{history.map((item) => <tr key={item.id} className="border-b border-slate-50"><td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(item.timestamp).toLocaleString()}</td><td className="px-4 py-3 font-semibold text-slate-700">{item.caller}</td><td className="px-4 py-3 capitalize text-slate-500">{item.callType}</td><td className={`px-4 py-3 font-semibold ${item.status === "Answered" ? "text-emerald-600" : item.status === "Unanswered" ? "text-amber-600" : "text-red-600"}`}>{item.status}</td><td className="px-4 py-3 text-slate-500">{item.branch}</td><td className="px-4 py-3 text-slate-500">{item.channelType} · {item.channel}</td></tr>)}</tbody></table>{!history.length && <EmptyState label="No calls recorded yet." />}</div></section>;
 }
 function TemplateApprovalCenter({ templates, onStatus }: { templates: Template[]; onStatus: (template: Template, status: string) => void }) {
   const pending = templates.filter((template) => template.status === "Pending Approval");
