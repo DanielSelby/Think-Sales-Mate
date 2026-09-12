@@ -79,12 +79,13 @@ export default function CommunicationPage() {
   const [workspaceTab, setWorkspaceTab] = useState<"chat" | "dashboard" | "announcements" | "templates" | "automations" | "history" | "approvals" | "template-analytics">("chat");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [call, setCall] = useState<{ id?: string; type: "voice" | "video"; startedAt: number; stream?: MediaStream } | null>(null);
-  const [incomingCall, setIncomingCall] = useState<{ id: string; type: "voice" | "video"; channelId: string; callerName: string } | null>(null);
   const [screenSharing, setScreenSharing] = useState(false);
   const [callSeconds, setCallSeconds] = useState(0);
   const [callMuted, setCallMuted] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const callStateRef = useRef<typeof call>(null);
+  const screenStreamStateRef = useRef<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const callVideoRef = useRef<HTMLVideoElement>(null);
@@ -104,6 +105,8 @@ export default function CommunicationPage() {
   const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
   const [managingMembers, setManagingMembers] = useState(false);
   const [managedMemberIds, setManagedMemberIds] = useState<string[]>([]);
+  callStateRef.current = call;
+  screenStreamStateRef.current = screenStream;
 
   const loadWorkspace = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -296,67 +299,6 @@ export default function CommunicationPage() {
       .subscribe();
     return () => { void supabase.removeChannel(realtime); };
   }, [activeId, members, orgId, supabase, userId]);
-
-  useEffect(() => {
-    if (!orgId || !channels.length || !userId) return;
-    let disposed = false;
-    const findIncomingCall = async () => {
-      const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-      const { data, error } = await (supabase as any)
-        .from("communication_calls")
-        .select("id, channel_id, started_by, call_type, ended_at, started_at, metadata")
-        .eq("org_id", orgId)
-        .neq("started_by", userId)
-        .is("ended_at", null)
-        .gte("started_at", cutoff)
-        .order("started_at", { ascending: false })
-        .limit(10);
-      if (error || disposed) return;
-      const ringing = (data ?? []).find((candidate: {
-        id: string;
-        channel_id: string | null;
-        started_by: string;
-        call_type: "voice" | "video";
-        ended_at: string | null;
-        metadata?: { status?: string } | null;
-      }) => candidate.channel_id
-        && candidate.metadata?.status === "ringing"
-        && channels.some((channel) => channel.id === candidate.channel_id));
-      if (!ringing) return;
-      const callerName = members.find((member) => member.id === ringing.started_by)?.name ?? "A team member";
-      let isNew = false;
-      setIncomingCall((current) => {
-        if (current?.id === ringing.id) return current;
-        isNew = true;
-        return { id: ringing.id, type: ringing.call_type, channelId: ringing.channel_id as string, callerName };
-      });
-      if (isNew) playBeep();
-    };
-    void findIncomingCall();
-    const pollTimer = window.setInterval(() => void findIncomingCall(), 2000);
-    const realtime = supabase
-      .channel(`communication-calls:${orgId}:${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "communication_calls", filter: `org_id=eq.${orgId}` }, (payload) => {
-        const incoming = payload.new as { id: string; channel_id: string | null; started_by: string; call_type: "voice" | "video"; ended_at: string | null; metadata?: { status?: string } | null };
-        if (!incoming.id || incoming.started_by === userId || incoming.ended_at || incoming.metadata?.status !== "ringing" || !incoming.channel_id) return;
-        const channel = channels.find((item) => item.id === incoming.channel_id);
-        if (!channel) return;
-        const callerName = members.find((member) => member.id === incoming.started_by)?.name ?? "A team member";
-        let isNew = false;
-        setIncomingCall((current) => {
-          if (current?.id === incoming.id) return current;
-          isNew = true;
-          return { id: incoming.id, type: incoming.call_type, channelId: incoming.channel_id as string, callerName };
-        });
-        if (isNew) playBeep();
-      })
-      .subscribe();
-    return () => {
-      disposed = true;
-      window.clearInterval(pollTimer);
-      void supabase.removeChannel(realtime);
-    };
-  }, [channels, members, orgId, supabase, userId]);
 
   useEffect(() => {
     if (!call) return;
@@ -620,6 +562,20 @@ export default function CommunicationPage() {
     else processed.callerCandidates = candidates.length;
   };
 
+  const closeCallLocally = () => {
+    callStateRef.current?.stream?.getTracks().forEach((track) => track.stop());
+    screenStreamStateRef.current?.getTracks().forEach((track) => track.stop());
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+    videoSenderRef.current = null;
+    callIdRef.current = null;
+    callRoleRef.current = null;
+    setRemoteStream(null);
+    setCall(null);
+    setScreenStream(null);
+    setScreenSharing(false);
+  };
+
   useEffect(() => {
     if (!call?.id || !callRoleRef.current || !peerConnectionRef.current) return;
     const callId = call.id;
@@ -628,7 +584,12 @@ export default function CommunicationPage() {
     const realtime = supabase
       .channel(`communication-call-signal:${callId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "communication_calls", filter: `id=eq.${callId}` }, (payload) => {
-        void handleCallSignal((payload.new as { metadata?: CallMetadata }).metadata ?? {}, role, pc);
+        const row = payload.new as { ended_at?: string | null; metadata?: CallMetadata };
+        if (row.ended_at || row.metadata?.status === "declined") {
+          closeCallLocally();
+          return;
+        }
+        void handleCallSignal(row.metadata ?? {}, role, pc);
       })
       .subscribe();
     void (async () => {
@@ -673,57 +634,17 @@ export default function CommunicationPage() {
     setCall({ id: data.id, type, startedAt: Date.now(), stream });
   };
 
-  const answerCall = async () => {
-    if (!incomingCall) return;
-    if (!navigator.mediaDevices?.getUserMedia) { setNotice("Calling is not supported in this browser."); return; }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.type === "video" });
-      const pc = new RTCPeerConnection();
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      pc.ontrack = (event) => setRemoteStream(event.streams[0] ?? new MediaStream([event.track]));
-      pc.onicecandidate = (event) => {
-        if (event.candidate) void updateCallMetadata(incomingCall.id, { calleeCandidates: [{ candidate: event.candidate.candidate, sdpMid: event.candidate.sdpMid, sdpMLineIndex: event.candidate.sdpMLineIndex }] });
-      };
-      peerConnectionRef.current = pc;
-      callIdRef.current = incomingCall.id;
-      callRoleRef.current = "callee";
-      processedSignalRef.current = { offer: false, answer: false, callerCandidates: 0, calleeCandidates: 0 };
-      const { data: callRow } = await (supabase as any).from("communication_calls").select("metadata").eq("id", incomingCall.id).single();
-      await updateCallMetadata(incomingCall.id, { status: "accepted", accepted_by: userId });
-      await handleCallSignal((callRow?.metadata ?? {}) as CallMetadata, "callee", pc);
-      videoSenderRef.current = pc.getTransceivers().find((transceiver) => transceiver.receiver.track?.kind === "video" || transceiver.sender.track?.kind === "video")?.sender ?? null;
-      setActiveId(incomingCall.channelId);
-      setCall({ id: incomingCall.id, type: incomingCall.type, startedAt: Date.now(), stream });
-      setCallSeconds(0);
-      setCallMuted(false);
-      setCameraEnabled(incomingCall.type === "video");
-      setIncomingCall(null);
-    } catch {
-      setNotice("Could not access your microphone or camera.");
-    }
-  };
-
-  const declineCall = async () => {
-    if (!incomingCall) return;
-    await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString(), metadata: { status: "declined", declined_by: userId } }).eq("id", incomingCall.id);
-    setIncomingCall(null);
-  };
-
   const endCall = async () => {
     if (!call) return;
-    call.stream?.getTracks().forEach((track) => track.stop());
-    screenStream?.getTracks().forEach((track) => track.stop());
     if (call.id) await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString() }).eq("id", call.id);
-    peerConnectionRef.current?.close();
-    peerConnectionRef.current = null;
-    videoSenderRef.current = null;
-    callIdRef.current = null;
-    callRoleRef.current = null;
-    setRemoteStream(null);
-    setCall(null);
-    setScreenStream(null);
-    setScreenSharing(false);
+    closeCallLocally();
   };
+
+  useEffect(() => () => {
+    callStateRef.current?.stream?.getTracks().forEach((track) => track.stop());
+    screenStreamStateRef.current?.getTracks().forEach((track) => track.stop());
+    peerConnectionRef.current?.close();
+  }, []);
 
   const toggleScreenShare = async () => {
     if (screenSharing) {
@@ -907,21 +828,6 @@ export default function CommunicationPage() {
             <button onClick={() => void toggleScreenShare()} className={`rounded-full p-3 text-white ${screenSharing ? "bg-blue-600" : "bg-white/10 hover:bg-white/20"}`} title={screenSharing ? "Stop sharing" : "Share screen"}><MonitorUp className="h-5 w-5" /></button>
             <button onClick={() => void endCall()} className="rounded-full bg-red-600 p-3 text-white hover:bg-red-500" title="End call"><Phone className="h-5 w-5 rotate-[135deg]" /></button>
           </footer>
-        </div>
-      </div>}
-      {incomingCall && !call && <div className="fixed right-5 top-5 z-50 w-full max-w-sm rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
-            {incomingCall.type === "video" ? <Video className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-slate-900">{incomingCall.type === "video" ? "Incoming video call" : "Incoming voice call"}</p>
-            <p className="mt-1 truncate text-xs text-slate-500">{incomingCall.callerName} is calling in {channels.find((channel) => channel.id === incomingCall.channelId)?.name ?? "a conversation"}.</p>
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={() => void declineCall()} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Decline</button>
-          <button type="button" onClick={() => void answerCall()} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">{incomingCall.type === "video" ? "Join video" : "Answer"}</button>
         </div>
       </div>}
       </>}

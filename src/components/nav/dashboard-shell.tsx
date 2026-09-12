@@ -8,6 +8,7 @@ import { TopNav } from "./top-nav";
 import { SessionTimeout } from "./session-timeout";
 import { NavigationLoading } from "./navigation-loading";
 import type { ThemeKey } from "@/store/useAppStore";
+import { GlobalCallNotifications } from "@/components/communication/global-call-notifications";
 
 interface Props {
   children: React.ReactNode;
@@ -33,6 +34,7 @@ export function DashboardShell({ children, orgName, logoUrl, roleTheme, userName
   return (
     <SessionTimeout>
       <NavigationLoading />
+      <GlobalCallNotifications />
       <div className="flex h-screen overflow-hidden" style={{ background: theme.colors.background }}>
         <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
