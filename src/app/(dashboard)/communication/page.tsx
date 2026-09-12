@@ -10,10 +10,14 @@ type Channel = {
   name: string;
   channel_type: "Branch" | "Group" | "Direct" | "Announcement";
   location_id: string | null;
+  created_by: string | null;
   archived: boolean;
   memberCount: number;
   latest?: Message;
 };
+
+type Branch = { id: string; name: string };
+type Member = { id: string; name: string; locationId: string | null; branchScope: "all" | "assigned" | "single"; secondaryLocationIds: string[] };
 
 type Message = {
   id: string;
@@ -43,8 +47,12 @@ export default function CommunicationPage() {
   const [userId, setUserId] = useState("");
   const [orgId, setOrgId] = useState("");
   const [userName, setUserName] = useState("You");
+  const [canManageChannels, setCanManageChannels] = useState(false);
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [members, setMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("all");
+  const [channelMemberIds, setChannelMemberIds] = useState<Record<string, string[]>>({});
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeId, setActiveId] = useState("");
   const [filter, setFilter] = useState("All");
@@ -68,11 +76,17 @@ export default function CommunicationPage() {
   const [callMuted, setCallMuted] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const callVideoRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [messageHistory, setMessageHistory] = useState<MessageHistory[]>([]);
+  const [showTeamComposer, setShowTeamComposer] = useState(false);
+  const [teamName, setTeamName] = useState("");
+  const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
+  const [managingMembers, setManagingMembers] = useState(false);
+  const [managedMemberIds, setManagedMemberIds] = useState<string[]>([]);
 
   const loadWorkspace = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -87,7 +101,7 @@ export default function CommunicationPage() {
 
     const { data: membership } = await supabase
       .from("organization_members")
-      .select("org_id")
+      .select("org_id, role")
       .eq("user_id", auth.user.id)
       .eq("status", "active")
       .limit(1)
@@ -97,6 +111,15 @@ export default function CommunicationPage() {
       return;
     }
     setOrgId(membership.org_id);
+    setCanManageChannels(membership.role === "owner" || membership.role === "admin");
+    const { data: locationRows } = await supabase
+      .from("business_locations")
+      .select("id, name")
+      .eq("org_id", membership.org_id)
+      .eq("is_active", true)
+      .order("name");
+    setBranches((locationRows ?? []) as Branch[]);
+    setSelectedBranchId((current) => current === "all" || (locationRows ?? []).some((row) => row.id === current) ? current : "all");
     const [{ data: templateRows }, { data: automationRows }, { data: historyRows }] = await Promise.all([
       (supabase as any).from("communication_templates").select("id, name, category, template_code, subject, content, channel, branch_scope, status, version, created_at").eq("org_id", membership.org_id).order("created_at", { ascending: false }),
       (supabase as any).from("communication_automations").select("id, event, template_id, channel, enabled, send_mode").eq("org_id", membership.org_id).order("event"),
@@ -115,7 +138,7 @@ export default function CommunicationPage() {
 
     let { data: channelRows } = await supabase
       .from("communication_channels")
-      .select("id, name, channel_type, location_id, archived")
+      .select("id, name, channel_type, location_id, created_by, archived")
       .eq("org_id", membership.org_id)
       .order("created_at", { ascending: true });
 
@@ -149,6 +172,7 @@ export default function CommunicationPage() {
             name: row.name,
             channel_type: row.channel_type,
             location_id: row.location_id,
+            created_by: row.created_by,
             archived: row.archived,
           });
         }
@@ -158,7 +182,7 @@ export default function CommunicationPage() {
 
     const { data: memberRows } = await supabase
       .from("organization_members")
-      .select("user_id, invited_email, username")
+      .select("user_id, invited_email, username, location_id, branch_scope, secondary_location_ids")
       .eq("org_id", membership.org_id)
       .eq("status", "active");
     const memberIds = (memberRows ?? []).map((row) => row.user_id).filter((id): id is string => Boolean(id));
@@ -166,7 +190,13 @@ export default function CommunicationPage() {
     const profileNames = new Map((profileRows ?? []).map((profile) => [profile.id, profile.full_name]));
     const memberList = memberIds.map((id) => {
       const row = (memberRows ?? []).find((member) => member.user_id === id);
-      return { id, name: id === auth.user.id ? displayName : profileNames.get(id) || row?.username || row?.invited_email?.split("@")[0] || `User ${id.slice(0, 6)}` };
+      return {
+        id,
+        name: id === auth.user.id ? displayName : profileNames.get(id) || row?.username || row?.invited_email?.split("@")[0] || `User ${id.slice(0, 6)}`,
+        locationId: row?.location_id ?? null,
+        branchScope: (row?.branch_scope ?? "assigned") as Member["branchScope"],
+        secondaryLocationIds: row?.secondary_location_ids ?? []
+      };
     });
     setMembers(memberList);
 
@@ -177,6 +207,14 @@ export default function CommunicationPage() {
     const directIds = new Set((directMemberships ?? []).map((row) => row.channel_id));
     channelRows = (channelRows ?? []).filter((row) => row.channel_type !== "Direct" || directIds.has(row.id));
     const channelIds = channelRows.map((row) => row.id);
+    const { data: channelMemberRows } = channelIds.length
+      ? await supabase.from("communication_channel_members").select("channel_id, user_id").in("channel_id", channelIds)
+      : { data: [] };
+    const memberMap = (channelMemberRows ?? []).reduce<Record<string, string[]>>((result, row) => {
+      (result[row.channel_id] ??= []).push(row.user_id);
+      return result;
+    }, {});
+    setChannelMemberIds(memberMap);
     const { data: messageRows } = channelIds.length
       ? await supabase.from("communication_messages").select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").in("channel_id", channelIds).order("created_at", { ascending: true })
       : { data: [] };
@@ -204,7 +242,7 @@ export default function CommunicationPage() {
     setMessages(loadedMessages);
     setChannels(channelRows.map((row) => ({
       ...row,
-      memberCount: memberList.length,
+      memberCount: memberMap[row.id]?.length || (row.channel_type === "Direct" ? 0 : memberList.length),
       latest: loadedMessages.filter((item) => item.channel_id === row.id).at(-1),
     })));
     setActiveId((current) => current || channelRows?.[0]?.id || "");
@@ -218,6 +256,29 @@ export default function CommunicationPage() {
     }, 5000);
     return () => window.clearInterval(refreshTimer);
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    if (!orgId || !activeId) return;
+    const realtime = supabase
+      .channel(`communication-messages:${orgId}:${activeId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "communication_messages", filter: `channel_id=eq.${activeId}` }, (payload) => {
+        const incoming = payload.new as Message;
+        if (!incoming.id) return;
+        const author = members.find((member) => member.id === incoming.user_id)?.name || `User ${incoming.user_id.slice(0, 6)}`;
+        let added = false;
+        setMessages((current) => {
+          if (current.some((item) => item.id === incoming.id)) return current;
+          added = true;
+          return [...current, { ...incoming, author }];
+        });
+        if (added) {
+          setChannels((current) => current.map((channel) => channel.id === activeId ? { ...channel, latest: { ...incoming, author } } : channel));
+          if (incoming.user_id !== userId) playBeep();
+        }
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(realtime); };
+  }, [activeId, members, orgId, supabase, userId]);
 
   useEffect(() => {
     if (!call) return;
@@ -235,13 +296,46 @@ export default function CommunicationPage() {
     if (screenVideoRef.current) screenVideoRef.current.srcObject = screenStream;
   }, [screenStream]);
 
+  useEffect(() => {
+    const paths = messages.map((item) => item.attachment_path).filter((path): path is string => Boolean(path && !attachmentUrls[path]));
+    if (!paths.length) return;
+    let cancelled = false;
+    void Promise.all(paths.map(async (path) => {
+      const { data } = await supabase.storage.from("communication-files").createSignedUrl(path, 60 * 60);
+      return [path, data?.signedUrl] as const;
+    })).then((urls) => {
+      if (cancelled) return;
+      setAttachmentUrls((current) => Object.fromEntries([
+        ...Object.entries(current),
+        ...urls.filter((entry): entry is [string, string] => Boolean(entry[1]))
+      ]));
+    });
+    return () => { cancelled = true; };
+  }, [attachmentUrls, messages, supabase]);
+
   const active = channels.find((item) => item.id === activeId) ?? channels[0];
   const activeMessages = messages.filter((item) => item.channel_id === active?.id);
+  const memberInBranchScope = (member: Member) => {
+    if (member.id === userId) return false;
+    if (member.branchScope === "all") return true;
+    if (selectedBranchId === "all") {
+      return branches.some((branch) => member.locationId === branch.id || member.secondaryLocationIds.includes(branch.id));
+    }
+    return member.locationId === selectedBranchId || member.secondaryLocationIds.includes(selectedBranchId);
+  };
+  const visibleMembers = members.filter(memberInBranchScope);
   const visibleChannels = channels.filter((item) => {
     const matchesSearch = `${item.name} ${item.latest?.body ?? ""}`.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === "All" || (filter === "Unread" && Boolean(item.latest && item.latest.user_id !== userId && (!readAt[item.id] || item.latest.created_at > readAt[item.id]))) || (filter === "Archived" && item.archived) || (filter === "Direct" && item.channel_type === "Direct") || (filter === "Groups" && item.channel_type === "Group") || (filter === "Branches" && item.channel_type === "Branch") || (filter === "Announcements" && item.channel_type === "Announcement");
-    return matchesSearch && matchesFilter && (filter === "Archived" || !item.archived);
+    const matchesBranch = selectedBranchId === "all" || item.location_id === selectedBranchId;
+    return matchesSearch && matchesFilter && matchesBranch && (filter === "Archived" || !item.archived);
   });
+
+  useEffect(() => {
+    if (visibleChannels.length && !visibleChannels.some((channel) => channel.id === activeId)) {
+      setActiveId(visibleChannels[0].id);
+    }
+  }, [activeId, visibleChannels]);
 
   useEffect(() => {
     if (active?.id) markRead(active.id);
@@ -316,30 +410,72 @@ export default function CommunicationPage() {
     setNotice(`Attached ${file.name}.`);
   };
 
-  const createChannel = async () => {
-    if (!orgId || !userId) return;
-    const name = window.prompt("Channel name");
-    if (!name?.trim()) return;
-    const { data: created, error } = await supabase.rpc("create_communication_channel", { p_org_id: orgId, p_name: name.trim(), p_channel_type: "Group", p_location_id: null });
-    const data = created?.[0];
-    if (error || !data) { setNotice(error?.message ?? "Could not create the channel."); return; }
-    const channel = { ...data, memberCount: members.length };
-    setChannels((current) => [...current, channel]);
-    setActiveId(channel.id);
+  const openTeamComposer = () => {
+    setTeamName("");
+    setTeamMemberIds([userId]);
+    setShowTeamComposer(true);
   };
 
-  const startDirectChat = async (member: { id: string; name: string }) => {
+  const createChannel = async () => {
+    if (!orgId || !userId || !teamName.trim()) return;
+    const { data: created, error } = await supabase.rpc("create_communication_channel", {
+      p_org_id: orgId,
+      p_name: teamName.trim(),
+      p_channel_type: "Group",
+      p_location_id: selectedBranchId === "all" ? null : selectedBranchId
+    });
+    const data = created?.[0];
+    if (error || !data) { setNotice(error?.message ?? "Could not create the channel."); return; }
+    const selectedMembers = Array.from(new Set([userId, ...teamMemberIds]));
+    const { error: memberError } = await supabase.from("communication_channel_members").insert(selectedMembers.map((memberId) => ({ channel_id: data.id, user_id: memberId })));
+    if (memberError) { setNotice(memberError.message); return; }
+    const channel = { ...data, memberCount: selectedMembers.length };
+    setChannelMemberIds((current) => ({ ...current, [channel.id]: selectedMembers }));
+    setChannels((current) => [...current, channel]);
+    setActiveId(channel.id);
+    setShowTeamComposer(false);
+  };
+
+  const startDirectChat = async (member: Member) => {
     if (!orgId || !userId) return;
-    const existing = channels.find((channel) => channel.channel_type === "Direct" && channel.name === member.name);
+    const existing = channels.find((channel) => channel.channel_type === "Direct"
+      && (selectedBranchId === "all" || channel.location_id === selectedBranchId)
+      && ((channelMemberIds[channel.id] ?? []).includes(member.id) || channel.name === member.name));
     if (existing) { setActiveId(existing.id); return; }
-    const { data: created, error } = await supabase.rpc("create_communication_channel", { p_org_id: orgId, p_name: member.name, p_channel_type: "Direct", p_location_id: null });
+    const memberBranchId = member.locationId ?? branches.find((branch) => member.secondaryLocationIds.includes(branch.id))?.id ?? branches[0]?.id ?? null;
+    const { data: created, error } = await supabase.rpc("create_communication_channel", {
+      p_org_id: orgId,
+      p_name: member.name,
+      p_channel_type: "Direct",
+      p_location_id: selectedBranchId === "all" ? memberBranchId : selectedBranchId
+    });
     const data = created?.[0];
     if (error || !data) { setNotice(error?.message ?? "Could not create the direct channel."); return; }
     const { error: memberError } = await supabase.from("communication_channel_members").insert([{ channel_id: data.id, user_id: userId }, { channel_id: data.id, user_id: member.id }]);
     if (memberError) { setNotice(memberError.message); return; }
     const channel = { ...data, memberCount: 2 };
+    setChannelMemberIds((current) => ({ ...current, [channel.id]: [userId, member.id] }));
     setChannels((current) => [...current, channel]);
     setActiveId(channel.id);
+  };
+
+  const saveMembership = async () => {
+    if (!active || !userId || active.channel_type === "Direct") return;
+    const currentIds = channelMemberIds[active.id] ?? [];
+    const nextIds = Array.from(new Set([userId, ...managedMemberIds]));
+    const additions = nextIds.filter((id) => !currentIds.includes(id));
+    const removals = currentIds.filter((id) => id !== userId && !nextIds.includes(id));
+    if (additions.length) {
+      const { error } = await supabase.from("communication_channel_members").insert(additions.map((id) => ({ channel_id: active.id, user_id: id })));
+      if (error) { setNotice(error.message); return; }
+    }
+    for (const id of removals) {
+      const { error } = await supabase.from("communication_channel_members").delete().eq("channel_id", active.id).eq("user_id", id);
+      if (error) { setNotice(error.message); return; }
+    }
+    setChannelMemberIds((current) => ({ ...current, [active.id]: nextIds }));
+    setChannels((current) => current.map((channel) => channel.id === active.id ? { ...channel, memberCount: nextIds.length } : channel));
+    setManagingMembers(false);
   };
 
   const archiveChannel = async () => {
@@ -505,6 +641,15 @@ export default function CommunicationPage() {
         <button onClick={() => setWorkspaceTab("approvals")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "approvals" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Template Approvals</button>
         <button onClick={() => setWorkspaceTab("template-analytics")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "template-analytics" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Template Analytics</button>
       </div>
+      {showTeamComposer && <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/30 p-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+          <div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-slate-900">Create team channel</h2><p className="mt-1 text-[10px] text-slate-500">{selectedBranchId === "all" ? "Organization-wide team" : `Scoped to ${branches.find((branch) => branch.id === selectedBranchId)?.name}`}</p></div><button onClick={() => setShowTeamComposer(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div>
+          <input value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Team name" autoFocus className="mt-4 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-blue-400" />
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Select members</p>
+          <div className="mt-2 max-h-56 space-y-1 overflow-y-auto">{members.filter(memberInBranchScope).map((member) => <label key={member.id} className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs text-slate-700 hover:bg-slate-50"><input type="checkbox" checked={teamMemberIds.includes(member.id)} disabled={member.id === userId} onChange={(event) => setTeamMemberIds((current) => event.target.checked ? Array.from(new Set([...current, member.id])) : current.filter((id) => id !== member.id))} />{member.name}</label>)}</div>
+          <div className="mt-5 flex justify-end gap-2"><button onClick={() => setShowTeamComposer(false)} className="rounded-xl px-3 py-2 text-xs text-slate-500">Cancel</button><button onClick={() => void createChannel()} disabled={!teamName.trim()} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Create team</button></div>
+        </div>
+      </div>}
       {workspaceTab === "dashboard" && <CommunicationDashboard messages={messages} channels={channels} announcements={announcements} />}
       {workspaceTab === "announcements" && <AnnouncementCenter announcements={announcements} onCreate={createAnnouncement} />}
       {workspaceTab === "templates" && <TemplateCenter templates={templates} onCreate={createTemplate} onStatus={updateTemplateStatus} />}
@@ -515,16 +660,17 @@ export default function CommunicationPage() {
       {workspaceTab !== "chat" ? null : <>
       <aside className="flex w-[300px] shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="border-b border-slate-100 p-4">
-          <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Workspace</p><h1 className="mt-1 text-lg font-bold text-slate-900">Communication</h1></div><button onClick={createChannel} className="rounded-xl p-2 text-blue-600 hover:bg-blue-50" title="Create channel"><Plus className="h-4 w-4" /></button></div>
+          <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Workspace</p><h1 className="mt-1 text-lg font-bold text-slate-900">Communication</h1></div><button onClick={openTeamComposer} className="rounded-xl p-2 text-blue-600 hover:bg-blue-50" title="Create team"><Plus className="h-4 w-4" /></button></div>
           <div className="relative mt-4"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search conversations..." className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs outline-none focus:border-blue-400" /></div>
           <div className="mt-3 flex gap-1 overflow-x-auto pb-1">{tabs.map((tab) => <button key={tab} onClick={() => setFilter(tab)} className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${filter === tab ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50"}`}>{tab}{tab === "Unread" && unreadCount > 0 && <span className="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] text-white">{unreadCount}</span>}</button>)}</div>
+          <label className="mt-2 flex items-center gap-2 text-[10px] font-semibold text-slate-500"><span>Branch</span><select value={selectedBranchId} onChange={(event) => setSelectedBranchId(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-700 outline-none"><option value="all">All accessible branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">{filter === "Direct" && <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Start a direct chat</div>}{filter === "Direct" && members.filter((member) => member.id !== userId).map((member) => <button key={member.id} onClick={() => void startDirectChat(member)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-slate-50"><Avatar label={initials(member.name)} color={theme.colors.primary} /><span className="text-xs font-semibold text-slate-800">{member.name}</span></button>)}{visibleChannels.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); markRead(item.id); }} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition ${active?.id === item.id ? "bg-blue-50" : "hover:bg-slate-50"}`}><Avatar label={item.name[0]} color={theme.colors.primary} /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2"><strong className="truncate text-xs text-slate-800">{item.name}</strong><span className="shrink-0 text-[10px] text-slate-400">{item.latest ? formatTime(item.latest.created_at) : ""}</span></span><span className="mt-1 block truncate text-[11px] text-slate-500">{item.latest?.body || (item.latest?.attachment_name ? `📎 ${item.latest.attachment_name}` : "No messages yet")}</span><span className="mt-1 flex items-center gap-1 text-[9px] text-slate-400"><Users className="h-3 w-3" /> {item.memberCount} members</span></span></button>)}</div>
-        <div className="border-t border-slate-100 p-3"><button onClick={createChannel} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 p-3 text-left text-xs font-semibold text-blue-700"><Plus className="h-4 w-4" /> {filter === "Groups" ? "Create group" : "New team channel"}</button></div>
+        <div className="flex-1 overflow-y-auto p-2">{filter === "Direct" && <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Start a direct chat in {selectedBranchId === "all" ? "an accessible branch" : branches.find((branch) => branch.id === selectedBranchId)?.name}</div>}{filter === "Direct" && visibleMembers.map((member) => <button key={member.id} onClick={() => void startDirectChat(member)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-slate-50"><Avatar label={initials(member.name)} color={theme.colors.primary} /><span className="text-xs font-semibold text-slate-800">{member.name}</span></button>)}{visibleChannels.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); markRead(item.id); }} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition ${active?.id === item.id ? "bg-blue-50" : "hover:bg-slate-50"}`}><Avatar label={item.name[0]} color={theme.colors.primary} /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2"><strong className="truncate text-xs text-slate-800">{item.name}</strong><span className="shrink-0 text-[10px] text-slate-400">{item.latest ? formatTime(item.latest.created_at) : ""}</span></span><span className="mt-1 block truncate text-[11px] text-slate-500">{item.latest?.body || (item.latest?.attachment_name ? `📎 ${item.latest.attachment_name}` : "No messages yet")}</span><span className="mt-1 flex items-center gap-1 text-[9px] text-slate-400"><Users className="h-3 w-3" /> {item.memberCount} members</span></span></button>)}</div>
+        <div className="border-t border-slate-100 p-3"><button onClick={openTeamComposer} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 p-3 text-left text-xs font-semibold text-blue-700"><Plus className="h-4 w-4" /> {filter === "Groups" ? "Create group" : "New team channel"}</button></div>
       </aside>
       <section className="flex min-w-0 flex-1 flex-col">
         {active ? <>        <header className="flex items-center justify-between border-b border-slate-200 px-5 py-3"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><h2 className="text-sm font-bold text-slate-900">{active.name}</h2><p className="text-[10px] text-slate-400">{active.channel_type} · {active.memberCount} members</p></div></div><div className="flex items-center gap-1 text-slate-500"><button onClick={() => void startCall("voice")} className="rounded-lg p-2 hover:bg-slate-50" title="Start voice call"><Phone className="h-4 w-4" /></button><button onClick={() => void startCall("video")} className="rounded-lg p-2 hover:bg-slate-50" title="Start video meeting"><Video className="h-4 w-4" /></button><button onClick={() => void toggleScreenShare()} className={`rounded-lg p-2 ${screenSharing ? "bg-blue-50 text-blue-600" : "hover:bg-slate-50"}`} title="Share screen"><MonitorUp className="h-4 w-4" /></button><button onClick={() => setShowDetails((value) => !value)} className="rounded-lg p-2 hover:bg-slate-50" title="Conversation details"><Info className="h-4 w-4" /></button><button onClick={archiveChannel} className="rounded-lg p-2 hover:bg-slate-50" title={active.archived ? "Restore channel" : "Archive channel"}><Archive className="h-4 w-4" /></button><button onClick={() => setNotice("Use the message box to communicate with this channel.")} className="rounded-lg p-2 hover:bg-slate-50" title="More options"><MoreVertical className="h-4 w-4" /></button></div></header>
-          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body && <p>{item.body}</p>}{item.attachment_path && (item.attachment_type?.startsWith("audio/") ? <audio controls src={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} className="mt-1 max-w-full" /> : <a href={supabase.storage.from("communication-files").getPublicUrl(item.attachment_path).data.publicUrl} target="_blank" rel="noreferrer" download={item.attachment_name ?? undefined} className="mt-1 flex items-center gap-2 rounded-lg bg-black/10 px-2 py-1.5 underline"><FileText className="h-4 w-4 shrink-0" />{item.attachment_name}<Download className="ml-auto h-3 w-3" /></a>)}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => void toggleReaction(item)} className="rounded px-1 hover:bg-black/10">👍 {item.reactions?.find((reaction) => reaction.reaction === "👍")?.count ?? 0}</button><button onClick={() => void createTaskFromMessage(item)} title="Create task"><ListTodo className="h-3 w-3" /></button><button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
+          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-5">{activeMessages.length ? activeMessages.map((item) => <div key={item.id} className={`flex gap-2.5 ${item.user_id === userId ? "justify-end" : ""}`}><Avatar label={initials(item.author)} color={item.user_id === userId ? theme.colors.primary : "#64748b"} /><div className={`max-w-[68%] ${item.user_id === userId ? "items-end" : ""}`}><p className={`mb-1 text-[10px] font-semibold ${item.user_id === userId ? "text-right text-blue-700" : "text-slate-600"}`}>{item.author}</p><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${item.user_id === userId ? "rounded-tr-sm bg-blue-600 text-white" : "rounded-tl-sm border border-slate-100 bg-white text-slate-700 shadow-sm"}`}>{item.body && <p>{item.body}</p>}{item.attachment_path && (item.attachment_type?.startsWith("audio/") ? <audio controls src={attachmentUrls[item.attachment_path]} className="mt-1 max-w-full" /> : <a href={attachmentUrls[item.attachment_path]} target="_blank" rel="noreferrer" download={item.attachment_name ?? undefined} className="mt-1 flex items-center gap-2 rounded-lg bg-black/10 px-2 py-1.5 underline"><FileText className="h-4 w-4 shrink-0" />{item.attachment_name}<Download className="ml-auto h-3 w-3" /></a>)}<div className={`mt-1 flex items-center justify-end gap-2 text-[9px] ${item.user_id === userId ? "text-blue-100" : "text-slate-400"}`}>{formatTime(item.created_at)}{item.user_id === userId && <CheckCheck className="h-3 w-3" />}<button onClick={() => void toggleReaction(item)} className="rounded px-1 hover:bg-black/10">👍 {item.reactions?.find((reaction) => reaction.reaction === "👍")?.count ?? 0}</button><button onClick={() => void createTaskFromMessage(item)} title="Create task"><ListTodo className="h-3 w-3" /></button><button onClick={() => togglePin(item)} title={item.pinned ? "Unpin message" : "Pin message"} className="opacity-70 hover:opacity-100"><Pin className={`h-3 w-3 ${item.pinned ? "fill-current" : ""}`} /></button></div></div></div></div>) : <div className="flex h-full items-center justify-center text-sm text-slate-400">Start the conversation in this channel.</div>}</div>
           <div className="border-t border-slate-200 bg-white p-3">
             <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => { addFileReference(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5">
@@ -537,8 +683,7 @@ export default function CommunicationPage() {
           </div>
         </> : <div className="flex flex-1 items-center justify-center text-sm text-slate-400">Create a channel to start communicating.</div>}
       </section>
-      {showDetails && active && <aside className="hidden w-[255px] shrink-0 border-l border-slate-200 bg-white xl:block"><div className="flex items-center justify-between border-b border-slate-100 p-4"><h3 className="text-xs font-bold text-slate-900">Conversation details</h3><button onClick={() => setShowDetails(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-4"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><p className="text-xs font-bold text-slate-800">{active.name}</p><p className="text-[10px] text-slate-400">{active.channel_type} channel</p></div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Members ({members.length})</p><div className="space-y-2">{members.slice(0, 8).map((member) => <div key={member.id} className="flex items-center gap-2"><Avatar label={initials(member.name)} color="#64748b" /><span className="truncate text-xs text-slate-600">{member.name}</span></div>)}</div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pinned messages</p>{activeMessages.filter((item) => item.pinned).map((item) => <div key={item.id} className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] text-slate-600"><Pin className="mr-1 inline h-3 w-3 text-amber-600" />{item.body}</div>)}{!activeMessages.some((item) => item.pinned) && <p className="text-xs text-slate-400">No pinned messages.</p>}</div></div></aside>}
-      {showDetails && active && <aside className="hidden w-[255px] shrink-0 border-l border-slate-200 bg-white xl:block"><div className="flex items-center justify-between border-b border-slate-100 p-4"><h3 className="text-xs font-bold text-slate-900">Conversation details</h3><button onClick={() => setShowDetails(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-4"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><p className="text-xs font-bold text-slate-800">{active.name}</p><p className="text-[10px] text-slate-400">{active.channel_type} channel</p></div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Members ({members.length})</p><div className="space-y-2">{members.slice(0, 8).map((member) => <div key={member.id} className="flex items-center gap-2"><Avatar label={initials(member.name)} color="#64748b" /><span className="truncate text-xs text-slate-600">{member.name}</span></div>)}</div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pinned messages</p>{activeMessages.filter((item) => item.pinned).map((item) => <div key={item.id} className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] text-slate-600"><Pin className="mr-1 inline h-3 w-3 text-amber-600" />{item.body}</div>)}{!activeMessages.some((item) => item.pinned) && <p className="text-xs text-slate-400">No pinned messages.</p>}</div></div></aside>}
+      {showDetails && active && <aside className="hidden w-[255px] shrink-0 border-l border-slate-200 bg-white xl:block"><div className="flex items-center justify-between border-b border-slate-100 p-4"><h3 className="text-xs font-bold text-slate-900">Conversation details</h3><button onClick={() => setShowDetails(false)} className="text-slate-400"><X className="h-4 w-4" /></button></div><div className="space-y-6 p-4"><div className="flex items-center gap-3"><Avatar label={active.name[0]} color={theme.colors.primary} /><div><p className="text-xs font-bold text-slate-800">{active.name}</p><p className="text-[10px] text-slate-400">{active.channel_type} channel</p></div></div><div><div className="mb-3 flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Members ({(channelMemberIds[active.id] ?? members.map((member) => member.id)).length})</p>{active.channel_type !== "Direct" && (active.created_by === userId || canManageChannels) && <button onClick={() => { setManagedMemberIds((channelMemberIds[active.id] ?? []).filter((id) => id !== userId)); setManagingMembers((current) => !current); }} className="text-[10px] font-semibold text-blue-600">{managingMembers ? "Close" : "Manage"}</button>}</div>{managingMembers && <div className="mb-3 max-h-40 space-y-1 overflow-y-auto rounded-lg bg-slate-50 p-2">{members.filter(memberInBranchScope).map((member) => <label key={member.id} className="flex items-center gap-2 py-1 text-[10px] text-slate-700"><input type="checkbox" checked={member.id === userId || managedMemberIds.includes(member.id)} disabled={member.id === userId} onChange={(event) => setManagedMemberIds((current) => event.target.checked ? [...current, member.id] : current.filter((id) => id !== member.id))} />{member.name}</label>)}<button onClick={() => void saveMembership()} className="mt-2 w-full rounded-lg bg-blue-600 px-2 py-1.5 text-[10px] font-semibold text-white">Save members</button></div>}<div className="space-y-2">{members.filter((member) => (channelMemberIds[active.id] ?? members.map((item) => item.id)).includes(member.id)).slice(0, 8).map((member) => <div key={member.id} className="flex items-center gap-2"><Avatar label={initials(member.name)} color="#64748b" /><span className="truncate text-xs text-slate-600">{member.name}</span></div>)}</div></div><div><p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pinned messages</p>{activeMessages.filter((item) => item.pinned).map((item) => <div key={item.id} className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] text-slate-600"><Pin className="mr-1 inline h-3 w-3 text-amber-600" />{item.body}</div>)}{!activeMessages.some((item) => item.pinned) && <p className="text-xs text-slate-400">No pinned messages.</p>}</div></div></aside>}
       {call && <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 p-4">
         <div className="flex h-full max-h-[760px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-slate-900 shadow-2xl">
           <header className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-white">
