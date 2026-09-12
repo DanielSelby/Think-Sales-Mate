@@ -104,6 +104,9 @@ type Tab =
   | "Activity Logs"
   | "Impersonation"
   | "Billing & Subscriptions"
+  | "Support Center"
+  | "API & Integrations"
+  | "Security Center"
   | "Audit Logs"
   | "System Settings"
   | "Feature Flags";
@@ -118,6 +121,9 @@ const tabs: { label: Tab; icon: string }[] = [
   { label: "Activity Logs", icon: "≡" },
   { label: "Impersonation", icon: "◎" },
   { label: "Billing & Subscriptions", icon: "$" },
+  { label: "Support Center", icon: "?" },
+  { label: "API & Integrations", icon: "↔" },
+  { label: "Security Center", icon: "◉" },
   { label: "System Settings", icon: "⚙" },
   { label: "Feature Flags", icon: "⚑" },
   { label: "Audit Logs", icon: "▤" },
@@ -282,8 +288,25 @@ export default function PlatformAdminConsole({
     expired: organizations.filter((org) => org.status === "expired").length,
     trial: organizations.filter((org) => org.status === "trial").length,
   };
+  const rangeDays = overviewRange === "365" ? 365 : Number(overviewRange);
+  const overviewStart = Date.now() - rangeDays * 24 * 60 * 60 * 1000;
+  const previousStart = overviewStart - rangeDays * 24 * 60 * 60 * 1000;
+  const overviewOrganizations = organizations.filter((org) => new Date(org.created_at).getTime() >= overviewStart);
+  const previousOrganizations = organizations.filter((org) => {
+    const created = new Date(org.created_at).getTime();
+    return created >= previousStart && created < overviewStart;
+  });
+  const overviewBilling = billing.filter((record) => new Date(record.issued_at).getTime() >= overviewStart);
+  const previousBilling = billing.filter((record) => {
+    const issued = new Date(record.issued_at).getTime();
+    return issued >= previousStart && issued < overviewStart;
+  });
+  const trend = (current: number, previous: number) => {
+    if (previous === 0) return current === 0 ? "0% vs previous period" : "New vs previous period";
+    return `${current >= previous ? "+" : ""}${Math.round((current - previous) / previous * 100)}% vs previous period`;
+  };
   const totalUsers = usage.reduce((sum, metric) => sum + Number(metric.active_users || 0), 0);
-  const monthlyRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.monthly_price || 0), 0);
+  const monthlyRevenue = overviewBilling.filter((record) => record.status === "paid").reduce((sum, record) => sum + Number(record.amount || 0), 0);
   const annualRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.annual_price || 0), 0);
   const expiringSubscriptions = organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000).length;
   const usageTotals = {
@@ -298,7 +321,7 @@ export default function PlatformAdminConsole({
   const platformHealth = notifications.some((notice) => /security|failed|critical/i.test(`${notice.severity} ${notice.title}`)) ? "98.4%" : "99.9%";
   const growthSeries = Array.from({ length: 12 }, (_, index) => {
     const date = new Date();
-    date.setMonth(date.getMonth() - (11 - index), 1);
+    date.setTime(Date.now() - (rangeDays * 24 * 60 * 60 * 1000) + (rangeDays * 24 * 60 * 60 * 1000 * index / 11));
     const cutoff = date.getTime();
     return { label: date.toLocaleDateString(undefined, { month: "short" }), organizations: organizations.filter((org) => new Date(org.created_at).getTime() <= cutoff).length };
   });
@@ -307,17 +330,17 @@ export default function PlatformAdminConsole({
     const date = new Date();
     date.setMonth(date.getMonth() - (5 - index), 1);
     const month = date.getMonth();
-    return { label: date.toLocaleDateString(undefined, { month: "short" }), revenue: billing.filter((record) => new Date(record.issued_at).getMonth() === month && record.status === "paid").reduce((sum, record) => sum + Number(record.amount || 0), 0) };
+    return { label: date.toLocaleDateString(undefined, { month: "short" }), revenue: billing.filter((record) => { const issued = new Date(record.issued_at); return issued.getMonth() === month && issued.getFullYear() === date.getFullYear() && record.status === "paid"; }).reduce((sum, record) => sum + Number(record.amount || 0), 0) };
   });
   const topOrganizations = [...usage].sort((a, b) => Number(b.sales_volume || 0) - Number(a.sales_volume || 0)).slice(0, 5).map((metric) => ({ ...metric, name: organizations.find((org) => org.organization_id === metric.organization_id)?.name ?? "Unknown organization" }));
   const recentPlatformActivity = auditLogs.slice(0, 6);
   const overviewKpis: Array<{ label: string; value: string | number; trend: string; Icon: LucideIcon; color: string }> = [
-    { label: "Total Organizations", value: counts.total, trend: "12% vs last month", Icon: Building2, color: "bg-blue-50 text-blue-600" },
-    { label: "Active Organizations", value: counts.active, trend: "14% vs last month", Icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
-    { label: "Trial Organizations", value: counts.trial, trend: "20% vs last month", Icon: CalendarDays, color: "bg-violet-50 text-violet-600" },
+    { label: "Total Organizations", value: counts.total, trend: trend(overviewOrganizations.length, previousOrganizations.length), Icon: Building2, color: "bg-blue-50 text-blue-600" },
+    { label: "Active Organizations", value: counts.active, trend: trend(overviewOrganizations.filter((org) => org.status === "active").length, previousOrganizations.filter((org) => org.status === "active").length), Icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
+    { label: "Trial Organizations", value: counts.trial, trend: trend(overviewOrganizations.filter((org) => org.status === "trial").length, previousOrganizations.filter((org) => org.status === "trial").length), Icon: CalendarDays, color: "bg-violet-50 text-violet-600" },
     { label: "Suspended Organizations", value: counts.suspended, trend: "Review required", Icon: ShieldCheck, color: "bg-rose-50 text-rose-600" },
     { label: "Total Active Users", value: totalUsers.toLocaleString(), trend: "18% vs last month", Icon: Users, color: "bg-cyan-50 text-cyan-600" },
-    { label: "Monthly Revenue", value: monthlyRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" }), trend: "22% vs last month", Icon: CircleDollarSign, color: "bg-indigo-50 text-indigo-600" },
+    { label: "Monthly Revenue", value: monthlyRevenue.toLocaleString(undefined, { style: "currency", currency: "USD" }), trend: trend(overviewBilling.reduce((sum, record) => sum + Number(record.amount || 0), 0), previousBilling.reduce((sum, record) => sum + Number(record.amount || 0), 0)), Icon: CircleDollarSign, color: "bg-indigo-50 text-indigo-600" },
     { label: "Total Branches", value: totalBranches, trend: "11% vs last month", Icon: BarChart3, color: "bg-amber-50 text-amber-600" },
     { label: "Platform Health", value: platformHealth, trend: "Services operational", Icon: Gauge, color: "bg-emerald-50 text-emerald-600" },
   ];
@@ -452,9 +475,10 @@ export default function PlatformAdminConsole({
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
               <Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between py-3 text-left text-xs hover:bg-slate-50"><span><span className="block font-semibold">{org.name}</span><span className="text-slate-400">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-slate-500">{org.status}<br />{new Date(org.created_at).toLocaleDateString()}</span></button>)}</div>{!organizations.length && <p className="py-6 text-center text-xs text-slate-500">No organizations registered.</p>}</Card>
               <Card title="System Alerts"><div className="mt-3 space-y-2">{notifications.slice(0, 6).map((notice) => <div key={notice.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-xs font-semibold">{notice.title}</p><p className="mt-1 text-[11px] text-slate-500">{notice.message}</p></div>)}{!notifications.length && <p className="py-6 text-center text-xs text-slate-500">No unread system alerts.</p>}</div></Card>
-              <div className="space-y-5"><Card title="Quick Actions">{[["Create Organization", () => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }], ["Create Subscription Plan", () => setModal("plan")], ["Feature Access", () => setTab("Feature Access")], ["View Activity Logs", () => setTab("Activity Logs")]].map(([label, action]) => <button type="button" key={String(label)} onClick={action as () => void} className="mt-2 flex w-full items-center justify-between rounded-lg border p-3 text-left text-xs font-semibold hover:bg-slate-50">{String(label)}<ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>)}</Card><Card title="Platform Stats"><div className="space-y-3 text-xs"><p className="flex justify-between"><span className="flex items-center gap-2"><Database className="h-3.5 w-3.5 text-emerald-600" />Database Health</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>API Services</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>Storage Usage</span><strong>{usageTotals.storage.toFixed(1)} GB</strong></p><p className="flex justify-between"><span>Backups</span><strong className="text-emerald-600">Completed</strong></p></div></Card></div>
+              <Card title="Expiring Subscriptions"><div className="mt-3 space-y-2">{organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000).slice(0, 5).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{org.name}</strong><span className="text-slate-500">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-rose-600">{org.expires_at ? new Date(org.expires_at).toLocaleDateString() : "—"}<br /><span className="text-[10px] text-slate-400">Manage</span></span></button>)}{!organizations.some((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000) && <p className="py-6 text-center text-xs text-slate-500">No subscriptions expiring within 30 days.</p>}</div></Card>
+              <div className="space-y-5"><Card title="Quick Actions">{[["Create Organization", () => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }], ["Assign Subscription", () => setTab("Organizations")], ["Enable Features", () => setTab("Feature Access")], ["Suspend Organization", () => { if (selected) void run(() => updatePlatformOrganization(selected.id, { status: "suspended" }), "Organization suspended."); }], ["View Activity Logs", () => setTab("Activity Logs")], ["Support Center", () => setTab("Support Center")]].map(([label, action]) => <button type="button" key={String(label)} onClick={action as () => void} className="mt-2 flex w-full items-center justify-between rounded-lg border p-3 text-left text-xs font-semibold hover:bg-slate-50">{String(label)}<ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>)}</Card><Card title="Platform Stats"><div className="space-y-3 text-xs"><p className="flex justify-between"><span className="flex items-center gap-2"><Database className="h-3.5 w-3.5 text-emerald-600" />Database Health</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>API Services</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>Storage Usage</span><strong>{usageTotals.storage.toFixed(1)} GB</strong></p><p className="flex justify-between"><span>Backups</span><strong className="text-emerald-600">Completed</strong></p><p className="flex justify-between"><span>Queue Health</span><strong className="text-emerald-600">Healthy</strong></p></div></Card></div>
             </div>
-            <div className="mt-5 grid gap-5 xl:grid-cols-2"><Card title="Top Organizations by Revenue"><div className="mt-3 space-y-3">{topOrganizations.map((org, index) => <div key={org.organization_id} className="flex items-center gap-3 text-xs"><span className="w-5 font-bold text-slate-400">#{index + 1}</span><span className="flex-1 font-semibold">{org.name}</span><strong>{Number(org.sales_volume || 0).toLocaleString(undefined, { style: "currency", currency: "USD" })}</strong></div>)}</div></Card><Card title="Recent Platform Activity"><div className="mt-3 space-y-3">{recentPlatformActivity.map((log) => <div key={log.id} className="flex items-center justify-between border-b pb-2 text-xs last:border-0"><span><strong>{log.action}</strong><span className="ml-2 text-slate-500">{log.module}</span></span><span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span></div>)}{!recentPlatformActivity.length && <p className="py-6 text-center text-xs text-slate-500">No platform activity recorded.</p>}</div></Card></div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-3"><Card title="Top Organizations by Revenue"><div className="mt-3 space-y-3">{topOrganizations.map((org, index) => <div key={org.organization_id} className="flex items-center gap-3 text-xs"><span className="w-5 font-bold text-slate-400">#{index + 1}</span><span className="flex-1 font-semibold">{org.name}</span><strong>{Number(org.sales_volume || 0).toLocaleString(undefined, { style: "currency", currency: "USD" })}</strong></div>)}</div></Card><Card title="Recent Platform Activity"><div className="mt-3 space-y-3">{recentPlatformActivity.map((log) => <div key={log.id} className="flex items-center justify-between border-b pb-2 text-xs last:border-0"><span><strong>{log.action}</strong><span className="ml-2 text-slate-500">{log.module}</span></span><span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span></div>)}{!recentPlatformActivity.length && <p className="py-6 text-center text-xs text-slate-500">No platform activity recorded.</p>}</div></Card><Card title="Recent Support Tickets"><div className="mt-3 space-y-2">{approvals.slice(0, 5).map((approval) => <button type="button" key={approval.id} onClick={() => setTab("Support Center")} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{approval.approval_type}</strong><span className="text-slate-500">Platform request</span></span><span className="text-slate-500">{approval.status}</span></button>)}{!approvals.length && <p className="py-6 text-center text-xs text-slate-500">No support requests recorded.</p>}</div></Card></div>
           </>
         ) : tab === "Organizations" ? (
           <>
