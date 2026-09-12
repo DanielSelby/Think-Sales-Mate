@@ -97,6 +97,7 @@ export default async function OrganizationSettingsPage() {
             customerOrders: false
           }) as ApprovalPermission,
       accessPermissions: row.access_permissions ?? {}
+      , priceGroups: isOwner ? ["retail", "wholesale", "vip", "special"] : (Array.isArray(row.access_permissions?.price_groups) ? row.access_permissions.price_groups : ["retail", "wholesale", "vip", "special"])
     });
   }
 

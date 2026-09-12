@@ -485,6 +485,7 @@ export function UserManagement({
         canCheckCrossBranchStock: updates.canCheckCrossBranchStock ?? oldUser?.canCheckCrossBranchStock ?? false,
         role: updates.role ?? oldUser?.role,
         approvalPermissions: updates.approvalPermissions ?? oldUser?.approvalPermissions
+        , priceGroups: updates.priceGroups ?? oldUser?.priceGroups
       });
       if (result?.error) {
         showToast(`Failed to save access changes: ${result.error}`);

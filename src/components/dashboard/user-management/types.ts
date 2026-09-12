@@ -119,6 +119,7 @@ export interface ManagedUser {
   canViewOtherTransactions?: boolean;
   canCheckCrossBranchStock?: boolean;
   accessPermissions?: Record<string, unknown>;
+  priceGroups?: Array<"retail" | "wholesale" | "vip" | "special">;
   performance?: UserPerformanceMetrics;
   attentionReason?: "stale" | "failed_logins" | "locked" | "disabled" | "pending_invitation" | null;
 }

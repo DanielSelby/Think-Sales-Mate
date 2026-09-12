@@ -226,6 +226,7 @@ export interface UpdateMemberAccessScopeInput {
   canCheckCrossBranchStock?: boolean;
   status?: "active" | "inactive" | "suspended";
   approvalPermissions?: any;
+  priceGroups?: string[];
 }
 
 export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInput) {
@@ -272,7 +273,9 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     updatePayload.role = mappedRole;
   }
 
-  if (targetOwner || input.approvalPermissions) {
+  if (targetOwner || input.approvalPermissions || input.priceGroups) {
+    const existing = await admin.from("organization_members").select("access_permissions").eq("id", input.memberId).maybeSingle();
+    const existingPermissions = existing.data?.access_permissions ?? {};
     updatePayload.access_permissions = {
       role_key: targetOwner ? "owner" : input.role || "staff",
       approvals: targetOwner
@@ -286,7 +289,8 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
             maxExpenseAmount: Number.MAX_SAFE_INTEGER,
             maxPurchaseAmount: Number.MAX_SAFE_INTEGER
           }
-        : input.approvalPermissions
+        : input.approvalPermissions ?? existingPermissions.approvals,
+      price_groups: targetOwner ? ["retail", "wholesale", "vip", "special"] : (input.priceGroups ?? existingPermissions.price_groups ?? ["retail"])
     };
   }
 

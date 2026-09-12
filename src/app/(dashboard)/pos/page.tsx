@@ -68,7 +68,8 @@ export default async function PosPage() {
       taxRatePercent={15}
       cashierName={profile?.full_name || context.userEmail}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
-      canChoosePriceTier={can(context.role, "inventory.manage")}
+      canChoosePriceTier={context.priceGroups.length > 1}
+      allowedPriceGroups={context.priceGroups}
     />
   );
 }

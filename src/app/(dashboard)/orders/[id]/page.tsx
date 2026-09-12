@@ -17,7 +17,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       .eq("id", id)
       .eq("org_id", context.orgId)
       .single(),
-    supabase.from("customer_order_items").select("id, product_id, product_name, quantity, unit_price, line_total").eq("order_id", id),
+    supabase.from("customer_order_items").select("id, product_id, product_name, quantity, unit_price, line_total, products(unit_price, wholesale_price, vip_price, special_price)").eq("order_id", id),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     supabase.from("organization_members").select("user_id, profiles(id, full_name)").eq("org_id", context.orgId).eq("status", "active"),
     supabase.from("customer_order_timeline").select("id, title, actor_name, status, notes, created_at").eq("order_id", id).order("created_at", { ascending: true }),
@@ -65,6 +65,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     quantity: Number(i.quantity),
     unitPrice: Number(i.unit_price),
     lineTotal: Number(i.line_total),
+    retailPrice: Array.isArray(i.products) ? Number(i.products[0]?.unit_price ?? NaN) || null : Number((i.products as any)?.unit_price ?? NaN) || null,
+    wholesalePrice: Array.isArray(i.products) ? Number(i.products[0]?.wholesale_price ?? NaN) || null : Number((i.products as any)?.wholesale_price ?? NaN) || null,
+    vipPrice: Array.isArray(i.products) ? Number(i.products[0]?.vip_price ?? NaN) || null : Number((i.products as any)?.vip_price ?? NaN) || null,
+    specialPrice: Array.isArray(i.products) ? Number(i.products[0]?.special_price ?? NaN) || null : Number((i.products as any)?.special_price ?? NaN) || null,
   }));
 
   const timelineRows: OrderTimelineRow[] = (timeline ?? []).map((t) => ({
@@ -91,6 +95,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       currency={context.currency}
       locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name }))}
       staff={staffOptions}
+      allowedPriceGroups={context.priceGroups}
     />
   );
 }

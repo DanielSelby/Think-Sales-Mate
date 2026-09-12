@@ -64,7 +64,8 @@ export interface SaleCustomer {
   isReturning: boolean;
 }
 
-function getTierPrice(product: SellableProduct, tier: "retail" | "wholesale" | "vip" | "special") {
+type PriceTier = "retail" | "wholesale" | "vip" | "special";
+function getTierPrice(product: SellableProduct, tier: PriceTier) {
   if (tier === "wholesale") return product.wholesalePrice ?? product.unitPrice;
   if (tier === "vip") return product.vipPrice ?? product.unitPrice;
   if (tier === "special") return product.specialPrice ?? product.unitPrice;
@@ -167,6 +168,7 @@ export function SaleForm({
   showLogoOnInvoices,
   canCheckCrossBranchStock,
   canChoosePriceTier,
+  allowedPriceGroups,
 }: {
   products: SellableProduct[];
   customers: SaleCustomer[];
@@ -184,6 +186,7 @@ export function SaleForm({
   showLogoOnInvoices?: boolean;
   canCheckCrossBranchStock: boolean;
   canChoosePriceTier: boolean;
+  allowedPriceGroups: PriceTier[];
 }) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -220,7 +223,7 @@ export function SaleForm({
   const [search, setSearch] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([]);
-  const [priceTier, setPriceTier] = useState<"retail" | "wholesale" | "vip" | "special">("retail");
+  const [priceTier, setPriceTier] = useState<PriceTier>(allowedPriceGroups[0] ?? "retail");
 
   // Additional information / charges — always visible now (the reference
   // shows Notes, Attach Document, Shipping, Other Charges, Discount, and
@@ -940,7 +943,7 @@ export function SaleForm({
             <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Sale Items ({lines.length} items)</h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-ledger-500">Price type:</span>
-              {(["retail", "wholesale", "vip", "special"] as const).map((tier) => (
+              {(["retail", "wholesale", "vip", "special"] as const).filter((tier) => allowedPriceGroups.includes(tier)).map((tier) => (
                 <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded-full px-3 py-1.5 text-xs font-semibold transition-colors", priceTier === tier ? "text-white" : "border border-ledger-200 text-ledger-500 dark:border-ledger-700")} style={priceTier === tier ? { background: theme.colors.primary } : undefined}>{tier === "special" ? "S.P" : tier}</button>
               ))}
               {!canChoosePriceTier && <span className="text-[11px] text-ledger-400">You do not have permission to change pricing.</span>}

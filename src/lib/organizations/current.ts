@@ -14,6 +14,7 @@ export interface CurrentOrgContext {
   secondaryLocationIds: string[];
   canViewOtherTransactions: boolean;
   canCheckCrossBranchStock: boolean;
+  priceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
   isBranchScoped: boolean;
   allowedLocationIds: string[];
   masterLocationId: string | null;
@@ -38,7 +39,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
 
   const { data: memberRows, error } = await supabase
     .from("organization_members")
-    .select("org_id, user_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, organizations(name, currency, created_by)")
+    .select("org_id, user_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, access_permissions, organizations(name, currency, created_by)")
     .eq("user_id", user.id)
     .eq("status", "active");
 
@@ -54,6 +55,11 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     const isOwner = row.role === "owner" || organization?.created_by === user.id;
     const canViewOther = isOwner || row.can_view_other_users_transactions !== false;
     const canCheckCrossBranchStock = isOwner || row.can_check_cross_branch_stock === true;
+    const configuredPriceGroups = row.access_permissions?.price_groups;
+    const priceGroups = isOwner || !Array.isArray(configuredPriceGroups)
+      ? ["retail", "wholesale", "vip", "special"] as const
+      : configuredPriceGroups.filter((group: unknown): group is "retail" | "wholesale" | "vip" | "special" =>
+          group === "retail" || group === "wholesale" || group === "vip" || group === "special");
     const branchScope = isOwner ? "all" : ((row.branch_scope as "all" | "assigned" | "single") || "assigned");
     const locationId = isOwner ? null : (row.location_id ?? null);
     const secondaryLocationIds = isOwner ? [] : ((row.secondary_location_ids as string[]) ?? []);
@@ -73,6 +79,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
       secondaryLocationIds,
       canViewOtherTransactions: canViewOther,
       canCheckCrossBranchStock,
+      priceGroups: (priceGroups.length > 0 ? priceGroups : ["retail"]) as Array<"retail" | "wholesale" | "vip" | "special">,
       isBranchScoped,
       allowedLocationIds,
     };
@@ -103,6 +110,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     secondaryLocationIds: active.secondaryLocationIds,
     canViewOtherTransactions: active.canViewOtherTransactions,
     canCheckCrossBranchStock: active.canCheckCrossBranchStock,
+    priceGroups: active.priceGroups,
     isBranchScoped: active.isBranchScoped,
     allowedLocationIds: active.allowedLocationIds,
     masterLocationId,

@@ -157,7 +157,8 @@ export default async function NewSalePage() {
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
-      canChoosePriceTier={can(context.role, "inventory.manage")}
+      canChoosePriceTier={context.priceGroups.length > 1}
+      allowedPriceGroups={context.priceGroups}
     />
   );
 }

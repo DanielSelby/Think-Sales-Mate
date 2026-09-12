@@ -35,6 +35,10 @@ export interface OrderItemRow {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  retailPrice?: number | null;
+  wholesalePrice?: number | null;
+  vipPrice?: number | null;
+  specialPrice?: number | null;
 }
 
 export interface OrderTimelineRow {
@@ -82,6 +86,7 @@ interface OrderDetailViewProps {
   currency: string;
   locations: { id: string; name: string }[];
   staff: { id: string; name: string }[];
+  allowedPriceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
 }
 
 export function OrderDetailView({
@@ -91,6 +96,7 @@ export function OrderDetailView({
   currency,
   locations,
   staff,
+  allowedPriceGroups,
 }: OrderDetailViewProps) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -134,6 +140,17 @@ export function OrderDetailView({
       await updateOrderItem(order.id, { itemId: item.id, quantity: item.quantity, unitPrice: item.unitPrice });
       router.refresh();
     });
+  }
+
+  function applyPrice(group: "retail" | "wholesale" | "vip" | "special") {
+    setItems((current) => current.map((item) => {
+      const price = group === "retail"
+        ? item.retailPrice
+        : group === "wholesale"
+          ? item.wholesalePrice
+          : group === "vip" ? item.vipPrice : item.specialPrice;
+      return price == null ? item : { ...item, unitPrice: price, lineTotal: item.quantity * price };
+    }));
   }
 
   function deleteItem(itemId: string) {
@@ -421,6 +438,12 @@ export function OrderDetailView({
         <CardHeader className="pb-2">
           <CardTitle className="normal-case tracking-normal text-sm font-semibold text-ink-900 dark:text-white flex items-center justify-between">
             <span>Order Line Items</span>
+            <span className="flex gap-2">
+              {allowedPriceGroups.includes("wholesale") && <Button variant="outline" size="sm" onClick={() => applyPrice("wholesale")}>Apply wholesale price</Button>}
+              {allowedPriceGroups.includes("vip") && <Button variant="outline" size="sm" onClick={() => applyPrice("vip")}>Apply VIP price</Button>}
+              {allowedPriceGroups.includes("special") && <Button variant="outline" size="sm" onClick={() => applyPrice("special")}>Apply S.P price</Button>}
+              {allowedPriceGroups.includes("retail") && <Button variant="outline" size="sm" onClick={() => applyPrice("retail")}>Apply retail price</Button>}
+            </span>
             {!isFinal && (
               <Button variant="outline" size="sm" onClick={runStockCheck} disabled={checkingStock}>
                 {checkingStock && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />} Check Inventory Stock

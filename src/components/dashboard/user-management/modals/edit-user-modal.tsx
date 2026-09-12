@@ -45,6 +45,7 @@ export function EditUserModal({
     approvalStockAdjustments: false,
     maxExpenseLimit: "10000",
     maxPurchaseLimit: "25000"
+    , priceGroups: ["retail", "wholesale", "vip", "special"] as string[]
   });
 
   const [activeTab, setActiveTab] = useState<"details" | "branches" | "approvals">("details");
@@ -73,6 +74,7 @@ export function EditUserModal({
         approvalStockAdjustments: Boolean(user.approvalPermissions?.stockAdjustments),
         maxExpenseLimit: String(user.approvalPermissions?.maxExpenseAmount || 10000),
         maxPurchaseLimit: String(user.approvalPermissions?.maxPurchaseAmount || 25000)
+        , priceGroups: user.priceGroups ?? ["retail", "wholesale", "vip", "special"]
       });
     }
   }, [user, branches]);
@@ -88,8 +90,14 @@ export function EditUserModal({
           ? prev.secondaryBranches.filter((id) => id !== branchId)
           : [...prev.secondaryBranches, branchId]
       };
+
     });
   };
+
+  const togglePriceGroup = (group: "retail" | "wholesale" | "vip" | "special") => setFormData((prev) => ({
+    ...prev,
+    priceGroups: prev.priceGroups.includes(group) ? prev.priceGroups.filter((item) => item !== group) : [...prev.priceGroups, group],
+  }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,7 +136,8 @@ export function EditUserModal({
         stockAdjustments: formData.approvalStockAdjustments,
         maxExpenseAmount: Number(formData.maxExpenseLimit) || 0,
         maxPurchaseAmount: Number(formData.maxPurchaseLimit) || 0
-      }
+      },
+      priceGroups: formData.priceGroups as ("retail" | "wholesale" | "vip" | "special")[]
     };
 
     setTimeout(() => {
@@ -455,6 +464,20 @@ export function EditUserModal({
             {activeTab === "approvals" && (
               <div className="space-y-4">
                 <div className="space-y-2">
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
+                    <p className="text-xs font-semibold text-ink-900 dark:text-white">Allowed Price Groups</p>
+                    <p className="mb-2 text-[11px] text-ledger-400">Choose which prices this user can select during transactions.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        ["retail", "Retail"], ["wholesale", "Wholesale"], ["vip", "VIP"], ["special", "S.P"]
+                      ].map(([key, label]) => (
+                        <label key={key} className="flex items-center gap-1.5 rounded border border-ledger-200 px-2 py-1 text-xs dark:border-ledger-700">
+                          <input type="checkbox" checked={formData.priceGroups.includes(key)} onChange={() => togglePriceGroup(key as "retail" | "wholesale" | "vip" | "special")} />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                   {[
                     { key: "approvalStockTransfers", label: "Approve Stock Transfers", desc: "Authorize inter-branch stock movements" },
                     { key: "approvalPurchases", label: "Approve Purchase Orders", desc: "Sign off vendor orders and purchase bills" },
