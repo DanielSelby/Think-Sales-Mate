@@ -13,6 +13,7 @@ import {
   type SaleStockLevel,
 } from "@/components/sales/sale-form";
 import { getSaleForEdit } from "@/app/(dashboard)/sales/actions";
+import { can } from "@/lib/rbac";
 
 export default async function EditSalePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -40,7 +41,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     // fully allocated elsewhere and show 0 org-wide; it's reclaimed below.
     supabase
       .from("products")
-      .select("id, sku, name, unit_price, stock_quantity")
+      .select("id, sku, name, unit_price, wholesale_price, vip_price, cost_price, stock_quantity")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
@@ -98,6 +99,9 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     sku: p.sku,
     name: p.name,
     unitPrice: p.unit_price,
+    wholesalePrice: p.wholesale_price,
+    vipPrice: p.vip_price,
+    costPrice: Number(p.cost_price ?? 0),
     stockQuantity: p.stock_quantity + (reclaimByProduct.get(p.id) ?? 0),
   }));
 
@@ -153,6 +157,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
+      canChoosePriceTier={can(context.role, "inventory.manage")}
     />
   );
 }

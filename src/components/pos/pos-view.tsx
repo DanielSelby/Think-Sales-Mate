@@ -36,6 +36,9 @@ export interface PosProduct {
   category: string | null;
   brand: string | null;
   unitPrice: number;
+  wholesalePrice: number | null;
+  vipPrice: number | null;
+  costPrice: number;
   stockQuantity: number;
   imageUrl?: string | null;
 }
@@ -53,6 +56,7 @@ interface PosViewProps {
   taxRatePercent: number;
   cashierName: string;
   canCheckCrossBranchStock: boolean;
+  canChoosePriceTier: boolean;
 }
 
 interface CartLine extends CartItemInput {
@@ -68,7 +72,13 @@ function isoToLocalDate(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock }: PosViewProps) {
+function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip") {
+  if (tier === "wholesale") return product.wholesalePrice ?? product.unitPrice;
+  if (tier === "vip") return product.vipPrice ?? product.unitPrice;
+  return product.unitPrice;
+}
+
+export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -89,6 +99,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
   const [activeCategory, setActiveCategory] = React.useState("all");
   const [activeBrand, setActiveBrand] = React.useState("all");
+  const [priceTier, setPriceTier] = React.useState<"retail" | "wholesale" | "vip">("retail");
   const [cart, setCart] = React.useState<CartLine[]>([]);
   const [priceEditLine, setPriceEditLine] = React.useState<CartLine | null>(null);
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
@@ -209,8 +220,8 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       return;
     }
     const line: CartLine = existing
-      ? { ...existing, quantity: existing.quantity + 1, maxStock: product.stockQuantity }
-      : { key: crypto.randomUUID(), productId: product.id, name: product.name, sku: product.sku, unitPrice: product.unitPrice, quantity: 1, discountPercent: 0, taxPercent: taxRatePercent, maxStock: product.stockQuantity, description: "" };
+      ? { ...existing, quantity: existing.quantity + 1, unitPrice: getTierPrice(product, priceTier), priceTier, maxStock: product.stockQuantity }
+      : { key: crypto.randomUUID(), productId: product.id, name: product.name, sku: product.sku, unitPrice: getTierPrice(product, priceTier), quantity: 1, discountPercent: 0, taxPercent: taxRatePercent, maxStock: product.stockQuantity, description: "", priceTier };
     setCart((prev) => (existing ? prev.map((l) => (l.productId === product.id ? line : l)) : [...prev, line]));
     setPriceEditLine(line);
     setCartAddSignal((n) => n + 1);
@@ -260,6 +271,12 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, description } : l)));
     setPriceEditLine((prev) => (prev && prev.key === key ? { ...prev, description } : prev));
   }
+  React.useEffect(() => {
+    setCart((current) => current.map((line) => {
+      const product = products.find((item) => item.id === line.productId);
+      return product ? { ...line, unitPrice: getTierPrice(product, priceTier), priceTier } : line;
+    }));
+  }, [priceTier, products]);
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
@@ -293,6 +310,10 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   }, 0);
   const total = Math.max(0, subtotal - itemsDiscount - discountAmount + taxTotal + shippingAmount);
   const itemCount = cart.reduce((sum, l) => sum + l.quantity, 0);
+  const hasCostWarning = cart.some((line) => {
+    const product = products.find((item) => item.id === line.productId);
+    return product && [product.unitPrice, product.wholesalePrice, product.vipPrice].some((price) => price != null && price <= product.costPrice);
+  });
 
   React.useEffect(() => {
     if (!customerOpen) return;
@@ -301,7 +322,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   }, [customerQuery, customerOpen]);
 
   function buildCartInput(): CartItemInput[] {
-   return cart.map((l) => ({ productId: l.productId, name: l.name, sku: l.sku, unitPrice: l.unitPrice, quantity: l.quantity, discountPercent: l.discountPercent, taxPercent: l.taxPercent, description: l.description }));  }
+   return cart.map((l) => ({ productId: l.productId, name: l.name, sku: l.sku, unitPrice: l.unitPrice, quantity: l.quantity, discountPercent: l.discountPercent, taxPercent: l.taxPercent, description: l.description, priceTier }));  }
 
   // Accepts an explicit method so quick-pay buttons (Cash/Card/MOMO/Credit)
   // don't race React's async state batching — setPaymentMethod(x) followed
@@ -333,7 +354,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     startTransition(async () => {
       const result = await completeSale({
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
-        orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method,
+        orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method, priceTier,
         saleDate,
       });
       if (!result.ok) {
@@ -607,6 +628,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     <div className="flex min-h-0 h-full flex-col gap-3 overflow-x-hidden pb-16 lg:pb-0">
       {notice && <div className="rounded-md border border-signal/30 bg-signal-soft px-3 py-2 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">{notice}</div>}
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{error}</div>}
+      {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
 
       {/* Toolbar */}
       <div className="flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
@@ -617,6 +639,9 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
           </select>
         </div>
         <span className="flex h-10 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:w-auto" style={{ background: theme.colors.primary }}>{dateLabel}</span>
+        <div className="flex items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700">
+          {(["retail", "wholesale", "vip"] as const).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier !== tier && "text-ledger-500")} style={priceTier === tier ? { background: theme.colors.primary, color: "#fff" } : undefined}>{tier}</button>)}
+        </div>
 
         <div className="grid min-w-0 grid-cols-4 items-center justify-items-center gap-2 px-1 sm:ml-auto sm:flex sm:flex-1 sm:justify-around sm:gap-4 sm:px-3">
           <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
@@ -732,7 +757,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                 </div>
                 <p className="line-clamp-2 text-[11px] font-medium leading-tight text-ink-900 dark:text-white">{p.name}</p>
                 <div className="mt-1 flex w-full items-center justify-between gap-1">
-                  <span className="font-mono text-xs text-ink-900 dark:text-white">{formatCurrency(p.unitPrice, currency)}</span>
+                  <span className="font-mono text-xs text-ink-900 dark:text-white">{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
                   <span className={cn("text-[10px] font-medium", p.stockQuantity > 0 ? "text-signal" : "text-alert")}>({p.stockQuantity})</span>
                 </div>
               </button>
@@ -821,7 +846,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                         >
                           <p className="truncate text-sm font-medium text-ink-900 dark:text-white">{p.name}</p>
                           <p className="text-xs text-ledger-400">
-                            Price: {formatCurrency(p.unitPrice, currency)} · {p.stockQuantity > 0 ? `${p.stockQuantity}Pc(s)` : "Out of stock"}
+                            Price: {formatCurrency(getTierPrice(p, priceTier), currency)} · {p.stockQuantity > 0 ? `${p.stockQuantity}Pc(s)` : "Out of stock"}
                           </p>
                         </button>
                       ))}

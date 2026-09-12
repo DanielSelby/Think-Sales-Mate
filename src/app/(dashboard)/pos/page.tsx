@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { can } from "@/lib/rbac";
 import { PosView } from "@/components/pos/pos-view";
 
 export const metadata = { title: "POS · SalesMate ERP" };
@@ -14,7 +15,7 @@ export default async function PosPage() {
   const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, category, brand, unit_price, stock_quantity, image_urls")
+      .select("id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, cost_price, stock_quantity, image_urls")
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
@@ -52,6 +53,9 @@ export default async function PosPage() {
         category: p.category,
         brand: p.brand,
         unitPrice: p.unit_price,
+        wholesalePrice: p.wholesale_price,
+        vipPrice: p.vip_price,
+        costPrice: Number(p.cost_price ?? 0),
         stockQuantity: p.stock_quantity,
         imageUrl: p.image_urls?.[0] ?? null,
       }))}
@@ -63,6 +67,7 @@ export default async function PosPage() {
       taxRatePercent={15}
       cashierName={profile?.full_name || context.userEmail}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
+      canChoosePriceTier={can(context.role, "inventory.manage")}
     />
   );
 }

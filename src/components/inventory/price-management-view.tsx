@@ -49,7 +49,21 @@ export function PriceManagementView({ products, currency, canManage }: { product
   const [groups, setGroups] = React.useState<PriceGroup[]>([
     { id: "retail", name: "Retail", description: "Standard customer pricing" },
     { id: "wholesale", name: "Wholesale", description: "Bulk customer pricing" },
+    { id: "vip", name: "VIP", description: "Preferred customer pricing" },
   ]);
+  React.useEffect(() => {
+    const stored = window.localStorage.getItem("salesmate:price-groups");
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored) as PriceGroup[];
+      if (Array.isArray(parsed)) setGroups(parsed);
+    } catch {
+      window.localStorage.removeItem("salesmate:price-groups");
+    }
+  }, []);
+  React.useEffect(() => {
+    window.localStorage.setItem("salesmate:price-groups", JSON.stringify(groups));
+  }, [groups]);
   const bulkFileRef = React.useRef<HTMLInputElement>(null);
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
   const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))] as string[];
@@ -63,19 +77,25 @@ export function PriceManagementView({ products, currency, canManage }: { product
 
   async function save(product: PriceProduct) {
     const draft = drafts[product.id] ?? {};
-    const value = Number(draft.sellingPrice);
+    const value = Number(draft.sellingPrice ?? product.sellingPrice);
+    const wholesalePrice = draft.wholesalePrice === undefined
+      ? product.wholesalePrice
+      : draft.wholesalePrice === "" ? null : Number(draft.wholesalePrice);
+    const vipPrice = draft.vipPrice === undefined
+      ? product.vipPrice
+      : draft.vipPrice === "" ? null : Number(draft.vipPrice);
     const result = await updateProductPrices(product.id, {
       sellingPrice: value,
-      wholesalePrice: draft.wholesalePrice === "" ? null : Number(draft.wholesalePrice),
-      vipPrice: draft.vipPrice === "" ? null : Number(draft.vipPrice),
+      wholesalePrice,
+      vipPrice,
     });
     setNotice(result.ok ? `${product.name} price updated.` : result.error ?? "Price update failed.");
     if (result.ok) {
       setPriceProducts((current) => current.map((item) => item.id === product.id ? {
         ...item,
         sellingPrice: value,
-        wholesalePrice: draft.wholesalePrice === "" ? null : Number(draft.wholesalePrice),
-        vipPrice: draft.vipPrice === "" ? null : Number(draft.vipPrice),
+        wholesalePrice,
+        vipPrice,
         updatedAt: new Date().toISOString(),
       } : item));
       setDrafts((current) => { const next = { ...current }; delete next[product.id]; return next; });
@@ -86,9 +106,13 @@ export function PriceManagementView({ products, currency, canManage }: { product
     const pending = Object.fromEntries(
       Object.entries(drafts)
         .map(([id, draft]) => [id, {
-          sellingPrice: Number(draft.sellingPrice),
-          wholesalePrice: draft.wholesalePrice === "" ? null : Number(draft.wholesalePrice),
-          vipPrice: draft.vipPrice === "" ? null : Number(draft.vipPrice),
+          sellingPrice: Number(draft.sellingPrice ?? priceProducts.find((product) => product.id === id)?.sellingPrice),
+          wholesalePrice: draft.wholesalePrice === undefined
+            ? priceProducts.find((product) => product.id === id)?.wholesalePrice ?? null
+            : draft.wholesalePrice === "" ? null : Number(draft.wholesalePrice),
+          vipPrice: draft.vipPrice === undefined
+            ? priceProducts.find((product) => product.id === id)?.vipPrice ?? null
+            : draft.vipPrice === "" ? null : Number(draft.vipPrice),
         }] as const)
         .filter(([, value]) => Number.isFinite(value.sellingPrice) && value.sellingPrice >= 0
           && (value.wholesalePrice === null || (Number.isFinite(value.wholesalePrice) && value.wholesalePrice >= 0))
@@ -180,7 +204,7 @@ export function PriceManagementView({ products, currency, canManage }: { product
     </div>
     {notice && <div className="rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm text-ink-900">{notice}</div>}
     {tab === "update" && <UpdateTabV2 products={filtered} allProducts={priceProducts} currency={currency} query={query} setQuery={setQuery} category={category} setCategory={setCategory} brand={brand} setBrand={setBrand} categories={categories} brands={brands} drafts={drafts} setDrafts={setDrafts} save={save} updateAll={updateAll} showHistory={showHistory} bulkFileRef={bulkFileRef} canManage={canManage} money={money} />}
-    {history && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setHistory(null)}><Card className="max-h-[80vh] w-full max-w-2xl overflow-hidden" onClick={(event: React.MouseEvent) => event.stopPropagation()}><CardContent className="space-y-4 p-5"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Price History</h2><Button variant="outline" onClick={() => setHistory(null)}>Close</Button></div><div className="max-h-[60vh] overflow-y-auto">{history.length === 0 ? <p className="text-sm text-ledger-500">No price changes recorded yet.</p> : history.map((entry) => <div key={entry.id} className="flex justify-between border-b border-ledger-100 py-3 text-sm"><span>Product {entry.entity_id}<br /><span className="text-xs text-ledger-500">{new Date(entry.created_at).toLocaleString()}</span></span><strong>{entry.metadata?.new_price ?? "—"}</strong></div>)}</div></CardContent></Card></div>}
+    {history && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setHistory(null)}><Card className="max-h-[80vh] w-full max-w-2xl overflow-hidden" onClick={(event: React.MouseEvent) => event.stopPropagation()}><CardContent className="space-y-4 p-5"><div className="flex items-center justify-between"><div><h2 className="text-lg font-bold">Price History</h2><p className="text-xs text-ledger-500">A simple record of recent price changes.</p></div><Button variant="outline" onClick={() => setHistory(null)}>Close</Button></div><div className="max-h-[60vh] space-y-2 overflow-y-auto">{history.length === 0 ? <p className="rounded-xl bg-ledger-50 p-5 text-sm text-ledger-500 dark:bg-white/[0.03]">No price changes recorded yet.</p> : history.map((entry) => <div key={entry.id} className="rounded-xl border border-ledger-100 bg-ledger-50/60 p-4 dark:border-ledger-700 dark:bg-white/[0.03]"><div className="flex items-start justify-between gap-4"><div><p className="font-semibold">{entry.product_name ?? "Product price"}</p><p className="mt-1 text-xs text-ledger-500">{new Date(entry.created_at).toLocaleString()}</p></div><span className="rounded-full bg-signal-soft px-2.5 py-1 text-xs font-semibold text-signal">Updated</span></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm"><span>Retail: <strong>{entry.metadata?.new_price ?? "—"}</strong></span><span>Wholesale: <strong>{entry.metadata?.wholesale_price ?? "—"}</strong></span><span>VIP: <strong>{entry.metadata?.vip_price ?? "—"}</strong></span></div></div>)}</div></CardContent></Card></div>}
     {tab === "import" && <Card><CardContent className="space-y-5 p-6"><h2 className="text-base font-bold">Import Price</h2><p className="text-sm text-ledger-500">Download the template, update prices in Excel or CSV, then upload it for validation before applying changes.</p><Button variant="secondary" onClick={downloadTemplate}><Download className="h-4 w-4" /> Download CSV Template</Button><label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-ledger-200 bg-ledger-50/50 text-center dark:border-ledger-700 dark:bg-white/[0.03]"><Upload className="h-7 w-7 text-signal" /><span className="mt-2 text-sm font-semibold">Drop CSV or Excel file here</span><span className="text-xs text-ledger-500">Validation preview will appear before import</span><input type="file" accept=".csv,.xlsx" className="hidden" onChange={(event) => setNotice(event.target.files?.[0] ? `${event.target.files[0].name} selected. Review and import after validation.` : null)} /></label></CardContent></Card>}
     {tab === "groups" && <GroupsTab products={priceProducts} currency={currency} canManage={canManage} groups={groups} setGroups={setGroups} setNotice={setNotice} />}
   </div>;

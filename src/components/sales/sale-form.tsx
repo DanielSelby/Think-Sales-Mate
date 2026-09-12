@@ -48,6 +48,9 @@ export interface SellableProduct {
   sku: string;
   name: string;
   unitPrice: number;
+  wholesalePrice: number | null;
+  vipPrice: number | null;
+  costPrice: number;
   stockQuantity: number;
 }
 
@@ -58,6 +61,12 @@ export interface SaleCustomer {
   phone: string | null;
   outstanding: number;
   isReturning: boolean;
+}
+
+function getTierPrice(product: SellableProduct, tier: "retail" | "wholesale" | "vip") {
+  if (tier === "wholesale") return product.wholesalePrice ?? product.unitPrice;
+  if (tier === "vip") return product.vipPrice ?? product.unitPrice;
+  return product.unitPrice;
 }
 
 export interface SaleLocation {
@@ -155,6 +164,7 @@ export function SaleForm({
   logoUrl,
   showLogoOnInvoices,
   canCheckCrossBranchStock,
+  canChoosePriceTier,
 }: {
   products: SellableProduct[];
   customers: SaleCustomer[];
@@ -171,6 +181,7 @@ export function SaleForm({
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
   canCheckCrossBranchStock: boolean;
+  canChoosePriceTier: boolean;
 }) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -207,6 +218,7 @@ export function SaleForm({
   const [search, setSearch] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([]);
+  const [priceTier, setPriceTier] = useState<"retail" | "wholesale" | "vip">("retail");
 
   // Additional information / charges — always visible now (the reference
   // shows Notes, Attach Document, Shipping, Other Charges, Discount, and
@@ -281,13 +293,14 @@ export function SaleForm({
 
   const computedLines = lines.map((line) => {
     const product = productById.get(line.productId);
-    const unitPrice = product?.unitPrice ?? 0;
+    const unitPrice = product ? getTierPrice(product, priceTier) : 0;
     const lineSubtotal = unitPrice * line.quantity;
     const lineDiscount = lineSubtotal * (line.discountPercent / 100);
     const taxable = lineSubtotal - lineDiscount;
     const lineTax = taxable * (line.taxPercent / 100);
-    return { line, product, lineSubtotal, lineDiscount, taxable, lineTax, rowTotal: taxable };
+    return { line, product, unitPrice, lineSubtotal, lineDiscount, taxable, lineTax, rowTotal: taxable };
   });
+  const hasCostWarning = computedLines.some(({ product }) => product && [product.unitPrice, product.wholesalePrice, product.vipPrice].some((price) => price != null && price <= product.costPrice));
 
   const totalQuantity = lines.reduce((sum, l) => sum + l.quantity, 0);
   const subtotal = computedLines.reduce((sum, c) => sum + c.lineSubtotal, 0);
@@ -454,6 +467,7 @@ export function SaleForm({
           saleDate,
           paymentMethod,
           amountPaid,
+          priceTier,
           shippingAmount,
           discountAmount: discountTotal + additionalDiscountAmount,
           taxAmount: taxTotal + additionalTaxAmount,
@@ -461,7 +475,7 @@ export function SaleForm({
             .filter((l) => l.productId)
             .map((l) => {
               const product = productById.get(l.productId);
-              const unitPrice = product?.unitPrice ?? 0;
+              const unitPrice = product ? getTierPrice(product, priceTier) : 0;
               const gross = unitPrice * l.quantity;
               const disc = gross * (l.discountPercent / 100);
               const lineTotal = gross - disc + (gross - disc) * (l.taxPercent / 100);
@@ -492,12 +506,22 @@ export function SaleForm({
         discountAmount: discountTotal + additionalDiscountAmount,
         taxAmount: taxTotal + additionalTaxAmount,
         notes: note,
-        items: lines.filter((l) => l.productId).map((l) => ({
+        priceTier,
+        items: lines.filter((l) => l.productId).map((l) => {
+          const product = productById.get(l.productId);
+          const unitPrice = product ? getTierPrice(product, priceTier) : 0;
+          const gross = unitPrice * l.quantity;
+          const discount = gross * (l.discountPercent / 100);
+          const lineTotal = gross - discount + (gross - discount) * (l.taxPercent / 100);
+          return {
           productId: l.productId,
           quantity: l.quantity,
+          unitPrice,
           discountPercent: l.discountPercent,
-          taxPercent: l.taxPercent
-        }))
+          taxPercent: l.taxPercent,
+          lineTotal,
+          };
+        })
       });
       if (result.error) {
         setError(result.error);
@@ -581,6 +605,7 @@ export function SaleForm({
           saleDate,
           paymentMethod,
           amountPaid: paidAmount,
+          priceTier,
           shippingAmount,
           discountAmount: discountTotal + additionalDiscountAmount,
           taxAmount: taxTotal + additionalTaxAmount,
@@ -588,7 +613,7 @@ export function SaleForm({
             .filter((l) => l.productId)
             .map((l) => {
               const product = productById.get(l.productId);
-              const unitPrice = product?.unitPrice ?? 0;
+              const unitPrice = product ? getTierPrice(product, priceTier) : 0;
               const gross = unitPrice * l.quantity;
               const disc = gross * (l.discountPercent / 100);
               const lineTotal = gross - disc + (gross - disc) * (l.taxPercent / 100);
@@ -629,12 +654,15 @@ export function SaleForm({
         discountAmount: discountTotal + additionalDiscountAmount,
         taxAmount: taxTotal + additionalTaxAmount,
         notes: note,
-        items: lines.filter((l) => l.productId).map((l) => ({
-          productId: l.productId,
-          quantity: l.quantity,
-          discountPercent: l.discountPercent,
-          taxPercent: l.taxPercent
-        }))
+        priceTier,
+        items: lines.filter((l) => l.productId).map((l) => {
+         const product = productById.get(l.productId);
+         const unitPrice = product ? getTierPrice(product, priceTier) : 0;
+         const gross = unitPrice * l.quantity;
+         const discount = gross * (l.discountPercent / 100);
+         const lineTotal = gross - discount + (gross - discount) * (l.taxPercent / 100);
+         return { productId: l.productId, quantity: l.quantity, unitPrice, discountPercent: l.discountPercent, taxPercent: l.taxPercent, lineTotal };
+        })
       });
 
       if (result.error) {
@@ -696,6 +724,12 @@ export function SaleForm({
         <div className="mt-4 flex items-center gap-2 rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           {stockWarning}
+        </div>
+      )}
+      {hasCostWarning && (
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          One or more selected prices are at or below cost. This transaction will be flagged for review.
         </div>
       )}
 
@@ -902,6 +936,13 @@ export function SaleForm({
           {/* Sale Items */}
           <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Sale Items ({lines.length} items)</h2>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-ledger-500">Price type:</span>
+              {(["retail", "wholesale", "vip"] as const).map((tier) => (
+                <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors", priceTier === tier ? "text-white" : "border border-ledger-200 text-ledger-500 dark:border-ledger-700")} style={priceTier === tier ? { background: theme.colors.primary } : undefined}>{tier}</button>
+              ))}
+              {!canChoosePriceTier && <span className="text-[11px] text-ledger-400">You do not have permission to change pricing.</span>}
+            </div>
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="relative flex-1">
@@ -943,7 +984,7 @@ export function SaleForm({
                             <span className="block text-xs text-ledger-400">{p.sku} · stock {p.stockQuantity}</span>
                           </span>
                           <span className="shrink-0 font-mono text-sm text-ledger-600 dark:text-ledger-300">
-                            {alreadyAdded ? "Added" : formatMoney(p.unitPrice, currency)}
+                            {alreadyAdded ? "Added" : formatMoney(getTierPrice(p, priceTier), currency)}
                           </span>
                         </button>
                       );
@@ -992,7 +1033,7 @@ export function SaleForm({
                       </tr>
                     </thead>
                     <tbody>
-                      {computedLines.map(({ line, product, rowTotal }) => {
+                      {computedLines.map(({ line, product, unitPrice, rowTotal }) => {
                         const isEditing = editingLineId === line.key || !product;
                         return (
                           <tr key={line.key} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
@@ -1010,7 +1051,7 @@ export function SaleForm({
                             </td>
                             <td className="px-2 py-2 font-mono text-xs text-ledger-500">{product?.sku ?? "—"}</td>
                             <td className="px-2 py-2 text-right figure text-ledger-500 dark:text-ledger-400">
-                              {formatMoney(product?.unitPrice ?? 0, currency)}
+                              {formatMoney(unitPrice, currency)}
                             </td>
                             <td className="px-2 py-2">
                               <div className="flex items-center justify-center gap-1">

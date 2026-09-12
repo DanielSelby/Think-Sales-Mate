@@ -97,5 +97,10 @@ export async function getPriceHistory() {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) return { ok: false, error: error.message, entries: [] };
-  return { ok: true, entries: data ?? [] };
+  const productIds = [...new Set((data ?? []).map((entry) => entry.entity_id).filter(Boolean))] as string[];
+  const { data: products } = productIds.length
+    ? await supabase.from("products").select("id, name").in("id", productIds)
+    : { data: [] as { id: string; name: string }[] };
+  const names = new Map((products ?? []).map((product) => [product.id, product.name]));
+  return { ok: true, entries: (data ?? []).map((entry) => ({ ...entry, product_name: names.get(entry.entity_id ?? "") ?? "Product price" })) };
 }

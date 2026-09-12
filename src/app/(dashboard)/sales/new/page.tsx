@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient} from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { can } from "@/lib/rbac";
 import {
   SaleForm,
   type SellableProduct,
@@ -41,7 +42,7 @@ export default async function NewSalePage() {
   ] = await Promise.all([
     supabase
       .from("products")
-      .select("id, sku, name, unit_price, stock_quantity")
+      .select("id, sku, name, unit_price, wholesale_price, vip_price, cost_price, stock_quantity")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .gt("stock_quantity", 0)
@@ -98,6 +99,9 @@ export default async function NewSalePage() {
     sku: p.sku,
     name: p.name,
     unitPrice: p.unit_price,
+    wholesalePrice: p.wholesale_price,
+    vipPrice: p.vip_price,
+    costPrice: Number(p.cost_price ?? 0),
     stockQuantity: p.stock_quantity
   }));
 
@@ -152,6 +156,7 @@ export default async function NewSalePage() {
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
+      canChoosePriceTier={can(context.role, "inventory.manage")}
     />
   );
 }

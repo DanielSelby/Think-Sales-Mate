@@ -444,6 +444,7 @@ export interface CartItemInput {
   discountPercent: number;
   taxPercent: number;
   description?: string;
+  priceTier?: "retail" | "wholesale" | "vip";
 }
 
 export interface SimpleResult {
@@ -671,6 +672,7 @@ export interface CompleteSaleInput {
   shippingAmount: number;
   paymentMethod: string;
   saleDate: string; // 'YYYY-MM-DD' — sales.sale_date is a DATE column, no time component
+  priceTier?: "retail" | "wholesale" | "vip";
 }
 
 export interface CompleteSaleResult {
@@ -705,7 +707,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const productIds = input.items.map((i) => i.productId);
   const [{ data: allStockRows }, { data: productRows }] = await Promise.all([
     supabase.from("product_stock_levels").select("product_id, location_id, quantity").in("product_id", productIds),
-    supabase.from("products").select("id, stock_quantity").in("id", productIds)
+    supabase.from("products").select("id, name, stock_quantity, cost_price, unit_price, wholesale_price, vip_price").in("id", productIds)
   ]);
   const orgWideById = new Map((productRows ?? []).map((p) => [p.id, p.stock_quantity]));
   const rowsByProduct = new Map<string, { location_id: string; quantity: number }[]>();
@@ -732,6 +734,13 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     const lineTax = taxable * (item.taxPercent / 100);
     return { ...item, gross, lineTax, lineTotal: taxable + lineTax };
   });
+  const productCosts = new Map((productRows ?? []).map((product) => [product.id, { name: product.name, cost: Number(product.cost_price ?? 0), prices: [product.unit_price, product.wholesale_price, product.vip_price] }]));
+  const lowMarginItems = lines.filter((line) => productCosts.get(line.productId)?.prices.some((price) => price != null && Number(price) <= (productCosts.get(line.productId)?.cost ?? 0))).map((line) => ({
+    productId: line.productId,
+    productName: productCosts.get(line.productId)?.name ?? line.name,
+    price: line.unitPrice,
+    cost: productCosts.get(line.productId)?.cost ?? 0,
+  }));
 
   const subtotal = lines.reduce((sum, l) => sum + l.gross, 0);
   const itemsDiscount = lines.reduce((sum, l) => sum + (l.gross * l.discountPercent) / 100, 0);
@@ -779,6 +788,17 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   if (itemsError) {
     await supabase.from("sales").delete().eq("id", sale.id);
     return { ok: false, error: itemsError.message };
+  }
+  if (lowMarginItems.length > 0) {
+    const { error: lowMarginError } = await supabase.from("audit_logs").insert({
+      org_id: context.orgId,
+      actor_id: user.id,
+      action: "sale.low_margin_flagged",
+      entity_type: "sale",
+      entity_id: sale.id,
+      metadata: { sale_number: sale.sale_number, price_tier: input.priceTier ?? "retail", items: lowMarginItems },
+    });
+    if (lowMarginError) return { ok: false, error: lowMarginError.message, saleId: sale.id };
   }
 
   // Untracked products (no product_stock_levels row anywhere) were validated

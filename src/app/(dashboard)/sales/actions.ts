@@ -236,6 +236,7 @@ export interface RecordSaleInput {
   taxAmount?:      number | null;
   subtotal:        number;
   total:           number;
+  priceTier?:      "retail" | "wholesale" | "vip";
   lines?: {
     productId:        string;
     quantity:         number;
@@ -328,11 +329,28 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
     if (productIds.length) {
       const { data: products, error: productsError } = await supabase
         .from("products")
-        .select("id, name, unit_price")
+        .select("id, name, unit_price, wholesale_price, vip_price, cost_price")
         .in("id", productIds);
       if (productsError) throw new Error(productsError.message);
 
-      const systemPrices = new Map((products ?? []).map((product) => [product.id, { name: product.name, price: Number(product.unit_price) }]));
+      const systemPrices = new Map((products ?? []).map((product) => [product.id, { name: product.name, price: Number(product.unit_price), cost: Number(product.cost_price ?? 0), prices: [product.unit_price, product.wholesale_price, product.vip_price] }]));
+      const lowMarginItems = allLines.filter((line) => systemPrices.get(line.product_id)?.prices.some((price) => price != null && Number(price) <= (systemPrices.get(line.product_id)?.cost ?? 0))).map((line) => ({
+        productId: line.product_id,
+        productName: systemPrices.get(line.product_id)?.name ?? "Unknown product",
+        price: Number(line.unit_price),
+        cost: systemPrices.get(line.product_id)?.cost ?? 0,
+      }));
+      if (lowMarginItems.length) {
+        const { error: lowMarginError } = await supabase.from("audit_logs").insert({
+          org_id: input.orgId,
+          actor_id: user.id,
+          action: "sale.low_margin_flagged",
+          entity_type: "sale",
+          entity_id: sale.id,
+          metadata: { sale_number: sale.sale_number, price_tier: input.priceTier ?? "retail", items: lowMarginItems },
+        });
+        if (lowMarginError) throw new Error(lowMarginError.message);
+      }
       const priceOverrides = allLines.flatMap((line) => {
         const product = systemPrices.get(line.product_id);
         if (!product || Number(line.unit_price) === product.price) return [];
@@ -496,6 +514,7 @@ export interface UpdateSaleInput {
   taxAmount?:      number | null;
   subtotal:        number;
   total:           number;
+  priceTier?:      "retail" | "wholesale" | "vip";
   items: { productId: string; quantity: number; unitPrice: number; discountPercent?: number; taxPercent?: number; lineTotal: number }[];
 }
 
@@ -577,6 +596,35 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
       }));
       const { error: itemsError } = await admin.from("sale_items").insert(rows);
       if (itemsError) throw new Error(itemsError.message);
+
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, name, unit_price, wholesale_price, vip_price, cost_price")
+        .in("id", input.items.map((item) => item.productId));
+      const productById = new Map((products ?? []).map((product) => [product.id, product]));
+      const lowMarginItems = input.items
+        .filter((item) => {
+          const product = productById.get(item.productId);
+          const cost = Number(product?.cost_price ?? 0);
+          return [product?.unit_price, product?.wholesale_price, product?.vip_price].some((price) => price != null && Number(price) <= cost);
+        })
+        .map((item) => ({
+          productId: item.productId,
+          productName: productById.get(item.productId)?.name ?? "Unknown product",
+          price: item.unitPrice,
+          cost: Number(productById.get(item.productId)?.cost_price ?? 0),
+        }));
+      if (lowMarginItems.length > 0) {
+        const { error: lowMarginError } = await admin.from("audit_logs").insert({
+          org_id: existingSale.org_id,
+          actor_id: user.id,
+          action: "sale.low_margin_flagged",
+          entity_type: "sale",
+          entity_id: input.saleId,
+          metadata: { price_tier: input.priceTier ?? "retail", items: lowMarginItems },
+        });
+        if (lowMarginError) throw new Error(lowMarginError.message);
+      }
     }
 
     // Only deduct stock if the sale is (or is becoming) final — this is
