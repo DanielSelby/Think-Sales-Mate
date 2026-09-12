@@ -766,6 +766,7 @@ export interface Database {
           expiry_date: string | null;
           warranty_months: number | null;
           wholesale_price: number | null;
+          vip_price: number | null;
           mrp: number | null;
           track_inventory: boolean;
           allow_sale: boolean;
@@ -805,6 +806,7 @@ export interface Database {
           expiry_date?: string | null;
           warranty_months?: number | null;
           wholesale_price?: number | null;
+          vip_price?: number | null;
           mrp?: number | null;
           track_inventory?: boolean;
           allow_sale?: boolean;

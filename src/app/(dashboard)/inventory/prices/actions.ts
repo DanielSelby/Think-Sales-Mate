@@ -5,14 +5,26 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 
-export async function updateProductPrice(productId: string, price: number) {
-  if (!Number.isFinite(price) || price < 0) return { ok: false, error: "Enter a valid non-negative price." };
+export type PriceUpdate = {
+  sellingPrice: number;
+  wholesalePrice: number | null;
+  vipPrice: number | null;
+};
+
+function hasValidOptionalPrice(value: number | null) {
+  return value === null || (Number.isFinite(value) && value >= 0);
+}
+
+export async function updateProductPrices(productId: string, prices: PriceUpdate) {
+  if (!Number.isFinite(prices.sellingPrice) || prices.sellingPrice < 0 || !hasValidOptionalPrice(prices.wholesalePrice) || !hasValidOptionalPrice(prices.vipPrice)) {
+    return { ok: false, error: "Enter valid non-negative prices." };
+  }
   const context = await getCurrentOrgContext();
   if (!context || !can(context.role, "inventory.manage")) return { ok: false, error: "You do not have permission to update prices." };
   const supabase = await createClient();
   const { error } = await supabase
     .from("products")
-    .update({ unit_price: price, updated_at: new Date().toISOString() })
+    .update({ unit_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice, updated_at: new Date().toISOString() })
     .eq("id", productId)
     .eq("org_id", context.orgId);
   if (error) return { ok: false, error: error.message };
@@ -22,7 +34,7 @@ export async function updateProductPrice(productId: string, price: number) {
     action: "product.price_updated",
     entity_type: "products",
     entity_id: productId,
-    metadata: { new_price: price },
+    metadata: { new_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice },
   });
   revalidatePath("/inventory/prices");
   revalidatePath("/inventory");
@@ -31,7 +43,7 @@ export async function updateProductPrice(productId: string, price: number) {
   return { ok: true };
 }
 
-export async function bulkUpdateProductPrices(prices: Record<string, number>) {
+export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate>) {
   const context = await getCurrentOrgContext();
   if (!context || !can(context.role, "inventory.manage")) {
     return { ok: false, error: "You do not have permission to update prices.", updatedCount: 0 };
@@ -39,7 +51,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, number>) {
 
   const entries = Object.entries(prices);
   if (entries.length === 0) return { ok: true, updatedCount: 0 };
-  if (entries.some(([, price]) => !Number.isFinite(price) || price < 0)) {
+  if (entries.some(([, price]) => !Number.isFinite(price.sellingPrice) || price.sellingPrice < 0 || !hasValidOptionalPrice(price.wholesalePrice) || !hasValidOptionalPrice(price.vipPrice))) {
     return { ok: false, error: "All prices must be valid non-negative numbers.", updatedCount: 0 };
   }
 
@@ -48,7 +60,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, number>) {
     entries.map(([productId, price]) =>
       supabase
         .from("products")
-        .update({ unit_price: price, updated_at: new Date().toISOString() })
+        .update({ unit_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, updated_at: new Date().toISOString() })
         .eq("id", productId)
         .eq("org_id", context.orgId)
     )
@@ -62,7 +74,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, number>) {
       action: "product.price_updated",
       entity_type: "products",
       entity_id: productId,
-      metadata: { new_price: price, bulk: true },
+      metadata: { new_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, bulk: true },
     })
   ));
 

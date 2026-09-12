@@ -11,7 +11,7 @@ export default async function PriceManagementPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("products")
-    .select("id, name, sku, barcode, category, brand, unit_price, cost_price, wholesale_price, stock_quantity, image_urls, updated_at")
+    .select("id, name, sku, barcode, category, brand, unit_price, cost_price, wholesale_price, vip_price, stock_quantity, image_urls, updated_at")
     .eq("org_id", context.orgId)
     .eq("is_active", true)
     .order("name");
@@ -26,6 +26,7 @@ export default async function PriceManagementPage() {
     sellingPrice: Number(product.unit_price ?? 0),
     costPrice: Number(product.cost_price ?? 0),
     wholesalePrice: product.wholesale_price == null ? null : Number(product.wholesale_price),
+    vipPrice: product.vip_price == null ? null : Number(product.vip_price),
     stockQuantity: Number(product.stock_quantity ?? 0),
     imageUrl: product.image_urls?.[0] ?? null,
     updatedAt: product.updated_at,
