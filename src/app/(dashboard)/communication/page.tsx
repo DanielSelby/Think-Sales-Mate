@@ -71,6 +71,7 @@ export default function CommunicationPage() {
   const [workspaceTab, setWorkspaceTab] = useState<"chat" | "dashboard" | "announcements" | "templates" | "automations" | "history" | "approvals" | "template-analytics">("chat");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [call, setCall] = useState<{ id?: string; type: "voice" | "video"; startedAt: number; stream?: MediaStream } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ id: string; type: "voice" | "video"; channelId: string; callerName: string } | null>(null);
   const [screenSharing, setScreenSharing] = useState(false);
   const [callSeconds, setCallSeconds] = useState(0);
   const [callMuted, setCallMuted] = useState(false);
@@ -279,6 +280,23 @@ export default function CommunicationPage() {
       .subscribe();
     return () => { void supabase.removeChannel(realtime); };
   }, [activeId, members, orgId, supabase, userId]);
+
+  useEffect(() => {
+    if (!orgId || !channels.length || !userId) return;
+    const realtime = supabase
+      .channel(`communication-calls:${orgId}:${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "communication_calls", filter: `org_id=eq.${orgId}` }, (payload) => {
+        const incoming = payload.new as { id: string; channel_id: string | null; started_by: string; call_type: "voice" | "video"; ended_at: string | null };
+        if (!incoming.id || incoming.started_by === userId || incoming.ended_at || !incoming.channel_id) return;
+        const channel = channels.find((item) => item.id === incoming.channel_id);
+        if (!channel) return;
+        const callerName = members.find((member) => member.id === incoming.started_by)?.name ?? "A team member";
+        setIncomingCall({ id: incoming.id, type: incoming.call_type, channelId: incoming.channel_id, callerName });
+        playBeep();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(realtime); };
+  }, [channels, members, orgId, supabase, userId]);
 
   useEffect(() => {
     if (!call) return;
@@ -512,12 +530,35 @@ export default function CommunicationPage() {
         : "Could not access your microphone or camera.");
       return;
     }
-    const { data, error } = await (supabase as any).from("communication_calls").insert({ org_id: orgId, channel_id: active.id, started_by: userId, call_type: type }).select("id").single();
+    const { data, error } = await (supabase as any).from("communication_calls").insert({ org_id: orgId, channel_id: active.id, started_by: userId, call_type: type, metadata: { status: "ringing" } }).select("id").single();
     if (error) { stream.getTracks().forEach((track) => track.stop()); setNotice(error.message); return; }
     setCallSeconds(0);
     setCallMuted(false);
     setCameraEnabled(type === "video");
     setCall({ id: data.id, type, startedAt: Date.now(), stream });
+  };
+
+  const answerCall = async () => {
+    if (!incomingCall) return;
+    if (!navigator.mediaDevices?.getUserMedia) { setNotice("Calling is not supported in this browser."); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.type === "video" });
+      await (supabase as any).from("communication_calls").update({ metadata: { status: "accepted", accepted_by: userId } }).eq("id", incomingCall.id);
+      setActiveId(incomingCall.channelId);
+      setCall({ id: incomingCall.id, type: incomingCall.type, startedAt: Date.now(), stream });
+      setCallSeconds(0);
+      setCallMuted(false);
+      setCameraEnabled(incomingCall.type === "video");
+      setIncomingCall(null);
+    } catch {
+      setNotice("Could not access your microphone or camera.");
+    }
+  };
+
+  const declineCall = async () => {
+    if (!incomingCall) return;
+    await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString(), metadata: { status: "declined", declined_by: userId } }).eq("id", incomingCall.id);
+    setIncomingCall(null);
   };
 
   const endCall = async () => {
@@ -630,8 +671,8 @@ export default function CommunicationPage() {
   if (busy) return <div className="flex h-[calc(100vh-6.5rem)] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-500">Loading communication workspace...</div>;
 
   return (
-    <div className="flex h-[calc(100vh-6.5rem)] min-h-[620px] min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="absolute z-10 ml-3 mt-3 flex gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+    <div className="relative flex h-[calc(100vh-6.5rem)] min-h-[620px] min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white pt-14 shadow-sm">
+      <div className="absolute inset-x-0 top-0 z-20 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white p-2 shadow-sm">
         <button onClick={() => setWorkspaceTab("chat")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "chat" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Chats</button>
         <button onClick={() => setWorkspaceTab("dashboard")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "dashboard" ? "bg-blue-600 text-white" : "text-slate-500"}`}><BarChart3 className="h-3 w-3" />Dashboard</button>
         <button onClick={() => setWorkspaceTab("announcements")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "announcements" ? "bg-blue-600 text-white" : "text-slate-500"}`}><Megaphone className="h-3 w-3" />Announcements</button>
@@ -701,6 +742,21 @@ export default function CommunicationPage() {
             <button onClick={() => void toggleScreenShare()} className={`rounded-full p-3 text-white ${screenSharing ? "bg-blue-600" : "bg-white/10 hover:bg-white/20"}`} title={screenSharing ? "Stop sharing" : "Share screen"}><MonitorUp className="h-5 w-5" /></button>
             <button onClick={() => void endCall()} className="rounded-full bg-red-600 p-3 text-white hover:bg-red-500" title="End call"><Phone className="h-5 w-5 rotate-[135deg]" /></button>
           </footer>
+        </div>
+      </div>}
+      {incomingCall && !call && <div className="fixed right-5 top-5 z-50 w-full max-w-sm rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+            {incomingCall.type === "video" ? <Video className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-900">{incomingCall.type === "video" ? "Incoming video call" : "Incoming voice call"}</p>
+            <p className="mt-1 truncate text-xs text-slate-500">{incomingCall.callerName} is calling in {channels.find((channel) => channel.id === incomingCall.channelId)?.name ?? "a conversation"}.</p>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={() => void declineCall()} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Decline</button>
+          <button type="button" onClick={() => void answerCall()} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">{incomingCall.type === "video" ? "Join video" : "Answer"}</button>
         </div>
       </div>}
       </>}
