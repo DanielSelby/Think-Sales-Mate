@@ -29,7 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Sales", href: "/sales", icon: Receipt, status: "live",
     children: [
-      { label: "All Sales", href: "/sales", icon: List },
+      { label: "All Sales", href: "/sales/all", icon: List },
       { label: "New Sale", href: "/sales/new", icon: PlusCircle },
       { label: "Drafts & Quotations List", href: "/sales/drafts", icon: Clock3 },
     ],

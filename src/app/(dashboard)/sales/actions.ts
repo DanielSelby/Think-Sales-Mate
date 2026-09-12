@@ -664,6 +664,7 @@ export interface DraftSaleRow {
   saleDate: string;
   total: number;
   createdAt: string;
+  createdByName: string;
 }
 
 export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
@@ -685,6 +686,11 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
   }
 
   const { data } = await q;
+  const soldByIds = Array.from(new Set((data ?? []).map((sale) => sale.sold_by).filter(Boolean)));
+  const { data: profiles } = soldByIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", soldByIds)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  const profileNames = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name ?? "Unknown"]));
 
   return (data ?? []).map((s) => ({
     id: s.id,
@@ -694,6 +700,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
     saleDate: s.sale_date,
     total: s.total,
     createdAt: s.created_at,
+    createdByName: profileNames.get(s.sold_by) ?? "Unknown",
   }));
 }
 

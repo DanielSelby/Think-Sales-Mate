@@ -425,7 +425,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                 <th className="px-3 py-3 min-w-[170px] font-semibold whitespace-nowrap">Customer</th>
                 <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Branch</th>
                 <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Date</th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Expiry Date</th>
+                <th className="px-3 py-3 min-w-[160px] font-semibold whitespace-nowrap">Product</th>
                 <th className="px-3 py-3 min-w-[130px] text-right font-semibold whitespace-nowrap">Amount</th>
                 <th className="px-3 py-3 min-w-[120px] font-semibold whitespace-nowrap">Status</th>
                 <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Created By</th>
@@ -472,7 +472,10 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                     <td className="px-3 py-3 text-ink-900 dark:text-white">{s.customerName}</td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.locationName ?? "—"}</td>
                     <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{date}<div className="text-xs text-ledger-400">{time}</div></td>
-                    <td className="px-3 py-3 text-ledger-400">—</td>
+                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
+                      {s.primaryProductName ?? "—"}
+                      {s.productLineCount > 1 && <span className="ml-1 text-[10px] text-ledger-400">+{s.productLineCount - 1} more</span>}
+                    </td>
                     <td className="px-3 py-3 text-right font-medium text-ink-900 dark:text-white">
                       {formatCurrency(s.total, currency)}
                     </td>

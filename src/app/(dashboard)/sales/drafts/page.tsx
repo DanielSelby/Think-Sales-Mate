@@ -26,7 +26,7 @@ export default async function DraftsPage({ searchParams }: { searchParams?: { ty
     ? searchParams.type
     : "all";
 
-  return <DraftsListView initialType={initialType} drafts={drafts} currency={context.currency} branchRequests={(requests ?? []).map((request) => ({
+  return <DraftsListView initialType={initialType} drafts={drafts} currency={context.currency} orgName={context.orgName} branchRequests={(requests ?? []).map((request) => ({
     id: request.id,
     label: `REQ-${String(request.request_number).padStart(4, "0")}`,
     source: locationNames.get(request.source_location_id) ?? "—",

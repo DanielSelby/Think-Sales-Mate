@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import {
-  CalendarDays, Download, Eye, FileSpreadsheet, FileText, Filter, MoreVertical,
+  CalendarDays, Download, Eye, FileSpreadsheet, FileText, Filter, MoreVertical, Printer,
   Pencil, Plus, Search, Trash2, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
-import { deleteDraftSale, type DraftSaleRow } from "@/app/(dashboard)/sales/actions";
+import { deleteDraftSale, getSaleInvoiceItems, type DraftSaleRow } from "@/app/(dashboard)/sales/actions";
+import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
 import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +40,7 @@ const DOC_STATUS_TONE: Record<DraftSaleRow["documentStatus"], "neutral" | "amber
   proforma: "signal",
 };
 
-export function DraftsListView({ drafts, currency, branchRequests = [], initialType = "all" }: { drafts: DraftSaleRow[]; currency: string; branchRequests?: BranchRequestRow[]; initialType?: "all" | DraftSaleRow["documentStatus"] }) {
+export function DraftsListView({ drafts, currency, orgName, branchRequests = [], initialType = "all" }: { drafts: DraftSaleRow[]; currency: string; orgName: string; branchRequests?: BranchRequestRow[]; initialType?: "all" | DraftSaleRow["documentStatus"] }) {
   const [rows, setRows] = useState(drafts);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>(initialType);
@@ -48,6 +49,7 @@ export function DraftsListView({ drafts, currency, branchRequests = [], initialT
   const [isPending, startTransition] = useTransition();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"documents" | "requests">("documents");
 
   const filtered = useMemo(() => {
@@ -83,10 +85,41 @@ export function DraftsListView({ drafts, currency, branchRequests = [], initialT
         setNotice({ message: result.error ?? "Couldn't delete this draft.", tone: "error" });
         return;
       }
+
       setRows((current) => current.filter((row) => row.id !== id));
       setNotice({ message: "Document deleted.", tone: "success" });
       window.setTimeout(() => setNotice(null), 3000);
     });
+  }
+
+  async function handlePrint(document: DraftSaleRow) {
+    setPrintingId(document.id);
+    try {
+      const items = await getSaleInvoiceItems(document.id);
+      const html = buildInvoiceHtml({
+        orgName,
+        saleNumber: document.saleNumber,
+        saleDate: document.createdAt,
+        customerName: document.customerName,
+        soldByName: document.createdByName,
+        locationName: null,
+        paymentMethod: null,
+        paymentStatus: "pending",
+        subtotal: document.total,
+        total: document.total,
+        amountPaid: 0,
+        currency,
+        items,
+      });
+      const win = window.open("", "_blank", "width=800,height=900");
+      if (!win) return;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } finally {
+      setPrintingId(null);
+    }
   }
 
   return (
@@ -166,20 +199,19 @@ export function DraftsListView({ drafts, currency, branchRequests = [], initialT
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead><tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
-              <th className="px-4 py-3 font-medium">Document</th><th className="px-3 py-3 font-medium">Customer</th><th className="px-3 py-3 font-medium">Date</th><th className="px-3 py-3 font-medium">Expiry Date</th><th className="px-3 py-3 text-right font-medium">Amount</th><th className="px-3 py-3 font-medium">Status</th><th className="px-3 py-3 font-medium">Created By</th><th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
+              <th className="px-4 py-3 font-medium">Document</th><th className="px-3 py-3 font-medium">Customer</th><th className="px-3 py-3 font-medium">Date</th><th className="px-3 py-3 text-right font-medium">Amount</th><th className="px-3 py-3 font-medium">Status</th><th className="px-3 py-3 font-medium">Created By</th><th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
             </tr></thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
-              {filtered.length === 0 ? <tr><td colSpan={8} className="px-4 py-14 text-center text-sm text-ledger-400"><FileText className="mx-auto mb-2 h-6 w-6" />No documents match your filters.</td></tr> : filtered.map((document) => {
+              {filtered.length === 0 ? <tr><td colSpan={7} className="px-4 py-14 text-center text-sm text-ledger-400"><FileText className="mx-auto mb-2 h-6 w-6" />No documents match your filters.</td></tr> : filtered.map((document) => {
                 const { date, time } = formatDateTime(document.createdAt);
                 return <tr key={document.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
                   <td className="px-4 py-3"><Link href={`/sales/${document.id}/edit`} className="font-mono text-[13px] font-medium text-signal hover:underline">{formatInvoiceNumber(document.saleNumber)}<span className="mt-0.5 block font-sans text-[10px] text-ledger-400">{DOC_STATUS_LABEL[document.documentStatus]}</span></Link></td>
                   <td className="px-3 py-3 font-medium text-ink-900 dark:text-white">{document.customerName}<span className="block text-[10px] text-ledger-400">—</span></td>
                   <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{date}<span className="block text-[10px] text-ledger-400">{time}</span></td>
-                  <td className="px-3 py-3 text-ledger-400">—</td>
                   <td className="px-3 py-3 text-right font-medium text-ink-900 dark:text-white">{formatCurrency(document.total, currency)}</td>
                   <td className="px-3 py-3"><Badge tone={DOC_STATUS_TONE[document.documentStatus]}>{DOC_STATUS_LABEL[document.documentStatus]}</Badge></td>
-                  <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">Current user</td>
-                  <td className="px-3 py-3 pr-4"><div className="flex items-center justify-end gap-1 text-ledger-400"><Link href={`/sales/${document.id}`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900" title="View"><Eye className="h-4 w-4" /></Link><Link href={`/sales/${document.id}/edit`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900" title="Edit"><Pencil className="h-4 w-4" /></Link><button onClick={() => handleDelete(document.id)} disabled={isPending && pendingId === document.id} className="rounded-md p-1.5 hover:bg-alert-soft hover:text-alert disabled:opacity-40" title="Delete"><Trash2 className="h-4 w-4" /></button><button className="rounded-md p-1.5 hover:bg-ledger-100" title="More actions"><MoreVertical className="h-4 w-4" /></button></div></td>
+                  <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{document.createdByName}</td>
+                  <td className="px-3 py-3 pr-4"><div className="flex items-center justify-end gap-1 text-ledger-400"><Link href={`/sales/${document.id}`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900" title="View"><Eye className="h-4 w-4" /></Link><Link href={`/sales/${document.id}/edit`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900" title="Edit"><Pencil className="h-4 w-4" /></Link><button onClick={() => handlePrint(document)} disabled={printingId === document.id} className="rounded-md p-1.5 hover:bg-ledger-100 disabled:opacity-40" title="Print"><Printer className="h-4 w-4" /></button><button onClick={() => handleDelete(document.id)} disabled={isPending && pendingId === document.id} className="rounded-md p-1.5 hover:bg-alert-soft hover:text-alert disabled:opacity-40" title="Delete"><Trash2 className="h-4 w-4" /></button><button className="rounded-md p-1.5 hover:bg-ledger-100" title="More actions"><MoreVertical className="h-4 w-4" /></button></div></td>
                 </tr>;
               })}
             </tbody>
