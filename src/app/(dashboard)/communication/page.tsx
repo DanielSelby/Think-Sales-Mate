@@ -283,19 +283,63 @@ export default function CommunicationPage() {
 
   useEffect(() => {
     if (!orgId || !channels.length || !userId) return;
+    let disposed = false;
+    const findIncomingCall = async () => {
+      const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const { data, error } = await (supabase as any)
+        .from("communication_calls")
+        .select("id, channel_id, started_by, call_type, ended_at, started_at, metadata")
+        .eq("org_id", orgId)
+        .neq("started_by", userId)
+        .is("ended_at", null)
+        .gte("started_at", cutoff)
+        .order("started_at", { ascending: false })
+        .limit(10);
+      if (error || disposed) return;
+      const ringing = (data ?? []).find((candidate: {
+        id: string;
+        channel_id: string | null;
+        started_by: string;
+        call_type: "voice" | "video";
+        ended_at: string | null;
+        metadata?: { status?: string } | null;
+      }) => candidate.channel_id
+        && candidate.metadata?.status === "ringing"
+        && channels.some((channel) => channel.id === candidate.channel_id));
+      if (!ringing) return;
+      const callerName = members.find((member) => member.id === ringing.started_by)?.name ?? "A team member";
+      let isNew = false;
+      setIncomingCall((current) => {
+        if (current?.id === ringing.id) return current;
+        isNew = true;
+        return { id: ringing.id, type: ringing.call_type, channelId: ringing.channel_id as string, callerName };
+      });
+      if (isNew) playBeep();
+    };
+    void findIncomingCall();
+    const pollTimer = window.setInterval(() => void findIncomingCall(), 2000);
     const realtime = supabase
       .channel(`communication-calls:${orgId}:${userId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "communication_calls", filter: `org_id=eq.${orgId}` }, (payload) => {
-        const incoming = payload.new as { id: string; channel_id: string | null; started_by: string; call_type: "voice" | "video"; ended_at: string | null };
-        if (!incoming.id || incoming.started_by === userId || incoming.ended_at || !incoming.channel_id) return;
+        const incoming = payload.new as { id: string; channel_id: string | null; started_by: string; call_type: "voice" | "video"; ended_at: string | null; metadata?: { status?: string } | null };
+        if (!incoming.id || incoming.started_by === userId || incoming.ended_at || incoming.metadata?.status !== "ringing" || !incoming.channel_id) return;
         const channel = channels.find((item) => item.id === incoming.channel_id);
         if (!channel) return;
         const callerName = members.find((member) => member.id === incoming.started_by)?.name ?? "A team member";
-        setIncomingCall({ id: incoming.id, type: incoming.call_type, channelId: incoming.channel_id, callerName });
-        playBeep();
+        let isNew = false;
+        setIncomingCall((current) => {
+          if (current?.id === incoming.id) return current;
+          isNew = true;
+          return { id: incoming.id, type: incoming.call_type, channelId: incoming.channel_id as string, callerName };
+        });
+        if (isNew) playBeep();
       })
       .subscribe();
-    return () => { void supabase.removeChannel(realtime); };
+    return () => {
+      disposed = true;
+      window.clearInterval(pollTimer);
+      void supabase.removeChannel(realtime);
+    };
   }, [channels, members, orgId, supabase, userId]);
 
   useEffect(() => {

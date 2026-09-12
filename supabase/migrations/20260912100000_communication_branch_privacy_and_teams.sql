@@ -337,6 +337,14 @@ exception
 end
 $$;
 
+do $$
+begin
+  alter publication supabase_realtime add table public.communication_calls;
+exception
+  when duplicate_object then null;
+end
+$$;
+
 -- Direct channels must carry a branch context. Existing group/branch channels
 -- retain their existing location values.
 create or replace function public.create_communication_channel(
