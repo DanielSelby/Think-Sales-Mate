@@ -444,7 +444,7 @@ export interface CartItemInput {
   discountPercent: number;
   taxPercent: number;
   description?: string;
-  priceTier?: "retail" | "wholesale" | "vip";
+  priceTier?: "retail" | "wholesale" | "vip" | "special";
 }
 
 export interface SimpleResult {
@@ -672,7 +672,7 @@ export interface CompleteSaleInput {
   shippingAmount: number;
   paymentMethod: string;
   saleDate: string; // 'YYYY-MM-DD' — sales.sale_date is a DATE column, no time component
-  priceTier?: "retail" | "wholesale" | "vip";
+  priceTier?: "retail" | "wholesale" | "vip" | "special";
 }
 
 export interface CompleteSaleResult {

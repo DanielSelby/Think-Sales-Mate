@@ -15,7 +15,7 @@ export default async function PosPage() {
   const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, cost_price, stock_quantity, image_urls")
+      .select("id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, image_urls")
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
@@ -55,6 +55,7 @@ export default async function PosPage() {
         unitPrice: p.unit_price,
         wholesalePrice: p.wholesale_price,
         vipPrice: p.vip_price,
+        specialPrice: p.special_price,
         costPrice: Number(p.cost_price ?? 0),
         stockQuantity: p.stock_quantity,
         imageUrl: p.image_urls?.[0] ?? null,

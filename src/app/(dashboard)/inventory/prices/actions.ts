@@ -9,6 +9,7 @@ export type PriceUpdate = {
   sellingPrice: number;
   wholesalePrice: number | null;
   vipPrice: number | null;
+  specialPrice: number | null;
 };
 
 function hasValidOptionalPrice(value: number | null) {
@@ -16,7 +17,7 @@ function hasValidOptionalPrice(value: number | null) {
 }
 
 export async function updateProductPrices(productId: string, prices: PriceUpdate) {
-  if (!Number.isFinite(prices.sellingPrice) || prices.sellingPrice < 0 || !hasValidOptionalPrice(prices.wholesalePrice) || !hasValidOptionalPrice(prices.vipPrice)) {
+  if (!Number.isFinite(prices.sellingPrice) || prices.sellingPrice < 0 || !hasValidOptionalPrice(prices.wholesalePrice) || !hasValidOptionalPrice(prices.vipPrice) || !hasValidOptionalPrice(prices.specialPrice)) {
     return { ok: false, error: "Enter valid non-negative prices." };
   }
   const context = await getCurrentOrgContext();
@@ -24,7 +25,7 @@ export async function updateProductPrices(productId: string, prices: PriceUpdate
   const supabase = await createClient();
   const { error } = await supabase
     .from("products")
-    .update({ unit_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice, updated_at: new Date().toISOString() })
+    .update({ unit_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice, special_price: prices.specialPrice, updated_at: new Date().toISOString() })
     .eq("id", productId)
     .eq("org_id", context.orgId);
   if (error) return { ok: false, error: error.message };
@@ -34,7 +35,7 @@ export async function updateProductPrices(productId: string, prices: PriceUpdate
     action: "product.price_updated",
     entity_type: "products",
     entity_id: productId,
-    metadata: { new_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice },
+    metadata: { new_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice, special_price: prices.specialPrice },
   });
   revalidatePath("/inventory/prices");
   revalidatePath("/inventory");
@@ -51,7 +52,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate
 
   const entries = Object.entries(prices);
   if (entries.length === 0) return { ok: true, updatedCount: 0 };
-  if (entries.some(([, price]) => !Number.isFinite(price.sellingPrice) || price.sellingPrice < 0 || !hasValidOptionalPrice(price.wholesalePrice) || !hasValidOptionalPrice(price.vipPrice))) {
+  if (entries.some(([, price]) => !Number.isFinite(price.sellingPrice) || price.sellingPrice < 0 || !hasValidOptionalPrice(price.wholesalePrice) || !hasValidOptionalPrice(price.vipPrice) || !hasValidOptionalPrice(price.specialPrice))) {
     return { ok: false, error: "All prices must be valid non-negative numbers.", updatedCount: 0 };
   }
 
@@ -60,7 +61,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate
     entries.map(([productId, price]) =>
       supabase
         .from("products")
-        .update({ unit_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, updated_at: new Date().toISOString() })
+        .update({ unit_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, special_price: price.specialPrice, updated_at: new Date().toISOString() })
         .eq("id", productId)
         .eq("org_id", context.orgId)
     )
@@ -74,7 +75,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate
       action: "product.price_updated",
       entity_type: "products",
       entity_id: productId,
-      metadata: { new_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, bulk: true },
+      metadata: { new_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, special_price: price.specialPrice, bulk: true },
     })
   ));
 

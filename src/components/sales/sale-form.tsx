@@ -50,6 +50,7 @@ export interface SellableProduct {
   unitPrice: number;
   wholesalePrice: number | null;
   vipPrice: number | null;
+  specialPrice: number | null;
   costPrice: number;
   stockQuantity: number;
 }
@@ -63,9 +64,10 @@ export interface SaleCustomer {
   isReturning: boolean;
 }
 
-function getTierPrice(product: SellableProduct, tier: "retail" | "wholesale" | "vip") {
+function getTierPrice(product: SellableProduct, tier: "retail" | "wholesale" | "vip" | "special") {
   if (tier === "wholesale") return product.wholesalePrice ?? product.unitPrice;
   if (tier === "vip") return product.vipPrice ?? product.unitPrice;
+  if (tier === "special") return product.specialPrice ?? product.unitPrice;
   return product.unitPrice;
 }
 
@@ -218,7 +220,7 @@ export function SaleForm({
   const [search, setSearch] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([]);
-  const [priceTier, setPriceTier] = useState<"retail" | "wholesale" | "vip">("retail");
+  const [priceTier, setPriceTier] = useState<"retail" | "wholesale" | "vip" | "special">("retail");
 
   // Additional information / charges — always visible now (the reference
   // shows Notes, Attach Document, Shipping, Other Charges, Discount, and
@@ -300,7 +302,7 @@ export function SaleForm({
     const lineTax = taxable * (line.taxPercent / 100);
     return { line, product, unitPrice, lineSubtotal, lineDiscount, taxable, lineTax, rowTotal: taxable };
   });
-  const hasCostWarning = computedLines.some(({ product }) => product && [product.unitPrice, product.wholesalePrice, product.vipPrice].some((price) => price != null && price <= product.costPrice));
+  const hasCostWarning = computedLines.some(({ product }) => product && [product.unitPrice, product.wholesalePrice, product.vipPrice, product.specialPrice].some((price) => price != null && price <= product.costPrice));
 
   const totalQuantity = lines.reduce((sum, l) => sum + l.quantity, 0);
   const subtotal = computedLines.reduce((sum, c) => sum + c.lineSubtotal, 0);
@@ -938,8 +940,8 @@ export function SaleForm({
             <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Sale Items ({lines.length} items)</h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-ledger-500">Price type:</span>
-              {(["retail", "wholesale", "vip"] as const).map((tier) => (
-                <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors", priceTier === tier ? "text-white" : "border border-ledger-200 text-ledger-500 dark:border-ledger-700")} style={priceTier === tier ? { background: theme.colors.primary } : undefined}>{tier}</button>
+              {(["retail", "wholesale", "vip", "special"] as const).map((tier) => (
+                <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded-full px-3 py-1.5 text-xs font-semibold transition-colors", priceTier === tier ? "text-white" : "border border-ledger-200 text-ledger-500 dark:border-ledger-700")} style={priceTier === tier ? { background: theme.colors.primary } : undefined}>{tier === "special" ? "S.P" : tier}</button>
               ))}
               {!canChoosePriceTier && <span className="text-[11px] text-ledger-400">You do not have permission to change pricing.</span>}
             </div>

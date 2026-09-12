@@ -38,6 +38,7 @@ export interface PosProduct {
   unitPrice: number;
   wholesalePrice: number | null;
   vipPrice: number | null;
+  specialPrice: number | null;
   costPrice: number;
   stockQuantity: number;
   imageUrl?: string | null;
@@ -72,9 +73,10 @@ function isoToLocalDate(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip") {
+function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" | "special") {
   if (tier === "wholesale") return product.wholesalePrice ?? product.unitPrice;
   if (tier === "vip") return product.vipPrice ?? product.unitPrice;
+  if (tier === "special") return product.specialPrice ?? product.unitPrice;
   return product.unitPrice;
 }
 
@@ -99,7 +101,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
   const [activeCategory, setActiveCategory] = React.useState("all");
   const [activeBrand, setActiveBrand] = React.useState("all");
-  const [priceTier, setPriceTier] = React.useState<"retail" | "wholesale" | "vip">("retail");
+  const [priceTier, setPriceTier] = React.useState<"retail" | "wholesale" | "vip" | "special">("retail");
   const [cart, setCart] = React.useState<CartLine[]>([]);
   const [priceEditLine, setPriceEditLine] = React.useState<CartLine | null>(null);
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
@@ -312,7 +314,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const itemCount = cart.reduce((sum, l) => sum + l.quantity, 0);
   const hasCostWarning = cart.some((line) => {
     const product = products.find((item) => item.id === line.productId);
-    return product && [product.unitPrice, product.wholesalePrice, product.vipPrice].some((price) => price != null && price <= product.costPrice);
+    return product && [product.unitPrice, product.wholesalePrice, product.vipPrice, product.specialPrice].some((price) => price != null && price <= product.costPrice);
   });
 
   React.useEffect(() => {
@@ -640,7 +642,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         </div>
         <span className="flex h-10 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:w-auto" style={{ background: theme.colors.primary }}>{dateLabel}</span>
         <div className="flex items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700">
-          {(["retail", "wholesale", "vip"] as const).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier !== tier && "text-ledger-500")} style={priceTier === tier ? { background: theme.colors.primary, color: "#fff" } : undefined}>{tier}</button>)}
+          {(["retail", "wholesale", "vip", "special"] as const).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier !== tier && "text-ledger-500")} style={priceTier === tier ? { background: theme.colors.primary, color: "#fff" } : undefined}>{tier === "special" ? "S.P" : tier}</button>)}
         </div>
 
         <div className="grid min-w-0 grid-cols-4 items-center justify-items-center gap-2 px-1 sm:ml-auto sm:flex sm:flex-1 sm:justify-around sm:gap-4 sm:px-3">

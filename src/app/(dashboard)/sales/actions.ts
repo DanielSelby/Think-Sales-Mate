@@ -236,7 +236,7 @@ export interface RecordSaleInput {
   taxAmount?:      number | null;
   subtotal:        number;
   total:           number;
-  priceTier?:      "retail" | "wholesale" | "vip";
+  priceTier?:      "retail" | "wholesale" | "vip" | "special";
   lines?: {
     productId:        string;
     quantity:         number;
@@ -514,7 +514,7 @@ export interface UpdateSaleInput {
   taxAmount?:      number | null;
   subtotal:        number;
   total:           number;
-  priceTier?:      "retail" | "wholesale" | "vip";
+  priceTier?:      "retail" | "wholesale" | "vip" | "special";
   items: { productId: string; quantity: number; unitPrice: number; discountPercent?: number; taxPercent?: number; lineTotal: number }[];
 }
 
