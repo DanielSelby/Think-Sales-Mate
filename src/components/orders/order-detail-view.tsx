@@ -117,6 +117,7 @@ export function OrderDetailView({
   const [rejectionReason, setRejectReason] = React.useState("");
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
+  const [appliedPriceGroup, setAppliedPriceGroup] = React.useState<string | null>(null);
 
   const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
   const total = subtotal + order.deliveryFee;
@@ -143,14 +144,28 @@ export function OrderDetailView({
   }
 
   function applyPrice(group: "retail" | "wholesale" | "vip" | "special") {
-    setItems((current) => current.map((item) => {
+    const updatedItems = items.map((item) => {
+      const retailPrice = item.retailPrice ?? item.unitPrice;
       const price = group === "retail"
-        ? item.retailPrice
+        ? retailPrice
         : group === "wholesale"
-          ? item.wholesalePrice
-          : group === "vip" ? item.vipPrice : item.specialPrice;
-      return price == null ? item : { ...item, unitPrice: price, lineTotal: item.quantity * price };
-    }));
+          ? item.wholesalePrice ?? retailPrice
+          : group === "vip" ? item.vipPrice ?? retailPrice : item.specialPrice ?? retailPrice;
+      return { ...item, unitPrice: price, lineTotal: item.quantity * price };
+    });
+    setItems(updatedItems);
+    setAppliedPriceGroup(group);
+    startTransition(async () => {
+      const results = await Promise.all(updatedItems.map((item) =>
+        updateOrderItem(order.id, { itemId: item.id, quantity: item.quantity, unitPrice: item.unitPrice })
+      ));
+      const failed = results.find((result) => !result.ok);
+      if (failed && !failed.ok) {
+        setError(failed.error ?? "Could not apply the selected price group.");
+        return;
+      }
+      router.refresh();
+    });
   }
 
   function deleteItem(itemId: string) {
@@ -439,10 +454,11 @@ export function OrderDetailView({
           <CardTitle className="normal-case tracking-normal text-sm font-semibold text-ink-900 dark:text-white flex items-center justify-between">
             <span>Order Line Items</span>
             <span className="flex gap-2">
-              {allowedPriceGroups.includes("wholesale") && <Button variant="outline" size="sm" onClick={() => applyPrice("wholesale")}>Apply wholesale price</Button>}
-              {allowedPriceGroups.includes("vip") && <Button variant="outline" size="sm" onClick={() => applyPrice("vip")}>Apply VIP price</Button>}
-              {allowedPriceGroups.includes("special") && <Button variant="outline" size="sm" onClick={() => applyPrice("special")}>Apply S.P price</Button>}
-              {allowedPriceGroups.includes("retail") && <Button variant="outline" size="sm" onClick={() => applyPrice("retail")}>Apply retail price</Button>}
+              {allowedPriceGroups.includes("wholesale") && <Button type="button" variant="outline" size="sm" disabled={isPending || isFinal} onClick={() => applyPrice("wholesale")}>Apply wholesale price</Button>}
+              {allowedPriceGroups.includes("vip") && <Button type="button" variant="outline" size="sm" disabled={isPending || isFinal} onClick={() => applyPrice("vip")}>Apply VIP price</Button>}
+              {allowedPriceGroups.includes("special") && <Button type="button" variant="outline" size="sm" disabled={isPending || isFinal} onClick={() => applyPrice("special")}>Apply S.P price</Button>}
+              {allowedPriceGroups.includes("retail") && <Button type="button" variant="outline" size="sm" disabled={isPending || isFinal} onClick={() => applyPrice("retail")}>Apply retail price</Button>}
+              {appliedPriceGroup && <span className="self-center text-[11px] text-emerald-600">{appliedPriceGroup === "special" ? "S.P" : appliedPriceGroup} applied</span>}
             </span>
             {!isFinal && (
               <Button variant="outline" size="sm" onClick={runStockCheck} disabled={checkingStock}>

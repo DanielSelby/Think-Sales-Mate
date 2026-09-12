@@ -19,11 +19,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       .single(),
     supabase.from("customer_order_items").select("id, product_id, product_name, quantity, unit_price, line_total, products(unit_price, wholesale_price, vip_price, special_price)").eq("order_id", id),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
-    supabase.from("organization_members").select("user_id, profiles(id, full_name)").eq("org_id", context.orgId).eq("status", "active"),
+    supabase.from("organization_members").select("user_id, contact_email, invited_email, username, profiles(id, full_name)").eq("org_id", context.orgId).eq("status", "active"),
     supabase.from("customer_order_timeline").select("id, title, actor_name, status, notes, created_at").eq("order_id", id).order("created_at", { ascending: true }),
   ]);
 
   if (!order) return <p className="p-6 text-sm text-ledger-400">Order not found.</p>;
+
+  const productIds = [...new Set((items ?? []).map((item) => item.product_id).filter(Boolean))] as string[];
+  const { data: productPrices } = productIds.length
+    ? await supabase.from("products").select("id, unit_price, wholesale_price, vip_price, special_price").in("id", productIds)
+    : { data: [] as { id: string; unit_price: number | null; wholesale_price: number | null; vip_price: number | null; special_price: number | null }[] };
+  const pricesByProductId = new Map((productPrices ?? []).map((product) => [product.id, product]));
 
   const detail: OrderDetail = {
   id: order.id,
@@ -59,17 +65,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   voiceNoteUrl: order.voice_note_url ?? null,
 };
 
-  const itemRows: OrderItemRow[] = (items ?? []).map((i) => ({
+  const itemRows: OrderItemRow[] = (items ?? []).map((i) => {
+    const relatedProduct = Array.isArray(i.products) ? i.products[0] : i.products;
+    const product = pricesByProductId.get(i.product_id);
+    return {
     id: i.id,
     productName: i.product_name,
     quantity: Number(i.quantity),
     unitPrice: Number(i.unit_price),
     lineTotal: Number(i.line_total),
-    retailPrice: Array.isArray(i.products) ? Number(i.products[0]?.unit_price ?? NaN) || null : Number((i.products as any)?.unit_price ?? NaN) || null,
-    wholesalePrice: Array.isArray(i.products) ? Number(i.products[0]?.wholesale_price ?? NaN) || null : Number((i.products as any)?.wholesale_price ?? NaN) || null,
-    vipPrice: Array.isArray(i.products) ? Number(i.products[0]?.vip_price ?? NaN) || null : Number((i.products as any)?.vip_price ?? NaN) || null,
-    specialPrice: Array.isArray(i.products) ? Number(i.products[0]?.special_price ?? NaN) || null : Number((i.products as any)?.special_price ?? NaN) || null,
-  }));
+    retailPrice: Number((relatedProduct as any)?.unit_price ?? product?.unit_price ?? NaN) || null,
+    wholesalePrice: Number((relatedProduct as any)?.wholesale_price ?? product?.wholesale_price ?? NaN) || null,
+    vipPrice: Number((relatedProduct as any)?.vip_price ?? product?.vip_price ?? NaN) || null,
+    specialPrice: Number((relatedProduct as any)?.special_price ?? product?.special_price ?? NaN) || null,
+    };
+  });
 
   const timelineRows: OrderTimelineRow[] = (timeline ?? []).map((t) => ({
     id: t.id,
@@ -81,10 +91,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   }));
 
   const staffOptions = (members ?? [])
-    .filter((m) => m.profiles)
+    .filter((m) => m.user_id)
     .map((m) => ({
-      id: (m.profiles as any).id,
-      name: (m.profiles as any).full_name || "Staff",
+      id: m.user_id as string,
+      name: (m.profiles as any)?.full_name || m.username || m.contact_email || m.invited_email || "Staff",
     }));
 
   return (
