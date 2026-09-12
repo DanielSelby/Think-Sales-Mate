@@ -13,8 +13,9 @@ export default async function ApprovalCenterPage() {
   if (!can(context.role, "inventory.stock_request.approve")) redirect("/dashboard");
 
   const supabase = await createClient();
-  const [{ data: requests }, { data: expenses }, { data: returns }, { data: customerOrders }, { data: completed }, { data: locations }] = await Promise.all([
+  const [{ data: requests }, { data: requestItems }, { data: expenses }, { data: returns }, { data: customerOrders }, { data: completed }, { data: locations }] = await Promise.all([
     supabase.from("stock_requests").select("id, request_number, requested_by, requesting_location_id, source_location_id, status, priority, submitted_at, created_at").eq("org_id", context.orgId).eq("status", "pending_approval").order("created_at", { ascending: false }),
+    supabase.from("stock_request_items").select("request_id, product_id, quantity, reason, products(name, sku)").eq("org_id", context.orgId),
     supabase.from("expenses").select("id, expense_number, recorded_by, location_id, category, description, amount, status, expense_date, created_at").eq("org_id", context.orgId).eq("status", "pending_approval").order("created_at", { ascending: false }),
     supabase.from("purchase_returns").select("id, return_number, created_by, location_id, total_return_value, status, return_date, created_at").eq("org_id", context.orgId).eq("status", "submitted").order("created_at", { ascending: false }),
     supabase.from("customer_orders").select("id, order_number, guest_name, location_id, total, status, created_at").eq("org_id", context.orgId).eq("status", "new").order("created_at", { ascending: false }),
@@ -40,6 +41,8 @@ export default async function ApprovalCenterPage() {
       title: "Stock Request", requester: profileById.get(row.requested_by)?.full_name ?? "Unknown user",
       branch: locationById.get(row.requesting_location_id) ?? "—", date: row.submitted_at ?? row.created_at,
       amount: null, status: "pending_approval", priority: row.priority, href: `/inventory/stock-requests/history?id=${row.id}`,
+      details: [{ label: "Source", value: locationById.get(row.source_location_id) ?? "—" }],
+      items: (requestItems ?? []).filter((item) => item.request_id === row.id).map((item) => { const product = Array.isArray(item.products) ? item.products[0] : item.products; return { productName: product?.name ?? "Unknown product", sku: product?.sku ?? null, quantity: item.quantity, reason: item.reason }; }),
     })),
     ...(expenses ?? []).map((row) => ({
       id: row.id, type: "expense" as const, document: `EXP-${String(row.expense_number).padStart(6, "0")}`,

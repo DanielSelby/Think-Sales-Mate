@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import type { Database, TransferStatus } from "@/types/database";
@@ -159,17 +160,21 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   }
 
   const supabase = await createClient();
-  if (status === "received" && !can(context.role, "inventory.manage")) {
+  const isInventoryManager = can(context.role, "inventory.manage");
+  let receivingBranchCanComplete = false;
+  if (!isInventoryManager) {
     const { data: destination } = await supabase
       .from("stock_transfers")
       .select("to_location_id")
       .eq("id", transferId)
       .eq("org_id", context.orgId)
       .maybeSingle();
-    if (!destination || !context.allowedLocationIds.includes(destination.to_location_id)) {
+    receivingBranchCanComplete = Boolean(destination && context.allowedLocationIds.includes(destination.to_location_id));
+    if (!receivingBranchCanComplete) {
       return { error: "Only the receiving branch can accept this transfer." };
     }
-  } else if (status !== "received" && !can(context.role, "inventory.manage")) {
+  }
+  if (!isInventoryManager && status !== "completed" && status !== "received") {
     return { error: "You don't have permission to update transfers." };
   }
   const updates: Database["public"]["Tables"]["stock_transfers"]["Update"] = {
@@ -180,7 +185,11 @@ export async function updateTransferStatus(transferId: string, status: TransferS
     updates.received_at = new Date().toISOString();
     updates.received_by = context.userId;
   }
-  const { error } = await supabase
+  // The base RLS policy only allows managers to update transfer headers. A
+  // receiving branch is explicitly authorized above, so use the admin client
+  // for that narrowly scoped completion update.
+  const updateClient = isInventoryManager ? supabase : createAdminClient();
+  const { error } = await updateClient
     .from("stock_transfers")
     .update(updates)
     .eq("id", transferId)
@@ -189,11 +198,12 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   if (error) return { error: error.message };
 
   if (status === "completed") {
-    await supabase
+    const { error: requestUpdateError } = await updateClient
       .from("stock_requests")
       .update({ status: "completed", completed_at: new Date().toISOString() })
       .eq("transfer_id", transferId)
       .eq("org_id", context.orgId);
+    if (requestUpdateError) return { error: requestUpdateError.message };
     revalidatePath("/inventory/stock-requests");
   }
 
