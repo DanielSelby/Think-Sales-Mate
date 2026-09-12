@@ -38,6 +38,14 @@ type Announcement = { id: string; title: string; body: string; announcement_type
 type Template = { id: string; name: string; category: string; template_code: string; subject: string | null; content: string; channel: string; branch_scope: string; status: string; version: number; created_at: string; };
 type Automation = { id: string; event: string; template_id: string | null; channel: string; enabled: boolean; send_mode: string; };
 type MessageHistory = { id: string; event: string | null; channel: string; recipient: string | null; status: string; rendered_content: string; created_at: string; };
+type CallMetadata = {
+  status?: string;
+  accepted_by?: string;
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
+  callerCandidates?: RTCIceCandidateInit[];
+  calleeCandidates?: RTCIceCandidateInit[];
+};
 const tabs = ["All", "Unread", "Direct", "Groups", "Branches", "Announcements", "Archived"];
 
 export default function CommunicationPage() {
@@ -77,9 +85,17 @@ export default function CommunicationPage() {
   const [callMuted, setCallMuted] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const callVideoRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const videoSenderRef = useRef<RTCRtpSender | null>(null);
+  const callIdRef = useRef<string | null>(null);
+  const callRoleRef = useRef<"caller" | "callee" | null>(null);
+  const processedSignalRef = useRef({ offer: false, answer: false, callerCandidates: 0, calleeCandidates: 0 });
   const [templates, setTemplates] = useState<Template[]>([]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [messageHistory, setMessageHistory] = useState<MessageHistory[]>([]);
@@ -359,6 +375,11 @@ export default function CommunicationPage() {
   }, [screenStream]);
 
   useEffect(() => {
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream;
+  }, [remoteStream]);
+
+  useEffect(() => {
     const paths = messages.map((item) => item.attachment_path).filter((path): path is string => Boolean(path && !attachmentUrls[path]));
     if (!paths.length) return;
     let cancelled = false;
@@ -562,6 +583,61 @@ export default function CommunicationPage() {
     void loadWorkspace(true);
   };
 
+  const updateCallMetadata = async (callId: string, patch: CallMetadata) => {
+    const candidateKey = patch.callerCandidates ? "callerCandidates" : patch.calleeCandidates ? "calleeCandidates" : null;
+    const candidate = candidateKey ? patch[candidateKey]?.[0] : undefined;
+    const nextPatch = candidateKey ? Object.fromEntries(Object.entries(patch).filter(([key]) => key !== candidateKey)) : patch;
+    await (supabase as any).rpc("merge_communication_call_metadata", {
+      p_call_id: callId,
+      p_patch: nextPatch,
+      p_candidate_key: candidateKey,
+      p_candidate: candidate ?? null
+    });
+  };
+
+  const handleCallSignal = async (metadata: CallMetadata, role: "caller" | "callee", pc: RTCPeerConnection) => {
+    const processed = processedSignalRef.current;
+    if (role === "callee" && metadata.offer && !processed.offer) {
+      processed.offer = true;
+      await pc.setRemoteDescription(metadata.offer);
+      const videoTransceiver = pc.getTransceivers().find((transceiver) => transceiver.receiver.track?.kind === "video");
+      if (videoTransceiver) videoTransceiver.direction = "sendrecv";
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      if (callIdRef.current) await updateCallMetadata(callIdRef.current, { answer: { type: answer.type, sdp: answer.sdp ?? undefined } });
+    }
+    if (role === "caller" && metadata.answer && !processed.answer) {
+      processed.answer = true;
+      await pc.setRemoteDescription(metadata.answer);
+    }
+    if (!pc.remoteDescription) return;
+    const candidates = role === "caller" ? metadata.calleeCandidates ?? [] : metadata.callerCandidates ?? [];
+    const processedCount = role === "caller" ? processed.calleeCandidates : processed.callerCandidates;
+    for (const candidate of candidates.slice(processedCount)) {
+      await pc.addIceCandidate(candidate).catch(() => undefined);
+    }
+    if (role === "caller") processed.calleeCandidates = candidates.length;
+    else processed.callerCandidates = candidates.length;
+  };
+
+  useEffect(() => {
+    if (!call?.id || !callRoleRef.current || !peerConnectionRef.current) return;
+    const callId = call.id;
+    const role = callRoleRef.current;
+    const pc = peerConnectionRef.current;
+    const realtime = supabase
+      .channel(`communication-call-signal:${callId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "communication_calls", filter: `id=eq.${callId}` }, (payload) => {
+        void handleCallSignal((payload.new as { metadata?: CallMetadata }).metadata ?? {}, role, pc);
+      })
+      .subscribe();
+    void (async () => {
+      const { data } = await (supabase as any).from("communication_calls").select("metadata").eq("id", callId).single();
+      if (data?.metadata) await handleCallSignal(data.metadata as CallMetadata, role, pc);
+    })();
+    return () => { void supabase.removeChannel(realtime); };
+  }, [call?.id, supabase]);
+
   const startCall = async (type: "voice" | "video") => {
     if (!active || !orgId || !userId) return;
     if (!navigator.mediaDevices?.getUserMedia) { setNotice("Calling is not supported in this browser."); return; }
@@ -574,11 +650,26 @@ export default function CommunicationPage() {
         : "Could not access your microphone or camera.");
       return;
     }
-    const { data, error } = await (supabase as any).from("communication_calls").insert({ org_id: orgId, channel_id: active.id, started_by: userId, call_type: type, metadata: { status: "ringing" } }).select("id").single();
+    const { data, error } = await (supabase as any).from("communication_calls").insert({ org_id: orgId, channel_id: active.id, started_by: userId, call_type: type, metadata: { status: "ringing", callerCandidates: [], calleeCandidates: [] } }).select("id").single();
     if (error) { stream.getTracks().forEach((track) => track.stop()); setNotice(error.message); return; }
     setCallSeconds(0);
     setCallMuted(false);
     setCameraEnabled(type === "video");
+    const pc = new RTCPeerConnection();
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    if (type === "voice") videoSenderRef.current = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
+    else videoSenderRef.current = pc.getSenders().find((sender) => sender.track?.kind === "video") ?? null;
+    pc.ontrack = (event) => setRemoteStream(event.streams[0] ?? new MediaStream([event.track]));
+    pc.onicecandidate = (event) => {
+      if (event.candidate) void updateCallMetadata(data.id, { callerCandidates: [{ candidate: event.candidate.candidate, sdpMid: event.candidate.sdpMid, sdpMLineIndex: event.candidate.sdpMLineIndex }] });
+    };
+    peerConnectionRef.current = pc;
+    callIdRef.current = data.id;
+    callRoleRef.current = "caller";
+    processedSignalRef.current = { offer: false, answer: false, callerCandidates: 0, calleeCandidates: 0 };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await updateCallMetadata(data.id, { offer: { type: offer.type, sdp: offer.sdp ?? undefined } });
     setCall({ id: data.id, type, startedAt: Date.now(), stream });
   };
 
@@ -587,7 +678,20 @@ export default function CommunicationPage() {
     if (!navigator.mediaDevices?.getUserMedia) { setNotice("Calling is not supported in this browser."); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.type === "video" });
-      await (supabase as any).from("communication_calls").update({ metadata: { status: "accepted", accepted_by: userId } }).eq("id", incomingCall.id);
+      const pc = new RTCPeerConnection();
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      pc.ontrack = (event) => setRemoteStream(event.streams[0] ?? new MediaStream([event.track]));
+      pc.onicecandidate = (event) => {
+        if (event.candidate) void updateCallMetadata(incomingCall.id, { calleeCandidates: [{ candidate: event.candidate.candidate, sdpMid: event.candidate.sdpMid, sdpMLineIndex: event.candidate.sdpMLineIndex }] });
+      };
+      peerConnectionRef.current = pc;
+      callIdRef.current = incomingCall.id;
+      callRoleRef.current = "callee";
+      processedSignalRef.current = { offer: false, answer: false, callerCandidates: 0, calleeCandidates: 0 };
+      const { data: callRow } = await (supabase as any).from("communication_calls").select("metadata").eq("id", incomingCall.id).single();
+      await updateCallMetadata(incomingCall.id, { status: "accepted", accepted_by: userId });
+      await handleCallSignal((callRow?.metadata ?? {}) as CallMetadata, "callee", pc);
+      videoSenderRef.current = pc.getTransceivers().find((transceiver) => transceiver.receiver.track?.kind === "video" || transceiver.sender.track?.kind === "video")?.sender ?? null;
       setActiveId(incomingCall.channelId);
       setCall({ id: incomingCall.id, type: incomingCall.type, startedAt: Date.now(), stream });
       setCallSeconds(0);
@@ -610,6 +714,12 @@ export default function CommunicationPage() {
     call.stream?.getTracks().forEach((track) => track.stop());
     screenStream?.getTracks().forEach((track) => track.stop());
     if (call.id) await (supabase as any).from("communication_calls").update({ ended_at: new Date().toISOString() }).eq("id", call.id);
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+    videoSenderRef.current = null;
+    callIdRef.current = null;
+    callRoleRef.current = null;
+    setRemoteStream(null);
     setCall(null);
     setScreenStream(null);
     setScreenSharing(false);
@@ -618,6 +728,9 @@ export default function CommunicationPage() {
   const toggleScreenShare = async () => {
     if (screenSharing) {
       screenStream?.getTracks().forEach((track) => track.stop());
+      const sender = videoSenderRef.current;
+      const cameraTrack = call?.stream?.getVideoTracks()[0];
+      if (sender) await sender.replaceTrack(cameraTrack ?? null);
       setScreenStream(null);
       setScreenSharing(false);
       return;
@@ -633,9 +746,15 @@ export default function CommunicationPage() {
       return;
     }
     stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+      const sender = videoSenderRef.current;
+      const cameraTrack = call?.stream?.getVideoTracks()[0];
+      void sender?.replaceTrack(cameraTrack ?? null);
       setScreenStream(null);
       setScreenSharing(false);
     });
+    const sender = videoSenderRef.current;
+    if (sender) await sender.replaceTrack(stream.getVideoTracks()[0]);
+    else if (peerConnectionRef.current) peerConnectionRef.current.addTrack(stream.getVideoTracks()[0], stream);
     setScreenStream(stream);
     setScreenSharing(true);
   };
@@ -777,6 +896,8 @@ export default function CommunicationPage() {
           </header>
           <div className="relative flex min-h-0 flex-1 items-center justify-center bg-slate-950 p-4">
             {call.type === "video" ? <video ref={callVideoRef} autoPlay muted playsInline className={`h-full w-full rounded-xl object-contain ${cameraEnabled ? "" : "opacity-0"}`} /> : <div className="flex flex-col items-center gap-3 text-white"><div className="flex h-24 w-24 items-center justify-center rounded-full bg-blue-600 text-3xl font-bold">{active?.name?.[0] ?? "?"}</div><p className="text-sm text-slate-300">Microphone connected</p></div>}
+            {remoteStream && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
+            {remoteStream && (call.type === "video" || remoteStream.getVideoTracks().length > 0) && <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-8 h-[calc(100%-4rem)] w-[calc(100%-4rem)] rounded-xl bg-black object-contain shadow-2xl" />}
             {screenStream && <video ref={screenVideoRef} autoPlay muted playsInline className="absolute inset-8 h-[calc(100%-4rem)] w-[calc(100%-4rem)] rounded-xl bg-black object-contain shadow-2xl" />}
             {call.type === "video" && !cameraEnabled && <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">Camera is off</div>}
           </div>
