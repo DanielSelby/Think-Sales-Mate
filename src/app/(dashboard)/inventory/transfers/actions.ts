@@ -188,14 +188,20 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   // The base RLS policy only allows managers to update transfer headers. A
   // receiving branch is explicitly authorized above, so use the admin client
   // for that narrowly scoped completion update.
-  const updateClient = isInventoryManager ? supabase : createAdminClient();
-  const { error } = await updateClient
+  const updateClient = createAdminClient();
+  const { data: updatedTransfer, error } = await updateClient
     .from("stock_transfers")
     .update(updates)
     .eq("id", transferId)
-    .eq("org_id", context.orgId);
+    .eq("org_id", context.orgId)
+    .select("id, status")
+    .maybeSingle();
 
   if (error) return { error: error.message };
+  if (!updatedTransfer) return { error: "Transfer was not found or could not be updated." };
+  if (updatedTransfer.status !== status) {
+    return { error: `Transfer status was not updated. Current status: ${updatedTransfer.status}.` };
+  }
 
   if (status === "completed") {
     const { error: requestUpdateError } = await updateClient
