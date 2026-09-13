@@ -177,10 +177,7 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   if (!isInventoryManager && status !== "completed" && status !== "received") {
     return { error: "You don't have permission to update transfers." };
   }
-  const updates: Database["public"]["Tables"]["stock_transfers"]["Update"] = {
-    status,
-    completed_at: status === "completed" ? new Date().toISOString() : null
-  };
+  const updates: Database["public"]["Tables"]["stock_transfers"]["Update"] = { status };
   if (status === "received") {
     updates.received_at = new Date().toISOString();
     updates.received_by = context.userId;
@@ -188,7 +185,7 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   // The base RLS policy only allows managers to update transfer headers. A
   // receiving branch is explicitly authorized above, so use the admin client
   // for that narrowly scoped completion update.
-  const updateClient = createAdminClient();
+  const updateClient = isInventoryManager ? supabase : createAdminClient();
   const { data: updatedTransfer, error } = await updateClient
     .from("stock_transfers")
     .update(updates)
@@ -197,7 +194,7 @@ export async function updateTransferStatus(transferId: string, status: TransferS
     .select("id, status")
     .maybeSingle();
 
-  if (error) return { error: error.message };
+  if (error) return { error: `Could not update transfer status: ${error.message}` };
   if (!updatedTransfer) return { error: "Transfer was not found or could not be updated." };
   if (updatedTransfer.status !== status) {
     return { error: `Transfer status was not updated. Current status: ${updatedTransfer.status}.` };
