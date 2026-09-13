@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { createClient } from "@/lib/supabase/server";
 import { ProductDetailsView } from "@/components/inventory/product-details/product-details-view";
 import {
@@ -33,13 +34,25 @@ export default async function ProductDetailPage({ params }: PageProps) {
       id, sku, barcode, name, description, category, brand, supplier, unit,
       unit_price, cost_price, tax_rate, stock_quantity, low_stock_threshold,
       is_active, product_type, is_imported, hsn_code, warranty_months, expiry_date,
-      created_at, image_urls
+      created_at, image_urls, location_id
     `)
     .eq("id", id)
     .eq("org_id", context.orgId)
     .maybeSingle();
 
   if (!productRow) {
+    return null;
+  }
+  const { data: productLocations } = await supabase
+    .from("product_stock_levels")
+    .select("location_id")
+    .eq("product_id", productRow.id)
+    .eq("org_id", context.orgId);
+  const productLocationIds = [
+    productRow.location_id,
+    ...(productLocations ?? []).map((row) => row.location_id),
+  ].filter(Boolean) as string[];
+  if (context.isBranchScoped && !productLocationIds.some((locationId) => canAccessLocation(context, locationId))) {
     return null;
   }
 

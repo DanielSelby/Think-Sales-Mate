@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { formatCurrency } from "@/lib/sales/format";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,12 +21,13 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   const supabase = await createClient();
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, sale_number, customer_name, subtotal, total, created_at")
+    .select("id, sale_number, customer_name, subtotal, total, created_at, location_id")
     .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
 
   if (!sale) notFound();
+  if (!canAccessLocation(context, sale.location_id)) notFound();
 
   const { data: items } = await supabase
     .from("sale_items")

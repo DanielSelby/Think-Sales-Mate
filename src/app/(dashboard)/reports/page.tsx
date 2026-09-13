@@ -32,7 +32,10 @@ export default async function ReportsPage({
   const defaults = defaultDateRange();
   const dateFrom = searchParams.from || defaults.from;
   const dateTo = searchParams.to || defaults.to;
-  const locationId = context.masterLocationId ?? (searchParams.location && searchParams.location !== "all" ? searchParams.location : null);
+  const requestedLocationId = context.masterLocationId ?? (searchParams.location && searchParams.location !== "all" ? searchParams.location : null);
+  const locationId = context.isBranchScoped
+    ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : context.allowedLocationIds[0])
+    : requestedLocationId;
   const requestedPeriod = searchParams.period || "monthly";
   const period = (requestedPeriod === "today" || requestedPeriod === "yesterday" || requestedPeriod === "custom"
     ? "daily"
@@ -41,12 +44,14 @@ export default async function ReportsPage({
   const filters = { orgId: context.orgId, dateFrom, dateTo, locationId };
 
   const supabase = await createClient();
-  const { data: locationRows } = await supabase
+  let locationsQuery = supabase
     .from("business_locations")
     .select("id, name")
     .eq("org_id", context.orgId)
     .eq("is_active", true)
     .order("name");
+  if (context.isBranchScoped) locationsQuery = locationsQuery.in("id", context.allowedLocationIds);
+  const { data: locationRows } = await locationsQuery;
 
   const [kpis, profitAndLoss, balanceSheet, revenueExpenseSeries, expensesByCategory, topCustomers, taxSummary, recentReports] =
     await Promise.all([

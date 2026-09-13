@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { derivePaymentStatus } from "@/lib/sales/format";
 import {
   PurchaseDetailView, type PurchaseDetail, type PurchaseDetailItem,
@@ -42,6 +43,7 @@ export default async function PurchaseDetailPage({ params }: PageProps) {
   if (error || !purchase) {
     notFound();
   }
+  if (!canAccessLocation(context, purchase.location_id)) notFound();
 
   const { data: items } = await supabase
     .from("purchase_items")

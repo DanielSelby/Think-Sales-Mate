@@ -29,14 +29,18 @@ export default async function StockTransferHistoryPage() {
 
   const supabase = await createClient();
 
-  const [{ data: transferRows }, { data: itemRows }, { data: locationRows }, { data: productRows }] = await Promise.all([
-    supabase
+  let transfersQuery = supabase
       .from("stock_transfers")
       .select(
-        "id, transfer_number, reference_no, status, reason, notes, transfer_date, created_at, completed_at, created_by, from:from_location_id(id, name), to:to_location_id(id, name)"
+        "id, transfer_number, reference_no, status, reason, notes, transfer_date, created_at, completed_at, created_by, from_location_id, to_location_id, from:from_location_id(id, name), to:to_location_id(id, name)"
       )
       .eq("org_id", context.orgId)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false });
+  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
+    transfersQuery = transfersQuery.or(`from_location_id.in.(${context.allowedLocationIds.join(",")}),to_location_id.in.(${context.allowedLocationIds.join(",")})`);
+  }
+  const [{ data: transferRows }, { data: itemRows }, { data: locationRows }, { data: productRows }] = await Promise.all([
+    transfersQuery,
     supabase.from("stock_transfer_items").select("transfer_id, product_id, quantity, unit_cost").eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name, location_type").eq("org_id", context.orgId).order("name"),
     supabase.from("products").select("id, name, sku").eq("org_id", context.orgId).order("name")
@@ -53,7 +57,11 @@ export default async function StockTransferHistoryPage() {
   }
 
   // Resolve each distinct requester's email exactly once.
-  const distinctUserIds = [...new Set((transferRows ?? []).map((t) => t.created_by).filter(Boolean))];
+  const visibleTransferRows = (transferRows ?? []).filter((transfer) =>
+    !context.isBranchScoped ||
+    context.allowedLocationIds.some((id) => id === transfer.from_location_id || id === transfer.to_location_id)
+  );
+  const distinctUserIds = [...new Set(visibleTransferRows.map((t) => t.created_by).filter(Boolean))];
   const admin = createAdminClient();
   const emailById = new Map<string, string>();
   for (const userId of distinctUserIds) {
@@ -61,7 +69,7 @@ export default async function StockTransferHistoryPage() {
     if (data.user?.email) emailById.set(userId, data.user.email);
   }
 
-  const transfers: TransferRow[] = (transferRows ?? []).map((t) => {
+  const transfers: TransferRow[] = visibleTransferRows.map((t) => {
     const from = Array.isArray(t.from) ? t.from[0] : t.from;
     const to = Array.isArray(t.to) ? t.to[0] : t.to;
     const agg = itemsByTransfer.get(t.id) ?? { productCount: new Set(), totalQty: 0, totalValue: 0 };
@@ -134,7 +142,9 @@ export default async function StockTransferHistoryPage() {
     }
   };
 
-  const locations: TransferFilterLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name, type: l.location_type }));
+  const locations: TransferFilterLocation[] = (locationRows ?? [])
+    .filter((location) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
+    .map((l) => ({ id: l.id, name: l.name, type: l.location_type }));
   const products: TransferFilterProduct[] = (productRows ?? []).map((p) => ({ id: p.id, name: p.name, sku: p.sku }));
 
   return (

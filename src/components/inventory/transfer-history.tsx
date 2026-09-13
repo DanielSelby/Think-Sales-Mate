@@ -257,6 +257,7 @@ export function TransferHistory({
 
   // Real Status Update Action
   const handleUpdateStatus = (transferId: string, newStatus: TransferStatus) => {
+    setActionMenuTransferId(null);
     startTransition(async () => {
       try {
         const res = await updateTransferStatus(transferId, newStatus);
@@ -265,9 +266,7 @@ export function TransferHistory({
           return;
         }
         setToastMessage(`Transfer status updated to ${newStatus.replace("_", " ")}.`);
-        setTimeout(() => setToastMessage(null), 3000);
-        setActionMenuTransferId(null);
-        router.refresh();
+        window.setTimeout(() => window.location.reload(), 300);
       } catch (error) {
         alert(error instanceof Error ? error.message : "Could not update transfer status.");
       }

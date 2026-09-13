@@ -20,15 +20,15 @@ export default async function FraudDetectionPage({ searchParams }: { searchParam
   const dates = range(searchParams);
   const supabase = await createClient();
   const [{ data: sales }, { data: purchases }, { data: adjustments }, { data: expenses }, { data: reviewed }, { data: auditEvents }] = await Promise.all([
-    supabase.from("sales").select("id, sale_number, sale_date, total, discount_amount, customer_name, location_id").eq("org_id", context.orgId).gte("sale_date", dates.from).lte("sale_date", dates.to).order("sale_date", { ascending: false }).limit(1000),
-    supabase.from("purchases").select("id, purchase_number, purchase_date, total, supplier_id, location_id").eq("org_id", context.orgId).gte("purchase_date", dates.from).lte("purchase_date", dates.to).order("purchase_date", { ascending: false }).limit(1000),
-    supabase.from("stock_adjustments").select("id, adjustment_number, adjustment_date, reason, location_id").eq("org_id", context.orgId).gte("adjustment_date", dates.from).lte("adjustment_date", dates.to).order("adjustment_date", { ascending: false }).limit(1000),
-    supabase.from("expenses").select("id, expense_number, expense_date, amount, category, location_id").eq("org_id", context.orgId).gte("expense_date", dates.from).lte("expense_date", dates.to).limit(1000),
+    (() => { let q = supabase.from("sales").select("id, sale_number, sale_date, total, discount_amount, customer_name, location_id").eq("org_id", context.orgId).gte("sale_date", dates.from).lte("sale_date", dates.to); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("sale_date", { ascending: false }).limit(1000) : q.order("sale_date", { ascending: false }).limit(1000); })(),
+    (() => { let q = supabase.from("purchases").select("id, purchase_number, purchase_date, total, supplier_id, location_id").eq("org_id", context.orgId).gte("purchase_date", dates.from).lte("purchase_date", dates.to); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("purchase_date", { ascending: false }).limit(1000) : q.order("purchase_date", { ascending: false }).limit(1000); })(),
+    (() => { let q = supabase.from("stock_adjustments").select("id, adjustment_number, adjustment_date, reason, location_id").eq("org_id", context.orgId).gte("adjustment_date", dates.from).lte("adjustment_date", dates.to); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("adjustment_date", { ascending: false }).limit(1000) : q.order("adjustment_date", { ascending: false }).limit(1000); })(),
+    (() => { let q = supabase.from("expenses").select("id, expense_number, expense_date, amount, category, location_id").eq("org_id", context.orgId).gte("expense_date", dates.from).lte("expense_date", dates.to); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).limit(1000) : q.limit(1000); })(),
     supabase.from("audit_logs").select("entity_id, action").eq("org_id", context.orgId).eq("entity_type", "fraud_alert").in("action", ["fraud_alert.reviewed", "fraud_alert.false_positive"]),
     supabase.from("audit_logs").select("id, entity_id, action, metadata, created_at").eq("org_id", context.orgId).gte("created_at", `${dates.from}T00:00:00`).lte("created_at", `${dates.to}T23:59:59`).in("action", ["price_override"]),
   ]);
   const [{ data: locations }, { data: suppliers }] = await Promise.all([
-    supabase.from("business_locations").select("id, name").eq("org_id", context.orgId),
+    (() => { let q = supabase.from("business_locations").select("id, name").eq("org_id", context.orgId); return context.isBranchScoped ? q.in("id", context.allowedLocationIds) : q; })(),
     supabase.from("suppliers").select("id, name").eq("org_id", context.orgId),
   ]);
   const locationById = new Map((locations ?? []).map((row) => [row.id, row.name]));

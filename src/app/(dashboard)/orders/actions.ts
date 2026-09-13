@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canUseLocation } from "@/lib/organizations/location-access";
 import { notifyCustomerOrderStatus, notifyOrderAssignedToBranch } from "@/lib/notifications";
 import type { CustomerOrderStatus, OrderPaymentStatus, OrderDeliveryStatus } from "@/types/database";
 
@@ -16,6 +17,10 @@ export async function setOrderStatus(orderId: string, status: CustomerOrderStatu
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const { data: existingOrder } = await supabase.from("customer_orders").select("org_id, location_id").eq("id", orderId).maybeSingle();
+  if (!existingOrder || existingOrder.org_id !== context.orgId || !canUseLocation(context, existingOrder.location_id)) {
+    return { ok: false, error: "Order not found." };
+  }
 
   const { data: profile } = user ? await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle() : { data: null };
   const actorName = profile?.full_name || user?.email || "Staff";
@@ -42,6 +47,11 @@ export async function assignOrderBranch(orderId: string, locationId: string): Pr
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const { data: existingOrder } = await supabase.from("customer_orders").select("org_id, location_id").eq("id", orderId).maybeSingle();
+  if (!existingOrder || existingOrder.org_id !== context.orgId || !canUseLocation(context, existingOrder.location_id)) {
+    return { ok: false, error: "Order not found." };
+  }
+  if (!canUseLocation(context, locationId)) return { ok: false, error: "You are not assigned to this branch." };
 
   const [{ data: loc }, { data: profile }, { data: order }] = await Promise.all([
     supabase.from("business_locations").select("name").eq("id", locationId).single(),
@@ -108,6 +118,9 @@ export async function approveAndProcessOrder({ orderId, locationId }: ApproveOrd
   ]);
 
   if (orderError || !order) return { ok: false, error: "Order not found." };
+  if (order.org_id !== context.orgId || !canUseLocation(context, order.location_id) || !canUseLocation(context, locationId ?? order.location_id)) {
+    return { ok: false, error: "Order not found." };
+  }
   if (order.status === "completed") return { ok: false, error: "This order has already been completed." };
 
   const targetLocationId = locationId || order.location_id;
@@ -205,6 +218,9 @@ export async function updateOrderFulfillmentStatus(
 
   const { data: order } = await supabase.from("customer_orders").select("*").eq("id", orderId).single();
   if (!order) return { ok: false, error: "Order not found." };
+  if (order.org_id !== context.orgId || !canUseLocation(context, order.location_id)) {
+    return { ok: false, error: "Order not found." };
+  }
 
   const { data: profile } = user ? await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle() : { data: null };
   const actorName = profile?.full_name || user?.email || "Staff";

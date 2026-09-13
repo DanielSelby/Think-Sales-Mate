@@ -35,6 +35,9 @@ export async function createStockRequest(payload: CreateStockRequestPayload) {
   if (context.isBranchScoped && !context.allowedLocationIds.includes(payload.requestingLocationId)) {
     return { error: "You can only create requests for your assigned branch." };
   }
+  if (context.isBranchScoped && !context.allowedLocationIds.includes(payload.sourceLocationId)) {
+    return { error: "You can only request stock from your assigned branches." };
+  }
 
   const items = payload.items.filter((item) => item.productId && item.quantity > 0);
   if (!items.length) return { error: "Add at least one product to the request." };
@@ -93,6 +96,10 @@ export async function approveStockRequest(requestId: string, comment?: string) {
     .eq("org_id", context.orgId)
     .single();
   if (error || !request) return { error: error?.message ?? "Stock request not found." };
+  if (context.isBranchScoped &&
+      (!context.allowedLocationIds.includes(request.source_location_id) || !context.allowedLocationIds.includes(request.requesting_location_id))) {
+    return { error: "You can only approve requests involving your assigned branches." };
+  }
   if (request.status !== "pending_approval") return { error: "Only pending requests can be approved." };
   const { data: requestItems, error: itemsError } = await supabase
     .from("stock_request_items")

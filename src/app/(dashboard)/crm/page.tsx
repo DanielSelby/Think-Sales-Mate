@@ -12,11 +12,13 @@ export default async function CrmPage() {
   const supabase = await createClient();
   const [{ data: rows }, { data: sales }, { data: invoices }] = await Promise.all([
     supabase.from("customers").select("id, name, email, phone, company, created_at").eq("org_id", context.orgId).order("name"),
-    supabase.from("sales").select("customer_name, total, created_at, status").eq("org_id", context.orgId).order("created_at", { ascending: false }),
+    (() => { let q = supabase.from("sales").select("customer_name, total, created_at, status, location_id").eq("org_id", context.orgId); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("created_at", { ascending: false }) : q.order("created_at", { ascending: false }); })(),
     supabase.from("invoices").select("customer_name, amount, status, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false })
   ]);
   const rawSales = (sales ?? []) as CrmSale[];
-  const rawInvoices = (invoices ?? []) as CrmInvoice[];
+  // Invoices currently have no location_id column, so scoped users must not
+  // receive organization-wide invoice totals.
+  const rawInvoices = (context.isBranchScoped ? [] : invoices ?? []) as CrmInvoice[];
   const customers: CrmCustomer[] = (rows ?? []).map((c) => {
     const customerSales = rawSales.filter((sale) => sale.customer_name?.toLowerCase() === c.name.toLowerCase());
     const customerInvoices = rawInvoices.filter((invoice) => invoice.customer_name.toLowerCase() === c.name.toLowerCase());

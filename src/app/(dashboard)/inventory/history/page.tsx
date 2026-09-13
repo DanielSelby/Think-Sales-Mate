@@ -23,7 +23,7 @@ export default async function StockAdjustmentHistoryPage() {
     { data: profileRows },
     { data: productRows },
   ] = await Promise.all([
-    supabase
+    (() => { let q = supabase
       .from("stock_adjustments")
       .select(`
         id,
@@ -44,7 +44,7 @@ export default async function StockAdjustmentHistoryPage() {
         )
       `)
       .eq("org_id", context.orgId)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false }); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds) : q; })(),
     supabase
       .from("business_locations")
       .select("id, name, is_primary")
@@ -54,7 +54,10 @@ export default async function StockAdjustmentHistoryPage() {
     supabase.from("products").select("id, name, sku, barcode, category, image_urls, cost_price").eq("org_id", context.orgId),
   ]);
 
-  const locationMap = new Map((locationRows ?? []).map((l) => [l.id, l.name]));
+  const visibleLocations = context.isBranchScoped
+    ? (locationRows ?? []).filter((l) => context.allowedLocationIds.includes(l.id))
+    : (locationRows ?? []);
+  const locationMap = new Map(visibleLocations.map((l) => [l.id, l.name]));
   const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p]));
   const productMap = new Map((productRows ?? []).map((p) => [p.id, p]));
 
@@ -143,7 +146,7 @@ export default async function StockAdjustmentHistoryPage() {
 
   const branchList = [
     "All Branches",
-    ...(locationRows ?? []).map((l) => l.name),
+    ...visibleLocations.map((l) => l.name),
   ];
 
   return (

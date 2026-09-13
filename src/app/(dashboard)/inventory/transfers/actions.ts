@@ -34,6 +34,10 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
   if (!can(context.role, "inventory.manage")) {
     return { error: "You don't have permission to create stock transfers." };
   }
+  if (context.isBranchScoped &&
+      (!context.allowedLocationIds.includes(payload.fromLocationId) || !context.allowedLocationIds.includes(payload.toLocationId))) {
+    return { error: "You can only transfer stock between your assigned branches." };
+  }
   if (payload.fromLocationId === payload.toLocationId) {
     return { error: "Source and destination locations must be different." };
   }

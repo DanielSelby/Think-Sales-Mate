@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canUseLocation } from "@/lib/organizations/location-access";
 import { can } from "@/lib/rbac";
 import { findProductDuplicates, getDuplicateSettings } from "@/app/(dashboard)/inventory/duplicate-actions";
 
@@ -143,6 +144,9 @@ export async function createProduct(formData: FormData): Promise<void> {
     ...(fields.location_ids ?? []),
     ...(targetLocationId ? [targetLocationId] : []),
   ])];
+  if (context.isBranchScoped && selectedLocationIds.some((locationId) => !canUseLocation(context, locationId))) {
+    redirectWithError("/inventory/new", "You are not assigned to one or more selected branches.");
+  }
   if (selectedLocationIds.length > 0) {
     const { data: validLocations, error: locationError } = await supabase
       .from("business_locations")
@@ -212,6 +216,16 @@ export async function updateProduct(productId: string, formData: FormData): Prom
     .single();
   if (existingError || !existingProduct) {
     redirectWithError(`/inventory/${productId}/edit`, existingError?.message ?? "Product not found.");
+  }
+  const existingLocationIds = [
+    existingProduct.location_id,
+  ].filter(Boolean) as string[];
+  if (context.isBranchScoped && (
+    existingLocationIds.some((locationId) => !canUseLocation(context, locationId)) ||
+    (fields.location_id ? !canUseLocation(context, fields.location_id) : false) ||
+    (fields.location_ids ?? []).some((locationId) => !canUseLocation(context, locationId))
+  )) {
+    redirectWithError(`/inventory/${productId}/edit`, "You are not assigned to one or more selected branches.");
   }
   const { error } = await supabase
     .from("products")

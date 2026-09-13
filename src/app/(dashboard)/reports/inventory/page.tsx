@@ -23,7 +23,11 @@ export default async function InventoryReportPage({ searchParams }: { searchPara
     .eq("is_active", true)
     .order("name");
   const locationId = context.masterLocationId ?? (searchParams?.location && searchParams.location !== "all" ? searchParams.location : null);
-  if (locationId) productsQuery = productsQuery.eq("location_id", locationId);
+  if (context.isBranchScoped) {
+    productsQuery = locationId && context.allowedLocationIds.includes(locationId)
+      ? productsQuery.eq("location_id", locationId)
+      : productsQuery.in("location_id", context.allowedLocationIds);
+  } else if (locationId) productsQuery = productsQuery.eq("location_id", locationId);
   const { data: rows } = await productsQuery;
 
   const products = rows ?? [];

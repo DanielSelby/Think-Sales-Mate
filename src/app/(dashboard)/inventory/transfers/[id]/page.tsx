@@ -33,6 +33,11 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
     .single();
 
   if (!transfer) notFound();
+  if (context.isBranchScoped &&
+      !context.allowedLocationIds.includes(transfer.from_location_id) &&
+      !context.allowedLocationIds.includes(transfer.to_location_id)) {
+    notFound();
+  }
 
   const from = Array.isArray(transfer.from) ? transfer.from[0] : transfer.from;
   const to = Array.isArray(transfer.to) ? transfer.to[0] : transfer.to;

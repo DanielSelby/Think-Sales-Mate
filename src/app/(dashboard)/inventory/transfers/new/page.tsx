@@ -42,7 +42,10 @@ export default async function NewStockTransferPage({ searchParams }: { searchPar
       .limit(3)
   ]);
 
-  const locations: TransferLocation[] = (locationRows ?? []).map((l) => ({
+  const visibleLocationRows = context.isBranchScoped && context.allowedLocationIds.length > 0
+    ? (locationRows ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
+    : (locationRows ?? []);
+  const locations: TransferLocation[] = visibleLocationRows.map((l) => ({
     id: l.id,
     name: l.name,
     type: l.location_type

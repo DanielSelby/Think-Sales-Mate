@@ -64,9 +64,12 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     const locationId = isOwner ? null : (row.location_id ?? null);
     const secondaryLocationIds = isOwner ? [] : ((row.secondary_location_ids as string[]) ?? []);
 
-    const isBranchScoped = Boolean(locationId) && (branchScope !== "all" || (!isOwner && row.role !== "admin"));
-    const allowedLocationIds = locationId
-      ? Array.from(new Set([locationId, ...secondaryLocationIds]))
+    // A scoped member with no primary assignment must not fall back to seeing
+    // the whole organization.  Keep a harmless sentinel so callers that use
+    // `.in("location_id", allowedLocationIds)` return no rows.
+    const isBranchScoped = branchScope !== "all" && !isOwner;
+    const allowedLocationIds = isBranchScoped
+      ? (locationId ? Array.from(new Set([locationId, ...secondaryLocationIds])) : ["__no_assigned_location__"])
       : [];
 
     return {

@@ -41,7 +41,11 @@ export default async function SalesReportPage({
     .lte("created_at", `${end}T23:59:59`)
     .order("created_at", { ascending: false });
   const locationId = context.masterLocationId ?? (searchParams.location && searchParams.location !== "all" ? searchParams.location : null);
-  if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
+  if (context.isBranchScoped) {
+    salesQuery = locationId && context.allowedLocationIds.includes(locationId)
+      ? salesQuery.eq("location_id", locationId)
+      : salesQuery.in("location_id", context.allowedLocationIds);
+  } else if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
   const { data: sales } = await salesQuery;
 
   const rows = sales ?? [];

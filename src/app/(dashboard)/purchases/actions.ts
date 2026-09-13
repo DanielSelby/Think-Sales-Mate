@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canUseLocation } from "@/lib/organizations/location-access";
 import { formatPurchaseNumber } from "@/lib/purchases/format";
 
 export interface PurchaseItemInput {
@@ -87,6 +88,9 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
 
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
+  if (!canUseLocation(context, input.locationId)) {
+    return { ok: false, error: "You are not assigned to this branch." };
+  }
 
   const { lines, subtotal, discount, tax, total } = computeTotals(
     input.items,
@@ -249,6 +253,10 @@ export async function receivePurchaseItems({
     .eq("id", purchaseId)
     .single();
   if (fetchError || !purchase) return { ok: false, error: "Purchase not found." };
+  const context = await getCurrentOrgContext();
+  if (!context || purchase.org_id !== context.orgId || !canUseLocation(context, purchase.location_id)) {
+    return { ok: false, error: "Purchase not found." };
+  }
 
   const { data: allItems, error: itemsError } = await supabase
     .from("purchase_items")
@@ -339,6 +347,10 @@ export async function duplicatePurchase(purchaseId: string): Promise<DuplicatePu
     .eq("id", purchaseId)
     .single();
   if (fetchError || !original) return { ok: false, error: "Purchase not found." };
+  const context = await getCurrentOrgContext();
+  if (!context || original.org_id !== context.orgId || !canUseLocation(context, original.location_id)) {
+    return { ok: false, error: "Purchase not found." };
+  }
 
   const { data: copy, error: insertError } = await supabase
     .from("purchases")
@@ -431,10 +443,14 @@ export async function recordPurchasePayment(
 
   const { data: purchase, error: fetchError } = await supabase
     .from("purchases")
-    .select("id, org_id, total, paid_amount")
+    .select("id, org_id, location_id, total, paid_amount")
     .eq("id", purchaseId)
     .single();
   if (fetchError || !purchase) return { ok: false, error: "Purchase not found." };
+  const context = await getCurrentOrgContext();
+  if (!context || purchase.org_id !== context.orgId || !canUseLocation(context, purchase.location_id)) {
+    return { ok: false, error: "Purchase not found." };
+  }
 
   const nextPaid = Math.min(purchase.total, purchase.paid_amount + amount);
 
@@ -524,11 +540,14 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
 
   const { data: purchase, error: fetchError } = await supabase
     .from("purchases")
-    .select("id, org_id")
+    .select("id, org_id, location_id")
     .eq("id", purchaseId)
     .eq("org_id", context.orgId)
     .single();
   if (fetchError || !purchase) return { ok: false, error: "Purchase not found." };
+  if (!canUseLocation(context, purchase.location_id) || !canUseLocation(context, input.locationId)) {
+    return { ok: false, error: "You are not assigned to this branch." };
+  }
 
   const { data: existingItems, error: existingItemsError } = await supabase
     .from("purchase_items")

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { OrderDetailView, type OrderDetail, type OrderItemRow, type OrderTimelineRow } from "@/components/orders/order-detail-view";
 
 export const metadata = { title: "Order Details · ThinkSales Pro" };
@@ -24,6 +25,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   ]);
 
   if (!order) return <p className="p-6 text-sm text-ledger-400">Order not found.</p>;
+  if (!canAccessLocation(context, order.location_id)) {
+    return <p className="p-6 text-sm text-ledger-400">Order not found.</p>;
+  }
 
   const productIds = [...new Set((items ?? []).map((item) => item.product_id).filter(Boolean))] as string[];
   const { data: productPrices } = productIds.length

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { ExpenseDetailView, type ExpenseDetail, type ExpenseDetailItem } from "@/components/expenses/expense-detail-view";
 
 export const metadata = { title: "Expense Details · SalesMate ERP" };
@@ -34,6 +35,7 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
   if (error || !expense) {
     notFound();
   }
+  if (!canAccessLocation(context, expense.location_id)) notFound();
 
   const { data: items } = await supabase
     .from("expense_items")

@@ -35,8 +35,11 @@ export default async function ApprovalCenterPage() {
   const profileById = new Map((profiles ?? []).map((row) => [row.id, row]));
 
   const completedKeys = new Set((completed ?? []).map((row) => `${row.entity_type}:${row.entity_id}`));
+  const visible = <T extends { requesting_location_id?: string | null; source_location_id?: string | null; location_id?: string | null }>(row: T) =>
+    !context.isBranchScoped || context.allowedLocationIds.some((id) =>
+      id === row.requesting_location_id || id === row.source_location_id || id === row.location_id);
   const rows: ApprovalRow[] = [
-    ...(requests ?? []).map((row) => ({
+    ...(requests ?? []).filter(visible).map((row) => ({
       id: row.id, type: "stock_request" as const, document: `REQ-${String(row.request_number).padStart(6, "0")}`,
       title: "Stock Request", requester: profileById.get(row.requested_by)?.full_name ?? "Unknown user",
       branch: locationById.get(row.requesting_location_id) ?? "—", date: row.submitted_at ?? row.created_at,
@@ -44,19 +47,19 @@ export default async function ApprovalCenterPage() {
       details: [{ label: "Source", value: locationById.get(row.source_location_id) ?? "—" }],
       items: (requestItems ?? []).filter((item) => item.request_id === row.id).map((item) => { const product = Array.isArray(item.products) ? item.products[0] : item.products; return { productName: product?.name ?? "Unknown product", sku: product?.sku ?? null, quantity: item.quantity, reason: item.reason }; }),
     })),
-    ...(expenses ?? []).map((row) => ({
+    ...(expenses ?? []).filter(visible).map((row) => ({
       id: row.id, type: "expense" as const, document: `EXP-${String(row.expense_number).padStart(6, "0")}`,
       title: row.category, requester: profileById.get(row.recorded_by)?.full_name ?? "Unknown user",
       branch: locationById.get(row.location_id ?? "") ?? "—", date: row.expense_date ?? row.created_at,
       amount: row.amount, status: row.status, priority: row.amount >= 10000 ? "high" : "normal", href: `/expenses/${row.id}`,
     })),
-    ...(returns ?? []).map((row) => ({
+    ...(returns ?? []).filter(visible).map((row) => ({
       id: row.id, type: "purchase_return" as const, document: `RET-${String(row.return_number).padStart(6, "0")}`,
       title: "Purchase Return", requester: profileById.get(row.created_by)?.full_name ?? "Unknown user",
       branch: locationById.get(row.location_id) ?? "—", date: row.return_date ?? row.created_at,
       amount: row.total_return_value, status: row.status, priority: row.total_return_value >= 10000 ? "high" : "normal", href: "/purchases/returns/new",
     })),
-    ...(customerOrders ?? []).map((row) => ({
+    ...(customerOrders ?? []).filter((row) => !context.isBranchScoped || context.allowedLocationIds.includes(row.location_id ?? "")).map((row) => ({
       id: row.id, type: "customer_order" as const, document: row.order_number,
       title: "Customer Order", requester: row.guest_name, branch: locationById.get(row.location_id ?? "") ?? "—",
       date: row.created_at, amount: row.total, status: row.status, priority: row.total >= 10000 ? "high" : "normal", href: `/orders/${row.id}`,
@@ -64,10 +67,10 @@ export default async function ApprovalCenterPage() {
   ];
 
   const approvedRows = [
-    ...(await getApprovedRows(supabase, context.orgId, locationById, profileById)).filter((row) => !completedKeys.has(`${row.type}:${row.id}`)),
+    ...(await getApprovedRows(supabase, context.orgId, locationById, profileById, context.isBranchScoped ? context.allowedLocationIds : null)).filter((row) => !completedKeys.has(`${row.type}:${row.id}`)),
   ];
   const historyRows = [
-    ...(await getApprovedRows(supabase, context.orgId, locationById, profileById)).filter((row) => completedKeys.has(`${row.type}:${row.id}`)),
+    ...(await getApprovedRows(supabase, context.orgId, locationById, profileById, context.isBranchScoped ? context.allowedLocationIds : null)).filter((row) => completedKeys.has(`${row.type}:${row.id}`)),
   ];
 
   return <ApprovalCenter rows={rows} approvedRows={approvedRows} historyRows={historyRows} currency={context.currency || "GHS"} />;
@@ -77,16 +80,19 @@ async function getApprovedRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
   orgId: string,
   locationById: Map<string, string>,
-  profileById: Map<string, { full_name: string | null }>
+  profileById: Map<string, { full_name: string | null }>,
+  allowedLocationIds: string[] | null
 ): Promise<ApprovalRow[]> {
   const [{ data: requests }, { data: expenses }, { data: returns }] = await Promise.all([
     supabase.from("stock_requests").select("id, request_number, requested_by, requesting_location_id, submitted_at, created_at, status, priority").eq("org_id", orgId).eq("status", "approved"),
     supabase.from("expenses").select("id, expense_number, recorded_by, location_id, category, amount, expense_date, created_at, status").eq("org_id", orgId).eq("status", "approved"),
     supabase.from("purchase_returns").select("id, return_number, created_by, location_id, total_return_value, return_date, created_at, status").eq("org_id", orgId).eq("status", "approved"),
   ]);
+  const visible = <T extends { requesting_location_id?: string | null; location_id?: string | null }>(row: T) =>
+    !allowedLocationIds || allowedLocationIds.some((id) => id === row.requesting_location_id || id === row.location_id);
   return [
-    ...(requests ?? []).map((row) => ({ id: row.id, type: "stock_request" as const, document: `REQ-${String(row.request_number).padStart(6, "0")}`, title: "Stock Request", requester: profileById.get(row.requested_by)?.full_name ?? "Unknown user", branch: locationById.get(row.requesting_location_id) ?? "—", date: row.submitted_at ?? row.created_at, amount: null, status: row.status, priority: row.priority, href: `/inventory/stock-requests/history?id=${row.id}` })),
-    ...(expenses ?? []).map((row) => ({ id: row.id, type: "expense" as const, document: `EXP-${String(row.expense_number).padStart(6, "0")}`, title: row.category, requester: profileById.get(row.recorded_by)?.full_name ?? "Unknown user", branch: locationById.get(row.location_id ?? "") ?? "—", date: row.expense_date ?? row.created_at, amount: row.amount, status: row.status, priority: row.amount >= 10000 ? "high" : "normal", href: `/expenses/${row.id}` })),
-    ...(returns ?? []).map((row) => ({ id: row.id, type: "purchase_return" as const, document: `RET-${String(row.return_number).padStart(6, "0")}`, title: "Purchase Return", requester: profileById.get(row.created_by)?.full_name ?? "Unknown user", branch: locationById.get(row.location_id) ?? "—", date: row.return_date ?? row.created_at, amount: row.total_return_value, status: row.status, priority: row.total_return_value >= 10000 ? "high" : "normal", href: "/purchases/returns/new" })),
+    ...(requests ?? []).filter(visible).map((row) => ({ id: row.id, type: "stock_request" as const, document: `REQ-${String(row.request_number).padStart(6, "0")}`, title: "Stock Request", requester: profileById.get(row.requested_by)?.full_name ?? "Unknown user", branch: locationById.get(row.requesting_location_id) ?? "—", date: row.submitted_at ?? row.created_at, amount: null, status: row.status, priority: row.priority, href: `/inventory/stock-requests/history?id=${row.id}` })),
+    ...(expenses ?? []).filter(visible).map((row) => ({ id: row.id, type: "expense" as const, document: `EXP-${String(row.expense_number).padStart(6, "0")}`, title: row.category, requester: profileById.get(row.recorded_by)?.full_name ?? "Unknown user", branch: locationById.get(row.location_id ?? "") ?? "—", date: row.expense_date ?? row.created_at, amount: row.amount, status: row.status, priority: row.amount >= 10000 ? "high" : "normal", href: `/expenses/${row.id}` })),
+    ...(returns ?? []).filter(visible).map((row) => ({ id: row.id, type: "purchase_return" as const, document: `RET-${String(row.return_number).padStart(6, "0")}`, title: "Purchase Return", requester: profileById.get(row.created_by)?.full_name ?? "Unknown user", branch: locationById.get(row.location_id) ?? "—", date: row.return_date ?? row.created_at, amount: row.total_return_value, status: row.status, priority: row.total_return_value >= 10000 ? "high" : "normal", href: "/purchases/returns/new" })),
   ];
 }

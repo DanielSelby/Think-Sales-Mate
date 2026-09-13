@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import type { SaleStatus } from "@/types/database";
 import { dispatchAutomatedCustomerMessage } from "@/lib/communication/automation";
 
@@ -462,13 +463,15 @@ export interface SaleEditData {
 
 export async function getSaleForEdit(saleId: string): Promise<SaleEditData | null> {
   const supabase = await createClient();
+  const context = await getCurrentOrgContext();
 
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, sale_number, document_status, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
+    .select("id, org_id, sale_number, document_status, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
     .eq("id", saleId)
     .single();
   if (!sale) return null;
+  if (!context || sale.org_id !== context.orgId || !canAccessLocation(context, sale.location_id)) return null;
 
   const { data: items } = await supabase
     .from("sale_items")

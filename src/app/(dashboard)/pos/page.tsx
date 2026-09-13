@@ -19,12 +19,16 @@ export default async function PosPage() {
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
-    supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
+    (() => {
+      let query = supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true);
+      return context.isBranchScoped ? query.in("id", context.allowedLocationIds) : query;
+    })(),
     // Per-branch stock — the product grid needs this to only show/allow
     // what's actually at the selected branch, not the org-wide total.
     (() => {
       let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId);
-      return context.masterLocationId ? query.eq("location_id", context.masterLocationId) : query;
+      if (context.masterLocationId) return query.eq("location_id", context.masterLocationId);
+      return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
     })(),
     supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle()
   ]);
@@ -32,7 +36,7 @@ export default async function PosPage() {
   const rawLocations = context.masterLocationId
     ? (locations ?? []).filter((location) => location.id === context.masterLocationId)
     : (locations ?? []);
-  const availableProductIds = context.masterLocationId
+  const availableProductIds = context.isBranchScoped || context.masterLocationId
     ? new Set((stockLevels ?? []).filter((stock) => Number(stock.quantity) > 0).map((stock) => stock.product_id))
     : null;
   const rawProducts = (products ?? []).filter((product) => !availableProductIds || availableProductIds.has(product.id));
