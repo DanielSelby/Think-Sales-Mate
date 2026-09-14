@@ -20,6 +20,7 @@ interface CreateStaffAccountModalProps {
   roles: RoleDefinition[];
   branches: UserBranch[];
   companyWebsite?: string | null;
+  employeeNames?: string[];
   onCreateStaff: (formData: FormData) => Promise<CreateStaffAccountResult>;
 }
 
@@ -51,6 +52,7 @@ export function CreateStaffAccountModal({
   roles,
   branches,
   companyWebsite,
+  employeeNames = [],
   onCreateStaff
 }: CreateStaffAccountModalProps) {
   const [fullName, setFullName] = useState("");
@@ -73,9 +75,27 @@ export function CreateStaffAccountModal({
 
   if (!isOpen) return null;
 
+  const resetForm = () => {
+    setFullName("");
+    setUsername("");
+    setPassword("");
+    setEmployeeId("");
+    setEmail("");
+    setPhone("");
+    setDepartment(DEPARTMENTS[0]);
+    setRole(roles[0]?.key ?? "staff");
+    setLocationId(branches[0]?.id ?? "");
+    setBranchScope("assigned");
+    setSecondaryBranches([]);
+    setCanViewOtherTransactions(true);
+    setCanCheckCrossBranchStock(false);
+    setApprovals({});
+    setError(null);
+  };
+
   const resetAndClose = () => {
     setCreatedCredentials(null);
-    setError(null);
+    resetForm();
     onClose();
   };
 
@@ -113,6 +133,7 @@ export function CreateStaffAccountModal({
           username: result.username ?? resolvedUsername,
           password: result.temporaryPassword ?? resolvedPassword
         });
+        resetForm();
       }
     } finally {
       setIsSubmitting(false);
@@ -159,7 +180,26 @@ export function CreateStaffAccountModal({
               <section className="space-y-3">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ledger-500"><KeyRound className="h-3.5 w-3.5 text-blue-600" /> Employee information & credentials</div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="text-xs font-semibold text-ink-900 dark:text-white">Full name *<Input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1 h-9 text-xs" placeholder="e.g. Kwame Mensah" /></label>
+                  <label className="text-xs font-semibold text-ink-900 dark:text-white">
+                    Full name *
+                    <Input
+                      required
+                      list="hrm-employee-names"
+                      value={fullName}
+                      onChange={(event) => {
+                        setFullName(event.target.value);
+                        setUsername(makeUsername(event.target.value, companyWebsite));
+                      }}
+                      className="mt-1 h-9 text-xs"
+                      placeholder="Search an HR employee or enter a new name"
+                    />
+                    <datalist id="hrm-employee-names">
+                      {employeeNames.map((name) => <option key={name} value={name} />)}
+                    </datalist>
+                    <span className="mt-1 block text-[10px] font-normal text-ledger-400">
+                      Names saved in HRM are suggested automatically; manual names are also accepted.
+                    </span>
+                  </label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Employee ID<Input value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className="mt-1 h-9 text-xs font-mono" placeholder="TS-EMP-015" /></label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Username *<div className="mt-1 flex gap-2"><Input required readOnly value={username || makeUsername(fullName, companyWebsite)} className="h-9 text-xs font-mono" placeholder="kwame.mensah@company.com" /><Button type="button" variant="outline" size="sm" className="h-9 shrink-0 text-[11px]" onClick={() => setUsername(makeUsername(fullName, companyWebsite))}>Generate</Button></div></label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Password *<div className="mt-1 flex gap-2"><Input required minLength={8} type="text" value={password} onChange={(event) => setPassword(event.target.value)} className="h-9 text-xs font-mono" placeholder="Generate a secure password" /><Button type="button" variant="outline" size="sm" className="h-9 shrink-0 text-[11px]" onClick={() => setPassword(makePassword())}>Generate</Button></div></label>

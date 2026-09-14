@@ -105,6 +105,7 @@ interface UserManagementProps {
   canManage?: boolean;
   orgName?: string;
   companyWebsite?: string | null;
+  employeeNames?: string[];
   roleThemes?: Record<string, string>;
   canManageThemes?: boolean;
 }
@@ -115,6 +116,7 @@ export function UserManagement({
   canManage = true,
   orgName = "ThinkSales Pro",
   companyWebsite,
+  employeeNames = [],
   roleThemes = {},
   canManageThemes = false
 }: UserManagementProps) {
@@ -1319,6 +1321,7 @@ export function UserManagement({
         branches={branches}
         roles={roles}
         companyWebsite={companyWebsite}
+        employeeNames={employeeNames}
         onCreateStaff={handleCreateStaffAccount}
       />
 

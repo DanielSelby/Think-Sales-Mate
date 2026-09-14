@@ -219,11 +219,11 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
           </Card>
 
           {/* Table */}
-          <Card accent="neutral" className="overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">
-                  <tr className="border-b border-ledger-100 text-ledger-400 dark:border-ledger-700">
+                <thead className="sticky top-0 z-10 border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold uppercase text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+                  <tr>
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></th>
                     <th className="w-8 px-3 py-3 font-medium">#</th>
                     <th className="px-3 py-3 font-medium">Employee</th>
@@ -236,12 +236,12 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
                     <th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
+                <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
                   {pageRows.length === 0 && (
                     <tr><td colSpan={10} className="px-4 py-12 text-center text-ledger-400">No employees match your filters.</td></tr>
                   )}
                   {pageRows.map((e, i) => (
-                    <tr key={e.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
+                    <tr key={e.id} className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
                       <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(e.id)} onChange={() => toggleRow(e.id)} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></td>
                       <td className="px-3 py-3 text-ledger-400">{(clampedPage - 1) * rowsPerPage + i + 1}</td>
                       <td className="px-3 py-3">
@@ -288,7 +288,7 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
 
         {/* Analytics */}
@@ -363,4 +363,3 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
     </div>
   );
 }
-

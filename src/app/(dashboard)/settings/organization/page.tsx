@@ -12,13 +12,14 @@ export default async function OrganizationSettingsPage() {
   if (!context) return null;
 
   const supabase = await createClient();
-  const [{ data: memberRows }, { data: locationRows }, { data: companyProfile }] = await Promise.all([
+  const [{ data: memberRows }, { data: locationRows }, { data: companyProfile }, { data: employeeRows }] = await Promise.all([
     supabase
       .from("organization_members")
       .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, can_view_other_users_transactions, can_check_cross_branch_stock, role, status, location_id, created_at, organizations(created_by)")
       .eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
-    supabase.from("company_profile").select("website").eq("org_id", context.orgId).maybeSingle()
+    supabase.from("company_profile").select("website").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("employees").select("full_name").eq("org_id", context.orgId).order("full_name")
   ]);
   const { data: roleThemeRows } = await supabase
     .from("organization_role_themes")
@@ -110,6 +111,7 @@ export default async function OrganizationSettingsPage() {
         canManage={isSuperAdmin(context.role) || can(context.role, "org.manage_members")}
         orgName={context.orgName}
         companyWebsite={companyProfile?.website}
+        employeeNames={Array.from(new Set((employeeRows ?? []).map((employee) => employee.full_name.trim()).filter(Boolean)))}
         roleThemes={roleThemes}
         canManageThemes={isSuperAdmin(context.role) || can(context.role, "org.manage_members")}
       />
