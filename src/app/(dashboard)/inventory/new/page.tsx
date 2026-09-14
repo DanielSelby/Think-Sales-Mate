@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ProductForm } from "@/components/inventory/product-form";
 import { createProduct, getCategoryAndBrandOptions } from "@/app/(dashboard)/inventory/actions";
 
-export default async function NewProductPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function NewProductPage({ searchParams }: { searchParams: Promise<{ error?: string; name?: string }> }) {
   const resolvedSearchParams = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
@@ -35,6 +35,7 @@ export default async function NewProductPage({ searchParams }: { searchParams: P
         brands={brands}
         error={resolvedSearchParams.error}
         submitLabel="Save Product"
+        prefilledName={resolvedSearchParams.name}
       />
     </div>
   );

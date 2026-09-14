@@ -18,6 +18,7 @@ import { ProductPicker, type PickableProduct } from "@/components/purchases/prod
 import { ProductRowCell } from "@/components/purchases/product-row-cell";
 import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/attachments-dropzone";
 import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
+import { Dialog } from "@/components/ui/dialog";
 import type { PurchaseStatus } from "@/types/database";
 
 export interface SupplierOption {
@@ -144,6 +145,7 @@ export function AddPurchaseForm({
   const theme = THEMES[activeTheme];
   const [isPending, startTransition] = React.useTransition();
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [missingProductName, setMissingProductName] = React.useState<string | null>(null);
 
   const isEdit = mode === "edit" && !!purchaseId && !!initialValues;
 
@@ -154,12 +156,15 @@ export function AddPurchaseForm({
   const [expectedDeliveryDate, setExpectedDeliveryDate] = React.useState(initialValues?.expectedDeliveryDate ?? "");
   const [reference, setReference] = React.useState(initialValues?.reference ?? "");
   const [invoiceNumber, setInvoiceNumber] = React.useState(initialValues?.invoiceNumber ?? "");
-  const [purchaseStatus, setPurchaseStatus] = React.useState<"" | "received" | "pending" | "ordered">("");
+  const [purchaseStatus, setPurchaseStatus] = React.useState<"" | PurchaseStatus | "pending">(
+    isEdit ? initialValues?.status ?? "draft" : ""
+  );
 
   // "Pending" in the dropdown maps to the same "draft" action your
   // Save as Draft button already uses — there's no separate "pending"
   // value in the purchases.status enum.
-  const STATUS_TO_ACTION: Record<"received" | "pending" | "ordered", "draft" | "ordered" | "received"> = {
+  const STATUS_TO_ACTION: Record<"draft" | "received" | "pending" | "ordered", "draft" | "ordered" | "received"> = {
+    draft: "draft",
     received: "received",
     pending: "draft",
     ordered: "ordered",
@@ -246,7 +251,7 @@ export function AddPurchaseForm({
           quantity: 1,
           unitPrice: product.costPrice,
           discountPercent: 0,
-          taxPercent: 15,
+          taxPercent: 0,
           quantityReceived: 0,
         },
       ];
@@ -269,7 +274,7 @@ export function AddPurchaseForm({
         quantity: 1,
         unitPrice: 0,
         discountPercent: 0,
-        taxPercent: 15,
+        taxPercent: 0,
         quantityReceived: 0,
       },
     ]);
@@ -293,7 +298,11 @@ export function AddPurchaseForm({
   // open that flow and, on save, likely call addProduct() so the new
   // product is inserted as a line here too.
   function handleAddProduct() {
-    setFormError("Add Product isn't wired up yet — send the component and I'll connect it.");
+    router.push("/inventory/new");
+  }
+
+  function handleMissingProduct(name: string) {
+    setMissingProductName(name);
   }
 
   function updateLine(key: string, patch: Partial<LineItem>) {
@@ -389,6 +398,7 @@ export function AddPurchaseForm({
       payFromAccount: payFromAccount || null,
       purchaseNote: purchaseNote || null,
       internalNote: internalNote || null,
+      status: (purchaseStatus === "pending" ? "draft" : purchaseStatus || initialValues?.status || "draft") as PurchaseStatus,
     };
   }
 
@@ -549,11 +559,14 @@ export function AddPurchaseForm({
                     />
                   </Field>
                   {isEdit ? (
-                    <Field
-                      label="Purchase Status:"
-                      hint="Status can't be changed here — use Receive Items or the row actions on the purchase list to move this forward."
-                    >
-                      <Input value={PURCHASE_STATUS_LABEL[initialValues!.status]} disabled className="opacity-70" />
+                    <Field label="Purchase Status:" required hint="Update the purchase status before saving your changes.">
+                      <Select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value as typeof purchaseStatus)}>
+                        <option value="draft">Draft</option>
+                        <option value="ordered">Ordered</option>
+                        <option value="partially_received">Partially Received</option>
+                        <option value="received">Received</option>
+                        <option value="cancelled">Cancelled</option>
+                      </Select>
                     </Field>
                   ) : (
                     <Field label="Purchase Status:" required hint="Pending saves as a draft, Ordered records the purchase, Received also receives the items and updates stock.">
@@ -625,7 +638,7 @@ export function AddPurchaseForm({
                 </CardTitle>
               </div>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <ProductPicker products={products} onSelect={addProduct} className="max-w-none flex-1" theme={theme} />
+                <ProductPicker products={products} onSelect={addProduct} onNotFound={handleMissingProduct} className="max-w-none flex-1" theme={theme} />
                 <div className="flex shrink-0 items-center gap-2">
                   <Button variant="outline" size="sm" onClick={addEmptyRow}>
                     <Plus className="h-3.5 w-3.5" /> Add Row
@@ -685,6 +698,7 @@ export function AddPurchaseForm({
                                 onSelect={(p) => selectProductForLine(line.key, p)}
                                 onClose={() => setEditingLineId(null)}
                                 autoOpen={editingLineId === line.key}
+                                onNotFound={handleMissingProduct}
                               />
                             ) : (
                               <span className="font-medium text-ink-900 dark:text-white">{line.name}</span>
@@ -944,7 +958,7 @@ export function AddPurchaseForm({
           {isEdit ? (
             <Button variant="primary" size="md" onClick={submitEdit} disabled={isPending}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save Changes
+              Update Changes
             </Button>
           ) : (
             <div className="flex items-center gap-2">
@@ -952,7 +966,7 @@ export function AddPurchaseForm({
                 <Button
                   variant="primary"
                   size="md"
-                  onClick={() => submit(STATUS_TO_ACTION[purchaseStatus])}
+                  onClick={() => submit(STATUS_TO_ACTION[purchaseStatus as keyof typeof STATUS_TO_ACTION])}
                   disabled={isPending}
                   className="bg-signal hover:bg-signal/90 dark:bg-signal dark:hover:bg-signal/90"
                 >
@@ -990,6 +1004,31 @@ export function AddPurchaseForm({
         currency={currency}
         onCreated={(name) => setPendingSupplierName(name)}
       />
+      <Dialog
+        open={!!missingProductName}
+        onClose={() => setMissingProductName(null)}
+        title="Product not found"
+        description={`No product matches "${missingProductName ?? ""}".`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-ledger-500 dark:text-ledger-300">
+            Add this product to your catalogue before continuing the purchase.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="md" onClick={() => setMissingProductName(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => {
+                const name = missingProductName;
+                if (name) router.push(`/inventory/new?name=${encodeURIComponent(name)}`);
+              }}
+            >
+              Add to Products
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -112,7 +112,8 @@ export function ProductForm({
   categories = [],
   brands = [],
   error,
-  submitLabel
+  submitLabel,
+  prefilledName
 }: {
   action: (formData: FormData) => void;
   initialValues?: ProductFormValues;
@@ -121,6 +122,7 @@ export function ProductForm({
   brands?: string[];
   error?: string;
   submitLabel: string;
+  prefilledName?: string;
 }) {
   const isEdit = !!initialValues?.sku;
   const [skuPreview] = React.useState(() => initialValues?.sku ?? makeSkuPreview());
@@ -144,7 +146,7 @@ export function ProductForm({
   const [uploading, setUploading] = React.useState(false);
   const [imageError, setImageError] = React.useState<string | null>(null);
   const [imageUrlInput, setImageUrlInput] = React.useState("");
-  const [productName, setProductName] = React.useState(initialValues?.name ?? "");
+  const [productName, setProductName] = React.useState(initialValues?.name ?? prefilledName ?? "");
   const [duplicateMatches, setDuplicateMatches] = React.useState<ProductDuplicateMatch[]>([]);
   const [duplicateChecking, setDuplicateChecking] = React.useState(false);
   const [duplicateOverride, setDuplicateOverride] = React.useState(false);

@@ -12,6 +12,7 @@ import { formatCurrency, formatDateTime } from "@/lib/sales/format";
 import { formatPurchaseNumber } from "@/lib/purchases/format";
 import {
   getPurchaseReceivableItems, receivePurchaseItems, duplicatePurchase, recordPurchasePayment,
+  getPurchasePrintData,
   type ReceivableLine,
 } from "@/app/(dashboard)/purchases/actions";
 import type { PurchaseStatus } from "@/types/database";
@@ -147,7 +148,10 @@ export function PurchaseRowMenu({
 
   function handlePrint() {
     setMenuOpen(false);
-    printPurchase({ purchaseNumber, supplierName, total, currency });
+    void getPurchasePrintData(purchaseId).then((data) => {
+      if (data) printPurchase({ ...data, currency });
+      else onNotice("Couldn't load the purchase details for printing.", "error");
+    });
   }
 
   const canReceive = status === "ordered" || status === "partially_received";
@@ -303,10 +307,12 @@ export function PurchaseRowMenu({
 // and triggers the browser print dialog (which covers "Save as PDF" too).
 // A branded template is a natural next step once you have one designed.
 // ---------------------------------------------------------------------------
-function printPurchase(info: { purchaseNumber: number; supplierName: string; total: number; currency: string }) {
+function printPurchase(info: Awaited<ReturnType<typeof getPurchasePrintData>> & { currency: string }) {
+  if (!info) return;
   const win = window.open("", "_blank");
   if (!win) return;
-  const { date } = formatDateTime(new Date().toISOString());
+  const { date } = formatDateTime(info.purchaseDate);
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[char] ?? char);
   win.document.write(`
     <html>
       <head>
@@ -315,14 +321,18 @@ function printPurchase(info: { purchaseNumber: number; supplierName: string; tot
           body { font-family: -apple-system, sans-serif; padding: 40px; color: #12161d; }
           h1 { font-size: 20px; margin-bottom: 4px; }
           p { color: #68655c; margin: 2px 0; }
-          .total { margin-top: 24px; font-size: 18px; font-weight: 600; }
+          table { width: 100%; border-collapse: collapse; margin-top: 24px; } th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; } .number { text-align: right; } .total { margin-top: 24px; font-size: 18px; font-weight: 600; text-align: right; }
         </style>
       </head>
       <body>
         <h1>${formatPurchaseNumber(info.purchaseNumber)}</h1>
-        <p>Supplier: ${info.supplierName}</p>
-        <p>Printed: ${date}</p>
-        <p class="total">Total: ${formatCurrency(info.total, info.currency)}</p>
+        <p>Supplier: ${escapeHtml(info.supplierName)}</p>
+        <p>Purchase date: ${date}</p>
+        ${info.invoiceNumber ? `<p>Invoice: ${escapeHtml(info.invoiceNumber)}</p>` : ""}
+        <table><thead><tr><th>Product</th><th class="number">Qty</th><th class="number">Unit Price</th><th class="number">Amount</th></tr></thead><tbody>
+        ${info.items.map((item) => `<tr><td>${escapeHtml(item.name)}</td><td class="number">${item.quantity}</td><td class="number">${formatCurrency(item.unitPrice, info.currency)}</td><td class="number">${formatCurrency(item.lineTotal, info.currency)}</td></tr>`).join("")}
+        </tbody></table>
+        <p class="total">Subtotal: ${formatCurrency(info.subtotal, info.currency)}<br />Tax: ${formatCurrency(info.taxAmount, info.currency)}<br />Shipping: ${formatCurrency(info.shippingCost, info.currency)}<br />Total: ${formatCurrency(info.total, info.currency)}</p>
       </body>
     </html>
   `);

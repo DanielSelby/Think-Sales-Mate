@@ -11,13 +11,14 @@ interface ProductRowCellProps {
   onSelect: (product: PickableProduct) => void;
   onClose?: () => void;
   autoOpen?: boolean;
+  onNotFound?: (query: string) => void;
 }
 
 // Inline, per-row product combobox for the Purchase Items table. Each
 // instance holds its own open/query state, so it never touches — and is
 // never touched by — the long "Search by product name..." bar (ProductPicker)
 // above the table. Selecting a product here replaces this row only.
-export function ProductRowCell({ products, currentName, onSelect, onClose, autoOpen = false }: ProductRowCellProps) {
+export function ProductRowCell({ products, currentName, onSelect, onClose, autoOpen = false, onNotFound }: ProductRowCellProps) {
   const [open, setOpen] = React.useState(autoOpen);
   const [query, setQuery] = React.useState("");
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -80,6 +81,12 @@ export function ProductRowCell({ products, currentName, onSelect, onClose, autoO
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && results.length === 0 && query.trim()) {
+                  e.preventDefault();
+                  onNotFound?.(query.trim());
+                }
+              }}
               placeholder="Search name, SKU, or barcode..."
               className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
             />

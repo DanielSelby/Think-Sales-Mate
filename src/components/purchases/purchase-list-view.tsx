@@ -116,6 +116,9 @@ export function PurchaseListView({
   const [supplier, setSupplier] = React.useState(() => searchParams.get("supplier") ?? "all");
   const [location, setLocation] = React.useState(initialLocation);
   const [paymentStatus, setPaymentStatus] = React.useState<"all" | PaymentStatus>("all");
+  const [showMoreFilters, setShowMoreFilters] = React.useState(false);
+  const [dateFrom, setDateFrom] = React.useState("");
+  const [dateTo, setDateTo] = React.useState("");
   const [selected, setSelected] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
@@ -146,6 +149,8 @@ export function PurchaseListView({
       if (supplier !== "all" && p.supplierName !== supplier) return false;
       if (location !== "all" && p.locationName !== location) return false;
       if (paymentStatus !== "all" && p.paymentStatus !== paymentStatus) return false;
+      if (dateFrom && p.date < dateFrom) return false;
+      if (dateTo && p.date > dateTo) return false;
       if (q) {
         const poNumber = formatPurchaseNumber(p.purchaseNumber).toLowerCase();
         const invoiceNumber = (p.invoiceNumber ?? "").toLowerCase();
@@ -158,7 +163,7 @@ export function PurchaseListView({
       }
       return true;
     });
-  }, [purchases, activeTab, supplier, location, paymentStatus, query]);
+  }, [purchases, activeTab, supplier, location, paymentStatus, query, dateFrom, dateTo]);
 
   const filteredKpis = React.useMemo(() => {
     const totalPurchases = filtered.length;
@@ -176,6 +181,30 @@ export function PurchaseListView({
   const clampedPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
   const allChecked = pageRows.length > 0 && pageRows.every((r) => selected.includes(r.id));
+
+  function exportCsv() {
+    const header = ["PO Number", "Invoice", "Date", "Supplier", "Location", "Products", "Total", "Payment", "Status", "Created By"];
+    const csv = [header, ...filtered.map((p) => [
+      formatPurchaseNumber(p.purchaseNumber), p.invoiceNumber ?? "", p.date, p.supplierName, p.locationName,
+      p.primaryProductName ?? "", p.total.toFixed(2), PAYMENT_STATUS_LABEL[p.paymentStatus],
+      PURCHASE_STATUS_LABEL[p.status], p.createdByName,
+    ])].map((row) => row.map((value) => `"${String(value).replace(/"/g, "\"\"")}"`).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "purchases.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printList() {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<html><head><title>Purchases</title><style>body{font-family:Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;font-size:12px}h1{font-size:20px}.number{text-align:right}</style></head><body><h1>All Purchases</h1><table><thead><tr><th>PO Number</th><th>Date</th><th>Supplier</th><th>Location</th><th>Products</th><th class="number">Total</th><th>Status</th></tr></thead><tbody>${filtered.map((p) => `<tr><td>${formatPurchaseNumber(p.purchaseNumber)}</td><td>${p.date}</td><td>${p.supplierName}</td><td>${p.locationName}</td><td>${p.primaryProductName ?? "—"}${p.itemCount > 1 ? ` +${p.itemCount - 1} more` : ""}</td><td class="number">${formatCurrency(p.total, currency)}</td><td>${PURCHASE_STATUS_LABEL[p.status]}</td></tr>`).join("")}</tbody></table></body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
 
   function toggleAll() {
     if (allChecked) setSelected((prev) => prev.filter((id) => !pageRows.some((r) => r.id === id)));
@@ -204,11 +233,17 @@ export function PurchaseListView({
             {purchases.length} purchase orders across all suppliers
           </p>
         </div>
+        {showMoreFilters && (
+          <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+            <div><label className="mb-1 block text-xs font-medium text-ledger-500">Purchase date from</label><Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} /></div>
+            <div><label className="mb-1 block text-xs font-medium text-ledger-500">Purchase date to</label><Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} /></div>
+          </div>
+        )}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="md">
+          <Button variant="outline" size="md" onClick={exportCsv}>
             <Download className="h-4 w-4" /> Export
           </Button>
-          <Button variant="outline" size="md" onClick={() => window.print()}>
+          <Button variant="outline" size="md" onClick={printList}>
             <Printer className="h-4 w-4" /> Print
           </Button>
           <Link
@@ -287,13 +322,13 @@ export function PurchaseListView({
                   <option value="pending">Pending</option>
                 </Select>
               </div>
-              <Button variant="outline" size="md">
+              <Button variant="outline" size="md" onClick={() => setShowMoreFilters((value) => !value)}>
                 <Filter className="h-4 w-4" /> More Filters
               </Button>
               <Button
                 variant="ghost"
                 size="md"
-                onClick={() => { setQuery(""); setSupplier("all"); setLocation("all"); setPaymentStatus("all"); setActiveTab("all"); setPage(1); }}
+                onClick={() => { setQuery(""); setSupplier("all"); setLocation("all"); setPaymentStatus("all"); setDateFrom(""); setDateTo(""); setActiveTab("all"); setPage(1); }}
               >
                 <RefreshCw className="h-4 w-4" /> Clear
               </Button>

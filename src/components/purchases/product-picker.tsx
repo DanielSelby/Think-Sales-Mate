@@ -18,9 +18,10 @@ interface ProductPickerProps {
   onSelect: (product: PickableProduct) => void;
   className?: string;
   theme?: { colors: { primary: string; primaryPale: string } };
+  onNotFound?: (query: string) => void;
 }
 
-export function ProductPicker({ products, onSelect, className, theme }: ProductPickerProps) {
+export function ProductPicker({ products, onSelect, className, theme, onNotFound }: ProductPickerProps) {
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -64,6 +65,9 @@ export function ProductPicker({ products, onSelect, className, theme }: ProductP
     if (exact) {
       e.preventDefault();
       pick(exact);
+    } else if (onNotFound) {
+      e.preventDefault();
+      onNotFound(q);
     }
   }
 

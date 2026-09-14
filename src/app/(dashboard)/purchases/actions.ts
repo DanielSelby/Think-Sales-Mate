@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canUseLocation } from "@/lib/organizations/location-access";
 import { formatPurchaseNumber } from "@/lib/purchases/format";
+import type { PurchaseStatus } from "@/types/database";
 
 export interface PurchaseItemInput {
   productId: string;
@@ -203,6 +204,52 @@ export interface ReceivableLine {
   quantityOrdered: number;
   alreadyReceived: number;
   remaining: number;
+}
+
+export interface PurchasePrintData {
+  purchaseNumber: number;
+  purchaseDate: string;
+  supplierName: string;
+  invoiceNumber: string | null;
+  items: { name: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  subtotal: number;
+  taxAmount: number;
+  shippingCost: number;
+  total: number;
+}
+
+export async function getPurchasePrintData(purchaseId: string): Promise<PurchasePrintData | null> {
+  const context = await getCurrentOrgContext();
+  if (!context) return null;
+  const supabase = await createClient();
+  const { data: purchase } = await supabase
+    .from("purchases")
+    .select("purchase_number, purchase_date, invoice_number, subtotal, tax_amount, shipping_cost, total, location_id, supplier:suppliers(name)")
+    .eq("id", purchaseId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (!purchase || !canUseLocation(context, purchase.location_id)) return null;
+  const { data: items } = await supabase
+    .from("purchase_items")
+    .select("quantity, unit_price, line_total, product:products(name)")
+    .eq("purchase_id", purchaseId)
+    .eq("org_id", context.orgId);
+  return {
+    purchaseNumber: purchase.purchase_number,
+    purchaseDate: purchase.purchase_date,
+    supplierName: (purchase.supplier as { name: string } | null)?.name ?? "Unknown supplier",
+    invoiceNumber: purchase.invoice_number,
+    items: (items ?? []).map((item) => ({
+      name: (item.product as { name: string } | null)?.name ?? "Unknown product",
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+      lineTotal: item.line_total,
+    })),
+    subtotal: purchase.subtotal,
+    taxAmount: purchase.tax_amount,
+    shippingCost: purchase.shipping_cost,
+    total: purchase.total,
+  };
 }
 
 export async function getPurchaseReceivableItems(purchaseId: string): Promise<ReceivableLine[]> {
@@ -511,6 +558,7 @@ export interface UpdatePurchaseInput {
   payFromAccount: string | null;
   purchaseNote: string | null;
   internalNote: string | null;
+  status: PurchaseStatus;
 }
 
 export interface UpdatePurchaseResult {
@@ -616,6 +664,7 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
       pay_from_account: input.payFromAccount,
       purchase_note: input.purchaseNote,
       internal_note: input.internalNote,
+      status: input.status,
     })
     .eq("id", purchaseId);
   if (updateError) return { ok: false, error: updateError.message };
