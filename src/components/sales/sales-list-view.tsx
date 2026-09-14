@@ -416,26 +416,26 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Table */}
-      <Card accent="neutral" className="overflow-hidden rounded-2xl shadow-card">
+      <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-ledger-100 text-ink-900 dark:border-ledger-700 dark:text-white">
-                <th className="px-3 py-3 min-w-[150px] font-semibold whitespace-nowrap">Document</th>
-                <th className="px-3 py-3 min-w-[170px] font-semibold whitespace-nowrap">Customer</th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Branch</th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Date</th>
-                <th className="px-3 py-3 min-w-[160px] font-semibold whitespace-nowrap">Product</th>
-                <th className="px-3 py-3 min-w-[130px] text-right font-semibold whitespace-nowrap">Amount</th>
-                <th className="px-3 py-3 min-w-[120px] font-semibold whitespace-nowrap">Status</th>
-                <th className="px-3 py-3 min-w-[130px] font-semibold whitespace-nowrap">Created By</th>
-                <th className="px-3 py-3 pr-4 min-w-[150px] text-right font-semibold whitespace-nowrap">Actions</th>
+            <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+              <tr>
+                <th className="px-4 py-3 min-w-[150px]">DOCUMENT</th>
+                <th className="px-4 py-3 min-w-[170px]">CUSTOMER</th>
+                <th className="px-4 py-3 min-w-[130px]">BRANCH</th>
+                <th className="px-4 py-3 min-w-[130px]">DATE &amp; TIME</th>
+                <th className="px-4 py-3 min-w-[160px]">PRODUCT</th>
+                <th className="px-4 py-3 min-w-[130px] text-right">AMOUNT</th>
+                <th className="px-4 py-3 min-w-[120px]">STATUS</th>
+                <th className="px-4 py-3 min-w-[130px]">CREATED BY</th>
+                <th className="px-4 py-3 pr-4 min-w-[150px] text-center">ACTIONS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
+            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-ledger-400">
+                  <td colSpan={9} className="px-6 py-14 text-center text-ledger-400">
                     No sales match your filters.
                   </td>
                 </tr>
@@ -443,8 +443,8 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               {pageRows.map((s) => {
                 const { date, time } = formatDateTime(s.saleDate);
                 return (
-                  <tr key={s.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
-                    <td className="px-3 py-3">
+                  <tr key={s.id} className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                    <td className="px-4 py-3.5">
                       <span className="flex items-center gap-1.5">
                         <Link href={`/sales/${s.id}`} className="font-mono text-[13px] font-medium text-signal hover:underline">
                           {formatInvoiceNumber(s.saleNumber)}
@@ -469,21 +469,21 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                         )}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-ink-900 dark:text-white">{s.customerName}</td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.locationName ?? "—"}</td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{date}<div className="text-xs text-ledger-400">{time}</div></td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
+                    <td className="px-4 py-3.5 text-ink-900 dark:text-white">{s.customerName}</td>
+                    <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.locationName ?? "—"}</td>
+                    <td className="px-4 py-3.5 whitespace-nowrap text-ledger-600 dark:text-ledger-300">{date}<div className="text-xs text-ledger-400">{time}</div></td>
+                    <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">
                       {s.primaryProductName ?? "—"}
                       {s.productLineCount > 1 && <span className="ml-1 text-[10px] text-ledger-400">+{s.productLineCount - 1} more</span>}
                     </td>
-                    <td className="px-3 py-3 text-right font-medium text-ink-900 dark:text-white">
+                    <td className="px-4 py-3.5 text-right font-medium text-ink-900 dark:text-white">
                       {formatCurrency(s.total, currency)}
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="px-4 py-3.5">
                       <Badge tone={SALE_STATUS_BADGE_TONE[s.status]}>{SALE_STATUS_LABEL[s.status]}</Badge>
                     </td>
-                    <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.soldByName}</td>
-                    <td className="px-3 py-3 pr-4">
+                    <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.soldByName}</td>
+                    <td className="px-4 py-3.5 pr-4">
                       <div className="flex items-center justify-end gap-1 text-ledger-400">
                         <Link href={`/sales/${s.id}`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white" title="View">
                           <Eye className="h-4 w-4" />
@@ -509,8 +509,8 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
         </div>
 
         {/* Pagination */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ledger-100 px-4 py-3 dark:border-ledger-700">
-          <p className="text-sm text-ledger-500">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-ledger-100 p-4 text-xs dark:border-ledger-700">
+          <p className="text-ledger-400">
             Showing {pageRows.length === 0 ? 0 : (clampedPage - 1) * effectiveRowsPerPage + 1}–
             {(clampedPage - 1) * effectiveRowsPerPage + pageRows.length} of {filtered.length} sales
           </p>
@@ -523,7 +523,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="px-2 text-sm text-ledger-600 dark:text-ledger-300">
+              <span className="px-2 text-xs text-ledger-600 dark:text-ledger-300">
                 Page {clampedPage} of {totalPages}
               </span>
               <button
@@ -536,7 +536,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
             </div>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

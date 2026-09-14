@@ -104,6 +104,7 @@ interface UserManagementProps {
   branches?: UserBranch[];
   canManage?: boolean;
   orgName?: string;
+  companyWebsite?: string | null;
   roleThemes?: Record<string, string>;
   canManageThemes?: boolean;
 }
@@ -112,8 +113,10 @@ export function UserManagement({
   users: initialUsersProp,
   branches: initialBranchesProp,
   canManage = true,
-  orgName = "ThinkSales Pro"
-  , roleThemes = {}, canManageThemes = false
+  orgName = "ThinkSales Pro",
+  companyWebsite,
+  roleThemes = {},
+  canManageThemes = false
 }: UserManagementProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -1315,6 +1318,7 @@ export function UserManagement({
         onClose={() => setIsCreateStaffOpen(false)}
         branches={branches}
         roles={roles}
+        companyWebsite={companyWebsite}
         onCreateStaff={handleCreateStaffAccount}
       />
 

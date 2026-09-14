@@ -85,7 +85,7 @@ export async function createStaffAccount(formData: FormData) {
   }
 
   const fullName = String(formData.get("full_name") ?? "").trim();
-  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const submittedUsername = String(formData.get("username") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const contactEmail = String(formData.get("email") ?? "").trim().toLowerCase();
   const employeeId = String(formData.get("employee_id") ?? "").trim();
@@ -100,8 +100,25 @@ export async function createStaffAccount(formData: FormData) {
     .filter(Boolean);
 
   if (!fullName) return { error: "Full name is required." };
-  if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)) {
-    return { error: "Username must be 3–32 characters and use only letters, numbers, dots, underscores, or hyphens." };
+  const { data: companyProfile, error: companyProfileError } = await (await createClient())
+    .from("company_profile")
+    .select("website")
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (companyProfileError) return { error: companyProfileError.message };
+  const domain = companyProfile?.website
+    ? (() => {
+        try {
+          return new URL(companyProfile.website.includes("://") ? companyProfile.website : `https://${companyProfile.website}`).hostname.replace(/^www\./i, "").toLowerCase();
+        } catch {
+          return companyProfile.website.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0].toLowerCase();
+        }
+      })()
+    : "";
+  const usernameBase = fullName.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "") || "staff";
+  const username = domain ? `${usernameBase}@${domain}` : submittedUsername;
+  if (!username || !/^[a-z0-9][a-z0-9.]{0,63}@[a-z0-9.-]+\.[a-z]{2,}$/i.test(username)) {
+    return { error: "A company website is required to generate the staff username." };
   }
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
   if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
@@ -144,7 +161,7 @@ export async function createStaffAccount(formData: FormData) {
   // Supabase Auth needs an email or phone for password accounts. Internal
   // emails are never shown to users and let username-only accounts use the
   // same secure password flow as normal email accounts.
-  const authEmail = contactEmail || `${username}.${context.orgId.slice(0, 8)}@internal.thinksales.local`;
+  const authEmail = username;
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email: authEmail,
     password,
