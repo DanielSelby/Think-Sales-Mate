@@ -13,12 +13,13 @@ export default async function AssetsPage() {
   const supabase = await createClient();
   const { data: rows } = await supabase
     .from("assets")
-    .select("id, name, category, purchase_date, purchase_cost, current_value, status, location")
+    .select("*")
     .eq("org_id", context.orgId)
     .order("name");
 
   const assets: AssetRow[] = (rows ?? []).map((a) => ({
     id: a.id,
+    code: "asset_code" in a && typeof a.asset_code === "string" ? a.asset_code : "Pending code",
     name: a.name,
     category: a.category,
     purchaseCost: a.purchase_cost,

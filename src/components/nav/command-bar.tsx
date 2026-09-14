@@ -224,6 +224,8 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
               { data: expenses },
               { data: suppliers },
               { data: locations },
+              { data: assets },
+              { data: employees },
             ] = await Promise.all([
               supabase.from("products").select("id, name, sku")
                 .eq("org_id", orgId)
@@ -252,6 +254,14 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
               supabase.from("business_locations").select("id, name, address, phone")
                 .eq("org_id", orgId)
                 .or(`name.ilike.%${q}%,address.ilike.%${q}%,phone.ilike.%${q}%`)
+                .limit(4),
+              supabase.from("assets").select("id, name, category, location, status")
+                .eq("org_id", orgId)
+                .or(`name.ilike.%${q}%,category.ilike.%${q}%,location.ilike.%${q}%`)
+                .limit(4),
+              supabase.from("employees").select("id, full_name, employee_number, department, job_title")
+                .eq("org_id", orgId)
+                .or(`full_name.ilike.%${q}%,department.ilike.%${q}%,job_title.ilike.%${q}%`)
                 .limit(4),
             ]);
 
@@ -284,6 +294,16 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
             (locations ?? []).forEach(l => dbItems.push({
               id: "location-" + l.id, label: l.name, sub: l.address || l.phone || "Business location",
               icon: MapPin, group: "Locations", action: () => { navigate("/settings/locations"); close(); }
+            }));
+            (assets ?? []).forEach(a => dbItems.push({
+              id: "asset-" + a.id, label: a.name,
+              sub: `Asset · ${a.category ?? "Uncategorized"} · ${a.status.replaceAll("_", " ")}`,
+              icon: Package, group: "Assets", action: () => { navigate("/assets"); close(); }
+            }));
+            (employees ?? []).forEach(e => dbItems.push({
+              id: "employee-" + e.id, label: e.full_name,
+              sub: `Employee · ${e.job_title ?? e.department ?? `#${e.employee_number}`}`,
+              icon: Users, group: "Employees", action: () => { navigate("/hrm/employees"); close(); }
             }));
           }
         }

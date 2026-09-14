@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   Package,
   Plus,
@@ -112,6 +113,17 @@ export function FixedAssetsTab() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 dark:border-blue-950/60 dark:bg-blue-950/20">
+        <div>
+          <p className="text-xs font-semibold text-blue-800 dark:text-blue-200">Accounting register</p>
+          <p className="mt-0.5 text-[11px] text-blue-700/80 dark:text-blue-300/80">
+            Use Asset Management for operational assets, assignments, locations, and imports. This tab is for capitalization and depreciation only.
+          </p>
+        </div>
+        <Link href="/assets" className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-slate-900 dark:text-blue-300">
+          Open Asset Management
+        </Link>
+      </div>
       {/* ── Top Metric Cards ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -179,12 +191,12 @@ export function FixedAssetsTab() {
             <Calculator className="h-3.5 w-3.5" /> Run Depreciation
           </button>
 
-          <button
-            onClick={() => setIsAddModalOpen(true)}
+          <Link
+            href="/assets/new"
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
           >
-            <Plus className="h-3.5 w-3.5" /> Add Asset
-          </button>
+            <Plus className="h-3.5 w-3.5" /> Add in Asset Management
+          </Link>
         </div>
       </div>
 

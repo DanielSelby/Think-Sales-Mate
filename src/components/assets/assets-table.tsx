@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/sales/format";
 
 export interface AssetRow {
   id: string;
+  code: string;
   name: string;
   category: string | null;
   purchaseCost: number;
@@ -62,6 +63,7 @@ export function AssetsTable({ assets, canManage, currency }: { assets: AssetRow[
         <table className="w-full text-sm">
           <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
             <tr>
+              <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Asset</th>
               <th className="px-4 py-3">Category</th>
               <th className="px-4 py-3 text-right">Purchase cost</th>
@@ -73,6 +75,7 @@ export function AssetsTable({ assets, canManage, currency }: { assets: AssetRow[
           <tbody>
             {assets.map((asset) => (
               <tr key={asset.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
+                <td className="px-4 py-3 font-mono text-xs text-ledger-500 dark:text-ledger-400">{asset.code}</td>
                 <td className="px-4 py-3 text-ink-900 dark:text-white">{asset.name}</td>
                 <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">{asset.category ?? "—"}</td>
                 <td className="px-4 py-3 text-right figure text-ledger-500 dark:text-ledger-400">
