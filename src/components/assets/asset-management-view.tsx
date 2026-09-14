@@ -1,0 +1,70 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useRef, useState } from "react";
+import Papa from "papaparse";
+import { Download, FileUp, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react";
+import { deleteAsset, importAssets } from "@/app/(dashboard)/assets/actions";
+import { formatCurrency } from "@/lib/sales/format";
+import type { AssetRow } from "./assets-table";
+
+const colors = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#64748b"];
+const statusLabels: Record<AssetRow["status"], string> = { in_use: "Active", under_repair: "Maintenance", disposed: "Disposed" };
+
+export function AssetManagementView({ assets, canManage, currency }: { assets: AssetRow[]; canManage: boolean; currency: string }) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("All Assets");
+  const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const [notice, setNotice] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const categories = useMemo(() => ["All Assets", ...Array.from(new Set(assets.map((asset) => asset.category).filter(Boolean) as string[])).sort()], [assets]);
+  const filtered = useMemo(() => assets
+    .filter((asset) => category === "All Assets" || asset.category === category)
+    .filter((asset) => status === "all" || asset.status === status)
+    .filter((asset) => `${asset.name} ${asset.category ?? ""} ${asset.location ?? ""}`.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => sort === "name" ? a.name.localeCompare(b.name) : sort === "value" ? b.currentValue - a.currentValue : sort === "oldest" ? a.purchaseDate.localeCompare(b.purchaseDate) : b.purchaseDate.localeCompare(a.purchaseDate)), [assets, category, query, sort, status]);
+  const totalValue = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
+  const categoryCounts = categories.slice(1).map((name) => ({ name, value: assets.filter((asset) => asset.category === name).length })).filter((item) => item.value);
+  const exportAssets = () => {
+    const csv = ["Asset Name,Category,Location,Status,Purchase Date,Current Value", ...filtered.map((asset) => [asset.name, asset.category ?? "", asset.location ?? "", statusLabels[asset.status], asset.purchaseDate, asset.currentValue].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = "assets.csv"; link.click(); URL.revokeObjectURL(url);
+  };
+  const handleDelete = (asset: AssetRow) => {
+    if (!confirm(`Remove "${asset.name}" from the asset register? This cannot be undone.`)) return;
+    void deleteAsset(asset.id).then((result) => result?.error ? setNotice(result.error) : setNotice("Asset removed."));
+  };
+
+  return <div className="space-y-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-600 p-3 text-white"><Package className="h-6 w-6" /></div><div><h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Asset Management</h1><p className="text-sm text-ledger-500">Track, manage and maintain your organization's assets.</p></div></div>
+      {canManage && <Link href="/assets/new" className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"><Plus className="h-4 w-4" /> Add Asset</Link>}
+    </div>
+
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <Kpi label="Total Assets" value={assets.length} hint="Registered assets" />
+      <Kpi label="Active Assets" value={assets.filter((asset) => asset.status === "in_use").length} hint="In use" tone="green" />
+      <Kpi label="Under Maintenance" value={assets.filter((asset) => asset.status === "under_repair").length} hint="Under repair" tone="amber" />
+      <Kpi label="Retired / Disposed" value={assets.filter((asset) => asset.status === "disposed").length} hint="No longer active" tone="red" />
+      <Kpi label="Total Asset Value" value={formatCurrency(totalValue, currency)} hint="Current book value" tone="blue" />
+    </div>
+
+    <div className="grid gap-5 xl:grid-cols-[1fr_1fr_240px]">
+      <Panel title="Assets by Category"><div className="flex items-center gap-5"><div className="relative h-36 w-36 shrink-0 rounded-full" style={{ background: `conic-gradient(${categoryCounts.map((item, index) => `${colors[index % colors.length]} ${categoryCounts.slice(0, index).reduce((sum, current) => sum + current.value, 0) / Math.max(assets.length, 1) * 360}deg ${categoryCounts.slice(0, index + 1).reduce((sum, current) => sum + current.value, 0) / Math.max(assets.length, 1) * 360}deg`).join(", ")})` }}><div className="absolute inset-7 flex items-center justify-center rounded-full bg-white text-lg font-bold text-slate-900 dark:bg-ink-900 dark:text-white">{assets.length}</div></div><div className="space-y-2 text-xs">{categoryCounts.slice(0, 6).map((item, index) => <div key={item.name} className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} /><span className="max-w-32 truncate text-slate-500">{item.name}</span><strong className="ml-auto">{item.value}</strong></div>)}</div></div></Panel>
+      <Panel title="Asset Status"><div className="flex h-36 items-end gap-5 border-b border-slate-100 px-4 dark:border-slate-700">{(["in_use", "under_repair", "disposed"] as const).map((key, index) => { const count = assets.filter((asset) => asset.status === key).length; return <div key={key} className="flex flex-1 flex-col items-center gap-2"><span className="text-xs font-semibold">{count}</span><div className="w-full rounded-t bg-blue-500" style={{ height: `${Math.max(12, count / Math.max(assets.length, 1) * 100)}%`, opacity: 1 - index * .18 }} /><span className="text-center text-[10px] text-slate-500">{statusLabels[key]}</span></div>; })}</div></Panel>
+      <div className="space-y-3"><Panel title="Quick Actions"><div className="grid grid-cols-2 gap-2"><Link href="/assets/new" className="action"><Plus className="h-4 w-4" />Add</Link><button className="action" onClick={() => document.getElementById("asset-search")?.focus()}><Search className="h-4 w-4" />Search</button><button className="action" onClick={exportAssets}><Download className="h-4 w-4" />Export</button><button className="action" onClick={() => fileRef.current?.click()}><FileUp className="h-4 w-4" />Import</button></div><input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; Papa.parse<Record<string, string>>(file, { header: true, skipEmptyLines: true, complete: async (result) => { const imported = await importAssets(result.data.map((row) => ({ name: row["Asset Name"] ?? row.name ?? "", category: row.Category ?? row.category, purchase_date: row["Purchase Date"] ?? row.purchase_date, purchase_cost: Number(row["Purchase Cost"] ?? row.purchase_cost ?? 0), current_value: Number(row["Current Value"] ?? row["Value"] ?? row.current_value ?? 0), status: row.Status === "Maintenance" ? "under_repair" : row.Status === "Disposed" ? "disposed" : "in_use", location: row.Location ?? row.location }))); setNotice(imported.error ?? `${imported.count ?? 0} assets imported.`); event.target.value = ""; } }); }} /></Panel><Panel title="Asset Summary"><Summary label="In Use" value={assets.filter((asset) => asset.status === "in_use").length} /><Summary label="Maintenance" value={assets.filter((asset) => asset.status === "under_repair").length} /><Summary label="Disposed" value={assets.filter((asset) => asset.status === "disposed").length} /></Panel><Panel title="Upcoming Maintenance"><div className="flex items-center gap-2 text-xs text-slate-500"><Wrench className="h-4 w-4 text-amber-500" /> No maintenance dates recorded.</div></Panel></div>
+    </div>
+
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-ink-900">
+      <div className="border-b border-slate-100 p-4 dark:border-slate-700"><div className="flex gap-1 overflow-x-auto">{categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`whitespace-nowrap rounded-md px-3 py-2 text-xs font-semibold ${category === item ? "border-b-2 border-blue-600 text-blue-600" : "text-slate-500"}`}>{item} {item === "All Assets" ? `(${assets.length})` : `(${assets.filter((asset) => asset.category === item).length})`}</button>)}</div><div className="mt-3 flex flex-wrap gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input id="asset-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search assets by name, category, location..." className="h-9 w-full rounded-md border border-slate-200 pl-9 pr-3 text-xs dark:border-slate-700 dark:bg-ink-900" /></div><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-9 rounded-md border border-slate-200 px-3 text-xs dark:border-slate-700 dark:bg-ink-900"><option value="all">All statuses</option><option value="in_use">Active</option><option value="under_repair">Maintenance</option><option value="disposed">Disposed</option></select><select value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 rounded-md border border-slate-200 px-3 text-xs dark:border-slate-700 dark:bg-ink-900"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="value">Value</option></select></div></div>
+      <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="border-b border-slate-100 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400 dark:border-slate-700 dark:bg-white/[0.03]"><tr>{["Asset Name", "Category", "Location", "Status", "Purchase Date", "Value", "Actions"].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody>{filtered.map((asset) => <tr key={asset.id} className="border-b border-slate-50 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-white/[0.03]"><td className="px-4 py-3 font-semibold text-slate-800 dark:text-white">{asset.name}</td><td className="px-4 py-3 text-slate-500">{asset.category ?? "Other"}</td><td className="px-4 py-3 text-slate-500">{asset.location ?? "—"}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${asset.status === "in_use" ? "bg-emerald-50 text-emerald-700" : asset.status === "under_repair" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{statusLabels[asset.status]}</span></td><td className="px-4 py-3 text-slate-500">{new Date(asset.purchaseDate).toLocaleDateString()}</td><td className="px-4 py-3 font-mono text-slate-700 dark:text-slate-200">{formatCurrency(asset.currentValue, currency)}</td><td className="px-4 py-3">{canManage && <div className="flex gap-2"><Link href={`/assets/${asset.id}/edit`} aria-label={`Edit ${asset.name}`}><Pencil className="h-3.5 w-3.5 text-slate-400 hover:text-blue-600" /></Link><button onClick={() => handleDelete(asset)} aria-label={`Delete ${asset.name}`}><Trash2 className="h-3.5 w-3.5 text-slate-400 hover:text-red-600" /></button><MoreHorizontal className="h-3.5 w-3.5 text-slate-400" /></div>}</td></tr>)}</tbody></table>{!filtered.length && <p className="p-10 text-center text-sm text-slate-500">No assets match the current filters.</p>}</div>
+    </section>
+    {notice && <button onClick={() => setNotice("")} className="fixed bottom-5 right-5 rounded-lg bg-slate-900 px-4 py-3 text-xs text-white shadow-lg">{notice}</button>}
+  </div>;
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) { return <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-ink-900"><h2 className="mb-3 text-sm font-bold text-slate-900 dark:text-white">{title}</h2>{children}</section>; }
+function Kpi({ label, value, hint, tone = "blue" }: { label: string; value: string | number; hint: string; tone?: string }) { return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-ink-900"><div className={`mb-2 h-2 w-2 rounded-full bg-${tone}-500`} /><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{value}</p><p className="mt-1 text-[10px] text-slate-400">{hint}</p></div>; }
+function Summary({ label, value }: { label: string; value: number }) { return <div className="flex items-center justify-between border-b border-slate-100 py-2 text-xs last:border-0 dark:border-slate-700"><span className="text-slate-500">{label}</span><strong>{value}</strong></div>; }

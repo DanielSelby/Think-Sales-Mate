@@ -13,6 +13,8 @@ export interface AssetRow {
   purchaseCost: number;
   currentValue: number;
   status: "in_use" | "under_repair" | "disposed";
+  purchaseDate: string;
+  location: string | null;
 }
 
 function formatMoney(value: number) {

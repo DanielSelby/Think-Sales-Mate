@@ -58,6 +58,38 @@ export async function createAsset(formData: FormData): Promise<void> {
   redirect("/assets");
 }
 
+export async function importAssets(records: Array<{
+  name: string;
+  category?: string | null;
+  purchase_date?: string | null;
+  purchase_cost?: number;
+  current_value?: number;
+  status?: "in_use" | "under_repair" | "disposed";
+  location?: string | null;
+}>): Promise<{ success?: boolean; error?: string; count?: number }> {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "assets.manage")) return { error: "You don't have permission to import assets." };
+  const valid = records.filter((record) => record.name.trim()).map((record) => ({
+    org_id: context.orgId,
+    created_by: context.userId,
+    name: record.name.trim(),
+    category: record.category?.trim() || null,
+    purchase_date: record.purchase_date || new Date().toISOString().slice(0, 10),
+    purchase_cost: Number(record.purchase_cost ?? 0),
+    current_value: Number(record.current_value ?? record.purchase_cost ?? 0),
+    status: record.status ?? "in_use",
+    location: record.location?.trim() || null,
+  }));
+  if (!valid.length || valid.some((record) => !Number.isFinite(record.purchase_cost) || record.purchase_cost < 0 || !Number.isFinite(record.current_value) || record.current_value < 0)) {
+    return { error: "The CSV must contain valid asset names and non-negative values." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("assets").insert(valid);
+  if (error) return { error: error.message };
+  revalidatePath("/assets");
+  return { success: true, count: valid.length };
+}
+
 export async function updateAsset(assetId: string, formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/assets/${assetId}/edit`, "Your session expired — please sign in again.");
