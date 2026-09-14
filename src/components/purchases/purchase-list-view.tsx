@@ -372,28 +372,28 @@ export function PurchaseListView({
         </div>
 
         {/* Table */}
-        <Card accent="neutral" className="overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">
-                <tr className="border-b border-ledger-100 text-ledger-400 dark:border-ledger-700">
+              <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+                <tr>
                   <th className="w-10 px-4 py-3">
                     <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" />
                   </th>
-                  <th className="px-3 py-3 font-semibold">PO Number</th>
-                  <th className="px-3 py-3 font-semibold">Invoice No.</th>
-                  <th className="px-3 py-3 font-semibold">Date</th>
-                  <th className="px-3 py-3 font-semibold">Supplier</th>
-                  <th className="px-3 py-3 font-semibold">Location</th>
-                  <th className="px-3 py-3 font-semibold">Products</th>
-                  <th className="px-3 py-3 text-right font-semibold">Total Amount</th>
-                  <th className="px-3 py-3 font-semibold">Payment</th>
-                  <th className="px-3 py-3 font-semibold">Status</th>
-                  <th className="px-3 py-3 font-semibold">Created By</th>
-                  <th className="px-3 py-3 pr-4 text-right font-semibold">Actions</th>
+                  <th className="px-4 py-3 min-w-[140px]">PO NUMBER</th>
+                  <th className="px-4 py-3 min-w-[120px]">INVOICE NO.</th>
+                  <th className="px-4 py-3 min-w-[130px]">DATE &amp; TIME</th>
+                  <th className="px-4 py-3 min-w-[150px]">SUPPLIER</th>
+                  <th className="px-4 py-3 min-w-[130px]">LOCATION</th>
+                  <th className="px-4 py-3 min-w-[150px]">PRODUCTS</th>
+                  <th className="px-4 py-3 text-right min-w-[130px]">TOTAL AMOUNT</th>
+                  <th className="px-4 py-3 min-w-[120px]">PAYMENT</th>
+                  <th className="px-4 py-3 min-w-[120px]">STATUS</th>
+                  <th className="px-4 py-3 min-w-[130px]">CREATED BY</th>
+                  <th className="px-4 py-3 text-center w-16">ACTIONS</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
                 {pageRows.length === 0 && (
                   <tr>
                     <td colSpan={12} className="px-4 py-12 text-center text-ledger-400">
@@ -413,39 +413,39 @@ export function PurchaseListView({
                     && new Date(p.expectedDeliveryDate) < new Date()
                     && p.status !== "received" && p.status !== "cancelled";
                   return (
-                    <tr key={p.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
-                      <td className="px-4 py-3">
+                    <tr key={p.id} className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                      <td className="px-4 py-3.5">
                         <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggleRow(p.id)} className="h-4 w-4 rounded border-ledger-300 accent-signal" />
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3.5">
                         <Link href={`/purchases/${p.id}`} className="font-mono text-[13px] font-medium text-signal hover:underline">
                           {formatPurchaseNumber(p.purchaseNumber)}
                         </Link>
                         {overdue && <Badge tone="alert" className="ml-2">Overdue</Badge>}
                       </td>
-                      <td className="px-3 py-3 font-mono text-xs text-ledger-500">{p.invoiceNumber ?? "—"}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
+                      <td className="px-4 py-3.5 font-mono text-xs text-ledger-500">{p.invoiceNumber ?? "—"}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">
                         {date}<div className="text-xs text-ledger-400">{time}</div>
                       </td>
-                      <td className="px-3 py-3 text-ink-900 dark:text-white">{p.supplierName}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{p.locationName}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">
+                      <td className="px-4 py-3.5 text-ink-900 dark:text-white">{p.supplierName}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{p.locationName}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">
                         {p.primaryProductName ?? "—"}
                         {p.itemCount > 1 && <span className="text-ledger-400"> +{p.itemCount - 1} more</span>}
                       </td>
-                      <td className="px-3 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">
+                      <td className="px-4 py-3.5 text-right font-mono font-medium text-ink-900 dark:text-white">
                         {formatCurrency(p.total, currency)}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3.5">
                         <Badge tone={p.paymentStatus === "paid" ? "signal" : p.paymentStatus === "partially_paid" ? "amber" : "alert"}>
                           {PAYMENT_STATUS_LABEL[p.paymentStatus]}
                         </Badge>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3.5">
                         <Badge tone={PURCHASE_STATUS_TONE[p.status]}>{PURCHASE_STATUS_LABEL[p.status]}</Badge>
                       </td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{p.createdByName}</td>
-                      <td className="px-3 py-3 pr-4">
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{p.createdByName}</td>
+                      <td className="px-4 py-3.5">
                         <PurchaseRowMenu
                           purchaseId={p.id}
                           purchaseNumber={p.purchaseNumber}
@@ -475,7 +475,7 @@ export function PurchaseListView({
               <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={clampedPage === totalPages} className="rounded-md border border-ledger-200 p-2 text-ledger-500 hover:bg-ledger-50 disabled:opacity-40 dark:border-ledger-700">›</button></>}
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* ------------------------------------------------------------- */}

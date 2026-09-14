@@ -308,41 +308,41 @@ export function SupplierListView({
           </div>
 
           {/* Table */}
-          <Card accent="neutral" className="overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">
-                  <tr className="border-b border-ledger-100 text-ledger-400 dark:border-ledger-700">
+                <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+                  <tr>
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></th>
-                    <th className="px-3 py-3 font-medium">Supplier Name</th>
-                    <th className="px-3 py-3 font-medium">Contact Person</th>
-                    <th className="px-3 py-3 font-medium">Phone</th>
-                    <th className="px-3 py-3 font-medium">Email</th>
-                    <th className="px-3 py-3 font-medium">Category</th>
-                    <th className="px-3 py-3 font-medium">Payment Terms</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-3 py-3 text-right font-medium">Total Purchases</th>
-                    <th className="px-3 py-3 text-right font-medium">Outstanding</th>
-                    <th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
+                    <th className="px-4 py-3 min-w-[150px]">SUPPLIER NAME</th>
+                    <th className="px-4 py-3 min-w-[140px]">CONTACT PERSON</th>
+                    <th className="px-4 py-3 min-w-[120px]">PHONE</th>
+                    <th className="px-4 py-3 min-w-[180px]">EMAIL</th>
+                    <th className="px-4 py-3 min-w-[120px]">CATEGORY</th>
+                    <th className="px-4 py-3 min-w-[130px]">PAYMENT TERMS</th>
+                    <th className="px-4 py-3 min-w-[110px]">STATUS</th>
+                    <th className="px-4 py-3 text-right min-w-[140px]">TOTAL PURCHASES</th>
+                    <th className="px-4 py-3 text-right min-w-[130px]">OUTSTANDING</th>
+                    <th className="px-4 py-3 text-center w-16">ACTIONS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
+                <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
                   {pageRows.length === 0 && (
                     <tr><td colSpan={11} className="px-4 py-12 text-center text-ledger-400">No suppliers match your filters.</td></tr>
                   )}
                   {pageRows.map((s) => (
-                    <tr key={s.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
-                      <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggleRow(s.id)} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></td>
-                      <td className="px-3 py-3 font-medium text-ink-900 dark:text-white">{s.name}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.contactPerson ?? "—"}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.phone ?? "—"}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.email ?? "—"}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.category ?? "—"}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{s.paymentTerms ?? "—"}</td>
-                      <td className="px-3 py-3"><Badge tone={SUPPLIER_STATUS_TONE[s.status]}>{SUPPLIER_STATUS_LABEL[s.status]}</Badge></td>
-                      <td className="px-3 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(s.totalPurchases, currency)}</td>
-                      <td className="px-3 py-3 text-right font-mono text-ledger-600 dark:text-ledger-300">{formatCurrency(s.outstanding, currency)}</td>
-                      <td className="px-3 py-3 pr-4">
+                    <tr key={s.id} className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
+                      <td className="px-4 py-3.5"><input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggleRow(s.id)} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></td>
+                      <td className="px-4 py-3.5 font-medium text-ink-900 dark:text-white">{s.name}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.contactPerson ?? "—"}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.phone ?? "—"}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.email ?? "—"}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.category ?? "—"}</td>
+                      <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.paymentTerms ?? "—"}</td>
+                      <td className="px-4 py-3.5"><Badge tone={SUPPLIER_STATUS_TONE[s.status]}>{SUPPLIER_STATUS_LABEL[s.status]}</Badge></td>
+                      <td className="px-4 py-3.5 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(s.totalPurchases, currency)}</td>
+                      <td className="px-4 py-3.5 text-right font-mono text-ledger-600 dark:text-ledger-300">{formatCurrency(s.outstanding, currency)}</td>
+                      <td className="px-4 py-3.5">
                         <SupplierRowMenu supplierId={s.id} supplierName={s.name} status={s.status} onNotice={showNotice} />
                       </td>
                     </tr>
@@ -369,7 +369,7 @@ export function SupplierListView({
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
 
         {/* Analytics panel */}
