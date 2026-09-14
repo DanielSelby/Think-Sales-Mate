@@ -77,7 +77,7 @@ const DONUT_COLORS: Record<SupplierStatus, string> = {
   blacklisted: "#b8402f",
 };
 
-const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
+const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 500];
 
 export function SupplierListView({
   suppliers, kpis, currency, categories, countries, overview, topSuppliers, recentActivity,
@@ -138,9 +138,11 @@ export function SupplierListView({
     return { totalSuppliers, activeSuppliers, totalPurchaseValue, outstandingPayables };
   }, [filtered]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+  const totalPages = rowsPerPage === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const clampedPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
+  const pageRows = rowsPerPage === 0
+    ? filtered
+    : filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
   const allChecked = pageRows.length > 0 && pageRows.every((r) => selected.includes(r.id));
 
   function toggleAll() {
@@ -296,15 +298,24 @@ export function SupplierListView({
             <p className="text-sm text-ledger-500">
               <span className="font-medium text-ink-900 dark:text-white">All Suppliers</span> — {filtered.length}
             </p>
-            {selected.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-ledger-500">{selected.length} selected</span>
-                <Button variant="outline" size="md" onClick={() => handleBulkStatus("active")} disabled={bulkPending}>Activate</Button>
-                <Button variant="outline" size="md" onClick={() => handleBulkStatus("inactive")} disabled={bulkPending}>Deactivate</Button>
-                <Button variant="outline" size="md" onClick={exportCsv} disabled={bulkPending}>Export</Button>
-                <Button variant="destructive" size="md" onClick={handleBulkDelete} disabled={bulkPending}>Delete</Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 text-sm text-ledger-500">
+                Rows per page
+                <Select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }} className="h-8 w-20">
+                  {ROWS_PER_PAGE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+                  <option value={0}>All</option>
+                </Select>
               </div>
-            )}
+              {selected.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-ledger-500">{selected.length} selected</span>
+                  <Button variant="outline" size="md" onClick={() => handleBulkStatus("active")} disabled={bulkPending}>Activate</Button>
+                  <Button variant="outline" size="md" onClick={() => handleBulkStatus("inactive")} disabled={bulkPending}>Deactivate</Button>
+                  <Button variant="outline" size="md" onClick={exportCsv} disabled={bulkPending}>Export</Button>
+                  <Button variant="destructive" size="md" onClick={handleBulkDelete} disabled={bulkPending}>Delete</Button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Table */}
@@ -353,20 +364,14 @@ export function SupplierListView({
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ledger-100 px-4 py-3 dark:border-ledger-700">
               <p className="text-sm text-ledger-500">
-                Showing {pageRows.length === 0 ? 0 : (clampedPage - 1) * rowsPerPage + 1}–{(clampedPage - 1) * rowsPerPage + pageRows.length} of {filtered.length} suppliers
+                Showing {pageRows.length === 0 ? 0 : (clampedPage - 1) * rowsPerPage + 1}–{rowsPerPage === 0 ? filtered.length : (clampedPage - 1) * rowsPerPage + pageRows.length} of {filtered.length} suppliers
               </p>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm text-ledger-500">
-                  Rows per page
-                  <Select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }} className="h-8 w-20">
-                    {ROWS_PER_PAGE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </Select>
-                </div>
-                <div className="flex items-center gap-1">
+                {rowsPerPage !== 0 && <div className="flex items-center gap-1">
                   <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={clampedPage === 1} className="rounded-md border border-ledger-200 p-2 text-ledger-500 hover:bg-ledger-50 disabled:opacity-40 dark:border-ledger-700">‹</button>
                   <span className="px-2 text-sm text-ledger-600 dark:text-ledger-300">Page {clampedPage} of {totalPages}</span>
                   <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={clampedPage === totalPages} className="rounded-md border border-ledger-200 p-2 text-ledger-500 hover:bg-ledger-50 disabled:opacity-40 dark:border-ledger-700">›</button>
-                </div>
+                </div>}
               </div>
             </div>
           </div>
