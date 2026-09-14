@@ -2,17 +2,14 @@
 
 import { useMemo, useState } from "react";
 import {
-  Activity,
   AlertTriangle,
   BarChart3,
-  BriefcaseBusiness,
   ClipboardList,
   CreditCard,
   FileText,
   FolderOpen,
   History,
   LayoutDashboard,
-  MessageSquare,
   Receipt,
   Send,
   Users,
@@ -42,9 +39,6 @@ const TABS: { key: WorkspaceTab; label: string; icon: typeof LayoutDashboard }[]
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "collections", label: "Collections", icon: Send },
   { key: "statements", label: "Statements", icon: FileText },
-  { key: "activities", label: "CRM Activities", icon: Activity },
-  { key: "opportunities", label: "Opportunities", icon: BriefcaseBusiness },
-  { key: "tickets", label: "Support Tickets", icon: MessageSquare },
   { key: "documents", label: "Documents", icon: FolderOpen },
   { key: "audit", label: "Audit Log", icon: ClipboardList },
 ];

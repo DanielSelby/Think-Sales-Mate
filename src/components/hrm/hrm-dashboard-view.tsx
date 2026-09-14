@@ -229,10 +229,10 @@ export function HrmDashboardView({
             <CardContent className="grid grid-cols-2 gap-2 pt-0">
               <QuickAction icon={UserPlus} label="Add Employee" href="/hrm/employees/new" />
               <QuickAction icon={PlayCircle} label="Run Payroll" onClick={() => setPayrollDialogOpen(true)} />
-              <QuickAction icon={CalendarClock} label="Attendance" disabled />
-              <QuickAction icon={ClipboardCheck} label="Leave Request" disabled />
-              <QuickAction icon={Wallet} label="Salary Advance" disabled />
-              <QuickAction icon={Receipt} label="Payslip" disabled />
+              <QuickAction icon={CalendarClock} label="Attendance" href="/hrm/attendance" />
+              <QuickAction icon={ClipboardCheck} label="Leave Request" href="/hrm/leave" />
+              <QuickAction icon={Wallet} label="Salary Advance" href="/hrm/payroll" />
+              <QuickAction icon={Receipt} label="Payslip" href="/hrm/payroll" />
             </CardContent>
           </Card>
 
