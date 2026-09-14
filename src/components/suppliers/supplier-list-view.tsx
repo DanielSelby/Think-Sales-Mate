@@ -88,6 +88,9 @@ export function SupplierListView({
   const [status, setStatus] = React.useState<"all" | SupplierStatus>("all");
   const [country, setCountry] = React.useState("all");
   const [paymentTerms, setPaymentTerms] = React.useState("all");
+  const [showMoreFilters, setShowMoreFilters] = React.useState(false);
+  const [minimumPurchases, setMinimumPurchases] = React.useState("");
+  const [maximumPurchases, setMaximumPurchases] = React.useState("");
   const [selected, setSelected] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
@@ -113,6 +116,8 @@ export function SupplierListView({
       if (status !== "all" && s.status !== status) return false;
       if (country !== "all" && s.country !== country) return false;
       if (paymentTerms !== "all" && s.paymentTerms !== paymentTerms) return false;
+      if (minimumPurchases && s.totalPurchases < Number(minimumPurchases)) return false;
+      if (maximumPurchases && s.totalPurchases > Number(maximumPurchases)) return false;
       if (q) {
         const matches =
           s.name.toLowerCase().includes(q) ||
@@ -123,7 +128,7 @@ export function SupplierListView({
       }
       return true;
     });
-  }, [suppliers, query, category, status, country, paymentTerms]);
+  }, [suppliers, query, category, status, country, paymentTerms, minimumPurchases, maximumPurchases]);
 
   const filteredKpis = React.useMemo(() => {
     const totalSuppliers = filtered.length;
@@ -266,11 +271,23 @@ export function SupplierListView({
                     {paymentTermsOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                   </Select>
                 </div>
-                <Button variant="outline" size="md"><Filter className="h-4 w-4" /> More Filters</Button>
-                <Button variant="ghost" size="md" onClick={() => { setQuery(""); setCategory("all"); setStatus("all"); setCountry("all"); setPaymentTerms("all"); setPage(1); }}>
+                <Button variant="outline" size="md" onClick={() => setShowMoreFilters((open) => !open)}><Filter className="h-4 w-4" /> More Filters</Button>
+                <Button variant="ghost" size="md" onClick={() => { setQuery(""); setCategory("all"); setStatus("all"); setCountry("all"); setPaymentTerms("all"); setMinimumPurchases(""); setMaximumPurchases(""); setPage(1); }}>
                   <RefreshCw className="h-4 w-4" /> Clear
                 </Button>
               </div>
+              {showMoreFilters && (
+                <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+                  <div className="w-44">
+                    <label className="mb-1 block text-xs font-medium text-ledger-500">Minimum Purchases</label>
+                    <Input type="number" min="0" step="0.01" value={minimumPurchases} onChange={(e) => { setMinimumPurchases(e.target.value); setPage(1); }} placeholder="0.00" />
+                  </div>
+                  <div className="w-44">
+                    <label className="mb-1 block text-xs font-medium text-ledger-500">Maximum Purchases</label>
+                    <Input type="number" min="0" step="0.01" value={maximumPurchases} onChange={(e) => { setMaximumPurchases(e.target.value); setPage(1); }} placeholder="No limit" />
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
