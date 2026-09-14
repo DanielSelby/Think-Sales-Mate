@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -17,6 +17,7 @@ import {
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import type { FixedAsset, DepreciationMethod } from "@/types/accounting";
+import { getAssetsForAccounting } from "@/app/(dashboard)/assets/actions";
 
 export function FixedAssetsTab() {
   const {
@@ -26,6 +27,41 @@ export function FixedAssetsTab() {
     addFixedAsset,
     runDepreciationPosting,
   } = useAccountingStore();
+  const [operationalAssets, setOperationalAssets] = useState<FixedAsset[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAssetsForAccounting().then((assets) => {
+      if (!active) return;
+      setOperationalAssets(assets.map((asset) => {
+        const treatment = fixedAssets.find((fixedAsset) => fixedAsset.assetCode === asset.assetCode);
+        return {
+          id: treatment?.id ?? asset.id,
+          assetCode: asset.assetCode,
+          assetName: asset.name,
+          category: asset.category ?? "Other",
+          purchaseDate: asset.purchaseDate,
+          cost: asset.purchaseCost,
+          depreciationMethod: treatment?.depreciationMethod ?? "none",
+          usefulLifeYears: treatment?.usefulLifeYears ?? 0,
+          salvageValue: treatment?.salvageValue ?? 0,
+          accumulatedDepreciation: treatment?.accumulatedDepreciation ?? Math.max(0, asset.purchaseCost - asset.currentValue),
+          currentValue: asset.currentValue,
+          branch: treatment?.branch ?? asset.location ?? currentBranch ?? "Main Branch",
+          status: asset.status,
+          notes: treatment?.notes,
+        };
+      }));
+    }).catch((error: unknown) => {
+      console.error(error);
+      if (active) setOperationalAssets([]);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentBranch, fixedAssets]);
+
+  const accountingAssets = operationalAssets ?? fixedAssets;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -44,7 +80,7 @@ export function FixedAssetsTab() {
   const [salvageValue, setSalvageValue] = useState<number>(0);
   const [branch, setBranch] = useState(currentBranch || "Main Branch");
 
-  const filteredAssets = fixedAssets.filter((a) => {
+  const filteredAssets = accountingAssets.filter((a) => {
     const matchesCategory = categoryFilter === "all" || a.category === categoryFilter;
     const matchesSearch =
       a.assetName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -53,9 +89,9 @@ export function FixedAssetsTab() {
     return matchesCategory && matchesSearch;
   });
 
-  const totalCost = fixedAssets.reduce((sum, a) => sum + a.cost, 0);
-  const totalAccumulated = fixedAssets.reduce((sum, a) => sum + a.accumulatedDepreciation, 0);
-  const totalCurrentValue = fixedAssets.reduce((sum, a) => sum + a.currentValue, 0);
+  const totalCost = accountingAssets.reduce((sum, a) => sum + a.cost, 0);
+  const totalAccumulated = accountingAssets.reduce((sum, a) => sum + a.accumulatedDepreciation, 0);
+  const totalCurrentValue = accountingAssets.reduce((sum, a) => sum + a.currentValue, 0);
 
   const handleAddAsset = (e: React.FormEvent) => {
     e.preventDefault();

@@ -32,6 +32,42 @@ function parseAssetForm(formData: FormData) {
   };
 }
 
+export async function getAssetsForAccounting(): Promise<Array<{
+  id: string;
+  assetCode: string;
+  name: string;
+  category: string | null;
+  purchaseDate: string;
+  purchaseCost: number;
+  currentValue: number;
+  status: "in_use" | "under_repair" | "disposed";
+  location: string | null;
+}>> {
+  const context = await getCurrentOrgContext();
+  if (!context) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("assets")
+    .select("*")
+    .eq("org_id", context.orgId)
+    .order("name");
+
+  if (error) throw new Error(`Unable to load assets for accounting: ${error.message}`);
+
+  return (data ?? []).map((asset) => ({
+    id: asset.id,
+    assetCode: "asset_code" in asset && typeof asset.asset_code === "string" ? asset.asset_code : `AST-${asset.id.slice(0, 8).toUpperCase()}`,
+    name: asset.name,
+    category: asset.category,
+    purchaseDate: asset.purchase_date,
+    purchaseCost: Number(asset.purchase_cost),
+    currentValue: Number(asset.current_value),
+    status: asset.status,
+    location: asset.location,
+  }));
+}
+
 export async function createAsset(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/assets/new", "Your session expired — please sign in again.");
