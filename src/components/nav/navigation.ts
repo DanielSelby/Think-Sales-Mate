@@ -6,6 +6,7 @@ import {
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
+  Star, Building2, UserPlus, GraduationCap, PackageCheck, Network,
 } from "lucide-react";
 
 export interface NavChild {
@@ -96,6 +97,15 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Employees", href: "/hrm/employees", icon: Users2 },
       { label: "Attendance", href: "/hrm/attendance", icon: CalendarClock },
       { label: "Leave Management", href: "/hrm/leave", icon: ClipboardEdit },
+      { label: "Payroll", href: "/hrm/payroll", icon: Wallet },
+      { label: "Performance Reviews", href: "/hrm/performance-reviews", icon: Star },
+      { label: "Departments", href: "/hrm/departments", icon: Building2 },
+      { label: "Recruitment", href: "/hrm/recruitment", icon: UserPlus },
+      { label: "Training & Development", href: "/hrm/training", icon: GraduationCap },
+      { label: "Asset Assignment", href: "/hrm/asset-assignment", icon: PackageCheck },
+      { label: "Discipline & Incidents", href: "/hrm/discipline", icon: ShieldAlert },
+      { label: "Organization Chart", href: "/hrm/organization-chart", icon: Network },
+      { label: "Reports & Analytics", href: "/hrm/reports", icon: BarChart3 },
     ],
   },
   {
