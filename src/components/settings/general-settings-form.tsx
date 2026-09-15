@@ -129,6 +129,9 @@ export function GeneralSettingsForm({
   const [sessionTimeout, setSessionTimeout] = useState(String(settings?.session_timeout_minutes ?? 30));
   const [autoLogout, setAutoLogout] = useState(String(settings?.auto_logout_minutes ?? 30));
   const [landingPage, setLandingPage] = useState(settings?.default_landing_page ?? "/dashboard");
+  const [offlineEnabled, setOfflineEnabled] = useState(settings?.offline_enabled ?? true);
+  const [offlineSyncMode, setOfflineSyncMode] = useState<"automatic" | "approval" | "manual">(settings?.offline_sync_mode ?? "automatic");
+  const [offlineDataLoadMode, setOfflineDataLoadMode] = useState<"automatic" | "approval" | "manual">(settings?.offline_data_load_mode ?? "automatic");
 
   function handleSave() {
     setError(null);
@@ -151,9 +154,17 @@ export function GeneralSettingsForm({
         sessionTimeoutMinutes: Number(sessionTimeout),
         autoLogoutMinutes: Number(autoLogout),
         defaultLandingPage: landingPage,
+        offlineEnabled,
+        offlineSyncMode,
+        offlineDataLoadMode,
       });
       if (result?.error) setError(result.error);
-      else setSaved(true);
+      else {
+        window.localStorage.setItem("thinksales-offline-enabled", String(offlineEnabled));
+        window.localStorage.setItem("thinksales-offline-sync-mode", offlineSyncMode);
+        window.localStorage.setItem("thinksales-offline-data-load-mode", offlineDataLoadMode);
+        setSaved(true);
+      }
     });
   }
 
@@ -178,6 +189,9 @@ export function GeneralSettingsForm({
       setSessionTimeout("30");
       setAutoLogout("30");
       setLandingPage("/dashboard");
+      setOfflineEnabled(true);
+      setOfflineSyncMode("automatic");
+      setOfflineDataLoadMode("automatic");
       setSaved(true);
     });
   }
@@ -375,6 +389,29 @@ export function GeneralSettingsForm({
               onChange={setEmailAlerts}
               disabled={!canManage}
             />
+            <ToggleRow
+              label="Enable offline transactions"
+              description="Allow Sales/POS transactions to be saved on the device while offline"
+              checked={offlineEnabled}
+              onChange={setOfflineEnabled}
+              disabled={!canManage}
+            />
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Offline sync behavior</label>
+              <select value={offlineSyncMode} onChange={(e) => setOfflineSyncMode(e.target.value as typeof offlineSyncMode)} disabled={!canManage || !offlineEnabled} className={selectClass}>
+                <option value="automatic">Automatically sync when online</option>
+                <option value="approval">Ask before syncing</option>
+                <option value="manual">Manual sync from Offline Center</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Offline data loading</label>
+              <select value={offlineDataLoadMode} onChange={(e) => setOfflineDataLoadMode(e.target.value as typeof offlineDataLoadMode)} disabled={!canManage || !offlineEnabled} className={selectClass}>
+                <option value="automatic">Load cached data automatically</option>
+                <option value="approval">Ask before loading data</option>
+                <option value="manual">Load manually from Offline Center</option>
+              </select>
+            </div>
             <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">System session timeout (minutes)</label>

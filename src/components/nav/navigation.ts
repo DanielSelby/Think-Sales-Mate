@@ -6,7 +6,7 @@ import {
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
-  Star, Building2, UserPlus, GraduationCap, PackageCheck, Network,
+  Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff,
 } from "lucide-react";
 
 export interface NavChild {
@@ -136,6 +136,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "AI Assistant", href: "/ai", icon: Sparkles, status: "live" },
   { label: "Communication", href: "/communication", icon: MessageSquare, status: "live" },
   { label: "User Management", href: "/settings/organization", icon: Users2, status: "live" },
+  { label: "Offline Center", href: "/offline", icon: WifiOff, status: "live" },
 ];
 
 export const SETTINGS_CHILDREN: NavChild[] = [

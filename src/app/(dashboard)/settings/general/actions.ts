@@ -30,6 +30,9 @@ export interface GeneralSettingsRow {
   session_timeout_minutes: number;
   auto_logout_minutes: number;
   default_landing_page: string;
+  offline_enabled: boolean;
+  offline_sync_mode: "automatic" | "approval" | "manual";
+  offline_data_load_mode: "automatic" | "approval" | "manual";
 }
 
 export async function getGeneralSettings(orgId: string): Promise<GeneralSettingsRow | null> {
@@ -37,7 +40,7 @@ export async function getGeneralSettings(orgId: string): Promise<GeneralSettings
   const { data } = await supabase
     .from("org_general_settings")
     .select(
-      "business_short_name, default_language, timezone, date_format, time_format, financial_year_start, default_tax_rate, enable_barcode_scanning, enable_notifications, enable_email_alerts, session_timeout_minutes, auto_logout_minutes, default_landing_page"
+      "business_short_name, default_language, timezone, date_format, time_format, financial_year_start, default_tax_rate, enable_barcode_scanning, enable_notifications, enable_email_alerts, session_timeout_minutes, auto_logout_minutes, default_landing_page, offline_enabled, offline_sync_mode, offline_data_load_mode"
     )
     .eq("org_id", orgId)
     .maybeSingle();
@@ -61,6 +64,9 @@ export interface GeneralSettingsFields {
   sessionTimeoutMinutes: number;
   autoLogoutMinutes: number;
   defaultLandingPage: string;
+  offlineEnabled: boolean;
+  offlineSyncMode: "automatic" | "approval" | "manual";
+  offlineDataLoadMode: "automatic" | "approval" | "manual";
 }
 
 export async function saveGeneralSettings(fields: GeneralSettingsFields) {
@@ -118,6 +124,9 @@ export async function saveGeneralSettings(fields: GeneralSettingsFields) {
       session_timeout_minutes: fields.sessionTimeoutMinutes,
       auto_logout_minutes: fields.autoLogoutMinutes,
       default_landing_page: fields.defaultLandingPage,
+      offline_enabled: fields.offlineEnabled,
+      offline_sync_mode: fields.offlineSyncMode,
+      offline_data_load_mode: fields.offlineDataLoadMode,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "org_id" }
@@ -142,6 +151,9 @@ const DEFAULTS: GeneralSettingsRow = {
   session_timeout_minutes: 30,
   auto_logout_minutes: 30,
   default_landing_page: "/dashboard",
+  offline_enabled: true,
+  offline_sync_mode: "automatic",
+  offline_data_load_mode: "automatic",
 };
 
 export async function resetGeneralSettings() {

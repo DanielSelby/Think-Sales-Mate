@@ -670,7 +670,10 @@ export interface Database {
           session_timeout_minutes: number;
           auto_logout_minutes: number;
           default_landing_page: string;
-          updated_at: string;
+           offline_enabled: boolean;
+           offline_sync_mode: "automatic" | "approval" | "manual";
+           offline_data_load_mode: "automatic" | "approval" | "manual";
+           updated_at: string;
         };
         Insert: {
           org_id: string;
@@ -687,6 +690,9 @@ export interface Database {
           session_timeout_minutes?: number;
           auto_logout_minutes?: number;
           default_landing_page?: string;
+          offline_enabled?: boolean;
+          offline_sync_mode?: "automatic" | "approval" | "manual";
+          offline_data_load_mode?: "automatic" | "approval" | "manual";
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["org_general_settings"]["Row"]>;

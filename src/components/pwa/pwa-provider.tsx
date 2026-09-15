@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Download, WifiOff, X } from "lucide-react";
+import { syncOfflineQueue } from "@/lib/offline/queue";
+import { getOfflineDataLoadMode, loadOfflineData } from "@/lib/offline/cache";
 
 export function PwaProvider() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
@@ -19,7 +21,19 @@ export function PwaProvider() {
       setInstallEvent(event as BeforeInstallPromptEvent);
       setShowInstall(true);
     };
-    const updateConnection = () => setOffline(!navigator.onLine);
+    const updateConnection = async () => {
+      const isOnline = navigator.onLine;
+      setOffline(!isOnline);
+      if (isOnline) {
+        const mode = getOfflineDataLoadMode();
+        if (mode === "automatic") {
+          await loadOfflineData();
+        }
+        if (window.localStorage.getItem("thinksales-offline-sync-mode") === "automatic") {
+          void syncOfflineQueue();
+        }
+      }
+    };
     window.addEventListener("beforeinstallprompt", onInstallPrompt);
     window.addEventListener("online", updateConnection);
     window.addEventListener("offline", updateConnection);

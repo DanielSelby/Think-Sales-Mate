@@ -41,6 +41,7 @@ import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/
 import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
+import { enqueueOfflineOperation } from "@/lib/offline/queue";
 
 
 export interface SellableProduct {
@@ -595,6 +596,44 @@ export function SaleForm({
     }
     setConfirmZeroPayment(false);
     setError(null);
+
+    if (!navigator.onLine) {
+      enqueueOfflineOperation("sale", {
+        orgId,
+        documentStatus: "final",
+        subtotal,
+        total,
+        customerId: selectedCustomerId,
+        customerName: selectedCustomer?.name ?? walkInName,
+        locationId: locationId || null,
+        reference,
+        saleDate,
+        paymentMethod,
+        amountPaid: paidAmount,
+        shippingAmount,
+        discountAmount: discountTotal + additionalDiscountAmount,
+        taxAmount: taxTotal + additionalTaxAmount,
+        notes: note,
+        priceTier,
+        items: lines.filter((l) => l.productId).map((l) => {
+          const product = productById.get(l.productId);
+          const unitPrice = product ? getTierPrice(product, priceTier) : 0;
+          const gross = unitPrice * l.quantity;
+          const discount = gross * (l.discountPercent / 100);
+          const lineTotal = gross - discount + (gross - discount) * (l.taxPercent / 100);
+          return {
+            productId: l.productId,
+            quantity: l.quantity,
+            unitPrice,
+            discountPercent: l.discountPercent,
+            taxPercent: l.taxPercent,
+            lineTotal,
+          };
+        }),
+      });
+      setError("Connection unavailable. Sale saved securely on this device and will sync when online.");
+      return;
+    }
 
     startTransition(async () => {
       if (editingSaleId) {
