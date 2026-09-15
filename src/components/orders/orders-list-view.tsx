@@ -25,6 +25,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { CustomerOrderStatus, OrderPaymentStatus, OrderDeliveryStatus, MemberRole } from "@/types/database";
+import { OrderTrackerView } from "./order-tracker-view";
 
 export interface OrderItem {
   id: string;
@@ -353,6 +354,16 @@ export function OrdersListView({
       await convertOrderToSale(order.id);
       router.refresh();
     });
+  }
+
+  if (view === "tracker") {
+    return (
+      <OrderTrackerView
+        orders={orders}
+        currency={currency}
+        onStatusChange={handleStatusChange}
+      />
+    );
   }
 
   return (
