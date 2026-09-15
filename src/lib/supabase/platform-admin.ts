@@ -12,6 +12,18 @@ export function createPlatformAdminClient() {
   });
 }
 
+export async function getPlatformSystemLogo() {
+  const platform = createPlatformAdminClient();
+  const { data, error } = await platform
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "system_logo")
+    .maybeSingle();
+  if (error) throw new Error(`Could not load platform system logo: ${error.message}`);
+  const value = data?.value;
+  return value && typeof value === "object" && "url" in value && typeof value.url === "string" ? value.url : null;
+}
+
 export async function syncOrganizationToPlatform(organization: { id: string; name: string }) {
   const platform = createPlatformAdminClient();
   const { error } = await platform.from("platform_organizations").upsert(
