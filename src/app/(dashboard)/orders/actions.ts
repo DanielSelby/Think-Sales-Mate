@@ -226,6 +226,7 @@ export async function updateOrderFulfillmentStatus(
   const actorName = profile?.full_name || user?.email || "Staff";
 
   const statusTitleMap: Record<string, string> = {
+    processing: "Inventory Reserved",
     picking: "Picking Started",
     packing: "Packing Completed",
     delivery: "Out for Delivery",
@@ -261,6 +262,18 @@ export async function updateOrderFulfillmentStatus(
     actor_id: user?.id ?? null,
     status: "completed",
   });
+
+  if (status === "completed") {
+    await supabase.from("customer_order_timeline").insert({
+      order_id: orderId,
+      org_id: context.orgId,
+      title: "Order Completed",
+      actor_name: actorName,
+      actor_id: user?.id ?? null,
+      status: "completed",
+      notes: "Delivery confirmed and order lifecycle completed.",
+    });
+  }
 
   const { data: settings } = await supabase.from("customer_portal_settings").select("*").eq("org_id", context.orgId).maybeSingle();
   if (["picking", "packing", "delivery", "completed"].includes(status)) {
@@ -442,9 +455,25 @@ export async function setOrderSalesPerson(orderId: string, salesPersonId: string
 }
 
 export async function setOrderPaymentStatus(orderId: string, paymentStatus: OrderPaymentStatus): Promise<SimpleResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: order } = await supabase.from("customer_orders").select("org_id, location_id").eq("id", orderId).maybeSingle();
+  if (!order || order.org_id !== context.orgId || !canUseLocation(context, order.location_id)) return { ok: false, error: "Order not found." };
+  const { data: profile } = user ? await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle() : { data: null };
   const { error } = await supabase.from("customer_orders").update({ payment_status: paymentStatus }).eq("id", orderId);
   if (error) return { ok: false, error: error.message };
+  if (paymentStatus === "paid") {
+    await supabase.from("customer_order_timeline").insert({
+      order_id: orderId,
+      org_id: context.orgId,
+      title: "Payment Received",
+      actor_name: profile?.full_name || user?.email || "Staff",
+      actor_id: user?.id ?? null,
+      status: "completed",
+    });
+  }
   revalidatePath("/orders");
   revalidatePath(`/orders/${orderId}`);
   return { ok: true };

@@ -14,13 +14,18 @@ import type { OrderRow } from "./orders-list-view";
 
 type TrackerTab = "overview" | "timeline" | "items" | "payments" | "delivery" | "communications" | "documents" | "activity";
 
-const stages: Array<{ status: CustomerOrderStatus; label: string }> = [
-  { status: "new", label: "Order Created" },
-  { status: "approved", label: "Approved" },
-  { status: "picking", label: "Picking" },
-  { status: "packing", label: "Packing" },
-  { status: "delivery", label: "Out for Delivery" },
-  { status: "completed", label: "Delivered" },
+const stages: Array<{ key: string; status?: CustomerOrderStatus; label: string }> = [
+  { key: "created", status: "new", label: "Order Created" },
+  { key: "payment", label: "Payment Received" },
+  { key: "approved", status: "approved", label: "Order Approved" },
+  { key: "reserved", label: "Inventory Reserved" },
+  { key: "picking", status: "picking", label: "Picking" },
+  { key: "packing", status: "packing", label: "Packing" },
+  { key: "ready", label: "Ready for Pickup" },
+  { key: "dispatched", label: "Dispatched" },
+  { key: "delivery", status: "delivery", label: "Out for Delivery" },
+  { key: "delivered", status: "completed", label: "Delivered" },
+  { key: "completed", status: "completed", label: "Completed" },
 ];
 
 export function OrderTrackerView({
@@ -40,8 +45,7 @@ export function OrderTrackerView({
   const progress = useMemo(() => {
     if (!order) return 0;
     if (order.status === "cancelled" || order.status === "returned") return 0;
-    const index = stages.findIndex((stage) => stage.status === order.status);
-    return Math.round(((Math.max(index, 0) + 1) / stages.length) * 100);
+    return Math.round((getCompletedStages(order).filter(Boolean).length / stages.length) * 100);
   }, [order]);
 
   const metrics = {
@@ -106,14 +110,15 @@ export function OrderTrackerView({
               <div><p className="text-xs text-ledger-400">Order Number</p><h2 className="font-mono text-xl font-bold text-ink-900 dark:text-white">{order.orderNumber}</h2><p className="mt-1 text-sm text-ledger-500">{order.customerName} · {order.branchName ?? "Branch not assigned"}</p></div>
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${ORDER_STATUS_TONE[order.status]}`}>{ORDER_STATUS_LABEL[order.status] ?? order.status}</span>
             </div>
-            <div className="mt-5 flex items-center gap-2">
+            <div className="mt-5 overflow-x-auto pb-2">
+              <div className="flex min-w-[980px] items-start gap-2">
               {stages.map((stage, index) => {
-                const currentIndex = stages.findIndex((item) => item.status === order.status);
-                const complete = index <= currentIndex;
-                return <div key={stage.status} className="flex min-w-0 flex-1 items-center gap-2"><div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${complete ? "bg-signal text-white" : "bg-ledger-100 text-ledger-400 dark:bg-ledger-800"}`}>{complete ? "✓" : index + 1}</div>{index < stages.length - 1 && <div className={`h-0.5 flex-1 ${complete ? "bg-signal/60" : "bg-ledger-200 dark:bg-ledger-700"}`} />}</div>;
+                const complete = getCompletedStages(order)[index];
+                const current = !complete && index === getCompletedStages(order).findIndex((value) => !value);
+                return <div key={stage.key} className="flex min-w-0 flex-1 items-start gap-2"><div className="flex min-w-0 flex-1 flex-col items-center gap-2"><div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${complete ? "bg-signal text-white" : current ? "bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-950" : "bg-ledger-100 text-ledger-400 dark:bg-ledger-800"}`}>{complete ? "✓" : index + 1}</div><span className={`text-center text-[10px] leading-tight ${complete || current ? "font-semibold text-ink-900 dark:text-white" : "text-ledger-400"}`}>{stage.label}</span></div>{index < stages.length - 1 && <div className={`mt-3 h-0.5 flex-1 ${complete ? "bg-signal/60" : "bg-ledger-200 dark:bg-ledger-700"}`} />}</div>;
               })}
+              </div>
             </div>
-            <div className="mt-2 flex justify-between text-[10px] text-ledger-400"><span>Created</span><span>Completion</span></div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-ledger-100 dark:bg-ledger-800"><div className="h-full rounded-full bg-signal transition-all" style={{ width: `${progress}%` }} /></div>
             <p className="mt-1 text-right text-xs font-semibold text-signal">{progress}% complete</p>
           </section>
@@ -160,4 +165,23 @@ function Items({ order, currency }: { order: OrderRow; currency: string }) {
 
 function Empty({ icon: Icon, text }: { icon: typeof Activity; text: string }) {
   return <div className="rounded-xl border border-dashed border-ledger-200 p-8 text-center text-sm text-ledger-500 dark:border-ledger-700"><Icon className="mx-auto mb-2 h-6 w-6 text-ledger-400" />{text}</div>;
+}
+
+function getCompletedStages(order: OrderRow): boolean[] {
+  const titles = order.timeline.map((event) => event.title.toLowerCase());
+  const has = (...terms: string[]) => titles.some((title) => terms.some((term) => title.includes(term)));
+  const progressed = ["approved", "processing", "picking", "packing", "delivery", "completed"].includes(order.status);
+  return [
+    true,
+    order.paymentStatus === "paid" || has("payment received", "payment recorded"),
+    progressed || has("order approved", "approved"),
+    order.stockReserved || has("stock reserved", "inventory reserved"),
+    ["picking", "packing", "delivery", "completed"].includes(order.status) || has("picking"),
+    ["packing", "delivery", "completed"].includes(order.status) || has("packing"),
+    has("ready for pickup"),
+    ["delivery", "completed"].includes(order.status) || has("dispatched"),
+    ["delivery", "completed"].includes(order.status) || order.deliveryStatus === "in_delivery" || has("out for delivery"),
+    order.status === "completed" || order.deliveryStatus === "delivered" || has("order delivered", "delivered"),
+    order.status === "completed" || Boolean(order.timeline.some((event) => event.title.toLowerCase().includes("completed"))),
+  ];
 }

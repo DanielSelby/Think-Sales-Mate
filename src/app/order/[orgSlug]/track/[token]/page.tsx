@@ -31,13 +31,34 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
 
   const isCompleted = order.status === "completed";
   const isCancelled = order.status === "cancelled";
-  const stageIndex = order.status === "new" ? 0 : ["reviewed", "processing", "approved", "picking", "packing"].includes(order.status) ? 1 : order.status === "delivery" ? 3 : order.status === "completed" ? 4 : 0;
   const stages = [
-    "Order Created and Sent",
-    "Review and In Process",
-    "Order Ready For Dispatch",
-    "Order Dispatch To Destination",
-    "Order Received",
+    "Order Created",
+    "Payment Received",
+    "Order Approved",
+    "Inventory Reserved",
+    "Picking",
+    "Packing",
+    "Ready for Pickup",
+    "Dispatched",
+    "Out for Delivery",
+    "Delivered",
+    "Completed",
+  ];
+  const timelineTitles = order.timeline.map((item) => item.title.toLowerCase());
+  const hasTimeline = (...terms: string[]) => timelineTitles.some((title) => terms.some((term) => title.includes(term)));
+  const progressed = ["approved", "processing", "picking", "packing", "delivery", "completed"].includes(order.status);
+  const completedStages = [
+    true,
+    order.paymentStatus === "paid" || hasTimeline("payment received", "payment recorded"),
+    progressed || hasTimeline("order approved", "approved"),
+    ["processing", "picking", "packing", "delivery", "completed"].includes(order.status) || hasTimeline("stock reserved", "inventory reserved"),
+    ["picking", "packing", "delivery", "completed"].includes(order.status) || hasTimeline("picking"),
+    ["packing", "delivery", "completed"].includes(order.status) || hasTimeline("packing"),
+    hasTimeline("ready for pickup"),
+    ["delivery", "completed"].includes(order.status) || hasTimeline("dispatched"),
+    ["delivery", "completed"].includes(order.status) || order.deliveryStatus === "in_delivery" || hasTimeline("out for delivery"),
+    order.status === "completed" || order.deliveryStatus === "delivered" || hasTimeline("delivered"),
+    order.status === "completed" && hasTimeline("completed"),
   ];
 
   return (
@@ -75,9 +96,9 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
             <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-ledger-400">Order Progress Timeline</h2>
             <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-ledger-200 dark:before:bg-ledger-700">
               {stages.map((title, idx) => {
-                const completed = order.customerReceivedAt ? idx <= 4 : idx < stageIndex;
-                const current = !order.customerReceivedAt && idx === stageIndex;
-                const event = order.timeline.find((item) => item.title === title);
+                const completed = completedStages[idx];
+                const current = !completed && idx === completedStages.findIndex((value) => !value);
+                const event = order.timeline.find((item) => item.title.toLowerCase().includes(title.toLowerCase().replace("order ", "")));
                 return (
                 <div key={title} className="relative">
                   <span className={`absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900 ${completed || current ? "bg-signal text-white" : "bg-ledger-200 dark:bg-ledger-700"}`}>
