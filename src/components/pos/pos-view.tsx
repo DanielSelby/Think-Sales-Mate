@@ -27,6 +27,7 @@ import {
 } from "@/app/(dashboard)/pos/actions";
 import type { HeldSaleKind } from "@/types/database";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
+import { enqueueOfflineOperation } from "@/lib/offline/queue";
 
 export interface PosProduct {
   id: string;
@@ -354,6 +355,32 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     if (!locationId) return setError("Select a branch/location.");
     const method = methodOverride ?? paymentMethod;
     setPaymentMethod(method);
+
+    if (!navigator.onLine) {
+      const cartItems = buildCartInput();
+      const offlinePayload = {
+        locationId,
+        customerId: customer?.id ?? null,
+        customerName: customer?.name ?? null,
+        customerPhone: customer?.phone ?? null,
+        orderNote: null,
+        items: cartItems,
+        subtotal,
+        discountAmount: itemsDiscount + discountAmount,
+        taxAmount: taxTotal,
+        shippingAmount,
+        paymentMethod: method,
+        saleDate,
+        priceTier,
+        total,
+      };
+      enqueueOfflineOperation("sale", offlinePayload);
+      showNotice("Offline sale queued — it will sync automatically when you reconnect.");
+      clearCart();
+      router.refresh();
+      return;
+    }
+
     startTransition(async () => {
       const result = await completeSale({
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
