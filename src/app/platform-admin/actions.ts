@@ -225,7 +225,10 @@ export async function uploadPlatformLogo(formData: FormData) {
   if (uploadError) throw new Error(uploadError.message);
   const { data } = supabase.storage.from("platform-assets").getPublicUrl(path);
   const logoUrl = `${data.publicUrl}?v=${Date.now()}`;
-  await updatePlatformSetting("system_logo", { url: logoUrl });
+  const { error: settingError } = await supabase
+    .from("platform_settings")
+    .upsert({ key: "system_logo", value: { url: logoUrl }, updated_by: admin.id, updated_at: new Date().toISOString() });
+  if (settingError) throw new Error(settingError.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "system_logo_updated", module: "system_settings", metadata: { path } });
   revalidatePath("/platform-admin");
   return { logoUrl };
