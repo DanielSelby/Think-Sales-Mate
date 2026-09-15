@@ -56,6 +56,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Products", href: "/inventory", icon: Boxes, status: "live",
     children: [
       { label: "All Products", href: "/inventory", icon: List },
+      { label: "Inventory Intelligence", href: "/inventory/intelligence", icon: BarChart3 },
       { label: "Add Product", href: "/inventory/new", icon: PlusCircle },
       { label: "Import Products", href: "/inventory/import", icon: Upload },
       { label: "Price Management", href: "/inventory/prices", icon: DollarSign },
