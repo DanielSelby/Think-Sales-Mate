@@ -390,48 +390,61 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const totalCalculatedStock = branches.reduce((sum, b) => sum + b.quantity, 0);
   const currentActualStock = totalCalculatedStock > 0 ? totalCalculatedStock : (product.stock_quantity || 0);
 
-  // If movements don't account for all current stock (e.g. initial stock when product was created),
-  // compute an opening stock balance so the ledger running balance equals the real current stock.
-  let totalNetMovement = 0;
-  for (const m of realMovements) {
-    totalNetMovement += (m.inQty ?? 0) - (m.outQty ?? 0);
-  }
-  const computedOpeningBalance = Math.max(0, currentActualStock - totalNetMovement);
+  // Ensure initial stock / imported quantity is visible in the product ledger.
+  const initialStockBranchNames = new Set(
+    realMovements
+      .filter((movement) => movement.type === "Opening Stock" || movement.type === "Import")
+      .map((movement) => `${movement.branchName}:${movement.type}`)
+  );
 
-  // If there are no movements yet but there is stock, add an Opening Stock movement
-  if (realMovements.length === 0 && currentActualStock > 0) {
+  for (const level of stockLevelRows ?? []) {
+    const branchQty = Number(level.quantity ?? 0);
+    if (branchQty <= 0) continue;
+
+    const branchName = (locationRows ?? []).find((loc) => loc.id === level.location_id)?.name ?? "Main Warehouse";
+    const stockKey = `${branchName}:${product.is_imported ? "Import" : "Opening Stock"}`;
+    if (initialStockBranchNames.has(stockKey)) continue;
+
     const createdDate = new Date(product.created_at || Date.now());
     realMovements.push({
-      id: `open-${product.id}`,
+      id: `open-${product.id}-${level.location_id}`,
       productId: product.id,
       dateTime: createdDate.toISOString(),
       dateFormatted: createdDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       timeFormatted: createdDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
       type: product.is_imported ? "Import" : "Opening Stock",
-      referenceNo: `INIT-${product.sku}`,
+      referenceNo: product.is_imported ? `IMP-${product.sku}` : `INIT-${product.sku}`,
       referenceType: product.is_imported ? "Product Import" : "Opening Balance",
-      branchName: branches.find((b) => b.quantity > 0)?.name || locationRows?.[0]?.name || "Main Warehouse",
-      inQty: currentActualStock,
+      branchName,
+      inQty: branchQty,
       outQty: null,
-      runningBalance: currentActualStock,
+      runningBalance: 0,
       unitCost: product.cost_price || 0,
-      totalValue: currentActualStock * (product.cost_price || 0),
-      userName: "System Initializer",
+      totalValue: branchQty * (product.cost_price || 0),
+      userName: product.is_imported ? "Import Batch" : "System Initializer",
       sourceDocId: product.id,
-      notes: "Initial inventory stock on catalog creation",
+      notes: product.is_imported ? "Imported opening stock quantity" : "Initial inventory stock on catalog creation",
     });
+    initialStockBranchNames.add(stockKey);
   }
 
+  // If movements don't account for all current stock (e.g. this product was created/imported with stock
+  // but the ledger never recorded an opening movement), compute a temporary opening balance only when
+  // there is no explicit opening/import entry for the relevant product branch.
+  let totalNetMovement = 0;
+  for (const m of realMovements) {
+    totalNetMovement += (m.inQty ?? 0) - (m.outQty ?? 0);
+  }
+  const hasOpeningMovement = realMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
+  const computedOpeningBalance = hasOpeningMovement ? 0 : Math.max(0, currentActualStock - totalNetMovement);
+
   // Calculate Real Running Balances and Analytics
-  const finalMovements = calculateRunningBalances(
-    realMovements,
-    realMovements.length === 1 && realMovements[0].type === "Opening Stock" ? 0 : computedOpeningBalance
-  );
+  const finalMovements = calculateRunningBalances(realMovements, computedOpeningBalance);
 
   const analyticsData = computeLedgerAnalytics(
     finalMovements,
     product.cost_price || 0,
-    realMovements.length === 1 && realMovements[0].type === "Opening Stock" ? 0 : computedOpeningBalance
+    computedOpeningBalance
   );
 
   // Ensure stockValue and currentBalance in summary always match real current stock
