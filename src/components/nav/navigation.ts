@@ -60,9 +60,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Add Product", href: "/inventory/new", icon: PlusCircle },
       { label: "Import Products", href: "/inventory/import", icon: Upload },
       { label: "Price Management", href: "/inventory/prices", icon: DollarSign },
-      { label: "Merge Products", href: "/inventory/merge", icon: GitMerge },
       { label: "Duplicate Review Center", href: "/inventory/duplicates", icon: ClipboardCheck },
-      { label: "Duplicate Product Control", href: "/settings/products/duplicates", icon: ShieldCheck },
     ],
   },
   {
@@ -151,7 +149,6 @@ export const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Billing", href: "/settings/billing" },
   { label: "Members", href: "/settings/members" },
   { label: "Integrations", href: "/settings/integrations" },
-  { label: "Duplicate Product Control", href: "/settings/products/duplicates", icon: ShieldCheck },
 ];
 
 // Feature Access keeps some business-facing names that differ from the

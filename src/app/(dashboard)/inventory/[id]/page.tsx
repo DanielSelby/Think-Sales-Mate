@@ -405,6 +405,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
     const stockKey = `${branchName}:${product.is_imported ? "Import" : "Opening Stock"}`;
     if (initialStockBranchNames.has(stockKey)) continue;
 
+    // The stock-level row is the current balance, not the original opening
+    // quantity. Subtract this branch's recorded movements so the generated
+    // opening row does not double-count transfers, sales, or adjustments.
+    const branchNetMovement = realMovements
+      .filter((movement) => movement.branchName === branchName)
+      .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const openingQty = branchQty - branchNetMovement;
+    if (openingQty <= 0) continue;
+
     const createdDate = new Date(product.created_at || Date.now());
     realMovements.push({
       id: `open-${product.id}-${level.location_id}`,
@@ -416,11 +425,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: product.is_imported ? `IMP-${product.sku}` : `INIT-${product.sku}`,
       referenceType: product.is_imported ? "Product Import" : "Opening Balance",
       branchName,
-      inQty: branchQty,
+      inQty: openingQty,
       outQty: null,
       runningBalance: 0,
       unitCost: product.cost_price || 0,
-      totalValue: branchQty * (product.cost_price || 0),
+      totalValue: openingQty * (product.cost_price || 0),
       userName: product.is_imported ? "Import Batch" : "System Initializer",
       sourceDocId: product.id,
       notes: product.is_imported ? "Imported opening stock quantity" : "Initial inventory stock on catalog creation",

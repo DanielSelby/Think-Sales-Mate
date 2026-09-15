@@ -333,7 +333,8 @@ export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; ena
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
           const childItems = item.children?.filter((child) =>
-            !enabledModules?.includes(`__children:${item.label}`)
+            child.label === "Inventory Intelligence"
+            || !enabledModules?.includes(`__children:${item.label}`)
             || enabledModules.includes(`${item.label}:${child.label}`)
           ) ?? [];
           const isActive = !item.children && (pathname === item.href || pathname.startsWith(item.href + "/"));
