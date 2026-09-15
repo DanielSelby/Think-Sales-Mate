@@ -473,7 +473,7 @@ export function AddPurchaseForm({
 
       <div className="space-y-5">
           {/* Supplier & Purchase Details — merged card, matching the reference layout */}
-          <Card accent="neutral">
+          <Card plain>
             <CardHeader className="flex-row items-center justify-between gap-2 pb-3">
               <div className="flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-ledger-400" />
@@ -629,7 +629,7 @@ export function AddPurchaseForm({
           </Card>
 
           {/* 4. Product table */}
-          <Card accent="neutral">
+          <Card plain>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <StepBadge n={2} />
@@ -802,7 +802,7 @@ export function AddPurchaseForm({
           {/* Internal note + Attachments — the supplier-facing note now
               lives in the merged Supplier & Purchase Details card above. */}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Card accent="neutral">
+            <Card plain>
               <CardHeader className="pb-2">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
                   Internal Note
@@ -821,7 +821,7 @@ export function AddPurchaseForm({
               </CardContent>
             </Card>
 
-            <Card accent="neutral">
+            <Card plain>
               <CardHeader className="pb-2">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
                   Attach Documents
@@ -840,7 +840,7 @@ export function AddPurchaseForm({
               down here so Products above gets the full page width instead
               of being squeezed against a narrow sidebar. */}
           <div className="mt-3 grid grid-cols-1 gap-5 lg:grid-cols-3">
-            <Card accent="signal">
+            <Card plain>
               <CardHeader className="pb-2">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
                   Purchase Summary
@@ -881,7 +881,7 @@ export function AddPurchaseForm({
               </CardContent>
             </Card>
 
-            <Card accent="neutral">
+            <Card plain>
               <CardHeader className="pb-2">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
                   Payment Information
@@ -920,7 +920,7 @@ export function AddPurchaseForm({
             </Card>
 
             {recommendations.length > 0 && (
-              <Card accent="amber">
+              <Card plain>
                 <CardHeader className="flex-row items-center gap-2 pb-2">
                   <Sparkles className="h-4 w-4 text-amber" />
                   <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
@@ -974,25 +974,6 @@ export function AddPurchaseForm({
                   Save as {purchaseStatus === "pending" ? "Draft" : purchaseStatus === "ordered" ? "Ordered" : "Received"}
                 </Button>
               )}
-              <Button variant="secondary" size="md" onClick={() => submit("draft")} disabled={isPending}>
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Save as Draft
-              </Button>
-              <Button variant="primary" size="md" onClick={() => submit("ordered")} disabled={isPending}>
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Save Purchase
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => submit("received")}
-                disabled={isPending}
-                className="bg-signal hover:bg-signal/90 dark:bg-signal dark:hover:bg-signal/90"
-              >
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                <Plus className="h-4 w-4" />
-                Save &amp; Receive Items
-              </Button>
             </div>
           )}
         </div>

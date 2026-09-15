@@ -79,6 +79,17 @@ const DONUT_COLORS: Record<SupplierStatus, string> = {
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 500];
 
+function HistoryKpi({ label, value, icon, tone }: { label: string; value: number | string; icon: React.ReactNode; tone: "emerald" | "blue" | "amber" | "red" | "purple" }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
+    blue: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
+    amber: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
+    red: "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400",
+    purple: "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400",
+  };
+  return <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><span className="font-display text-2xl font-bold text-ink-900 dark:text-white font-mono">{value}</span></div></div><p className="mt-2 text-[10px] text-ledger-400">Current supplier history records</p></div>;
+}
+
 export function SupplierListView({
   suppliers, kpis, currency, categories, countries, overview, topSuppliers, recentActivity,
 }: SupplierListViewProps) {
@@ -228,11 +239,11 @@ export function SupplierListView({
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <KpiFlipCard color="blue" label="Total Suppliers" value={`${filteredKpis.totalSuppliers}`} icon={<Building2 className="h-full w-full" />} detail="Number of suppliers matching the current filters." />
-            <KpiFlipCard color="green" label="Active Suppliers" value={`${filteredKpis.activeSuppliers}`} icon={<CheckCircle2 className="h-full w-full" />} detail="Filtered suppliers currently marked Active." featured />
-            <KpiFlipCard color="amber" label="Total Purchases" value={formatCurrency(filteredKpis.totalPurchaseValue, currency)} icon={<Banknote className="h-full w-full" />} detail="Sum of total purchase value across the filtered suppliers." />
-            <KpiFlipCard color="red" label="Outstanding Payables" value={formatCurrency(filteredKpis.outstandingPayables, currency)} icon={<Wallet className="h-full w-full" />} detail="Total still owed to the filtered suppliers." />
-            <KpiFlipCard color="purple" label="On-Time Delivery" value={kpis.onTimeDeliveryRate === null ? "—" : `${kpis.onTimeDeliveryRate}%`} icon={<Timer className="h-full w-full" />} detail="Org-wide rate — SupplierRow doesn't carry delivery-timing data to scope this per-filter." />
+            <HistoryKpi label="Total Suppliers" value={filteredKpis.totalSuppliers} icon={<Building2 className="h-5 w-5" />} tone="blue" />
+            <HistoryKpi label="Active Suppliers" value={filteredKpis.activeSuppliers} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
+            <HistoryKpi label="Total Purchases" value={formatCurrency(filteredKpis.totalPurchaseValue, currency)} icon={<Banknote className="h-5 w-5" />} tone="amber" />
+            <HistoryKpi label="Outstanding Payables" value={formatCurrency(filteredKpis.outstandingPayables, currency)} icon={<Wallet className="h-5 w-5" />} tone="red" />
+            <HistoryKpi label="On-Time Delivery" value={kpis.onTimeDeliveryRate === null ? "—" : `${kpis.onTimeDeliveryRate}%`} icon={<Timer className="h-5 w-5" />} tone="purple" />
           </div>
 
           {/* Filters */}

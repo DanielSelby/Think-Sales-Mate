@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -34,6 +34,8 @@ import {
   Package,
   Printer,
   ShieldCheck,
+  X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +54,7 @@ import {
 } from "./stock-action-modals";
 import { ProductTabViews } from "./product-tab-views";
 import { deleteProduct, toggleProductActive, duplicateProduct } from "@/app/(dashboard)/inventory/actions";
+import { searchProductsForDetails, type ProductSearchResult } from "@/app/(dashboard)/inventory/stock-actions";
 
 interface ProductDetailsViewProps {
   initialData: ProductDetailsData;
@@ -78,8 +81,13 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
   const [typeFilter, setTypeFilter] = useState<string>("All Types");
   const [branchFilter, setBranchFilter] = useState<string>("All Branches");
   const [referenceFilter, setReferenceFilter] = useState<string>("All References");
-  const [dateRange, setDateRange] = useState<string>("May 1, 2025 - May 17, 2025");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [productSearch, setProductSearch] = useState("");
+  const [productSearchResults, setProductSearchResults] = useState<ProductSearchResult[]>([]);
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -99,6 +107,30 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
   const [isPending, startTransition] = useTransition();
 
   const currency = product.currency || "GHS";
+
+  useEffect(() => {
+    const query = productSearch.trim();
+    if (!query) {
+      setProductSearchResults([]);
+      setIsSearchingProducts(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setIsSearchingProducts(true);
+      const results = await searchProductsForDetails(query);
+      if (!cancelled) {
+        setProductSearchResults(results);
+        setIsSearchingProducts(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [productSearch]);
 
   // Filter movements
   const filteredMovements = useMemo(() => {
@@ -122,6 +154,27 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
         return false;
       }
 
+      // Date range filter. Compare calendar dates in the user's local timezone so
+      // a transaction on the selected end date remains included.
+      if (dateFrom || dateTo) {
+        const movementDate = new Date(m.dateTime);
+        if (Number.isNaN(movementDate.getTime())) return false;
+
+        const movementDay = new Date(
+          movementDate.getFullYear(),
+          movementDate.getMonth(),
+          movementDate.getDate(),
+        ).getTime();
+        const fromDay = dateFrom
+          ? new Date(`${dateFrom}T00:00:00`).getTime()
+          : Number.NEGATIVE_INFINITY;
+        const toDay = dateTo
+          ? new Date(`${dateTo}T00:00:00`).getTime()
+          : Number.POSITIVE_INFINITY;
+
+        if (movementDay < fromDay || movementDay > toDay) return false;
+      }
+
       // Search query (matches reference, user, or note)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -133,7 +186,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
 
       return true;
     });
-  }, [product.movements, typeFilter, branchFilter, referenceFilter, searchQuery]);
+  }, [product.movements, typeFilter, branchFilter, referenceFilter, dateFrom, dateTo, searchQuery]);
 
   // Paginated movements
   const totalEntries = filteredMovements.length;
@@ -151,6 +204,8 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
     setTypeFilter("All Types");
     setBranchFilter("All Branches");
     setReferenceFilter("All References");
+    setDateFrom("");
+    setDateTo("");
     setSearchQuery("");
     setCurrentPage(1);
     router.refresh();
@@ -246,7 +301,8 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
           </nav>
 
           {/* Title with Back Button */}
-          <div className="mt-2 flex items-center gap-2.5">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
             <button
               onClick={() => router.back()}
               className="flex h-8 w-8 items-center justify-center rounded-xl border border-ledger-200 bg-white text-ink-900 transition-colors hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-white dark:hover:bg-white/[0.06]"
@@ -257,6 +313,69 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
             <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">
               Product Details
             </h1>
+            </div>
+            <div className="relative w-full max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
+              <input
+                value={productSearch}
+                onChange={(event) => {
+                  setProductSearch(event.target.value);
+                  setShowProductSearch(true);
+                }}
+                onFocus={() => setShowProductSearch(true)}
+                placeholder="Search another product by name, SKU, or barcode"
+                aria-label="Search products"
+                className="h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-9 text-sm text-ink-900 shadow-xs outline-none transition-colors focus:border-blue-500 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+              />
+              {productSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductSearch("");
+                    setShowProductSearch(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ledger-400 hover:text-ink-900 dark:hover:text-white"
+                  aria-label="Clear product search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+              {showProductSearch && productSearch.trim() && (
+                <div className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-xl border border-ledger-200 bg-white shadow-xl dark:border-ledger-700 dark:bg-ink-900">
+                  {isSearchingProducts ? (
+                    <div className="flex items-center gap-2 px-3 py-3 text-xs text-ledger-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Searching products...
+                    </div>
+                  ) : productSearchResults.length > 0 ? (
+                    productSearchResults.map((result) => (
+                      <button
+                        key={result.id}
+                        type="button"
+                        onClick={() => {
+                          setShowProductSearch(false);
+                          setProductSearch("");
+                          router.push(`/inventory/${result.id}`);
+                        }}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-ledger-50 dark:hover:bg-white/[0.06]"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
+                            {result.name}
+                          </span>
+                          <span className="block truncate text-[11px] text-ledger-500">
+                            {result.sku}{result.barcode ? ` · ${result.barcode}` : ""}
+                          </span>
+                        </span>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-ledger-400" />
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-3 text-xs text-ledger-500">No matching products found.</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -641,9 +760,31 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                 <label className="mb-1 block text-[11px] font-semibold text-ledger-400">
                   Date Range
                 </label>
-                <div className="flex h-9 items-center gap-2 rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 shadow-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
-                  <Calendar className="h-3.5 w-3.5 text-ledger-400" />
-                  <span>{dateRange}</span>
+                <div className="flex h-9 items-center gap-1.5 rounded-xl border border-ledger-200 bg-white px-2.5 text-xs font-medium text-ink-900 shadow-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+                  <Calendar className="h-3.5 w-3.5 shrink-0 text-ledger-400" />
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    aria-label="Start date"
+                    className="w-[112px] bg-transparent text-[11px] outline-none dark:[color-scheme:dark]"
+                  />
+                  <span className="text-ledger-400">-</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    aria-label="End date"
+                    className="w-[112px] bg-transparent text-[11px] outline-none dark:[color-scheme:dark]"
+                  />
                 </div>
               </div>
             </div>

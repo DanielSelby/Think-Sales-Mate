@@ -42,6 +42,16 @@ export interface SaleListRow {
   refundedAmount: number;
 }
 
+function HistoryKpi({ label, value, icon, tone }: { label: string; value: number | string; icon: React.ReactNode; tone: "emerald" | "blue" | "amber" | "purple" }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
+    blue: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
+    amber: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
+    purple: "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400",
+  };
+  return <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><span className="font-display text-2xl font-bold text-ink-900 dark:text-white font-mono">{value}</span></div></div><p className="mt-2 text-[10px] text-ledger-400">Current sales history records</p></div>;
+}
+
 export interface SalesKpis {
   totalOrders: number;
   totalRevenue: number;
@@ -139,6 +149,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
         const invoice = formatInvoiceNumber(s.saleNumber).toLowerCase();
         if (!invoice.includes(q) && !s.customerName.toLowerCase().includes(q)) return false;
       }
+
       if (dateFrom && s.saleDate.slice(0, 10) < dateFrom) return false;
       if (dateTo && s.saleDate.slice(0, 10) > dateTo) return false;
       if (paymentMethodFilter !== "all" && s.paymentMethod !== paymentMethodFilter) return false;
@@ -223,7 +234,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Sales Documents</h1>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Sales History</h1>
           <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">Manage your sales drafts, quotations and invoices</p>
         </div>
         <div className="flex items-center gap-2">
@@ -253,7 +264,8 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
 
       <nav className="flex items-center gap-6 overflow-x-auto border-b border-ledger-100 dark:border-ledger-700">
         {[
-          { label: "Drafts", href: "/sales/drafts?type=draft", icon: FileText },
+        { label: "All Sales", href: "/sales/all", icon: FileText },
+        { label: "Drafts", href: "/sales/drafts?type=draft", icon: FileText },
           { label: "Quotations", href: "/sales/drafts?type=quotation", icon: FileText },
           { label: "Proformas", href: "/sales/drafts?type=proforma", icon: FileText },
           { label: "Sales Orders", href: "/orders?view=list", icon: FileSpreadsheet },
@@ -262,7 +274,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
         ].map(({ label, href, icon: Icon }) => (
           <Link key={label} href={href} className={cn(
             "flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium",
-            label === "Invoices" ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900"
+            label === "All Sales" ? "border-signal text-signal" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900"
           )}>
             <Icon className="h-3.5 w-3.5" /> {label}
           </Link>
@@ -271,35 +283,10 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiFlipCard
-          color="blue"
-          label="Total Drafts"
-          value={`${documentKpis.drafts}`}
-          icon={<ShoppingCart className="h-full w-full" />}
-          detail="Total number of sales matching the current filters — across every status: completed, returned, and cancelled."
-        />
-        <KpiFlipCard
-          color="green"
-          label="Total Quotations"
-          value={`${documentKpis.quotations}`}
-          icon={<Wallet className="h-full w-full" />}
-          detail="Sum of the total on every filtered sale, regardless of how much of it has actually been paid so far."
-          featured
-        />
-        <KpiFlipCard
-          color="green"
-          label="Total Proformas"
-          value={`${documentKpis.proformas}`}
-          icon={<CheckCircle2 className="h-full w-full" />}
-          detail="Filtered sales currently marked Completed — excludes any that have since been returned or cancelled."
-        />
-        <KpiFlipCard
-          color="amber"
-          label="Converted This Month"
-          value={`${documentKpis.convertedThisMonth}`}
-          icon={<CheckCircle2 className="h-full w-full" />}
-          detail="Final sales created during the current month."
-        />
+        <HistoryKpi label="Total Drafts" value={documentKpis.drafts} icon={<ShoppingCart className="h-5 w-5" />} tone="emerald" />
+        <HistoryKpi label="Total Quotations" value={documentKpis.quotations} icon={<Wallet className="h-5 w-5" />} tone="blue" />
+        <HistoryKpi label="Total Proformas" value={documentKpis.proformas} icon={<CheckCircle2 className="h-5 w-5" />} tone="amber" />
+        <HistoryKpi label="Converted This Month" value={documentKpis.convertedThisMonth} icon={<CheckCircle2 className="h-5 w-5" />} tone="purple" />
       </div>
 
       {/* Filter bar */}

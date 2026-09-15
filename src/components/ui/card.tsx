@@ -17,14 +17,17 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
    * Use "neutral" for anything that isn't a positive/negative signal.
    */
   accent?: CardAccent;
+  plain?: boolean;
 }
 
-export function Card({ className, accent = "neutral", ...props }: CardProps) {
+export function Card({ className, accent = "neutral", plain = false, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-card border border-l-4 border-ledger-100 bg-white shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover dark:border-ledger-700 dark:bg-ink-900",
-        ACCENT_CLASSES[accent],
+        plain
+          ? "rounded-card bg-white dark:bg-ink-900"
+          : "rounded-card border border-l-4 border-ledger-100 bg-white shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover dark:border-ledger-700 dark:bg-ink-900",
+        !plain && ACCENT_CLASSES[accent],
         className
       )}
       {...props}

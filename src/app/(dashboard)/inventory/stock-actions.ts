@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 
 export interface CrossBranchStockResult {
   ok: boolean;
@@ -9,6 +10,38 @@ export interface CrossBranchStockResult {
   sku?: string;
   branches?: { id: string; name: string; quantity: number }[];
   error?: string;
+}
+
+export interface ProductSearchResult {
+  id: string;
+  name: string;
+  sku: string;
+  barcode: string | null;
+}
+
+export async function searchProductsForDetails(query: string): Promise<ProductSearchResult[]> {
+  const context = await getCurrentOrgContext();
+  if (!context) return [];
+
+  const term = query.trim();
+  if (!term) return [];
+
+  const escaped = term.replace(/[%_,]/g, (character) => `\\${character}`);
+  const admin = createAdminClient();
+  const { data: products, error } = await admin
+    .from("products")
+    .select("id, name, sku, barcode, location_id")
+    .eq("org_id", context.orgId)
+    .eq("is_active", true)
+    .or(`name.ilike.%${escaped}%,sku.ilike.%${escaped}%,barcode.ilike.%${escaped}%`)
+    .order("name")
+    .limit(8);
+
+  if (error) return [];
+
+  return (products ?? [])
+    .filter((product) => !context.isBranchScoped || (product.location_id && canAccessLocation(context, product.location_id)))
+    .map(({ id, name, sku, barcode }) => ({ id, name, sku, barcode }));
 }
 
 export async function checkCrossBranchStock(query: string): Promise<CrossBranchStockResult> {
