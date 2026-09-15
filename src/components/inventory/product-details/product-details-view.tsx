@@ -132,10 +132,13 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
     const selectedQty = branchFilter === "All Branches"
       ? product.stockQuantity
       : (selectedBranch?.quantity ?? 0);
-    const netMovement = baseMovements.reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
-    const openingBalance = Math.max(0, selectedQty - netMovement);
+    const netMovement = baseMovements.reduce(
+      (sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0),
+      0
+    );
+    const adjustedOpeningBalance = selectedQty - netMovement;
 
-    return calculateRunningBalances(baseMovements, openingBalance);
+    return calculateRunningBalances(baseMovements, adjustedOpeningBalance);
   }, [branchFilter, product.movements, product.stockQuantity, selectedBranch]);
 
   const displayAnalytics = useMemo(() => {
@@ -154,9 +157,11 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
       };
     }
 
-    const selectedQty = selectedBranch?.quantity ?? 0;
-    const netMovement = activeLedgerMovements.reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
-    const openingBalance = Math.max(0, selectedQty - netMovement);
+    const netMovement = activeLedgerMovements.reduce(
+      (sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0),
+      0
+    );
+    const openingBalance = (selectedBranch?.quantity ?? 0) - netMovement;
     const summary = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
     return summary.analytics;
   }, [activeLedgerMovements, branchFilter, product.analytics, product.costPrice, selectedBranch]);
@@ -177,8 +182,11 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
       };
     }
 
-    const netMovement = activeLedgerMovements.reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
-    const openingBalance = Math.max(0, selectedQty - netMovement);
+    const netMovement = activeLedgerMovements.reduce(
+      (sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0),
+      0
+    );
+    const openingBalance = selectedQty - netMovement;
     const computed = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
     return {
       ...computed.summary,

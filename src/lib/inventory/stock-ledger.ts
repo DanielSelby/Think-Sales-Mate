@@ -146,9 +146,6 @@ export function calculateRunningBalances(
   );
 }
 
-/**
- * Computes analytics from movement records
- */
 export function computeLedgerAnalytics(
   movements: StockMovement[],
   unitCost: number,
@@ -161,13 +158,6 @@ export function computeLedgerAnalytics(
   let totalAdjustmentsQty = 0;
 
   for (const m of movements) {
-    if (m.type === "Opening Stock" || m.type === "Import") {
-      if (m.inQty && m.inQty > 0) {
-        totalInQty += m.inQty;
-      }
-      continue;
-    }
-
     if (m.inQty && m.inQty > 0) {
       totalInQty += m.inQty;
     }

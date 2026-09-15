@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
@@ -202,20 +202,37 @@ function ChildLinks({ items, sidebar }: {
   sidebar: { text: string; textMuted: string; borderColor: string };
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   return (
     <div className="ml-6 mt-0.5 mb-0.5 pl-3 space-y-0.5"
       style={{ borderLeft: `1px solid ${sidebar.borderColor}` }}>
       {items.map(child => {
         const Icon        = child.icon;
-        const childActive = pathname === child.href;
+        const childUrl = new URL(child.href, "http://localhost");
+        const childActive =
+          pathname === childUrl.pathname &&
+          Array.from(childUrl.searchParams.entries()).every(
+            ([key, value]) => searchParams.get(key) === value
+          );
         return (
           <Link
             key={child.href}
             href={child.href}
-            className="flex items-center gap-2 rounded-lg py-1.5 px-2 text-[13px] transition-all"
-            style={{ color: childActive ? sidebar.text : sidebar.textMuted, fontWeight: childActive ? 600 : 400 }}
+            aria-current={childActive ? "page" : undefined}
+            className="flex items-center gap-2 rounded-lg py-1.5 px-2 text-[13px] transition-all duration-150"
+            style={{
+              color: childActive ? sidebar.text : sidebar.textMuted,
+              fontWeight: childActive ? 700 : 400,
+              backgroundColor: childActive ? `${sidebar.text}14` : "transparent",
+              boxShadow: childActive ? "0 2px 8px rgba(15, 23, 42, 0.12)" : "none",
+              transform: childActive ? "translateX(3px) scale(1.01)" : "translateX(0) scale(1)",
+            }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = sidebar.text; }}
-            onMouseLeave={e => { if (!childActive) (e.currentTarget as HTMLElement).style.color = sidebar.textMuted; }}
+            onMouseLeave={e => {
+              if (!childActive) {
+                (e.currentTarget as HTMLElement).style.color = sidebar.textMuted;
+              }
+            }}
           >
             {Icon && <Icon className="h-3 w-3 shrink-0 opacity-70" />}
             {child.label}

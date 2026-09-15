@@ -428,15 +428,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
     initialStockBranchNames.add(stockKey);
   }
 
-  // If movements don't account for all current stock (e.g. this product was created/imported with stock
-  // but the ledger never recorded an opening movement), compute a temporary opening balance only when
-  // there is no explicit opening/import entry for the relevant product branch.
+  // The fetched movement history can be incomplete because each source query is capped.
+  // Use the stock levels as the reconciliation point for the balance before the
+  // earliest row in the displayed ledger. Opening/import rows remain normal
+  // inflows and are included in Total In.
   let totalNetMovement = 0;
   for (const m of realMovements) {
     totalNetMovement += (m.inQty ?? 0) - (m.outQty ?? 0);
   }
-  const hasOpeningMovement = realMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
-  const computedOpeningBalance = hasOpeningMovement ? 0 : Math.max(0, currentActualStock - totalNetMovement);
+  const computedOpeningBalance = currentActualStock - totalNetMovement;
 
   // Calculate Real Running Balances and Analytics
   const finalMovements = calculateRunningBalances(realMovements, computedOpeningBalance);
