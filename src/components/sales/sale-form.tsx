@@ -740,7 +740,7 @@ export function SaleForm({
   }
 
   return (
-    <div className="mx-auto max-w-7xl pb-32">
+    <div className="w-full pb-32">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -1532,7 +1532,7 @@ export function SaleForm({
 
       {/* Sticky footer action bar */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-ledger-100 bg-white/95 backdrop-blur dark:border-ledger-700 dark:bg-ink-900/95">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 lg:pl-[calc(15rem+1rem)]">
+        <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3">
           <Button type="button" variant="outline" onClick={clearSale}>
             Cancel
           </Button>
