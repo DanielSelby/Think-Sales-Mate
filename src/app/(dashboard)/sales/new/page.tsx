@@ -42,10 +42,9 @@ export default async function NewSalePage() {
   ] = await Promise.all([
     supabase
       .from("products")
-      .select("id, sku, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity")
+      .select("id, sku, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, allow_negative_stock")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
-      .gt("stock_quantity", 0)
       .order("name"),
     supabase.from("customers").select("id, name, email, phone").eq("org_id", context.orgId).order("name"),
     locationsQuery,
@@ -92,19 +91,20 @@ export default async function NewSalePage() {
     if (!availableByProduct.has(row.product_id)) availableByProduct.set(row.product_id, new Set());
     availableByProduct.get(row.product_id)!.add(row.location_id);
   }
-  const products: SellableProduct[] = (productRows ?? []).filter((p) =>
-    !context.isBranchScoped || availableByProduct.has(p.id)
-  ).map((p) => ({
-    id: p.id,
-    sku: p.sku,
-    name: p.name,
-    unitPrice: p.unit_price,
-    wholesalePrice: p.wholesale_price,
-    vipPrice: p.vip_price,
-    specialPrice: p.special_price,
-    costPrice: Number(p.cost_price ?? 0),
-    stockQuantity: p.stock_quantity
-  }));
+  const products: SellableProduct[] = (productRows ?? [])
+    .filter((p) => !context.isBranchScoped || availableByProduct.has(p.id) || p.allow_negative_stock)
+    .map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      unitPrice: p.unit_price,
+      wholesalePrice: p.wholesale_price,
+      vipPrice: p.vip_price,
+      specialPrice: p.special_price,
+      costPrice: Number(p.cost_price ?? 0),
+      stockQuantity: p.stock_quantity,
+      allowNegativeStock: Boolean(p.allow_negative_stock)
+    }));
 
   const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
 

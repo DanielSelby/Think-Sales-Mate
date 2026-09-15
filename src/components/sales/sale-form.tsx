@@ -54,6 +54,7 @@ export interface SellableProduct {
   specialPrice: number | null;
   costPrice: number;
   stockQuantity: number;
+  allowNegativeStock: boolean;
 }
 
 export interface SaleCustomer {
@@ -278,17 +279,15 @@ export function SaleForm({
   // A product never tracked per-location shows everywhere with its
   // org-wide total.
   const locationProducts = useMemo(() => {
-    if (!locationId || !stockLevels || stockLevels.length === 0) return products;
-    return products
-      .map((p) => {
-        const rows = stockByProduct.get(p.id);
-        if (!rows) return p;
-        return { ...p, stockQuantity: rows.get(locationId) ?? 0 };
-      })
-      .filter((p) => {
-        const rows = stockByProduct.get(p.id);
-        return Boolean(rows && (rows.get(locationId) ?? 0) > 0);
-      });
+    if (!locationId || !stockLevels || stockLevels.length === 0) {
+      return products.map((p) => ({ ...p, stockQuantity: p.stockQuantity }));
+    }
+
+    return products.map((p) => {
+      const rows = stockByProduct.get(p.id);
+      const branchQty = rows?.get(locationId) ?? p.stockQuantity;
+      return { ...p, stockQuantity: branchQty };
+    });
   }, [products, stockByProduct, locationId, stockLevels]);
 
   const filteredProducts = useMemo(() => {
@@ -352,6 +351,12 @@ export function SaleForm({
   }
 
   function addProduct(productId: string) {
+    const product = productById.get(productId);
+    if (!product) return;
+    if (!product.allowNegativeStock && product.stockQuantity <= 0) {
+      setStockWarning(`"${product.name}" is out of stock and cannot be added.`);
+      return;
+    }
     if (lines.some((l) => l.productId === productId)) return;
     setLines((prev) => [...prev, { key: crypto.randomUUID(), productId, quantity: 1, discountPercent: 0, taxPercent: 0 }]);
   }
@@ -372,6 +377,7 @@ export function SaleForm({
   // render (computedLines already looks them up fresh), so nothing else
   // needs to change here.
   function selectReplacement(key: string, product: SellableProduct) {
+    if (!product.allowNegativeStock && product.stockQuantity <= 0) return;
     updateLine(key, { productId: product.id });
     setEditingLineId(null);
   }
@@ -1011,24 +1017,30 @@ export function SaleForm({
                     )}
                     {filteredProducts.map((p) => {
                       const alreadyAdded = lines.some((l) => l.productId === p.id);
+                      const unavailable = !p.allowNegativeStock && p.stockQuantity <= 0;
                       return (
                         <button
                           key={p.id}
                           type="button"
-                          disabled={alreadyAdded}
+                          disabled={alreadyAdded || unavailable}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => { addProduct(p.id); setSearch(""); setSearchDropdownOpen(false); }}
-                          className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-ledger-50 disabled:cursor-default disabled:opacity-40 dark:hover:bg-white/[0.06]"
+                          className={cn(
+                            "flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-white/[0.06]",
+                            unavailable && "bg-ledger-50 text-ledger-400 dark:bg-white/[0.02]"
+                          )}
                         >
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
                             <Package2 className="h-4 w-4" />
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm text-ink-900 dark:text-white">{p.name}</span>
-                            <span className="block text-xs text-ledger-400">{p.sku} · stock {p.stockQuantity}</span>
+                            <span className={cn("block truncate text-sm", unavailable ? "text-ledger-400" : "text-ink-900 dark:text-white")}>{p.name}</span>
+                            <span className="block text-xs text-ledger-400">
+                              {p.sku} · {unavailable ? "Out Of Stock" : `stock ${p.stockQuantity}`}
+                            </span>
                           </span>
                           <span className="shrink-0 font-mono text-sm text-ledger-600 dark:text-ledger-300">
-                            {alreadyAdded ? "Added" : formatMoney(getTierPrice(p, priceTier), currency)}
+                            {alreadyAdded ? "Added" : unavailable ? "Unavailable" : formatMoney(getTierPrice(p, priceTier), currency)}
                           </span>
                         </button>
                       );

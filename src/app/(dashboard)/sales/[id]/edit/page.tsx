@@ -41,7 +41,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     // fully allocated elsewhere and show 0 org-wide; it's reclaimed below.
     supabase
       .from("products")
-      .select("id, sku, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity")
+      .select("id, sku, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, allow_negative_stock")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
@@ -104,6 +104,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     specialPrice: p.special_price,
     costPrice: Number(p.cost_price ?? 0),
     stockQuantity: p.stock_quantity + (reclaimByProduct.get(p.id) ?? 0),
+    allowNegativeStock: Boolean(p.allow_negative_stock),
   }));
 
   const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
