@@ -862,7 +862,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                     placeholder="Product name / SKU / scan barcode"
                     className="h-10 pl-9"
                   />
-                  {searchDropdownOpen && query.trim() && filteredProducts.length > 0 && (
+                  {searchDropdownOpen && filteredProducts.length > 0 && (
                     <div className="absolute left-0 right-0 top-11 z-30 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                       {filteredProducts.slice(0, 10).map((p) => (
                         <button

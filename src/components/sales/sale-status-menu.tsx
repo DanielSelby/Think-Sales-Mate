@@ -149,12 +149,12 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="rounded-md p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+          className="rounded-md p-1.5 text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
           title="More"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
         >
-          <MoreVertical className="h-4 w-4" />
+          <MoreVertical className="h-4 w-4" strokeWidth={2.25} />
         </button>
 
         {menuOpen && (

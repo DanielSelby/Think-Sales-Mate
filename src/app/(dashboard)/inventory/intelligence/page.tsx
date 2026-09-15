@@ -5,6 +5,14 @@ import { InventoryIntelligenceCenter, type IntelligenceData } from "@/components
 
 export const dynamic = "force-dynamic";
 
+type SupplierPerformance = {
+  supplier: string;
+  purchaseVolume: number;
+  products: number;
+  deliveryAccuracy: number | null;
+  quality: number | null;
+};
+
 export default async function InventoryIntelligencePage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
@@ -18,7 +26,7 @@ export default async function InventoryIntelligencePage() {
       supabase.from("product_stock_levels").select("product_id, location_id, quantity, business_locations(name)").eq("org_id", context.orgId),
       supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
       supabase.from("sale_items").select("product_id, quantity, line_total, created_at, sales: sale_id (status, business_locations(name))").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
-      supabase.from("purchase_items").select("product_id, quantity_received, quantity, created_at, purchases: purchase_id (status)").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
+      supabase.from("purchase_items").select("product_id, quantity_received, quantity, unit_price, line_total, created_at, purchases: purchase_id (status, supplier_id, expected_delivery_date, received_at, purchase_date, suppliers(name))").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
       supabase.from("stock_transfer_items").select("quantity, created_at, stock_transfers: transfer_id (status)").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
       supabase.from("stock_adjustment_items").select("system_stock, counted_stock, created_at").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
     ]);
@@ -34,6 +42,7 @@ export default async function InventoryIntelligencePage() {
 
   const salesByProduct = new Map<string, { quantity: number; revenue: number; lastSale: string | null }>();
   const monthlyMovement = new Map<string, { inQty: number; outQty: number }>();
+  const supplierStats = new Map<string, { name: string; volume: number; products: Set<string>; delivered: number; deliveryTotal: number }>();
   for (const row of sales ?? []) {
     const sale = Array.isArray(row.sales) ? row.sales[0] : row.sales;
     if (sale?.status === "cancelled") continue;
@@ -55,6 +64,18 @@ export default async function InventoryIntelligencePage() {
     const movement = monthlyMovement.get(month) ?? { inQty: 0, outQty: 0 };
     movement.inQty += quantity;
     monthlyMovement.set(month, movement);
+    const supplier = purchase?.supplier_id;
+    if (supplier) {
+      const relation = Array.isArray(purchase?.suppliers) ? purchase.suppliers[0] : purchase?.suppliers;
+      const stats = supplierStats.get(supplier) ?? { name: relation?.name ?? "Unknown supplier", volume: 0, products: new Set<string>(), delivered: 0, deliveryTotal: 0 };
+      stats.volume += Number(row.line_total ?? Number(row.unit_price ?? 0) * quantity);
+      stats.products.add(row.product_id);
+      if (purchase.received_at && purchase.expected_delivery_date) {
+        stats.deliveryTotal += 1;
+        if (new Date(purchase.received_at).getTime() <= new Date(purchase.expected_delivery_date).getTime()) stats.delivered += 1;
+      }
+      supplierStats.set(supplier, stats);
+    }
   }
   for (const row of transfers ?? []) {
     const transfer = Array.isArray(row.stock_transfers) ? row.stock_transfers[0] : row.stock_transfers;
@@ -81,6 +102,13 @@ export default async function InventoryIntelligencePage() {
     categories: [...new Set((products ?? []).map((product) => product.category).filter(Boolean) as string[])].sort(),
     suppliers: [...new Set((products ?? []).map((product) => product.supplier).filter(Boolean) as string[])].sort(),
     brands: [...new Set((products ?? []).map((product) => product.brand).filter(Boolean) as string[])].sort(),
+    supplierPerformance: [...supplierStats.values()].map((stats): SupplierPerformance => ({
+      supplier: stats.name,
+      purchaseVolume: stats.volume,
+      products: stats.products.size,
+      deliveryAccuracy: stats.deliveryTotal ? Math.round(stats.delivered / stats.deliveryTotal * 100) : null,
+      quality: null,
+    })).sort((a, b) => b.purchaseVolume - a.purchaseVolume),
     products: (products ?? []).map((product) => {
       const levels = stockByProduct.get(product.id) ?? [];
       const stock = levels.length ? levels.reduce((sum, level) => sum + level.quantity, 0) : Number(product.stock_quantity ?? 0);

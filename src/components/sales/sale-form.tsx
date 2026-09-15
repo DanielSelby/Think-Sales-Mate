@@ -1010,7 +1010,7 @@ export function SaleForm({
                   className="h-11 w-full rounded-md border pl-9 pr-3 text-sm font-medium outline-none"
                   style={{ background: theme.colors.primaryPale, borderColor: `${theme.colors.primary}4D`, color: theme.colors.primary }}
                 />
-                {searchDropdownOpen && search.trim() && (
+                {searchDropdownOpen && (
                   <div className="absolute left-0 right-0 top-12 z-40 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                     {filteredProducts.length === 0 && (
                       <p className="px-3 py-3 text-sm text-ledger-400">No matching products.</p>

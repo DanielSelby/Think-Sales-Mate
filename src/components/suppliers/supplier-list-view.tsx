@@ -87,7 +87,7 @@ function HistoryKpi({ label, value, icon, tone }: { label: string; value: number
     red: "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400",
     purple: "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400",
   };
-  return <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><span className="font-display text-2xl font-bold text-ink-900 dark:text-white font-mono">{value}</span></div></div><p className="mt-2 text-[10px] text-ledger-400">Current supplier history records</p></div>;
+  return <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><div className="mt-0.5 flex items-baseline gap-2"><span className="font-display text-2xl font-bold text-ink-900 dark:text-white font-mono">{value}</span></div></div></div><p className="mt-2 text-[10px] text-ledger-400">Current supplier history records</p></div>;
 }
 
 export function SupplierListView({
