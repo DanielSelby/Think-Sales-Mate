@@ -189,16 +189,11 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   // branches it's actually stocked at.
   const locationProducts = React.useMemo(() => {
     if (!locationId) return products;
-    return products
-      .map((p) => {
-        const rows = stockByProduct.get(p.id);
-        if (!rows) return p;
-        return { ...p, stockQuantity: rows.get(locationId) ?? 0 };
-      })
-      .filter((p) => {
-        const rows = stockByProduct.get(p.id);
-        return Boolean(rows && (rows.get(locationId) ?? 0) > 0);
-      });
+    return products.map((p) => {
+      const rows = stockByProduct.get(p.id);
+      if (!rows) return p;
+      return { ...p, stockQuantity: rows.get(locationId) ?? 0 };
+    });
   }, [products, stockByProduct, locationId]);
 
   const filteredProducts = React.useMemo(() => {

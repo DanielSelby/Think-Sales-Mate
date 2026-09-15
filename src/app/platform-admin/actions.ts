@@ -211,6 +211,26 @@ export async function updatePlatformSetting(key: string, value: Record<string, u
   revalidatePath("/platform-admin");
 }
 
+export async function uploadPlatformLogo(formData: FormData) {
+  const { admin, supabase } = await requirePlatformPermission("manage_platform");
+  const file = formData.get("logo") as File | null;
+  if (!file || file.size === 0) throw new Error("Choose a logo image first.");
+  if (file.size > 2 * 1024 * 1024) throw new Error("Logo must be under 2MB.");
+  if (!["image/png", "image/jpeg", "image/svg+xml"].includes(file.type)) {
+    throw new Error("Logo must be a JPG, PNG, or SVG file.");
+  }
+  const extension = file.name.split(".").pop()?.toLowerCase() || "png";
+  const path = `system/logo.${extension}`;
+  const { error: uploadError } = await supabase.storage.from("platform-assets").upload(path, file, { upsert: true, contentType: file.type });
+  if (uploadError) throw new Error(uploadError.message);
+  const { data } = supabase.storage.from("platform-assets").getPublicUrl(path);
+  const logoUrl = `${data.publicUrl}?v=${Date.now()}`;
+  await updatePlatformSetting("system_logo", { url: logoUrl });
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "system_logo_updated", module: "system_settings", metadata: { path } });
+  revalidatePath("/platform-admin");
+  return { logoUrl };
+}
+
 export async function reviewPlatformApproval(id: string, status: "approved" | "rejected") {
   const { admin, supabase } = await requirePlatformManagement();
   const { error } = await supabase.from("platform_approvals").update({ status, reviewed_by: admin.id, reviewed_at: new Date().toISOString() }).eq("id", id).eq("status", "pending");

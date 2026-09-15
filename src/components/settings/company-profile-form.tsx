@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Upload, Save, Facebook, Twitter, Linkedin, Youtube, X, Stamp, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +107,7 @@ function AssetUploader({
 }
 
 export function CompanyProfileForm({ profile, canManage }: { profile: CompanyProfileRow | null; canManage: boolean }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -130,7 +132,10 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
     startTransition(async () => {
       const result = await uploadCompanyLogo(formData);
       if (result?.error) setError(result.error);
-      else if (result?.logoUrl) setLogoUrl(result.logoUrl);
+      else if (result?.logoUrl) {
+        setLogoUrl(result.logoUrl);
+        router.refresh();
+      }
       setUploadingLogo(false);
     });
   }

@@ -318,7 +318,7 @@ export function Sidebar({ collapsed, enabledModules }: { collapsed: boolean; ena
       {/* ── Logo ── */}
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
-        <img src="/thinksales-logo.jpeg" alt="ThinkSales" className="h-10 w-10 shrink-0 rounded-xl object-contain shadow-sm" />
+        <img src="/thinksales-logo.jpeg" alt="ThinkSales" className="h-12 w-12 shrink-0 rounded-xl object-contain shadow-sm" />
         {!collapsed && (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>ThinkSales</span>

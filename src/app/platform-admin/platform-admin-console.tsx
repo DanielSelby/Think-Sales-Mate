@@ -15,6 +15,7 @@ import {
   setFeatureFlag,
   reviewPlatformApproval,
   updatePlatformSetting,
+  uploadPlatformLogo,
 } from "./actions";
 import type { PlatformModule } from "@/types/platform-database";
 import { PLATFORM_MODULES } from "@/lib/platform-modules";
@@ -181,6 +182,7 @@ function exportAuditLogs(logs: AuditLog[], format: "csv" | "excel" | "pdf") {
 }
 
 export default function PlatformAdminConsole({
+  logoUrl,
   organizations,
   plans,
   features,
@@ -192,6 +194,7 @@ export default function PlatformAdminConsole({
   notifications,
   settings,
 }: {
+  logoUrl: string;
   organizations: Organization[];
   plans: Plan[];
   features: { organization_id: string; module: string; enabled: boolean; access_mode: "enabled" | "disabled" | "read_only"; permission_options?: Record<string, boolean>; updated_at?: string }[];
@@ -211,6 +214,7 @@ export default function PlatformAdminConsole({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [featureState, setFeatureState] = useState<Record<string, boolean>>(
     Object.fromEntries(features.filter((feature) => feature.organization_id === organizations[0]?.organization_id).map((feature) => [feature.module, feature.enabled])),
   );
@@ -400,7 +404,7 @@ export default function PlatformAdminConsole({
       <aside className="sticky top-0 hidden h-screen w-56 shrink-0 self-start overflow-y-auto bg-[#06294a] text-white lg:block">
         <div className="border-b border-white/10 px-4 py-5">
           <div className="flex items-center gap-2">
-            <img src="/thinksales-logo.svg" alt="" className="h-8 w-8 rounded-lg" />
+            <img src={logoUrl} alt="" className="h-8 w-8 rounded-lg object-contain" />
             <span className="font-bold">ThinkSales <small className="text-blue-300">Pro</small></span>
           </div>
         </div>
@@ -459,6 +463,17 @@ export default function PlatformAdminConsole({
 
       <main className="min-w-0 flex-1 p-4 md:p-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+          <label className="order-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 lg:order-3">
+            {uploadingLogo ? "Uploading..." : "Change system logo"}
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" disabled={uploadingLogo} onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              const formData = new FormData();
+              formData.append("logo", file);
+              setUploadingLogo(true);
+              uploadPlatformLogo(formData).then(() => router.refresh()).catch((error) => setMessage(error instanceof Error ? error.message : "Logo upload failed.")).finally(() => setUploadingLogo(false));
+            }} />
+          </label>
           {tab !== "Feature Access" && tab !== "Overview" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button><button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
         </div>
         {message && <button type="button" onClick={() => setMessage(null)} className="mb-4 w-full rounded-lg bg-blue-50 p-3 text-left text-sm text-blue-800">{message} ×</button>}
