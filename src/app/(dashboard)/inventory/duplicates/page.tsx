@@ -16,18 +16,19 @@ export const metadata = { title: "Duplicate Review Center · ThinkSales" };
 export default async function DuplicateReviewCenterPage({
   searchParams,
 }: {
-  searchParams?: { tab?: string; ids?: string };
+  searchParams?: Promise<{ tab?: string; ids?: string }>;
 }) {
   const context = await getCurrentOrgContext((await cookies()).get("active_org_id")?.value);
   if (!context) redirect("/onboarding");
   if (!can(context.role, "inventory.view")) redirect("/dashboard");
   const rows = await getDuplicateReviewRows();
-  const activeTab = searchParams?.tab === "merge"
+  const resolvedSearchParams = await searchParams;
+  const activeTab = resolvedSearchParams?.tab === "merge"
     ? "merge"
-    : searchParams?.tab === "control"
+    : resolvedSearchParams?.tab === "control"
       ? "control"
       : "duplicates";
-  const ids = (searchParams?.ids ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  const ids = (resolvedSearchParams?.ids ?? "").split(",").map((id) => id.trim()).filter(Boolean);
   const mergeProducts = activeTab === "merge" && can(context.role, "inventory.manage")
     ? await getProductsForMerge([...new Set(ids)])
     : [];
@@ -36,7 +37,7 @@ export default async function DuplicateReviewCenterPage({
     : null;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs text-ledger-400">Products <span className="mx-1">›</span> Duplicate Review Center</p>
