@@ -406,7 +406,7 @@ export default function PlatformAdminConsole({
     uploadPlatformLogo(formData)
       .then((result) => {
         setCurrentLogoUrl(result.logoUrl);
-        router.refresh();
+        setMessage("System logo updated.");
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Logo upload failed."))
       .finally(() => setUploadingLogo(false));
