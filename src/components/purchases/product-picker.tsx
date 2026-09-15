@@ -69,6 +69,17 @@ export function ProductPicker({ products, onSelect, className, theme, onNotFound
       e.preventDefault();
       onNotFound(q);
     }
+
+  }
+
+  function revealPicker() {
+    setOpen(true);
+    const input = containerRef.current?.querySelector("input");
+    if (!input) return;
+    const bounds = input.getBoundingClientRect();
+    if (bounds.bottom > window.innerHeight - 220 || bounds.top < 16) {
+      input.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }
 
   return (
@@ -83,7 +94,7 @@ export function ProductPicker({ products, onSelect, className, theme, onNotFound
           setQuery(e.target.value);
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={revealPicker}
         onKeyDown={onKeyDown}
         placeholder="Enter Product name / SKU / Scan bar code"
         className="h-11 w-full rounded-md border pl-9 pr-3 text-sm font-medium outline-none"

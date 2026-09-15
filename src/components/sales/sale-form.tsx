@@ -1004,7 +1004,13 @@ export function SaleForm({
                   ref={searchRef}
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setSearchDropdownOpen(true); }}
-                  onFocus={() => setSearchDropdownOpen(true)}
+                  onFocus={() => {
+                    setSearchDropdownOpen(true);
+                    const bounds = searchRef.current?.getBoundingClientRect();
+                    if (bounds && (bounds.bottom > window.innerHeight - 220 || bounds.top < 16)) {
+                      searchRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+                    }
+                  }}
                   onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
                   placeholder="Enter Product name / SKU / Scan bar code"
                   className="h-11 w-full rounded-md border pl-9 pr-3 text-sm font-medium outline-none"

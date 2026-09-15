@@ -856,7 +856,13 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                     ref={searchInputRef}
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setSearchDropdownOpen(true); }}
-                    onFocus={() => setSearchDropdownOpen(true)}
+                    onFocus={() => {
+                      setSearchDropdownOpen(true);
+                      const bounds = searchInputRef.current?.getBoundingClientRect();
+                      if (bounds && (bounds.bottom > window.innerHeight - 220 || bounds.top < 16)) {
+                        searchInputRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+                      }
+                    }}
                     onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
                     onKeyDown={onBarcodeEnter}
                     placeholder="Product name / SKU / scan barcode"
