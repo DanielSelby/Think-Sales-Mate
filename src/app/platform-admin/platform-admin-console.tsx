@@ -405,6 +405,10 @@ export default function PlatformAdminConsole({
     setUploadingLogo(true);
     uploadPlatformLogo(formData)
       .then((result) => {
+        if (result.error || !result.logoUrl) {
+          setMessage(result.error ?? "Logo upload failed.");
+          return;
+        }
         setCurrentLogoUrl(result.logoUrl);
         setMessage("System logo updated.");
       })
