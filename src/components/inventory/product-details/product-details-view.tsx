@@ -41,6 +41,8 @@ import { Button } from "@/components/ui/button";
 import {
   ProductDetailsData,
   StockMovement,
+  calculateRunningBalances,
+  computeLedgerAnalytics,
   formatLedgerMoney,
   exportMovementsToExcel,
   exportMovementsToCSV,
@@ -108,6 +110,83 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
 
   const currency = product.currency || "GHS";
 
+  const selectedBranch = useMemo(
+    () => product.branches.find((branch) => branch.name === branchFilter) ?? null,
+    [branchFilter, product.branches]
+  );
+
+  const displayStockQuantity = branchFilter === "All Branches"
+    ? product.stockQuantity
+    : (selectedBranch?.quantity ?? 0);
+  const displayStockValue = displayStockQuantity * product.costPrice;
+
+  const activeLedgerMovements = useMemo(() => {
+    const baseMovements = branchFilter === "All Branches"
+      ? product.movements
+      : product.movements.filter((movement) => movement.branchName === branchFilter);
+
+    if (baseMovements.length === 0) {
+      return [];
+    }
+
+    const selectedQty = branchFilter === "All Branches"
+      ? product.stockQuantity
+      : (selectedBranch?.quantity ?? 0);
+    const netMovement = baseMovements.reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const openingBalance = Math.max(0, selectedQty - netMovement);
+
+    return calculateRunningBalances(baseMovements, openingBalance);
+  }, [branchFilter, product.movements, product.stockQuantity, selectedBranch]);
+
+  const displayAnalytics = useMemo(() => {
+    if (branchFilter === "All Branches") {
+      return product.analytics;
+    }
+
+    if (!activeLedgerMovements.length) {
+      return {
+        totalInQty: 0,
+        totalOutQty: 0,
+        netMovement: 0,
+        totalPurchasesQty: 0,
+        totalSalesQty: 0,
+        totalAdjustmentsQty: 0,
+      };
+    }
+
+    const selectedQty = selectedBranch?.quantity ?? 0;
+    const netMovement = activeLedgerMovements.reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const openingBalance = Math.max(0, selectedQty - netMovement);
+    const summary = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
+    return summary.analytics;
+  }, [activeLedgerMovements, branchFilter, product.analytics, product.costPrice, selectedBranch]);
+
+  const displaySummary = useMemo(() => {
+    if (branchFilter === "All Branches") {
+      return product.summary;
+    }
+
+    const selectedQty = selectedBranch?.quantity ?? 0;
+    if (!activeLedgerMovements.length) {
+      return {
+        openingBalance: 0,
+        totalIn: 0,
+        totalOut: 0,
+        currentBalance: selectedQty,
+        stockValue: selectedQty * product.costPrice,
+      };
+    }
+
+    const netMovement = activeLedgerMovements.reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const openingBalance = Math.max(0, selectedQty - netMovement);
+    const computed = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
+    return {
+      ...computed.summary,
+      currentBalance: selectedQty,
+      stockValue: selectedQty * product.costPrice,
+    };
+  }, [activeLedgerMovements, branchFilter, product.costPrice, product.summary, selectedBranch]);
+
   useEffect(() => {
     const query = productSearch.trim();
     if (!query) {
@@ -134,7 +213,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
 
   // Filter movements
   const filteredMovements = useMemo(() => {
-    return product.movements.filter((m) => {
+    return activeLedgerMovements.filter((m) => {
       // Type filter
       if (typeFilter !== "All Types") {
         if (typeFilter === "Purchase" && m.type !== "Purchase") return false;
@@ -142,11 +221,6 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
         if (typeFilter === "Stock Transfer" && !m.type.includes("Transfer")) return false;
         if (typeFilter === "Stock Adjustment" && m.type !== "Stock Adjustment") return false;
         if (typeFilter === "Return" && !m.type.includes("Return")) return false;
-      }
-
-      // Branch filter
-      if (branchFilter !== "All Branches" && m.branchName !== branchFilter) {
-        return false;
       }
 
       // Reference filter
@@ -186,7 +260,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
 
       return true;
     });
-  }, [product.movements, typeFilter, branchFilter, referenceFilter, dateFrom, dateTo, searchQuery]);
+  }, [activeLedgerMovements, typeFilter, referenceFilter, dateFrom, dateTo, searchQuery]);
 
   // Paginated movements
   const totalEntries = filteredMovements.length;
@@ -638,11 +712,13 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               </span>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="font-display text-3xl font-bold text-blue-600 dark:text-blue-400">
-                  {product.stockQuantity}
+                  {displayStockQuantity}
                 </span>
               </div>
               <p className="text-xs text-ledger-400">
-                Across {product.branches.length} branches
+                {branchFilter === "All Branches"
+                  ? `Across ${product.branches.length} branches`
+                  : selectedBranch?.name ?? branchFilter}
               </p>
 
               <div className="my-3 border-t border-ledger-200/70 dark:border-ledger-700/60" />
@@ -651,7 +727,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                 Stock Value ({currency})
               </span>
               <p className="mt-1 font-display text-lg font-bold text-blue-700 dark:text-blue-300">
-                {formatLedgerMoney(product.summary.stockValue, currency)}
+                {formatLedgerMoney(displayStockValue, currency)}
               </p>
             </div>
           </div>
@@ -859,7 +935,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-ledger-400">Total In</span>
                 <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-                  {product.analytics.totalInQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
+                  {displayAnalytics.totalInQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
                 </p>
               </div>
             </div>
@@ -872,7 +948,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-ledger-400">Total Out</span>
                 <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-                  {product.analytics.totalOutQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
+                  {displayAnalytics.totalOutQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
                 </p>
               </div>
             </div>
@@ -885,7 +961,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-ledger-400">Net Movement</span>
                 <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-                  +{product.analytics.netMovement} <span className="text-xs font-normal text-ledger-400">Qty</span>
+                  +{displayAnalytics.netMovement} <span className="text-xs font-normal text-ledger-400">Qty</span>
                 </p>
               </div>
             </div>
@@ -898,7 +974,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-ledger-400">Total Purchases</span>
                 <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-                  {product.analytics.totalPurchasesQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
+                  {displayAnalytics.totalPurchasesQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
                 </p>
               </div>
             </div>
@@ -911,7 +987,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-ledger-400">Total Sales</span>
                 <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-                  {product.analytics.totalSalesQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
+                  {displayAnalytics.totalSalesQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
                 </p>
               </div>
             </div>
@@ -924,7 +1000,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-ledger-400">Total Adjustments</span>
                 <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-                  {product.analytics.totalAdjustmentsQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
+                  {displayAnalytics.totalAdjustmentsQty} <span className="text-xs font-normal text-ledger-400">Qty</span>
                 </p>
               </div>
             </div>
@@ -1219,31 +1295,31 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                   <div className="flex justify-between text-ledger-500">
                     <span>Opening Balance</span>
                     <span className="font-semibold text-ink-900 dark:text-white">
-                      {product.summary.openingBalance}
+                      {displaySummary.openingBalance}
                     </span>
                   </div>
                   <div className="flex justify-between text-ledger-500">
                     <span>Total In</span>
                     <span className="font-semibold text-ink-900 dark:text-white">
-                      {product.summary.totalIn}
+                      {displaySummary.totalIn}
                     </span>
                   </div>
                   <div className="flex justify-between text-ledger-500">
                     <span>Total Out</span>
                     <span className="font-semibold text-ink-900 dark:text-white">
-                      {product.summary.totalOut}
+                      {displaySummary.totalOut}
                     </span>
                   </div>
                   <div className="flex justify-between text-ledger-500">
                     <span>Current Balance</span>
                     <span className="font-bold text-blue-600 dark:text-blue-400">
-                      {product.summary.currentBalance}
+                      {displaySummary.currentBalance}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-ledger-100 pt-2 text-ledger-500 dark:border-ledger-700">
                     <span>Stock Value ({currency})</span>
                     <span className="font-bold text-ink-900 dark:text-white">
-                      {formatLedgerMoney(product.summary.stockValue, currency)}
+                      {formatLedgerMoney(displaySummary.stockValue, currency)}
                     </span>
                   </div>
                 </div>
