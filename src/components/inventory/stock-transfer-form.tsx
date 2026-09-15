@@ -910,7 +910,9 @@ export function StockTransferForm({
                         key={product.id}
                         type="button"
                         onClick={() => handleAddProduct(product)}
-                        className="flex w-full items-center justify-between rounded-xl p-2.5 text-left text-xs transition-colors hover:bg-ledger-50 dark:hover:bg-white/[0.04]"
+                        className={`flex w-full items-center justify-between rounded-xl p-2.5 text-left text-xs transition-colors hover:bg-ledger-50 dark:hover:bg-white/[0.04] ${
+                          srcStock <= 0 ? "bg-red-50/60 text-ledger-400 dark:bg-red-950/20" : ""
+                        }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-ink-950">
@@ -931,7 +933,7 @@ export function StockTransferForm({
                               srcStock > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"
                             }`}
                           >
-                            {srcStock} available at source
+                            {srcStock > 0 ? `${srcStock} available at source` : "Out of stock at source"}
                           </span>
                           <p className="text-[10px] text-blue-600 dark:text-blue-400">
                             {destStock} at destination

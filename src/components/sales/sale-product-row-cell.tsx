@@ -63,10 +63,9 @@ export function SaleProductRowCell({ products, currentName, onSelect, onClose }:
             key={p.id}
             type="button"
             onClick={() => onSelect(p)}
-            disabled={p.stockQuantity <= 0}
             className={cn(
               "flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-ledger-50 dark:hover:bg-white/[0.06]",
-              p.stockQuantity <= 0 && "opacity-60"
+              p.stockQuantity <= 0 && "bg-red-50/60 text-ledger-400 opacity-70 dark:bg-red-950/20"
             )}
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
@@ -75,7 +74,7 @@ export function SaleProductRowCell({ products, currentName, onSelect, onClose }:
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm text-ink-900 dark:text-white">{p.name}</span>
               <span className="block text-xs text-ledger-400">
-                {p.sku} · stock {p.stockQuantity}
+                {p.sku} · {p.stockQuantity > 0 ? `stock ${p.stockQuantity}` : "Out of stock"}
               </span>
             </span>
             <span className="shrink-0 font-mono text-sm text-ledger-600 dark:text-ledger-300">

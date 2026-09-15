@@ -775,8 +775,12 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
               <button
                 key={p.id}
                 onClick={() => addToCart(p)}
-                disabled={p.stockQuantity <= 0}
-                className="flex flex-col items-center rounded-md border border-ledger-100 bg-white p-2.5 text-center transition-all hover:border-signal hover:shadow-card-hover disabled:opacity-40 dark:border-ledger-700 dark:bg-ink-900"
+                className={cn(
+                  "flex flex-col items-center rounded-md border bg-white p-2.5 text-center transition-all hover:border-signal hover:shadow-card-hover dark:bg-ink-900",
+                  p.stockQuantity <= 0
+                    ? "border-red-200 opacity-55 dark:border-red-900/60"
+                    : "border-ledger-100 dark:border-ledger-700"
+                )}
               >
                 <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white p-1.5 dark:border-ledger-700 dark:bg-ink-900">
                   {p.imageUrl ? (
@@ -877,8 +881,10 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                           onClick={() => { addToCart(p); setQuery(""); setSearchDropdownOpen(false); }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary + "20"; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                          disabled={p.stockQuantity <= 0}
-                          className="block w-full px-3 py-2 text-left disabled:opacity-50"
+                          className={cn(
+                            "block w-full px-3 py-2 text-left",
+                            p.stockQuantity <= 0 && "bg-red-50/50 text-ledger-500 dark:bg-red-950/20"
+                          )}
                         >
                           <p className="truncate text-sm font-medium text-ink-900 dark:text-white">{p.name}</p>
                           <p className="text-xs text-ledger-400">

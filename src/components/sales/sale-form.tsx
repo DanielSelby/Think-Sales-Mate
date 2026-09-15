@@ -377,7 +377,6 @@ export function SaleForm({
   // render (computedLines already looks them up fresh), so nothing else
   // needs to change here.
   function selectReplacement(key: string, product: SellableProduct) {
-    if (!product.allowNegativeStock && product.stockQuantity <= 0) return;
     updateLine(key, { productId: product.id });
     setEditingLineId(null);
   }
@@ -1028,12 +1027,12 @@ export function SaleForm({
                         <button
                           key={p.id}
                           type="button"
-                          disabled={alreadyAdded || unavailable}
+                          disabled={alreadyAdded}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => { addProduct(p.id); setSearch(""); setSearchDropdownOpen(false); }}
                           className={cn(
                             "flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-white/[0.06]",
-                            unavailable && "bg-ledger-50 text-ledger-400 dark:bg-white/[0.02]"
+                            unavailable && "bg-red-50/60 text-ledger-400 dark:bg-red-950/20"
                           )}
                         >
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ledger-100 text-ledger-400 dark:bg-white/[0.06]">
