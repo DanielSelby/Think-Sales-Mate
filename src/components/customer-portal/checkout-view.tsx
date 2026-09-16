@@ -225,24 +225,27 @@ export function CheckoutView({
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-24 pt-6">
+    <div className="min-h-screen bg-[#f7fbf8] px-4 pb-24 pt-6 dark:bg-ink-950">
+      <div className="mx-auto max-w-6xl">
       <Link
         href={`/order/${orgSlug}`}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ledger-600 hover:text-ink-900 dark:text-ledger-300 dark:hover:text-white"
+        className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-ledger-600 hover:text-ink-900 dark:text-ledger-300 dark:hover:text-white"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Storefront
       </Link>
 
-      <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2 border-b border-ledger-100 pb-4 dark:border-ledger-800">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
+      <div className="relative mb-7 min-h-[230px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[#eaf7ee] shadow-[0_18px_45px_rgba(36,108,72,0.1)]">
+        <img src="/customer-portal-hero.jpeg" alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-right" />
+        <div className="relative z-10 max-w-[620px] px-7 py-8 sm:px-10 sm:py-10">
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#258252]">Welcome to {orgName}</p>
+          <h1 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl dark:text-white">
             Checkout &amp; Order Review
           </h1>
-          <p className="mt-0.5 text-xs text-ledger-500">{orgName} Storefront</p>
+          <p className="mt-2 max-w-lg text-sm text-ledger-600 dark:text-ledger-300">Please provide your details and review your order before submitting.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
-          <span className="rounded-full bg-signal-soft px-3 py-1 text-xs font-semibold text-signal dark:bg-signal/10">
+        <div className="absolute right-5 top-5 z-10 flex items-center gap-2">
+          <RefreshButton className="bg-white/80 text-ledger-500 hover:bg-white dark:bg-ink-900/70 dark:text-ledger-300" />
+          <span className="rounded-full border border-white/80 bg-white/85 px-3 py-1 text-xs font-semibold text-signal shadow-sm dark:bg-ink-900/80">
             {cart.items.length} {cart.items.length === 1 ? "Item" : "Items"} in Cart
           </span>
         </div>
@@ -577,6 +580,7 @@ export function CheckoutView({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

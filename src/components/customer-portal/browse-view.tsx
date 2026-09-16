@@ -176,7 +176,7 @@ export function BrowseView({
             href={`/order/${orgSlug}/cart`}
             className="group flex items-center gap-2.5"
           >
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-ink-900 text-white transition-transform group-hover:scale-105 dark:bg-white dark:text-ink-900">
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#b9e4ca] bg-[#e2f6e9] text-[#16734a] shadow-sm transition-transform group-hover:scale-105 dark:border-ledger-700 dark:bg-ink-800 dark:text-emerald-300">
               <ShoppingCart className="h-5 w-5" />
 
               {cart.itemCount > 0 && (
@@ -324,6 +324,11 @@ export function BrowseView({
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-right"
               />
+              {companyLogoUrl && (
+                <span className="pointer-events-none absolute right-[14%] top-[58%] z-[1] flex h-12 w-16 -translate-y-1/2 items-center justify-center rounded-lg bg-white/95 p-1.5 shadow-[0_8px_18px_rgba(0,0,0,0.18)] sm:h-14 sm:w-20">
+                  <img src={companyLogoUrl} alt={`${orgName} logo on shopping bag`} className="h-full w-full object-contain" />
+                </span>
+              )}
 
               {/* 3D showcase illustration */}
               <div className="hidden">
