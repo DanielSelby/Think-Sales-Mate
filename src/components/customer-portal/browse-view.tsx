@@ -318,9 +318,15 @@ export function BrowseView({
               style={{ contain: "paint" }}
             >
             <div className="relative mb-5 min-h-[292px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[radial-gradient(circle_at_78%_36%,#ffffff_0,#e8f6ec_30%,transparent_57%),linear-gradient(110deg,#eaf7ee,#f8fcf9_55%,#dcefdc)] shadow-[0_18px_45px_rgba(36,108,72,0.12)] dark:border-ledger-800 dark:bg-ink-900">
+              <img
+                src="/customer-portal-hero.jpeg"
+                alt=""
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-right"
+              />
 
               {/* 3D showcase illustration */}
-              <div className="absolute inset-0 hidden items-center justify-end pr-8 sm:flex">
+              <div className="hidden">
 
                 {/* Floating spheres */}
                 <div
