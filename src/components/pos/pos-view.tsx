@@ -28,6 +28,7 @@ import {
 import type { HeldSaleKind } from "@/types/database";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface PosProduct {
   id: string;
@@ -126,6 +127,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
+  const [transactionFeedback, setTransactionFeedback] = React.useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const [heldOpen, setHeldOpen] = React.useState(false);
   const [heldKind, setHeldKind] = React.useState<HeldSaleKind>("hold");
@@ -384,13 +386,13 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         saleDate,
       });
       if (!result.ok) {
+        setTransactionFeedback({ kind: "error", message: result.error ?? "Something went wrong. Review the transaction and try again." });
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      showNotice(`Sale completed — ${method}`);
+      setTransactionFeedback({ kind: "success", message: `Sale completed successfully using ${method}.` });
       if (result.saleId) printInvoice(result.saleId);
       clearCart();
-      router.refresh();
     });
   }
 
@@ -406,13 +408,13 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         saleDate,
       });
       if (!result.ok) {
+        setTransactionFeedback({ kind: "error", message: result.error ?? "Something went wrong. Review the transaction and try again." });
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      showNotice("Sale updated");
       clearCart();
       setRecentOpen(false);
-      router.refresh();
+      setTransactionFeedback({ kind: "success", message: "Sale updated successfully." });
     });
   }
 
@@ -654,6 +656,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     <div className="flex min-h-0 h-full flex-col gap-3 overflow-x-hidden pb-16 lg:pb-0">
       {notice && <div className="rounded-md border border-signal/30 bg-signal-soft px-3 py-2 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">{notice}</div>}
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{error}</div>}
+      {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => { setTransactionFeedback(null); router.refresh(); }} />}
       {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
 
       {/* Toolbar */}

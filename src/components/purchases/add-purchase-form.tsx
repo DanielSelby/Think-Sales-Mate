@@ -20,6 +20,7 @@ import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/att
 import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import type { PurchaseStatus } from "@/types/database";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface SupplierOption {
   id: string;
@@ -145,6 +146,7 @@ export function AddPurchaseForm({
   const theme = THEMES[activeTheme];
   const [isPending, startTransition] = React.useTransition();
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [transactionFeedback, setTransactionFeedback] = React.useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [missingProductName, setMissingProductName] = React.useState<string | null>(null);
 
   const isEdit = mode === "edit" && !!purchaseId && !!initialValues;
@@ -411,10 +413,12 @@ export function AddPurchaseForm({
     startTransition(async () => {
       const result = await createPurchase(buildCreateInput(action));
       if (!result.ok) {
+        setTransactionFeedback({ kind: "error", message: result.error ?? "Review the purchase details and try again." });
         setFormError(result.error ?? "Something went wrong. Try again.");
         return;
       }
-      router.push(`/purchases/${result.purchaseId}`);
+      setTransactionFeedback({ kind: "success", message: "The purchase was created successfully." });
+      window.setTimeout(() => router.push(`/purchases/${result.purchaseId}`), 900);
     });
   }
 
@@ -427,15 +431,18 @@ export function AddPurchaseForm({
     startTransition(async () => {
       const result = await updatePurchase(purchaseId!, buildUpdateInput());
       if (!result.ok) {
+        setTransactionFeedback({ kind: "error", message: result.error ?? "Review the purchase details and try again." });
         setFormError(result.error ?? "Something went wrong. Try again.");
         return;
       }
-      router.push(`/purchases/${purchaseId}`);
+      setTransactionFeedback({ kind: "success", message: "The purchase was updated successfully." });
+      window.setTimeout(() => router.push(`/purchases/${purchaseId}`), 900);
     });
   }
 
   return (
     <div className="space-y-5 pb-24">
+      {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

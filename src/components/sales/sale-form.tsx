@@ -42,6 +42,7 @@ import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 
 export interface SellableProduct {
@@ -195,6 +196,7 @@ export function SaleForm({
   const theme = THEMES[activeTheme];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [transactionFeedback, setTransactionFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [stockWarning, setStockWarning] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
@@ -494,6 +496,7 @@ export function SaleForm({
             }),
         });
         if (!result.ok) {
+          setTransactionFeedback({ kind: "error", message: result.error ?? "Review the sale details and try again." });
           setError(result.error ?? "Something went wrong.");
           return;
         }
@@ -535,6 +538,7 @@ export function SaleForm({
         })
       });
       if (result.error) {
+        setTransactionFeedback({ kind: "error", message: result.error });
         setError(result.error);
         return;
       }
@@ -683,7 +687,8 @@ export function SaleForm({
         }
 
         if (printReceipt && initialSale) await printSaleReceipt(editingSaleId, initialSale.saleNumber, paidAmount);
-        router.push(`/sales/${editingSaleId}`);
+        setTransactionFeedback({ kind: "success", message: "The sale was updated successfully." });
+        window.setTimeout(() => router.push(`/sales/${editingSaleId}`), 900);
         return;
       }
 
@@ -722,7 +727,8 @@ export function SaleForm({
       if (printReceipt && result.saleId && result.saleNumber) {
         await printSaleReceipt(result.saleId, result.saleNumber, paidAmount);
       }
-      router.push(`/sales/${result.saleId}`);
+      setTransactionFeedback({ kind: "success", message: "The sale was recorded successfully." });
+      window.setTimeout(() => router.push(`/sales/${result.saleId}`), 900);
     });
   }
 
@@ -741,6 +747,7 @@ export function SaleForm({
 
   return (
     <div className="w-full pb-32">
+      {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
