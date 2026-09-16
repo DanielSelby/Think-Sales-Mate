@@ -176,8 +176,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
           </div>
 
           {/* Filters */}
-          <Card accent="neutral" className="rounded-2xl">
-            <CardContent className="pt-5">
+          <div className="space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="relative min-w-[220px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
@@ -203,26 +202,25 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
                   <RefreshCw className="h-4 w-4" /> Clear
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Table */}
-          <Card accent="neutral" className="overflow-hidden rounded-2xl">
+          <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">
-                  <tr className="border-b border-ledger-100 text-ledger-400 dark:border-ledger-700">
-                    <th className="w-10 px-4 py-3"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></th>
-                    <th className="w-8 px-3 py-3 font-medium">#</th>
-                    <th className="px-3 py-3 font-medium">Category Name</th>
-                    <th className="px-3 py-3 font-medium">Description</th>
-                    <th className="px-3 py-3 font-medium">Department</th>
-                    <th className="px-3 py-3 text-right font-medium">Budget Limit</th>
-                    <th className="px-3 py-3 text-right font-medium">Total Expenses</th>
-                    <th className="px-3 py-3 text-right font-medium">Transactions</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-3 py-3 font-medium">Created By</th>
-                    <th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+                  <tr>
+                    <th className="w-10 px-4 py-3"></th>
+                    <th className="w-8 px-4 py-3">#</th>
+                    <th className="px-4 py-3">CATEGORY NAME</th>
+                    <th className="px-4 py-3">DESCRIPTION</th>
+                    <th className="px-4 py-3">DEPARTMENT</th>
+                    <th className="px-4 py-3 text-right">BUDGET LIMIT</th>
+                    <th className="px-4 py-3 text-right">TOTAL EXPENSES</th>
+                    <th className="px-4 py-3 text-right">TRANSACTIONS</th>
+                    <th className="px-4 py-3">STATUS</th>
+                    <th className="px-4 py-3">CREATED BY</th>
+                    <th className="px-4 py-3 pr-4 text-center">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
@@ -235,8 +233,8 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
                     return (
                       <tr key={c.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
                         <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggleRow(c.id)} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></td>
-                        <td className="px-3 py-3 text-ledger-400">{(clampedPage - 1) * rowsPerPage + i + 1}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3 text-ledger-400">{(clampedPage - 1) * rowsPerPage + i + 1}</td>
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white", palette.bg)}>
                               <Icon className="h-4 w-4" />
@@ -244,14 +242,14 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
                             <span className="font-medium text-ink-900 dark:text-white">{c.name}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{c.description ?? "—"}</td>
-                        <td className="px-3 py-3">{c.department ? <Badge tone="neutral">{c.department}</Badge> : "—"}</td>
-                        <td className="px-3 py-3 text-right font-mono text-ledger-600 dark:text-ledger-300">{c.budgetLimit ? formatCurrency(c.budgetLimit, currency) : "—"}</td>
-                        <td className="px-3 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(c.totalExpenses, currency)}</td>
-                        <td className="px-3 py-3 text-right text-ledger-600 dark:text-ledger-300">{c.transactions}</td>
-                        <td className="px-3 py-3"><Badge tone={CATEGORY_STATUS_TONE[c.status]}>{CATEGORY_STATUS_LABEL[c.status]}</Badge></td>
-                        <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{c.createdByName}</td>
-                        <td className="px-3 py-3 pr-4">
+                        <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{c.description ?? "—"}</td>
+                        <td className="px-4 py-3">{c.department ? <Badge tone="neutral">{c.department}</Badge> : "—"}</td>
+                        <td className="px-4 py-3 text-right font-mono text-ledger-600 dark:text-ledger-300">{c.budgetLimit ? formatCurrency(c.budgetLimit, currency) : "—"}</td>
+                        <td className="px-4 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(c.totalExpenses, currency)}</td>
+                        <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{c.transactions}</td>
+                        <td className="px-4 py-3"><Badge tone={CATEGORY_STATUS_TONE[c.status]}>{CATEGORY_STATUS_LABEL[c.status]}</Badge></td>
+                        <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{c.createdByName}</td>
+                        <td className="px-4 py-3 pr-4">
                           <div className="flex items-center justify-end gap-1 text-ledger-400">
                             <button onClick={() => openEdit(c)} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white" title="Edit">
                               <Pencil className="h-4 w-4" />
@@ -289,7 +287,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
 
         {/* Analytics */}
@@ -368,13 +366,23 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
 }
 
 function Kpi({ icon: Icon, accent, label, value, sub }: { icon: React.ComponentType<{ className?: string }>; accent: "neutral" | "signal" | "alert" | "amber"; label: string; value: string; sub?: string }) {
+  const iconClass = accent === "signal"
+    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+    : accent === "amber"
+      ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
+      : accent === "alert"
+        ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+        : "bg-ledger-50 text-ledger-600 dark:bg-ledger-800 dark:text-ledger-300";
   return (
-    <Card accent={accent}>
-      <CardHeader className="pb-1"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-ledger-400" /><CardTitle>{label}</CardTitle></div></CardHeader>
-      <CardContent className="pt-0">
-        <CardValue className="text-xl">{value}</CardValue>
-        {sub && <p className="mt-0.5 text-xs text-ledger-400">{sub}</p>}
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="flex items-center gap-3.5">
+        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", iconClass)}><Icon className="h-5 w-5" /></div>
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-ledger-400">{label}</p>
+          <span className="mt-0.5 block truncate font-display font-mono text-2xl font-bold text-ink-900 dark:text-white">{value}</span>
+        </div>
+      </div>
+      {sub && <p className="mt-2 text-[10px] text-ledger-400">{sub}</p>}
+    </div>
   );
 }

@@ -19,7 +19,6 @@ import {
   DISPLAY_STATUS_LABEL, DISPLAY_STATUS_TONE, deriveDisplayStatus, formatExpenseNumber, type DisplayStatus,
 } from "@/lib/expenses/format";
 import { ExpenseRowMenu } from "@/components/expenses/expense-row-menu";
-import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { bulkApproveExpenses, bulkDeleteExpenses } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
@@ -74,6 +73,35 @@ const STATUS_TABS: { key: "all" | DisplayStatus; label: string }[] = [
 
 const DONUT_COLORS = ["#1d8f5e", "#a8781f", "#68655c", "#b8402f", "#b3ab97", "#8b8677"];
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
+
+function ExpenseKpiCard({
+  icon,
+  iconClass,
+  label,
+  value,
+  detail,
+}: {
+  icon: React.ReactNode;
+  iconClass: string;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="flex items-center gap-3.5">
+        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", iconClass)}>
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-ledger-400">{label}</p>
+          <span className="mt-0.5 block truncate font-display font-mono text-2xl font-bold text-ink-900 dark:text-white">{value}</span>
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] text-ledger-400">{detail}</p>
+    </div>
+  );
+}
 
 export function ExpenseListView({
   expenses, kpis, currency, categories, paymentMethods, departments, categoryBreakdown, recentActivity,
@@ -227,16 +255,15 @@ export function ExpenseListView({
       <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <KpiFlipCard color="green" label="Total Expenses" value={formatCurrency(filteredKpis.totalExpenses, currency)} icon={<Wallet className="h-full w-full" />} detail="Sum of every expense matching the current filters." featured />
-            <KpiFlipCard color="blue" label="This Month" value={formatCurrency(filteredKpis.thisMonth, currency)} icon={<CalendarDays className="h-full w-full" />} detail="Filtered expenses dated from the 1st of this month onward." />
-            <KpiFlipCard color="teal" label="This Week" value={formatCurrency(filteredKpis.thisWeek, currency)} icon={<CalendarClock className="h-full w-full" />} detail="Filtered expenses dated within the last 7 days." />
-            <KpiFlipCard color="amber" label="Pending Approval" value={formatCurrency(filteredKpis.pendingApproval, currency)} icon={<Clock3 className="h-full w-full" />} detail="Filtered expenses still awaiting approval." />
-            <KpiFlipCard color="red" label="Overdue" value={formatCurrency(filteredKpis.overdue, currency)} icon={<AlertTriangle className="h-full w-full" />} detail="Filtered expenses past their due date and still unpaid." />
+            <ExpenseKpiCard icon={<Wallet className="h-5 w-5" />} iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400" label="Total Expenses" value={formatCurrency(filteredKpis.totalExpenses, currency)} detail="Sum of every expense matching the current filters." />
+            <ExpenseKpiCard icon={<CalendarDays className="h-5 w-5" />} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400" label="This Month" value={formatCurrency(filteredKpis.thisMonth, currency)} detail="Filtered expenses dated from the 1st of this month onward." />
+            <ExpenseKpiCard icon={<CalendarClock className="h-5 w-5" />} iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400" label="This Week" value={formatCurrency(filteredKpis.thisWeek, currency)} detail="Filtered expenses dated within the last 7 days." />
+            <ExpenseKpiCard icon={<Clock3 className="h-5 w-5" />} iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400" label="Pending Approval" value={formatCurrency(filteredKpis.pendingApproval, currency)} detail="Filtered expenses still awaiting approval." />
+            <ExpenseKpiCard icon={<AlertTriangle className="h-5 w-5" />} iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400" label="Overdue" value={formatCurrency(filteredKpis.overdue, currency)} detail="Filtered expenses past their due date and still unpaid." />
           </div>
 
           {/* Filters */}
-          <Card accent="neutral" className="rounded-2xl">
-            <CardContent className="pt-5">
+          <div className="space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="relative min-w-[220px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
@@ -268,8 +295,7 @@ export function ExpenseListView({
                   <RefreshCw className="h-4 w-4" /> Clear
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Tabs + bulk */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -300,20 +326,20 @@ export function ExpenseListView({
           {/* Table */}
           <Card accent="neutral" className="overflow-hidden rounded-2xl">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">
-                  <tr className="border-b border-ledger-100 text-ink-900 dark:border-ledger-700 dark:text-white">
-                    <th className="w-10 px-4 py-3"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></th>
-                    <th className="px-3 py-3 font-semibold">Date</th>
-                    <th className="px-3 py-3 font-semibold">Expense No.</th>
-                    <th className="px-3 py-3 font-semibold">Category</th>
-                    <th className="px-3 py-3 font-semibold">Description</th>
-                    <th className="px-3 py-3 font-semibold">Vendor</th>
-                    <th className="px-3 py-3 font-semibold">Payment Method</th>
-                    <th className="px-3 py-3 text-right font-semibold">Amount</th>
-                    <th className="px-3 py-3 font-semibold">Status</th>
-                    <th className="px-3 py-3 font-semibold">Paid On</th>
-                    <th className="px-3 py-3 pr-4 text-right font-semibold">Actions</th>
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+                  <tr>
+                    <th className="w-10 px-4 py-3"></th>
+                    <th className="px-4 py-3">DATE</th>
+                    <th className="px-4 py-3">EXPENSE NO.</th>
+                    <th className="px-4 py-3">CATEGORY</th>
+                    <th className="px-4 py-3">DESCRIPTION</th>
+                    <th className="px-4 py-3">VENDOR</th>
+                    <th className="px-4 py-3">PAYMENT METHOD</th>
+                    <th className="px-4 py-3 text-right">AMOUNT</th>
+                    <th className="px-4 py-3">STATUS</th>
+                    <th className="px-4 py-3">PAID ON</th>
+                    <th className="px-4 py-3 pr-4 text-center">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
@@ -323,16 +349,16 @@ export function ExpenseListView({
                   {pageRows.map((e) => (
                     <tr key={e.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
                       <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(e.id)} onChange={() => toggleRow(e.id)} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{new Date(e.date).toLocaleDateString("en-GH", { day: "2-digit", month: "short", year: "numeric" })}</td>
-                      <td className="px-3 py-3 font-mono text-[13px] text-signal">{formatExpenseNumber(e.expenseNumber)}</td>
-                      <td className="px-3 py-3"><Badge tone="neutral">{e.category}</Badge></td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.description ?? "—"}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.vendor ?? "—"}</td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.paymentMethod ?? "—"}</td>
-                      <td className="px-3 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(e.amount, currency)}</td>
-                      <td className="px-3 py-3"><Badge tone={DISPLAY_STATUS_TONE[e.displayStatus]}>{DISPLAY_STATUS_LABEL[e.displayStatus]}</Badge></td>
-                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.paidOn ? new Date(e.paidOn).toLocaleDateString("en-GH", { day: "2-digit", month: "short" }) : "—"}</td>
-                      <td className="px-3 py-3 pr-4">
+                      <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{new Date(e.date).toLocaleDateString("en-GH", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                      <td className="px-4 py-3 font-mono text-[13px] text-signal">{formatExpenseNumber(e.expenseNumber)}</td>
+                      <td className="px-4 py-3"><Badge tone="neutral">{e.category}</Badge></td>
+                      <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.description ?? "—"}</td>
+                      <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.vendor ?? "—"}</td>
+                      <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.paymentMethod ?? "—"}</td>
+                      <td className="px-4 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(e.amount, currency)}</td>
+                      <td className="px-4 py-3"><Badge tone={DISPLAY_STATUS_TONE[e.displayStatus]}>{DISPLAY_STATUS_LABEL[e.displayStatus]}</Badge></td>
+                      <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.paidOn ? new Date(e.paidOn).toLocaleDateString("en-GH", { day: "2-digit", month: "short" }) : "—"}</td>
+                      <td className="px-4 py-3 pr-4">
                         <ExpenseRowMenu
                           expenseId={e.id}
                           expenseNumber={e.expenseNumber}

@@ -231,7 +231,7 @@ export function AddExpenseForm({
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">
             {isEdit ? "Edit Expense" : "Add Expense"}
           </h1>
-          <p className="mt-1 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-ledger-400">
             Home <ChevronRight className="h-3.5 w-3.5" /> Expenses <ChevronRight className="h-3.5 w-3.5" /> {isEdit ? "Edit Expense" : "Add Expense"}
           </p>
         </div>
@@ -269,7 +269,7 @@ export function AddExpenseForm({
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           {/* Expense Information */}
-          <Card accent="neutral" className="rounded-2xl">
+          <Card accent="neutral" className="rounded-2xl shadow-card">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Information</CardTitle></CardHeader>
             <CardContent className="space-y-3 pt-0">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -327,16 +327,16 @@ export function AddExpenseForm({
           </Card>
 
           {/* Expense Items */}
-          <Card accent="neutral" className="rounded-2xl">
+          <Card accent="neutral" className="rounded-2xl shadow-card">
             <CardHeader className="flex-row items-center justify-between pb-2">
               <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Items</CardTitle>
               <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ink-900 dark:border-ledger-700 dark:bg-white/[0.03] dark:text-white">
+              <div className="overflow-x-auto rounded-xl border border-ledger-100 dark:border-ledger-700">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:bg-white/[0.02]">
+                    <tr className="border-b border-ledger-100 dark:border-ledger-700">
                       <th className="w-8 px-3 py-2 font-semibold">#</th>
                       <th className="px-3 py-2 font-semibold">Item / Description</th>
                       <th className="w-36 px-3 py-2 font-semibold">Category</th>
