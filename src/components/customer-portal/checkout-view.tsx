@@ -14,6 +14,7 @@ interface CheckoutViewProps {
   orgSlug: string;
   orgId: string;
   orgName: string;
+  customerPortalHeroUrl: string | null;
   currency: string;
   showPrices: boolean;
   allowSelectDelivery: boolean;
@@ -38,6 +39,7 @@ export function CheckoutView({
   orgSlug,
   orgId,
   orgName,
+  customerPortalHeroUrl,
   currency,
   showPrices,
   allowSelectDelivery,
@@ -237,7 +239,7 @@ export function CheckoutView({
       </Link>
 
       <div className="relative mb-7 min-h-[230px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[#eaf7ee] shadow-[0_18px_45px_rgba(36,108,72,0.1)]">
-        <img src="/customer-portal-hero.jpeg" alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-right" />
+        <img src={customerPortalHeroUrl ?? "/customer-portal-hero.jpeg"} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-right" />
         <div className="relative z-10 max-w-[620px] px-7 py-8 sm:px-10 sm:py-10">
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#258252]">Welcome to {orgName}</p>
           <h1 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl dark:text-white">

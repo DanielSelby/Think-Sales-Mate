@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Save, Facebook, Twitter, Linkedin, Youtube, X, Stamp, PenTool } from "lucide-react";
+import { Upload, Save, Facebook, Twitter, Linkedin, Youtube, X, Stamp, PenTool, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,6 +10,7 @@ import {
   uploadCompanyLogo,
   uploadCompanyStamp,
   uploadCompanySignature,
+  uploadCustomerPortalHero,
 } from "@/app/(dashboard)/settings/company/actions";
 import type { Database } from "@/types/database";
 
@@ -115,9 +116,11 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
   const [logoUrl, setLogoUrl] = useState(profile?.logo_url ?? null);
   const [stampUrl, setStampUrl] = useState(profile?.stamp_url ?? null);
   const [signatureUrl, setSignatureUrl] = useState(profile?.signature_url ?? null);
+  const [portalHeroUrl, setPortalHeroUrl] = useState(profile?.customer_portal_hero_url ?? null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingStamp, setUploadingStamp] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [uploadingPortalHero, setUploadingPortalHero] = useState(false);
 
   const [description, setDescription] = useState(profile?.description ?? "");
   const [showLogo, setShowLogo] = useState(profile?.show_logo_on_invoices ?? true);
@@ -163,6 +166,22 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
       if (result?.error) setError(result.error);
       else if (result?.signatureUrl) setSignatureUrl(result.signatureUrl);
       setUploadingSignature(false);
+    });
+  }
+
+  function handlePortalHeroChange(file: File) {
+    setError(null);
+    setUploadingPortalHero(true);
+    const formData = new FormData();
+    formData.append("hero", file);
+    startTransition(async () => {
+      const result = await uploadCustomerPortalHero(formData);
+      if (result?.error) setError(result.error);
+      else if (result?.heroUrl) {
+        setPortalHeroUrl(result.heroUrl);
+        router.refresh();
+      }
+      setUploadingPortalHero(false);
     });
   }
 
@@ -254,6 +273,16 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
                 icon={Upload}
                 onUpload={handleLogoChange}
                 uploading={uploadingLogo}
+                canManage={canManage}
+              />
+
+              <AssetUploader
+                label="Customer portal hero artwork"
+                hint="JPG, PNG or WebP. Recommended exact dimensions: 1600 × 598 px. Maximum size 8MB."
+                url={portalHeroUrl}
+                icon={ImageIcon}
+                onUpload={handlePortalHeroChange}
+                uploading={uploadingPortalHero}
                 canManage={canManage}
               />
 

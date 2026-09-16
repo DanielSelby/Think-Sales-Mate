@@ -20,6 +20,7 @@ export default async function CartPage({ params }: { params: Promise<{ orgSlug: 
       orgSlug={orgSlug}
       orgId={context.orgId}
       orgName={context.orgName}
+      customerPortalHeroUrl={context.customerPortalHeroUrl}
       currency={context.currency}
       showPrices={context.showPrices}
       allowSelectDelivery={context.allowCustomerSelectDelivery}

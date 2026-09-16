@@ -101,6 +101,43 @@ export interface UploadLogoResult {
   logoUrl?: string;
 }
 
+export interface UploadPortalHeroResult {
+  error?: string;
+  heroUrl?: string;
+}
+
+export async function uploadCustomerPortalHero(formData: FormData): Promise<UploadPortalHeroResult> {
+  const check = await requireAdmin();
+  if ("error" in check) return { error: check.error };
+
+  const file = formData.get("hero") as File | null;
+  if (!file || file.size === 0) return { error: "Choose a hero artwork file first." };
+  if (file.size > 8 * 1024 * 1024) return { error: "Hero artwork must be under 8MB." };
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    return { error: "Hero artwork must be a JPG, PNG, or WebP image." };
+  }
+
+  const supabase = await createClient();
+  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const path = `${check.context.orgId}/customer-portal-hero.${ext}`;
+  const { error: uploadError } = await supabase.storage.from("company-assets").upload(path, file, {
+    contentType: file.type,
+    upsert: true,
+  });
+  if (uploadError) return { error: uploadError.message };
+
+  const { data: publicUrl } = supabase.storage.from("company-assets").getPublicUrl(path);
+  const heroUrl = `${publicUrl.publicUrl}?v=${Date.now()}`;
+  const { error } = await supabase.from("company_profile").upsert(
+    { org_id: check.context.orgId, customer_portal_hero_url: heroUrl, updated_at: new Date().toISOString() },
+    { onConflict: "org_id" }
+  );
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings/company");
+  return { heroUrl };
+}
+
 export async function uploadCompanyLogo(formData: FormData): Promise<UploadLogoResult> {
   const check = await requireAdmin();
   if ("error" in check) return { error: check.error };

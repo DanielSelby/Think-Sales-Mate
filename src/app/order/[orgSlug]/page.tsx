@@ -20,6 +20,7 @@ export default async function BrowsePage({ params }: { params: Promise<{ orgSlug
       orgSlug={orgSlug}
       orgName={context.orgName}
       companyLogoUrl={context.companyLogoUrl}
+      customerPortalHeroUrl={context.customerPortalHeroUrl}
       systemLogoUrl={context.systemLogoUrl}
       currency={context.currency}
       showPrices={context.showPrices}

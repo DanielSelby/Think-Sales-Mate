@@ -41,6 +41,7 @@ interface BrowseViewProps {
   orgSlug: string;
   orgName: string;
   companyLogoUrl: string | null;
+  customerPortalHeroUrl: string | null;
   systemLogoUrl: string | null;
   currency: string;
   showPrices: boolean;
@@ -72,6 +73,7 @@ export function BrowseView({
   orgSlug,
   orgName,
   companyLogoUrl,
+  customerPortalHeroUrl,
   systemLogoUrl,
   currency,
   showPrices,
@@ -319,17 +321,11 @@ export function BrowseView({
             >
             <div className="relative mb-5 min-h-[292px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[radial-gradient(circle_at_78%_36%,#ffffff_0,#e8f6ec_30%,transparent_57%),linear-gradient(110deg,#eaf7ee,#f8fcf9_55%,#dcefdc)] shadow-[0_18px_45px_rgba(36,108,72,0.12)] dark:border-ledger-800 dark:bg-ink-900">
               <img
-                src="/customer-portal-hero.jpeg"
+                src={customerPortalHeroUrl ?? "/customer-portal-hero.jpeg"}
                 alt=""
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-right"
               />
-              {companyLogoUrl && (
-                <span className="pointer-events-none absolute right-[14%] top-[58%] z-[1] flex h-12 w-16 -translate-y-1/2 items-center justify-center sm:h-14 sm:w-20">
-                  <img src={companyLogoUrl} alt={`${orgName} logo on shopping bag`} className="h-full w-full object-contain" />
-                </span>
-              )}
-
               {/* 3D showcase illustration */}
               <div className="hidden">
 
@@ -377,9 +373,6 @@ export function BrowseView({
                         style={{ borderColor: "#16733f" }}
                       />
                       <div className="absolute inset-y-2 left-2 w-2 rounded-full bg-white/15" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        {companyLogoUrl ? <img src={companyLogoUrl} alt="" className="h-14 w-14 object-contain brightness-0 invert" /> : <span className="text-xl font-black text-white">{orgName.slice(0, 2).toUpperCase()}</span>}
-                      </div>
                     </div>
 
                     {/* Cylindrical pedestal top */}

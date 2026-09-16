@@ -590,6 +590,7 @@ export interface Database {
           tin: string | null;
           description: string | null;
           logo_url: string | null;
+          customer_portal_hero_url: string | null;
           country: string | null;
           address_line1: string | null;
           address_line2: string | null;
@@ -626,6 +627,7 @@ export interface Database {
           tin?: string | null;
           description?: string | null;
           logo_url?: string | null;
+          customer_portal_hero_url?: string | null;
           country?: string | null;
           address_line1?: string | null;
           address_line2?: string | null;
