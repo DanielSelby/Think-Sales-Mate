@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithIdentifier } from "./actions";
@@ -62,8 +62,9 @@ const LOGIN_THEMES = {
 type LoginThemeKey = keyof typeof LOGIN_THEMES;
 
 // ── Icon helpers ──────────────────────────────────────────────
-function BrandMark({ size = "md", theme }: { size?: "sm" | "md" | "lg"; theme: typeof LOGIN_THEMES[LoginThemeKey] }) {
+function BrandMark({ size = "md", theme, logoUrl }: { size?: "sm" | "md" | "lg"; theme: typeof LOGIN_THEMES[LoginThemeKey]; logoUrl?: string | null }) {
   const sz = { sm: "h-9 w-9", md: "h-11 w-11", lg: "h-14 w-14" }[size];
+  if (logoUrl) return <img src={logoUrl} alt="ThinkSales" className={`${sz} shrink-0 rounded-xl object-contain`} />;
   return (
     <div className={`${sz} flex shrink-0 items-center justify-center rounded-xl`}
       style={{ background: theme.brand.bg, boxShadow: `0 8px 24px ${theme.brand.bg}30` }}>
@@ -129,6 +130,14 @@ function LoginForm() {
   const [loading,     setLoading]     = useState(false);
   const [showPass,    setShowPass]    = useState(false);
   const [rememberMe,  setRememberMe]  = useState(true);
+  const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/system-logo", { cache: "no-store" })
+      .then((response) => response.json() as Promise<{ logoUrl?: string | null }>)
+      .then((result) => setSystemLogoUrl(result.logoUrl ?? null))
+      .catch(() => setSystemLogoUrl(null));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -173,7 +182,7 @@ function LoginForm() {
           {/* Top bar */}
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <BrandMark size="md" theme={theme} />
+              <BrandMark size="md" theme={theme} logoUrl={systemLogoUrl} />
               <div>
                 <div className="text-[23px] font-semibold tracking-[-0.7px]">
                   ThinkSales <span style={{ color: theme.panel.accent }}>Pro</span>
@@ -293,7 +302,7 @@ function LoginForm() {
             {/* Mobile logo */}
             <div className="mb-7 flex items-center justify-between lg:hidden">
               <div className="flex items-center gap-2.5">
-                <BrandMark size="sm" theme={theme} />
+                <BrandMark size="sm" theme={theme} logoUrl={systemLogoUrl} />
                 <div>
                   <div className="text-lg font-semibold tracking-tight" style={{ color: theme.btn.bg }}>
                     ThinkSales <span style={{ color: theme.link }}>Pro</span>
@@ -308,7 +317,7 @@ function LoginForm() {
               style={{ background: theme.card.bg, border: `1px solid ${theme.card.border}`, boxShadow: theme.card.shadow }}>
               <div className="text-center">
                 <div className="mx-auto mb-5 flex justify-center">
-                  <BrandMark size="lg" theme={theme} />
+                  <BrandMark size="lg" theme={theme} logoUrl={systemLogoUrl} />
                 </div>
                 <h2 className="text-[27px] font-semibold tracking-[-0.8px]" style={{ color: theme.btn.bg }}>
                   Welcome back!
