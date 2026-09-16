@@ -12,6 +12,19 @@ export type PriceUpdate = {
   specialPrice: number | null;
 };
 
+export async function setUseSystemPrices(useSystemPrices: boolean) {
+  const context = await getCurrentOrgContext();
+  if (!context || !can(context.role, "inventory.manage")) return { ok: false, error: "You do not have permission to change price settings." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("organizations").update({ use_system_prices: useSystemPrices }).eq("id", context.orgId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/inventory/prices");
+  revalidatePath("/pos");
+  revalidatePath("/sales/new");
+  revalidatePath("/sales");
+  return { ok: true };
+}
+
 function hasValidOptionalPrice(value: number | null) {
   return value === null || (Number.isFinite(value) && value >= 0);
 }

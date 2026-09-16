@@ -64,7 +64,13 @@ type LoginThemeKey = keyof typeof LOGIN_THEMES;
 // ── Icon helpers ──────────────────────────────────────────────
 function BrandMark({ size = "md", theme, logoUrl }: { size?: "sm" | "md" | "lg"; theme: typeof LOGIN_THEMES[LoginThemeKey]; logoUrl?: string | null }) {
   const sz = { sm: "h-9 w-9", md: "h-11 w-11", lg: "h-14 w-14" }[size];
-  if (logoUrl) return <img src={logoUrl} alt="ThinkSales" className={`${sz} shrink-0 rounded-xl object-contain`} />;
+  if (logoUrl) {
+    return (
+      <span className={`${sz} flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)]`}>
+        <img src={logoUrl} alt="ThinkSales" className="h-full w-full rounded-lg object-contain" />
+      </span>
+    );
+  }
   return (
     <div className={`${sz} flex shrink-0 items-center justify-center rounded-xl`}
       style={{ background: theme.brand.bg, boxShadow: `0 8px 24px ${theme.brand.bg}30` }}>

@@ -421,7 +421,9 @@ export default function PlatformAdminConsole({
       <aside className="sticky top-0 hidden h-screen w-56 shrink-0 self-start overflow-y-auto bg-[#06294a] text-white lg:block">
         <div className="border-b border-white/10 px-4 py-5">
           <div className="flex items-center gap-2">
-            <img src={currentLogoUrl} alt="" className="h-8 w-8 rounded-lg object-contain" />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
+              <img src={currentLogoUrl} alt="" className="h-full w-full rounded-lg object-contain" />
+            </span>
             <span className="font-bold">ThinkSales <small className="text-blue-300">Pro</small></span>
           </div>
           <label className="mt-4 flex cursor-pointer items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-[11px] font-semibold text-blue-100 hover:bg-white/10">

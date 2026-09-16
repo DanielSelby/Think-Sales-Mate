@@ -60,6 +60,7 @@ interface PosViewProps {
   canCheckCrossBranchStock: boolean;
   canChoosePriceTier: boolean;
   allowedPriceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
+  useSystemPrices: boolean;
 }
 
 interface CartLine extends CartItemInput {
@@ -82,7 +83,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups }: PosViewProps) {
+export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -222,7 +223,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       ? { ...existing, quantity: existing.quantity + 1, unitPrice: getTierPrice(product, priceTier), priceTier, maxStock: product.stockQuantity }
       : { key: crypto.randomUUID(), productId: product.id, name: product.name, sku: product.sku, unitPrice: getTierPrice(product, priceTier), quantity: 1, discountPercent: 0, taxPercent: taxRatePercent, maxStock: product.stockQuantity, description: "", priceTier };
     setCart((prev) => (existing ? prev.map((l) => (l.productId === product.id ? line : l)) : [...prev, line]));
-    setPriceEditLine(line);
+    if (!useSystemPrices) setPriceEditLine(line);
     setCartAddSignal((n) => n + 1);
   }
 

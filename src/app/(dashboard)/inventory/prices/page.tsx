@@ -33,5 +33,5 @@ export default async function PriceManagementPage() {
     updatedAt: product.updated_at,
   }));
 
-  return <PriceManagementView products={products} currency={context.currency} canManage={context.role === "owner" || context.role === "admin" || context.role === "manager"} />;
+  return <PriceManagementView products={products} currency={context.currency} canManage={context.role === "owner" || context.role === "admin" || context.role === "manager"} useSystemPrices={context.useSystemPrices} />;
 }

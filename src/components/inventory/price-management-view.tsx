@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Search, Download, History, Upload, Save, RefreshCw, TrendingUp, Package, Clock3, Layers3 } from "lucide-react";
-import { bulkUpdateProductPrices, getPriceHistory, updateProductPrices } from "@/app/(dashboard)/inventory/prices/actions";
+import { bulkUpdateProductPrices, getPriceHistory, setUseSystemPrices, updateProductPrices } from "@/app/(dashboard)/inventory/prices/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,7 @@ type PriceDraft = {
   specialPrice?: string;
 };
 
-export function PriceManagementView({ products, currency, canManage }: { products: PriceProduct[]; currency: string; canManage: boolean }) {
+export function PriceManagementView({ products, currency, canManage, useSystemPrices }: { products: PriceProduct[]; currency: string; canManage: boolean; useSystemPrices: boolean }) {
   const [priceProducts, setPriceProducts] = React.useState(products);
   const [tab, setTab] = React.useState<Tab>("update");
   const [query, setQuery] = React.useState("");
@@ -47,6 +47,7 @@ export function PriceManagementView({ products, currency, canManage }: { product
   const [brand, setBrand] = React.useState("all");
   const [drafts, setDrafts] = React.useState<Record<string, PriceDraft>>({});
   const [notice, setNotice] = React.useState<string | null>(null);
+  const [systemPrices, setSystemPrices] = React.useState(useSystemPrices);
   const [history, setHistory] = React.useState<any[] | null>(null);
   const [groups, setGroups] = React.useState<PriceGroup[]>([
     { id: "retail", name: "Retail", description: "Standard customer pricing" },
@@ -78,6 +79,12 @@ export function PriceManagementView({ products, currency, canManage }: { product
   });
   const money = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
 
+  async function toggleSystemPrices(next: boolean) {
+    const result = await setUseSystemPrices(next);
+    setNotice(result.ok ? (next ? "System prices are locked for transactions." : "Price changes are now allowed.") : result.error ?? "Could not update price mode.");
+    if (result.ok) setSystemPrices(next);
+  }
+
   async function save(product: PriceProduct) {
     const draft = drafts[product.id] ?? {};
     const value = Number(draft.sellingPrice ?? product.sellingPrice);
@@ -90,6 +97,10 @@ export function PriceManagementView({ products, currency, canManage }: { product
     const specialPrice = draft.specialPrice === undefined
       ? product.specialPrice
       : draft.specialPrice === "" ? null : Number(draft.specialPrice);
+    if (systemPrices) {
+      setNotice("Disable Use System Prices before changing product prices.");
+      return;
+    }
     const result = await updateProductPrices(product.id, {
       sellingPrice: value,
       wholesalePrice,
@@ -132,6 +143,10 @@ export function PriceManagementView({ products, currency, canManage }: { product
     );
     if (Object.keys(pending).length === 0) {
       setNotice("There are no pending price changes.");
+      return;
+    }
+    if (systemPrices) {
+      setNotice("Disable Use System Prices before applying price changes.");
       return;
     }
     const result = await bulkUpdateProductPrices(pending);
@@ -214,11 +229,15 @@ export function PriceManagementView({ products, currency, canManage }: { product
       <h1 className="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-white">Product Price Management</h1>
       <p className="mt-1 text-sm text-ledger-500">Manage product pricing manually, import prices in bulk, and maintain price groupings for different customer types and sales channels.</p>
     </div>
+    <Card><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+      <div><p className="font-semibold text-ink-900 dark:text-white">Transaction price mode</p><p className="mt-1 text-sm text-ledger-500">{systemPrices ? "Transactions use saved system prices and manual price changes are locked." : "Authorized users can change transaction prices."}</p></div>
+      <button type="button" role="switch" aria-checked={systemPrices} disabled={!canManage} onClick={() => toggleSystemPrices(!systemPrices)} className={cn("relative h-8 w-14 rounded-full transition-colors", systemPrices ? "bg-signal" : "bg-ledger-300")}><span className={cn("absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform", systemPrices ? "translate-x-7" : "translate-x-1")} /></button>
+    </CardContent></Card>
     <div className="flex flex-wrap gap-2 border-b border-ledger-200 dark:border-ledger-700">
       {([["update", "Update Price"], ["import", "Import Price"], ["groups", "Price Groupings"]] as const).map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={cn("border-b-2 px-4 py-3 text-sm font-semibold", tab === key ? "border-signal text-signal" : "border-transparent text-ledger-500")}>{label}</button>)}
     </div>
     {notice && <div className="rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm text-ink-900">{notice}</div>}
-    {tab === "update" && <UpdateTabV2 products={filtered} allProducts={priceProducts} currency={currency} query={query} setQuery={setQuery} category={category} setCategory={setCategory} brand={brand} setBrand={setBrand} categories={categories} brands={brands} drafts={drafts} setDrafts={setDrafts} save={save} updateAll={updateAll} showHistory={showHistory} bulkFileRef={bulkFileRef} canManage={canManage} money={money} />}
+    {tab === "update" && <UpdateTabV2 products={filtered} allProducts={priceProducts} currency={currency} query={query} setQuery={setQuery} category={category} setCategory={setCategory} brand={brand} setBrand={setBrand} categories={categories} brands={brands} drafts={drafts} setDrafts={setDrafts} save={save} updateAll={updateAll} showHistory={showHistory} bulkFileRef={bulkFileRef} canManage={canManage && !systemPrices} money={money} />}
     {history && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setHistory(null)}><Card className="max-h-[80vh] w-full max-w-2xl overflow-hidden" onClick={(event: React.MouseEvent) => event.stopPropagation()}><CardContent className="space-y-4 p-5"><div className="flex items-center justify-between"><div><h2 className="text-lg font-bold">Price History</h2><p className="text-xs text-ledger-500">A simple record of recent price changes.</p></div><Button variant="outline" onClick={() => setHistory(null)}>Close</Button></div><div className="max-h-[60vh] space-y-2 overflow-y-auto">{history.length === 0 ? <p className="rounded-xl bg-ledger-50 p-5 text-sm text-ledger-500 dark:bg-white/[0.03]">No price changes recorded yet.</p> : history.map((entry) => <div key={entry.id} className="rounded-xl border border-ledger-100 bg-ledger-50/60 p-4 dark:border-ledger-700 dark:bg-white/[0.03]"><div className="flex items-start justify-between gap-4"><div><p className="font-semibold">{entry.product_name ?? "Product price"}</p><p className="mt-1 text-xs text-ledger-500">{new Date(entry.created_at).toLocaleString()}</p></div><span className="rounded-full bg-signal-soft px-2.5 py-1 text-xs font-semibold text-signal">Updated</span></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm"><span>Retail: <strong>{entry.metadata?.new_price ?? "—"}</strong></span><span>Wholesale: <strong>{entry.metadata?.wholesale_price ?? "—"}</strong></span>    <span>VIP: <strong>{entry.metadata?.vip_price ?? "—"}</strong></span><span>S.P: <strong>{entry.metadata?.special_price ?? "—"}</strong></span></div></div>)}</div></CardContent></Card></div>}
     {tab === "import" && <Card><CardContent className="space-y-5 p-6"><h2 className="text-base font-bold">Import Price</h2><p className="text-sm text-ledger-500">Download the template, update prices in Excel or CSV, then upload it for validation before applying changes.</p><Button variant="secondary" onClick={downloadTemplate}><Download className="h-4 w-4" /> Download CSV Template</Button><label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-ledger-200 bg-ledger-50/50 text-center dark:border-ledger-700 dark:bg-white/[0.03]"><Upload className="h-7 w-7 text-signal" /><span className="mt-2 text-sm font-semibold">Drop CSV or Excel file here</span><span className="text-xs text-ledger-500">Validation preview will appear before import</span><input type="file" accept=".csv,.xlsx" className="hidden" onChange={(event) => setNotice(event.target.files?.[0] ? `${event.target.files[0].name} selected. Review and import after validation.` : null)} /></label></CardContent></Card>}
     {tab === "groups" && <GroupsTab products={priceProducts} currency={currency} canManage={canManage} groups={groups} setGroups={setGroups} setNotice={setNotice} />}

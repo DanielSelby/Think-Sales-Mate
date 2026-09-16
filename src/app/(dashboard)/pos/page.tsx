@@ -74,6 +74,7 @@ export default async function PosPage() {
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}
+      useSystemPrices={context.useSystemPrices}
     />
   );
 }

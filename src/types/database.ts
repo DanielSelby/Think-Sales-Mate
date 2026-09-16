@@ -45,6 +45,7 @@ export interface Database {
           slug: string;
           plan: OrgPlan;
           currency: string;
+          use_system_prices: boolean;
           created_by: string;
           created_at: string;
         };
@@ -54,6 +55,7 @@ export interface Database {
           slug: string;
           plan?: OrgPlan;
           currency?: string;
+          use_system_prices?: boolean;
           created_by: string;
           created_at?: string;
         };

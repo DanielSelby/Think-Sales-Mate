@@ -15,6 +15,7 @@ export interface CurrentOrgContext {
   canViewOtherTransactions: boolean;
   canCheckCrossBranchStock: boolean;
   priceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
+  useSystemPrices: boolean;
   isBranchScoped: boolean;
   allowedLocationIds: string[];
   masterLocationId: string | null;
@@ -39,7 +40,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
 
   const { data: memberRows, error } = await supabase
     .from("organization_members")
-    .select("org_id, user_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, access_permissions, organizations(name, currency, created_by)")
+    .select("org_id, user_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, access_permissions, organizations(name, currency, created_by, use_system_prices)")
     .eq("user_id", user.id)
     .eq("status", "active");
 
@@ -83,6 +84,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
       canViewOtherTransactions: canViewOther,
       canCheckCrossBranchStock,
       priceGroups: (priceGroups.length > 0 ? priceGroups : ["retail"]) as Array<"retail" | "wholesale" | "vip" | "special">,
+      useSystemPrices: organization?.use_system_prices !== false,
       isBranchScoped,
       allowedLocationIds,
     };
@@ -114,6 +116,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     canViewOtherTransactions: active.canViewOtherTransactions,
     canCheckCrossBranchStock: active.canCheckCrossBranchStock,
     priceGroups: active.priceGroups,
+    useSystemPrices: active.useSystemPrices,
     isBranchScoped: active.isBranchScoped,
     allowedLocationIds: active.allowedLocationIds,
     masterLocationId,
