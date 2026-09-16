@@ -14,7 +14,7 @@ export default async function PlatformAdminPage() {
     console.error("Platform organization reconciliation failed:", error);
   }
   const supabase = await createPlatformServerClient();
-  const [{ data: organizations }, { data: plans }, { data: features }, { data: auditLogs }, { data: usage }, { data: billing }, { data: flags }, { data: approvals }, { data: notifications }, { data: settings }] = await Promise.all([
+  const [{ data: organizations }, { data: plans }, { data: features }, { data: auditLogs }, { data: usage }, { data: billing }, { data: flags }, { data: approvals }, { data: notifications }, { data: settings }, { data: complaints }, { data: contacts }] = await Promise.all([
     supabase.from("platform_organizations").select("id, organization_id, name, plan_id, status, expires_at, created_at, updated_at, industry, suspended_at, suspension_reason").order("updated_at", { ascending: false }),
     supabase.from("subscription_plans").select("id, name, max_users, max_branches, storage_limit_gb, monthly_price, annual_price, ai_access, api_access, included_modules, is_active, archived_at").eq("is_active", true).order("monthly_price"),
     supabase.from("platform_organization_features").select("organization_id, module, enabled, access_mode, permission_options, updated_at"),
@@ -25,8 +25,10 @@ export default async function PlatformAdminPage() {
     supabase.from("platform_approvals").select("*").order("created_at", { ascending: false }).limit(100),
     supabase.from("platform_notifications").select("*").is("read_at", null).order("created_at", { ascending: false }).limit(20),
     supabase.from("platform_settings").select("key, value, updated_at").order("key"),
+    supabase.from("platform_complaints").select("*").order("created_at", { ascending: false }),
+    supabase.from("platform_support_contacts").select("*").order("name"),
   ]);
   const logoSetting = settings?.find((setting) => setting.key === "system_logo");
   const logoUrl = typeof logoSetting?.value?.url === "string" ? logoSetting.value.url : "/thinksales-logo.svg";
-  return <><header className="sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><div className="ml-auto text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div></div></header><PlatformAdminConsole logoUrl={logoUrl} organizations={organizations ?? []} plans={plans ?? []} features={features ?? []} auditLogs={auditLogs ?? []} usage={usage ?? []} billing={billing ?? []} flags={flags ?? []} approvals={approvals ?? []} notifications={notifications ?? []} settings={settings ?? []} /></>;
+  return <><header className="sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><div className="ml-auto text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div></div></header><PlatformAdminConsole logoUrl={logoUrl} organizations={organizations ?? []} plans={plans ?? []} features={features ?? []} auditLogs={auditLogs ?? []} usage={usage ?? []} billing={billing ?? []} flags={flags ?? []} approvals={approvals ?? []} notifications={notifications ?? []} settings={settings ?? []} complaints={complaints ?? []} contacts={contacts ?? []} /></>;
 }

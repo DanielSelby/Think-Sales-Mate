@@ -20,6 +20,7 @@ import {
 import type { PlatformModule } from "@/types/platform-database";
 import { PLATFORM_MODULES } from "@/lib/platform-modules";
 import { FeatureAccessManager } from "./feature-access-manager";
+import SupportCenter from "./support-center";
 
 type Organization = {
   id: string;
@@ -105,7 +106,7 @@ type Tab =
   | "Activity Logs"
   | "Impersonation"
   | "Billing & Subscriptions"
-  | "Support Center"
+  | "Complaints & Support"
   | "API & Integrations"
   | "Security Center"
   | "Audit Logs"
@@ -122,7 +123,7 @@ const tabs: { label: Tab; icon: string }[] = [
   { label: "Activity Logs", icon: "≡" },
   { label: "Impersonation", icon: "◎" },
   { label: "Billing & Subscriptions", icon: "$" },
-  { label: "Support Center", icon: "?" },
+  { label: "Complaints & Support", icon: "?" },
   { label: "API & Integrations", icon: "↔" },
   { label: "Security Center", icon: "◉" },
   { label: "System Settings", icon: "⚙" },
@@ -193,6 +194,8 @@ export default function PlatformAdminConsole({
   approvals,
   notifications,
   settings,
+  complaints,
+  contacts,
 }: {
   logoUrl: string;
   organizations: Organization[];
@@ -205,6 +208,8 @@ export default function PlatformAdminConsole({
   approvals: Approval[];
   notifications: { id: string; severity: string; title: string; message: string; created_at: string }[];
   settings: PlatformSetting[];
+  complaints: React.ComponentProps<typeof SupportCenter>["complaints"];
+  contacts: React.ComponentProps<typeof SupportCenter>["contacts"];
 }) {
   const [tab, setTab] = useState<Tab>("Overview");
   const [search, setSearch] = useState("");
@@ -513,11 +518,11 @@ export default function PlatformAdminConsole({
               <Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between py-3 text-left text-xs hover:bg-slate-50"><span><span className="block font-semibold">{org.name}</span><span className="text-slate-400">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-slate-500">{org.status}<br />{new Date(org.created_at).toLocaleDateString()}</span></button>)}</div>{!organizations.length && <p className="py-6 text-center text-xs text-slate-500">No organizations registered.</p>}</Card>
               <Card title="System Alerts"><div className="mt-3 space-y-2">{notifications.slice(0, 6).map((notice) => <div key={notice.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-xs font-semibold">{notice.title}</p><p className="mt-1 text-[11px] text-slate-500">{notice.message}</p></div>)}{!notifications.length && <p className="py-6 text-center text-xs text-slate-500">No unread system alerts.</p>}</div></Card>
               <Card title="Expiring Subscriptions"><div className="mt-3 space-y-2">{organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000).slice(0, 5).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{org.name}</strong><span className="text-slate-500">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-rose-600">{org.expires_at ? new Date(org.expires_at).toLocaleDateString() : "—"}<br /><span className="text-[10px] text-slate-400">Manage</span></span></button>)}{!organizations.some((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000) && <p className="py-6 text-center text-xs text-slate-500">No subscriptions expiring within 30 days.</p>}</div></Card>
-              <div className="space-y-5"><Card title="Quick Actions">{[["Create Organization", () => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }], ["Assign Subscription", () => setTab("Organizations")], ["Enable Features", () => setTab("Feature Access")], ["Suspend Organization", () => { if (selected) void run(() => updatePlatformOrganization(selected.id, { status: "suspended" }), "Organization suspended."); }], ["View Activity Logs", () => setTab("Activity Logs")], ["Support Center", () => setTab("Support Center")]].map(([label, action]) => <button type="button" key={String(label)} onClick={action as () => void} className="mt-2 flex w-full items-center justify-between rounded-lg border p-3 text-left text-xs font-semibold hover:bg-slate-50">{String(label)}<ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>)}</Card><Card title="Platform Stats"><div className="space-y-3 text-xs"><p className="flex justify-between"><span className="flex items-center gap-2"><Database className="h-3.5 w-3.5 text-emerald-600" />Database Health</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>API Services</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>Storage Usage</span><strong>{usageTotals.storage.toFixed(1)} GB</strong></p><p className="flex justify-between"><span>Backups</span><strong className="text-emerald-600">Completed</strong></p><p className="flex justify-between"><span>Queue Health</span><strong className="text-emerald-600">Healthy</strong></p></div></Card></div>
+              <div className="space-y-5"><Card title="Quick Actions">{[["Create Organization", () => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }], ["Assign Subscription", () => setTab("Organizations")], ["Enable Features", () => setTab("Feature Access")], ["Suspend Organization", () => { if (selected) void run(() => updatePlatformOrganization(selected.id, { status: "suspended" }), "Organization suspended."); }], ["View Activity Logs", () => setTab("Activity Logs")],               ["Complaints & Support", () => setTab("Complaints & Support")]].map(([label, action]) => <button type="button" key={String(label)} onClick={action as () => void} className="mt-2 flex w-full items-center justify-between rounded-lg border p-3 text-left text-xs font-semibold hover:bg-slate-50">{String(label)}<ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>)}</Card><Card title="Platform Stats"><div className="space-y-3 text-xs"><p className="flex justify-between"><span className="flex items-center gap-2"><Database className="h-3.5 w-3.5 text-emerald-600" />Database Health</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>API Services</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>Storage Usage</span><strong>{usageTotals.storage.toFixed(1)} GB</strong></p><p className="flex justify-between"><span>Backups</span><strong className="text-emerald-600">Completed</strong></p><p className="flex justify-between"><span>Queue Health</span><strong className="text-emerald-600">Healthy</strong></p></div></Card></div>
             </div>
-            <div className="mt-5 grid gap-5 xl:grid-cols-3"><Card title="Top Organizations by Revenue"><div className="mt-3 space-y-3">{topOrganizations.map((org, index) => <div key={org.organization_id} className="flex items-center gap-3 text-xs"><span className="w-5 font-bold text-slate-400">#{index + 1}</span><span className="flex-1 font-semibold">{org.name}</span><strong>{Number(org.sales_volume || 0).toLocaleString(undefined, { style: "currency", currency: "USD" })}</strong></div>)}</div></Card><Card title="Recent Platform Activity"><div className="mt-3 space-y-3">{recentPlatformActivity.map((log) => <div key={log.id} className="flex items-center justify-between border-b pb-2 text-xs last:border-0"><span><strong>{log.action}</strong><span className="ml-2 text-slate-500">{log.module}</span></span><span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span></div>)}{!recentPlatformActivity.length && <p className="py-6 text-center text-xs text-slate-500">No platform activity recorded.</p>}</div></Card><Card title="Recent Support Tickets"><div className="mt-3 space-y-2">{approvals.slice(0, 5).map((approval) => <button type="button" key={approval.id} onClick={() => setTab("Support Center")} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{approval.approval_type}</strong><span className="text-slate-500">Platform request</span></span><span className="text-slate-500">{approval.status}</span></button>)}{!approvals.length && <p className="py-6 text-center text-xs text-slate-500">No support requests recorded.</p>}</div></Card></div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-3"><Card title="Top Organizations by Revenue"><div className="mt-3 space-y-3">{topOrganizations.map((org, index) => <div key={org.organization_id} className="flex items-center gap-3 text-xs"><span className="w-5 font-bold text-slate-400">#{index + 1}</span><span className="flex-1 font-semibold">{org.name}</span><strong>{Number(org.sales_volume || 0).toLocaleString(undefined, { style: "currency", currency: "USD" })}</strong></div>)}</div></Card><Card title="Recent Platform Activity"><div className="mt-3 space-y-3">{recentPlatformActivity.map((log) => <div key={log.id} className="flex items-center justify-between border-b pb-2 text-xs last:border-0"><span><strong>{log.action}</strong><span className="ml-2 text-slate-500">{log.module}</span></span><span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span></div>)}{!recentPlatformActivity.length && <p className="py-6 text-center text-xs text-slate-500">No platform activity recorded.</p>}</div></Card><Card title="Recent Support Tickets"><div className="mt-3 space-y-2">{approvals.slice(0, 5).map((approval) => <button type="button" key={approval.id}             onClick={() => setTab("Complaints & Support")} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{approval.approval_type}</strong><span className="text-slate-500">Platform request</span></span><span className="text-slate-500">{approval.status}</span></button>)}{!approvals.length && <p className="py-6 text-center text-xs text-slate-500">No support requests recorded.</p>}</div></Card></div>
           </>
-        ) : tab === "Organizations" ? (
+        ) : tab === "Complaints & Support" ? <SupportCenter complaints={complaints} contacts={contacts} /> : tab === "Organizations" ? (
           <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {[["Total Organizations", counts.total, "bg-blue-50"], ["Active Organizations", counts.active, "bg-emerald-50"], ["Trial Organizations", counts.trial, "bg-violet-50"], ["Suspended", counts.suspended, "bg-amber-50"], ["Expiring Subscriptions", expiringSubscriptions, "bg-rose-50"]].map(([label, value, color]) => <div key={String(label)} className={`rounded-xl border border-slate-200 ${color} p-4 shadow-sm`}><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{value}</p></div>)}

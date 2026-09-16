@@ -277,3 +277,63 @@ export async function getOrganizationFeatures(organizationId: string) {
   if (error) throw new Error(error.message);
   return data;
 }
+
+export async function updateComplaintStatus(id: string, status: "new" | "open" | "assigned" | "in_progress" | "awaiting_customer" | "resolved" | "closed") {
+  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const update = { status, updated_at: new Date().toISOString(), ...(status === "resolved" ? { resolved_at: new Date().toISOString() } : {}) };
+  const { data, error } = await supabase.from("platform_complaints").update(update).eq("id", id).select("organization_id").single();
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_complaint_activity").insert({ complaint_id: id, action: `Status changed to ${status}`, actor_name: admin.display_name, metadata: { status } });
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, organization_id: data.organization_id, action: "complaint_status_changed", module: "complaints", metadata: { complaintId: id, status } });
+  revalidatePath("/platform-admin");
+}
+
+export async function updateComplaintPriority(id: string, priority: "low" | "medium" | "high" | "critical") {
+  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { data, error } = await supabase.from("platform_complaints").update({ priority, updated_at: new Date().toISOString() }).eq("id", id).select("organization_id").single();
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_complaint_activity").insert({ complaint_id: id, action: `Priority changed to ${priority}`, actor_name: admin.display_name, metadata: { priority } });
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, organization_id: data.organization_id, action: "complaint_priority_changed", module: "complaints", metadata: { complaintId: id, priority } });
+  revalidatePath("/platform-admin");
+}
+
+export async function addSupportContact(input: {
+  contactType: "support_team" | "emergency" | "technical" | "sales_subscription";
+  name: string;
+  position?: string;
+  department?: string;
+  specialty?: string;
+  role?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  availabilityStatus?: string;
+  assignedRegion?: string;
+}) {
+  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { data, error } = await supabase.from("platform_support_contacts").insert({
+    contact_type: input.contactType,
+    name: input.name.trim(),
+    position: input.position || null,
+    department: input.department || null,
+    specialty: input.specialty || null,
+    role: input.role || null,
+    phone: input.phone || null,
+    whatsapp: input.whatsapp || null,
+    email: input.email || null,
+    availability_status: input.availabilityStatus || "available",
+    assigned_region: input.assignedRegion || null,
+  }).select("*").single();
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "support_contact_created", module: "contact_directory", metadata: { contactId: data.id } });
+  revalidatePath("/platform-admin");
+  return data;
+}
+
+export async function setSupportContactActive(id: string, isActive: boolean) {
+  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { error } = await supabase.from("platform_support_contacts").update({ is_active: isActive, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: isActive ? "support_contact_enabled" : "support_contact_disabled", module: "contact_directory", metadata: { contactId: id } });
+  revalidatePath("/platform-admin");
+}

@@ -7,7 +7,7 @@ export type PlatformRole =
 
 export type PlatformModule = string;
 
-type PlatformTable<Row, Insert = Row> = {
+type PlatformTable<Row, Insert = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
   Update: Partial<Row>;
@@ -219,6 +219,61 @@ export interface PlatformDatabase {
         message: string;
         read_at?: string | null;
         created_at?: string;
+      }>;
+      platform_support_contacts: PlatformTable<{
+        id: string;
+        contact_type: "support_team" | "emergency" | "technical" | "sales_subscription";
+        name: string;
+        position: string | null;
+        department: string | null;
+        specialty: string | null;
+        role: string | null;
+        phone: string | null;
+        whatsapp: string | null;
+        email: string | null;
+        availability_status: string;
+        assigned_region: string | null;
+        is_active: boolean;
+        created_at: string;
+        updated_at: string;
+      }>;
+      platform_complaints: PlatformTable<{
+        id: string;
+        ticket_number: string;
+        organization_id: string;
+        organization_name: string;
+        submitted_by: string;
+        submitter_email: string | null;
+        category: string;
+        subject: string;
+        description: string;
+        priority: "low" | "medium" | "high" | "critical";
+        status: "new" | "open" | "assigned" | "in_progress" | "awaiting_customer" | "resolved" | "closed";
+        assigned_to: string | null;
+        first_response_at: string | null;
+        resolved_at: string | null;
+        first_response_due: string;
+        resolution_due: string;
+        escalation_level: number;
+        created_at: string;
+        updated_at: string;
+      }>;
+      platform_complaint_messages: PlatformTable<{
+        id: string;
+        complaint_id: string;
+        author_name: string;
+        author_email: string | null;
+        body: string;
+        is_internal: boolean;
+        created_at: string;
+      }>;
+      platform_complaint_activity: PlatformTable<{
+        id: string;
+        complaint_id: string;
+        action: string;
+        actor_name: string;
+        metadata: Record<string, unknown>;
+        created_at: string;
       }>;
       platform_usage_metrics: PlatformTable<{
         organization_id: string;
