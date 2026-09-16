@@ -333,45 +333,45 @@ export function AddExpenseForm({
               <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="overflow-x-auto rounded-xl border border-ledger-100 dark:border-ledger-700">
+              <div className="overflow-x-auto rounded-2xl border border-ledger-100 dark:border-ledger-700">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:bg-white/[0.02]">
+                  <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
                     <tr className="border-b border-ledger-100 dark:border-ledger-700">
-                      <th className="w-8 px-3 py-2 font-semibold">#</th>
-                      <th className="px-3 py-2 font-semibold">Item / Description</th>
-                      <th className="w-36 px-3 py-2 font-semibold">Category</th>
-                      <th className="w-16 px-3 py-2 text-right font-semibold">Qty</th>
-                      <th className="w-24 px-3 py-2 text-right font-semibold">Unit Cost</th>
-                      <th className="w-20 px-3 py-2 text-right font-semibold">Tax</th>
-                      <th className="w-24 px-3 py-2 text-right font-semibold">Amount</th>
-                      <th className="w-10 px-3 py-2" />
+                      <th className="w-8 px-4 py-3 font-semibold">#</th>
+                      <th className="px-4 py-3 font-semibold">Item / Description</th>
+                      <th className="w-36 px-4 py-3 font-semibold">Category</th>
+                      <th className="w-16 px-4 py-3 text-right font-semibold">Qty</th>
+                      <th className="w-24 px-4 py-3 text-right font-semibold">Unit Cost</th>
+                      <th className="w-20 px-4 py-3 text-right font-semibold">Tax</th>
+                      <th className="w-24 px-4 py-3 text-right font-semibold">Amount</th>
+                      <th className="w-10 px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
                     {items.map((item, i) => (
                       <tr key={item.key}>
-                        <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
-                        <td className="px-3 py-2">
+                        <td className="px-4 py-3 text-ledger-400">{i + 1}</td>
+                        <td className="px-4 py-3">
                           <input value={item.description} onChange={(e) => updateItem(item.key, { description: e.target.value })} placeholder="e.g. A4 Papers (Double A)" className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-4 py-3">
                           <select value={item.category} onChange={(e) => updateItem(item.key, { category: e.target.value })} className="h-8 w-full rounded border border-ledger-200 bg-white px-1.5 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
                             {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-4 py-3">
                           <input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(item.key, { quantity: Math.max(1, Number(e.target.value)) })} className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-4 py-3">
                           <input type="number" min={0} step="0.01" value={item.unitCost} onChange={(e) => updateItem(item.key, { unitCost: Number(e.target.value) })} className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-4 py-3">
                           <input type="number" min={0} step="0.01" value={item.taxAmount} onChange={(e) => updateItem(item.key, { taxAmount: Number(e.target.value) })} className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
                         </td>
-                        <td className="px-3 py-2 text-right font-mono font-medium text-ink-900 dark:text-white">
+                        <td className="px-4 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">
                           {(item.quantity * item.unitCost + item.taxAmount).toFixed(2)}
                         </td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-4 py-3 text-right">
                           <button onClick={() => removeItem(item.key)} className="rounded p-1.5 text-alert/70 hover:bg-alert-soft hover:text-alert">
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -379,11 +379,11 @@ export function AddExpenseForm({
                       </tr>
                     ))}
                     <tr className="bg-ledger-50/60 font-medium dark:bg-white/[0.03]">
-                      <td colSpan={3} className="px-3 py-2 text-right text-ledger-500">Total</td>
-                      <td className="px-3 py-2 text-right text-ledger-500">{items.reduce((s, i) => s + i.quantity, 0)}</td>
+                      <td colSpan={3} className="px-4 py-3 text-right text-ledger-500">Total</td>
+                      <td className="px-4 py-3 text-right text-ledger-500">{items.reduce((s, i) => s + i.quantity, 0)}</td>
                       <td />
-                      <td className="px-3 py-2 text-right text-ledger-500">{taxTotal.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-ink-900 dark:text-white">{(subtotal + taxTotal).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-ledger-500">{taxTotal.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-ink-900 dark:text-white">{(subtotal + taxTotal).toFixed(2)}</td>
                       <td />
                     </tr>
                   </tbody>

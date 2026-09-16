@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import {
-  Search, Filter, Plus, Download, Upload, X, RefreshCw, Wallet, CalendarDays,
+  Search, Filter, Plus, Download, Upload, X, RefreshCw, FileText, Wallet, CalendarDays,
   CalendarClock, Clock3, AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,14 +88,14 @@ function ExpenseKpiCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+    <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
       <div className="flex items-center gap-3.5">
-        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", iconClass)}>
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass)}>
           {icon}
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-medium text-ledger-400">{label}</p>
-          <span className="mt-0.5 block truncate font-display font-mono text-2xl font-bold text-ink-900 dark:text-white">{value}</span>
+          <span className="mt-0.5 block truncate font-display font-mono text-xl font-bold text-ink-900 dark:text-white">{value}</span>
         </div>
       </div>
       <p className="mt-2 text-[10px] text-ledger-400">{detail}</p>
@@ -324,7 +324,23 @@ export function ExpenseListView({
           </div>
 
           {/* Table */}
-          <Card accent="neutral" className="overflow-hidden rounded-2xl">
+          <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ledger-100 p-4 dark:border-ledger-700">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <h3 className="text-xs font-semibold text-ink-900 dark:text-white">
+                  Expense History ({filtered.length} records)
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-ledger-500">
+                <span className="hidden sm:inline text-[11px]">Show:</span>
+                <Select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }} className="h-8 w-auto rounded-xl">
+                  {ROWS_PER_PAGE_OPTIONS.map((n) => <option key={n} value={n}>{n} per page</option>)}
+                </Select>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
@@ -342,7 +358,7 @@ export function ExpenseListView({
                     <th className="px-4 py-3 pr-4 text-center">ACTIONS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
+                <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
                   {pageRows.length === 0 && (
                     <tr><td colSpan={11} className="px-4 py-12 text-center text-ledger-400">No expenses match your filters.</td></tr>
                   )}
@@ -385,9 +401,7 @@ export function ExpenseListView({
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-sm text-ledger-500">
                   Rows per page
-                  <Select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }} className="h-8 w-20">
-                    {ROWS_PER_PAGE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </Select>
+                  <span className="font-semibold text-ink-900 dark:text-white">{rowsPerPage}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={clampedPage === 1} className="rounded-md border border-ledger-200 p-2 text-ledger-500 hover:bg-ledger-50 disabled:opacity-40 dark:border-ledger-700">‹</button>
@@ -396,7 +410,7 @@ export function ExpenseListView({
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
       </div>
 
       {/* Analytics — full-width row below the table */}

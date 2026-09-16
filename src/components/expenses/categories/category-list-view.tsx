@@ -374,12 +374,12 @@ function Kpi({ icon: Icon, accent, label, value, sub }: { icon: React.ComponentT
         ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
         : "bg-ledger-50 text-ledger-600 dark:bg-ledger-800 dark:text-ledger-300";
   return (
-    <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+    <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
       <div className="flex items-center gap-3.5">
-        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", iconClass)}><Icon className="h-5 w-5" /></div>
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass)}><Icon className="h-5 w-5" /></div>
         <div className="min-w-0">
           <p className="text-[11px] font-medium text-ledger-400">{label}</p>
-          <span className="mt-0.5 block truncate font-display font-mono text-2xl font-bold text-ink-900 dark:text-white">{value}</span>
+          <span className="mt-0.5 block truncate font-display font-mono text-xl font-bold text-ink-900 dark:text-white">{value}</span>
         </div>
       </div>
       {sub && <p className="mt-2 text-[10px] text-ledger-400">{sub}</p>}

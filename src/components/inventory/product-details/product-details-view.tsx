@@ -132,11 +132,11 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
     const selectedQty = branchFilter === "All Branches"
       ? product.stockQuantity
       : (selectedBranch?.quantity ?? 0);
-    const netMovement = baseMovements.reduce(
-      (sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0),
-      0
-    );
-    const adjustedOpeningBalance = selectedQty - netMovement;
+    const nonOpeningMovement = baseMovements
+      .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
+      .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const hasOpeningEntry = baseMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
+    const adjustedOpeningBalance = hasOpeningEntry ? 0 : selectedQty - nonOpeningMovement;
 
     return calculateRunningBalances(baseMovements, adjustedOpeningBalance);
   }, [branchFilter, product.movements, product.stockQuantity, selectedBranch]);
@@ -157,11 +157,11 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
       };
     }
 
-    const netMovement = activeLedgerMovements.reduce(
-      (sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0),
-      0
-    );
-    const openingBalance = (selectedBranch?.quantity ?? 0) - netMovement;
+    const nonOpeningMovement = activeLedgerMovements
+      .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
+      .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const hasOpeningEntry = activeLedgerMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
+    const openingBalance = hasOpeningEntry ? 0 : (selectedBranch?.quantity ?? 0) - nonOpeningMovement;
     const summary = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
     return summary.analytics;
   }, [activeLedgerMovements, branchFilter, product.analytics, product.costPrice, selectedBranch]);
@@ -182,11 +182,10 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
       };
     }
 
-    const netMovement = activeLedgerMovements.reduce(
-      (sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0),
-      0
-    );
-    const openingBalance = selectedQty - netMovement;
+    const nonOpeningMovement = activeLedgerMovements
+      .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
+      .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const openingBalance = selectedQty - nonOpeningMovement;
     const computed = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
     return {
       ...computed.summary,
@@ -1141,12 +1140,12 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                               </td>
 
                               {/* In Qty */}
-                              <td className="px-2 py-3 text-center font-bold text-ink-900 dark:text-white">
+                              <td className="px-2 py-3 text-center font-bold text-emerald-600 dark:text-emerald-400">
                                 {m.inQty !== null ? m.inQty : "-"}
                               </td>
 
                               {/* Out Qty */}
-                              <td className="px-2 py-3 text-center font-bold text-ink-900 dark:text-white">
+                              <td className="px-2 py-3 text-center font-bold text-red-600 dark:text-red-400">
                                 {m.outQty !== null ? m.outQty : "-"}
                               </td>
 

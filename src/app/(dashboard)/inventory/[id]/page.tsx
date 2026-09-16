@@ -409,7 +409,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     // quantity. Subtract this branch's recorded movements so the generated
     // opening row does not double-count transfers, sales, or adjustments.
     const branchNetMovement = realMovements
-      .filter((movement) => movement.branchName === branchName)
+      .filter((movement) => movement.branchName === branchName && movement.type !== "Opening Stock" && movement.type !== "Import")
       .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
     const openingQty = branchQty - branchNetMovement;
     if (openingQty <= 0) continue;
@@ -437,18 +437,17 @@ export default async function ProductDetailPage({ params }: PageProps) {
     initialStockBranchNames.add(stockKey);
   }
 
-  // The fetched movement history can be incomplete because each source query is capped.
-  // Use the stock levels as the reconciliation point for the balance before the
-  // earliest row in the displayed ledger. Opening/import rows remain normal
-  // inflows and are included in Total In.
-  let totalNetMovement = 0;
-  for (const m of realMovements) {
-    totalNetMovement += (m.inQty ?? 0) - (m.outQty ?? 0);
-  }
-  const computedOpeningBalance = currentActualStock - totalNetMovement;
+  // Use the current stock quantity as the reconciliation point and exclude
+  // opening/import rows from movement totals. Those rows remain visible in the
+  // ledger, but they are not part of the recurring in/out analytics.
+  const totalActivityNetMovement = realMovements
+    .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
+    .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+  const computedOpeningBalance = currentActualStock - totalActivityNetMovement;
+  const hasOpeningEntry = realMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
 
   // Calculate Real Running Balances and Analytics
-  const finalMovements = calculateRunningBalances(realMovements, computedOpeningBalance);
+  const finalMovements = calculateRunningBalances(realMovements, hasOpeningEntry ? 0 : computedOpeningBalance);
 
   const analyticsData = computeLedgerAnalytics(
     finalMovements,

@@ -146,6 +146,10 @@ export function calculateRunningBalances(
   );
 }
 
+export function isOpeningBalanceMovement(type: TransactionType): boolean {
+  return type === "Opening Stock" || type === "Import";
+}
+
 export function computeLedgerAnalytics(
   movements: StockMovement[],
   unitCost: number,
@@ -158,6 +162,10 @@ export function computeLedgerAnalytics(
   let totalAdjustmentsQty = 0;
 
   for (const m of movements) {
+    if (isOpeningBalanceMovement(m.type)) {
+      continue;
+    }
+
     if (m.inQty && m.inQty > 0) {
       totalInQty += m.inQty;
     }
