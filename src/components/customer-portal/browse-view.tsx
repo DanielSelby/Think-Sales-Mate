@@ -325,7 +325,7 @@ export function BrowseView({
                 className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-right"
               />
               {companyLogoUrl && (
-                <span className="pointer-events-none absolute right-[14%] top-[58%] z-[1] flex h-12 w-16 -translate-y-1/2 items-center justify-center rounded-lg bg-white/95 p-1.5 shadow-[0_8px_18px_rgba(0,0,0,0.18)] sm:h-14 sm:w-20">
+                <span className="pointer-events-none absolute right-[14%] top-[58%] z-[1] flex h-12 w-16 -translate-y-1/2 items-center justify-center sm:h-14 sm:w-20">
                   <img src={companyLogoUrl} alt={`${orgName} logo on shopping bag`} className="h-full w-full object-contain" />
                 </span>
               )}

@@ -225,8 +225,10 @@ export function CheckoutView({
   }
 
   return (
-    <div className="min-h-screen bg-[#f7fbf8] px-4 pb-24 pt-6 dark:bg-ink-950">
-      <div className="mx-auto max-w-6xl">
+    <div className="relative min-h-screen overflow-hidden bg-[#f7fbf8] px-4 pb-24 pt-6 dark:bg-ink-950">
+      <div className="pointer-events-none absolute -left-32 top-[-150px] h-[330px] w-[330px] rounded-full border-[24px] border-[#dff3e6] opacity-90 shadow-[inset_-18px_-12px_30px_rgba(255,255,255,0.8)] dark:border-emerald-950/60" />
+      <div className="pointer-events-none absolute -bottom-44 -right-36 h-[390px] w-[390px] rounded-full border-[26px] border-[#dff3e6] opacity-90 shadow-[inset_18px_12px_30px_rgba(255,255,255,0.8)] dark:border-emerald-950/60" />
+      <div className="relative z-10 mx-auto max-w-6xl">
       <Link
         href={`/order/${orgSlug}`}
         className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-ledger-600 hover:text-ink-900 dark:text-ledger-300 dark:hover:text-white"
