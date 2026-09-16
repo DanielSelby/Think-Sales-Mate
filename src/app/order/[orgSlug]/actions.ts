@@ -4,10 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyNewCustomerOrder } from "@/lib/notifications";
 import { isPortalActive } from "@/lib/customer-portal/schedule";
+import { getPlatformSystemLogo } from "@/lib/supabase/platform-admin";
 
 export interface PortalContext {
   orgId: string;
   orgName: string;
+  companyLogoUrl: string | null;
+  systemLogoUrl: string | null;
   currency: string;
   isEnabled: boolean;
   showPrices: boolean;
@@ -35,12 +38,18 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
     .eq("slug", orgSlug)
     .maybeSingle();
   if (!org) return null;
+  const [{ data: companyProfile }, systemLogoUrl] = await Promise.all([
+    publicSupabase.from("company_profile").select("logo_url").eq("org_id", org.id).maybeSingle(),
+    getPlatformSystemLogo().catch(() => null),
+  ]);
 
   const { data: settings } = await supabase.from("customer_portal_settings").select("*").eq("org_id", org.id).maybeSingle();
 
   return {
     orgId: org.id,
     orgName: org.name,
+    companyLogoUrl: companyProfile?.logo_url ?? null,
+    systemLogoUrl,
     currency: org.currency,
     isEnabled: isPortalActive({
       isEnabled: settings?.is_enabled ?? false,

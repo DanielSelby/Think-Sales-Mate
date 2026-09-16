@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, useRef } from "react";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -587,7 +588,7 @@ export function StockAdjustmentForm({
               : "Draft saved.",
         });
         if (targetStatus === "completed") {
-          setTimeout(() => router.push("/inventory/history"), 1500);
+          // Navigate after the user has seen and dismissed the result dialog.
         }
       } catch (err) {
         setFeedbackMessage({
@@ -672,28 +673,15 @@ export function StockAdjustmentForm({
 
       {/* ── Feedback Notification Banner ───────────────────────────────── */}
       {feedbackMessage && (
-        <div
-          className={`flex items-center justify-between rounded-xl p-3.5 text-xs ${
-            feedbackMessage.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60"
-              : "bg-alert-soft text-alert border border-red-200 dark:border-red-900"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {feedbackMessage.type === "success" ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-            ) : (
-              <AlertCircle className="h-4 w-4 shrink-0 text-alert" />
-            )}
-            <span className="font-medium">{feedbackMessage.text}</span>
-          </div>
-          <button
-            onClick={() => setFeedbackMessage(null)}
-            className="text-ledger-400 hover:text-ink-900 dark:hover:text-white"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <TransactionFeedback
+          kind={feedbackMessage.type}
+          message={feedbackMessage.text}
+          onClose={() => {
+            const shouldNavigate = feedbackMessage.type === "success" && status !== "draft";
+            setFeedbackMessage(null);
+            if (shouldNavigate) router.push("/inventory/history");
+          }}
+        />
       )}
 
       {/* ── Collapsible Header Parameters Card ──────────────────────────── */}

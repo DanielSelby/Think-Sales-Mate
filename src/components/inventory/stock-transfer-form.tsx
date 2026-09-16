@@ -40,6 +40,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { formatCurrency } from "@/lib/sales/format";
 import { createStockTransfer, updateTransferStatus, deleteTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
 import type { TransferStatus, LocationType } from "@/types/database";
@@ -172,6 +173,7 @@ export function StockTransferForm({
   const [showNotifications, setShowNotifications] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [transactionFeedback, setTransactionFeedback] = useState<{ kind: "success"; message: string } | null>(null);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -411,15 +413,10 @@ export function StockTransferForm({
         setErrorMessage(result.error);
         setShowApprovalModal(false);
       } else {
-        setSuccessMessage(`Stock Transfer #${transferNumber} successfully created and dispatched!`);
         setShowApprovalModal(false);
         setItems([]);
 
-        // Redirect to stock transfer history so the user sees the real record immediately!
-        setTimeout(() => {
-          router.push("/inventory/transfers");
-          router.refresh();
-        }, 1200);
+        setTransactionFeedback({ kind: "success", message: `Stock Transfer #${transferNumber} was created and dispatched successfully.` });
       }
     });
   };
@@ -429,6 +426,7 @@ export function StockTransferForm({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150 pb-20">
+      {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => { setTransactionFeedback(null); router.push("/inventory/transfers"); router.refresh(); }} />}
       {/* Toast Notification */}
       {successMessage && (
         <div className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-2xl bg-emerald-700 px-5 py-3.5 text-white shadow-2xl animate-in slide-in-from-top-4">

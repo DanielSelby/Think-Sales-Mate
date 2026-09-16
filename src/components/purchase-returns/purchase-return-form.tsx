@@ -18,6 +18,7 @@ import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/att
 import {
   getPurchaseForReturn, createPurchaseReturn, type EligiblePurchase, type PurchaseForReturn, type ReturnableLine,
 } from "@/app/(dashboard)/purchases/returns/actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface LocationOption { id: string; name: string; }
 export interface BankAccountOption { id: string; name: string; }
@@ -46,6 +47,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
   const [isPending, startTransition] = React.useTransition();
   const [loadingPurchase, setLoadingPurchase] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [transactionFeedback, setTransactionFeedback] = React.useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const [purchase, setPurchase] = React.useState<PurchaseForReturn | null>(null);
   const [locationId, setLocationId] = React.useState("");
@@ -151,15 +153,18 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
         action,
       });
       if (!result.ok) {
+        setTransactionFeedback({ kind: "error", message: result.error ?? "Review the return details and try again." });
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      router.push(`/purchases/returns/${result.returnId}`);
+      setTransactionFeedback({ kind: "success", message: `Purchase return ${action === "draft" ? "saved as draft" : "submitted"} successfully.` });
+      window.setTimeout(() => router.push(`/purchases/returns/${result.returnId}`), 900);
     });
   }
 
   return (
     <div className="space-y-4 pb-24 text-xs">
+      {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

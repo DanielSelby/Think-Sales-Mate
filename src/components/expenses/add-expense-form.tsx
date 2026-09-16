@@ -19,6 +19,7 @@ import {
   type ExpenseItemInput, type ApproverOption, type BudgetStatus, type RecentExpenseSummary, type PurchaseOrderOption,
 } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface LocationOption { id: string; name: string; }
 export interface BankAccountOption { id: string; name: string; }
@@ -76,6 +77,7 @@ export function AddExpenseForm({
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
+  const [transactionFeedback, setTransactionFeedback] = React.useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const isEdit = mode === "edit" && !!expenseId && !!initialValues;
 
@@ -183,10 +185,12 @@ export function AddExpenseForm({
         action,
       });
       if (!result.ok) {
+        setTransactionFeedback({ kind: "error", message: result.error ?? "Review the expense details and try again." });
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      router.push("/expenses");
+      setTransactionFeedback({ kind: "success", message: "The expense was recorded successfully." });
+      window.setTimeout(() => router.push("/expenses"), 900);
     });
   }
 
@@ -207,10 +211,12 @@ export function AddExpenseForm({
         discountAmount, items: buildItems(), isRecurring, recurringFrequency: isRecurring ? recurringFrequency : null,
       });
       if (!result.ok) {
+        setTransactionFeedback({ kind: "error", message: result.error ?? "Review the expense details and try again." });
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      router.push(`/expenses/${expenseId}`);
+      setTransactionFeedback({ kind: "success", message: "The expense was updated successfully." });
+      window.setTimeout(() => router.push(`/expenses/${expenseId}`), 900);
     });
   }
 
@@ -258,6 +264,7 @@ export function AddExpenseForm({
       )}
 
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-4 py-2.5 text-sm text-alert">{error}</div>}
+      {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">

@@ -40,6 +40,8 @@ import { RefreshButton } from "@/components/refresh-button";
 interface BrowseViewProps {
   orgSlug: string;
   orgName: string;
+  companyLogoUrl: string | null;
+  systemLogoUrl: string | null;
   currency: string;
   showPrices: boolean;
   products: CatalogProduct[];
@@ -69,6 +71,8 @@ function getCategoryIcon(category: string) {
 export function BrowseView({
   orgSlug,
   orgName,
+  companyLogoUrl,
+  systemLogoUrl,
   currency,
   showPrices,
   products,
@@ -149,12 +153,9 @@ export function BrowseView({
             href={`/order/${orgSlug}`}
             className="flex items-center gap-3"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-signal text-white shadow-sm">
-              <span className="text-lg font-black tracking-tight">
-                OG
-              </span>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-1 shadow-sm ring-1 ring-ledger-200">
+              {companyLogoUrl ? <img src={companyLogoUrl} alt={`${orgName} logo`} className="h-full w-full rounded-full object-contain" /> : <span className="text-lg font-black tracking-tight text-signal">{orgName.slice(0, 2).toUpperCase()}</span>}
             </div>
-
             <div>
               <p className="text-[17px] font-extrabold uppercase tracking-tight text-ink-900 dark:text-white">
                 {orgName}
@@ -261,6 +262,16 @@ export function BrowseView({
                   </div>
                 </div>
               </div>
+              <div className="mt-3 rounded-xl border border-ledger-200 bg-white p-4 dark:border-ledger-800 dark:bg-ink-900">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ledger-400">Powered by</p>
+                <p className="mt-1 text-xs font-semibold text-ink-900 dark:text-white">Think-Digital Solutions</p>
+                <div className="mt-3 flex items-center gap-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white p-1 ring-1 ring-ledger-200">
+                    {systemLogoUrl ? <img src={systemLogoUrl} alt="ThinkSales ERP Pro logo" className="h-full w-full object-contain" /> : <span className="text-[8px] font-bold text-signal">TS</span>}
+                  </div>
+                  <span className="text-[11px] font-semibold text-ledger-500">ThinkSales ERP Pro</span>
+                </div>
+              </div>
             </div>
           </aside>
 
@@ -306,10 +317,10 @@ export function BrowseView({
               className="sticky top-[90px] z-20 isolate overflow-hidden bg-white pb-1 dark:bg-ink-950"
               style={{ contain: "paint" }}
             >
-            <div className="relative mb-4 min-h-[145px] overflow-hidden rounded-xl border border-ledger-200 bg-gradient-to-r from-[#eef7ef] via-[#f7faf7] to-[#eef7ef] dark:border-ledger-800 dark:from-ink-900 dark:via-ink-850 dark:to-ink-900">
+            <div className="relative mb-5 min-h-[292px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[radial-gradient(circle_at_78%_36%,#ffffff_0,#e8f6ec_30%,transparent_57%),linear-gradient(110deg,#eaf7ee,#f8fcf9_55%,#dcefdc)] shadow-[0_18px_45px_rgba(36,108,72,0.12)] dark:border-ledger-800 dark:bg-ink-900">
 
               {/* 3D showcase illustration */}
-              <div className="absolute inset-0 hidden items-center justify-end pr-12 sm:flex">
+              <div className="absolute inset-0 hidden items-center justify-end pr-8 sm:flex">
 
                 {/* Floating spheres */}
                 <div
@@ -332,11 +343,14 @@ export function BrowseView({
                 />
 
                 {/* Podium group */}
-                <div className="relative flex items-end">
+                <div className="relative flex items-end pr-8">
 
                   {/* Cart card, tilted */}
-                  <div className="relative z-10 -mr-4 mb-2 flex h-16 w-14 -rotate-6 items-center justify-center rounded-2xl bg-white shadow-xl">
-                    <ShoppingCart className="h-6 w-6 text-signal" />
+                  <div className="relative z-10 -mr-3 mb-10 flex h-28 w-32 -rotate-6 items-center justify-center rounded-[28px] border-4 border-[#183f31] bg-transparent shadow-[0_18px_28px_rgba(20,77,48,0.2)]">
+                    <div className="absolute -bottom-5 left-3 h-5 w-5 rounded-full border-4 border-[#183f31] bg-white" />
+                    <div className="absolute -bottom-5 right-3 h-5 w-5 rounded-full border-4 border-[#183f31] bg-white" />
+                    <div className="absolute inset-2 rounded-[20px] border-2 border-[#53a876]/70" />
+                    <ShoppingCart className="h-10 w-10 text-[#247e50]" />
                   </div>
 
                   {/* Bag + pedestal */}
@@ -344,7 +358,7 @@ export function BrowseView({
 
                     {/* Shopping bag */}
                     <div
-                      className="relative mb-[-6px] h-[92px] w-[74px] rounded-b-xl rounded-t-md shadow-xl"
+                      className="relative mb-[-6px] h-[118px] w-[96px] rounded-b-2xl rounded-t-md shadow-xl"
                       style={{ background: "linear-gradient(135deg, #22a05f, #16733f)" }}
                     >
                       <div
@@ -353,13 +367,13 @@ export function BrowseView({
                       />
                       <div className="absolute inset-y-2 left-2 w-2 rounded-full bg-white/15" />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-xl font-black text-white">OG</span>
+                        {companyLogoUrl ? <img src={companyLogoUrl} alt="" className="h-14 w-14 object-contain brightness-0 invert" /> : <span className="text-xl font-black text-white">{orgName.slice(0, 2).toUpperCase()}</span>}
                       </div>
                     </div>
 
                     {/* Cylindrical pedestal top */}
                     <div
-                      className="h-8 w-[130px] rounded-[50%] shadow-lg"
+                      className="h-9 w-[175px] rounded-[50%] shadow-lg"
                       style={{ background: "linear-gradient(180deg, #34b872, #1f8f52)" }}
                     />
 
@@ -374,7 +388,8 @@ export function BrowseView({
 
               <div className="relative z-10 max-w-xl px-7 py-5">
 
-                <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-ink-900 dark:text-white md:text-[29px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#258252]">Welcome to our</p>
+                <h1 className="mt-2 text-[30px] font-extrabold leading-tight tracking-tight text-ink-900 dark:text-white md:text-[39px]">
                   Customer Ordering Portal
                 </h1>
 
@@ -383,15 +398,27 @@ export function BrowseView({
                 </p>
 
                 {/* Search */}
-                <div className="relative mt-3 max-w-[430px]">
+                <div className="relative mt-5 max-w-[520px]">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
 
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search for products, brands and more..."
-                    className="h-10 w-full rounded-lg border border-ledger-200 bg-white/95 pl-9 pr-3 text-xs text-ink-900 shadow-sm outline-none transition focus:border-signal focus:ring-2 focus:ring-signal/10 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    className="h-12 w-full rounded-xl border border-white bg-white/95 pl-10 pr-3 text-sm text-ink-900 shadow-[0_10px_25px_rgba(34,103,63,0.12)] outline-none transition focus:border-signal focus:ring-2 focus:ring-signal/10 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                   />
+                </div>
+                <div className="mt-6 flex flex-wrap gap-x-7 gap-y-3">
+                  {[
+                    { Icon: Truck, title: "Fast Delivery", text: "Quick & reliable" },
+                    { Icon: ShieldCheck, title: "Secure Shopping", text: "Safe & trusted" },
+                    { Icon: Headphones, title: "24/7 Support", text: "We're here to help" },
+                  ].map(({ Icon, title, text }) => (
+                    <div key={title} className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d5f1df] text-[#218052]"><Icon className="h-4 w-4" /></span>
+                      <span><b className="block text-[11px] text-ink-900 dark:text-white">{title}</b><small className="text-[10px] text-ledger-500">{text}</small></span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
