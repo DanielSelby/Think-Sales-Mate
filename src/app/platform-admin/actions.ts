@@ -337,3 +337,44 @@ export async function setSupportContactActive(id: string, isActive: boolean) {
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: isActive ? "support_contact_enabled" : "support_contact_disabled", module: "contact_directory", metadata: { contactId: id } });
   revalidatePath("/platform-admin");
 }
+
+export async function updateSupportContact(id: string, input: {
+  contactType: "support_team" | "emergency" | "technical" | "sales_subscription";
+  name: string;
+  position?: string;
+  department?: string;
+  specialty?: string;
+  role?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  availabilityStatus?: string;
+  assignedRegion?: string;
+}) {
+  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { data, error } = await supabase.from("platform_support_contacts").update({
+    contact_type: input.contactType,
+    name: input.name.trim(),
+    position: input.position || null,
+    department: input.department || null,
+    specialty: input.specialty || null,
+    role: input.role || null,
+    phone: input.phone || null,
+    whatsapp: input.whatsapp || null,
+    email: input.email || null,
+    availability_status: input.availabilityStatus || "available",
+    assigned_region: input.assignedRegion || null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id).select("id").single();
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "support_contact_updated", module: "contact_directory", metadata: { contactId: data.id } });
+  revalidatePath("/platform-admin");
+}
+
+export async function deleteSupportContact(id: string) {
+  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { error } = await supabase.from("platform_support_contacts").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "support_contact_deleted", module: "contact_directory", metadata: { contactId: id } });
+  revalidatePath("/platform-admin");
+}

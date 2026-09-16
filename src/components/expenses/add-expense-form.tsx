@@ -225,10 +225,10 @@ export function AddExpenseForm({
     : null;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6 animate-in fade-in duration-150 pb-16">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">
             {isEdit ? "Edit Expense" : "Add Expense"}
           </h1>
           <p className="mt-1 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">
@@ -236,7 +236,7 @@ export function AddExpenseForm({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="md" onClick={() => router.back()} disabled={isPending}>Cancel</Button>
+          <Button variant="outline" size="md" className="h-10 rounded-xl" onClick={() => router.back()} disabled={isPending}>Cancel</Button>
           {isEdit ? (
             <Button variant="primary" size="md" onClick={submitEdit} disabled={isPending}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Changes
@@ -269,7 +269,7 @@ export function AddExpenseForm({
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           {/* Expense Information */}
-          <Card accent="neutral">
+          <Card accent="neutral" className="rounded-2xl">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Information</CardTitle></CardHeader>
             <CardContent className="space-y-3 pt-0">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -327,7 +327,7 @@ export function AddExpenseForm({
           </Card>
 
           {/* Expense Items */}
-          <Card accent="neutral">
+          <Card accent="neutral" className="rounded-2xl">
             <CardHeader className="flex-row items-center justify-between pb-2">
               <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Items</CardTitle>
               <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>

@@ -141,16 +141,16 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
   const distributionTotal = categories.reduce((sum, c) => sum + c.totalExpenses, 0);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6 animate-in fade-in duration-150 pb-16">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Expense Categories</h1>
-          <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">{categories.length} categories configured</p>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Expense Categories</h1>
+          <p className="mt-0.5 text-xs text-ledger-400">{categories.length} categories configured</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="md"><Upload className="h-4 w-4" /> Import</Button>
-          <Button variant="outline" size="md" onClick={exportCsv}><Download className="h-4 w-4" /> Export</Button>
-          <Button variant="primary" size="md" onClick={openAdd}><Plus className="h-4 w-4" /> Add Category</Button>
+          <Button variant="outline" size="md" className="h-10 gap-1.5 rounded-xl"><Upload className="h-4 w-4" /> Import</Button>
+          <Button variant="outline" size="md" className="h-10 gap-1.5 rounded-xl" onClick={exportCsv}><Download className="h-4 w-4" /> Export</Button>
+          <Button variant="primary" size="md" className="h-10 gap-1.5 rounded-xl" onClick={openAdd}><Plus className="h-4 w-4" /> Add Category</Button>
         </div>
       </div>
 
@@ -167,7 +167,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           {/* KPIs */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Kpi icon={LayoutGrid} accent="neutral" label="Total Categories" value={`${kpis.totalCategories}`} />
             <Kpi icon={CheckCircle2} accent="signal" label="Active Categories" value={`${kpis.activeCategories}`} />
             <Kpi icon={Wallet} accent="amber" label="Monthly Expenses" value={formatCurrency(kpis.monthlyExpenses, currency)} />
@@ -176,7 +176,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
           </div>
 
           {/* Filters */}
-          <Card accent="neutral">
+          <Card accent="neutral" className="rounded-2xl">
             <CardContent className="pt-5">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="relative min-w-[220px] flex-1">
@@ -207,7 +207,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
           </Card>
 
           {/* Table */}
-          <Card accent="neutral" className="overflow-hidden">
+          <Card accent="neutral" className="overflow-hidden rounded-2xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">

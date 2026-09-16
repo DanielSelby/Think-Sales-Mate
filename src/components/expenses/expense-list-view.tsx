@@ -193,18 +193,18 @@ export function ExpenseListView({
   const maxCategoryTotal = Math.max(1, ...categoryBreakdown.map((c) => c.total));
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6 animate-in fade-in duration-150 pb-16">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Expenses</h1>
-          <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">{expenses.length} expenses recorded</p>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Expenses</h1>
+          <p className="mt-0.5 text-xs text-ledger-400">{expenses.length} expenses recorded</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="md"><Upload className="h-4 w-4" /> Import</Button>
-          <Button variant="outline" size="md" onClick={exportCsv}><Download className="h-4 w-4" /> Export</Button>
+          <Button variant="outline" size="md" className="h-10 gap-1.5 rounded-xl"><Upload className="h-4 w-4" /> Import</Button>
+          <Button variant="outline" size="md" className="h-10 gap-1.5 rounded-xl" onClick={exportCsv}><Download className="h-4 w-4" /> Export</Button>
           <Link
             href="/expenses/new"
-            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium text-white shadow-sm transition-all active:scale-[0.98]"
+            className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-xs font-semibold text-white shadow-sm transition-all active:scale-[0.98]"
             style={{ background: theme.colors.primary }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
@@ -226,7 +226,7 @@ export function ExpenseListView({
 
       <div className="space-y-5">
           {/* KPIs */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <KpiFlipCard color="green" label="Total Expenses" value={formatCurrency(filteredKpis.totalExpenses, currency)} icon={<Wallet className="h-full w-full" />} detail="Sum of every expense matching the current filters." featured />
             <KpiFlipCard color="blue" label="This Month" value={formatCurrency(filteredKpis.thisMonth, currency)} icon={<CalendarDays className="h-full w-full" />} detail="Filtered expenses dated from the 1st of this month onward." />
             <KpiFlipCard color="teal" label="This Week" value={formatCurrency(filteredKpis.thisWeek, currency)} icon={<CalendarClock className="h-full w-full" />} detail="Filtered expenses dated within the last 7 days." />
@@ -235,7 +235,7 @@ export function ExpenseListView({
           </div>
 
           {/* Filters */}
-          <Card accent="neutral">
+          <Card accent="neutral" className="rounded-2xl">
             <CardContent className="pt-5">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="relative min-w-[220px] flex-1">
@@ -298,7 +298,7 @@ export function ExpenseListView({
           </div>
 
           {/* Table */}
-          <Card accent="neutral" className="overflow-hidden">
+          <Card accent="neutral" className="overflow-hidden rounded-2xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="sticky top-0 z-10 bg-white dark:bg-ink-900">

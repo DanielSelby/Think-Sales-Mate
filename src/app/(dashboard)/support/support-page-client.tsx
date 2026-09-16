@@ -49,13 +49,14 @@ export default function SupportPageClient({ contacts }: { contacts: Contact[] })
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <section className="relative overflow-hidden rounded-3xl bg-slate-950 px-6 py-10 text-white shadow-xl sm:px-10">
-        <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="relative max-w-2xl">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-blue-100"><ShieldCheck className="h-3.5 w-3.5" /> Official support center</div>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">We are here to keep your business moving.</h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">Contact the support team for product guidance, technical support, account questions, and implementation help.</p>
-          <button type="button" onClick={() => setShowForm(true)} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-blue-50"><Plus className="h-4 w-4" /> Submit Complaint</button>
+      <section className="relative min-h-[270px] overflow-hidden rounded-3xl border border-emerald-100 bg-[#eaf7ee] shadow-xl">
+        <img src="/support-center-artwork.jpeg" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover object-right" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#effaf2]/95 via-[#effaf2]/75 to-transparent" />
+        <div className="relative max-w-2xl px-6 py-10 sm:px-10">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-3.5 w-3.5" /> Official support center</div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">We are here to keep your business moving.</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-slate-700">Contact the support team for product guidance, technical support, account questions, and implementation help.</p>
+          <button type="button" onClick={() => setShowForm(true)} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-800"><Plus className="h-4 w-4" /> Submit Complaint</button>
         </div>
       </section>
 
