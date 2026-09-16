@@ -314,7 +314,7 @@ export function BrowseView({
                 HERO + PRODUCT HEADER — pinned below the top nav
             ================================================= */}
             <div
-              className="sticky top-[90px] z-20 isolate overflow-hidden bg-white pb-1 dark:bg-ink-950"
+              className="sticky top-[74px] z-30 isolate overflow-hidden bg-white pb-1 shadow-[0_8px_18px_rgba(255,255,255,0.98)] dark:bg-ink-950 dark:shadow-[0_8px_18px_rgba(10,16,14,0.98)]"
               style={{ contain: "paint" }}
             >
             <div className="relative mb-5 min-h-[292px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[radial-gradient(circle_at_78%_36%,#ffffff_0,#e8f6ec_30%,transparent_57%),linear-gradient(110deg,#eaf7ee,#f8fcf9_55%,#dcefdc)] shadow-[0_18px_45px_rgba(36,108,72,0.12)] dark:border-ledger-800 dark:bg-ink-900">
