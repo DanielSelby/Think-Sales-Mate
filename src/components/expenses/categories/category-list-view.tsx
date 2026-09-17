@@ -176,7 +176,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
           </div>
 
           {/* Filters */}
-          <div className="space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="space-y-3 rounded-2xl border border-white bg-white p-4 shadow-card dark:border-white/10 dark:bg-ink-900">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="relative min-w-[220px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
@@ -205,7 +205,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
           </div>
 
           {/* Table */}
-          <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="overflow-hidden rounded-2xl border border-white bg-white shadow-card dark:border-white/10 dark:bg-ink-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
@@ -292,7 +292,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
 
         {/* Analytics */}
         <div className="space-y-5">
-          <Card accent="neutral">
+          <Card accent="neutral" className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Category Distribution</CardTitle></CardHeader>
             <CardContent className="pt-0">
               {distributionTotal === 0 ? <p className="text-sm text-ledger-400">No expenses recorded yet.</p> : (
@@ -324,7 +324,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
             </CardContent>
           </Card>
 
-          <Card accent="neutral">
+          <Card accent="neutral" className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Top Expense Categories (By Spending)</CardTitle></CardHeader>
             <CardContent className="space-y-2.5 pt-0">
               {topCategories.map((c) => (
@@ -336,7 +336,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
             </CardContent>
           </Card>
 
-          <Card accent="neutral">
+          <Card accent="neutral" className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Recent Category Activity</CardTitle></CardHeader>
             <CardContent className="space-y-3 pt-0">
               {recentActivity.length === 0 && <p className="text-sm text-ledger-400">No recent activity.</p>}
@@ -349,7 +349,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
             </CardContent>
           </Card>
 
-          <Card accent="neutral">
+          <Card accent="neutral" className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Quick Actions</CardTitle></CardHeader>
             <CardContent className="space-y-1 pt-0">
               <button onClick={openAdd} className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.06]">
@@ -374,7 +374,7 @@ function Kpi({ icon: Icon, accent, label, value, sub }: { icon: React.ComponentT
         ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
         : "bg-ledger-50 text-ledger-600 dark:bg-ledger-800 dark:text-ledger-300";
   return (
-    <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+    <div className="rounded-2xl border border-white bg-white p-4 shadow-card dark:border-white/10 dark:bg-ink-900">
       <div className="flex items-center gap-3.5">
         <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass)}><Icon className="h-5 w-5" /></div>
         <div className="min-w-0">

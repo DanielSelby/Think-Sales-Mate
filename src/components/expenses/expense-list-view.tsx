@@ -88,7 +88,7 @@ function ExpenseKpiCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+    <div className="rounded-2xl border border-white bg-white p-4 shadow-card dark:border-white/10 dark:bg-ink-900">
       <div className="flex items-center gap-3.5">
         <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass)}>
           {icon}
@@ -263,7 +263,7 @@ export function ExpenseListView({
           </div>
 
           {/* Filters */}
-          <div className="space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="space-y-3 rounded-2xl border border-white bg-white p-4 shadow-card dark:border-white/10 dark:bg-ink-900">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="relative min-w-[220px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
@@ -324,7 +324,7 @@ export function ExpenseListView({
           </div>
 
           {/* Table */}
-          <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="overflow-hidden rounded-2xl border border-white bg-white shadow-card dark:border-white/10 dark:bg-ink-900">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ledger-100 p-4 dark:border-ledger-700">
               <div className="flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
@@ -415,7 +415,7 @@ export function ExpenseListView({
 
       {/* Analytics — full-width row below the table */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        <Card accent="neutral">
+        <Card accent="neutral" className="border-white dark:border-white/10">
           <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Overview</CardTitle></CardHeader>
           <CardContent className="pt-0">
             {donutTotal === 0 ? <p className="text-sm text-ledger-400">No expenses yet.</p> : (
@@ -447,7 +447,7 @@ export function ExpenseListView({
           </CardContent>
         </Card>
 
-        <Card accent="neutral">
+        <Card accent="neutral" className="border-white dark:border-white/10">
           <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Top Expense Categories</CardTitle></CardHeader>
           <CardContent className="space-y-3 pt-0">
             {categoryBreakdown.map((c) => (
@@ -464,7 +464,7 @@ export function ExpenseListView({
           </CardContent>
         </Card>
 
-        <Card accent="neutral">
+        <Card accent="neutral" className="border-white dark:border-white/10">
           <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Recent Expense Activity</CardTitle></CardHeader>
           <CardContent className="space-y-3 pt-0">
             {recentActivity.length === 0 && <p className="text-sm text-ledger-400">No recent activity.</p>}

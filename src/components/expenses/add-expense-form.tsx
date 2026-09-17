@@ -269,7 +269,7 @@ export function AddExpenseForm({
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           {/* Expense Information */}
-          <Card accent="neutral" className="rounded-2xl shadow-card">
+          <Card accent="neutral" className="rounded-2xl border-white shadow-card dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Information</CardTitle></CardHeader>
             <CardContent className="space-y-3 pt-0">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -327,7 +327,7 @@ export function AddExpenseForm({
           </Card>
 
           {/* Expense Items */}
-          <Card accent="neutral" className="rounded-2xl shadow-card">
+          <Card accent="neutral" className="rounded-2xl border-white shadow-card dark:border-white/10">
             <CardHeader className="flex-row items-center justify-between pb-2">
               <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Items</CardTitle>
               <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>
@@ -394,7 +394,7 @@ export function AddExpenseForm({
 
           {/* Additional Info + Approval */}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Card accent="neutral">
+            <Card accent="neutral" className="border-white dark:border-white/10">
               <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Additional Information</CardTitle></CardHeader>
               <CardContent className="space-y-3 pt-0">
                 <Field label="Expense Type">
@@ -437,7 +437,7 @@ export function AddExpenseForm({
               </CardContent>
             </Card>
 
-            <Card accent="neutral">
+            <Card accent="neutral" className="border-white dark:border-white/10">
               <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Approval Information</CardTitle></CardHeader>
               <CardContent className="space-y-3 pt-0">
                 <label className="flex items-center justify-between">
@@ -476,7 +476,7 @@ export function AddExpenseForm({
 
         {/* Sidebar */}
         <div className="space-y-5">
-          <Card accent="neutral">
+          <Card accent="neutral" className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Payment Details</CardTitle></CardHeader>
             <CardContent className="space-y-3 pt-0">
               <Field label="Payment Method" required>
@@ -521,14 +521,14 @@ export function AddExpenseForm({
             </CardContent>
           </Card>
 
-          <Card accent="neutral">
+          <Card accent="neutral" className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Attachments</CardTitle></CardHeader>
             <CardContent className="pt-0">
               <AttachmentsDropzone files={attachments} onChange={setAttachments} />
             </CardContent>
           </Card>
 
-          <Card accent="signal">
+          <Card accent="signal" className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Summary</CardTitle></CardHeader>
             <CardContent className="space-y-2 pt-0 text-sm">
               <div className="flex items-center justify-between"><span className="text-ledger-500">Subtotal (Excl. Tax)</span><span className="font-medium text-ink-900 dark:text-white">{formatCurrency(subtotal, expenseCurrency)}</span></div>
@@ -544,7 +544,7 @@ export function AddExpenseForm({
           </Card>
 
           {recentExpenses.length > 0 && (
-            <Card accent="neutral">
+            <Card accent="neutral" className="border-white dark:border-white/10">
               <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Recent Expenses ({category})</CardTitle></CardHeader>
               <CardContent className="space-y-2 pt-0">
                 {recentExpenses.map((e) => (
@@ -557,7 +557,7 @@ export function AddExpenseForm({
             </Card>
           )}
 
-          <Card accent={budget?.hasBudget && budget.percentUsed >= 90 ? "alert" : "amber"}>
+          <Card accent={budget?.hasBudget && budget.percentUsed >= 90 ? "alert" : "amber"} className="border-white dark:border-white/10">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Budget Status</CardTitle></CardHeader>
             <CardContent className="pt-0">
               {!budget?.hasBudget ? (
@@ -577,7 +577,7 @@ export function AddExpenseForm({
             </CardContent>
           </Card>
 
-          <Card accent="amber">
+          <Card accent="amber" className="border-white dark:border-white/10">
             <CardHeader className="flex-row items-center gap-2 pb-2">
               <Sparkles className="h-4 w-4 text-amber" />
               <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">AI Expense Insights</CardTitle>
