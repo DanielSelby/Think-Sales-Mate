@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+
 // ---------------------------------------------------------------------------
 // Branded POS receipt — black/green diagonal-header style, used by the POS
 // module (both the post-sale receipt and Recent Transactions → Print).
@@ -54,12 +56,7 @@ function esc(value: string | number | null | undefined): string {
 }
 
 function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-GH", {
-    style: "currency",
-    currency: currency || "GH₵",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(amount) || 0);
+  return formatMoney(Number(amount) || 0, currency || "GHS");
 }
 
 function formatDateTime(value: string): { date: string; time: string } {

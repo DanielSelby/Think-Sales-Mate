@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { formatMoney } from "@/lib/currency";
 
 export type TransactionType =
   | "Purchase"
@@ -109,10 +110,7 @@ export interface ProductDetailsData {
  * Format currency with symbol or ISO code
  */
 export function formatLedgerMoney(amount: number, currency: string = "GHS"): string {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  return formatMoney(amount, currency);
 }
 
 /**
@@ -238,10 +236,10 @@ export function exportMovementsToExcel(
     { Attribute: "Barcode", Value: product.barcode ?? "N/A" },
     { Attribute: "Category", Value: product.category ?? "N/A" },
     { Attribute: "Brand", Value: product.brand ?? "N/A" },
-    { Attribute: "Cost Price", Value: `${product.currency} ${formatLedgerMoney(product.costPrice)}` },
-    { Attribute: "Selling Price", Value: `${product.currency} ${formatLedgerMoney(product.sellingPrice)}` },
+    { Attribute: "Cost Price", Value: formatLedgerMoney(product.costPrice, product.currency) },
+    { Attribute: "Selling Price", Value: formatLedgerMoney(product.sellingPrice, product.currency) },
     { Attribute: "Current Stock", Value: product.stockQuantity },
-    { Attribute: "Total Stock Value", Value: `${product.currency} ${formatLedgerMoney(product.summary.stockValue)}` },
+    { Attribute: "Total Stock Value", Value: formatLedgerMoney(product.summary.stockValue, product.currency) },
     { Attribute: "Export Date", Value: new Date().toLocaleString() },
   ];
   const summarySheet = XLSX.utils.json_to_sheet(summaryRows);

@@ -13,9 +13,7 @@ export interface AccountRow {
   currentBalance: number;
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
+import { formatMoney } from "@/lib/currency";
 
 const TYPE_LABELS: Record<string, string> = {
   cash: "Cash",

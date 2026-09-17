@@ -8,10 +8,6 @@ import { Button } from "@/components/ui/button";
 import { ExportCsvButton } from "@/components/reports/export-csv-button";
 import { formatCurrency } from "@/lib/sales/format";
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
-
 function defaultRange() {
   const end = new Date();
   const start = new Date();

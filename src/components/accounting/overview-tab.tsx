@@ -29,6 +29,7 @@ import {
   Cell,
 } from "recharts";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatMoney } from "@/lib/currency";
 
 interface OverviewTabProps {
   onOpenJournalModal?: () => void;
@@ -72,14 +73,7 @@ export function OverviewTab({
   const apAging = getPayablesAging();
   const fyProgress = getFinancialYearProgress();
 
-  const formatCurrency = (val: number) => {
-    const formatted = Math.abs(val).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    if (val < 0) return `(${formatted})`;
-    return `${currentCurrency} ${formatted}`;
-  };
+  const formatCurrency = (val: number) => val < 0 ? `(${formatMoney(Math.abs(val), currentCurrency)})` : formatMoney(val, currentCurrency);
 
   const totalExpenseVal = expenseSlices.reduce((sum, s) => sum + s.value, 0);
 

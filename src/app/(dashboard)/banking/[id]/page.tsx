@@ -10,10 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { recordTransaction } from "@/app/(dashboard)/banking/actions";
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
-
 const TYPE_LABELS: Record<string, string> = {
   cash: "Cash",
   checking: "Checking",

@@ -115,9 +115,7 @@ const DONUT_COLORS = {
   zero: "#94a3b8", // slate-400
 };
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
+import { formatMoney } from "@/lib/currency";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);

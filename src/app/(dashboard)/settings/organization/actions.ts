@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import type { MemberRole } from "@/lib/rbac";
+import { getCurrencyConfig } from "@/lib/currency";
 
 async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> {
   const admin = createAdminClient();
@@ -526,6 +527,21 @@ export async function updateCurrency(currency: string) {
     .eq("id", context.orgId);
 
   if (error) return { error: error.message };
+
+  const config = getCurrencyConfig(currency);
+  const { error: settingsError } = await ((supabase
+    .from("currency_settings") as any)
+    .upsert({
+      org_id: context.orgId,
+      currency_code: config.code,
+      currency_symbol: config.symbol,
+      currency_name: config.name,
+      decimal_places: config.decimalPlaces,
+      thousand_separator: config.thousandSeparator,
+      decimal_separator: config.decimalSeparator,
+      currency_position: config.position,
+    }));
+  if (settingsError) return { error: settingsError.message };
 
   // currency lives on organizations and is read by getCurrentOrgContext()
   // on effectively every route — revalidate the whole app's router cache,

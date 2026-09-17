@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { AccountsReceivableTab } from "./accounts-receivable-tab";
+import { formatMoney } from "@/lib/currency";
 
 type WorkspaceTab =
   | "overview"
@@ -43,8 +44,7 @@ const TABS: { key: WorkspaceTab; label: string; icon: typeof LayoutDashboard }[]
   { key: "audit", label: "Audit Log", icon: ClipboardList },
 ];
 
-const money = (currency: string, value: number) =>
-  `${currency} ${value.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+const money = (currency: string, value: number) => formatMoney(value, currency);
 
 export function CustomerCreditWorkspace() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");

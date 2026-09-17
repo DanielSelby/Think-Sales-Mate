@@ -8,10 +8,6 @@ import { can } from "@/lib/rbac";
 import { formatCurrency } from "@/lib/sales/format";
 import { Card, CardContent } from "@/components/ui/card";
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
-
 export default async function PayrollRunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;

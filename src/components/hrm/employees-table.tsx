@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { deleteEmployee } from "@/app/(dashboard)/hrm/actions";
+import { formatMoney } from "@/lib/currency";
 
 export interface EmployeeRow {
   id: string;
@@ -14,11 +15,7 @@ export interface EmployeeRow {
   status: "active" | "inactive";
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
-
-export function EmployeesTable({ employees, canManage }: { employees: EmployeeRow[]; canManage: boolean }) {
+export function EmployeesTable({ employees, canManage, currency = "GHS" }: { employees: EmployeeRow[]; canManage: boolean; currency?: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +59,7 @@ export function EmployeesTable({ employees, canManage }: { employees: EmployeeRo
                 <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">{employee.jobTitle ?? "—"}</td>
                 <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">{employee.department ?? "—"}</td>
                 <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">
-                  ${formatMoney(employee.monthlySalary)}
+                  {formatMoney(employee.monthlySalary, currency)}
                 </td>
                 <td className="px-4 py-3">
                   <span

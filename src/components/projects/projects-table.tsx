@@ -15,9 +15,7 @@ export interface ProjectRow {
   endDate: string | null;
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
+import { formatMoney } from "@/lib/currency";
 
 const STATUS_STYLES: Record<ProjectRow["status"], string> = {
   planning: "bg-ledger-100 text-ledger-600 dark:bg-white/10 dark:text-ledger-300",

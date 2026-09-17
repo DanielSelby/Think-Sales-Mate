@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Download, Eye, Filter, ShieldAlert, XCircle } from "lucide-react";
 import { markFraudAlerts } from "@/app/(dashboard)/fraud/actions";
+import { formatCurrencyAmount } from "@/lib/currency";
 
 export type FraudAlert = { id: string; type: "Sales" | "Inventory" | "Expense" | "Purchase" | "Customer"; document: string; description: string; entity: string; date: string; amount: number | null; risk: "High" | "Medium" | "Low"; status: "Pending Review" | "Reviewed" | "False Positive"; href: string };
 export type FraudTrendPoint = { date: string; suspicious: number; normal: number };
@@ -22,7 +23,7 @@ export function FraudDetectionView({ alerts, trend, currency, dates, flaggedAmou
   const pending = alerts.filter((alert) => alert.status === "Pending Review").length;
   const high = alerts.filter((alert) => alert.risk === "High").length;
   const resolved = alerts.filter((alert) => alert.status === "Reviewed").length;
-  const formatMoney = (amount: number | null) => amount == null ? "—" : `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const formatMoney = (amount: number | null) => amount == null ? "—" : formatCurrencyAmount(amount, { code: currency });
   function update(action: "reviewed" | "false_positive") {
     if (!selected.length) return;
     startTransition(async () => {

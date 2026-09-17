@@ -8,10 +8,6 @@ import { Button } from "@/components/ui/button";
 import { runPayroll } from "@/app/(dashboard)/hrm/payroll/actions";
 import { formatCurrency } from "@/lib/sales/format";
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
-
 export default async function PayrollPage({ searchParams }: { searchParams: { error?: string } }) {
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);

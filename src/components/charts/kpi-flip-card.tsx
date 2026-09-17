@@ -210,9 +210,9 @@ export function KpiFlipCard({
  * but introduces a small visual gap.
  *
  * Example:
- * GH₵1,320.00
+ * Currency symbol and amount
  * becomes
- * GH₵ 1,320.00
+ * are rendered as one consistent unit.
  */
 function formatKpiCurrencySpacing(value: string) {
   const match = value.match(/^([^\d-]+)(.*)$/);

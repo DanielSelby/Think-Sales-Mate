@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { BarChart3, CalendarDays, CheckCircle2, ChevronRight, DollarSign, FileText, ListTodo, Mail, MoreHorizontal, Phone, Plus, Search, Target, TrendingUp, Users2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deleteCustomer } from "@/app/(dashboard)/crm/actions";
+import { formatMoney } from "@/lib/currency";
 
 export type CrmCustomer = {
   id: string; name: string; company: string | null; email: string | null; phone: string | null;
@@ -27,7 +28,7 @@ export function CrmWorkspace({ customers, sales, invoices, canManage, currency }
   const activeLeads = pipeline.filter((item) => !["Won", "Lost"].includes(item.stage)).length;
   const wonDeals = pipeline.filter((item) => item.stage === "Won").length;
   const averageOrder = customers.length ? customers.reduce((sum, customer) => sum + customer.sales, 0) / Math.max(1, customers.reduce((sum, customer) => sum + customer.orders, 0)) : 0;
-  const money = (value: number) => `${currency} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const money = (value: number) => formatMoney(value, currency);
 
   const moveDeal = (id: string, stage: string) => setPipeline((items) => items.map((item) => item.id === id ? { ...item, stage } : item));
   const addAction = (label: string) => setNotice(`${label} is ready to connect to your existing CRM workflow.`);

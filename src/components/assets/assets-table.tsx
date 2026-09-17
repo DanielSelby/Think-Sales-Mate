@@ -18,9 +18,7 @@ export interface AssetRow {
   location: string | null;
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
+import { formatMoney } from "@/lib/currency";
 
 const STATUS_STYLES: Record<AssetRow["status"], string> = {
   in_use: "bg-signal-soft text-signal",

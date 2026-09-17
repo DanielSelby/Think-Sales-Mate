@@ -1,4 +1,5 @@
 import type { Database, SaleStatus } from "@/types/database";
+import { formatMoney } from "@/lib/currency";
 
 export type PaymentStatus = "paid" | "partially_paid" | "pending";
 
@@ -33,17 +34,7 @@ export function formatInvoiceNumber(saleNumber: number) {
 }
 
 export function formatCurrency(amount: number, currency: Database["public"]["Tables"]["organizations"]["Row"]["currency"] = "GHS") {
-  try {
-    const numeric = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-    if (currency === "GHS") return `GH₵ ${numeric}`;
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
-  } catch {
-    // Fallback if currency code from org settings isn't ISO-4217 valid
-    return `${currency === "GHS" ? "GH₵" : currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
+  return formatMoney(amount, currency);
 }
 
 export function formatDateTime(iso: string) {

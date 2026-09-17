@@ -6,6 +6,7 @@ import { bulkUpdateProductPrices, getPriceHistory, setUseSystemPrices, updatePro
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatMoney } from "@/lib/currency";
 
 export type PriceProduct = {
   id: string;
@@ -77,7 +78,7 @@ export function PriceManagementView({ products, currency, canManage, useSystemPr
       && (category === "all" || product.category === category)
       && (brand === "all" || product.brand === brand);
   });
-  const money = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  const money = (value: number) => formatMoney(value, currency);
 
   async function toggleSystemPrices(next: boolean) {
     const result = await setUseSystemPrices(next);
@@ -299,7 +300,7 @@ function GroupsTab({ products, currency, canManage, groups, setGroups, setNotice
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const money = (value: number | null) => value == null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  const money = (value: number | null) => value == null ? "—" : formatMoney(value, currency);
   function closeCreate() {
     setIsCreateOpen(false);
     setName("");

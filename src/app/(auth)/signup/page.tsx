@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { formatMoney } from "@/lib/currency";
 
 function LogoMark({ dark = false }: { dark?: boolean }) {
   return (
@@ -512,7 +513,7 @@ export default function SignupPage() {
                     {/* KPIs */}
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {[
-                        ["Total Sales", "GH₵ 154,890", "+18.2%"],
+                        ["Total Sales", formatMoney(154890), "+18.2%"],
                         ["Orders", "1,245", "+15.6%"],
                         ["Customers", "856", "+8.7%"],
                       ].map(([title, value, growth]) => (
@@ -600,9 +601,9 @@ export default function SignupPage() {
 
                         <div className="mt-3 space-y-3">
                           {[
-                            ["Wireless Earbuds", "GH₵ 12,450"],
-                            ["4K LED TV", "GH₵ 9,870"],
-                            ["Smartwatch", "GH₵ 6,230"],
+                            ["Wireless Earbuds", formatMoney(12450)],
+                            ["4K LED TV", formatMoney(9870)],
+                            ["Smartwatch", formatMoney(6230)],
                           ].map(([name, price]) => (
                             <div
                               key={name}

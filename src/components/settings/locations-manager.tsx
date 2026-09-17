@@ -56,9 +56,7 @@ function formatAddress(loc: LocationRow) {
   return [loc.city, loc.region].filter(Boolean).join(", ") || "No address on file";
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
+import { formatMoney } from "@/lib/currency";
 
 export function LocationsManager({
   locations,

@@ -12,10 +12,6 @@ import { TransferStatusActions } from "@/components/inventory/transfer-status-ac
 import { formatCurrency } from "@/lib/sales/format";
 import { PrintTransferButton } from "@/components/inventory/print-transfer-button";
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
-
 export default async function StockTransferDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;

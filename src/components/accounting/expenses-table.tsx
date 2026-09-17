@@ -14,9 +14,7 @@ export interface ExpenseRow {
   expenseDate: string;
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-}
+import { formatMoney } from "@/lib/currency";
 
 export function ExpensesTable({ expenses, canManage, currency }: { expenses: ExpenseRow[]; canManage: boolean; currency: string }) {
   const [isPending, startTransition] = useTransition();

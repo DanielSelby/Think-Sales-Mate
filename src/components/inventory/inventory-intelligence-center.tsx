@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatMoney } from "@/lib/currency";
 
 export interface IntelligenceProduct {
   id: string; sku: string; name: string; category: string; brand: string; supplier: string;
@@ -28,7 +29,7 @@ export interface IntelligenceData {
 }
 
 const tabs = ["Overview", "Fast Moving Products", "Slow Moving Products", "Dead Stock", "Overstocked Products", "Understocked Products", "Stock Aging", "Inventory Forecasting", "Branch Comparison", "Reorder Recommendations", "Supplier Performance", "Inventory Health Score", "AI Insights", "Reports"];
-const money = (value: number, currency: string) => `${currency} ${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+const money = (value: number, currency: string) => formatMoney(value, currency);
 const compact = (value: number) => value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value.toLocaleString();
 const daysSince = (date: string | null) => date ? Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 86400000)) : 365;
 

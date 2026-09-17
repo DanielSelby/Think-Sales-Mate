@@ -5,6 +5,7 @@ import L from "leaflet";
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { CalendarDays, CheckCircle2, DollarSign, Edit3, Plus, Route as RouteIcon, Trash2, X, type LucideIcon } from "lucide-react";
+import { formatMoney } from "@/lib/currency";
 import {
   assignRouteRep,
   createMobileOrder,
@@ -28,7 +29,7 @@ type RouteStop = { id: string; label: string; customerId?: string; status: "Comp
 
 const workspaceTabs = ["Dashboard", "Routes", "Customers", "Field Sales Reps", "Collections", "Mobile Orders", "Route Reports"] as const;
 const detailTabs = ["Details", "Customers", "Schedule", "Collections", "Performance", "Notes", "Attachments"] as const;
-const money = (n: number, currency: string) => `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number, currency: string) => formatMoney(n, currency);
 const inputClass = "h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs dark:border-slate-700 dark:bg-ink-900";
 
 const liveRouteStops: RouteStop[] = [
