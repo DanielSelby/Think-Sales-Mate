@@ -318,10 +318,10 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl }: { collapse
       {/* ── Logo ── */}
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
-        <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt="ThinkSales" className="h-12 w-12 shrink-0 rounded-xl object-contain shadow-sm" />
+        <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt="ThinkSales ERP" className="h-12 w-12 shrink-0 rounded-xl object-contain shadow-sm" />
         {!collapsed && (
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>ThinkSales</span>
+            <span className="text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>ThinkSales ERP</span>
             <span className="rounded px-1 py-0.2 text-[10px] font-bold tracking-wide" style={{ background: theme.colors.primary, color: "#fff" }}>Pro</span>
           </div>
         )}

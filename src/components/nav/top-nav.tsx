@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins } from "lucide-react";
+import Link from "next/link";
+import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { RefreshButton } from "@/components/refresh-button";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
@@ -202,6 +203,17 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
 
       <div className="flex-1" />
       <RefreshButton className="text-white/70 hover:bg-white/10" />
+      <Link
+        href="/pos"
+        aria-label="Open POS"
+        title="Open POS"
+        className={`flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition-all ${
+          pathname === "/pos" ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10"
+        }`}
+      >
+        <ShoppingCart className="h-4 w-4" />
+        <span className="hidden sm:inline">POS</span>
+      </Link>
       <div className="hidden items-center gap-2 lg:flex">
         <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
         <span className="max-w-[180px] truncate text-xs font-semibold text-white/85">{orgName}</span>
