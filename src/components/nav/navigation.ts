@@ -134,13 +134,13 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Fraud & Anomaly Detection", href: "/fraud", icon: ShieldAlert, status: "live" },
   { label: "AI Assistant", href: "/ai", icon: Sparkles, status: "live" },
   {
-    label: "Customer Messaging",
+    label: "Communication",
     href: "/customer-messaging",
     icon: MessageSquare,
     status: "live",
     children: [
-      { label: "Messaging & Engagement", href: "/customer-messaging", icon: MessageSquare },
-      { label: "Communication", href: "/communication", icon: MessageSquare },
+      { label: "Customer Engagement", href: "/customer-messaging", icon: MessageSquare },
+      { label: "Internal Communication", href: "/communication", icon: MessageSquare },
     ],
   },
   { label: "User Management", href: "/settings/organization", icon: Users2, status: "live" },
