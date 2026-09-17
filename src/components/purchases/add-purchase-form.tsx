@@ -21,6 +21,7 @@ import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import type { PurchaseStatus } from "@/types/database";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 export interface SupplierOption {
   id: string;
@@ -196,6 +197,7 @@ export function AddPurchaseForm({
         }))
       : []
   );
+  const smartLocator = useSmartProductLocator(items);
   const [discountAmount, setDiscountAmount] = React.useState(initialValues?.discountAmount ?? 0);
   const [shippingCost, setShippingCost] = React.useState(initialValues?.shippingCost ?? 0);
 
@@ -664,6 +666,7 @@ export function AddPurchaseForm({
               </div>
             </CardHeader>
             <CardContent className="pt-0">
+              <SmartProductSummary products={products} rows={items} onLocate={smartLocator.locate} className="mb-3" />
               <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -695,7 +698,7 @@ export function AddPurchaseForm({
                     {computedLines.map(({ line, total }, i) => {
                       const locked = line.quantityReceived > 0;
                       return (
-                        <tr key={line.key}>
+                        <tr key={line.key} ref={(element) => { smartLocator.rowRefs.current[line.key] = element; }} className={smartLocator.rowClassName(line.key)}>
                           <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
                           <td className="px-3 py-2">
                             {editingLineId === line.key || !line.productId ? (

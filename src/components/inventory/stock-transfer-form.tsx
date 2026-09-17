@@ -44,6 +44,7 @@ import { TransactionFeedback } from "@/components/transactions/transaction-feedb
 import { formatCurrency } from "@/lib/sales/format";
 import { createStockTransfer, updateTransferStatus, deleteTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
 import type { TransferStatus, LocationType } from "@/types/database";
+import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,7 @@ export function StockTransferForm({
 
   // REAL Items State — starts empty!
   const [items, setItems] = useState<TransferItemRow[]>([]);
+  const smartLocator = useSmartProductLocator(items.map((item) => ({ key: item.id, productId: item.productId, quantity: item.transferQty })));
   const [searchQuery, setSearchQuery] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<TransferItemRow | null>(null);
@@ -1365,6 +1367,7 @@ export function StockTransferForm({
 
             <div className="mt-4 space-y-2">
               <h4 className="font-semibold text-xs text-ink-900 dark:text-white">Items to be transferred</h4>
+              <SmartProductSummary products={products} rows={items.map((item) => ({ key: item.id, productId: item.productId, quantity: item.transferQty }))} onLocate={smartLocator.locate} />
               <div className="max-h-48 overflow-y-auto rounded-xl border border-ledger-100 text-xs dark:border-ledger-700">
                 <table className="w-full text-left">
                   <thead className="bg-ledger-50/70 text-[10px] text-ledger-500 font-semibold dark:bg-white/[0.02]">
@@ -1377,7 +1380,7 @@ export function StockTransferForm({
                   </thead>
                   <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
                     {items.map((i) => (
-                      <tr key={i.id}>
+                      <tr key={i.id} ref={(element) => { smartLocator.rowRefs.current[i.id] = element; }} className={smartLocator.rowClassName(i.id)}>
                         <td className="p-2 font-medium text-ink-900 dark:text-white">{i.name}</td>
                         <td className="p-2 text-center font-bold font-mono">{i.transferQty}</td>
                         <td className="p-2 text-right font-mono">{i.unitCost.toFixed(2)}</td>

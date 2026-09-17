@@ -29,6 +29,7 @@ import type { HeldSaleKind } from "@/types/database";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 export interface PosProduct {
   id: string;
@@ -107,6 +108,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const [activeBrand, setActiveBrand] = React.useState("all");
   const [priceTier, setPriceTier] = React.useState<"retail" | "wholesale" | "vip" | "special">(allowedPriceGroups[0] ?? "retail");
   const [cart, setCart] = React.useState<CartLine[]>([]);
+  const smartLocator = useSmartProductLocator(cart);
   const [priceEditLine, setPriceEditLine] = React.useState<CartLine | null>(null);
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
   const cartListRef = React.useRef<HTMLDivElement>(null);
@@ -917,6 +919,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
               </div>
             </div>
 
+           <SmartProductSummary products={locationProducts} rows={cart} onLocate={smartLocator.locate} className="mb-3" />
            <div ref={cartListRef} className="min-h-0 flex-1 overflow-y-auto rounded-md border border-ledger-100 dark:border-ledger-700">
              <table className="w-full text-[15px]">                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
                   <tr>
@@ -931,7 +934,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                     <tr><td colSpan={4} className="py-10 text-center text-sm text-ledger-400">Cart is empty — click a product to add it.</td></tr>
                   )}
                   {cart.map((l) => (
-                    <tr key={l.key} className="border-b border-ledger-50 last:border-0 dark:border-white/5">
+                    <tr key={l.key} ref={(element) => { smartLocator.rowRefs.current[l.key] = element; }} className={cn("border-b border-ledger-50 last:border-0 dark:border-white/5", smartLocator.rowClassName(l.key))}>
                       <td className="px-2 py-2">
                         <p className="truncate font-medium text-ink-900 dark:text-white">{l.name}</p>
                         <p className="text-xs text-ledger-400">{formatCurrency(l.unitPrice, currency)}</p>

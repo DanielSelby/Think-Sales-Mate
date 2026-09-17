@@ -39,6 +39,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createStockAdjustment } from "@/app/(dashboard)/inventory/adjustments/actions";
+import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
+import { cn } from "@/lib/utils";
 
 export interface AdjustLocation {
   id: string;
@@ -213,6 +215,8 @@ export function StockAdjustmentForm({
   const [tableRows, setTableRows] = useState<TableCountRow[]>(() =>
     buildRowsForLocation(selectedLocationId, countType)
   );
+  const smartRows = tableRows.map((row) => ({ key: row.productId, productId: row.productId, quantity: row.countedStock }));
+  const smartLocator = useSmartProductLocator(smartRows);
 
   function handleLocationChange(newLocationId: string) {
     if (newLocationId === selectedLocationId) return;
@@ -1363,6 +1367,7 @@ export function StockAdjustmentForm({
 
         {/* Counting Table */}
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <SmartProductSummary products={products} rows={smartRows} onLocate={smartLocator.locate} className="m-3" />
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold uppercase tracking-wider text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
@@ -1402,7 +1407,8 @@ export function StockAdjustmentForm({
                     return (
                       <tr
                         key={row.productId}
-                        className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]"
+                        ref={(element) => { smartLocator.rowRefs.current[row.productId] = element; }}
+                        className={cn("transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]", smartLocator.rowClassName(row.productId))}
                       >
                         {/* Row Number */}
                         <td className="px-3 py-3 text-center text-ledger-400 font-mono text-[11px]">

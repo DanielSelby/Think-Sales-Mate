@@ -19,6 +19,7 @@ import {
   getPurchaseForReturn, createPurchaseReturn, type EligiblePurchase, type PurchaseForReturn, type ReturnableLine,
 } from "@/app/(dashboard)/purchases/returns/actions";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 export interface LocationOption { id: string; name: string; }
 export interface BankAccountOption { id: string; name: string; }
@@ -70,6 +71,9 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
   const [refundStatus, setRefundStatus] = React.useState<string>(REFUND_STATUSES[0]);
   const [attachments, setAttachments] = React.useState<StagedFile[]>([]);
   const [itemSearch, setItemSearch] = React.useState("");
+  const smartRows = lines.map((line) => ({ key: line.purchaseItemId, productId: line.productId, quantity: Number(line.returnQty) }));
+  const smartProducts = lines.map((line) => ({ id: line.productId, name: line.productName, sku: line.sku }));
+  const smartLocator = useSmartProductLocator(smartRows);
 
   function loadPurchase(selected: EligiblePurchase) {
     setLoadingPurchase(true);
@@ -260,7 +264,9 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
               {!purchase ? (
                 <p className="py-10 text-center text-sm text-ledger-400">Select an original purchase order above to load its items.</p>
               ) : (
-                <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
+                <div>
+                  <SmartProductSummary products={smartProducts} rows={smartRows} onLocate={smartLocator.locate} className="mb-3" />
+                  <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-400 dark:border-ledger-700 dark:bg-white/[0.03]">
@@ -277,7 +283,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
                     </thead>
                     <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
                       {visibleLines.map((l, i) => (
-                        <tr key={l.purchaseItemId}>
+                        <tr key={l.purchaseItemId} ref={(element) => { smartLocator.rowRefs.current[l.purchaseItemId] = element; }} className={smartLocator.rowClassName(l.purchaseItemId)}>
                           <td className="px-3 py-2 text-ledger-400">{i + 1}</td>
                           <td className="px-3 py-2 text-ink-900 dark:text-white"><p className="font-medium">{l.productName}</p><p className="font-mono text-[10px] text-ledger-400">{l.sku}</p></td>
                           <td className="px-3 py-2 text-xs text-ledger-500">Purchased product</td>
@@ -307,6 +313,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
             </CardContent>

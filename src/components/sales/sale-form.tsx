@@ -43,6 +43,7 @@ import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 
 export interface SellableProduct {
@@ -227,6 +228,9 @@ export function SaleForm({
   const [search, setSearch] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([]);
+  const smartLocator = useSmartProductLocator(lines);
+  const [autoMergeDuplicates, setAutoMergeDuplicates] = useState(false);
+  const [duplicateProduct, setDuplicateProduct] = useState<{ id: string; name: string; keys: string[] } | null>(null);
   const [priceTier, setPriceTier] = useState<PriceTier>(allowedPriceGroups[0] ?? "retail");
 
   // Additional information / charges — always visible now (the reference
@@ -359,7 +363,16 @@ export function SaleForm({
       setStockWarning(`"${product.name}" is out of stock and cannot be added.`);
       return;
     }
-    if (lines.some((l) => l.productId === productId)) return;
+    const existing = lines.filter((l) => l.productId === productId);
+    if (existing.length && autoMergeDuplicates) {
+      updateLine(existing[0].key, { quantity: existing[0].quantity + 1 });
+      smartLocator.locate(existing[0].key);
+      return;
+    }
+    if (existing.length) {
+      setDuplicateProduct({ id: productId, name: product.name, keys: existing.map((line) => line.key) });
+      return;
+    }
     setLines((prev) => [...prev, { key: crypto.randomUUID(), productId, quantity: 1, discountPercent: 0, taxPercent: 0 }]);
   }
 
@@ -748,6 +761,7 @@ export function SaleForm({
   return (
     <div className="w-full pb-32">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
+      {duplicateProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><h2 className="font-semibold text-ink-900 dark:text-white">Product already exists</h2><p className="mt-2 text-sm text-ledger-500">"{duplicateProduct.name}" already exists in {duplicateProduct.keys.length} row{duplicateProduct.keys.length === 1 ? "" : "s"}.</p><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { smartLocator.locate(duplicateProduct.keys[0]); setDuplicateProduct(null); }} className="rounded-lg border border-ledger-200 px-3 py-2 text-xs font-semibold">Go To Existing Row</button><button type="button" onClick={() => { setLines((prev) => [...prev, { key: crypto.randomUUID(), productId: duplicateProduct.id, quantity: 1, discountPercent: 0, taxPercent: 0 }]); setDuplicateProduct(null); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Add Another Row</button></div></div></div>}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -1083,6 +1097,11 @@ export function SaleForm({
               <p className="mt-6 text-center text-sm text-ledger-400">Add a product to Inventory to start selling.</p>
             ) : (
               <>
+                <div className="mt-4 flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-100">
+                  <span>Auto Merge Duplicate Products</span>
+                  <button type="button" onClick={() => setAutoMergeDuplicates((value) => !value)} className={cn("rounded-full px-3 py-1 text-[10px] font-semibold", autoMergeDuplicates ? "bg-blue-600 text-white" : "bg-white text-ledger-500")}>{autoMergeDuplicates ? "ON" : "OFF"}</button>
+                </div>
+                <SmartProductSummary products={locationProducts} rows={lines} onLocate={smartLocator.locate} className="mt-3" />
                 <div className="mt-4 overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                   <table className="w-full text-sm">
                     <thead>
@@ -1104,7 +1123,7 @@ export function SaleForm({
                       {computedLines.map(({ line, product, unitPrice, rowTotal }) => {
                         const isEditing = editingLineId === line.key || !product;
                         return (
-                          <tr key={line.key} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
+                          <tr key={line.key} ref={(element) => { smartLocator.rowRefs.current[line.key] = element; }} className={cn("border-b border-ledger-50 last:border-0 dark:border-ledger-700/50", smartLocator.rowClassName(line.key))}>
                             <td className="py-2 pl-3 pr-2">
                               {isEditing ? (
                                 <SaleProductRowCell
