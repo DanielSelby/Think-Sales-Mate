@@ -64,6 +64,11 @@ export const CAPABILITIES = {
   "orders.reject": "manager",
   "orders.edit": "staff",
   "orders.convert_to_sale": "staff",
+  "messaging.view": "viewer",
+  "messaging.create": "staff",
+  "messaging.submit": "staff",
+  "messaging.approve": "manager",
+  "messaging.send": "manager",
 } as const satisfies Record<string, MemberRole>;
 
 export type Capability = keyof typeof CAPABILITIES;
