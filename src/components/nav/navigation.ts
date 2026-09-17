@@ -6,7 +6,7 @@ import {
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
-  Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff,
+  Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route,
 } from "lucide-react";
 
 export interface NavChild {
@@ -81,6 +81,18 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   { label: "CRM", href: "/crm", icon: Contact, status: "live" },
+  {
+    label: "Route Sales", href: "/route-sales", icon: Route, status: "live",
+    children: [
+      { label: "Dashboard", href: "/route-sales", icon: LayoutDashboard },
+      { label: "Routes", href: "/route-sales?tab=Routes", icon: Route },
+      { label: "Customers", href: "/route-sales?tab=Customers", icon: Contact },
+      { label: "Field Sales Reps", href: "/route-sales?tab=Field%20Sales%20Reps", icon: Users2 },
+      { label: "Collections", href: "/route-sales?tab=Collections", icon: DollarSign },
+      { label: "Mobile Orders", href: "/route-sales?tab=Mobile%20Orders", icon: PackageCheck },
+      { label: "Route Reports", href: "/route-sales?tab=Route%20Reports", icon: BarChart3 },
+    ],
+  },
   {
     label: "Expenses", href: "/expenses", icon: Tag, status: "live",
     children: [
