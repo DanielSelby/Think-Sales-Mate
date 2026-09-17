@@ -44,9 +44,11 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
   const [showUser,          setShowUser]          = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [userName,         setUserName]         = useState(initialUserName ?? "");
+  const [avatarUrl,        setAvatarUrl]        = useState<string | null>(null);
   const [userEmail,         setUserEmail]         = useState("");
   const [notifications,     setNotifications]     = useState<NotificationItem[]>([]);
   const [unreadCount,       setUnreadCount]       = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [branchOptions,     setBranchOptions]     = useState<Array<{ id: string; name: string }>>([]);
   const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
   const [popupNotification, setPopupNotification] = useState<NotificationItem | null>(null);
@@ -59,7 +61,14 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setUserEmail(user.email ?? "");
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, avatar_url")
+            .eq("id", user.id)
+            .maybeSingle();
+          setAvatarUrl(profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null);
           const name = initialUserName
+            || profile?.full_name
             || user.user_metadata?.full_name
             || user.user_metadata?.name
             || user.email?.split("@")[0]
@@ -124,6 +133,11 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
             previousNotificationIds.current = new Set(notifs.map((notification) => notification.id));
             setNotifications(notifs as NotificationItem[]);
             setUnreadCount(notifs.filter((n) => !n.is_read).length);
+            setUnreadMessageCount(
+              notifs.filter((notification) =>
+                !notification.is_read && /message|chat|communication/i.test(notification.type)
+              ).length
+            );
           }
         }
       } catch { /* silent */ }
@@ -148,6 +162,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
     await supabase.from("notifications").update({ is_read: true }).eq("is_read", false);
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     setUnreadCount(0);
+    setUnreadMessageCount(0);
   };
 
   const { currentBranch, setBranch, currentCurrency, setCurrency } = useAccountingStore();
@@ -186,10 +201,16 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       className="flex h-14 items-center gap-3 px-5 shrink-0 relative z-30"
       style={{ background: topbar.background, borderBottom: `1px solid ${sidebar.borderColor}` }}
     >
-      {/* Search — opens command bar */}
+      {/* Organization branding — anchored to the far left */}
+      <div className="hidden items-center gap-2 lg:flex shrink-0">
+        <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
+        <span className="max-w-[180px] truncate text-xs font-semibold text-white/85">{orgName}</span>
+      </div>
+
+      {/* Search — centered in the top navigation */}
       <button
         onClick={() => setCommandBarOpen(true)}
-        className="flex items-center gap-2 h-8.5 w-72 rounded-xl border px-3 text-xs transition-all"
+        className="absolute left-1/2 flex h-8.5 w-[min(36rem,45vw)] -translate-x-1/2 items-center gap-2 rounded-xl border px-3 text-xs transition-all sm:w-[min(36rem,52vw)]"
         style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.8)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)"; }}
@@ -214,11 +235,6 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
         <ShoppingCart className="h-4 w-4" />
         <span className="hidden sm:inline">POS</span>
       </Link>
-      <div className="hidden items-center gap-2 lg:flex">
-        <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
-        <span className="max-w-[180px] truncate text-xs font-semibold text-white/85">{orgName}</span>
-      </div>
-
       {/* Branch Selector */}
       <div className="relative">
         <button
@@ -396,13 +412,15 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       {/* Messages Icon */}
       <div className="relative">
         <button
-          onClick={() => router.push("/crm")}
+          onClick={() => router.push("/communication")}
           className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10"
         >
           <MessageSquare className="h-4 w-4" />
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm">
-            5
-          </span>
+          {unreadMessageCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm">
+              {unreadMessageCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -412,9 +430,18 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
           onClick={() => { setShowUser(v => !v); setShowThemes(false); setShowNotifications(false); }}
           className="flex items-center gap-2.5 h-9 px-2 rounded-xl transition-all hover:bg-white/10"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-semibold text-xs text-white ring-2 ring-white/20 shrink-0">
-            {initials}
-          </div>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={`${userName || "User"} profile`}
+              className="h-8 w-8 rounded-full object-cover ring-2 ring-white/20"
+              onError={() => setAvatarUrl(null)}
+            />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-semibold text-xs text-white ring-2 ring-white/20 shrink-0">
+              {initials}
+            </div>
+          )}
           <div className="text-left hidden md:block">
             <p className="text-xs font-semibold text-white leading-tight">{userName || "User"}</p>
             <p className="text-[10px] text-white/60 leading-tight">{userRole ? userRole.replace(/_/g, " ") : "User"}</p>
@@ -429,10 +456,19 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
               {/* User info header */}
               <div className="px-3 py-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white shrink-0"
-                    style={{ background: theme.colors.primary }}>
-                    {initials}
-                  </div>
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={`${userName || "User"} profile`}
+                      className="h-8 w-8 rounded-lg object-cover shrink-0"
+                      onError={() => setAvatarUrl(null)}
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white shrink-0"
+                      style={{ background: theme.colors.primary }}>
+                      {initials}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-800 truncate">{userName || "User"}</p>
                     <p className="text-[10px] text-slate-400 truncate">{userEmail}</p>
