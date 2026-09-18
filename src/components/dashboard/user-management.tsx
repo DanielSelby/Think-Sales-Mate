@@ -69,11 +69,12 @@ import type {
   ActiveTab,
   UserFilterState,
   AuditLogEntry,
-  InvitationRecord,
   LoginSession,
+  InvitationRecord,
   ModuleCategory,
   PermissionAction
 } from "./user-management/types";
+import type { BranchAccessRule } from "./user-management/types";
 
 import {
   DEFAULT_ROLES,
@@ -92,16 +93,20 @@ import {
   removeMember,
   bulkInviteMembers,
   resendInvite,
-  updateMemberAccessScope
+  updateMemberAccessScope,
+  saveRolePermissions
 } from "@/app/(dashboard)/settings/organization/actions";
 import { createStaffAccount, saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
-import { THEMES, type ThemeKey } from "@/store/useAppStore";
+import { THEMES, type ThemeKey, useAppStore } from "@/store/useAppStore";
 
 export type { ManagedUser, UserBranch } from "./user-management/types";
 
 interface UserManagementProps {
   users?: ManagedUser[];
   branches?: UserBranch[];
+  roles?: RoleDefinition[];
+  auditLogs?: AuditLogEntry[];
+  sessions?: LoginSession[];
   canManage?: boolean;
   orgName?: string;
   companyWebsite?: string | null;
@@ -113,6 +118,9 @@ interface UserManagementProps {
 export function UserManagement({
   users: initialUsersProp,
   branches: initialBranchesProp,
+  roles: initialRolesProp,
+  auditLogs: initialAuditLogsProp,
+  sessions: initialSessionsProp,
   canManage = true,
   orgName = "ThinkSales Pro",
   companyWebsite,
@@ -121,6 +129,8 @@ export function UserManagement({
   canManageThemes = false
 }: UserManagementProps) {
   const [isPending, startTransition] = useTransition();
+  const { setTheme } = useAppStore();
+  const [roleThemeState, setRoleThemeState] = useState<Record<string, string>>(roleThemes);
 
   // Primary Data State
   const [branches] = useState<UserBranch[]>(
@@ -160,8 +170,12 @@ export function UserManagement({
     return INITIAL_USERS;
   });
 
-  const [roles, setRoles] = useState<RoleDefinition[]>(DEFAULT_ROLES);
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+  const [roles, setRoles] = useState<RoleDefinition[]>(
+    initialRolesProp && initialRolesProp.length > 0 ? initialRolesProp : DEFAULT_ROLES
+  );
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(
+    initialAuditLogsProp && initialAuditLogsProp.length > 0 ? initialAuditLogsProp : INITIAL_AUDIT_LOGS
+  );
   const [invitations, setInvitations] = useState<InvitationRecord[]>(INITIAL_INVITATIONS);
 
   // Active Tab & Filters
@@ -493,7 +507,8 @@ export function UserManagement({
         canCheckCrossBranchStock: updates.canCheckCrossBranchStock ?? oldUser?.canCheckCrossBranchStock ?? false,
         role: updates.role ?? oldUser?.role,
         approvalPermissions: updates.approvalPermissions ?? oldUser?.approvalPermissions
-        , priceGroups: updates.priceGroups ?? oldUser?.priceGroups
+        , priceGroups: updates.priceGroups ?? oldUser?.priceGroups,
+        permissions: updates.accessPermissions?.permissions as Record<string, unknown> | undefined
       });
       if (result?.error) {
         showToast(`Failed to save access changes: ${result.error}`);
@@ -517,7 +532,7 @@ export function UserManagement({
     showToast(`User ${user.fullName} is now ${nextStatus}`);
     startTransition(async () => {
       const result = await updateMemberStatus(user.id, persistedStatus);
-      if (result?.error) showToast(result.error);
+      if ("error" in result && result.error) showToast(result.error);
     });
   };
 
@@ -640,6 +655,22 @@ export function UserManagement({
     );
     recordAudit("Bulk Role Assigned", "User Management", `Assigned role ${roleDef?.name} to ${bulkSelectedIds.length} users.`);
     showToast(`Assigned ${roleDef?.name} to ${bulkSelectedIds.length} users`);
+    if (roleDef) {
+      startTransition(async () => {
+        const results = await Promise.all(
+          bulkSelectedIds.map((memberId) =>
+            updateMemberAccessScope({
+              memberId,
+              role: roleDef.key,
+              permissions: roleDef.permissions,
+              approvalPermissions: roleDef.approvalCapabilities
+            })
+          )
+        );
+        const failure = results.find((result) => result?.error);
+        if (failure?.error) showToast(`Failed to assign role: ${failure.error}`);
+      });
+    }
     setIsBulkRoleOpen(false);
   };
 
@@ -1232,9 +1263,12 @@ export function UserManagement({
               setFilters({ ...filters, role: roleKey });
               setActiveTab("users");
             }}
-            roleThemes={roleThemes}
+            roleThemes={roleThemeState}
             canManageThemes={canManageThemes}
             onSaveRoleTheme={(roleKey, themeKey) => {
+              setRoleThemeState((previous) => ({ ...previous, [roleKey]: themeKey }));
+              const currentUser = users.find((user) => user.isSelf);
+              if (currentUser && String(currentUser.role) === roleKey) setTheme(themeKey);
               startTransition(async () => {
                 const result = await saveRoleTheme(roleKey, themeKey);
                 if (result?.error) showToast(result.error);
@@ -1276,6 +1310,10 @@ export function UserManagement({
     showToast(
       `Permissions updated for ${updatedRole?.name || "role"}`
     );
+    startTransition(async () => {
+      const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
+      if ("error" in result && result.error) showToast(result.error);
+    });
   }}
 />
         )}
@@ -1285,7 +1323,27 @@ export function UserManagement({
         )}
 
         {activeTab === "branches" && (
-          <BranchAccessTab branches={branches} canManage={canManage} />
+          <BranchAccessTab
+            branches={branches}
+            users={users}
+            canManage={canManage}
+            onSaveAccess={async (rule: BranchAccessRule) => {
+              const user = users.find((item) => item.id === rule.userId);
+              if (!user) return;
+              const result = await updateMemberAccessScope({
+                memberId: rule.userId,
+                locationId: rule.primaryBranchId || null,
+                secondaryLocationIds: rule.additionalBranchIds,
+                branchScope: rule.viewAllBranches ? "all" : "assigned",
+                canCheckCrossBranchStock: rule.canTransferBetweenBranches,
+                approvalPermissions: {
+                  ...(user.approvalPermissions ?? {}),
+                  customerOrders: rule.canApproveBranchOrders
+                }
+              });
+              if (result?.error) showToast(result.error);
+            }}
+          />
         )}
 
         {activeTab === "audit" && (
@@ -1293,7 +1351,7 @@ export function UserManagement({
         )}
 
         {activeTab === "sessions" && (
-          <LoginSessionsTab canManage={canManage} />
+          <LoginSessionsTab canManage={canManage} initialSessions={initialSessionsProp ?? []} />
         )}
 
         {activeTab === "staff_accounts" && (
@@ -1399,6 +1457,10 @@ export function UserManagement({
             setRoles((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
             showToast(`Role "${saved.name}" updated.`);
           }
+          startTransition(async () => {
+            const result = await saveRolePermissions(saved.key, saved.permissions, saved.name);
+            if ("error" in result && result.error) showToast(result.error);
+          });
           setIsRoleModalOpen(false);
         }}
       />

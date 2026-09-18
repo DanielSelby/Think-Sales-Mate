@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -71,7 +71,7 @@ export async function getAssetsForAccounting(): Promise<Array<{
 export async function createAsset(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/assets/new", "Your session expired — please sign in again.");
-  if (!can(context.role, "assets.manage")) {
+  if (!await canPermission("assets", "edit")) {
     redirectWithError("/assets/new", "You don't have permission to add assets.");
   }
 
@@ -104,7 +104,7 @@ export async function importAssets(records: Array<{
   location?: string | null;
 }>): Promise<{ success?: boolean; error?: string; count?: number }> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "assets.manage")) return { error: "You don't have permission to import assets." };
+  if (!context || !await canPermission("assets", "edit")) return { error: "You don't have permission to import assets." };
   const valid = records.filter((record) => record.name.trim()).map((record) => ({
     org_id: context.orgId,
     created_by: context.userId,
@@ -129,7 +129,7 @@ export async function importAssets(records: Array<{
 export async function updateAsset(assetId: string, formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/assets/${assetId}/edit`, "Your session expired — please sign in again.");
-  if (!can(context.role, "assets.manage")) {
+  if (!await canPermission("assets", "edit")) {
     redirectWithError(`/assets/${assetId}/edit`, "You don't have permission to edit assets.");
   }
 
@@ -151,7 +151,7 @@ export async function updateAsset(assetId: string, formData: FormData): Promise<
 
 export async function deleteAsset(assetId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "assets.manage")) {
+  if (!context || !await canPermission("assets", "edit")) {
     return { error: "You don't have permission to remove assets." };
   }
 

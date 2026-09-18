@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 export type AdjustmentStatus = "draft" | "in_progress" | "completed";
 export type AdjustmentCountType = "stock_taking" | "adjustment_only";
@@ -40,7 +40,7 @@ export interface CreateAdjustmentResult {
 export async function createStockAdjustment(payload: CreateAdjustmentPayload): Promise<CreateAdjustmentResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
-  if (!can(context.role, "inventory.manage")) {
+  if (!await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to record stock adjustments." };
   }
   if (!payload.locationId) {

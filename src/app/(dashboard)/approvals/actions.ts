@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { approveStockRequest, rejectStockRequest } from "@/app/(dashboard)/inventory/stock-requests/actions";
 import { approveExpense, rejectExpense } from "@/app/(dashboard)/expenses/actions";
 
@@ -16,7 +16,7 @@ export type ApprovalDecisionInput = {
 
 export async function decideApproval(input: ApprovalDecisionInput) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.stock_request.approve")) {
+  if (!context || !await canPermission("inventory.stock_request", "approve")) {
     return { error: "You do not have permission to manage approvals." };
   }
 
@@ -80,7 +80,7 @@ export async function decideApproval(input: ApprovalDecisionInput) {
 
 export async function markApprovalDone(input: Pick<ApprovalDecisionInput, "type" | "id">) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.stock_request.approve")) {
+  if (!context || !await canPermission("inventory.stock_request", "approve")) {
     return { error: "You do not have permission to update approval history." };
   }
   const supabase = await createClient();

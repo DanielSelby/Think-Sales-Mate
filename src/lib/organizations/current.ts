@@ -14,6 +14,7 @@ export interface CurrentOrgContext {
   secondaryLocationIds: string[];
   canViewOtherTransactions: boolean;
   canCheckCrossBranchStock: boolean;
+  accessPermissions: Record<string, unknown>;
   priceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
   useSystemPrices: boolean;
   isBranchScoped: boolean;
@@ -83,6 +84,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
       secondaryLocationIds,
       canViewOtherTransactions: canViewOther,
       canCheckCrossBranchStock,
+      accessPermissions: (row.access_permissions as Record<string, unknown>) ?? {},
       priceGroups: (priceGroups.length > 0 ? priceGroups : ["retail"]) as Array<"retail" | "wholesale" | "vip" | "special">,
       useSystemPrices: organization?.use_system_prices !== false,
       isBranchScoped,
@@ -115,6 +117,7 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     secondaryLocationIds: active.secondaryLocationIds,
     canViewOtherTransactions: active.canViewOtherTransactions,
     canCheckCrossBranchStock: active.canCheckCrossBranchStock,
+    accessPermissions: active.accessPermissions,
     priceGroups: active.priceGroups,
     useSystemPrices: active.useSystemPrices,
     isBranchScoped: active.isBranchScoped,

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { generateNextSku } from "@/lib/inventory/sku";
 
 export interface ImportReferenceData {
@@ -75,7 +75,7 @@ export interface CommitImportResult {
 
 export async function commitProductImport(fileName: string, rows: ImportRowInput[]): Promise<CommitImportResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return {
       imported: 0,
       skipped: rows.length,

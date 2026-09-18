@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { normalizeProductName, productNameScore, type BarcodeValidationMode, type DuplicateControlMode, type ProductDuplicateMatch } from "@/lib/inventory/duplicate-products";
 
 type DuplicateSettings = {
@@ -24,7 +24,7 @@ export async function getDuplicateSettings(): Promise<DuplicateSettings> {
 
 export async function saveDuplicateSettings(input: DuplicateSettings) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "settings.edit")) return { error: "You do not have permission to change product settings." };
+  if (!context || !await canPermission("settings", "edit")) return { error: "You do not have permission to change product settings." };
   const supabase = await createClient();
   const { error } = await supabase.from("product_duplicate_settings").upsert({
     org_id: context.orgId,

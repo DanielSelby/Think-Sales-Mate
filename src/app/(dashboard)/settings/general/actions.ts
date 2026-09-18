@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { updateCurrency } from "@/app/(dashboard)/settings/organization/actions";
 import { updateCurrencySettings, ensureCurrencySettings } from "@/app/(dashboard)/settings/currencies/actions";
 
 async function requireAdmin() {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." } as const;
-  if (!can(context.role, "settings.edit")) {
+  if (!await canPermission("settings", "edit")) {
     return { error: "You don't have permission to edit general settings." } as const;
   }
   return { context } as const;

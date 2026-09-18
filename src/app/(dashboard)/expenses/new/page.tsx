@@ -11,7 +11,13 @@ export default async function AddExpensePage() {
 
   const supabase = await createClient();
   const [{ data: locations }, { data: bankAccounts }, approvers] = await Promise.all([
-    supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true),
+    supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true)
+      .then((result) => ({
+        ...result,
+        data: context.isBranchScoped
+          ? (result.data ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
+          : result.data
+      })),
     supabase.from("bank_accounts").select("id, name").eq("org_id", context.orgId),
     getApprovers(),
   ]);

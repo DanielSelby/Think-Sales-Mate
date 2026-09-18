@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 export async function logReportExport(reportName: string, reportType: string, format: "pdf" | "excel" | "csv") {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "reports.view")) {
+  if (!context || !await canPermission("reports", "view")) {
     return { error: "You don't have permission to export reports." };
   }
 

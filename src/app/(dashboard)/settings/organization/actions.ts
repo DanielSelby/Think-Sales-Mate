@@ -4,9 +4,29 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import type { MemberRole } from "@/lib/rbac";
 import { getCurrencyConfig } from "@/lib/currency";
+import { normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
+
+function databaseRole(role: string): MemberRole {
+  const key = role.toLowerCase();
+  if (key === "owner" || key === "super_admin") return "owner";
+  if (key === "administrator" || key === "admin") return "admin";
+  if (key === "manager" || key === "branch_manager") return "manager";
+  if (key === "viewer") return "viewer";
+  return "staff";
+}
+
+function submittedPermissions(formData: FormData): Record<string, unknown> {
+  const raw = formData.get("permissions") ?? formData.get("permission_matrix");
+  if (typeof raw !== "string" || !raw.trim()) return {};
+  try {
+    return normalizePermissionMatrix(JSON.parse(raw));
+  } catch {
+    return {};
+  }
+}
 
 async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> {
   const admin = createAdminClient();
@@ -36,7 +56,8 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
 
 export async function inviteMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const role = String(formData.get("role") ?? "staff") as MemberRole;
+  const requestedRole = String(formData.get("role") ?? "staff").toLowerCase();
+  const role = databaseRole(requestedRole);
   const avatar = formData.get("avatar");
   const locationId = String(formData.get("location_id") ?? "").trim();
   const branchScope = String(formData.get("branch_scope") ?? "assigned");
@@ -46,7 +67,7 @@ export async function inviteMember(formData: FormData) {
 
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
-  if (!can(context.role, "org.manage_members")) {
+  if (!await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to invite members." };
   }
 
@@ -66,6 +87,10 @@ export async function inviteMember(formData: FormData) {
     secondary_location_ids: secondaryLocationIds,
     can_view_other_users_transactions: canViewOther,
     can_check_cross_branch_stock: canCheckCrossBranchStock,
+    access_permissions: {
+      role_key: requestedRole,
+      permissions: submittedPermissions(formData)
+    },
   }).select("id").single();
 
   if (memberError) return { error: memberError.message };
@@ -82,7 +107,7 @@ export async function inviteMember(formData: FormData) {
 export async function createStaffAccount(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
-  if (!can(context.role, "org.manage_members")) {
+  if (!await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to create staff accounts." };
   }
 
@@ -184,6 +209,7 @@ export async function createStaffAccount(formData: FormData) {
 
   const accessPermissions = {
     role_key: requestedRole,
+    permissions: submittedPermissions(formData),
     approvals: {
       stockTransfers: formData.get("approval_stock_transfers") === "true",
       purchases: formData.get("approval_purchases") === "true",
@@ -264,11 +290,12 @@ export interface UpdateMemberAccessScopeInput {
   status?: "active" | "inactive" | "suspended";
   approvalPermissions?: any;
   priceGroups?: string[];
+  permissions?: Record<string, unknown>;
 }
 
 export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInput) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) {
+  if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to update member access." };
   }
 
@@ -341,11 +368,13 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     updatePayload.role = mappedRole;
   }
 
-  if (targetOwner || input.approvalPermissions || input.priceGroups) {
+  if (targetOwner || input.role || input.permissions || input.approvalPermissions || input.priceGroups) {
     const existing = await admin.from("organization_members").select("access_permissions").eq("id", input.memberId).maybeSingle();
     const existingPermissions = existing.data?.access_permissions ?? {};
     updatePayload.access_permissions = {
+      ...existingPermissions,
       role_key: targetOwner ? "owner" : input.role || "staff",
+      ...(input.permissions ? { permissions: normalizePermissionMatrix(input.permissions) } : {}),
       approvals: targetOwner
         ? {
             stockTransfers: true,
@@ -381,7 +410,7 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
 
 export async function resetMemberPassword(memberId: string, mode: "email" | "temporary", temporaryPassword?: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) return { error: "You don't have permission to reset passwords." };
+  if (!context || !await canPermission("user_management", "edit")) return { error: "You don't have permission to reset passwords." };
   const supabase = await createClient();
   const { data: member } = await supabase.from("organization_members")
     .select("user_id, invited_email")
@@ -413,7 +442,7 @@ export async function resetMemberPassword(memberId: string, mode: "email" | "tem
 
 export async function updateMemberRole(memberId: string, role: MemberRole) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) {
+  if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to change roles." };
   }
   if (await targetIsOwner(memberId, context.orgId)) {
@@ -421,16 +450,38 @@ export async function updateMemberRole(memberId: string, role: MemberRole) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("organization_members").update({ role }).eq("id", memberId);
+  const { data: existing } = await supabase.from("organization_members")
+    .select("access_permissions").eq("id", memberId).eq("org_id", context.orgId).maybeSingle();
+  const current = (existing?.access_permissions as Record<string, unknown>) ?? {};
+  const { error } = await supabase.from("organization_members").update({
+    role,
+    access_permissions: { ...current, role_key: role }
+  }).eq("id", memberId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 
   revalidatePath("/settings/organization");
   return { success: true };
 }
 
+/** Persist the access-matrix editor's role template for this organization. */
+export async function saveRolePermissions(
+  roleKey: string,
+  permissions: Record<string, unknown>,
+  name?: string
+) {
+  const context = await getCurrentOrgContext();
+  if (!context || !await canPermission("user_management", "edit")) {
+    return { error: "You don't have permission to manage role permissions." };
+  }
+  const result = await savePermissionTemplate(context.orgId, roleKey.replace(/^role-/, ""), permissions, name);
+  if (result.error) return result;
+  revalidatePath("/settings/organization");
+  return { success: true };
+}
+
 export async function updateMemberBranch(memberId: string, locationId: string | null) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) {
+  if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to reassign members." };
   }
 
@@ -449,7 +500,7 @@ export async function updateMemberBranch(memberId: string, locationId: string | 
 
 export async function updateMemberStatus(memberId: string, status: "active" | "suspended") {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) {
+  if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to change member status." };
   }
   if (await targetIsOwner(memberId, context.orgId)) {
@@ -471,7 +522,7 @@ export async function updateMemberStatus(memberId: string, status: "active" | "s
 
 export async function resendInvite(memberId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) {
+  if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to resend invites." };
   }
 
@@ -491,7 +542,7 @@ export async function resendInvite(memberId: string) {
 
 export async function removeMember(memberId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) {
+  if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to remove members." };
   }
   if (await targetIsOwner(memberId, context.orgId)) {
@@ -519,7 +570,7 @@ export interface BulkInviteResult {
 
 export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInviteResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) {
+  if (!context || !await canPermission("user_management", "edit")) {
     return { invited: 0, skipped: rows.map((_, i) => ({ row: i + 1, reason: "Not permitted" })) };
   }
 
@@ -566,7 +617,7 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
 export async function updateCurrency(currency: string) {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
-  if (!can(context.role, "org.manage_members")) {
+  if (!await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to update currency." };
   }
 
@@ -603,7 +654,7 @@ export async function updateCurrency(currency: string) {
 
 export async function saveRoleTheme(roleKey: string, themeKey: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "org.manage_members")) return { error: "You don't have permission to manage role themes." };
+  if (!context || !await canPermission("user_management", "edit")) return { error: "You don't have permission to manage role themes." };
   const allowed = ["green", "navy", "teal", "plum", "fintech", "royal", "harvest", "eclipse"];
   if (!allowed.includes(themeKey)) return { error: "Invalid theme selected." };
   const supabase = await createClient();

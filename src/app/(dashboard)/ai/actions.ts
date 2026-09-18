@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { getFinancialSummary } from "@/lib/accounting/metrics";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(message: string): never {
   redirect(`/ai?error=${encodeURIComponent(message)}`);
@@ -14,7 +14,7 @@ function redirectWithError(message: string): never {
 export async function generateInsights(): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("Your session expired — please sign in again.");
-  if (!can(context.role, "ai.generate")) {
+  if (!await canPermission("ai", "edit")) {
     redirectWithError("You don't have permission to generate AI insights.");
   }
 

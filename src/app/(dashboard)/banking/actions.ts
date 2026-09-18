@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -13,7 +13,7 @@ function redirectWithError(path: string, message: string): never {
 export async function createAccount(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/banking/new", "Your session expired — please sign in again.");
-  if (!can(context.role, "banking.manage")) {
+  if (!await canPermission("banking", "edit")) {
     redirectWithError("/banking/new", "You don't have permission to add accounts.");
   }
 
@@ -45,7 +45,7 @@ export async function createAccount(formData: FormData): Promise<void> {
 export async function recordTransaction(accountId: string, formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/banking/${accountId}`, "Your session expired — please sign in again.");
-  if (!can(context.role, "banking.manage")) {
+  if (!await canPermission("banking", "edit")) {
     redirectWithError(`/banking/${accountId}`, "You don't have permission to record transactions.");
   }
 
@@ -81,7 +81,7 @@ export async function recordTransaction(accountId: string, formData: FormData): 
 
 export async function deleteAccount(accountId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "banking.manage")) {
+  if (!context || !await canPermission("banking", "edit")) {
     return { error: "You don't have permission to remove accounts." };
   }
 

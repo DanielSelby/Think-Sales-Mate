@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -13,6 +15,7 @@ export interface SimpleResult {
 }
 
 export async function setOrderStatus(orderId: string, status: CustomerOrderStatus): Promise<SimpleResult> {
+  await requirePermission("orders", "edit");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
@@ -106,6 +109,7 @@ export interface ApproveOrderResult extends SimpleResult {
 }
 
 export async function approveAndProcessOrder({ orderId, locationId }: ApproveOrderInput): Promise<ApproveOrderResult> {
+  await requirePermission("orders", "approve");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
@@ -297,6 +301,7 @@ export async function updateOrderFulfillmentStatus(
 }
 
 export async function convertOrderToSale(orderId: string): Promise<ApproveOrderResult> {
+  await requirePermission("orders", "create");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
@@ -513,6 +518,7 @@ export async function updateOrderItem(orderId: string, input: UpdateOrderItemInp
 }
 
 export async function removeOrderItem(orderId: string, itemId: string): Promise<SimpleResult> {
+  await requirePermission("orders", "delete");
   const supabase = await createClient();
   const { error } = await supabase.from("customer_order_items").delete().eq("id", itemId);
   if (error) return { ok: false, error: error.message };
@@ -541,6 +547,7 @@ export interface StockCheckResult {
 }
 
 export async function checkOrderStock(orderId: string): Promise<StockCheckResult> {
+  await requirePermission("orders", "view");
   const supabase = await createClient();
   const { data: items } = await supabase
     .from("customer_order_items")

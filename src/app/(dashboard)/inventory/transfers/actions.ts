@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import type { Database, TransferStatus } from "@/types/database";
 
 export interface TransferItemInput {
@@ -31,7 +31,7 @@ export interface CreateTransferResult {
 export async function createStockTransfer(payload: CreateTransferPayload): Promise<CreateTransferResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
-  if (!can(context.role, "inventory.manage")) {
+  if (!await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to create stock transfers." };
   }
   if (context.isBranchScoped &&
@@ -164,7 +164,7 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   }
 
   const supabase = await createClient();
-  const isInventoryManager = can(context.role, "inventory.manage");
+  const isInventoryManager = await canPermission("inventory", "edit");
   let receivingBranchCanComplete = false;
   if (!isInventoryManager) {
     const { data: destination } = await supabase
@@ -253,7 +253,7 @@ export async function getTransferItems(transferId: string): Promise<TransferItem
 
 export async function deleteTransfer(transferId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to delete transfers." };
   }
 

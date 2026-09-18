@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 export interface MergeProductOption {
   id: string;
@@ -163,7 +163,7 @@ export async function previewProductMerge(
   selectedMasterId?: string
 ): Promise<{ ok: boolean; error?: string; preview?: MergePreviewData }> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { ok: false, error: "Unauthorized: inventory manager role required." };
   }
 
@@ -327,7 +327,7 @@ export interface ExecuteMergePayload {
  */
 export async function executeProductMerge(payload: ExecuteMergePayload): Promise<MergeExecutionResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { ok: false, error: "Unauthorized: inventory manager role required." };
   }
 

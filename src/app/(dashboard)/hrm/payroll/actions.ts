@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { generatePayslipsForRun } from "@/app/(dashboard)/hrm/actions";
 
 function redirectWithError(message: string): never {
@@ -22,7 +22,7 @@ function currentPeriod() {
 export async function runPayroll(): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("Your session expired — please sign in again.");
-  if (!can(context.role, "hrm.manage")) {
+  if (!await canPermission("hrm", "edit")) {
     redirectWithError("You don't have permission to run payroll.");
   }
 

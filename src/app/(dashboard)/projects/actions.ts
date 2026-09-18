@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -38,7 +38,7 @@ function parseProjectForm(formData: FormData) {
 export async function createProject(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/projects/new", "Your session expired — please sign in again.");
-  if (!can(context.role, "projects.create")) {
+  if (!await canPermission("projects", "create")) {
     redirectWithError("/projects/new", "You don't have permission to add projects.");
   }
 
@@ -61,7 +61,7 @@ export async function createProject(formData: FormData): Promise<void> {
 export async function updateProject(projectId: string, formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/projects/${projectId}/edit`, "Your session expired — please sign in again.");
-  if (!can(context.role, "projects.manage")) {
+  if (!await canPermission("projects", "edit")) {
     redirectWithError(`/projects/${projectId}/edit`, "You don't have permission to edit projects.");
   }
 
@@ -83,7 +83,7 @@ export async function updateProject(projectId: string, formData: FormData): Prom
 
 export async function deleteProject(projectId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "projects.manage")) {
+  if (!context || !await canPermission("projects", "edit")) {
     return { error: "You don't have permission to remove projects." };
   }
 

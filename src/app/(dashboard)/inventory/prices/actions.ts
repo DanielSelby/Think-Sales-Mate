@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 export type PriceUpdate = {
   sellingPrice: number;
@@ -14,7 +14,7 @@ export type PriceUpdate = {
 
 export async function setUseSystemPrices(useSystemPrices: boolean) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) return { ok: false, error: "You do not have permission to change price settings." };
+  if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to change price settings." };
   const supabase = await createClient();
   const { error } = await supabase.from("organizations").update({ use_system_prices: useSystemPrices }).eq("id", context.orgId);
   if (error) return { ok: false, error: error.message };
@@ -34,7 +34,7 @@ export async function updateProductPrices(productId: string, prices: PriceUpdate
     return { ok: false, error: "Enter valid non-negative prices." };
   }
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) return { ok: false, error: "You do not have permission to update prices." };
+  if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to update prices." };
   const supabase = await createClient();
   const { error } = await supabase
     .from("products")
@@ -59,7 +59,7 @@ export async function updateProductPrices(productId: string, prices: PriceUpdate
 
 export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate>) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { ok: false, error: "You do not have permission to update prices.", updatedCount: 0 };
   }
 
@@ -101,7 +101,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate
 
 export async function getPriceHistory() {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) return { ok: false, error: "You do not have permission to view price history.", entries: [] };
+  if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to view price history.", entries: [] };
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("audit_logs")

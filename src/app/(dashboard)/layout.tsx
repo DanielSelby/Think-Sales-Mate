@@ -27,7 +27,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .from("organization_role_themes")
     .select("theme_key")
     .eq("org_id", context.orgId)
-    .eq("role_key", context.role)
+    .eq(
+      "role_key",
+      typeof context.accessPermissions.role_key === "string"
+        ? context.accessPermissions.role_key
+        : context.role
+    )
     .maybeSingle();
   const selectedTheme = roleTheme?.theme_key as ThemeKey | null;
   let enabledModules: string[] | undefined;

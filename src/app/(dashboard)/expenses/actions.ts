@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canUseLocation } from "@/lib/organizations/location-access";
+import { canPermission } from "@/lib/rbac/permissions";
 import { formatExpenseNumber } from "@/lib/expenses/format";
 
 export interface ExpenseItemInput {
@@ -78,6 +79,9 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
 
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
+  if (!(await canPermission("expenses", "create"))) {
+    return { ok: false, error: "You do not have permission to create expenses." };
+  }
   if (!canUseLocation(context, input.locationId)) {
     return { ok: false, error: "You are not assigned to this branch." };
   }

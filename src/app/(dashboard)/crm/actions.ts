@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -29,7 +29,7 @@ function parseCustomerForm(formData: FormData) {
 export async function createCustomer(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/crm/new", "Your session expired — please sign in again.");
-  if (!can(context.role, "crm.create")) {
+  if (!await canPermission("crm", "create")) {
     redirectWithError("/crm/new", "You don't have permission to add customers.");
   }
 
@@ -52,7 +52,7 @@ export async function createCustomer(formData: FormData): Promise<void> {
 export async function updateCustomer(customerId: string, formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/crm/${customerId}/edit`, "Your session expired — please sign in again.");
-  if (!can(context.role, "crm.manage")) {
+  if (!await canPermission("crm", "edit")) {
     redirectWithError(`/crm/${customerId}/edit`, "You don't have permission to edit customers.");
   }
 
@@ -74,7 +74,7 @@ export async function updateCustomer(customerId: string, formData: FormData): Pr
 
 export async function deleteCustomer(customerId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "crm.manage")) {
+  if (!context || !await canPermission("crm", "edit")) {
     return { error: "You don't have permission to remove customers." };
   }
 

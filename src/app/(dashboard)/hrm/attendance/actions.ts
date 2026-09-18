@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -144,6 +146,7 @@ export async function markAttendance(input: MarkAttendanceInput): Promise<Simple
 }
 
 export async function deleteAttendanceRecord(recordId: string): Promise<SimpleResult> {
+  await requirePermission("hrm", "delete");
   const supabase = await createClient();
   const { error } = await supabase.from("attendance_records").delete().eq("id", recordId);
   if (error) return { ok: false, error: error.message };

@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -24,6 +26,7 @@ export interface CreateSupplierResult {
 }
 
 export async function createSupplier(input: CreateSupplierInput): Promise<CreateSupplierResult> {
+  await requirePermission("purchases", "create");
   if (!input.name.trim()) return { ok: false, error: "Supplier name is required." };
 
   const supabase = await createClient();
@@ -74,6 +77,7 @@ export interface UpdateSupplierStatusResult {
 }
 
 export async function updateSupplierStatus(supplierId: string, status: SupplierStatus): Promise<UpdateSupplierStatusResult> {
+  await requirePermission("purchases", "edit");
   const supabase = await createClient();
   const {
     data: { user },
@@ -149,6 +153,7 @@ export interface BulkDeleteSuppliersResult {
 }
 
 export async function bulkDeleteSuppliers(supplierIds: string[]): Promise<BulkDeleteSuppliersResult> {
+  await requirePermission("purchases", "delete");
   if (supplierIds.length === 0) return { ok: false, error: "No suppliers selected." };
 
   const supabase = await createClient();

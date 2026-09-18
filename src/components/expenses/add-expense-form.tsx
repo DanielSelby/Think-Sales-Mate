@@ -298,6 +298,15 @@ export function AddExpenseForm({
                     {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
                   </Select>
                 </Field>
+                <Field label="Branch" required>
+                  <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+                    {locations.length === 0 ? (
+                      <option value="">No assigned branches</option>
+                    ) : (
+                      locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)
+                    )}
+                  </Select>
+                </Field>
                 <Field label="Vendor / Payee" required>
                   <Input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. Office Depot Ghana" />
                 </Field>

@@ -1,4 +1,6 @@
 export type MemberRole = "owner" | "admin" | "manager" | "staff" | "viewer";
+export type PermissionAction = "view" | "create" | "edit" | "delete" | "approve" | "export" | "print";
+export type PermissionMatrix = Record<string, PermissionAction[]>;
 
 const ROLE_RANK: Record<MemberRole, number> = {
   owner: 4,

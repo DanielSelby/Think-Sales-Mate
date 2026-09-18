@@ -19,15 +19,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { INITIAL_LOGIN_SESSIONS } from "../constants";
 import type { LoginSession } from "../types";
 
 interface LoginSessionsTabProps {
   canManage: boolean;
+  initialSessions?: LoginSession[];
 }
 
-export function LoginSessionsTab({ canManage }: LoginSessionsTabProps) {
-  const [sessions, setSessions] = useState<LoginSession[]>(INITIAL_LOGIN_SESSIONS);
+export function LoginSessionsTab({ canManage, initialSessions = [] }: LoginSessionsTabProps) {
+  const [sessions, setSessions] = useState<LoginSession[]>(initialSessions);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);

@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -37,6 +39,7 @@ export interface ReturnableLine {
 }
 
 export async function getSaleReturnableItems(saleId: string): Promise<ReturnableLine[]> {
+  await requirePermission("sales", "view");
   const supabase = await createClient();
 
   const { data: items } = await supabase
@@ -95,6 +98,7 @@ export async function updateSaleStatus({
   note,
   returnLines,
 }: UpdateSaleStatusInput): Promise<UpdateSaleStatusResult> {
+  await requirePermission("sales", "edit");
   const supabase = await createClient();
 
   const {
@@ -268,6 +272,7 @@ export interface RecordSaleResult {
 }
 
 export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
+  await requirePermission("sales", "create");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
@@ -708,6 +713,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
 }
 
 export async function deleteDraftSale(saleId: string): Promise<{ ok: boolean; error?: string }> {
+  await requirePermission("sales", "delete");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };

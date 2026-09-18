@@ -17,16 +17,29 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { INITIAL_BRANCH_ACCESS_RULES } from "../constants";
-import type { BranchAccessRule, UserBranch } from "../types";
+import type { BranchAccessRule, UserBranch, ManagedUser } from "../types";
 
 interface BranchAccessTabProps {
   branches: UserBranch[];
+  users: ManagedUser[];
   canManage: boolean;
+  onSaveAccess?: (rule: BranchAccessRule) => Promise<void>;
 }
 
-export function BranchAccessTab({ branches, canManage }: BranchAccessTabProps) {
-  const [accessRules, setAccessRules] = useState<BranchAccessRule[]>(INITIAL_BRANCH_ACCESS_RULES);
+export function BranchAccessTab({ branches, users, canManage, onSaveAccess }: BranchAccessTabProps) {
+  const [accessRules, setAccessRules] = useState<BranchAccessRule[]>(() => users.map((user) => ({
+    userId: user.id,
+    userName: user.fullName || user.name,
+    userEmail: user.email,
+    role: user.roleLabel || String(user.role),
+    primaryBranchId: user.locationId || "",
+    primaryBranchName: user.locationName || "Unassigned",
+    additionalBranchIds: user.secondaryBranches || [],
+    additionalBranchNames: user.secondaryBranchNames || [],
+    viewAllBranches: user.branchScope === "all",
+    canTransferBetweenBranches: user.canCheckCrossBranchStock === true,
+    canApproveBranchOrders: user.approvalPermissions?.customerOrders === true
+  })));
   const [search, setSearch] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -61,7 +74,10 @@ export function BranchAccessTab({ branches, canManage }: BranchAccessTabProps) {
     setHasChanges(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (onSaveAccess) {
+      await Promise.all(accessRules.map((rule) => onSaveAccess(rule)));
+    }
     setHasChanges(false);
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 2000);

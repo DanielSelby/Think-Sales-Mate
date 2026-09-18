@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -180,6 +182,7 @@ export interface CreatePurchaseReturnResult {
 }
 
 export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Promise<CreatePurchaseReturnResult> {
+  await requirePermission("purchases", "create");
   const lines = input.lines.filter((l) => l.returnQty > 0);
   if (lines.length === 0) return { ok: false, error: "Add at least one item to return." };
   for (const l of lines) {
@@ -272,6 +275,7 @@ export interface ApprovePurchaseReturnResult {
 }
 
 export async function approvePurchaseReturn(returnId: string): Promise<ApprovePurchaseReturnResult> {
+  await requirePermission("purchases", "approve");
   const supabase = await createClient();
   const {
     data: { user },

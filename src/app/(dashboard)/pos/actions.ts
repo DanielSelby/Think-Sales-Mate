@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -32,6 +34,7 @@ export interface RecentSale {
 }
 
 export async function getRecentPosSales(locationId: string | null, limit: number = 10): Promise<RecentSale[]> {
+  await requirePermission("pos", "view");
   const context = await getCurrentOrgContext();
   if (!context) return [];
   const supabase = await createClient();
@@ -355,6 +358,7 @@ export interface CloseRegisterInput {
 }
 
 export async function closeRegister(input: CloseRegisterInput): Promise<SimpleResult> {
+  await requirePermission("pos", "edit");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
@@ -501,6 +505,7 @@ export interface NewContactInput {
 }
 
 export async function addCustomer(input: NewContactInput): Promise<{ ok: boolean; error?: string; customer?: CustomerOption }> {
+  await requirePermission("pos", "create");
   if (!input.name.trim()) return { ok: false, error: "Name is required." };
   if (!input.phone.trim()) return { ok: false, error: "Mobile number is required." };
   const context = await getCurrentOrgContext();
@@ -658,6 +663,7 @@ export async function resumeHeldSale(id: string): Promise<ResumedSale | null> {
 }
 
 export async function deleteHeldSale(id: string): Promise<SimpleResult> {
+  await requirePermission("pos", "delete");
   const supabase = await createClient();
   const { error } = await supabase.from("held_sales").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };

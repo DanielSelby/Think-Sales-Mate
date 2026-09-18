@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -13,7 +13,7 @@ function redirectWithError(path: string, message: string): never {
 export async function createInvoice(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/accounting/invoices/new", "Your session expired — please sign in again.");
-  if (!can(context.role, "accounting.manage")) {
+  if (!await canPermission("accounting", "edit")) {
     redirectWithError("/accounting/invoices/new", "You don't have permission to create invoices.");
   }
 
@@ -47,7 +47,7 @@ export async function createInvoice(formData: FormData): Promise<void> {
 
 export async function markInvoicePaid(invoiceId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "accounting.manage")) {
+  if (!context || !await canPermission("accounting", "edit")) {
     return { error: "You don't have permission to update invoices." };
   }
 
@@ -68,7 +68,7 @@ export async function markInvoicePaid(invoiceId: string) {
 
 export async function voidInvoice(invoiceId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "accounting.manage")) {
+  if (!context || !await canPermission("accounting", "edit")) {
     return { error: "You don't have permission to update invoices." };
   }
 

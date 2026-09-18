@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 
 export async function recordPayslipEvent(payslipId: string, eventType: "viewed" | "downloaded" | "printed") {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "You don't have access to this payslip." };
   const supabase = await createClient();
-  if (!can(context.role, "hrm.view")) {
+  if (!await canPermission("hrm", "view")) {
     const { data: membership } = await supabase.from("organization_members").select("employee_id").eq("org_id", context.orgId).eq("user_id", context.userId).eq("status", "active").maybeSingle();
     const { data: ownPayslip } = await supabase.from("payslips").select("id").eq("id", payslipId).eq("org_id", context.orgId).eq("employee_id", membership?.employee_id ?? "").maybeSingle();
     if (!ownPayslip) return { ok: false, error: "You don't have access to this payslip." };
@@ -26,7 +26,7 @@ export async function recordPayslipEvent(payslipId: string, eventType: "viewed" 
 
 export async function regeneratePayslip(payslipId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "hrm.manage")) return { ok: false, error: "You don't have permission to regenerate payslips." };
+  if (!context || !await canPermission("hrm", "edit")) return { ok: false, error: "You don't have permission to regenerate payslips." };
   const supabase = await createClient();
   const { data: payslip, error: readError } = await supabase
     .from("payslips")

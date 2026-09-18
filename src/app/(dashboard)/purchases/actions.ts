@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -72,6 +74,7 @@ function computeTotals(items: PurchaseItemInput[], discountAmount: number, shipp
 }
 
 export async function createPurchase(input: CreatePurchaseInput): Promise<CreatePurchaseResult> {
+  await requirePermission("purchases", "create");
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one product before saving." };
   }
@@ -568,6 +571,7 @@ export interface UpdatePurchaseResult {
 }
 
 export async function updatePurchase(purchaseId: string, input: UpdatePurchaseInput): Promise<UpdatePurchaseResult> {
+  await requirePermission("purchases", "edit");
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one product before saving." };
   }

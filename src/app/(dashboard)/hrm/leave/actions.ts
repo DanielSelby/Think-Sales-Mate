@@ -1,5 +1,7 @@
 "use server";
 
+import { requirePermission } from "@/lib/rbac/permissions";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -62,6 +64,7 @@ export interface CreateLeaveRequestInput {
 }
 
 export async function createLeaveRequest(input: CreateLeaveRequestInput): Promise<SimpleResult> {
+  await requirePermission("hrm", "create");
   if (new Date(input.endDate) < new Date(input.startDate)) return { ok: false, error: "End date can't be before start date." };
 
   const context = await getCurrentOrgContext();
@@ -104,6 +107,7 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
 }
 
 export async function approveLeaveRequest(requestId: string): Promise<SimpleResult> {
+  await requirePermission("hrm", "approve");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };

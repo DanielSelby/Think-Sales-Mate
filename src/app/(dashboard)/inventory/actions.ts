@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canUseLocation } from "@/lib/organizations/location-access";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { findProductDuplicates, getDuplicateSettings } from "@/app/(dashboard)/inventory/duplicate-actions";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -100,7 +100,7 @@ function parseProductForm(formData: FormData) {
 export async function createProduct(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/inventory/new", "Your session expired — please sign in again.");
-  if (!can(context.role, "inventory.manage")) {
+  if (!await canPermission("inventory", "edit")) {
     redirectWithError("/inventory/new", "You don't have permission to add products.");
   }
 
@@ -198,7 +198,7 @@ export async function createProduct(formData: FormData): Promise<void> {
 export async function updateProduct(productId: string, formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/inventory/${productId}/edit`, "Your session expired — please sign in again.");
-  if (!can(context.role, "inventory.manage")) {
+  if (!await canPermission("inventory", "edit")) {
     redirectWithError(`/inventory/${productId}/edit`, "You don't have permission to edit products.");
   }
 
@@ -259,7 +259,7 @@ export async function updateProduct(productId: string, formData: FormData): Prom
 
 export async function deleteProduct(productId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to remove products." };
   }
 
@@ -283,7 +283,7 @@ export async function toggleProductActive(productId: string, isActive: boolean):
     return bulkDeactivateProducts([productId]);
   }
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to update products." };
   }
 
@@ -302,7 +302,7 @@ export async function toggleProductActive(productId: string, isActive: boolean):
 
 export async function bulkDeactivateProducts(productIds: string[]): Promise<ProductActivationResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to deactivate products." };
   }
   const ids = [...new Set(productIds.filter(Boolean))];
@@ -343,7 +343,7 @@ export async function bulkDeactivateProducts(productIds: string[]): Promise<Prod
 
 export async function duplicateProduct(productId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to add products." };
   }
 
@@ -428,7 +428,7 @@ export interface BulkImportResult {
 
 export async function bulkImportProducts(rows: BulkImportRow[]): Promise<BulkImportResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { imported: 0, skipped: rows.map((_, i) => ({ row: i + 1, reason: "Not permitted" })) };
   }
 
@@ -505,7 +505,7 @@ export interface UploadProductImageResult {
 
 export async function uploadProductImage(formData: FormData): Promise<UploadProductImageResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to add products." };
   }
 
@@ -561,7 +561,7 @@ async function bulkAddProductsToSingleLocation(
   locationId: string
 ): Promise<BulkAddLocationResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { ok: false, error: "You don't have permission to manage product locations.", importedCount: 0, skippedCount: 0, skippedProducts: [], importedProducts: [] };
   }
 
@@ -742,7 +742,7 @@ export async function validateRemoveProductsFromLocation(
   locationId: string
 ): Promise<ValidationRemoveResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !can(context.role, "inventory.manage")) {
+  if (!context || !await canPermission("inventory", "edit")) {
     return { ok: false, error: "You don't have permission to manage product locations.", products: [], removableCount: 0, blockedCount: 0 };
   }
 
