@@ -25,11 +25,19 @@ export default async function OrganizationSettingsPage() {
     , (supabase as any).from("organization_role_templates").select("role_key, name, permissions").eq("org_id", context.orgId)
     , supabase.from("audit_logs").select("id, actor_id, action, entity_type, entity_id, metadata, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }).limit(500)
   ]);
-  const { data: roleThemeRows } = await supabase
+  const { data: roleThemeRows, error: roleThemeError } = await supabase
     .from("organization_role_themes")
     .select("role_key, theme_key")
     .eq("org_id", context.orgId);
   const roleThemes = Object.fromEntries((roleThemeRows ?? []).map((row) => [row.role_key, row.theme_key]));
+  if (roleThemeError && /organization_role_themes|schema cache|relation .* does not exist/i.test(roleThemeError.message)) {
+    for (const row of memberRows ?? []) {
+      const accessPermissions = (row.access_permissions as Record<string, unknown> | null) ?? {};
+      const roleKey = typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : null;
+      const roleTheme = typeof accessPermissions.role_theme === "string" ? accessPermissions.role_theme : null;
+      if (roleKey && roleTheme && !roleThemes[roleKey]) roleThemes[roleKey] = roleTheme;
+    }
+  }
   const savedTemplates = new Map(
     ((roleTemplateRows ?? []) as Array<{ role_key: string; name: string | null; permissions: Record<string, unknown> | null }>)
       .map((row) => [row.role_key, row] as const)

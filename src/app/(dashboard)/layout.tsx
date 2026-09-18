@@ -23,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .select("full_name")
     .eq("id", context.userId)
     .maybeSingle();
-  const { data: roleTheme } = await supabase
+  const { data: roleTheme, error: roleThemeError } = await supabase
     .from("organization_role_themes")
     .select("theme_key")
     .eq("org_id", context.orgId)
@@ -34,7 +34,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
         : context.role
     )
     .maybeSingle();
-  const selectedTheme = roleTheme?.theme_key as ThemeKey | null;
+  let selectedTheme = roleTheme?.theme_key as ThemeKey | null;
+  if (roleThemeError && /organization_role_themes|schema cache|relation .* does not exist/i.test(roleThemeError.message)) {
+    const { data: member } = await supabase
+      .from("organization_members")
+      .select("access_permissions")
+      .eq("org_id", context.orgId)
+      .eq("user_id", context.userId)
+      .eq("status", "active")
+      .maybeSingle();
+    const fallbackTheme = (member?.access_permissions as Record<string, unknown> | null)?.role_theme;
+    selectedTheme = typeof fallbackTheme === "string" ? fallbackTheme as ThemeKey : null;
+  }
   let enabledModules: string[] | undefined;
   let systemLogoUrl: string | null = null;
   let systemName = "ThinkSales ERP Pro";

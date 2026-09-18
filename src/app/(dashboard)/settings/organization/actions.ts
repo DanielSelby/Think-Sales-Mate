@@ -661,7 +661,36 @@ export async function saveRoleTheme(roleKey: string, themeKey: string) {
   const { error } = await supabase.from("organization_role_themes").upsert({
     org_id: context.orgId, role_key: roleKey, theme_key: themeKey, updated_at: new Date().toISOString()
   });
-  if (error) return { error: error.message };
+  if (error) {
+    if (!/organization_role_themes|schema cache|relation .* does not exist/i.test(error.message)) {
+      return { error: error.message };
+    }
+
+    // Older deployments may not have applied the role-theme migration yet.
+    // Keep theme selection functional by storing the role theme in the member
+    // access document until the migration is applied.
+    const admin = createAdminClient();
+    const { data: members, error: membersError } = await admin
+      .from("organization_members")
+      .select("id, access_permissions")
+      .eq("org_id", context.orgId);
+    if (membersError) return { error: membersError.message };
+    const updates = (members ?? []).map((member) => {
+      const accessPermissions = (member.access_permissions as Record<string, unknown> | null) ?? {};
+      const memberRoleKey = typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : null;
+      if (memberRoleKey !== roleKey) return null;
+      return admin
+        .from("organization_members")
+        .update({
+          access_permissions: { ...accessPermissions, role_theme: themeKey }
+        })
+        .eq("id", member.id)
+        .eq("org_id", context.orgId);
+    }).filter((update): update is NonNullable<typeof update> => Boolean(update));
+    const results = await Promise.all(updates);
+    const updateError = results.find((result) => result.error)?.error;
+    if (updateError) return { error: updateError.message };
+  }
   revalidatePath("/", "layout");
   return { success: true };
 }
