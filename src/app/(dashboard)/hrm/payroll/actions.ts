@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
+import { generatePayslipsForRun } from "@/app/(dashboard)/hrm/actions";
 
 function redirectWithError(message: string): never {
   redirect(`/hrm/payroll?error=${encodeURIComponent(message)}`);
@@ -13,8 +14,9 @@ function redirectWithError(message: string): never {
 function currentPeriod() {
   const now = new Date();
   const periodMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
   const periodLabel = now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  return { periodMonth, periodLabel };
+  return { periodMonth, periodEnd, periodLabel };
 }
 
 export async function runPayroll(): Promise<void> {
@@ -25,7 +27,7 @@ export async function runPayroll(): Promise<void> {
   }
 
   const supabase = await createClient();
-  const { periodMonth, periodLabel } = currentPeriod();
+  const { periodMonth, periodEnd, periodLabel } = currentPeriod();
 
   const { data: existingRun } = await supabase
     .from("payroll_runs")
@@ -76,6 +78,15 @@ export async function runPayroll(): Promise<void> {
       period_month: periodMonth,
       total_amount: totalAmount,
       employee_count: employees.length,
+      status: "completed",
+      payroll_type: "Monthly",
+      pay_period_start: periodMonth,
+      pay_period_end: periodEnd,
+      payment_date: periodEnd,
+      gross_pay: totalAmount,
+      net_pay: totalAmount,
+      processed_by: context.userId,
+      processed_at: new Date().toISOString(),
       expense_id: expense.id,
       run_by: context.userId
     })
@@ -91,11 +102,25 @@ export async function runPayroll(): Promise<void> {
     org_id: context.orgId,
     employee_id: e.id,
     employee_name: e.full_name,
-    amount: e.monthly_salary
+    amount: e.monthly_salary,
+    basic_pay: e.monthly_salary,
+    net_pay: e.monthly_salary,
   }));
 
   const { error: itemsError } = await supabase.from("payroll_run_items").insert(itemRows);
   if (itemsError) redirectWithError(itemsError.message);
+
+  const generation = await generatePayslipsForRun({
+    runId: run.id,
+    orgId: context.orgId,
+    periodLabel,
+    periodStart: periodMonth,
+    periodEnd,
+    paymentDate: periodEnd,
+    currency: context.currency,
+    actorId: context.userId,
+  });
+  if (!generation.ok) redirectWithError(generation.error ?? "Could not generate payslips.");
 
   revalidatePath("/hrm/payroll");
   revalidatePath("/accounting");

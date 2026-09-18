@@ -4,6 +4,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { derivePaymentStatus } from "@/lib/sales/format";
 import { SalesListView, type SaleListRow, type SalesKpis, type SalesDocumentKpis } from "@/components/sales/sales-list-view";
 import { getDraftSales } from "@/app/(dashboard)/sales/actions";
+import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 
 export const metadata = { title: "Sales · SalesMate ERP" };
 
@@ -52,6 +53,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
   ]);
 
   const currency = context.currency;
+  const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
   const rawSales = sales ?? [];
 
   const rawLocations = locations ?? [];
@@ -115,6 +117,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       initialLocation={requestedLocationId ? scopedLocations.find((l) => l.id === requestedLocationId)?.name ?? "all" : "all"}
       salesReps={salesRepNames}
       orgName={context.orgName}
+      systemName={systemName}
       logoUrl={companyProfile?.logo_url ?? null}
       showLogoOnInvoices={companyProfile?.show_logo_on_invoices ?? true}
         documentKpis={{

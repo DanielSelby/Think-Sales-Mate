@@ -38,7 +38,7 @@ import { Input } from "@/components/ui/input";
 import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
-import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
+import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
@@ -167,6 +167,7 @@ export function SaleForm({
   currentUserEmail,
   orgId,
   orgName,
+  systemName,
   currency,
   logoUrl,
   showLogoOnInvoices,
@@ -184,6 +185,7 @@ export function SaleForm({
   currentUserId: string;
   orgId: string;
   orgName: string;
+  systemName: string;
   currency: string;
   currentUserEmail: string;
   logoUrl?: string | null;
@@ -571,6 +573,7 @@ export function SaleForm({
       const items = await getSaleInvoiceItems(saleId);
       const html = buildInvoiceHtml({
         orgName,
+        systemName,
         logoUrl,
         showLogoOnInvoices,
         saleNumber,
@@ -590,6 +593,7 @@ export function SaleForm({
       if (!win) return;
       win.document.write(html);
       win.document.close();
+      await waitForInvoiceImages(win);
       win.focus();
       win.print();
     } catch {

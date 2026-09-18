@@ -15,6 +15,7 @@ interface Props {
   orgName:  string;
   logoUrl?: string | null;
   systemLogoUrl?: string | null;
+  systemName?: string;
   roleTheme?: ThemeKey | null;
   userName?: string | null;
   userRole?: string | null;
@@ -24,7 +25,7 @@ interface Props {
   enabledModules?: string[];
 }
 
-export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
+export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
   const { sidebarCollapsed, activeTheme, setTheme } = useAppStore();
   React.useEffect(() => {
     if (roleTheme) setTheme(roleTheme);
@@ -37,7 +38,7 @@ export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, role
       <NavigationLoading />
       <GlobalCallNotifications />
       <div className="flex h-screen overflow-hidden" style={{ background: theme.colors.background }}>
-        <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} />
+        <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
           <TopNav orgName={orgName} logoUrl={logoUrl} userName={userName} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
           <main className="page-canvas flex-1 overflow-y-auto p-4 sm:p-5">

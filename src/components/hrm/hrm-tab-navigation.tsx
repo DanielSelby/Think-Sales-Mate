@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Users, CalendarCheck, ClipboardList, Wallet, Star, Building2, UserPlus,
+  Users, CalendarCheck, ClipboardList, Wallet, FileText, Star, Building2, UserPlus,
   GraduationCap, PackageCheck, ShieldAlert, Network, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ const TABS = [
   ["Attendance", "/hrm/attendance", CalendarCheck],
   ["Leave Management", "/hrm/leave", ClipboardList],
   ["Payroll", "/hrm/payroll", Wallet],
+  ["Payslips", "/hrm/payslips", FileText],
   ["Performance Reviews", "/hrm/performance-reviews", Star],
   ["Departments", "/hrm/departments", Building2],
   ["Recruitment", "/hrm/recruitment", UserPlus],

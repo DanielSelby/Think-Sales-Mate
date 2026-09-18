@@ -39,6 +39,8 @@ export interface TrackedOrder {
   currency: string;
   customerReceivedAt: string | null;
   allowInvoiceDownload: boolean;
+  companyName: string | null;
+  companyLogoUrl: string | null;
 }
 
 export async function trackOrder(token: string): Promise<TrackedOrder | null> {
@@ -51,12 +53,13 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     .maybeSingle();
   if (!order) return null;
 
-  const [{ data: items }, { data: settings }, { data: org }, { data: loc }, { data: timeline }] = await Promise.all([
+  const [{ data: items }, { data: settings }, { data: org }, { data: loc }, { data: timeline }, { data: company }] = await Promise.all([
     supabase.from("customer_order_items").select("product_name, quantity, unit_price, line_total").eq("order_id", order.id),
     supabase.from("customer_portal_settings").select("show_prices_to_customers, allow_view_order_status, allow_customer_invoice_download").eq("org_id", order.org_id).maybeSingle(),
     supabase.from("organizations").select("currency").eq("id", order.org_id).single(),
     order.location_id ? supabase.from("business_locations").select("name").eq("id", order.location_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("customer_order_timeline").select("title, actor_name, status, notes, created_at").eq("order_id", order.id).order("created_at", { ascending: true }),
+    supabase.from("company_profile").select("company_name, logo_url").eq("org_id", order.org_id).maybeSingle(),
   ]);
 
   if (settings && !settings.allow_view_order_status) return null;
@@ -89,6 +92,8 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     currency: org?.currency ?? "GHS",
     customerReceivedAt: order.customer_received_at,
     allowInvoiceDownload: settings?.allow_customer_invoice_download ?? true,
+    companyName: company?.company_name ?? null,
+    companyLogoUrl: company?.logo_url ?? null,
   };
 }
 

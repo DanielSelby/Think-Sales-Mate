@@ -19,6 +19,7 @@ export interface BrandedInvoiceItem {
 
 export interface BrandedInvoiceData {
   orgName: string;
+  systemName?: string;
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
   locationName: string | null;
@@ -37,6 +38,17 @@ export interface BrandedInvoiceData {
   amountPaid: number;
   currency: string;
   items: BrandedInvoiceItem[];
+}
+
+export async function waitForInvoiceImages(win: Window): Promise<void> {
+  const images = Array.from(win.document.images);
+  await Promise.all(images.map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      image.addEventListener("load", () => resolve(), { once: true });
+      image.addEventListener("error", () => resolve(), { once: true });
+    });
+  }));
 }
 
 function initials(name: string) {
@@ -250,7 +262,7 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
       </div>
     </div>
 
-    <div class="footer-note">Powered by ${esc(data.orgName)} POS System</div>
+    <div class="footer-note">Powered by ${esc(data.systemName || "ThinkSales ERP Pro")}</div>
   </div>
 </body>
 </html>`;
@@ -274,6 +286,7 @@ export interface InvoiceItem {
 
 export interface InvoiceData {
   orgName: string;
+  systemName?: string;
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
   saleNumber: number;
@@ -304,6 +317,7 @@ export function buildInvoiceHtml(data: InvoiceData): string {
 
   return buildBrandedInvoiceHtml({
     orgName: data.orgName,
+    systemName: data.systemName,
     logoUrl: data.logoUrl,
     showLogoOnInvoices: data.showLogoOnInvoices,
     locationName: data.locationName,

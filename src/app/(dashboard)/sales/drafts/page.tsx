@@ -3,6 +3,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { getDraftSales } from "@/app/(dashboard)/sales/actions";
 import { DraftsListView } from "@/components/sales/drafts-list-view";
+import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 
 export const metadata = { title: "Drafts & Quotations · SalesMate ERP" };
 
@@ -26,7 +27,8 @@ export default async function DraftsPage({ searchParams }: { searchParams?: { ty
     ? searchParams.type
     : "all";
 
-  return <DraftsListView initialType={initialType} drafts={drafts} currency={context.currency} orgName={context.orgName} branchRequests={(requests ?? []).map((request) => ({
+  const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
+  return <DraftsListView initialType={initialType} drafts={drafts} currency={context.currency} orgName={context.orgName} systemName={systemName} branchRequests={(requests ?? []).map((request) => ({
     id: request.id,
     label: `REQ-${String(request.request_number).padStart(4, "0")}`,
     source: locationNames.get(request.source_location_id) ?? "—",

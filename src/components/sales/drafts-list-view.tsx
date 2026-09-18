@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { deleteDraftSale, getSaleInvoiceItems, type DraftSaleRow } from "@/app/(dashboard)/sales/actions";
-import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
+import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +40,7 @@ const DOC_STATUS_TONE: Record<DraftSaleRow["documentStatus"], "neutral" | "amber
   proforma: "signal",
 };
 
-export function DraftsListView({ drafts, currency, orgName, branchRequests = [], initialType = "all" }: { drafts: DraftSaleRow[]; currency: string; orgName: string; branchRequests?: BranchRequestRow[]; initialType?: "all" | DraftSaleRow["documentStatus"] }) {
+export function DraftsListView({ drafts, currency, orgName, systemName, branchRequests = [], initialType = "all" }: { drafts: DraftSaleRow[]; currency: string; orgName: string; systemName: string; branchRequests?: BranchRequestRow[]; initialType?: "all" | DraftSaleRow["documentStatus"] }) {
   const [rows, setRows] = useState(drafts);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>(initialType);
@@ -98,6 +98,7 @@ export function DraftsListView({ drafts, currency, orgName, branchRequests = [],
       const items = await getSaleInvoiceItems(document.id);
       const html = buildInvoiceHtml({
         orgName,
+        systemName,
         saleNumber: document.saleNumber,
         saleDate: document.createdAt,
         customerName: document.customerName,
@@ -115,6 +116,7 @@ export function DraftsListView({ drafts, currency, orgName, branchRequests = [],
       if (!win) return;
       win.document.write(html);
       win.document.close();
+      await waitForInvoiceImages(win);
       win.focus();
       win.print();
     } finally {

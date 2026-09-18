@@ -14,6 +14,7 @@ import {
 } from "@/components/sales/sale-form";
 import { getSaleForEdit } from "@/app/(dashboard)/sales/actions";
 import { can } from "@/lib/rbac";
+import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 
 export default async function EditSalePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -142,6 +143,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     quantity: s.quantity,
   }));
 
+  const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
   return (
     <SaleForm
       orgId={context.orgId}
@@ -155,6 +157,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       currentUserId={context.userId}
       currentUserEmail={context.userEmail}
       orgName={context.orgName}
+      systemName={systemName}
       currency={context.currency}
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}

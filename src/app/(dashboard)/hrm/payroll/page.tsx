@@ -24,7 +24,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: { er
   const supabase = await createClient();
   const { data: runs } = await supabase
     .from("payroll_runs")
-    .select("id, period_label, total_amount, employee_count, created_at")
+    .select("id, period_label, total_amount, employee_count, created_at, approval_status")
     .eq("org_id", context.orgId)
     .order("period_month", { ascending: false });
 
@@ -66,6 +66,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: { er
                 <th className="px-4 py-3">Period</th>
                 <th className="px-4 py-3">Employees</th>
                 <th className="px-4 py-3">Run on</th>
+                <th className="px-4 py-3">Approval</th>
                 <th className="px-4 py-3 text-right">Total</th>
               </tr>
             </thead>
@@ -81,6 +82,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: { er
                   <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">
                     {new Date(run.created_at).toLocaleDateString()}
                   </td>
+                  <td className="px-4 py-3 text-xs capitalize text-ledger-500">{run.approval_status}</td>
                   <td className="px-4 py-3 text-right figure text-alert">{formatCurrency(run.total_amount, context.currency)}</td>
                 </tr>
               ))}

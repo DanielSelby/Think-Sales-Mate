@@ -16,7 +16,7 @@ import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
-import { buildInvoiceHtml } from "@/lib/sales/invoice-template";
+import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency, formatDateTime, formatInvoiceNumber,
@@ -78,6 +78,7 @@ interface SalesListViewProps {
   initialLocation?: string;
   salesReps: string[];
   orgName: string;
+  systemName: string;
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
   documentKpis: SalesDocumentKpis;
@@ -104,7 +105,7 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
-export function SalesListView({ sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, logoUrl, showLogoOnInvoices, documentKpis }: SalesListViewProps) {
+export function SalesListView({ sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, documentKpis }: SalesListViewProps) {
   const { activeTheme } = useAppStore();
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
@@ -191,6 +192,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       const items = await getSaleInvoiceItems(sale.id);
       const html = buildInvoiceHtml({
         orgName,
+        systemName,
         logoUrl,
         showLogoOnInvoices,
         saleNumber: sale.saleNumber,
@@ -210,6 +212,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       if (!win) return;
       win.document.write(html);
       win.document.close();
+      await waitForInvoiceImages(win);
       win.focus();
       win.print();
     } finally {

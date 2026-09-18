@@ -9,7 +9,10 @@ export default async function CustomerInvoicePage({ params }: { params: Promise<
   return (
     <main className="mx-auto max-w-3xl bg-white p-8 text-slate-900 print:max-w-none">
       <div className="flex items-start justify-between border-b pb-6">
-        <div><h1 className="text-2xl font-bold">Invoice</h1><p className="mt-1 text-sm text-slate-500">Order {order.orderNumber}</p></div>
+        <div className="flex items-center gap-3">
+          {order.companyLogoUrl && <img src={order.companyLogoUrl} alt="" className="h-12 w-12 object-contain" />}
+          <div><h1 className="text-2xl font-bold">{order.companyName || "Invoice"}</h1><p className="mt-1 text-sm text-slate-500">Order {order.orderNumber}</p></div>
+        </div>
         <InvoicePrintButton />
       </div>
       <div className="mt-6 grid grid-cols-2 gap-6 text-sm"><div><p className="font-semibold">Customer</p><p>{order.guestName}</p><p>{order.guestPhone}</p></div><div><p className="font-semibold">Delivery</p><p>{order.deliveryAddress}</p></div></div>

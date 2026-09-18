@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
-import { buildBrandedInvoiceHtml } from "@/lib/sales/invoice-template";
+import { buildBrandedInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
@@ -345,6 +345,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     }
     win.document.write(html);
     win.document.close();
+    await waitForInvoiceImages(win);
     win.focus();
     win.print();
   }

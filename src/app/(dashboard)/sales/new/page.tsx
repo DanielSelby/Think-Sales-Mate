@@ -3,6 +3,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient} from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { can } from "@/lib/rbac";
+import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import {
   SaleForm,
   type SellableProduct,
@@ -141,6 +142,7 @@ export default async function NewSalePage() {
     quantity: s.quantity,
   }));
 
+  const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
   return (
     <SaleForm
       orgId={context.orgId}
@@ -153,6 +155,7 @@ export default async function NewSalePage() {
       currentUserId={context.userId}
       currentUserEmail={context.userEmail}
       orgName={context.orgName}
+      systemName={systemName}
       currency={context.currency}
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}

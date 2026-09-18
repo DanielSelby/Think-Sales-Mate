@@ -232,7 +232,7 @@ export function HrmDashboardView({
               <QuickAction icon={CalendarClock} label="Attendance" href="/hrm/attendance" />
               <QuickAction icon={ClipboardCheck} label="Leave Request" href="/hrm/leave" />
               <QuickAction icon={Wallet} label="Salary Advance" href="/hrm/payroll" />
-              <QuickAction icon={Receipt} label="Payslip" href="/hrm/payroll" />
+              <QuickAction icon={Receipt} label="Payslip" href="/hrm/payslips" />
             </CardContent>
           </Card>
 

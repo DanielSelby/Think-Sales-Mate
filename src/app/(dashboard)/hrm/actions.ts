@@ -134,6 +134,96 @@ export interface ProcessPayrollResult extends SimpleResult {
   payrollRunId?: string;
 }
 
+type PayLine = { description: string; amount: number };
+
+export async function generatePayslipsForRun(input: {
+  runId: string;
+  orgId: string;
+  periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  paymentDate: string;
+  currency: string;
+  actorId: string;
+}): Promise<SimpleResult> {
+  const supabase = await createClient();
+  const [{ data: runItems, error: itemsError }] = await Promise.all([
+    supabase.from("payroll_run_items").select("id, employee_id, employee_name, basic_pay, deductions, net_pay").eq("payroll_run_id", input.runId).eq("org_id", input.orgId),
+  ]);
+  if (itemsError) return { ok: false, error: itemsError.message };
+  if (!runItems || runItems.length === 0) return { ok: false, error: "No payroll items were found to generate payslips." };
+
+  const employeeIds = runItems.map((item) => item.employee_id).filter((id): id is string => Boolean(id));
+  const { data: employees, error: employeesError } = await supabase
+    .from("employees")
+    .select("id, employee_number, department, job_title, location_id, employment_type, hire_date, email, phone, monthly_salary")
+    .in("id", employeeIds);
+  if (employeesError) return { ok: false, error: employeesError.message };
+
+  const employeesById = new Map((employees ?? []).map((employee) => [employee.id, employee]));
+  const payrollReference = `PAY-${input.periodStart.slice(0, 7).replace("-", "")}-${input.runId.slice(0, 8).toUpperCase()}`;
+  const rows = runItems.map((item) => {
+    const employee = item.employee_id ? employeesById.get(item.employee_id) : undefined;
+    const totalEarnings = Number(item.basic_pay);
+    const totalDeductions = Number(item.deductions);
+    const earnings: PayLine[] = [{ description: "Basic Salary", amount: totalEarnings }];
+    const deductions: PayLine[] = totalDeductions > 0 ? [{ description: "Payroll Deductions", amount: totalDeductions }] : [];
+    return {
+      org_id: input.orgId,
+      payroll_run_id: input.runId,
+      payroll_run_item_id: item.id,
+      employee_id: item.employee_id,
+      employee_name: item.employee_name,
+      employee_number: employee?.employee_number ?? null,
+      department: employee?.department ?? null,
+      job_title: employee?.job_title ?? null,
+      location_id: employee?.location_id ?? null,
+      employment_type: employee?.employment_type ?? null,
+      hire_date: employee?.hire_date ?? null,
+      period_label: input.periodLabel,
+      pay_period_start: input.periodStart,
+      pay_period_end: input.periodEnd,
+      payment_date: input.paymentDate,
+      payment_method: "Bank Transfer",
+      currency: input.currency,
+      payroll_reference: payrollReference,
+      earnings,
+      deductions,
+      total_earnings: totalEarnings,
+      total_deductions: totalDeductions,
+      net_pay: Number(item.net_pay),
+      notes: "Generated automatically from the approved payroll run.",
+      status: "generated" as const,
+      generated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  });
+
+  const { data: payslips, error: payslipError } = await supabase
+    .from("payslips")
+    .upsert(rows, { onConflict: "payroll_run_id,employee_id" })
+    .select("id");
+  if (payslipError || !payslips) return { ok: false, error: payslipError?.message ?? "Could not generate payslips." };
+
+  const { error: eventError } = await supabase.from("payslip_events").insert(
+    payslips.map((payslip) => ({
+      org_id: input.orgId,
+      payslip_id: payslip.id,
+      actor_id: input.actorId,
+      event_type: "generated" as const,
+      metadata: { payroll_run_id: input.runId, employee_count: payslips.length },
+    }))
+  );
+  if (eventError) return { ok: false, error: eventError.message };
+  return { ok: true };
+}
+
+function isIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 export async function processPayroll(input: ProcessPayrollInput): Promise<ProcessPayrollResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -141,6 +231,12 @@ export async function processPayroll(input: ProcessPayrollInput): Promise<Proces
 
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
+  if (!isIsoDate(input.periodStart) || !isIsoDate(input.periodEnd) || !isIsoDate(input.paymentDate)) {
+    return { ok: false, error: "Enter valid payroll dates." };
+  }
+  if (input.periodStart > input.periodEnd) {
+    return { ok: false, error: "The pay period start must be on or before the end date." };
+  }
 
   const { data: employees, error: employeesError } = await supabase
     .from("employees")
@@ -161,8 +257,11 @@ export async function processPayroll(input: ProcessPayrollInput): Promise<Proces
     .insert({
       org_id: context.orgId,
       period_label: `${input.periodStart} – ${input.periodEnd}`,
-      period_month: input.periodStart.slice(0, 7),
+      period_month: `${input.periodStart.slice(0, 7)}-01`,
       status: "completed",
+      approval_status: "approved",
+      approved_by: user.id,
+      approved_at: new Date().toISOString(),
       payroll_type: input.payrollType,
       pay_period_start: input.periodStart,
       pay_period_end: input.periodEnd,
@@ -203,6 +302,22 @@ export async function processPayroll(input: ProcessPayrollInput): Promise<Proces
   if (itemsError) {
     await supabase.from("payroll_runs").delete().eq("id", run.id);
     return { ok: false, error: itemsError.message };
+  }
+
+  const generation = await generatePayslipsForRun({
+    runId: run.id,
+    orgId: context.orgId,
+    periodLabel: `${input.periodStart} – ${input.periodEnd}`,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    paymentDate: input.paymentDate,
+    currency: context.currency,
+    actorId: user.id,
+  });
+  if (!generation.ok) {
+    await supabase.from("payroll_run_items").delete().eq("payroll_run_id", run.id);
+    await supabase.from("payroll_runs").delete().eq("id", run.id);
+    return generation;
   }
 
   // Post a linked expense so this shows up in Accounting/Expenses too.

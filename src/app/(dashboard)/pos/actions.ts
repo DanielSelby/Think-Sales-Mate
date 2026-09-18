@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import type { HeldSaleKind } from "@/types/database";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -101,6 +102,9 @@ export interface PosInvoiceItem {
 
 export interface PosInvoiceData {
   orgName: string;
+  systemName: string;
+  logoUrl: string | null;
+  showLogoOnInvoices: boolean;
   locationName: string | null;
   locationAddress: string | null;
   locationPhone: string | null;
@@ -132,7 +136,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     .single();
   if (!sale) return null;
 
-  const [{ data: items }, locationResult, cashierResult] = await Promise.all([
+  const [{ data: items }, locationResult, cashierResult, companyResult, systemName] = await Promise.all([
     supabase.from("sale_items").select("quantity, unit_price, discount_percent, line_total, products(name, sku)").eq("sale_id", saleId),
     sale.location_id
       ? supabase.from("business_locations").select("name, address, city, region, country, phone, email").eq("id", sale.location_id).single()
@@ -140,6 +144,8 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     sale.sold_by
       ? supabase.from("profiles").select("full_name").eq("id", sale.sold_by).single()
       : Promise.resolve({ data: null }),
+    supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", context.orgId).maybeSingle(),
+    getPlatformSystemName().catch(() => "ThinkSales ERP Pro"),
   ]);
   const location = locationResult.data;
   const cashierProfile = cashierResult.data;
@@ -155,6 +161,9 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
 
   return {
     orgName: context.orgName,
+    systemName,
+    logoUrl: companyResult.data?.logo_url ?? null,
+    showLogoOnInvoices: companyResult.data?.show_logo_on_invoices ?? true,
     locationName: location?.name ?? null,
     locationAddress: locationAddress || null,
     locationPhone: location?.phone ?? null,
