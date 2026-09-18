@@ -28,6 +28,8 @@ export function EditUserModal({
     fullName: "",
     email: "",
     phone: "",
+    avatar: null as File | null,
+    avatarPreview: "",
     employeeId: "",
     role: "sales_officer",
     status: "active" as UserStatus,
@@ -57,6 +59,8 @@ export function EditUserModal({
         fullName: user.fullName || user.name || "",
         email: user.email || "",
         phone: user.phone || "",
+        avatar: null,
+        avatarPreview: user.avatarUrl || "",
         employeeId: user.employeeId || "",
         role: String(user.role),
         status: (user.status as UserStatus) || "active",
@@ -115,6 +119,8 @@ export function EditUserModal({
       fullName: formData.fullName,
       email: formData.email.trim().toLowerCase(),
       phone: formData.phone,
+      avatar: formData.avatar,
+      avatarUrl: formData.avatarPreview || null,
       employeeId: formData.employeeId,
       role: formData.role,
       roleLabel: selectedRole?.name ?? "Sales Associate",
@@ -201,6 +207,37 @@ export function EditUserModal({
             {activeTab === "details" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-ink-900 dark:text-white mb-1">
+                      Profile Photo
+                    </label>
+                    <div className="flex items-center gap-3 rounded-xl border border-dashed border-ledger-200 bg-ledger-50 p-3 dark:border-ledger-700 dark:bg-slate-800/50">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                        {formData.avatarPreview ? (
+                          <img src={formData.avatarPreview} alt="Selected profile" className="h-full w-full object-cover" />
+                        ) : (
+                          (formData.fullName || "U").split(" ").map((part) => part[0]).slice(0, 2).join("")
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <Input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="h-9 text-xs"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0] ?? null;
+                            if (!file) return;
+                            setFormData((prev) => ({
+                              ...prev,
+                              avatar: file,
+                              avatarPreview: URL.createObjectURL(file),
+                            }));
+                          }}
+                        />
+                        <p className="mt-1 text-[10px] text-ledger-400">PNG, JPEG, or WebP up to 5MB.</p>
+                      </div>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-ink-900 dark:text-white mb-1">
                       Full Name

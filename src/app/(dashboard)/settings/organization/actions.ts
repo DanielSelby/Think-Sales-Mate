@@ -250,6 +250,7 @@ export async function createStaffAccount(formData: FormData) {
 
 export interface UpdateMemberAccessScopeInput {
   memberId: string;
+  avatar?: File | null;
   fullName?: string;
   role?: string;
   department?: string;
@@ -273,6 +274,37 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
 
   const admin = createAdminClient();
   const targetOwner = await targetIsOwner(input.memberId, context.orgId);
+  const { data: member } = await admin
+    .from("organization_members")
+    .select("user_id")
+    .eq("id", input.memberId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+
+  if (input.avatar instanceof File && input.avatar.size > 0) {
+    if (!input.avatar.type.startsWith("image/") || input.avatar.size > 5 * 1024 * 1024) {
+      return { error: "Profile photo must be an image under 5MB." };
+    }
+    if (!member?.user_id) return { error: "This user does not have an account profile to update." };
+
+    const extension = input.avatar.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${member.user_id}/profile.${extension}`;
+    const { error: uploadError } = await admin.storage
+      .from("profile-avatars")
+      .upload(path, input.avatar, { upsert: true, contentType: input.avatar.type });
+    if (uploadError) return { error: `Could not upload profile photo: ${uploadError.message}` };
+
+    const { data: publicUrl } = admin.storage.from("profile-avatars").getPublicUrl(path);
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update({ avatar_url: publicUrl.publicUrl })
+      .eq("id", member.user_id);
+    if (profileError) return { error: profileError.message };
+    await (admin.from("organization_members") as any)
+      .update({ avatar_url: publicUrl.publicUrl })
+      .eq("id", input.memberId)
+      .eq("org_id", context.orgId);
+  }
 
   const updatePayload: Record<string, any> = {};
   if (targetOwner) {

@@ -481,6 +481,7 @@ export function UserManagement({
     startTransition(async () => {
       const result = await updateMemberAccessScope({
         memberId: userId,
+        avatar: updates.avatar,
         fullName: updates.fullName ?? oldUser?.fullName,
         phone: updates.phone ?? oldUser?.phone,
         employeeId: updates.employeeId ?? oldUser?.employeeId,
