@@ -43,6 +43,13 @@
   letter-spacing: -0.01em;
 }
 
+/* HRM cards use the same clean white outline as the stock detail surfaces. */
+.hrm-page .rounded-card.border,
+.hrm-page .rounded-2xl.border,
+.hrm-page .rounded-lg.border {
+  border-color: #ffffff !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
