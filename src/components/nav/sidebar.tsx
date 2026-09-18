@@ -321,7 +321,17 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
         <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl object-contain shadow-sm" />
         {!collapsed && (
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>{systemName}</span>
+            <span className="truncate text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>
+              {systemName.replace(/\s+Pro$/i, "")}
+            </span>
+            {/Pro$/i.test(systemName) && (
+              <span
+                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wide"
+                style={{ background: theme.colors.primary, color: "#FFFFFF" }}
+              >
+                Pro
+              </span>
+            )}
           </div>
         )}
       </div>

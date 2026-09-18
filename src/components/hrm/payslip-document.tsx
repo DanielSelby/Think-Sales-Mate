@@ -40,11 +40,67 @@ export function PayslipDocument({ payslip }: { payslip: PayslipDocumentData }) {
   const money = (value: number) => formatCurrency(value, payslip.currency);
   const track = (event: "viewed" | "downloaded" | "printed") => { void recordPayslipEvent(payslip.id, event); };
   React.useEffect(() => { void recordPayslipEvent(payslip.id, "viewed"); }, [payslip.id]);
-  const print = () => { track("printed"); window.print(); };
-  const download = () => { track("downloaded"); window.print(); };
+  const waitForImages = async () => {
+    await Promise.all(Array.from(document.images).map((image) => {
+      if (image.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        image.addEventListener("load", () => resolve(), { once: true });
+        image.addEventListener("error", () => resolve(), { once: true });
+      });
+    }));
+  };
+  const print = async () => {
+    await waitForImages();
+    track("printed");
+    window.print();
+  };
+  const download = async () => {
+    await waitForImages();
+    track("downloaded");
+    window.print();
+  };
 
   return (
-    <article className="payslip-print mx-auto max-w-4xl rounded-2xl border border-slate-100 bg-white p-6 text-[#102a4c] shadow-card sm:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
+    <>
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+
+          html,
+          body {
+            width: 100%;
+            min-height: 0;
+            background: #fff !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .payslip-print,
+          .payslip-print * {
+            visibility: visible !important;
+          }
+
+          .payslip-print {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+      <article className="payslip-print mx-auto max-w-4xl rounded-2xl border border-slate-100 bg-white p-6 text-[#102a4c] shadow-card sm:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
       <div className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-3">
           {payslip.company.logo_url ? <img src={payslip.company.logo_url} alt="" className="h-14 w-14 object-contain" /> : <div className="h-14 w-14 rounded-xl bg-[#087ed1]" />}
@@ -62,7 +118,8 @@ export function PayslipDocument({ payslip }: { payslip: PayslipDocumentData }) {
       <section className="mt-7 grid gap-6 rounded-xl bg-[#f5f9fd] p-5 text-sm sm:grid-cols-2"><div><h3 className="mb-3 font-semibold">Payment Details</h3><Detail label="Bank Name" value={payslip.bank_name || "—"} /><Detail label="Account Number" value={payslip.account_number || "—"} /><Detail label="Payment Reference" value={payslip.payment_reference || payslip.payroll_reference} /></div><div><h3 className="mb-3 font-semibold">Additional Information</h3><Detail label="Pay Date" value={date(payslip.payment_date)} /><Detail label="Currency" value={payslip.currency} /><Detail label="Mode of Payment" value={payslip.payment_method || "—"} /></div></section>
       <p className="mt-6 border-t border-slate-200 pt-4 text-xs text-slate-500">Payroll Reference: {payslip.payroll_reference}{payslip.notes ? ` · ${payslip.notes}` : ""}</p>
       <div className="mt-6 flex gap-2 print:hidden"><button onClick={print} className="inline-flex items-center gap-2 rounded-md bg-[#07528b] px-3 py-2 text-sm font-medium text-white"><Printer className="h-4 w-4" />Print Payslip</button><button onClick={download} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium"><Download className="h-4 w-4" />Download PDF</button><button type="button" disabled title="Configure an email provider with PDF attachment support to enable this action" className="inline-flex cursor-not-allowed items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400"><Mail className="h-4 w-4" />Email Payslip</button></div>
-    </article>
+      </article>
+    </>
   );
 }
 
