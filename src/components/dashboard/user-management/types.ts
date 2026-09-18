@@ -101,6 +101,7 @@ export interface ManagedUser {
   phone: string;
   employeeId: string;
   avatarUrl?: string | null;
+  avatar?: File | null;
   role: RoleType | DbMemberRole | string;
   roleLabel?: string;
   status: UserStatus | DbMemberStatus;

@@ -37,6 +37,7 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
 export async function inviteMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "staff") as MemberRole;
+  const avatar = formData.get("avatar");
   const locationId = String(formData.get("location_id") ?? "").trim();
   const branchScope = String(formData.get("branch_scope") ?? "assigned");
   const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
@@ -91,6 +92,7 @@ export async function createStaffAccount(formData: FormData) {
   const contactEmail = String(formData.get("email") ?? "").trim().toLowerCase();
   const employeeId = String(formData.get("employee_id") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
+  const avatar = formData.get("avatar");
   const department = String(formData.get("department") ?? "").trim();
   const requestedRole = String(formData.get("role") ?? "staff").trim().toLowerCase();
   const locationId = String(formData.get("location_id") ?? "").trim() || null;
@@ -126,6 +128,9 @@ export async function createStaffAccount(formData: FormData) {
     return { error: "Enter a valid email address or leave email blank." };
   }
   if (!["all", "assigned", "single"].includes(branchScope)) return { error: "Invalid branch access scope." };
+  if (avatar instanceof File && avatar.size > 0 && (!avatar.type.startsWith("image/") || avatar.size > 5 * 1024 * 1024)) {
+    return { error: "Profile photo must be an image under 5MB." };
+  }
 
   // The UI has richer role templates than the database's tenant roles. Keep
   // the selected template in access_permissions while enforcing the tenant
@@ -217,6 +222,19 @@ export async function createStaffAccount(formData: FormData) {
   if (memberError || !member) {
     await admin.auth.admin.deleteUser(authData.user.id);
     return { error: memberError?.message ?? "Unable to save the staff profile." };
+  }
+
+  if (avatar instanceof File && avatar.size > 0) {
+    const extension = avatar.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${authData.user.id}/profile.${extension}`;
+    const { error: uploadError } = await admin.storage.from("profile-avatars").upload(path, avatar, {
+      upsert: true,
+      contentType: avatar.type
+    });
+    if (uploadError) return { error: `Account created, but profile photo upload failed: ${uploadError.message}` };
+    const { data: publicUrl } = admin.storage.from("profile-avatars").getPublicUrl(path);
+    const { error: profileError } = await admin.from("profiles").update({ avatar_url: publicUrl.publicUrl }).eq("id", authData.user.id);
+    if (profileError) return { error: `Account created, but profile photo could not be saved: ${profileError.message}` };
   }
 
   revalidatePath("/settings/organization");

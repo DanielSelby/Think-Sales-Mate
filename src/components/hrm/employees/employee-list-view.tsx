@@ -22,6 +22,9 @@ export interface EmployeeRow {
   id: string;
   name: string;
   email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+  branch: string | null;
   employeeNumber: number;
   department: string | null;
   jobTitle: string | null;
@@ -36,6 +39,8 @@ export interface EmployeeKpis {
   totalEmployees: number;
   activeEmployees: number;
   onLeave: number;
+  inactiveEmployees: number;
+  pendingApprovals: number;
   departmentCount: number;
   newHiresThisMonth: number;
 }
@@ -67,6 +72,8 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
   const [department, setDepartment] = React.useState("all");
   const [employmentType, setEmploymentType] = React.useState<"all" | EmploymentType>("all");
   const [status, setStatus] = React.useState<"all" | EmployeeDisplayStatus>("all");
+  const [moreFiltersOpen, setMoreFiltersOpen] = React.useState(false);
+  const [phoneQuery, setPhoneQuery] = React.useState("");
   const [selected, setSelected] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
@@ -89,12 +96,13 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
       if (employmentType !== "all" && e.employmentType !== employmentType) return false;
       if (status !== "all" && e.displayStatus !== status) return false;
       if (q) {
-        const matches = e.name.toLowerCase().includes(q) || formatEmployeeCode(e.employeeNumber).toLowerCase().includes(q) || (e.email ?? "").toLowerCase().includes(q);
+        const matches = e.name.toLowerCase().includes(q) || formatEmployeeCode(e.employeeNumber).toLowerCase().includes(q) || (e.email ?? "").toLowerCase().includes(q) || (e.department ?? "").toLowerCase().includes(q) || (e.jobTitle ?? "").toLowerCase().includes(q) || (e.branch ?? "").toLowerCase().includes(q);
         if (!matches) return false;
       }
+      if (phoneQuery.trim() && !(e.phone ?? "").toLowerCase().includes(phoneQuery.trim().toLowerCase())) return false;
       return true;
     });
-  }, [withDisplayStatus, query, department, employmentType, status]);
+  }, [withDisplayStatus, query, phoneQuery, department, employmentType, status]);
 
   const filteredKpis = React.useMemo(() => {
     const now = new Date();
@@ -102,9 +110,10 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
     const totalEmployees = filtered.length;
     const activeEmployees = filtered.filter((e) => e.displayStatus === "active").length;
     const onLeave = filtered.filter((e) => e.displayStatus === "on_leave").length;
+    const inactiveEmployees = filtered.filter((e) => e.displayStatus === "inactive").length;
     const departmentCount = new Set(filtered.map((e) => e.department).filter(Boolean)).size;
     const newHiresThisMonth = filtered.filter((e) => new Date(e.hireDate) >= startOfMonth).length;
-    return { totalEmployees, activeEmployees, onLeave, departmentCount, newHiresThisMonth };
+    return { totalEmployees, activeEmployees, onLeave, inactiveEmployees, pendingApprovals: kpis.pendingApprovals, departmentCount, newHiresThisMonth };
   }, [filtered]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
@@ -172,8 +181,8 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
             <KpiFlipCard color="blue" label="Total Employees" value={`${filteredKpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Number of employees matching the current filters." />
             <KpiFlipCard color="green" label="Active Employees" value={`${filteredKpis.activeEmployees}`} icon={<UserCheck className="h-full w-full" />} detail="Filtered employees currently Active." featured />
             <KpiFlipCard color="amber" label="On Leave" value={`${filteredKpis.onLeave}`} icon={<CalendarOff className="h-full w-full" />} detail="Filtered employees currently on leave." />
-            <KpiFlipCard color="purple" label="Departments" value={`${filteredKpis.departmentCount}`} icon={<Building2 className="h-full w-full" />} detail="Distinct departments represented in the filtered set." />
-            <KpiFlipCard color="teal" label="New Hires (This Month)" value={`${filteredKpis.newHiresThisMonth}`} icon={<UserPlus2 className="h-full w-full" />} detail="Filtered employees hired from the 1st of this month onward." />
+            <KpiFlipCard color="red" label="Inactive Employees" value={`${filteredKpis.inactiveEmployees}`} icon={<UserPlus2 className="h-full w-full" />} detail="Employees currently inactive." />
+            <KpiFlipCard color="purple" label="Pending Approvals" value={`${filteredKpis.pendingApprovals}`} icon={<Building2 className="h-full w-full" />} detail="Pending staff account invitations awaiting approval." />
           </div>
 
           {/* Filters */}
@@ -210,11 +219,20 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
                     <option value="inactive">Inactive</option>
                   </Select>
                 </div>
-                <Button variant="outline" size="md"><Filter className="h-4 w-4" /> More Filters</Button>
-                <Button variant="ghost" size="md" onClick={() => { setQuery(""); setDepartment("all"); setEmploymentType("all"); setStatus("all"); setPage(1); }}>
+                <Button variant="outline" size="md" onClick={() => setMoreFiltersOpen((open) => !open)}><Filter className="h-4 w-4" /> More Filters</Button>
+                <Button variant="ghost" size="md" onClick={() => { setQuery(""); setPhoneQuery(""); setDepartment("all"); setEmploymentType("all"); setStatus("all"); setMoreFiltersOpen(false); setPage(1); }}>
                   <RefreshCw className="h-4 w-4" /> Clear
                 </Button>
               </div>
+              {moreFiltersOpen && (
+                <div className="mt-4 grid max-w-xl grid-cols-1 gap-3 border-t border-ledger-100 pt-4 dark:border-ledger-700 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-ledger-500">Phone</label>
+                    <Input value={phoneQuery} onChange={(e) => { setPhoneQuery(e.target.value); setPage(1); }} placeholder="Search phone number" />
+                  </div>
+                  <div className="flex items-end text-xs text-ledger-400">Search updates locally without reloading the page.</div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -228,17 +246,20 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
                     <th className="w-8 px-3 py-3 font-medium">#</th>
                     <th className="px-3 py-3 font-medium">Employee</th>
                     <th className="px-3 py-3 font-medium">Employee ID</th>
+                    <th className="px-3 py-3 font-medium">Email</th>
                     <th className="px-3 py-3 font-medium">Department</th>
                     <th className="px-3 py-3 font-medium">Position</th>
+                    <th className="px-3 py-3 font-medium">Assigned Branch</th>
                     <th className="px-3 py-3 font-medium">Employment Type</th>
                     <th className="px-3 py-3 font-medium">Status</th>
                     <th className="px-3 py-3 font-medium">Joining Date</th>
+                    <th className="px-3 py-3 font-medium">Phone</th>
                     <th className="px-3 py-3 pr-4 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
                   {pageRows.length === 0 && (
-                    <tr><td colSpan={10} className="px-4 py-12 text-center text-ledger-400">No employees match your filters.</td></tr>
+                    <tr><td colSpan={13} className="px-4 py-12 text-center text-ledger-400">No employees match your filters.</td></tr>
                   )}
                   {pageRows.map((e, i) => (
                     <tr key={e.id} className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
@@ -246,9 +267,13 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
                       <td className="px-3 py-3 text-ledger-400">{(clampedPage - 1) * rowsPerPage + i + 1}</td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-900 text-xs font-semibold text-white dark:bg-white dark:text-ink-900">
-                            {e.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-                          </span>
+                          {e.avatarUrl ? (
+                            <img src={e.avatarUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                          ) : (
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-900 text-xs font-semibold text-white dark:bg-white dark:text-ink-900" aria-label={`${e.name} photo placeholder`}>
+                              {e.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                            </span>
+                          )}
                           <div className="min-w-0">
                             <p className="truncate font-medium text-ink-900 dark:text-white">{e.name}</p>
                             <p className="truncate text-xs text-ledger-400">{e.email ?? "—"}</p>
@@ -256,11 +281,14 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
                         </div>
                       </td>
                       <td className="px-3 py-3 font-mono text-xs text-ledger-500">{formatEmployeeCode(e.employeeNumber)}</td>
+                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.email ?? "—"}</td>
                       <td className="px-3 py-3">{e.department ? <Badge tone="neutral">{e.department}</Badge> : "—"}</td>
                       <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.jobTitle ?? "—"}</td>
+                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.branch ?? "Not assigned"}</td>
                       <td className="px-3 py-3"><Badge tone={EMPLOYMENT_TYPE_TONE[e.employmentType]}>{EMPLOYMENT_TYPE_LABEL[e.employmentType]}</Badge></td>
                       <td className="px-3 py-3"><Badge tone={EMPLOYEE_STATUS_TONE[e.displayStatus]}>{EMPLOYEE_STATUS_LABEL[e.displayStatus]}</Badge></td>
                       <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{new Date(e.hireDate).toLocaleDateString("en-GH", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{e.phone ?? "—"}</td>
                       <td className="px-3 py-3 pr-4">
                         <EmployeeRowMenu employeeId={e.id} employeeName={e.name} status={e.status} onNotice={showNotice} />
                       </td>

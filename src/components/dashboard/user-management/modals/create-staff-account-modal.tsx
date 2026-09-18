@@ -61,6 +61,7 @@ export function CreateStaffAccountModal({
   const [employeeId, setEmployeeId] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [avatar, setAvatar] = useState<File | null>(null);
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
   const [role, setRole] = useState(roles[0]?.key ?? "staff");
   const [locationId, setLocationId] = useState(branches[0]?.id ?? "");
@@ -82,6 +83,7 @@ export function CreateStaffAccountModal({
     setEmployeeId("");
     setEmail("");
     setPhone("");
+    setAvatar(null);
     setDepartment(DEPARTMENTS[0]);
     setRole(roles[0]?.key ?? "staff");
     setLocationId(branches[0]?.id ?? "");
@@ -115,6 +117,7 @@ export function CreateStaffAccountModal({
     formData.set("employee_id", employeeId);
     formData.set("email", email);
     formData.set("phone", phone);
+    if (avatar) formData.set("avatar", avatar);
     formData.set("department", department);
     formData.set("role", role);
     formData.set("location_id", locationId);
@@ -180,6 +183,11 @@ export function CreateStaffAccountModal({
               <section className="space-y-3">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ledger-500"><KeyRound className="h-3.5 w-3.5 text-blue-600" /> Employee information & credentials</div>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold text-ink-900 dark:text-white">
+                    Profile photo
+                    <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setAvatar(event.target.files?.[0] ?? null)} className="mt-1 h-9 text-xs" />
+                    <span className="mt-1 block text-[10px] font-normal text-ledger-400">Optional image, maximum 5MB.</span>
+                  </label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">
                     Full name *
                     <Input

@@ -27,6 +27,7 @@ export function AddEmployeeForm({ departments }: { departments: string[] }) {
   const [employmentType, setEmploymentType] = React.useState<EmploymentType>("full_time");
   const [monthlySalary, setMonthlySalary] = React.useState("");
   const [hireDate, setHireDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [avatar, setAvatar] = React.useState<File | null>(null);
 
   function submit() {
     setError(null);
@@ -47,6 +48,7 @@ export function AddEmployeeForm({ departments }: { departments: string[] }) {
       formData.set("monthly_salary", String(salary));
       formData.set("hire_date", hireDate);
       formData.set("status", "active");
+      if (avatar) formData.set("avatar", avatar);
 
       try {
         await createEmployee(formData);
@@ -80,6 +82,12 @@ export function AddEmployeeForm({ departments }: { departments: string[] }) {
       <Card accent="neutral" className="max-w-2xl">
         <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Employee Information</CardTitle></CardHeader>
         <CardContent className="space-y-3 pt-0">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-ledger-100 text-xs text-ledger-500 dark:bg-white/[0.06]">
+              {avatar ? <img src={URL.createObjectURL(avatar)} alt="Selected employee" className="h-full w-full object-cover" /> : "Photo"}
+            </div>
+            <Field label="Profile Photo"><Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setAvatar(e.target.files?.[0] ?? null)} /></Field>
+          </div>
           <Field label="Full Name" required><Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Daniel Mensah" /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>

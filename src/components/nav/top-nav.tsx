@@ -201,16 +201,10 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       className="flex h-14 items-center gap-3 px-5 shrink-0 relative z-30"
       style={{ background: topbar.background, borderBottom: `1px solid ${sidebar.borderColor}` }}
     >
-      {/* Organization branding — anchored to the far left */}
-      <div className="hidden items-center gap-2 lg:flex shrink-0">
-        <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
-        <span className="max-w-[180px] truncate text-xs font-semibold text-white/85">{orgName}</span>
-      </div>
-
-      {/* Search — centered in the top navigation */}
+      {/* Global search — anchored to the far left */}
       <button
         onClick={() => setCommandBarOpen(true)}
-        className="absolute left-1/2 flex h-8.5 w-[min(36rem,45vw)] -translate-x-1/2 items-center gap-2 rounded-xl border px-3 text-xs transition-all sm:w-[min(36rem,52vw)]"
+        className="relative flex h-8.5 w-[clamp(10rem,30vw,28rem)] shrink-0 items-center gap-2 rounded-xl border px-3 text-xs transition-all"
         style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.8)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)"; }}
@@ -222,13 +216,20 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
         </kbd>
       </button>
 
-      <div className="flex-1" />
-      <RefreshButton className="text-white/70 hover:bg-white/10" />
+      {/* Organization branding — centered between search and actions */}
+      <div className="min-w-0 flex-1" />
+      <div className="hidden max-w-[220px] shrink-0 items-center gap-2 lg:flex">
+        <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
+        <span className="truncate text-xs font-semibold text-white/85">{orgName}</span>
+      </div>
+      <div className="min-w-0 flex-1" />
+
+      <RefreshButton className="shrink-0 text-white/70 hover:bg-white/10" />
       <Link
         href="/pos"
         aria-label="Open POS"
         title="Open POS"
-        className={`flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition-all ${
+        className={`flex h-8 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition-all ${
           pathname === "/pos" ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10"
         }`}
       >
@@ -240,7 +241,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
         <button
           disabled={branchOptions.length === 0}
           onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
-          className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
+          className="flex shrink-0 items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Building2 className="h-3.5 w-3.5 text-white/60" />
           <span className="hidden sm:block">{branchOptions.length > 0 ? (currentBranch === "all" ? "All Branches" : currentBranch) : "No locations"}</span>
@@ -285,7 +286,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       <div className="relative">
         <button
           onClick={() => { setShowCurrencies(v => !v); setShowBranches(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
-          className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
+          className="flex shrink-0 items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Coins className="h-3.5 w-3.5 text-white/60" />
           <span>{currencyOptions.find(c => c.code === currentCurrency)?.label || currentCurrency}</span>

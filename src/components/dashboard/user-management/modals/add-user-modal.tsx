@@ -26,6 +26,8 @@ export function AddUserModal({
     fullName: "",
     email: "",
     phone: "",
+    avatar: null as File | null,
+    avatarPreview: "",
     employeeId: `TS-EMP-0${Math.floor(10 + Math.random() * 90)}`,
     role: "sales_officer",
     department: "Sales & Marketing",
@@ -80,6 +82,8 @@ export function AddUserModal({
       email: formData.email.trim().toLowerCase(),
       phone: formData.phone || "+233 24 000 0000",
       employeeId: formData.employeeId || `TS-EMP-${Date.now().toString().slice(-3)}`,
+      avatar: formData.avatar,
+      avatarUrl: formData.avatarPreview || null,
       role: formData.role,
       roleLabel: selectedRole?.name ?? "Sales Associate",
       status: "pending",
@@ -172,6 +176,31 @@ export function AddUserModal({
             {activeTab === "general" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-ink-900 dark:text-white mb-1">
+                      Profile Photo
+                    </label>
+                    <div className="flex items-center gap-3 rounded-xl border border-dashed border-ledger-200 bg-ledger-50 p-3 dark:border-ledger-700 dark:bg-slate-800/50">
+                      <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                        {formData.avatarPreview ? (
+                          <img src={formData.avatarPreview} alt="Selected profile" className="h-full w-full object-cover" />
+                        ) : (
+                          "IMG"
+                        )}
+                      </div>
+                      <Input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          const preview = file ? URL.createObjectURL(file) : "";
+                          setFormData({ ...formData, avatar: file, avatarPreview: preview });
+                        }}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-ink-900 dark:text-white mb-1">
                       Full Name <span className="text-red-500">*</span>

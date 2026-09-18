@@ -32,6 +32,7 @@ export interface Database {
           id: string;
           full_name: string | null;
           avatar_url: string | null;
+          location_id: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };
@@ -75,6 +76,7 @@ export interface Database {
           username: string | null;
           employee_id: string | null;
           phone: string | null;
+          avatar_url: string | null;
           department: string | null;
           contact_email: string | null;
           branch_scope: "all" | "assigned" | "single";
@@ -96,6 +98,7 @@ export interface Database {
           username?: string | null;
           employee_id?: string | null;
           phone?: string | null;
+          avatar_url?: string | null;
           department?: string | null;
           contact_email?: string | null;
           branch_scope?: "all" | "assigned" | "single";
@@ -1593,6 +1596,8 @@ export interface Database {
           phone: string | null;
           job_title: string | null;
           department: string | null;
+          location_id: string | null;
+          avatar_url: string | null;
           employment_type: EmploymentType;
           monthly_salary: number;
           hire_date: string;
@@ -1611,6 +1616,8 @@ export interface Database {
           phone?: string | null;
           job_title?: string | null;
           department?: string | null;
+          location_id?: string | null;
+          avatar_url?: string | null;
           employment_type?: EmploymentType;
           monthly_salary: number;
           hire_date?: string;

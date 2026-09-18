@@ -392,6 +392,7 @@ export function UserManagement({
       role: newUser.role || "sales_officer",
       roleLabel: newUser.roleLabel || "Sales Associate",
       status: newUser.status || "active",
+      avatarUrl: newUser.avatarUrl || null,
       department: newUser.department || "Sales & Marketing",
       locationId: newUser.locationId || "b-head",
       locationName: newUser.locationName || "Head Office",
@@ -423,6 +424,7 @@ export function UserManagement({
       const formData = new FormData();
       formData.set("name", user.fullName || user.name);
       formData.set("email", user.email);
+      if (newUser.avatar instanceof File) formData.set("avatar", newUser.avatar);
       formData.set("role", user.role);
       formData.set("location_id", user.locationId ?? "");
       formData.set("branch_scope", user.branchScope ?? "assigned");

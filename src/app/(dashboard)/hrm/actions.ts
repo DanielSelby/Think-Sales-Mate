@@ -24,6 +24,7 @@ export async function createEmployee(formData: FormData) {
   const monthlySalary = Number(formData.get("monthly_salary") ?? 0);
   const hireDate      = String(formData.get("hire_date") ?? new Date().toISOString().slice(0, 10));
   const status        = (formData.get("status") as "active" | "inactive") ?? "active";
+  const avatar = formData.get("avatar");
 
   if (!fullName) redirect("/hrm/new?error=Employee+name+is+required");
   if (monthlySalary <= 0) redirect("/hrm/new?error=Enter+a+valid+monthly+salary");
@@ -54,6 +55,20 @@ export async function createEmployee(formData: FormData) {
     .single();
 
   if (error || !data) redirect(`/hrm/new?error=${encodeURIComponent(error?.message ?? "Could not create employee")}`);
+
+  if (avatar instanceof File && avatar.size > 0) {
+    if (!avatar.type.startsWith("image/") || avatar.size > 5 * 1024 * 1024) {
+      await supabase.from("employees").delete().eq("id", data.id);
+      redirect("/hrm/new?error=Profile+photo+must+be+an+image+under+5MB");
+    }
+    const extension = avatar.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${user.id}/employees/${data.id}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("profile-avatars").upload(path, avatar, { upsert: true, contentType: avatar.type });
+    if (!uploadError) {
+      const { data: publicUrl } = supabase.storage.from("profile-avatars").getPublicUrl(path);
+      await supabase.from("employees").update({ avatar_url: publicUrl.publicUrl }).eq("id", data.id);
+    }
+  }
 
   await supabase.from("audit_logs").insert({
     org_id:      context.orgId,

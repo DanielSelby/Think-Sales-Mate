@@ -92,6 +92,13 @@ export function EmployeeForm({
       </div>
 
       <div className="space-y-1.5">
+        <label htmlFor="avatar" className="text-sm font-medium text-ledger-700 dark:text-ledger-200">
+          Profile photo <span className="font-normal text-ledger-400">(optional, max 5MB)</span>
+        </label>
+        <Input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" />
+      </div>
+
+      <div className="space-y-1.5">
         <label htmlFor="status" className="text-sm font-medium text-ledger-700 dark:text-ledger-200">
           Status
         </label>

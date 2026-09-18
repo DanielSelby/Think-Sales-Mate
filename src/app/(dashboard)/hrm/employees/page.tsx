@@ -15,11 +15,19 @@ export default async function EmployeesPage() {
   const orgId = context.orgId;
   const supabase = await createClient();
 
-  const { data: employees } = await supabase.from("employees").select("*").eq("org_id", orgId).order("full_name");
+  const [{ data: employees }, { count: pendingApprovals }, { data: locations }] = await Promise.all([
+    supabase.from("employees").select("*").eq("org_id", orgId).order("full_name"),
+    supabase.from("organization_members").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("status", "invited"),
+    supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
+  ]);
+  const locationNames = new Map((locations ?? []).map((location) => [location.id, location.name]));
   const rows = (employees ?? []).map((e) => ({
     id: e.id,
     name: e.full_name,
     email: e.email,
+    phone: e.phone,
+    avatarUrl: e.avatar_url,
+    branch: e.location_id ? locationNames.get(e.location_id) ?? "Unknown branch" : null,
     employeeNumber: e.employee_number,
     department: e.department,
     jobTitle: e.job_title,
@@ -41,6 +49,8 @@ export default async function EmployeesPage() {
     totalEmployees: rows.length,
     activeEmployees: withStatus.filter((r) => r.displayStatus === "active").length,
     onLeave: withStatus.filter((r) => r.displayStatus === "on_leave").length,
+    inactiveEmployees: withStatus.filter((r) => r.displayStatus === "inactive").length,
+    pendingApprovals: pendingApprovals ?? 0,
     departmentCount: departments.length,
     newHiresThisMonth: rows.filter((r) => new Date(r.hireDate) >= monthStart).length,
   };
