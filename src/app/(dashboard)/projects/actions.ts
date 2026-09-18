@@ -83,7 +83,7 @@ export async function updateProject(projectId: string, formData: FormData): Prom
 
 export async function deleteProject(projectId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("projects", "edit")) {
+  if (!context || !await canPermission("projects", "delete")) {
     return { error: "You don't have permission to remove projects." };
   }
 

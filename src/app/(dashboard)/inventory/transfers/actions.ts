@@ -31,7 +31,7 @@ export interface CreateTransferResult {
 export async function createStockTransfer(payload: CreateTransferPayload): Promise<CreateTransferResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
-  if (!await canPermission("inventory", "edit")) {
+  if (!await canPermission("transfers", "edit")) {
     return { error: "You don't have permission to create stock transfers." };
   }
   if (context.isBranchScoped &&
@@ -164,7 +164,7 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   }
 
   const supabase = await createClient();
-  const isInventoryManager = await canPermission("inventory", "edit");
+  const isInventoryManager = await canPermission("transfers", "edit");
   let receivingBranchCanComplete = false;
   if (!isInventoryManager) {
     const { data: destination } = await supabase
@@ -253,7 +253,7 @@ export async function getTransferItems(transferId: string): Promise<TransferItem
 
 export async function deleteTransfer(transferId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) {
+  if (!context || !await canPermission("transfers", "delete")) {
     return { error: "You don't have permission to delete transfers." };
   }
 

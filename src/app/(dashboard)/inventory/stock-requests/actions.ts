@@ -26,7 +26,7 @@ export interface CreateStockRequestPayload {
 export async function createStockRequest(payload: CreateStockRequestPayload) {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
-  if (!await canPermission("inventory.stock_request", "create")) {
+  if (!await canPermission("inventory", "create")) {
     return { error: "You don't have permission to create stock requests." };
   }
   if (payload.requestingLocationId === payload.sourceLocationId) {
@@ -85,7 +85,7 @@ export async function createStockRequest(payload: CreateStockRequestPayload) {
 
 export async function approveStockRequest(requestId: string, comment?: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory.stock_request", "approve")) {
+  if (!context || !await canPermission("inventory", "approve")) {
     return { error: "You don't have permission to approve stock requests." };
   }
   const supabase = await createClient();
@@ -148,7 +148,7 @@ export async function approveStockRequest(requestId: string, comment?: string) {
 
 export async function rejectStockRequest(requestId: string, reason: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory.stock_request", "delete")) {
+  if (!context || !await canPermission("inventory", "delete")) {
     return { error: "You don't have permission to reject stock requests." };
   }
   if (!reason.trim()) return { error: "Provide a rejection reason." };

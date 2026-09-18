@@ -16,7 +16,7 @@ export type ApprovalDecisionInput = {
 
 export async function decideApproval(input: ApprovalDecisionInput) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory.stock_request", "approve")) {
+  if (!context || !await canPermission("approvals", "approve")) {
     return { error: "You do not have permission to manage approvals." };
   }
 
@@ -80,7 +80,7 @@ export async function decideApproval(input: ApprovalDecisionInput) {
 
 export async function markApprovalDone(input: Pick<ApprovalDecisionInput, "type" | "id">) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory.stock_request", "approve")) {
+  if (!context || !await canPermission("approvals", "approve")) {
     return { error: "You do not have permission to update approval history." };
   }
   const supabase = await createClient();

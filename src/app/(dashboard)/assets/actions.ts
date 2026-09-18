@@ -71,7 +71,7 @@ export async function getAssetsForAccounting(): Promise<Array<{
 export async function createAsset(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/assets/new", "Your session expired — please sign in again.");
-  if (!await canPermission("assets", "edit")) {
+  if (!await canPermission("assets", "create")) {
     redirectWithError("/assets/new", "You don't have permission to add assets.");
   }
 
@@ -104,7 +104,7 @@ export async function importAssets(records: Array<{
   location?: string | null;
 }>): Promise<{ success?: boolean; error?: string; count?: number }> {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("assets", "edit")) return { error: "You don't have permission to import assets." };
+  if (!context || !await canPermission("assets", "create")) return { error: "You don't have permission to import assets." };
   const valid = records.filter((record) => record.name.trim()).map((record) => ({
     org_id: context.orgId,
     created_by: context.userId,
@@ -151,7 +151,7 @@ export async function updateAsset(assetId: string, formData: FormData): Promise<
 
 export async function deleteAsset(assetId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("assets", "edit")) {
+  if (!context || !await canPermission("assets", "delete")) {
     return { error: "You don't have permission to remove assets." };
   }
 

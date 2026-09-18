@@ -694,6 +694,9 @@ export async function bulkAddProductsToLocation(
   productIds: string[],
   locationIds: string | string[]
 ): Promise<BulkAddLocationResult> {
+  if (!await canPermission("inventory", "edit")) {
+    return { ok: false, error: "You don't have permission to manage product locations.", importedProducts: [], skippedProducts: [], importedCount: 0, skippedCount: 0 };
+  }
   const destinations = [...new Set((Array.isArray(locationIds) ? locationIds : [locationIds]).filter(Boolean))];
   if (destinations.length <= 1) {
     return bulkAddProductsToSingleLocation(productIds, destinations[0] ?? "");
@@ -909,6 +912,9 @@ export async function bulkRemoveProductsFromLocation(
   productIds: string[],
   locationId: string
 ): Promise<BulkRemoveLocationResult> {
+  if (!await canPermission("inventory", "edit")) {
+    return { ok: false, error: "You don't have permission to manage product locations.", removedCount: 0, blockedCount: 0, blockedProducts: [], removedProducts: [] };
+  }
   const validation = await validateRemoveProductsFromLocation(productIds, locationId);
   if (!validation.ok) {
     return { ok: false, error: validation.error, removedCount: 0, blockedCount: 0, blockedProducts: [], removedProducts: [] };

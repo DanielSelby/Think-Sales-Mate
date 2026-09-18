@@ -1,7 +1,5 @@
 "use server";
 
-import { requirePermission } from "@/lib/rbac/permissions";
-
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -20,11 +18,13 @@ async function authorized(capability: "messaging.create" | "messaging.submit" | 
     : capability === "messaging.submit" ? "edit"
     : capability === "messaging.approve" ? "approve"
     : "edit";
-  return context && await canPermission("messaging", action) ? context : null;
+  return context && await canPermission("communication", action) ? context : null;
 }
 
 export async function transitionCustomerMessage(input: { campaignId: string; action: "Submitted" | "Approved" | "Rejected" | "Scheduled" | "Sent" | "Cancelled"; comment?: string }) {
-  await requirePermission("messaging", "edit");
+  if (!await canPermission("communication", "edit")) {
+    return { error: "You do not have permission to edit communication." };
+  }
   const context = await authorized(input.action === "Submitted" ? "messaging.submit" : input.action === "Approved" || input.action === "Rejected" ? "messaging.approve" : "messaging.send");
   if (!context) return { error: "You do not have permission to perform this messaging action." };
   const supabase = await createClient();
@@ -46,7 +46,9 @@ export async function transitionCustomerMessage(input: { campaignId: string; act
 }
 
 export async function sendCustomerCampaignNow(campaignId: string) {
-  await requirePermission("messaging", "approve");
+  if (!await canPermission("communication", "approve")) {
+    return { error: "You do not have permission to approve communication." };
+  }
   const context = await authorized("messaging.send");
   if (!context) return { error: "You do not have permission to send campaigns." };
   const supabase = await createClient();

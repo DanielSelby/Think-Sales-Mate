@@ -78,9 +78,6 @@ import type { BranchAccessRule } from "./user-management/types";
 
 import {
   DEFAULT_ROLES,
-  DEFAULT_BRANCHES,
-  INITIAL_USERS,
-  INITIAL_AUDIT_LOGS,
   INITIAL_INVITATIONS,
   DEPARTMENTS
 } from "./user-management/constants";
@@ -134,47 +131,44 @@ export function UserManagement({
 
   // Primary Data State
   const [branches] = useState<UserBranch[]>(
-    initialBranchesProp && initialBranchesProp.length > 0 ? initialBranchesProp : DEFAULT_BRANCHES
+    initialBranchesProp ?? []
   );
 
   const [users, setUsers] = useState<ManagedUser[]>(() => {
-    if (initialUsersProp && initialUsersProp.length > 0) {
-      // Merge with default mock fields for rich display
+    if (initialUsersProp) {
       return initialUsersProp.map((u, idx) => {
-        const fallback = INITIAL_USERS[idx % INITIAL_USERS.length] || INITIAL_USERS[0];
         return {
-          ...fallback,
           ...u,
           id: u.id,
           email: u.email,
-          fullName: u.fullName || u.name || fallback.fullName || u.email.split("@")[0],
-          phone: u.phone || fallback.phone,
-          employeeId: u.employeeId || fallback.employeeId || `TS-EMP-0${idx + 1}`,
-          role: u.role || fallback.role,
-          roleLabel: u.roleLabel || fallback.roleLabel || u.role,
+          fullName: u.fullName || u.name || u.email.split("@")[0],
+          phone: u.phone || "",
+          employeeId: u.employeeId || `TS-EMP-0${idx + 1}`,
+          role: u.role || "staff",
+          roleLabel: u.roleLabel || u.role || "Staff",
           status: u.status || "active",
-          locationId: u.locationId || fallback.locationId,
-          locationName: u.locationName || fallback.locationName,
-          secondaryBranches: u.secondaryBranches || fallback.secondaryBranches,
-          secondaryBranchNames: u.secondaryBranchNames || fallback.secondaryBranchNames,
-          branchScope: u.branchScope || fallback.branchScope || "single",
-          canViewOtherTransactions: u.canViewOtherTransactions ?? fallback.canViewOtherTransactions ?? true,
-          canCheckCrossBranchStock: u.canCheckCrossBranchStock ?? fallback.canCheckCrossBranchStock ?? false,
-          approvalPermissions: u.approvalPermissions || fallback.approvalPermissions,
-          accessPermissions: u.accessPermissions || fallback.accessPermissions,
-          performance: fallback.performance,
-          attentionReason: fallback.attentionReason
+          locationId: u.locationId ?? null,
+          locationName: u.locationName ?? null,
+          secondaryBranches: u.secondaryBranches || [],
+          secondaryBranchNames: u.secondaryBranchNames || [],
+          branchScope: u.branchScope || "single",
+          canViewOtherTransactions: u.canViewOtherTransactions ?? true,
+          canCheckCrossBranchStock: u.canCheckCrossBranchStock ?? false,
+          approvalPermissions: u.approvalPermissions,
+          accessPermissions: u.accessPermissions,
+          performance: u.performance,
+          attentionReason: u.attentionReason ?? null
         };
       });
     }
-    return INITIAL_USERS;
+    return [];
   });
 
   const [roles, setRoles] = useState<RoleDefinition[]>(
     initialRolesProp && initialRolesProp.length > 0 ? initialRolesProp : DEFAULT_ROLES
   );
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(
-    initialAuditLogsProp && initialAuditLogsProp.length > 0 ? initialAuditLogsProp : INITIAL_AUDIT_LOGS
+    initialAuditLogsProp ?? []
   );
   const [invitations, setInvitations] = useState<InvitationRecord[]>(INITIAL_INVITATIONS);
 

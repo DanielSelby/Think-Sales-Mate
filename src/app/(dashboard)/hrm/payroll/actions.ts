@@ -22,7 +22,7 @@ function currentPeriod() {
 export async function runPayroll(): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("Your session expired — please sign in again.");
-  if (!await canPermission("hrm", "edit")) {
+  if (!await canPermission("hrm_payroll", "edit")) {
     redirectWithError("You don't have permission to run payroll.");
   }
 

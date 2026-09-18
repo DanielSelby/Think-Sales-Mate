@@ -7,7 +7,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 
 export async function logReportExport(reportName: string, reportType: string, format: "pdf" | "excel" | "csv") {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("reports", "view")) {
+  if (!context || !await canPermission("reports", "export")) {
     return { error: "You don't have permission to export reports." };
   }
 

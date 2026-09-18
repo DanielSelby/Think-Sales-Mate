@@ -13,7 +13,7 @@ function redirectWithError(path: string, message: string): never {
 export async function createInvoice(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/accounting/invoices/new", "Your session expired — please sign in again.");
-  if (!await canPermission("accounting", "edit")) {
+  if (!await canPermission("accounting", "create")) {
     redirectWithError("/accounting/invoices/new", "You don't have permission to create invoices.");
   }
 

@@ -29,7 +29,7 @@ function parseCustomerForm(formData: FormData) {
 export async function createCustomer(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/crm/new", "Your session expired — please sign in again.");
-  if (!await canPermission("crm", "create")) {
+  if (!await canPermission("customers", "create")) {
     redirectWithError("/crm/new", "You don't have permission to add customers.");
   }
 
@@ -52,7 +52,7 @@ export async function createCustomer(formData: FormData): Promise<void> {
 export async function updateCustomer(customerId: string, formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/crm/${customerId}/edit`, "Your session expired — please sign in again.");
-  if (!await canPermission("crm", "edit")) {
+  if (!await canPermission("customers", "edit")) {
     redirectWithError(`/crm/${customerId}/edit`, "You don't have permission to edit customers.");
   }
 
@@ -74,7 +74,7 @@ export async function updateCustomer(customerId: string, formData: FormData): Pr
 
 export async function deleteCustomer(customerId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("crm", "edit")) {
+  if (!context || !await canPermission("customers", "delete")) {
     return { error: "You don't have permission to remove customers." };
   }
 

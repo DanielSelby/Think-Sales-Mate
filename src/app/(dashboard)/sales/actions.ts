@@ -1,6 +1,6 @@
 "use server";
 
-import { requirePermission } from "@/lib/rbac/permissions";
+import { canPermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -39,7 +39,7 @@ export interface ReturnableLine {
 }
 
 export async function getSaleReturnableItems(saleId: string): Promise<ReturnableLine[]> {
-  await requirePermission("sales", "view");
+  if (!await canPermission("sales", "view")) throw new Error("You do not have permission to view sales.");
   const supabase = await createClient();
 
   const { data: items } = await supabase
@@ -98,7 +98,7 @@ export async function updateSaleStatus({
   note,
   returnLines,
 }: UpdateSaleStatusInput): Promise<UpdateSaleStatusResult> {
-  await requirePermission("sales", "edit");
+  if (!await canPermission("sales", "approve")) throw new Error("You do not have permission to approve sales.");
   const supabase = await createClient();
 
   const {
@@ -272,7 +272,7 @@ export interface RecordSaleResult {
 }
 
 export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
-  await requirePermission("sales", "create");
+  if (!await canPermission("sales", "create")) throw new Error("You do not have permission to create sales.");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
@@ -527,6 +527,7 @@ export interface UpdateSaleInput {
 }
 
 export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResult> {
+  if (!await canPermission("sales", "edit")) return { ok: false, error: "You do not have permission to edit sales." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
@@ -713,7 +714,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
 }
 
 export async function deleteDraftSale(saleId: string): Promise<{ ok: boolean; error?: string }> {
-  await requirePermission("sales", "delete");
+  if (!await canPermission("sales", "delete")) throw new Error("You do not have permission to delete sales.");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };

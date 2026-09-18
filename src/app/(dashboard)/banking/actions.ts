@@ -13,7 +13,7 @@ function redirectWithError(path: string, message: string): never {
 export async function createAccount(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/banking/new", "Your session expired — please sign in again.");
-  if (!await canPermission("banking", "edit")) {
+  if (!await canPermission("banking", "create")) {
     redirectWithError("/banking/new", "You don't have permission to add accounts.");
   }
 
@@ -81,7 +81,7 @@ export async function recordTransaction(accountId: string, formData: FormData): 
 
 export async function deleteAccount(accountId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("banking", "edit")) {
+  if (!context || !await canPermission("banking", "delete")) {
     return { error: "You don't have permission to remove accounts." };
   }
 

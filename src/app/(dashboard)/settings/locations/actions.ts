@@ -21,7 +21,7 @@ export async function createLocation(formData: FormData) {
 
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
-  if (!await canPermission("locations", "edit")) {
+  if (!await canPermission("settings", "create")) {
     return { error: "You don't have permission to add locations." };
   }
   if (!name) return { error: "Location name is required." };
@@ -73,7 +73,7 @@ export async function updateLocation(
   }
 ) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("locations", "edit")) {
+  if (!context || !await canPermission("settings", "edit")) {
     return { error: "You don't have permission to edit locations." };
   }
 
@@ -92,7 +92,7 @@ export async function updateLocation(
 
 export async function setPrimaryLocation(locationId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("locations", "edit")) {
+  if (!context || !await canPermission("settings", "edit")) {
     return { error: "You don't have permission to change the primary location." };
   }
 
@@ -112,7 +112,7 @@ export async function setPrimaryLocation(locationId: string) {
 
 export async function deleteLocation(locationId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("locations", "edit")) {
+  if (!context || !await canPermission("settings", "delete")) {
     return { error: "You don't have permission to remove locations." };
   }
 
