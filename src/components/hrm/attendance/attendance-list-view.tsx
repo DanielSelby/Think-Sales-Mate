@@ -206,7 +206,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
+      <div className="space-y-5">
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
@@ -311,7 +311,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
         </div>
 
         {/* Analytics */}
-        <div className="space-y-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <Card accent="neutral">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Attendance Overview (Today)</CardTitle></CardHeader>
             <CardContent className="pt-0">

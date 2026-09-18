@@ -151,7 +151,7 @@ export function LeaveListView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
+      <div className="space-y-5">
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
             <KpiFlipCard color="blue" label="Total Employees" value={`${kpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Org-wide employee headcount — not scoped to these leave filters." />
@@ -258,7 +258,7 @@ export function LeaveListView({
           </Card>
         </div>
 
-        <div className="space-y-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <Card accent="neutral">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Leave Balance Overview</CardTitle></CardHeader>
             <CardContent className="pt-0">
@@ -366,4 +366,3 @@ export function LeaveListView({
     </div>
   );
 }
-
