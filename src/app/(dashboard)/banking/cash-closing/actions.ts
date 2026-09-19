@@ -8,7 +8,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 
-export type CashSummary = { opening: number; sales: number; receipts: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
+export type CashSummary = { opening: number; sales: number; debt: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
 async function auditContext() {
   const h = await headers();
@@ -46,12 +46,13 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     salesQuery = salesQuery.eq("sold_by", userId);
     expenseQuery = expenseQuery.eq("recorded_by", userId);
   }
-  const [salesQ, expQ, txQ, acctQ] = [
+  let txQ = db.from("bank_transactions").select("amount, type, recorded_by").eq("org_id", ctx.orgId).eq("transaction_date", date);
+  const [salesQ, expQ, acctQ] = [
     salesQuery,
     expenseQuery,
-    db.from("bank_transactions").select("amount, type").eq("org_id", ctx.orgId).eq("transaction_date", date),
     db.from("bank_accounts").select("opening_balance").eq("org_id", ctx.orgId).eq("account_type", "cash"),
   ];
+  if (userId) txQ = txQ.eq("recorded_by", userId);
   const [{ data: sales }, expenseResult, { data: transactions }, { data: accounts }] = await Promise.all([salesQ, expQ, txQ, acctQ]);
   const expenses = expenseResult.error
     ? (await (() => {
@@ -62,6 +63,22 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     : expenseResult.data;
   const cashSales = (sales ?? [])
     .filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash"))
+    .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
+    .reduce((a: number, s: Record<string, unknown>) => a + n(s.total), 0);
+  const customerDebt = (sales ?? [])
+    .filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash"))
+    .filter((s: Record<string, unknown>) => s.status === "completed")
+    .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
+    .reduce((a: number, s: Record<string, unknown>) => {
+      const total = n(s.total);
+      const amountPaid = s.amount_paid == null ? total : n(s.amount_paid);
+      return a + Math.max(0, total - amountPaid);
+    }, 0);
+  const electronic = (sales ?? [])
+    .filter((s: Record<string, unknown>) => {
+      const method = String(s.payment_method ?? "").toLowerCase();
+      return method.includes("mobile") || method.includes("momo") || method.includes("e-cash") || method.includes("electronic");
+    })
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
     .reduce((a: number, s: Record<string, unknown>) => a + n(s.amount_paid ?? s.total), 0);
   const refunds = (sales ?? [])
@@ -77,8 +94,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   const deposits = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "deposit").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
   const withdrawals = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "withdrawal").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
   const opening = (accounts ?? []).reduce((a: number, x: Record<string, unknown>) => a + n(x.opening_balance), 0);
-  const receipts = 0;
-  return { opening, sales: cashSales, receipts, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales + receipts - refunds - cashExpenses - deposits - withdrawals };
+  return { opening, sales: cashSales, debt: customerDebt, electronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + electronic - refunds - cashExpenses - deposits - withdrawals };
 }
 
 export async function createCashClosing(formData: FormData) {
@@ -107,7 +123,7 @@ export async function createCashClosing(formData: FormData) {
   const approvalRequired = Boolean(setting?.variance_approval_enabled ?? true) && Math.abs(variance) > threshold;
   const { data: closing, error } = await db.from("cash_closings").insert({
     org_id: ctx.orgId, location_id: locationId, closing_date: date, period_start: `${date}T00:00:00Z`, period_end: `${date}T23:59:59Z`,
-    opening_cash: summary.opening, cash_sales: summary.sales, cash_receipts: summary.receipts, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
+    opening_cash: summary.opening, cash_sales: summary.sales, cash_receipts: summary.debt, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
     deposits: summary.deposits, withdrawals: summary.withdrawals, expected_cash: summary.expected, actual_cash: actual, variance, classification,
     variance_reason: varianceReason || null, notes: notes || null, comments: notes || null, shift,
     coin_breakdown: { notes: notesCount, coins: coinCount }, created_by: ctx.userId,
