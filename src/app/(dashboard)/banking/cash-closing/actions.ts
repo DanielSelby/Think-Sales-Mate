@@ -73,11 +73,17 @@ export async function createCashClosing(formData: FormData) {
   if (error || !closing) redirect(`/banking/cash-closing?error=${encodeURIComponent(error?.message ?? "Could not save closing")}`);
   const audit = await auditContext();
   await db.from("cash_closing_audit").insert({ closing_id: closing.id, org_id: ctx.orgId, action: "created", actor_id: ctx.userId, metadata: { variance }, ...audit });
-  const denominations = [1, 2, 5, 10, 20, 50, 100].flatMap((denomination) => {
+  const denominations = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].flatMap((denomination) => {
     const quantity = Math.max(0, Math.floor(n(formData.get(`denomination_${denomination}`))));
     return quantity ? [{ closing_id: closing.id, org_id: ctx.orgId, denomination, quantity }] : [];
   });
-  if (denominations.length) await db.from("cash_closing_lines").insert(denominations);
+  const customDenominations: Array<{ closing_id: string; org_id: string; denomination: number; quantity: number }> = [];
+  for (let index = 1; index <= 20; index += 1) {
+    const denomination = n(formData.get(`custom_denomination_value_${index}`));
+    const quantity = Math.max(0, Math.floor(n(formData.get(`custom_denomination_quantity_${index}`))));
+    if (denomination > 0 && quantity > 0) customDenominations.push({ closing_id: closing.id, org_id: ctx.orgId, denomination, quantity });
+  }
+  if (denominations.length || customDenominations.length) await db.from("cash_closing_lines").insert([...denominations, ...customDenominations]);
   if (approvalRequired || classification !== "balanced") {
     await db.from("notifications").insert({ org_id: ctx.orgId, location_id: locationId, title: approvalRequired ? "Cash closing approval required" : `Cash ${classification}`, message: `${date} ${shift} closing has a ${Math.abs(variance).toFixed(2)} variance.`, type: "cash_closing", entity_type: "cash_closing", entity_id: closing.id });
   }
