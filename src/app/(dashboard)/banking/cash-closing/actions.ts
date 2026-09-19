@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 
 export type CashSummary = { opening: number; sales: number; receipts: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
@@ -27,6 +28,9 @@ export async function logCashClosingAction(closingId: string | null, action: "ex
 export async function calculateExpectedCash(date: string, locationId?: string | null, _shift = "full_day"): Promise<CashSummary> {
   const ctx = await getCurrentOrgContext();
   if (!ctx) throw new Error("Session expired");
+  if (locationId && !canAccessLocation(ctx, locationId)) {
+    throw new Error("You are not assigned to this branch.");
+  }
   const db = await createClient() as any;
   const scoped = (q: any): any => {
     if (locationId) return q.eq("location_id", locationId);
@@ -71,6 +75,9 @@ export async function createCashClosing(formData: FormData) {
   const varianceReason = String(formData.get("variance_reason") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
   if (!date || actual < 0) redirect("/banking/cash-closing?error=Enter%20a%20valid%20date%20and%20cash");
+  if (locationId && !canAccessLocation(ctx, locationId)) {
+    redirect("/banking/cash-closing?error=You%20are%20not%20assigned%20to%20this%20branch");
+  }
   const summary = await calculateExpectedCash(date, locationId, shift);
   const variance = Number((actual - summary.expected).toFixed(2));
   if (Math.abs(variance) > 0.005 && !varianceReason) redirect("/banking/cash-closing?error=Variance%20reason%20is%20required");

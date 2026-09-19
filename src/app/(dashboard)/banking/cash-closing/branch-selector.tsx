@@ -5,9 +5,10 @@ import { ChevronDown, Landmark } from "lucide-react";
 interface BranchSelectorProps {
   selectedLocationId: string | null;
   locations: Array<{ id: string; name: string }>;
+  isBranchScoped: boolean;
 }
 
-export function BranchSelector({ selectedLocationId, locations }: BranchSelectorProps) {
+export function BranchSelector({ selectedLocationId, locations, isBranchScoped }: BranchSelectorProps) {
   return (
     <form
       method="get"
@@ -20,7 +21,7 @@ export function BranchSelector({ selectedLocationId, locations }: BranchSelector
         onChange={(event) => event.currentTarget.form?.submit()}
         className="max-w-[150px] bg-transparent outline-none"
       >
-        <option value="">All branches</option>
+        <option value="">{isBranchScoped ? "All assigned branches" : "All branches"}</option>
         {locations.map((location) => (
           <option key={location.id} value={location.id}>
             {location.name}
