@@ -131,7 +131,13 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Reports", href: "/accounting?tab=reports", icon: BarChart3 },
     ],
   },
-  { label: "Banking", href: "/banking", icon: Landmark, status: "live" },
+  {
+    label: "Banking", href: "/banking", icon: Landmark, status: "live",
+    children: [
+      { label: "Bank Accounts", href: "/banking", icon: Landmark },
+      { label: "Cash Closing", href: "/banking/cash-closing", icon: ClipboardCheck },
+    ],
+  },
   { label: "Assets", href: "/assets", icon: Package, status: "live" },
   { label: "Projects", href: "/projects", icon: FolderKanban, status: "live" },
   {
