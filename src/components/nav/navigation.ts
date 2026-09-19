@@ -126,16 +126,11 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Chart of Accounts", href: "/accounting?tab=coa", icon: List },
       { label: "Journal Entries", href: "/accounting?tab=journal", icon: FileText },
       { label: "Bank Reconciliation", href: "/accounting?tab=reconciliation", icon: Landmark },
+      { label: "Banking", href: "/banking", icon: Landmark },
+      { label: "End Of Day Accounts", href: "/banking/cash-closing", icon: ClipboardCheck },
       { label: "Customer Credit Management", href: "/accounting?tab=receivables", icon: Receipt },
       { label: "Accounts Payable", href: "/accounting?tab=payables", icon: ShoppingBag },
       { label: "Reports", href: "/accounting?tab=reports", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "Banking", href: "/banking", icon: Landmark, status: "live",
-    children: [
-      { label: "Bank Accounts", href: "/banking", icon: Landmark },
-      { label: "Cash Closing", href: "/banking/cash-closing", icon: ClipboardCheck },
     ],
   },
   { label: "Assets", href: "/assets", icon: Package, status: "live" },

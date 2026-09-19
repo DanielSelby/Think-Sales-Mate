@@ -25,14 +25,19 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   };
   const [salesQ, expQ, txQ, acctQ] = [
     scoped(db.from("sales").select("total, amount_paid, refunded_amount, payment_method").eq("org_id", ctx.orgId).eq("status", "completed").gte("created_at", `${date}T00:00:00.000Z`).lt("created_at", `${date}T23:59:59.999Z`)),
-    scoped(db.from("expenses").select("amount, payment_method").eq("org_id", ctx.orgId).eq("expense_date", date)),
+    scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on").eq("org_id", ctx.orgId).eq("payment_status", "paid").or(`expense_date.eq.${date},paid_on.eq.${date}`)),
     db.from("bank_transactions").select("amount, type").eq("org_id", ctx.orgId).eq("transaction_date", date),
     db.from("bank_accounts").select("opening_balance").eq("org_id", ctx.orgId).eq("account_type", "cash"),
   ];
   const [{ data: sales }, { data: expenses }, { data: transactions }, { data: accounts }] = await Promise.all([salesQ, expQ, txQ, acctQ]);
   const cashSales = (sales ?? []).filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash")).reduce((a: number, s: Record<string, unknown>) => a + n(s.amount_paid ?? s.total), 0);
   const refunds = (sales ?? []).reduce((a: number, s: Record<string, unknown>) => a + n(s.refunded_amount), 0);
-  const cashExpenses = (expenses ?? []).filter((e: Record<string, unknown>) => String(e.payment_method ?? "cash").toLowerCase().includes("cash")).reduce((a: number, e: Record<string, unknown>) => a + n(e.amount), 0);
+  const cashExpenses = (expenses ?? [])
+    .filter((e: Record<string, unknown>) => {
+      const paidDate = String(e.paid_on ?? e.expense_date ?? "");
+      return paidDate === date && String(e.payment_method ?? "cash").toLowerCase().includes("cash");
+    })
+    .reduce((a: number, e: Record<string, unknown>) => a + n(e.amount), 0);
   const deposits = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "deposit").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
   const withdrawals = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "withdrawal").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
   const opening = (accounts ?? []).reduce((a: number, x: Record<string, unknown>) => a + n(x.opening_balance), 0);

@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2, Plus, Trash2, X, Sparkles } from "lucide-react";
+import { ChevronRight, ClipboardList, FileCheck2, FolderKanban, Loader2, Plus, Settings2, Trash2, X, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import {
 import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/attachments-dropzone";
 import {
   createExpense, updateExpense, getBudgetStatus, getRecentExpensesForCategory, searchPurchaseOrdersForExpense,
-  type ExpenseItemInput, type ApproverOption, type BudgetStatus, type RecentExpenseSummary, type PurchaseOrderOption,
+  uploadExpenseAttachment, type ExpenseItemInput, type ApproverOption, type BudgetStatus, type RecentExpenseSummary, type PurchaseOrderOption,
 } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
@@ -189,6 +190,15 @@ export function AddExpenseForm({
         setError(result.error ?? "Something went wrong.");
         return;
       }
+      if (attachments.length > 0) {
+        const attachmentResults = await Promise.all(attachments.map(({ file }) => uploadExpenseAttachment(result.expenseId!, file)));
+        const failedAttachment = attachmentResults.find((attachmentResult) => !attachmentResult.ok);
+        if (failedAttachment) {
+          setTransactionFeedback({ kind: "error", message: `Expense saved, but an attachment could not be uploaded: ${failedAttachment.error}` });
+          setError(failedAttachment.error ?? "One or more attachments could not be uploaded.");
+          return;
+        }
+      }
       setTransactionFeedback({ kind: "success", message: "The expense was recorded successfully." });
       window.setTimeout(() => router.push("/expenses"), 900);
     });
@@ -215,6 +225,15 @@ export function AddExpenseForm({
         setError(result.error ?? "Something went wrong.");
         return;
       }
+      if (attachments.length > 0) {
+        const attachmentResults = await Promise.all(attachments.map(({ file }) => uploadExpenseAttachment(expenseId!, file)));
+        const failedAttachment = attachmentResults.find((attachmentResult) => !attachmentResult.ok);
+        if (failedAttachment) {
+          setTransactionFeedback({ kind: "error", message: `Expense updated, but an attachment could not be uploaded: ${failedAttachment.error}` });
+          setError(failedAttachment.error ?? "One or more attachments could not be uploaded.");
+          return;
+        }
+      }
       setTransactionFeedback({ kind: "success", message: "The expense was updated successfully." });
       window.setTimeout(() => router.push(`/expenses/${expenseId}`), 900);
     });
@@ -228,6 +247,9 @@ export function AddExpenseForm({
     <div className="space-y-6 animate-in fade-in duration-150 pb-16">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-signal-soft px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-signal">
+            <Sparkles className="h-3.5 w-3.5" /> Expense management
+          </div>
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">
             {isEdit ? "Edit Expense" : "Add Expense"}
           </h1>
@@ -256,6 +278,20 @@ export function AddExpenseForm({
           )}
         </div>
       </div>
+
+      <nav aria-label="Expense management" className="overflow-x-auto rounded-2xl border border-ledger-100 bg-white p-1 shadow-card dark:border-white/10 dark:bg-ink-900">
+        <div className="flex min-w-max items-center gap-1">
+          <ExpenseTab href="/expenses/new" active icon={ClipboardList}>Add Expense</ExpenseTab>
+          <ExpenseTab href="/expenses" icon={FileCheck2}>Expense List</ExpenseTab>
+          <ExpenseTab href="/expenses/categories" icon={FolderKanban}>Categories</ExpenseTab>
+          <ExpenseTab href="/expenses?view=approvals" icon={FileCheck2}>Approval Queue</ExpenseTab>
+          <ExpenseTab href="/expenses?view=recurring" icon={ClipboardList}>Recurring Expenses</ExpenseTab>
+          <ExpenseTab href="/expenses?view=budgets" icon={FolderKanban}>Budget Control</ExpenseTab>
+          <ExpenseTab href="/expenses?view=reports" icon={FileCheck2}>Reports &amp; Analytics</ExpenseTab>
+          <ExpenseTab href="/expenses?view=attachments" icon={FolderKanban}>Attachments</ExpenseTab>
+          <ExpenseTab href="/expenses?view=settings" icon={Settings2}>Settings</ExpenseTab>
+        </div>
+      </nav>
 
       {isEdit && (
         <div className="flex items-center gap-2 rounded-md border border-signal/30 bg-signal-soft px-4 py-2.5 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">
@@ -613,5 +649,31 @@ function Field({ label, required, children }: { label: string; required?: boolea
       <span className="mb-1 block text-xs font-medium text-ledger-500">{label} {required && <span className="text-alert">*</span>}</span>
       {children}
     </label>
+  );
+}
+
+function ExpenseTab({
+  href,
+  active,
+  icon: Icon,
+  children,
+}: {
+  href: string;
+  active?: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+        active
+          ? "bg-signal text-white shadow-sm"
+          : "text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:text-ledger-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {children}
+    </Link>
   );
 }

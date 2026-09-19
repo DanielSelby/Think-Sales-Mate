@@ -82,6 +82,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
   if (!(await canPermission("expenses", "create"))) {
     return { ok: false, error: "You do not have permission to create expenses." };
   }
+
   if (!canUseLocation(context, input.locationId)) {
     return { ok: false, error: "You are not assigned to this branch." };
   }
@@ -154,6 +155,50 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
 
   revalidatePath("/expenses");
   return { ok: true, expenseId: data.id, expenseNumber: formatExpenseNumber(data.expense_number) };
+}
+
+export async function uploadExpenseAttachment(expenseId: string, file: File): Promise<SimpleResult> {
+  if (!file || file.size === 0) return { ok: false, error: "Attachment is empty." };
+  if (file.size > 5 * 1024 * 1024) return { ok: false, error: "Attachments must be 5MB or smaller." };
+  if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type)) {
+    return { ok: false, error: "Only PDF, JPG, and PNG attachments are supported." };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+
+  const { data: expense } = await supabase
+    .from("expenses")
+    .select("id, org_id")
+    .eq("id", expenseId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (!expense) return { ok: false, error: "Expense not found." };
+
+  const path = `${context.orgId}/${expenseId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const { error: uploadError } = await supabase.storage.from("expense-attachments").upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (uploadError) return { ok: false, error: uploadError.message };
+
+  const { error: insertError } = await (supabase as any).from("expense_attachments").insert({
+    expense_id: expenseId,
+    org_id: context.orgId,
+    storage_path: path,
+    file_name: file.name,
+    content_type: file.type,
+    file_size: file.size,
+    uploaded_by: user.id,
+  });
+  if (insertError) {
+    await supabase.storage.from("expense-attachments").remove([path]);
+    return { ok: false, error: insertError.message };
+  }
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
