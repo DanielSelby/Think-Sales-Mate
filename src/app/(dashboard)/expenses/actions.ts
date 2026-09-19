@@ -99,6 +99,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
       amount: total,
       expense_date: input.expenseDate,
       payment_method: input.paymentMethod,
+      payment_account: input.paymentAccount || null,
       status,
       payment_status: input.paymentStatus,
       paid_on: input.paymentStatus === "paid" ? (input.paidOn ?? input.expenseDate) : null,

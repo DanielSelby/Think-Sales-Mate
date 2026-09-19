@@ -293,10 +293,15 @@ export function SaleForm({
 
     return products.map((p) => {
       const rows = stockByProduct.get(p.id);
-      const branchQty = rows?.get(locationId) ?? p.stockQuantity;
+      const branchQty = rows ? (rows.get(locationId) ?? 0) : p.stockQuantity;
       return { ...p, stockQuantity: branchQty };
     });
   }, [products, stockByProduct, locationId, stockLevels]);
+
+  const locationProductById = useMemo(
+    () => new Map(locationProducts.map((p) => [p.id, p])),
+    [locationProducts]
+  );
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -305,7 +310,7 @@ export function SaleForm({
   }, [locationProducts, search]);
 
   const computedLines = lines.map((line) => {
-    const product = productById.get(line.productId);
+    const product = locationProductById.get(line.productId) ?? productById.get(line.productId);
     const unitPrice = product ? getTierPrice(product, priceTier) : 0;
     const lineSubtotal = unitPrice * line.quantity;
     const lineDiscount = lineSubtotal * (line.discountPercent / 100);
@@ -359,7 +364,7 @@ export function SaleForm({
   }
 
   function addProduct(productId: string) {
-    const product = productById.get(productId);
+    const product = locationProductById.get(productId);
     if (!product) return;
     if (!product.allowNegativeStock && product.stockQuantity <= 0) {
       setStockWarning(`"${product.name}" is out of stock and cannot be added.`);

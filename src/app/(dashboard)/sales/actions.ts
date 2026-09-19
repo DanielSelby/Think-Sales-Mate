@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canAccessLocation } from "@/lib/organizations/location-access";
+import { canAccessLocation, canUseLocation } from "@/lib/organizations/location-access";
 import type { SaleStatus } from "@/types/database";
 import { dispatchAutomatedCustomerMessage } from "@/lib/communication/automation";
 
@@ -276,6 +276,16 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
+  const context = await getCurrentOrgContext();
+  if (!context || context.orgId !== input.orgId) {
+    return { ok: false, error: "You are not authorized to create sales in this organization." };
+  }
+  if (!input.locationId && context.isBranchScoped) {
+    return { ok: false, error: "Select an assigned branch before creating the sale." };
+  }
+  if (input.locationId && !canUseLocation(context, input.locationId)) {
+    return { ok: false, error: "You are not assigned to this branch." };
+  }
 
   try {
     const { data: sale, error: saleError } = await supabase
@@ -531,6 +541,8 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "Your organization access could not be verified." };
 
   // sale_items' RLS appears to cover select/insert but not delete — the
   // user's identity/authorization is already verified above via
@@ -541,6 +553,16 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   try {
     const { data: existingSale } = await supabase.from("sales").select("org_id, location_id, document_status").eq("id", input.saleId).single();
     if (!existingSale) throw new Error("Sale not found.");
+    if (existingSale.org_id !== context.orgId || !canAccessLocation(context, existingSale.location_id)) {
+      return { ok: false, error: "You are not authorized to edit this sale." };
+    }
+    const nextLocationId = input.locationId ?? existingSale.location_id;
+    if (!nextLocationId && context.isBranchScoped) {
+      return { ok: false, error: "Select an assigned branch before updating the sale." };
+    }
+    if (nextLocationId && !canUseLocation(context, nextLocationId)) {
+      return { ok: false, error: "You are not assigned to this branch." };
+    }
 
     const wasFinal = existingSale.document_status === "final";
     const nextDocumentStatus = input.documentStatus ?? existingSale.document_status;
@@ -577,7 +599,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
       .update({
         customer_name:   input.customerName ?? null,
         customer_id:     input.customerId ?? null,
-        location_id:     input.locationId ?? null,
+        location_id:     nextLocationId ?? null,
         reference:       input.reference ?? null,
         sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
         subtotal:        input.subtotal,
@@ -640,7 +662,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
     // what makes finalizing a draft actually reserve inventory, exactly
     // once, at the moment it's finalized.
     if (willBeFinal) {
-      const targetLocationId = input.locationId ?? existingSale.location_id;
+      const targetLocationId = nextLocationId;
       if (targetLocationId) {
         for (const l of input.items) {
           await supabase.rpc("adjust_product_stock_at_location", {

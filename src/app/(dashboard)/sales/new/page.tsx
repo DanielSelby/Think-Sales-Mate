@@ -29,6 +29,13 @@ export default async function NewSalePage() {
   if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
     locationsQuery = locationsQuery.in("id", context.allowedLocationIds);
   }
+  let stockLevelsQuery = supabase
+    .from("product_stock_levels")
+    .select("product_id, location_id, quantity")
+    .eq("org_id", context.orgId);
+  if (context.isBranchScoped) {
+    stockLevelsQuery = stockLevelsQuery.in("location_id", context.allowedLocationIds);
+  }
 
   const [
     { data: productRows },
@@ -62,7 +69,7 @@ export default async function NewSalePage() {
       .eq("org_id", context.orgId)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId),
+    stockLevelsQuery,
     supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", context.orgId).maybeSingle()
   ]);;
 

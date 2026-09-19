@@ -26,6 +26,22 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
   const initialSale = await getSaleForEdit(id);
   if (!initialSale) notFound();
 
+  let locationsQuery = supabase
+    .from("business_locations")
+    .select("id, name")
+    .eq("org_id", context.orgId)
+    .eq("is_active", true)
+    .order("is_primary", { ascending: false })
+    .order("name");
+  let stockLevelsQuery = supabase
+    .from("product_stock_levels")
+    .select("product_id, location_id, quantity")
+    .eq("org_id", context.orgId);
+  if (context.isBranchScoped) {
+    locationsQuery = locationsQuery.in("id", context.allowedLocationIds);
+    stockLevelsQuery = stockLevelsQuery.in("location_id", context.allowedLocationIds);
+  }
+
   const [
     { data: productRows },
     { data: customerRows },
@@ -47,13 +63,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       .eq("is_active", true)
       .order("name"),
     supabase.from("customers").select("id, name, email, phone").eq("org_id", context.orgId).order("name"),
-    supabase
-      .from("business_locations")
-      .select("id, name")
-      .eq("org_id", context.orgId)
-      .eq("is_active", true)
-      .order("is_primary", { ascending: false })
-      .order("name"),
+    locationsQuery,
     supabase
       .from("organization_members")
       .select("user_id, invited_email, status")
@@ -67,7 +77,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       .eq("org_id", context.orgId)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId),
+    stockLevelsQuery,
     supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", context.orgId).maybeSingle()
   ]);;
 
@@ -95,6 +105,12 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
   for (const item of initialSale.items) {
     reclaimByProduct.set(item.productId, (reclaimByProduct.get(item.productId) ?? 0) + item.quantity);
   }
+  const availableByProduct = new Set(
+    (stockLevelRows ?? [])
+      .filter((row) => Number(row.quantity) > 0)
+      .map((row) => row.product_id)
+  );
+  const existingProductIds = new Set(initialSale.items.map((item) => item.productId));
   const products: SellableProduct[] = (productRows ?? []).map((p) => ({
     id: p.id,
     sku: p.sku,
@@ -106,7 +122,12 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     costPrice: Number(p.cost_price ?? 0),
     stockQuantity: p.stock_quantity + (reclaimByProduct.get(p.id) ?? 0),
     allowNegativeStock: Boolean(p.allow_negative_stock),
-  }));
+  })).filter((p) =>
+    !context.isBranchScoped ||
+    availableByProduct.has(p.id) ||
+    existingProductIds.has(p.id) ||
+    p.allowNegativeStock
+  );
 
   const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
 
