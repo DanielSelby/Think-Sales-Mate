@@ -3,7 +3,7 @@ import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 
 type Row = { id: string; closing_date: string; shift?: string; opening_cash?: number; cash_sales?: number; cash_receipts?: number; cash_refunds?: number; cash_expenses?: number; deposits?: number; withdrawals?: number; actual_cash: number; expected_cash: number; variance: number; classification: string; status: string; approval_required?: boolean; variance_reason: string | null };
 
-export function CashClosingReport({ closings, currency }: { closings: Row[]; currency: CurrencyConfig }) {
+export function CashClosingReport({ closings, currency, organizationName, logoUrl }: { closings: Row[]; currency: CurrencyConfig; organizationName: string; logoUrl: string | null }) {
   const shortage = closings.filter((r) => Number(r.variance) < 0).reduce((sum, r) => sum + Math.abs(Number(r.variance)), 0);
   const excess = closings.filter((r) => Number(r.variance) > 0).reduce((sum, r) => sum + Number(r.variance), 0);
   const balanced = closings.filter((r) => Number(r.variance) === 0).length;
@@ -14,7 +14,7 @@ export function CashClosingReport({ closings, currency }: { closings: Row[]; cur
   return <section id="cash-closing-report" className="cash-closing-report rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
     <div className="border-b border-[#dce8f2] p-6 print:border-b-2">
       <div className="flex flex-wrap items-start justify-between gap-5">
-        <div><div className="mb-2 flex items-center gap-3"><div className="h-9 w-9 rounded-lg bg-[#1478dd]" /><div><p className="text-lg font-bold text-[#12345a]">ThinkSales Pro</p><p className="text-[10px] text-ledger-500">Smarter Business. Greater Growth.</p></div></div><h2 className="mt-5 text-2xl font-bold text-[#12345a] dark:text-white">End of Day Cash Closing Report</h2><p className="mt-1 text-xs text-ledger-500">This report provides a summary of the cash activities for the day, including system calculations and variance analysis.</p></div>
+        <div><div className="mb-2 flex items-center gap-3">{logoUrl ? <img src={logoUrl} alt={`${organizationName} logo`} className="h-9 w-9 rounded-lg object-contain" /> : <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1478dd] text-sm font-bold text-white">{organizationName.slice(0, 1).toUpperCase()}</div>}<div><p className="text-lg font-bold text-[#12345a]">{organizationName}</p><p className="text-[10px] text-ledger-500">End Of Day Accounts</p></div></div><h2 className="mt-5 text-2xl font-bold text-[#12345a] dark:text-white">End of Day Cash Closing Report</h2><p className="mt-1 text-xs text-ledger-500">This report provides a summary of the cash activities for the day, including system calculations and variance analysis.</p></div>
         <div className="grid grid-cols-2 gap-x-8 gap-y-3 rounded-lg bg-[#f0f7fd] p-4 text-xs text-[#31577c]"><span>Closing Date<br /><strong>{closings[0]?.closing_date ?? "—"}</strong></span><span>Branch<br /><strong>Selected Branch</strong></span><span>Shift<br /><strong>{(closings[0]?.shift ?? "full_day").replace("_", " ")}</strong></span><span>Status<br /><strong>{closings[0]?.status?.replace("_", " ") ?? "Not closed"}</strong></span></div>
       </div>
     </div>
