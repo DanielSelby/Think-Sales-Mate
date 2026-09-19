@@ -17,9 +17,9 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
   const [closingResult, { data: locations }, { data: currencyRow }, { data: currencySettings }, summary] = await Promise.all([
     db.from("cash_closings").select("id, closing_date, shift, opening_cash, cash_sales, cash_receipts, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, approval_required, variance_reason, created_at").eq("org_id", ctx.orgId).order("created_at", { ascending: false }).limit(100),
     db.from("business_locations").select("id, name").eq("org_id", ctx.orgId).eq("is_active", true).order("name"),
-    db.from("currencies").select("code, name, symbol, is_base, is_default").eq("org_id", ctx.orgId).or("is_base.eq.true,is_default.eq.true").order("is_base", { ascending: false }).limit(1).maybeSingle(),
-    db.from("currency_settings").select("decimal_places, thousand_separator, decimal_separator, currency_position").eq("org_id", ctx.orgId).maybeSingle(),
-    calculateExpectedCash(today, selectedLocationId),
+    db.from("currencies").select("*").eq("org_id", ctx.orgId).or("is_base.eq.true,is_default.eq.true").order("is_base", { ascending: false }).limit(1).maybeSingle(),
+    db.from("currency_settings").select("*").eq("org_id", ctx.orgId).maybeSingle(),
+    calculateExpectedCash(today, selectedLocationId).catch(() => ({ opening: 0, sales: 0, receipts: 0, refunds: 0, expenses: 0, deposits: 0, withdrawals: 0, expected: 0 })),
   ]);
   const closings = closingResult.error
     ? (await db.from("cash_closings").select("id, closing_date, opening_cash, cash_sales, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, variance_reason, created_at").eq("org_id", ctx.orgId).order("created_at", { ascending: false }).limit(100)).data

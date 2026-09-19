@@ -25,7 +25,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   };
   const [salesQ, expQ, txQ, acctQ] = [
     scoped(db.from("sales").select("total, amount_paid, refunded_amount, payment_method").eq("org_id", ctx.orgId).eq("status", "completed").gte("created_at", `${date}T00:00:00.000Z`).lt("created_at", `${date}T23:59:59.999Z`)),
-    scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on").eq("org_id", ctx.orgId).eq("payment_status", "paid").or(`expense_date.eq.${date},paid_on.eq.${date}`)),
+    scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on, expense_date").eq("org_id", ctx.orgId).eq("payment_status", "paid").or(`expense_date.eq.${date},paid_on.eq.${date}`)),
     db.from("bank_transactions").select("amount, type").eq("org_id", ctx.orgId).eq("transaction_date", date),
     db.from("bank_accounts").select("opening_balance").eq("org_id", ctx.orgId).eq("account_type", "cash"),
   ];
