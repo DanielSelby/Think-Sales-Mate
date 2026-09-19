@@ -5,6 +5,7 @@ import { CashClosingReport } from "./report";
 import { Banknote, CalendarDays, ChevronDown, ClipboardCheck, Clock3, Coins, Download, FileText, Landmark, Printer, Receipt, Settings2, ShieldAlert, WalletCards } from "lucide-react";
 import { DenominationInputs } from "./denomination-inputs";
 import { BranchSelector } from "./branch-selector";
+import { UserSelector } from "./user-selector";
 import { getCurrencyConfigFromSettings, type CurrencyConfig, formatCurrencyAmount } from "@/lib/currency";
 import { CashClosingAnalytics } from "./analytics";
 
@@ -104,10 +105,7 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
           <div><div className="mb-2 flex items-center gap-2 text-xs text-[#3975ae]"><span>Accounting</span><span>/</span><span className="text-ledger-500">End Of Day Accounts</span></div><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#3d9bf4] to-[#1670d2] text-white shadow-md"><WalletCards className="h-6 w-6" /></div><div><h1 className="text-2xl font-bold tracking-tight text-[#12345a] dark:text-white">End Of Day Accounts</h1><p className="text-xs text-ledger-500">Reconcile your cash, compare with system records and close your day.</p></div></div></div>
           <div className="flex flex-wrap gap-2">
             <BranchSelector selectedLocationId={selectedLocationId} locations={scopedLocations(locations)} isBranchScoped={ctx.isBranchScoped} selectedUserId={effectiveUserId} />
-            {ctx.canViewOtherTransactions && <form method="get" className="flex h-10 items-center gap-2 rounded-lg border border-[#d5e2ef] bg-white px-3 text-xs font-medium text-[#31577c] shadow-sm dark:border-ledger-700 dark:bg-ink-900">
-              {selectedLocationId && <input type="hidden" name="location_id" value={selectedLocationId} />}
-              <label>User <select name="user_id" defaultValue={requestedUserId} onChange={(event) => event.currentTarget.form?.submit()} className="max-w-[150px] bg-transparent outline-none"><option value="">All users</option>{userOptions.map((user: { id: string; name: string }) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
-            </form>}
+            {ctx.canViewOtherTransactions && <UserSelector selectedUserId={requestedUserId} selectedLocationId={selectedLocationId} users={userOptions} />}
             <label className="flex h-10 items-center gap-2 rounded-lg border border-[#d5e2ef] bg-white px-3 text-xs font-medium text-[#31577c] shadow-sm dark:border-ledger-700 dark:bg-ink-900"><CalendarDays className="h-4 w-4 text-[#2087e5]" />{new Date(today).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}<ChevronDown className="h-3 w-3" /></label>
           </div>
         </div>
