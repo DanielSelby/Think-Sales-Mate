@@ -17,16 +17,18 @@ import {
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import type { AccountsReceivableItem } from "@/types/accounting";
+import { recordCustomerCreditPayment } from "@/app/(dashboard)/accounting/actions";
 
-export function AccountsReceivableTab() {
+export function AccountsReceivableTab({ initialReceivables = [] }: { initialReceivables?: AccountsReceivableItem[] }) {
   const {
-    receivables,
+    receivables: storeReceivables,
     bankAccounts,
     currentCurrency,
     currentBranch,
     recordCustomerPayment,
     sendCustomerReminder,
   } = useAccountingStore();
+  const receivables = initialReceivables.length ? initialReceivables : storeReceivables;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [agingFilter, setAgingFilter] = useState<string>("all");
@@ -61,9 +63,15 @@ export function AccountsReceivableTab() {
     setPaymentBankId(bankAccounts[1]?.id || bankAccounts[0]?.id || "");
   };
 
-  const handleConfirmPayment = (e: React.FormEvent) => {
+  const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentTarget || paymentAmount <= 0) return;
+    const result = await recordCustomerCreditPayment({
+      invoiceId: paymentTarget.invoiceNumber,
+      amount: paymentAmount,
+      paymentMethod,
+    });
+    if (!result.ok) return;
     recordCustomerPayment(paymentTarget.id, paymentAmount, paymentMethod, paymentBankId);
     setPaymentTarget(null);
   };
@@ -108,33 +116,33 @@ export function AccountsReceivableTab() {
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-950/40 dark:bg-emerald-950/20">
           <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Current (0-30 Days)</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 42,500.00
+            {currentCurrency} {receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding <= 0).reduce((sum, r) => sum + r.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">62% of receivables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding <= 0).reduce((sum, r) => sum + r.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of receivables</p>
         </div>
 
         <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4 dark:border-amber-950/40 dark:bg-amber-950/20">
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">1 - 30 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 18,200.00
+            {currentCurrency} {receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding > 0 && r.daysOutstanding <= 30).reduce((sum, r) => sum + r.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">27% of receivables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding > 0 && r.daysOutstanding <= 30).reduce((sum, r) => sum + r.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of receivables</p>
         </div>
 
         <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-950/40 dark:bg-rose-950/20">
           <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">31 - 60 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 5,400.00
+            {currentCurrency} {receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding > 30 && r.daysOutstanding <= 60).reduce((sum, r) => sum + r.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">8% of receivables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding > 30 && r.daysOutstanding <= 60).reduce((sum, r) => sum + r.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of receivables</p>
         </div>
 
         <div className="rounded-2xl border border-rose-200 bg-rose-100/50 p-4 dark:border-rose-900/60 dark:bg-rose-950/40">
           <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">61 - 90 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 2,320.00
+            {currentCurrency} {receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding > 60).reduce((sum, r) => sum + r.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">3% of receivables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((receivables.filter((r) => r.outstandingAmount > 0 && r.daysOutstanding > 60).reduce((sum, r) => sum + r.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of receivables</p>
         </div>
 
         <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-950/40 dark:bg-blue-950/20">
@@ -308,7 +316,7 @@ export function AccountsReceivableTab() {
                 >
                   <option value="Bank Transfer">Bank Transfer</option>
                   <option value="Cash">Cash</option>
-                  <option value="Mobile Money">Mobile Money (MTN / Telecel)</option>
+                  <option value="MoMo">MoMo (MTN / Telecel)</option>
                   <option value="Cheque">Cheque</option>
                 </select>
               </div>

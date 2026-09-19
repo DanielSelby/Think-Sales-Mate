@@ -8,7 +8,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 
-export type CashSummary = { opening: number; sales: number; debt: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
+export type CashSummary = { opening: number; sales: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
 async function auditContext() {
   const h = await headers();
@@ -42,9 +42,11 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   const salesDayFilter = `or(and(created_at.gte.${dayStart},created_at.lte.${dayEnd}),and(status_changed_at.gte.${dayStart},status_changed_at.lte.${dayEnd}))`;
   let salesQuery = scoped(db.from("sales").select("total, amount_paid, refunded_amount, payment_method, status, created_at, status_changed_at, sold_by").eq("org_id", ctx.orgId).in("status", ["completed", "returned"]).or(salesDayFilter));
   let expenseQuery = scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on, expense_date, recorded_by").eq("org_id", ctx.orgId).eq("payment_status", "paid").or(`expense_date.eq.${date},paid_on.eq.${date}`));
+  let customerPaymentQuery = scoped(db.from("customer_credit_payments").select("amount, payment_method, recorded_by").eq("org_id", ctx.orgId).eq("payment_date", date));
   if (userId) {
     salesQuery = salesQuery.eq("sold_by", userId);
     expenseQuery = expenseQuery.eq("recorded_by", userId);
+    customerPaymentQuery = customerPaymentQuery.eq("recorded_by", userId);
   }
   let txQ = db.from("bank_transactions").select("amount, type, recorded_by").eq("org_id", ctx.orgId).eq("transaction_date", date);
   const [salesQ, expQ, acctQ] = [
@@ -53,7 +55,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     db.from("bank_accounts").select("opening_balance").eq("org_id", ctx.orgId).eq("account_type", "cash"),
   ];
   if (userId) txQ = txQ.eq("recorded_by", userId);
-  const [{ data: sales }, expenseResult, { data: transactions }, { data: accounts }] = await Promise.all([salesQ, expQ, txQ, acctQ]);
+  const [{ data: sales }, expenseResult, { data: transactions }, { data: accounts }, { data: customerPayments }] = await Promise.all([salesQ, expQ, txQ, acctQ, customerPaymentQuery]);
   const expenses = expenseResult.error
     ? (await (() => {
         let query = scoped(db.from("expenses").select("amount, payment_method, expense_date, recorded_by").eq("org_id", ctx.orgId).eq("expense_date", date));
@@ -93,8 +95,15 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .reduce((a: number, e: Record<string, unknown>) => a + n(e.amount), 0);
   const deposits = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "deposit").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
   const withdrawals = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "withdrawal").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
+  const customerCashPayments = (customerPayments ?? [])
+    .filter((p: Record<string, unknown>) => String(p.payment_method ?? "").toLowerCase().includes("cash"))
+    .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
+  const customerElectronicPayments = (customerPayments ?? [])
+    .filter((p: Record<string, unknown>) => /mobile|momo|e-cash|electronic/i.test(String(p.payment_method ?? "")))
+    .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
   const opening = (accounts ?? []).reduce((a: number, x: Record<string, unknown>) => a + n(x.opening_balance), 0);
-  return { opening, sales: cashSales, debt: customerDebt, electronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + electronic - refunds - cashExpenses - deposits - withdrawals };
+  const totalElectronic = electronic + customerElectronicPayments;
+  return { opening, sales: cashSales, debt: customerDebt, customerPayments: customerCashPayments, electronic: totalElectronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + totalElectronic + customerCashPayments - refunds - cashExpenses - deposits - withdrawals };
 }
 
 export async function createCashClosing(formData: FormData) {
@@ -123,7 +132,7 @@ export async function createCashClosing(formData: FormData) {
   const approvalRequired = Boolean(setting?.variance_approval_enabled ?? true) && Math.abs(variance) > threshold;
   const { data: closing, error } = await db.from("cash_closings").insert({
     org_id: ctx.orgId, location_id: locationId, closing_date: date, period_start: `${date}T00:00:00Z`, period_end: `${date}T23:59:59Z`,
-    opening_cash: summary.opening, cash_sales: summary.sales, cash_receipts: summary.debt, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
+    opening_cash: summary.opening, cash_sales: summary.sales, cash_receipts: summary.debt, cash_customer_payments: summary.customerPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
     deposits: summary.deposits, withdrawals: summary.withdrawals, expected_cash: summary.expected, actual_cash: actual, variance, classification,
     variance_reason: varianceReason || null, notes: notes || null, comments: notes || null, shift,
     coin_breakdown: { notes: notesCount, coins: coinCount }, created_by: ctx.userId,

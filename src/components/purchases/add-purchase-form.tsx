@@ -900,7 +900,7 @@ export function AddPurchaseForm({
               <CardContent className="space-y-3 pt-0">
                 <Field label="Payment Method">
                   <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                    {["Bank Transfer", "Cash", "Mobile Money", "Cheque", "Credit"].map((m) => (
+                    {["Bank Transfer", "Cash", "MoMo", "Cheque", "Credit"].map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </Select>

@@ -125,7 +125,7 @@ interface LineItem {
 }
 
 const TAX_RATES = [0, 5, 12.5, 15];
-const PAYMENT_METHODS = ["Cash", "Mobile Money", "Card", "Bank Transfer", "Store Credit"];
+const PAYMENT_METHODS = ["Cash", "MoMo", "Card", "Bank Transfer", "Store Credit"];
 const DRAFT_KEY = "salesmate:new-sale-draft";
 
 function formatMoney(value: number, currency: string) {

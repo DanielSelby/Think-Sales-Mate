@@ -17,6 +17,7 @@ import {
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { AccountsReceivableTab } from "./accounts-receivable-tab";
 import { formatMoney } from "@/lib/currency";
+import type { AccountsReceivableItem } from "@/types/accounting";
 
 type WorkspaceTab =
   | "overview"
@@ -46,10 +47,11 @@ const TABS: { key: WorkspaceTab; label: string; icon: typeof LayoutDashboard }[]
 
 const money = (currency: string, value: number) => formatMoney(value, currency);
 
-export function CustomerCreditWorkspace() {
+export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditLogs = [], initialPayments = [] }: { initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { receivables, currentCurrency, auditLogs } = useAccountingStore();
+  const { currentCurrency } = useAccountingStore();
+  const receivables = initialReceivables;
 
   const totalReceivables = receivables.reduce((sum, item) => sum + item.outstandingAmount, 0);
   const overdue = receivables
@@ -74,8 +76,6 @@ export function CustomerCreditWorkspace() {
     <div className="space-y-5 pb-16">
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">CRM & Accounts Receivable</p>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Customer Credit Management</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">Manage balances, receivables, collections, communications, and customer relationships from one workspace.</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
@@ -104,7 +104,7 @@ export function CustomerCreditWorkspace() {
       </nav>
 
       {activeTab === "balances" ? (
-        <AccountsReceivableTab />
+        <AccountsReceivableTab initialReceivables={receivables} />
       ) : activeTab === "overview" ? (
         <Overview
           currency={currentCurrency}
@@ -122,7 +122,8 @@ export function CustomerCreditWorkspace() {
           tab={activeTab}
           currency={currentCurrency}
           receivables={receivables}
-          auditLogs={auditLogs}
+          auditLogs={initialAuditLogs}
+          payments={initialPayments}
           customerRows={customerRows}
           onSelect={setSelectedId}
         />
@@ -181,19 +182,20 @@ function Overview({ currency, totalReceivables, overdue, customers, receivables,
   );
 }
 
-function WorkspaceSection({ tab, currency, receivables, auditLogs, customerRows, onSelect }: {
+function WorkspaceSection({ tab, currency, receivables, auditLogs, payments, customerRows, onSelect }: {
   tab: WorkspaceTab;
   currency: string;
   receivables: ReturnType<typeof useAccountingStore.getState>["receivables"];
-  auditLogs: ReturnType<typeof useAccountingStore.getState>["auditLogs"];
+  auditLogs: { userName: string; action: string; module: string; createdAt: string }[];
+  payments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[];
   customerRows: { name: string; branch: string; balance: number; creditLimit: number; lastPayment: string; items: typeof receivables }[];
   onSelect: (id: string) => void;
 }) {
   const title = TABS.find((item) => item.key === tab)?.label ?? tab;
   if (tab === "audit") return <TableCard title={title} columns={["User", "Action", "Module", "Date & Time"]} rows={auditLogs.map((log) => [log.userName, log.action, log.module, log.createdAt])} />;
   if (tab === "ledger") return <TableCard title={title} columns={["Date", "Reference", "Description", "Debit", "Credit", "Balance", "User"]} rows={receivables.map((r) => [r.issueDate, r.invoiceNumber, `Invoice for ${r.customerName}`, money(currency, r.totalAmount), "—", money(currency, r.outstandingAmount), "System"]) } />;
-  if (tab === "payments") return <TableCard title={title} columns={["Receipt Number", "Customer", "Invoice", "Amount", "Date", "Method", "User"]} rows={receivables.filter((r) => r.paidAmount > 0).map((r) => [`RCPT-${r.id.slice(-6)}`, r.customerName, r.invoiceNumber, money(currency, r.paidAmount), r.issueDate, "Recorded payment", "System"])} />;
-  if (tab === "collections") return <TableCard title={title} columns={["Customer", "Amount Due", "Days Overdue", "Priority", "Assigned Staff", "Last Contact"]} rows={receivables.filter((r) => r.outstandingAmount > 0).sort((a, b) => b.daysOutstanding - a.daysOutstanding).map((r) => [r.customerName, money(currency, r.outstandingAmount), String(r.daysOutstanding), r.daysOutstanding > 60 ? "High" : "Normal", "Unassigned", "Not contacted"])} />;
+  if (tab === "payments") return <TableCard title={title} columns={["Receipt Number", "Invoice", "Amount", "Date", "Method", "User"]} rows={(payments ?? []).map((payment) => [`RCPT-${payment.id.slice(-6)}`, payment.invoiceId, money(currency, payment.amount), payment.paymentDate, payment.paymentMethod, payment.recordedBy])} />;
+  if (tab === "collections") return <TableCard title={title} columns={["Customer", "Amount Due", "Days Overdue", "Priority"]} rows={receivables.filter((r) => r.outstandingAmount > 0).sort((a, b) => b.daysOutstanding - a.daysOutstanding).map((r) => [r.customerName, money(currency, r.outstandingAmount), String(r.daysOutstanding), r.daysOutstanding > 60 ? "High" : "Normal"])} />;
   if (tab === "invoices") return <TableCard title={title} columns={["Invoice Number", "Customer", "Invoice Date", "Due Date", "Amount", "Paid Amount", "Balance", "Status"]} rows={receivables.map((r) => [r.invoiceNumber, r.customerName, r.issueDate, r.dueDate, money(currency, r.totalAmount), money(currency, r.paidAmount), money(currency, r.outstandingAmount), r.status])} />;
   if (tab === "statements") return <ActionCard title={title} text="Generate current, monthly, quarterly, annual, or custom-date customer statements from the selected customer profile." actions={["Preview", "Download PDF", "Email", "WhatsApp"]} />;
   if (tab === "activities") return <ActionCard title={title} text="Record calls, meetings, emails, WhatsApp messages, notes, and follow-ups against a customer." actions={["Add Note", "Schedule Meeting", "Log Call", "Create Task"]} />;

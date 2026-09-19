@@ -17,13 +17,15 @@ import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import type { AccountsPayableItem } from "@/types/accounting";
 
 interface AccountsPayableTabProps {
+  initialPayables?: AccountsPayableItem[];
+  initialBranches?: string[];
   initialOpenBillModal?: boolean;
   onModalClosed?: () => void;
 }
 
-export function AccountsPayableTab({ initialOpenBillModal = false, onModalClosed }: AccountsPayableTabProps) {
+export function AccountsPayableTab({ initialPayables, initialBranches = [], initialOpenBillModal = false, onModalClosed }: AccountsPayableTabProps) {
   const {
-    payables,
+    payables: storePayables,
     bankAccounts,
     currentCurrency,
     currentBranch,
@@ -31,6 +33,7 @@ export function AccountsPayableTab({ initialOpenBillModal = false, onModalClosed
     recordSupplierPayment,
     scheduleSupplierPayment,
   } = useAccountingStore();
+  const payables = initialPayables ?? storePayables;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [agingFilter, setAgingFilter] = useState<string>("all");
@@ -53,7 +56,7 @@ export function AccountsPayableTab({ initialOpenBillModal = false, onModalClosed
   const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10));
   const [billDueDate, setBillDueDate] = useState("");
   const [billTotal, setBillTotal] = useState<number>(0);
-  const [billBranch, setBillBranch] = useState(currentBranch || "Main Branch");
+  const [billBranch, setBillBranch] = useState(currentBranch || initialBranches[0] || "");
 
   const filteredPayables = payables.filter((p) => {
     const matchesAging = agingFilter === "all" || p.status === agingFilter;
@@ -134,33 +137,33 @@ export function AccountsPayableTab({ initialOpenBillModal = false, onModalClosed
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-950/40 dark:bg-emerald-950/20">
           <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Current (Due Soon)</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 32,800.00
+            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding <= 0).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">61% of payables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding <= 0).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
 
         <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4 dark:border-amber-950/40 dark:bg-amber-950/20">
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">1 - 30 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 14,200.00
+            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 0 && p.daysOutstanding <= 30).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">26% of payables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 0 && p.daysOutstanding <= 30).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
 
         <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-950/40 dark:bg-rose-950/20">
           <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">31 - 60 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 4,800.00
+            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 30 && p.daysOutstanding <= 60).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">9% of payables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 30 && p.daysOutstanding <= 60).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
 
         <div className="rounded-2xl border border-rose-200 bg-rose-100/50 p-4 dark:border-rose-900/60 dark:bg-rose-950/40">
           <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">Over 60 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} 2,410.00
+            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 60).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">4% of payables</p>
+          <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 60).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
 
         <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-950/40 dark:bg-rose-950/20">
@@ -381,9 +384,8 @@ export function AccountsPayableTab({ initialOpenBillModal = false, onModalClosed
                   onChange={(e) => setBillBranch(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
                 >
-                  <option value="Main Branch">Main Branch</option>
-                  <option value="Kumasi Branch">Kumasi Branch</option>
-                  <option value="Takoradi Branch">Takoradi Branch</option>
+                  <option value="">Select branch</option>
+                  {initialBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
                 </select>
               </div>
 
@@ -516,7 +518,7 @@ export function AccountsPayableTab({ initialOpenBillModal = false, onModalClosed
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-purple-600 dark:border-slate-700 dark:bg-slate-800"
                 >
                   <option value="Bank Transfer">Bank Transfer / EFT</option>
-                  <option value="Mobile Money">Mobile Money Bulk Pay</option>
+                  <option value="MoMo">MoMo Bulk Pay</option>
                   <option value="Cheque">Cheque</option>
                 </select>
               </div>

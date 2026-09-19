@@ -731,6 +731,37 @@ export interface Database {
         Relationships: [];
       };
 
+      customer_credit_payments: {
+        Row: {
+          id: string;
+          org_id: string;
+          customer_id: string | null;
+          invoice_id: string;
+          amount: number;
+          payment_method: string;
+          payment_date: string;
+          location_id: string | null;
+          recorded_by: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          customer_id?: string | null;
+          invoice_id: string;
+          amount: number;
+          payment_method: string;
+          payment_date?: string;
+          location_id?: string | null;
+          recorded_by: string;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["customer_credit_payments"]["Row"]>;
+        Relationships: [];
+      };
+
       audit_logs: {
         Row: {
           id: string;

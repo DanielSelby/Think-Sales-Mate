@@ -33,8 +33,10 @@ import { TaxManagementTab } from "./tax-management-tab";
 import { AccountingSettingsTab } from "./accounting-settings-tab";
 import { AccountingSearchModal } from "./accounting-search-modal";
 import { AuditLogDrawer } from "./audit-log-drawer";
+import type { AccountsPayableItem } from "@/types/accounting";
+import type { AccountsReceivableItem } from "@/types/accounting";
 
-export function AccountingDashboard() {
+export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [] }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, currentCurrency, currentBranch } = useAccountingStore();
@@ -92,12 +94,10 @@ export function AccountingDashboard() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            {activeTab === "receivables" ? "Customer Credit Management" : "Accounting"}
+            Accounting
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {activeTab === "receivables"
-              ? "Manage customer balances, receivables, collections, and CRM activity."
-              : "Financial management, general ledger, and bookkeeping"}
+            Financial management, general ledger, and bookkeeping
           </p>
         </div>
 
@@ -214,10 +214,12 @@ export function AccountingDashboard() {
 
         {activeTab === "reconciliation" && <BankReconciliationTab />}
 
-        {activeTab === "receivables" && <CustomerCreditWorkspace />}
+        {activeTab === "receivables" && <CustomerCreditWorkspace initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} />}
 
         {activeTab === "payables" && (
           <AccountsPayableTab
+            initialPayables={initialPayables}
+            initialBranches={initialBranches}
             initialOpenBillModal={openNewBillModal}
             onModalClosed={() => setOpenNewBillModal(false)}
           />

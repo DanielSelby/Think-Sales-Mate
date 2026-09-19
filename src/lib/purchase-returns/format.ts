@@ -24,6 +24,6 @@ export const RETURN_REASONS = [
 
 export const ITEM_CONDITIONS = ["New", "Damaged", "Defective", "Wrong Item", "Not Working", "Expired"] as const;
 
-export const REFUND_METHODS = ["Bank Transfer", "Cash", "Mobile Money", "Store Credit", "Cheque"] as const;
+export const REFUND_METHODS = ["Bank Transfer", "Cash", "MoMo", "Store Credit", "Cheque"] as const;
 
 export const REFUND_STATUSES = ["Pending", "Processed"] as const;

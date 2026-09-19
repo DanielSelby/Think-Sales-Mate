@@ -595,7 +595,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       ["Sales total", s.salesTotal.toFixed(2)],
       ["Cash", s.cashTotal.toFixed(2)],
       ["Card", s.cardTotal.toFixed(2)],
-      ["Mobile Money", s.momoTotal.toFixed(2)],
+      ["MoMo", s.momoTotal.toFixed(2)],
       ["Other (credit/split)", s.otherTotal.toFixed(2)],
       ["Expenses", s.expensesTotal.toFixed(2)],
       ["Net", s.netTotal.toFixed(2)],
@@ -632,7 +632,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       ${rowHtml("Sales total", formatCurrency(s.salesTotal, currency))}
       ${rowHtml("Cash", formatCurrency(s.cashTotal, currency))}
       ${rowHtml("Card", formatCurrency(s.cardTotal, currency))}
-      ${rowHtml("Mobile Money", formatCurrency(s.momoTotal, currency))}
+      ${rowHtml("MoMo", formatCurrency(s.momoTotal, currency))}
       ${rowHtml("Other (credit/split)", formatCurrency(s.otherTotal, currency))}
       ${rowHtml("Expenses", formatCurrency(s.expensesTotal, currency))}
       ${rowHtml("Net", formatCurrency(s.netTotal, currency), true)}
@@ -647,7 +647,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     const parts: string[] = [];
     if (multiPay.cash > 0) parts.push(`Cash ${formatCurrency(multiPay.cash, currency)}`);
     if (multiPay.card > 0) parts.push(`Card ${formatCurrency(multiPay.card, currency)}`);
-    if (multiPay.momo > 0) parts.push(`Mobile Money ${formatCurrency(multiPay.momo, currency)}`);
+    if (multiPay.momo > 0) parts.push(`MoMo ${formatCurrency(multiPay.momo, currency)}`);
     setMultiPayOpen(false);
     handleCompleteSale(`Split (${parts.join(", ")})`);
     setMultiPay({ cash: 0, card: 0, momo: 0 });
@@ -1026,7 +1026,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
             <Button variant="primary" className="w-full bg-signal hover:bg-signal/90 sm:w-auto" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
               <Banknote className="h-4 w-4" /> Cash
             </Button>
-            <Button variant="primary" className="w-full bg-amber hover:bg-amber/90 sm:w-auto" onClick={() => handleCompleteSale("Mobile Money")} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full bg-amber hover:bg-amber/90 sm:w-auto" onClick={() => handleCompleteSale("MoMo")} disabled={isPending || cart.length === 0}>
               <Smartphone className="h-4 w-4" /> MOMO
             </Button>
             <Button variant="primary" className="w-full bg-alert hover:bg-alert/90 sm:w-auto" onClick={handleVoid} disabled={cart.length === 0}>
@@ -1169,7 +1169,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       <Dialog open={multiPayOpen} onClose={() => setMultiPayOpen(false)} title="Split Payment">
         <div className="space-y-3">
           <p className="text-sm text-ledger-500">Total due: <span className="font-semibold text-ink-900 dark:text-white">{formatCurrency(total, currency)}</span></p>
-          {([["cash", "Cash", Banknote], ["card", "Card", CreditCard], ["momo", "Mobile Money", Smartphone]] as const).map(([key, label, Icon]) => (
+          {([["cash", "Cash", Banknote], ["card", "Card", CreditCard], ["momo", "MoMo", Smartphone]] as const).map(([key, label, Icon]) => (
             <div key={key} className="flex items-center gap-2">
               <Icon className="h-4 w-4 shrink-0 text-ledger-400" />
               <span className="w-28 shrink-0 text-sm text-ledger-600 dark:text-ledger-300">{label}</span>
@@ -1252,7 +1252,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                     </div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Cash</span><span>{formatCurrency(registerSummary.cashTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Card</span><span>{formatCurrency(registerSummary.cardTotal, currency)}</span></div>
-                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Mobile Money</span><span>{formatCurrency(registerSummary.momoTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>MoMo</span><span>{formatCurrency(registerSummary.momoTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Other (credit/split)</span><span>{formatCurrency(registerSummary.otherTotal, currency)}</span></div>
                     <div className="flex items-center justify-between border-t border-ledger-100 px-3 py-2 text-xs text-alert dark:border-ledger-700"><span>Expenses</span><span>−{formatCurrency(registerSummary.expensesTotal, currency)}</span></div>
                     <div className="flex items-center justify-between border-t border-ledger-100 bg-signal-soft px-3 py-2 text-sm font-bold text-signal dark:border-ledger-700"><span>Net</span><span>{formatCurrency(registerSummary.netTotal, currency)}</span></div>
