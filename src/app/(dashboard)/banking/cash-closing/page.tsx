@@ -19,6 +19,7 @@ type CashClosingSearchParams = {
   date_to?: string;
   shift?: string;
   classification?: string;
+  user_id?: string;
   page?: string;
   closing_id?: string;
 };
@@ -34,27 +35,32 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
   const dateTo = params.date_to || "";
   const requestedShift = params.shift || "";
   const requestedClassification = params.classification || "";
+  const requestedUserId = params.user_id || "";
+  const effectiveUserId = requestedUserId || (!ctx.canViewOtherTransactions ? ctx.userId : "");
   const pageNumber = Math.max(1, Number(params.page || 1) || 1);
   const pageSize = 25;
   const selectedLocationId = requestedLocationId && (!ctx.isBranchScoped || ctx.allowedLocationIds.includes(requestedLocationId)) ? requestedLocationId : null;
   const scopedLocations = (locations: Array<{ id: string; name: string }> | null | undefined) =>
     (locations ?? []).filter((location) => !ctx.isBranchScoped || ctx.allowedLocationIds.includes(location.id));
-  const [closingResult, { data: locations }, { data: currencyRow }, { data: currencySettings }, { data: companyProfile }, summary] = await Promise.all([
+  const [closingResult, { data: locations }, { data: currencyRow }, { data: currencySettings }, { data: companyProfile }, { data: members }, summary] = await Promise.all([
     (() => {
-      let query = db.from("cash_closings").select("id, location_id, closing_date, shift, opening_cash, cash_sales, cash_receipts, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, approval_required, variance_reason, created_at", { count: "exact" }).eq("org_id", ctx.orgId).gte("closing_date", dateFrom || "1900-01-01").lte("closing_date", dateTo || "2999-12-31");
+      let query = db.from("cash_closings").select("id, location_id, closing_date, shift, opening_cash, cash_sales, cash_receipts, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, approval_required, variance_reason, created_at, created_by", { count: "exact" }).eq("org_id", ctx.orgId).gte("closing_date", dateFrom || "1900-01-01").lte("closing_date", dateTo || "2999-12-31");
       if (ctx.isBranchScoped) query = query.in("location_id", ctx.allowedLocationIds);
+      if (effectiveUserId) query = query.eq("created_by", effectiveUserId);
       return query.order("created_at", { ascending: false }).range((pageNumber - 1) * pageSize, pageNumber * pageSize - 1);
     })(),
     db.from("business_locations").select("id, name").eq("org_id", ctx.orgId).eq("is_active", true).order("name"),
     db.from("currencies").select("*").eq("org_id", ctx.orgId).or("is_base.eq.true,is_default.eq.true").order("is_base", { ascending: false }).limit(1).maybeSingle(),
     db.from("currency_settings").select("*").eq("org_id", ctx.orgId).maybeSingle(),
     db.from("company_profile").select("company_name, logo_url").eq("org_id", ctx.orgId).maybeSingle(),
-    calculateExpectedCash(today, selectedLocationId).catch(() => ({ opening: 0, sales: 0, receipts: 0, refunds: 0, expenses: 0, deposits: 0, withdrawals: 0, expected: 0 })),
+    db.from("organization_members").select("user_id, profiles(full_name)").eq("org_id", ctx.orgId).eq("status", "active"),
+    calculateExpectedCash(today, selectedLocationId, "full_day", effectiveUserId || null).catch(() => ({ opening: 0, sales: 0, receipts: 0, refunds: 0, expenses: 0, deposits: 0, withdrawals: 0, expected: 0 })),
   ]);
   const closings = closingResult.error
     ? (await (() => {
-        let query = db.from("cash_closings").select("id, location_id, closing_date, opening_cash, cash_sales, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, variance_reason, created_at").eq("org_id", ctx.orgId);
+        let query = db.from("cash_closings").select("id, location_id, closing_date, opening_cash, cash_sales, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, variance_reason, created_at, created_by").eq("org_id", ctx.orgId);
         if (ctx.isBranchScoped) query = query.in("location_id", ctx.allowedLocationIds);
+        if (effectiveUserId) query = query.eq("created_by", effectiveUserId);
         return query.order("created_at", { ascending: false }).range((pageNumber - 1) * pageSize, pageNumber * pageSize - 1);
       })()).data
     : closingResult.data;
@@ -62,6 +68,12 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     if (selectedLocationId) return row.location_id === selectedLocationId;
     return !ctx.isBranchScoped || Boolean(row.location_id && ctx.allowedLocationIds.includes(row.location_id));
   }).filter((row: { shift?: string; classification?: string }) => (!requestedShift || row.shift === requestedShift) && (!requestedClassification || row.classification === requestedClassification));
+  const userOptions = (members ?? [])
+    .filter((member: { user_id?: string | null }) => member.user_id)
+    .map((member: { user_id: string; profiles?: { full_name?: string | null } | { full_name?: string | null }[] | null }) => {
+      const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
+      return { id: member.user_id, name: profile?.full_name ?? member.user_id };
+    });
   const totalPages = Math.max(1, Math.ceil(Number(closingResult.count ?? accessibleClosings.length) / pageSize));
   const selectedClosing = params.closing_id ? accessibleClosings.find((row: { id: string }) => row.id === params.closing_id) : null;
   const { data: selectedLines } = selectedClosing ? await db.from("cash_closing_lines").select("denomination, quantity").eq("closing_id", selectedClosing.id).eq("org_id", ctx.orgId).order("denomination") : { data: [] };
@@ -98,6 +110,7 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
                 <label className="text-[10px] text-ledger-500">To<input name="date_to" type="date" defaultValue={dateTo} className="mt-1 block h-8 rounded border px-2 text-xs" /></label>
                 <select name="shift" defaultValue={requestedShift} className="h-8 rounded border px-2 text-xs"><option value="">All shifts</option><option value="full_day">Full day</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night</option></select>
                 <select name="classification" defaultValue={requestedClassification} className="h-8 rounded border px-2 text-xs"><option value="">All variance types</option><option value="balanced">Balanced</option><option value="shortage">Shortage</option><option value="excess">Excess</option></select>
+                {ctx.canViewOtherTransactions && <select name="user_id" defaultValue={requestedUserId} className="h-8 rounded border px-2 text-xs"><option value="">All users</option>{userOptions.map((user: { id: string; name: string }) => <option key={user.id} value={user.id}>{user.name}</option>)}</select>}
                 <button className="h-8 rounded bg-[#1478dd] px-3 text-xs font-semibold text-white" type="submit">Filter</button>
               </form>
             </div>

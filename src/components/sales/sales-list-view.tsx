@@ -477,9 +477,9 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                         <Link href={`/sales/${s.id}`} className="rounded-md p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40" title="View">
                           <Eye className="h-4 w-4" strokeWidth={2.25} />
                         </Link>
-                        <Link href={`/sales/${s.id}/edit`} className="rounded-md p-1.5 text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40" title="Edit">
+                        {s.status === "completed" && <Link href={`/sales/${s.id}/edit`} className="rounded-md p-1.5 text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40" title="Edit">
                           <Pencil className="h-4 w-4" strokeWidth={2.25} />
-                        </Link>
+                        </Link>}
                         <button
                           onClick={() => handlePrint(s)}
                           className="rounded-md p-1.5 text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/40"

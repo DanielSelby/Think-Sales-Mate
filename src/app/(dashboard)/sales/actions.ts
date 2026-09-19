@@ -118,6 +118,10 @@ export async function updateSaleStatus({
     .eq("id", saleId)
     .single();
   if (fetchError || !sale) return { ok: false, error: "Sale not found." };
+  const context = await getCurrentOrgContext();
+  if (!context || sale.org_id !== context.orgId || !canAccessLocation(context, sale.location_id)) {
+    return { ok: false, error: "You are not authorized to change this sale." };
+  }
 
   const restockLocationId = sale.location_id ?? (await getPrimaryLocationId(supabase, sale.org_id));
   if (!restockLocationId) {
@@ -132,7 +136,25 @@ export async function updateSaleStatus({
   try {
     if (status === "returned") {
       const lines = (returnLines ?? []).filter((l) => l.quantity > 0);
+      const { data: saleItems } = await supabase
+        .from("sale_items")
+        .select("id, product_id, quantity")
+        .eq("sale_id", saleId);
+      const { data: existingReturns } = await supabase
+        .from("sale_return_items")
+        .select("sale_item_id, quantity")
+        .eq("sale_id", saleId);
+      const returnedByItem = new Map<string, number>();
+      for (const item of existingReturns ?? []) {
+        returnedByItem.set(item.sale_item_id, (returnedByItem.get(item.sale_item_id) ?? 0) + Number(item.quantity));
+      }
+      const saleItemById = new Map((saleItems ?? []).map((item) => [item.id, item]));
       for (const line of lines) {
+        const saleItem = saleItemById.get(line.saleItemId);
+        const alreadyReturned = returnedByItem.get(line.saleItemId) ?? 0;
+        if (!saleItem || saleItem.product_id !== line.productId || line.quantity > Number(saleItem.quantity) - alreadyReturned) {
+          return { ok: false, error: "One or more return quantities exceed the remaining quantity for that sale line." };
+        }
         const { error: insertError } = await admin.from("sale_return_items").insert({
           org_id: sale.org_id,
           sale_id: saleId,
@@ -482,11 +504,11 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
 
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, org_id, sale_number, document_status, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
+    .select("id, org_id, sale_number, document_status, status, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
     .eq("id", saleId)
     .single();
   if (!sale) return null;
-  if (!context || sale.org_id !== context.orgId || !canAccessLocation(context, sale.location_id)) return null;
+  if (!context || sale.org_id !== context.orgId || !canAccessLocation(context, sale.location_id) || (sale.document_status === "final" && sale.status !== "completed")) return null;
 
   const { data: items } = await supabase
     .from("sale_items")
@@ -551,10 +573,13 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   const admin = createAdminClient();
 
   try {
-    const { data: existingSale } = await supabase.from("sales").select("org_id, location_id, document_status").eq("id", input.saleId).single();
+    const { data: existingSale } = await supabase.from("sales").select("org_id, location_id, document_status, status").eq("id", input.saleId).single();
     if (!existingSale) throw new Error("Sale not found.");
     if (existingSale.org_id !== context.orgId || !canAccessLocation(context, existingSale.location_id)) {
       return { ok: false, error: "You are not authorized to edit this sale." };
+    }
+    if (existingSale.document_status === "final" && existingSale.status !== "completed") {
+      return { ok: false, error: "Returned or cancelled sales cannot be changed through normal sale editing." };
     }
     const nextLocationId = input.locationId ?? existingSale.location_id;
     if (!nextLocationId && context.isBranchScoped) {
