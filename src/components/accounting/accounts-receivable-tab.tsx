@@ -68,12 +68,15 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
     if (!paymentTarget || paymentAmount <= 0) return;
     const result = await recordCustomerCreditPayment({
       invoiceId: paymentTarget.invoiceNumber,
+      customerId: paymentTarget.customerId,
       amount: paymentAmount,
       paymentMethod,
+      locationId: undefined,
     });
     if (!result.ok) return;
     recordCustomerPayment(paymentTarget.id, paymentAmount, paymentMethod, paymentBankId);
     setPaymentTarget(null);
+    window.location.reload();
   };
 
   const handleOpenReminder = (item: AccountsReceivableItem) => {

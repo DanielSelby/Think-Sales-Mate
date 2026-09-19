@@ -12,7 +12,7 @@ export default async function PosPage() {
   const orgId = context.orgId;
   const supabase = await createClient();
 
-  const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }] = await Promise.all([
+  const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }, { data: mobileMoneyAccounts }] = await Promise.all([
     supabase
       .from("products")
       .select("id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, image_urls")
@@ -30,7 +30,8 @@ export default async function PosPage() {
       if (context.masterLocationId) return query.eq("location_id", context.masterLocationId);
       return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
     })(),
-    supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle()
+    supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle(),
+    supabase.from("bank_accounts").select("id, name, current_balance").eq("org_id", orgId).eq("account_type", "mobile_money").order("name")
   ]);
 
   const rawLocations = context.masterLocationId
@@ -75,6 +76,7 @@ export default async function PosPage() {
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}
       useSystemPrices={context.useSystemPrices}
+      mobileMoneyAccounts={(mobileMoneyAccounts ?? []).map((account) => ({ id: account.id, name: account.name, balance: account.current_balance }))}
     />
   );
 }

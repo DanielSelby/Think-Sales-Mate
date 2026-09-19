@@ -10,6 +10,12 @@ import { headers } from "next/headers";
 
 export type CashSummary = { opening: number; sales: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
+function splitAmount(method: unknown, bucket: "cash" | "momo" | "card") {
+  const value = String(method ?? "");
+  if (!/^split\s*\(/i.test(value)) return null;
+  const match = value.replace(/^split\s*\(/i, "").replace(/\)\s*$/, "").match(new RegExp(`(?:${bucket === "momo" ? "momo|mobile money" : bucket})\\s+([-+]?\\d+(?:\\.\\d+)?)`, "i"));
+  return match ? n(match[1]) : 0;
+}
 async function auditContext() {
   const h = await headers();
   return { device: h.get("user-agent") ?? "unknown", ip_address: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "unknown" };
@@ -64,9 +70,9 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
       })()).data
     : expenseResult.data;
   const cashSales = (sales ?? [])
-    .filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash"))
+    .filter((s: Record<string, unknown>) => splitAmount(s.payment_method, "cash") !== null || String(s.payment_method ?? "").toLowerCase().includes("cash"))
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
-    .reduce((a: number, s: Record<string, unknown>) => a + n(s.total), 0);
+    .reduce((a: number, s: Record<string, unknown>) => a + (splitAmount(s.payment_method, "cash") ?? n(s.total)), 0);
   const customerDebt = (sales ?? [])
     .filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash"))
     .filter((s: Record<string, unknown>) => s.status === "completed")
@@ -82,7 +88,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
       return method.includes("mobile") || method.includes("momo") || method.includes("e-cash") || method.includes("electronic");
     })
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
-    .reduce((a: number, s: Record<string, unknown>) => a + n(s.amount_paid ?? s.total), 0);
+    .reduce((a: number, s: Record<string, unknown>) => a + (splitAmount(s.payment_method, "momo") ?? n(s.amount_paid ?? s.total)), 0);
   const refunds = (sales ?? [])
     .filter((s: Record<string, unknown>) => s.status === "returned" && String(s.payment_method ?? "").toLowerCase().includes("cash"))
     .filter((s: Record<string, unknown>) => String(s.status_changed_at ?? "").slice(0, 10) === date)

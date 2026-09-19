@@ -1,6 +1,6 @@
 "use server";
 
-import { requirePermission } from "@/lib/rbac/permissions";
+import { canPermission, requirePermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -276,6 +276,23 @@ function bucketPaymentMethod(method: string | null): "cash" | "card" | "momo" | 
   return "other"; // Credit, Split(...), or unset
 }
 
+function splitPaymentTotals(method: string | null) {
+  const totals = { cash: 0, card: 0, momo: 0, other: 0 };
+  const value = method ?? "";
+  if (!/^split\s*\(/i.test(value)) return totals;
+  for (const part of value.replace(/^split\s*\(/i, "").replace(/\)\s*$/, "").split(",")) {
+    const match = part.trim().match(/^(cash|card|momo|mobile money)\s+([-+]?\d+(?:\.\d+)?)/i);
+    if (!match) continue;
+    const amount = Number(match[2]);
+    if (!Number.isFinite(amount)) continue;
+    const key = match[1].toLowerCase();
+    if (key === "cash") totals.cash += amount;
+    else if (key === "card") totals.card += amount;
+    else totals.momo += amount;
+  }
+  return totals;
+}
+
 export async function getRegisterSummary(locationId: string | null, cashierId: string | null): Promise<RegisterSummary> {
   const context = await getCurrentOrgContext();
   const { start, end } = startEndOfToday();
@@ -325,6 +342,11 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
   } else if (locationId) {
     expensesQuery = expensesQuery.eq("location_id", locationId);
   }
+  // Individual closures include only expenses recorded by that cashier. An
+  // all-cashiers closure intentionally keeps the branch-wide expense total.
+  if (cashierId) {
+    expensesQuery = expensesQuery.eq("recorded_by", cashierId);
+  }
 
   const [{ data: salesRows }, { data: expenseRows }] = await Promise.all([salesQuery, expensesQuery]);
 
@@ -332,7 +354,15 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
   let salesTotal = 0;
   for (const s of salesRows ?? []) {
     salesTotal += s.total;
-    totals[bucketPaymentMethod(s.payment_method)] += s.total;
+    const split = splitPaymentTotals(s.payment_method);
+    if (Object.values(split).some((value) => value > 0)) {
+      totals.cash += split.cash;
+      totals.card += split.card;
+      totals.momo += split.momo;
+      totals.other += split.other;
+    } else {
+      totals[bucketPaymentMethod(s.payment_method)] += s.total;
+    }
   }
   const expensesTotal = (expenseRows ?? []).reduce((sum, e) => sum + e.amount, 0);
 
@@ -355,19 +385,68 @@ export interface CloseRegisterInput {
   scope: "all" | "individual";
   cashierId: string | null;
   cashierName: string | null;
+  actualCash: number;
+  varianceReason: string | null;
+  denominations: Array<{ denomination: number; quantity: number }>;
 }
 
 export async function closeRegister(input: CloseRegisterInput): Promise<SimpleResult> {
-  await requirePermission("pos", "edit");
+  if (!await canPermission("pos", "edit") && !await canPermission("pos", "create")) {
+    return { ok: false, error: "You do not have permission to close the register." };
+  }
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = await createClient();
+  const supabase = await createClient() as any;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  const { start, end } = startEndOfToday();
+  const { data: activeClosures } = await supabase
+    .from("register_closures")
+    .select("id, location_id, scope, cashier_id, status")
+    .eq("org_id", context.orgId)
+    .eq("period_start", startEndOfToday().start)
+    .eq("period_end", startEndOfToday().end)
+    .in("status", ["approved", "pending_approval"]);
+  if ((activeClosures ?? []).some((closure: { location_id: string | null; scope: "all" | "individual"; cashier_id: string | null }) =>
+    (closure.location_id === null || closure.location_id === input.locationId) &&
+    (closure.scope === "all" || closure.cashier_id === input.cashierId)
+  )) {
+    return { ok: false, error: "This register or cashier has already been closed for today." };
+  }
 
   const summary = await getRegisterSummary(input.locationId, input.scope === "individual" ? input.cashierId : null);
 
-  const { error } = await supabase.from("register_closures").insert({
+  if (input.scope === "individual" && !input.cashierId) {
+    return { ok: false, error: "A cashier is required for an individual closure." };
+  }
+
+  // Reject an already-covered period before inserting. The database trigger
+  // below repeats this check so concurrent requests cannot create overlaps.
+  const { data: overlappingClosures, error: overlapError } = await supabase
+    .from("register_closures")
+    .select("id, location_id, scope, cashier_id")
+    .eq("org_id", context.orgId)
+    .lt("period_start", summary.periodEnd)
+    .gt("period_end", summary.periodStart);
+  if (overlapError) return { ok: false, error: overlapError.message };
+
+  const overlaps = (overlappingClosures ?? []).some((closure: { location_id: string | null; scope: "all" | "individual"; cashier_id: string | null }) => {
+    const sameLocation = closure.location_id === null || input.locationId === null || closure.location_id === input.locationId;
+    const sameCashier = closure.scope === "all" || input.scope === "all" || closure.cashier_id === input.cashierId;
+    return sameLocation && sameCashier;
+  });
+  if (overlaps) {
+    return { ok: false, error: "This register period overlaps an existing closure." };
+  }
+  const actualCash = Number(input.actualCash);
+  if (!Number.isFinite(actualCash) || actualCash < 0) return { ok: false, error: "Enter a valid physical cash amount." };
+  const expectedCash = Math.max(0, summary.cashTotal - summary.expensesTotal);
+  const variance = Number((actualCash - expectedCash).toFixed(2));
+  if (Math.abs(variance) > 0.005 && !input.varianceReason?.trim()) {
+    return { ok: false, error: "A variance reason is required when counted cash differs from expected cash." };
+  }
+
+  const { data: closure, error } = await supabase.from("register_closures").insert({
     org_id: context.orgId,
     location_id: input.locationId,
     scope: input.scope,
@@ -383,9 +462,25 @@ export async function closeRegister(input: CloseRegisterInput): Promise<SimpleRe
     other_total: summary.otherTotal,
     expenses_total: summary.expensesTotal,
     net_total: summary.netTotal,
+    actual_cash: actualCash,
+    opening_cash: 0,
+    variance,
+    variance_reason: input.varianceReason?.trim() || null,
+    status: Math.abs(variance) > 0.005 ? "pending_approval" : "approved",
+    approved_by: Math.abs(variance) > 0.005 ? null : user.id,
+    approved_at: Math.abs(variance) > 0.005 ? null : new Date().toISOString(),
     closed_by: user.id,
-  });
+  }).select("id").single();
   if (error) return { ok: false, error: error.message };
+  if (input.denominations.length && closure) {
+    const lines = input.denominations
+      .filter((line) => Number.isFinite(line.denomination) && line.denomination > 0 && Number.isInteger(line.quantity) && line.quantity > 0)
+      .map((line) => ({ closure_id: closure.id, org_id: context.orgId, denomination: line.denomination, quantity: line.quantity }));
+    if (lines.length) {
+      const { error: lineError } = await supabase.from("register_closure_lines").insert(lines);
+      if (lineError) return { ok: false, error: lineError.message };
+    }
+  }
   revalidatePath("/pos");
   return { ok: true };
 }
@@ -396,6 +491,9 @@ export interface RegisterClosureRecord extends RegisterSummary {
   cashierName: string | null;
   locationName: string | null;
   closedAt: string;
+  status: "approved" | "pending_approval" | "rejected" | "reopened";
+  actualCash: number | null;
+  variance: number | null;
 }
 
 export async function listRegisterClosures(locationId: string | null, limit: number = 20): Promise<RegisterClosureRecord[]> {
@@ -405,7 +503,7 @@ export async function listRegisterClosures(locationId: string | null, limit: num
 
   let q = supabase
     .from("register_closures")
-    .select("id, scope, cashier_name, period_start, period_end, sales_count, sales_total, cash_total, card_total, momo_total, other_total, expenses_total, net_total, created_at, business_locations(name)")
+    .select("id, scope, cashier_name, period_start, period_end, sales_count, sales_total, cash_total, card_total, momo_total, other_total, expenses_total, net_total, actual_cash, variance, status, created_at, business_locations(name)")
     .eq("org_id", context.orgId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -444,8 +542,28 @@ export async function listRegisterClosures(locationId: string | null, limit: num
       expensesTotal: r.expenses_total,
       netTotal: r.net_total,
       closedAt: r.created_at,
+      status: r.status,
+      actualCash: r.actual_cash,
+      variance: r.variance,
     };
   });
+}
+
+export async function approveRegisterClosure(closureId: string, status: "approved" | "rejected" | "reopened" = "approved"): Promise<SimpleResult> {
+  if (!await canPermission("pos", "approve") && !await canPermission("banking", "approve")) {
+    return { ok: false, error: "Approval permission required." };
+  }
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+  const supabase = await createClient() as any;
+  const { error } = await supabase.from("register_closures").update({
+    status,
+    approved_by: status === "approved" ? context.userId : null,
+    approved_at: status === "approved" ? new Date().toISOString() : null,
+  }).eq("id", closureId).eq("org_id", context.orgId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/pos");
+  return { ok: true };
 }
 
 export interface CartItemInput {
@@ -688,6 +806,7 @@ export interface CompleteSaleInput {
   paymentMethod: string;
   saleDate: string; // 'YYYY-MM-DD' — sales.sale_date is a DATE column, no time component
   priceTier?: "retail" | "wholesale" | "vip" | "special";
+  paymentAllocations?: Array<{ paymentMethod: string; accountId?: string | null; amount: number }>;
 }
 
 export interface CompleteSaleResult {
@@ -705,6 +824,20 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  const { start, end } = startEndOfToday();
+  const { data: activeClosures } = await supabase
+    .from("register_closures")
+    .select("location_id, scope, cashier_id")
+    .eq("org_id", context.orgId)
+    .eq("period_start", start)
+    .eq("period_end", end)
+    .in("status", ["approved", "pending_approval"]);
+  if ((activeClosures ?? []).some((closure: { location_id: string | null; scope: "all" | "individual"; cashier_id: string | null }) =>
+    (closure.location_id === null || closure.location_id === input.locationId) &&
+    (closure.scope === "all" || closure.cashier_id === user.id)
+  )) {
+    return { ok: false, error: "Your register has been closed for today. Reopen it before making another sale." };
+  }
 
   // Re-check stock at time of sale — the grid the cashier was looking at
   // may be a few seconds stale. IMPORTANT: this must check the SELECTED
@@ -787,6 +920,27 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     .single();
 
   if (saleError || !sale) return { ok: false, error: saleError?.message ?? "Couldn't create the sale." };
+  const allocations = input.paymentAllocations?.filter((allocation) => Number.isFinite(allocation.amount) && allocation.amount > 0) ?? [];
+  if (allocations.length) {
+    const allocationTotal = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+    if (Math.abs(allocationTotal - total) > 0.01) {
+      await supabase.from("sales").delete().eq("id", sale.id);
+      return { ok: false, error: "Payment allocations must equal the sale total." };
+    }
+    const { error: allocationError } = await supabase.from("sale_payment_allocations").insert(
+      allocations.map((allocation) => ({
+        org_id: context.orgId,
+        sale_id: sale.id,
+        payment_method: allocation.paymentMethod,
+        account_id: allocation.accountId ?? null,
+        amount: allocation.amount,
+      }))
+    );
+    if (allocationError) {
+      await supabase.from("sales").delete().eq("id", sale.id);
+      return { ok: false, error: allocationError.message };
+    }
+  }
 
   const { error: itemsError } = await supabase.from("sale_items").insert(
     lines.map((l) => ({

@@ -34,11 +34,16 @@ export default async function AccountingPage() {
       .in("status", ["completed", "returned"])
       .order("sale_date", { ascending: false });
     const payableToday = new Date();
+    const paymentsByInvoice = new Map<string, number>();
+    for (const payment of payments ?? []) {
+      paymentsByInvoice.set(payment.invoice_id, (paymentsByInvoice.get(payment.invoice_id) ?? 0) + Number(payment.amount ?? 0));
+    }
     initialReceivables = (sales ?? []).map((sale) => {
       const issueDate = sale.sale_date;
       const dueDate = issueDate;
       const totalAmount = Number(sale.total ?? 0);
-      const paidAmount = sale.amount_paid == null ? totalAmount : Number(sale.amount_paid);
+      const invoiceNumber = `SALE-${sale.sale_number}`;
+      const paidAmount = Math.min(totalAmount, (sale.amount_paid == null ? 0 : Number(sale.amount_paid)) + (paymentsByInvoice.get(invoiceNumber) ?? 0));
       const outstandingAmount = Math.max(0, totalAmount - paidAmount);
       const daysOutstanding = Math.max(0, Math.floor((payableToday.getTime() - new Date(dueDate).getTime()) / 86400000));
       const status: AccountsReceivableItem["status"] = outstandingAmount === 0
@@ -53,7 +58,7 @@ export default async function AccountingPage() {
         id: sale.id,
         customerId: sale.customer_id ?? undefined,
         customerName: sale.customer_name ?? "Walk-in Customer",
-        invoiceNumber: `SALE-${sale.sale_number}`,
+        invoiceNumber,
         issueDate,
         dueDate,
         totalAmount,

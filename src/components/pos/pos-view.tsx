@@ -21,7 +21,7 @@ import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
   getRecentPosSales, getSaleForEdit, updateSale, getInvoiceData,
-  getCashiersToday, getRegisterSummary, closeRegister, listRegisterClosures,
+  getCashiersToday, getRegisterSummary, closeRegister, listRegisterClosures, approveRegisterClosure,
   type CartItemInput, type CustomerOption, type HeldSaleSummary, type RecentSale, type NewContactInput,
   type CashierOption, type RegisterSummary, type RegisterClosureRecord,
 } from "@/app/(dashboard)/pos/actions";
@@ -48,6 +48,7 @@ export interface PosProduct {
 }
 
 export interface LocationOption { id: string; name: string; }
+export interface MobileMoneyAccount { id: string; name: string; balance: number; }
 export interface StockLevel { productId: string; locationId: string; quantity: number; }
 
 interface PosViewProps {
@@ -63,6 +64,7 @@ interface PosViewProps {
   canChoosePriceTier: boolean;
   allowedPriceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
   useSystemPrices: boolean;
+  mobileMoneyAccounts: MobileMoneyAccount[];
 }
 
 interface CartLine extends CartItemInput {
@@ -85,7 +87,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices }: PosViewProps) {
+export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -145,6 +147,8 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const [calcOpen, setCalcOpen] = React.useState(false);
   const [multiPayOpen, setMultiPayOpen] = React.useState(false);
   const [multiPay, setMultiPay] = React.useState({ cash: 0, card: 0, momo: 0 });
+  const [momoAccountId, setMomoAccountId] = React.useState("");
+  const [momoPaymentOpen, setMomoPaymentOpen] = React.useState(false);
 
   const [registerOpen, setRegisterOpen] = React.useState(false);
   const [registerTab, setRegisterTab] = React.useState<"close" | "history">("close");
@@ -154,6 +158,9 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const [registerSummary, setRegisterSummary] = React.useState<RegisterSummary | null>(null);
   const [registerLoading, setRegisterLoading] = React.useState(false);
   const [registerClosing, setRegisterClosing] = React.useState(false);
+  const [registerActualCash, setRegisterActualCash] = React.useState("");
+  const [registerDenominations, setRegisterDenominations] = React.useState<Record<string, number>>({});
+  const [registerVarianceReason, setRegisterVarianceReason] = React.useState("");
   const [historyList, setHistoryList] = React.useState<RegisterClosureRecord[]>([]);
   const [historyLoading, setHistoryLoading] = React.useState(false);
 
@@ -350,7 +357,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     win.print();
   }
 
-  function handleCompleteSale(methodOverride?: string) {
+  function handleCompleteSale(methodOverride?: string, paymentAllocations?: Array<{ paymentMethod: string; accountId?: string | null; amount: number }>) {
     setError(null);
     if (cart.length === 0) return setError("Cart is empty.");
     if (!locationId) return setError("Select a branch/location.");
@@ -371,6 +378,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         taxAmount: taxTotal,
         shippingAmount,
         paymentMethod: method,
+        paymentAllocations,
         saleDate,
         priceTier,
         total,
@@ -385,7 +393,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     startTransition(async () => {
       const result = await completeSale({
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
-        orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method, priceTier,
+        orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method, priceTier, paymentAllocations,
         saleDate,
       });
       if (!result.ok) {
@@ -526,6 +534,9 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     setRegisterScope("all");
     setRegisterCashierId(null);
     setRegisterSummary(null);
+    setRegisterActualCash("");
+    setRegisterDenominations({});
+    setRegisterVarianceReason("");
     reloadRegisterSummary("all", null);
     getCashiersToday(locationId).then(setCashiersToday);
   }
@@ -563,7 +574,18 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     setRegisterClosing(true);
     const cashierName = cashiersToday.find((c) => c.id === registerCashierId)?.name ?? null;
     startTransition(async () => {
-      const result = await closeRegister({ locationId, scope: registerScope, cashierId: registerCashierId, cashierName });
+      const denominationLines = Object.entries(registerDenominations)
+        .map(([denomination, quantity]) => ({ denomination: Number(denomination), quantity: Math.max(0, Math.floor(quantity)) }))
+        .filter((line) => line.denomination > 0 && line.quantity > 0);
+      const result = await closeRegister({
+        locationId,
+        scope: registerScope,
+        cashierId: registerCashierId,
+        cashierName,
+        actualCash: Number(registerActualCash) || 0,
+        varianceReason: registerVarianceReason.trim() || null,
+        denominations: denominationLines,
+      });
       setRegisterClosing(false);
       if (!result.ok) {
         setError(result.error ?? "Couldn't close the register.");
@@ -578,6 +600,18 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   function loadRegisterHistory() {
     setHistoryLoading(true);
     listRegisterClosures(locationId).then((list) => { setHistoryList(list); setHistoryLoading(false); });
+  }
+
+  function handleRegisterApproval(id: string, status: "approved" | "rejected" | "reopened") {
+    startTransition(async () => {
+      const result = await approveRegisterClosure(id, status);
+      if (!result.ok) {
+        setError(result.error ?? "Could not update register closure.");
+        return;
+      }
+      showNotice(status === "approved" ? "Register closure approved." : status === "reopened" ? "Register reopened." : "Register closure rejected.");
+      loadRegisterHistory();
+    });
   }
 
   function switchRegisterTab(tab: "close" | "history") {
@@ -649,7 +683,15 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     if (multiPay.card > 0) parts.push(`Card ${formatCurrency(multiPay.card, currency)}`);
     if (multiPay.momo > 0) parts.push(`MoMo ${formatCurrency(multiPay.momo, currency)}`);
     setMultiPayOpen(false);
-    handleCompleteSale(`Split (${parts.join(", ")})`);
+    if (multiPay.momo > 0 && !momoAccountId) {
+      setError("Select the MoMo account for this split payment.");
+      return;
+    }
+    handleCompleteSale(`Split (${parts.join(", ")})`, [
+      ...(multiPay.cash > 0 ? [{ paymentMethod: "Cash", amount: multiPay.cash }] : []),
+      ...(multiPay.card > 0 ? [{ paymentMethod: "Card", amount: multiPay.card }] : []),
+      ...(multiPay.momo > 0 ? [{ paymentMethod: "MoMo", accountId: momoAccountId, amount: multiPay.momo }] : []),
+    ]);
     setMultiPay({ cash: 0, card: 0, momo: 0 });
   }
 
@@ -1026,7 +1068,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
             <Button variant="primary" className="w-full bg-signal hover:bg-signal/90 sm:w-auto" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
               <Banknote className="h-4 w-4" /> Cash
             </Button>
-            <Button variant="primary" className="w-full bg-amber hover:bg-amber/90 sm:w-auto" onClick={() => handleCompleteSale("MoMo")} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full bg-amber hover:bg-amber/90 sm:w-auto" onClick={() => { setMomoPaymentOpen(true); }} disabled={isPending || cart.length === 0}>
               <Smartphone className="h-4 w-4" /> MOMO
             </Button>
             <Button variant="primary" className="w-full bg-alert hover:bg-alert/90 sm:w-auto" onClick={handleVoid} disabled={cart.length === 0}>
@@ -1181,6 +1223,12 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
               />
             </div>
           ))}
+          {multiPay.momo > 0 && (
+            <select value={momoAccountId} onChange={(event) => setMomoAccountId(event.target.value)} className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+              <option value="">Select MoMo account...</option>
+              {mobileMoneyAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+          )}
           <div className="flex items-center justify-between border-t border-ledger-100 pt-2 text-sm dark:border-ledger-700">
             <span className="text-ledger-500">Remaining</span>
             <span className={cn("font-semibold", Math.abs(multiPayTotal - total) < 0.01 ? "text-signal" : "text-alert")}>{formatCurrency(total - multiPayTotal, currency)}</span>
@@ -1188,6 +1236,18 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
           <Button variant="primary" className="w-full" disabled={Math.abs(multiPayTotal - total) >= 0.01 || isPending} onClick={handleMultiPayConfirm}>
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Confirm Split Payment
           </Button>
+        </div>
+      </Dialog>
+
+      <Dialog open={momoPaymentOpen} onClose={() => setMomoPaymentOpen(false)} title="Select MoMo Account">
+        <div className="space-y-3">
+          <p className="text-sm text-ledger-500">Choose the mobile-money account that received this payment.</p>
+          <select value={momoAccountId} onChange={(event) => setMomoAccountId(event.target.value)} className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+            <option value="">Select account...</option>
+            {mobileMoneyAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {formatCurrency(account.balance, currency)}</option>)}
+          </select>
+          {!mobileMoneyAccounts.length && <p className="rounded-md bg-alert-soft p-3 text-xs text-alert">Create a Mobile Money account in Banking before recording MoMo sales.</p>}
+          <Button variant="primary" className="w-full" disabled={!momoAccountId} onClick={() => { setMomoPaymentOpen(false); handleCompleteSale("MoMo", [{ paymentMethod: "MoMo", accountId: momoAccountId, amount: total }]); }}>Confirm MoMo Payment</Button>
         </div>
       </Dialog>
 
@@ -1250,6 +1310,22 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                       <span className="text-ledger-500">Sales ({registerSummary.salesCount})</span>
                       <span className="font-bold text-ink-900 dark:text-white">{formatCurrency(registerSummary.salesTotal, currency)}</span>
                     </div>
+
+                    <div className="space-y-2 rounded-md border border-ledger-100 p-3 dark:border-ledger-700">
+                      <label className="block text-xs font-semibold text-ledger-600 dark:text-ledger-300">Physical cash counted</label>
+                      <input type="number" min="0" step="0.01" value={registerActualCash} onChange={(e) => setRegisterActualCash(e.target.value)} className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" placeholder="Enter counted cash" />
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        {[1, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].map((denomination) => (
+                          <label key={denomination} className="text-[10px] text-ledger-500">
+                            {denomination}
+                            <input type="number" min="0" step="1" value={registerDenominations[String(denomination)] ?? ""} onChange={(e) => setRegisterDenominations((current) => ({ ...current, [denomination]: Number(e.target.value) || 0 }))} className="mt-1 h-8 w-full rounded border border-ledger-200 px-1 text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-ledger-500">Denomination total: {formatCurrency(Object.entries(registerDenominations).reduce((sum, [denomination, quantity]) => sum + Number(denomination) * (Number(quantity) || 0), 0), currency)}</p>
+                      {Number(registerActualCash) > 0 && <p className={cn("text-xs font-semibold", Number(registerActualCash) - ((registerSummary?.cashTotal ?? 0) - (registerSummary?.expensesTotal ?? 0)) < 0 ? "text-alert" : "text-signal")}>Cash variance: {formatCurrency(Number(registerActualCash) - ((registerSummary?.cashTotal ?? 0) - (registerSummary?.expensesTotal ?? 0)), currency)}</p>}
+                      <input value={registerVarianceReason} onChange={(e) => setRegisterVarianceReason(e.target.value)} className="h-9 w-full rounded-md border border-ledger-200 px-2 text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white" placeholder="Reason for variance (if any)" />
+                    </div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Cash</span><span>{formatCurrency(registerSummary.cashTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Card</span><span>{formatCurrency(registerSummary.cardTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>MoMo</span><span>{formatCurrency(registerSummary.momoTotal, currency)}</span></div>
@@ -1291,8 +1367,19 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                     <span className="font-bold text-signal">{formatCurrency(h.netTotal, currency)}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-ledger-400">
-                    {new Date(h.closedAt).toLocaleString()} · {h.salesCount} sale(s) · {formatCurrency(h.salesTotal, currency)} sales, {formatCurrency(h.expensesTotal, currency)} expenses
+                    {new Date(h.closedAt).toLocaleString()} · {h.salesCount} sale(s) · {formatCurrency(h.salesTotal, currency)} sales, {formatCurrency(h.expensesTotal, currency)} expenses · {h.status}
                   </p>
+                  {h.status === "pending_approval" && (
+                    <div className="mt-2 flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleRegisterApproval(h.id, "approved")}>Approve</Button>
+                      <Button variant="outline" size="sm" onClick={() => handleRegisterApproval(h.id, "rejected")}>Reject</Button>
+                    </div>
+                  )}
+                  {h.status === "approved" && (
+                    <div className="mt-2">
+                      <Button variant="outline" size="sm" onClick={() => handleRegisterApproval(h.id, "reopened")}>Reopen</Button>
+                    </div>
+                  )}
                   <div className="mt-2 flex gap-1.5">
                     <button onClick={() => exportSummaryCsv(h, h.scope === "all" ? "All cashiers" : (h.cashierName ?? ""))} className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Download className="h-3 w-3" /> CSV</button>
                     <button onClick={() => printSummary(h, h.scope === "all" ? "All cashiers" : (h.cashierName ?? ""))} className="flex items-center gap-1 rounded-md border border-ledger-300 px-2 py-1 text-xs font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-300"><Printer className="h-3 w-3" /> Print</button>

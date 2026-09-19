@@ -15,9 +15,9 @@ export function DenominationInputs({ expectedCash, currency }: { expectedCash: n
   };
 
   return (
-    <fieldset className="rounded-lg border border-ledger-200 p-3 dark:border-ledger-700">
+    <fieldset className="rounded-lg border border-ledger-200 p-5 shadow-sm dark:border-ledger-700">
       <legend className="px-1 text-[10px] font-medium text-ledger-500">Denominations</legend>
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         {DEFAULT_DENOMINATIONS.map((denomination) => (
           <label key={denomination} className="text-[10px]">
             <span className="flex justify-between"><span>{denomination}</span><span className="text-ledger-500">{formatCurrencyAmount(values[`denomination_${denomination}`] ?? 0, currency)}</span></span>

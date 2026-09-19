@@ -2062,6 +2062,13 @@ export interface Database {
           other_total: number;
           expenses_total: number;
           net_total: number;
+          actual_cash: number | null;
+          opening_cash: number;
+          variance: number | null;
+          variance_reason: string | null;
+          status: "approved" | "pending_approval" | "rejected" | "reopened";
+          approved_by: string | null;
+          approved_at: string | null;
           closed_by: string;
           created_at: string;
         };
@@ -2082,6 +2089,13 @@ export interface Database {
           other_total?: number;
           expenses_total?: number;
           net_total?: number;
+          actual_cash?: number | null;
+          opening_cash?: number;
+          variance?: number | null;
+          variance_reason?: string | null;
+          status?: "approved" | "pending_approval" | "rejected" | "reopened";
+          approved_by?: string | null;
+          approved_at?: string | null;
           closed_by: string;
           created_at?: string;
         };
@@ -2423,6 +2437,28 @@ export interface Database {
             referencedColumns: ["id"];
           }
         ];
+      };
+      sale_payment_allocations: {
+        Row: {
+          id: string;
+          org_id: string;
+          sale_id: string;
+          payment_method: string;
+          account_id: string | null;
+          amount: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          sale_id: string;
+          payment_method: string;
+          account_id?: string | null;
+          amount: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["sale_payment_allocations"]["Row"]>;
+        Relationships: [];
       };
       assets: {
         Row: {
