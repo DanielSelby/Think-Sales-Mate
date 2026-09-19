@@ -9,6 +9,24 @@ const ACTIONS = new Set<PermissionAction>([
   "view", "create", "edit", "delete", "approve", "export", "print"
 ]);
 
+const MODULE_ALIASES: Record<string, string> = {
+  hrm: "hrm_payroll",
+  payroll: "hrm_payroll",
+  payslip: "payslips",
+  "cash-closing": "cash_closing",
+  fraud_detection: "fraud",
+  customer_messaging: "communication",
+  "route-sales": "route_sales",
+  "stock-adjustment": "stock_adjustments",
+  "stock-request": "stock_requests",
+  "price-management": "price_management",
+  "product-duplicates": "product_duplicates"
+};
+
+function canonicalModule(module: string) {
+  return MODULE_ALIASES[module] ?? module;
+}
+
 export function normalizePermissionMatrix(value: unknown): PermissionMatrix {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const result: PermissionMatrix = {};
@@ -23,7 +41,8 @@ export function normalizePermissionMatrix(value: unknown): PermissionMatrix {
 }
 
 export function hasPermission(matrix: PermissionMatrix, module: string, action: PermissionAction): boolean {
-  return matrix[module]?.includes(action) === true;
+  const key = canonicalModule(module);
+  return matrix[key]?.includes(action) === true || matrix[module]?.includes(action) === true;
 }
 
 function roleKeyForMember(role: MemberRole, accessPermissions: Record<string, unknown>): string {

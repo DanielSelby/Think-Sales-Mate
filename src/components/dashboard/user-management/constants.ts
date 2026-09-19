@@ -24,26 +24,56 @@ export const PERMISSION_ACTIONS: { key: PermissionAction; label: string; descrip
 
 export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "dashboard", name: "Dashboard", description: "Overview metrics, KPIs, and executive charts", iconName: "LayoutDashboard", supportedActions: ["view", "export", "print"] },
+  { key: "approvals", name: "Approval Center", description: "Central queue for approvals, review decisions, and exception handling", iconName: "ClipboardCheck", supportedActions: ["view", "approve", "export", "print"] },
   { key: "sales", name: "Sales", description: "Quotations, invoices, sales orders, and returns", iconName: "Receipt", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "sales_drafts", name: "Drafts & Quotations", description: "Sales drafts, quotations, conversion, and revision history", iconName: "Clock3", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "pos", name: "POS", description: "Point of sale register, cashier terminal, and till cashups", iconName: "ShoppingCart", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
   { key: "orders", name: "Orders", description: "Customer order management, picking, delivery, and conversions", iconName: "Inbox", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "customer_ordering", name: "Customer Ordering", description: "Customer portal ordering, order settings, and order conversion", iconName: "Inbox", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
   { key: "products", name: "Products", description: "Product catalog, pricing tiers, barcodes, and units", iconName: "Boxes", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "inventory", name: "Inventory", description: "Stock levels, batches, stock takes, and adjustments", iconName: "Layers", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "stock_adjustments", name: "Stock Adjustments", description: "Stock taking, adjustments, adjustment history, and variance review", iconName: "ClipboardEdit", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "stock_requests", name: "Stock Requests", description: "Branch stock requests, fulfillment, and request history", iconName: "ClipboardCheck", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "price_management", name: "Price Management", description: "Price groups, bulk price updates, and price history", iconName: "DollarSign", supportedActions: ["view", "create", "edit", "approve", "export"] },
+  { key: "product_duplicates", name: "Duplicate Review", description: "Product duplicate detection, review, merge, and cleanup", iconName: "GitMerge", supportedActions: ["view", "edit", "delete", "approve", "export"] },
   { key: "transfers", name: "Transfers", description: "Inter-branch and warehouse stock transfers", iconName: "Truck", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "purchases", name: "Purchases", description: "Purchase orders, goods receipts, and vendor bills", iconName: "ShoppingBag", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "expenses", name: "Expenses", description: "Operating expenses, receipts, and petty cash", iconName: "Tag", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "customers", name: "Customers", description: "Customer accounts, credit limits, and loyalty", iconName: "Contact", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
   { key: "suppliers", name: "Suppliers", description: "Vendor contacts, price agreements, and lead times", iconName: "Truck", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
   { key: "accounting", name: "Accounting", description: "General ledger, chart of accounts, and journals", iconName: "Wallet", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "chart_of_accounts", name: "Chart of Accounts", description: "Ledger accounts, account groups, and accounting structure", iconName: "List", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
+  { key: "journal_entries", name: "Journal Entries", description: "Manual journals, posting, review, and adjustments", iconName: "FileText", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "bank_reconciliation", name: "Bank Reconciliation", description: "Bank matching, reconciliation, and exception review", iconName: "Landmark", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
+  { key: "receivables", name: "Receivables", description: "Customer credit, collections, receipts, and aging", iconName: "Receipt", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
+  { key: "payables", name: "Payables", description: "Supplier bills, payments, and payable aging", iconName: "ShoppingBag", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
   { key: "hrm_payroll", name: "HRM & Payroll", description: "Employee records, attendance, leaves, and payslips", iconName: "Users", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "payslips", name: "Payslips", description: "Generated payslips, employee self-service, printing, and downloads", iconName: "FileText", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
+  { key: "hrm_attendance", name: "Attendance", description: "Employee attendance, shifts, and time records", iconName: "CalendarClock", supportedActions: ["view", "create", "edit", "export", "print"] },
+  { key: "hrm_leave", name: "Leave Management", description: "Leave requests, balances, approvals, and history", iconName: "ClipboardEdit", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
+  { key: "hrm_recruitment", name: "Recruitment", description: "Candidates, vacancies, interviews, and hiring workflow", iconName: "UserPlus", supportedActions: ["view", "create", "edit", "delete", "approve", "export"] },
+  { key: "hrm_training", name: "Training & Development", description: "Training plans, programs, attendance, and outcomes", iconName: "GraduationCap", supportedActions: ["view", "create", "edit", "delete", "export"] },
   { key: "reports", name: "Reports", description: "Financial, sales, inventory, and tax reports", iconName: "BarChart3", supportedActions: ["view", "export", "print"] },
+  { key: "branch_reports", name: "Branch Performance", description: "Branch KPIs, comparisons, and operational performance", iconName: "BarChart3", supportedActions: ["view", "export", "print"] },
+  { key: "forecasting", name: "Sales Forecasting", description: "Forecasts, trends, projections, and planning reports", iconName: "TrendingUp", supportedActions: ["view", "export", "print"] },
   { key: "user_management", name: "User Management", description: "User accounts, roles, access matrix, and audit logs", iconName: "ShieldCheck", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "banking", name: "Banking", description: "Bank accounts, transactions, and reconciliation", iconName: "Landmark", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
+  { key: "cash_closing", name: "Cash Closing", description: "End-of-day cash reconciliation, shifts, variances, and approvals", iconName: "ClipboardCheck", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
   { key: "assets", name: "Assets", description: "Fixed assets, depreciation, and asset registers", iconName: "Package", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
   { key: "projects", name: "Projects", description: "Projects, tasks, and operational work", iconName: "FolderKanban", supportedActions: ["view", "create", "edit", "delete", "export", "print"] },
+  { key: "route_sales", name: "Route Sales", description: "Field routes, collections, mobile orders, and route reporting", iconName: "Route", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "ai", name: "AI Assistant", description: "AI-powered business assistance and generation tools", iconName: "Sparkles", supportedActions: ["view", "create"] },
   { key: "communication", name: "Communication", description: "Private direct messages, group channels, and voice notes", iconName: "MessageSquare", supportedActions: ["view", "create", "edit", "delete"] },
+  { key: "audit", name: "Audit Center", description: "Activity history, audit trails, login sessions, and compliance review", iconName: "ShieldCheck", supportedActions: ["view", "export", "print"] },
+  { key: "fraud", name: "Fraud & Anomaly Detection", description: "Fraud alerts, anomaly review, and investigation workflows", iconName: "ShieldAlert", supportedActions: ["view", "edit", "approve", "export", "print"] },
+  { key: "offline", name: "Offline Center", description: "Offline queue, synchronization, conflict review, and retry controls", iconName: "WifiOff", supportedActions: ["view", "create", "edit", "delete", "approve"] },
   { key: "settings", name: "Settings", description: "System configuration, currencies, taxes, and integrations", iconName: "Settings", supportedActions: ["view", "create", "edit", "delete", "export", "print"] }
+  ,{ key: "company_settings", name: "Company Settings", description: "Company profile, branding, invoice details, and business identity", iconName: "Building2", supportedActions: ["view", "edit", "export", "print"] }
+  ,{ key: "locations", name: "Locations", description: "Branches, warehouses, and location access configuration", iconName: "Building2", supportedActions: ["view", "create", "edit", "delete", "export"] }
+  ,{ key: "currencies", name: "Currencies", description: "Currencies, exchange rates, and financial display settings", iconName: "Wallet", supportedActions: ["view", "create", "edit", "delete", "export"] }
+  ,{ key: "integrations", name: "Integrations", description: "External services, API connections, and synchronization settings", iconName: "Network", supportedActions: ["view", "create", "edit", "delete"] }
+  ,{ key: "billing", name: "Billing", description: "Subscription, invoices, plan limits, and billing settings", iconName: "Receipt", supportedActions: ["view", "create", "edit", "export", "print"] }
+  ,{ key: "team", name: "Team Management", description: "Team members, invitations, and organizational assignments", iconName: "Users2", supportedActions: ["view", "create", "edit", "delete", "export"] }
 ];
 
 export const DEPARTMENTS = [
