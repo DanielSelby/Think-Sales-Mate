@@ -10,17 +10,31 @@ import { CashClosingAnalytics } from "./analytics";
 
 export const metadata = { title: "Cash Closing · SalesMate ERP" };
 
-export default async function CashClosingPage({ searchParams }: { searchParams?: { error?: string; saved?: string; tab?: string; location_id?: string; date_from?: string; date_to?: string; shift?: string; classification?: string; page?: string; closing_id?: string } }) {
+type CashClosingSearchParams = {
+  error?: string;
+  saved?: string;
+  tab?: string;
+  location_id?: string;
+  date_from?: string;
+  date_to?: string;
+  shift?: string;
+  classification?: string;
+  page?: string;
+  closing_id?: string;
+};
+
+export default async function CashClosingPage({ searchParams }: { searchParams?: Promise<CashClosingSearchParams> }) {
   const ctx = await getCurrentOrgContext();
   if (!ctx) return null;
+  const params = (await searchParams) ?? {};
   const db = await createClient() as any;
   const today = new Date().toISOString().slice(0, 10);
-  const requestedLocationId = searchParams?.location_id || null;
-  const dateFrom = searchParams?.date_from || "";
-  const dateTo = searchParams?.date_to || "";
-  const requestedShift = searchParams?.shift || "";
-  const requestedClassification = searchParams?.classification || "";
-  const pageNumber = Math.max(1, Number(searchParams?.page || 1) || 1);
+  const requestedLocationId = params.location_id || null;
+  const dateFrom = params.date_from || "";
+  const dateTo = params.date_to || "";
+  const requestedShift = params.shift || "";
+  const requestedClassification = params.classification || "";
+  const pageNumber = Math.max(1, Number(params.page || 1) || 1);
   const pageSize = 25;
   const selectedLocationId = requestedLocationId && (!ctx.isBranchScoped || ctx.allowedLocationIds.includes(requestedLocationId)) ? requestedLocationId : null;
   const [closingResult, { data: locations }, { data: currencyRow }, { data: currencySettings }, { data: companyProfile }, summary] = await Promise.all([
@@ -39,10 +53,10 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     return !ctx.isBranchScoped || !row.location_id || ctx.allowedLocationIds.includes(row.location_id);
   }).filter((row: { shift?: string; classification?: string }) => (!requestedShift || row.shift === requestedShift) && (!requestedClassification || row.classification === requestedClassification));
   const totalPages = Math.max(1, Math.ceil(Number(closingResult.count ?? accessibleClosings.length) / pageSize));
-  const selectedClosing = searchParams?.closing_id ? accessibleClosings.find((row: { id: string }) => row.id === searchParams?.closing_id) : null;
+  const selectedClosing = params.closing_id ? accessibleClosings.find((row: { id: string }) => row.id === params.closing_id) : null;
   const { data: selectedLines } = selectedClosing ? await db.from("cash_closing_lines").select("denomination, quantity").eq("closing_id", selectedClosing.id).eq("org_id", ctx.orgId).order("denomination") : { data: [] };
   const currencyConfig: CurrencyConfig = getCurrencyConfigFromSettings({ code: currencyRow?.code ?? ctx.currency, name: currencyRow?.name, symbol: currencyRow?.symbol, ...currencySettings });
-  const tab = searchParams?.tab ?? "today";
+  const tab = params.tab ?? "today";
   const todayClosings = accessibleClosings.filter((r: { closing_date: string }) => r.closing_date === today);
   const variance = todayClosings.reduce((sum: number, row: { variance: number }) => sum + Number(row.variance ?? 0), 0);
   const filteredClosings = accessibleClosings.filter((r: { closing_date: string; status: string; approval_required?: boolean; variance: number }) => tab === "today" ? r.closing_date === today : tab === "variance" ? Number(r.variance) !== 0 : tab === "approval" ? r.status === "pending_approval" || r.approval_required : true);
@@ -60,8 +74,8 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
           <div><div className="mb-2 flex items-center gap-2 text-xs text-[#3975ae]"><span>Accounting</span><span>/</span><span className="text-ledger-500">End Of Day Accounts</span></div><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#3d9bf4] to-[#1670d2] text-white shadow-md"><WalletCards className="h-6 w-6" /></div><div><h1 className="text-2xl font-bold tracking-tight text-[#12345a] dark:text-white">End Of Day Accounts</h1><p className="text-xs text-ledger-500">Reconcile your cash, compare with system records and close your day.</p></div></div></div>
           <div className="flex gap-2"><BranchSelector selectedLocationId={selectedLocationId} locations={(locations ?? []).map((location: { id: string; name: string }) => ({ id: location.id, name: location.name }))} /><label className="flex h-10 items-center gap-2 rounded-lg border border-[#d5e2ef] bg-white px-3 text-xs font-medium text-[#31577c] shadow-sm dark:border-ledger-700 dark:bg-ink-900"><CalendarDays className="h-4 w-4 text-[#2087e5]" />{new Date(today).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}<ChevronDown className="h-3 w-3" /></label></div>
         </div>
-        {searchParams?.error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{searchParams.error}</div>}
-        {searchParams?.saved && <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">Cash closing saved successfully.</div>}
+        {params.error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{params.error}</div>}
+        {params.saved && <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">Cash closing saved successfully.</div>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{cards.map(([label, value, tone, Icon]) => <div key={label} className="rounded-xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900"><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full ${tone}`}><Icon className="h-4 w-4" /></div><p className="text-[11px] font-medium text-ledger-500">{label}</p><p className="mt-1 text-lg font-bold text-[#17385d] dark:text-white">{formatCurrencyAmount(Number(value), currencyConfig)}</p></div>)}</div>
         <nav className="flex flex-wrap gap-2 border-b border-ledger-200 pb-2 text-sm dark:border-ledger-700">{[["today", "Today's Closings"], ["history", "Closing History"], ["variance", "Variance Reports"], ["approval", "Approval Queue"], ["analytics", "Analytics"]].map(([key, label]) => <a key={key} href={`/banking/cash-closing?tab=${key}#cash-closing-report`} className={`rounded-md px-3 py-2 ${tab === key ? "bg-[#1478dd] text-white" : "text-ledger-600 hover:bg-ledger-100 dark:text-ledger-300"}`}>{label}</a>)}</nav>
         {(tab === "history" || tab === "variance" || tab === "approval") && (
