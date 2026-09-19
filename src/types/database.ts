@@ -1343,6 +1343,7 @@ export interface Database {
           amount: number;
           expense_date: string;
           payment_method: string | null;
+          payment_account: string | null;
           status: ExpenseStatus;
           payment_status: ExpensePaymentStatus;
           paid_on: string | null;
@@ -1378,6 +1379,7 @@ export interface Database {
           amount: number;
           expense_date?: string;
           payment_method?: string | null;
+          payment_account?: string | null;
           status?: ExpenseStatus;
           payment_status?: ExpensePaymentStatus;
           paid_on?: string | null;
