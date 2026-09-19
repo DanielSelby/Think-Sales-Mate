@@ -77,6 +77,7 @@ export function AddExpenseForm({
 }: AddExpenseFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
+  const [pendingAction, setPendingAction] = React.useState<"draft" | "approval" | "save" | "edit" | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [transactionFeedback, setTransactionFeedback] = React.useState<{ kind: "success" | "error"; message: string } | null>(null);
 
@@ -174,6 +175,7 @@ export function AddExpenseForm({
       return;
     }
 
+    setPendingAction(forceApproval ? "approval" : action === "draft" ? "draft" : "save");
     startTransition(async () => {
       const result = await createExpense({
         category, vendor: vendor || null, department, locationId: locationId || null,
@@ -188,6 +190,7 @@ export function AddExpenseForm({
       if (!result.ok) {
         setTransactionFeedback({ kind: "error", message: result.error ?? "Review the expense details and try again." });
         setError(result.error ?? "Something went wrong.");
+        setPendingAction(null);
         return;
       }
       if (attachments.length > 0) {
@@ -196,6 +199,7 @@ export function AddExpenseForm({
         if (failedAttachment) {
           setTransactionFeedback({ kind: "error", message: `Expense saved, but an attachment could not be uploaded: ${failedAttachment.error}` });
           setError(failedAttachment.error ?? "One or more attachments could not be uploaded.");
+          setPendingAction(null);
           return;
         }
       }
@@ -211,6 +215,7 @@ export function AddExpenseForm({
       return;
     }
 
+    setPendingAction("edit");
     startTransition(async () => {
       const result = await updateExpense(expenseId!, {
         category, vendor: vendor || null, department, locationId: locationId || null,
@@ -223,6 +228,7 @@ export function AddExpenseForm({
       if (!result.ok) {
         setTransactionFeedback({ kind: "error", message: result.error ?? "Review the expense details and try again." });
         setError(result.error ?? "Something went wrong.");
+        setPendingAction(null);
         return;
       }
       if (attachments.length > 0) {
@@ -231,6 +237,7 @@ export function AddExpenseForm({
         if (failedAttachment) {
           setTransactionFeedback({ kind: "error", message: `Expense updated, but an attachment could not be uploaded: ${failedAttachment.error}` });
           setError(failedAttachment.error ?? "One or more attachments could not be uploaded.");
+          setPendingAction(null);
           return;
         }
       }
@@ -261,18 +268,18 @@ export function AddExpenseForm({
           <Button variant="outline" size="md" className="h-10 rounded-xl" onClick={() => router.back()} disabled={isPending}>Cancel</Button>
           {isEdit ? (
             <Button variant="primary" size="md" onClick={submitEdit} disabled={isPending}>
-              {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Changes
+              {pendingAction === "edit" && <Loader2 className="h-4 w-4 animate-spin" />} Save Changes
             </Button>
           ) : (
             <>
               <Button variant="secondary" size="md" onClick={() => submit("draft", false)} disabled={isPending}>
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Draft
+                {pendingAction === "draft" && <Loader2 className="h-4 w-4 animate-spin" />} Save Draft
               </Button>
               <Button variant="outline" size="md" onClick={() => submit("submitted", true)} disabled={isPending}>
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Submit for Approval
+                {pendingAction === "approval" && <Loader2 className="h-4 w-4 animate-spin" />} Submit for Approval
               </Button>
               <Button variant="primary" size="md" onClick={() => submit("submitted", false)} disabled={isPending}>
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save Expense
+                {pendingAction === "save" && <Loader2 className="h-4 w-4 animate-spin" />} Save Expense
               </Button>
             </>
           )}
@@ -371,10 +378,54 @@ export function AddExpenseForm({
             </CardContent>
           </Card>
 
-          {/* Expense Items */}
           <Card accent="neutral" className="rounded-2xl border-white shadow-card dark:border-white/10">
             <CardHeader className="flex-row items-center justify-between pb-2">
-              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Expense Items</CardTitle>
+              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
+                Expense Details
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={addItem}>
+                <Plus className="h-3.5 w-3.5" /> Add line item
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <Field label="Expense Name" required>
+                  <Input
+                    value={items[0]?.description ?? ""}
+                    onChange={(event) => items[0] && updateItem(items[0].key, { description: event.target.value })}
+                    placeholder="e.g. Office supplies, Transport, Utilities"
+                  />
+                </Field>
+                <Field label={`Amount (${expenseCurrency})`} required>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={items[0]?.unitCost ?? 0}
+                    onChange={(event) => items[0] && updateItem(items[0].key, { unitCost: Math.max(0, Number(event.target.value)) })}
+                    placeholder="Enter amount"
+                  />
+                </Field>
+                <Field label="Reference / Receipt No.">
+                  <Input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="e.g. INV-001, Receipt No." />
+                </Field>
+              </div>
+              <Field label="Description">
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={3}
+                  placeholder="Add more details about this expense..."
+                  className="flex w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm placeholder:text-ledger-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                />
+              </Field>
+            </CardContent>
+          </Card>
+
+          {/* Expense Items */}
+          <Card accent="neutral" className={`rounded-2xl border-white shadow-card dark:border-white/10 ${items.length === 1 ? "hidden" : ""}`}>
+            <CardHeader className="flex-row items-center justify-between pb-2">
+              <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Additional Expense Items</CardTitle>
               <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>
             </CardHeader>
             <CardContent className="pt-0">
