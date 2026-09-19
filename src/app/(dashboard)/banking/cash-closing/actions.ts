@@ -14,6 +14,16 @@ async function auditContext() {
   return { device: h.get("user-agent") ?? "unknown", ip_address: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "unknown" };
 }
 
+export async function logCashClosingAction(closingId: string | null, action: "exported" | "printed") {
+  const ctx = await getCurrentOrgContext();
+  if (!ctx || !closingId) return { error: "Closing record not found." };
+  const db = await createClient() as any;
+  const { error } = await db.from("cash_closing_audit").insert({
+    closing_id: closingId, org_id: ctx.orgId, action, actor_id: ctx.userId, ...(await auditContext()),
+  });
+  return error ? { error: error.message } : { success: true };
+}
+
 export async function calculateExpectedCash(date: string, locationId?: string | null, _shift = "full_day"): Promise<CashSummary> {
   const ctx = await getCurrentOrgContext();
   if (!ctx) throw new Error("Session expired");
@@ -106,6 +116,63 @@ export async function approveCashClosing(id: string) {
   if (error) return { error: error.message };
   await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, action: "approved", actor_id: ctx.userId, ...(await auditContext()) });
   revalidatePath("/banking/cash-closing"); return { success: true };
+}
+
+export async function approveCashClosingFromForm(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+  await approveCashClosing(id);
+}
+
+export async function rejectCashClosing(id: string, reason: string) {
+  const ctx = await getCurrentOrgContext();
+  if (!ctx || !await canPermission("banking", "approve")) return { error: "Approval permission required" };
+  if (!reason.trim()) return { error: "A rejection reason is required." };
+  const db = await createClient() as any;
+  const { error } = await db.from("cash_closings")
+    .update({ status: "reopened", variance_reason: reason.trim() })
+    .eq("id", id).eq("org_id", ctx.orgId).eq("status", "pending_approval");
+  if (error) return { error: error.message };
+  await db.from("cash_closing_audit").insert({
+    closing_id: id, org_id: ctx.orgId, action: "rejected", actor_id: ctx.userId,
+    metadata: { reason: reason.trim() }, ...(await auditContext()),
+  });
+  revalidatePath("/banking/cash-closing");
+  return { success: true };
+}
+
+export async function requestCashClosingExplanation(id: string, message: string) {
+  const ctx = await getCurrentOrgContext();
+  if (!ctx || !await canPermission("banking", "approve")) return { error: "Approval permission required" };
+  if (!message.trim()) return { error: "An explanation request is required." };
+  const db = await createClient() as any;
+  const { data: closing } = await db.from("cash_closings")
+    .select("id, org_id, location_id").eq("id", id).eq("org_id", ctx.orgId)
+    .eq("status", "pending_approval").maybeSingle();
+  if (!closing) return { error: "Pending closing not found." };
+  await db.from("cash_closing_audit").insert({
+    closing_id: id, org_id: ctx.orgId, action: "explanation_requested", actor_id: ctx.userId,
+    metadata: { message: message.trim() }, ...(await auditContext()),
+  });
+  await db.from("notifications").insert({
+    org_id: ctx.orgId, location_id: closing.location_id,
+    title: "Cash closing explanation requested", message: message.trim(),
+    type: "cash_closing", entity_type: "cash_closing", entity_id: id,
+  });
+  revalidatePath("/banking/cash-closing");
+  return { success: true };
+}
+
+export async function rejectCashClosingFromForm(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (id) await rejectCashClosing(id, reason);
+}
+
+export async function requestCashClosingExplanationFromForm(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const message = String(formData.get("message") ?? "").trim();
+  if (id) await requestCashClosingExplanation(id, message);
 }
 
 export async function requestCashClosingReopen(id: string, reason: string) {

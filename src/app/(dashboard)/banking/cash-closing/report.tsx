@@ -1,5 +1,6 @@
 "use client";
 import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
+import { logCashClosingAction } from "./actions";
 
 type Row = { id: string; closing_date: string; shift?: string; opening_cash?: number; cash_sales?: number; cash_receipts?: number; cash_refunds?: number; cash_expenses?: number; deposits?: number; withdrawals?: number; actual_cash: number; expected_cash: number; variance: number; classification: string; status: string; approval_required?: boolean; variance_reason: string | null };
 
@@ -7,7 +8,8 @@ export function CashClosingReport({ closings, currency, organizationName, logoUr
   const shortage = closings.filter((r) => Number(r.variance) < 0).reduce((sum, r) => sum + Math.abs(Number(r.variance)), 0);
   const excess = closings.filter((r) => Number(r.variance) > 0).reduce((sum, r) => sum + Number(r.variance), 0);
   const balanced = closings.filter((r) => Number(r.variance) === 0).length;
-  const download = () => {
+  const download = async () => {
+    await logCashClosingAction(closings[0]?.id ?? null, "exported");
     const csv = ["Date,Shift,Expected,Actual,Variance,Classification,Status,Reason", ...closings.map((r) => [r.closing_date, r.shift ?? "full_day", r.expected_cash, r.actual_cash, r.variance, r.classification, r.status, JSON.stringify(r.variance_reason ?? "")].join(","))].join("\n");
     const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "cash-closing-report.csv"; link.click(); URL.revokeObjectURL(link.href);
   };
@@ -25,7 +27,7 @@ export function CashClosingReport({ closings, currency, organizationName, logoUr
       <div className={`rounded-lg border p-4 ${shortage > 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}><h3 className="mb-4 font-bold text-[#17385d]">Variance Status</h3><p className="text-2xl font-bold text-red-500">{formatCurrencyAmount(shortage, currency)}</p><div className="mt-5 space-y-3 text-xs"><div className="flex justify-between"><span>Expected Cash</span><strong>{formatCurrencyAmount(Number(closings[0]?.expected_cash ?? 0), currency)}</strong></div><div className="flex justify-between"><span>Actual Cash</span><strong>{formatCurrencyAmount(Number(closings[0]?.actual_cash ?? 0), currency)}</strong></div><p className="rounded bg-white/70 p-3 text-red-600">A variance has been detected. Review the closing reason and approval status.</p></div></div>
     </div>
     <div className="grid gap-4 px-6 pb-6 lg:grid-cols-[1.5fr_1fr]"><div className="rounded-lg border border-[#dce8f2] p-4"><h3 className="mb-4 font-bold text-[#17385d]">Recent Activity</h3>{closings.slice(0, 5).map((r) => <div key={r.id} className="flex justify-between border-t py-2 text-[10px]"><span>{r.closing_date} · {(r.shift ?? "full_day").replace("_", " ")}</span><span className="capitalize">{r.classification}</span></div>)}</div><div className="rounded-lg border border-[#dce8f2] p-4"><h3 className="mb-4 font-bold text-[#17385d]">Quick Information</h3><div className="space-y-3 text-xs"><div className="flex justify-between"><span>Currency</span><strong>{currency.symbol} ({currency.code})</strong></div><div className="flex justify-between"><span>Report Generated</span><strong>{new Date().toLocaleString()}</strong></div><div className="flex justify-between"><span>Balanced Closings</span><strong>{balanced}</strong></div><div className="flex justify-between"><span>Excess Total</span><strong>{formatCurrencyAmount(excess, currency)}</strong></div></div></div></div>
-    <div className="flex flex-wrap justify-end gap-2 border-t p-5 print:hidden"><button onClick={download} className="rounded-md border px-4 py-2 text-xs font-medium">Export Report</button><button onClick={() => window.print()} className="rounded-md bg-[#1478dd] px-4 py-2 text-xs font-semibold text-white">Print Report</button></div>
+    <div className="flex flex-wrap justify-end gap-2 border-t p-5 print:hidden"><button onClick={download} className="rounded-md border px-4 py-2 text-xs font-medium">Export Report</button><button onClick={async () => { await logCashClosingAction(closings[0]?.id ?? null, "printed"); window.print(); }} className="rounded-md bg-[#1478dd] px-4 py-2 text-xs font-semibold text-white">Print Report</button></div>
     <style jsx global>{`@media print { body * { visibility: hidden; } .cash-closing-report, .cash-closing-report * { visibility: visible; } .cash-closing-report { position: absolute; inset: 0; width: 100%; box-shadow: none; border: 0; } }`}</style>
   </section>;
 }
