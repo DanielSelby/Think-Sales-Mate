@@ -33,13 +33,12 @@ interface NotificationItem {
 }
 
 export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { orgName: string; logoUrl?: string | null; userName?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
-  const { activeTheme, setTheme, commandBarOpen, setCommandBarOpen } = useAppStore();
+  const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
   const topbar  = theme.topbar;
   const router  = useRouter();
 
-  const [darkMode,          setDarkMode]          = useState(false);
   const [showThemes,        setShowThemes]        = useState(false);
   const [showUser,          setShowUser]          = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -53,6 +52,11 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
   const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
   const [popupNotification, setPopupNotification] = useState<NotificationItem | null>(null);
   const previousNotificationIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+    document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
+  }, [darkMode]);
 
   useEffect(() => {
     const load = async () => {
@@ -367,7 +371,9 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
 
       {/* Dark mode */}
       <button
-        onClick={() => { setDarkMode(v => !v); document.documentElement.classList.toggle("dark"); }}
+        onClick={() => setDarkMode(!darkMode)}
+        aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+        title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
         className="flex h-8 w-8 items-center justify-center rounded-xl transition-all"
         style={{ color: "rgba(255,255,255,0.7)" }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}

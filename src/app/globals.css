@@ -24,6 +24,15 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  html.dark body {
+    background:
+      radial-gradient(circle at 8% -10%, rgb(30 64 175 / 0.14), transparent 32rem),
+      radial-gradient(circle at 92% 0%, rgb(13 148 136 / 0.10), transparent 28rem),
+      #08111f;
+  }
+  html.dark .page-canvas {
+    background-color: #08111f;
+  }
   .page-canvas {
     font-family: var(--font-body);
   }

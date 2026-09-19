@@ -63,6 +63,9 @@ interface AppState {
   setActiveOrgId:    (orgId: string) => void;
   activeTheme:       ThemeKey;
   setTheme:          (theme: ThemeKey) => void;
+  darkMode:          boolean;
+  setDarkMode:       (enabled: boolean) => void;
+  toggleDarkMode:    () => void;
   commandBarOpen:    boolean;
   setCommandBarOpen: (open: boolean) => void;
 }
@@ -77,6 +80,9 @@ export const useAppStore = create<AppState>()(
       setActiveOrgId:    (orgId) => set({ activeOrgId: orgId }),
       activeTheme:       "fintech",
       setTheme:          (theme) => set({ activeTheme: theme }),
+      darkMode:          false,
+      setDarkMode:       (enabled) => set({ darkMode: enabled }),
+      toggleDarkMode:    () => set((state) => ({ darkMode: !state.darkMode })),
       commandBarOpen:    false,
       setCommandBarOpen: (open) => set({ commandBarOpen: open }),
     }),
