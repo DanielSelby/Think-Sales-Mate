@@ -20,7 +20,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   const db = await createClient() as any;
   const scoped = (q: any): any => {
     if (locationId) return q.eq("location_id", locationId);
-    if (ctx.isBranchScoped) return q.in("location_id", ctx.allowedLocationIds);
+    if (ctx.isBranchScoped && ctx.allowedLocationIds.length > 0) return q.in("location_id", ctx.allowedLocationIds);
     return q;
   };
   const [salesQ, expQ, txQ, acctQ] = [
@@ -29,7 +29,10 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     db.from("bank_transactions").select("amount, type").eq("org_id", ctx.orgId).eq("transaction_date", date),
     db.from("bank_accounts").select("opening_balance").eq("org_id", ctx.orgId).eq("account_type", "cash"),
   ];
-  const [{ data: sales }, { data: expenses }, { data: transactions }, { data: accounts }] = await Promise.all([salesQ, expQ, txQ, acctQ]);
+  const [{ data: sales }, expenseResult, { data: transactions }, { data: accounts }] = await Promise.all([salesQ, expQ, txQ, acctQ]);
+  const expenses = expenseResult.error
+    ? (await scoped(db.from("expenses").select("amount, payment_method, expense_date").eq("org_id", ctx.orgId).eq("expense_date", date))).data
+    : expenseResult.data;
   const cashSales = (sales ?? []).filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash")).reduce((a: number, s: Record<string, unknown>) => a + n(s.amount_paid ?? s.total), 0);
   const refunds = (sales ?? []).reduce((a: number, s: Record<string, unknown>) => a + n(s.refunded_amount), 0);
   const cashExpenses = (expenses ?? [])

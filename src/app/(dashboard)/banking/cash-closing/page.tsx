@@ -14,13 +14,16 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
   const db = await createClient() as any;
   const today = new Date().toISOString().slice(0, 10);
   const selectedLocationId = searchParams?.location_id || null;
-  const [{ data: closings }, { data: locations }, { data: currencyRow }, { data: currencySettings }, summary] = await Promise.all([
+  const [closingResult, { data: locations }, { data: currencyRow }, { data: currencySettings }, summary] = await Promise.all([
     db.from("cash_closings").select("id, closing_date, shift, opening_cash, cash_sales, cash_receipts, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, approval_required, variance_reason, created_at").eq("org_id", ctx.orgId).order("created_at", { ascending: false }).limit(100),
     db.from("business_locations").select("id, name").eq("org_id", ctx.orgId).eq("is_active", true).order("name"),
     db.from("currencies").select("code, name, symbol, is_base, is_default").eq("org_id", ctx.orgId).or("is_base.eq.true,is_default.eq.true").order("is_base", { ascending: false }).limit(1).maybeSingle(),
     db.from("currency_settings").select("decimal_places, thousand_separator, decimal_separator, currency_position").eq("org_id", ctx.orgId).maybeSingle(),
     calculateExpectedCash(today, selectedLocationId),
   ]);
+  const closings = closingResult.error
+    ? (await db.from("cash_closings").select("id, closing_date, opening_cash, cash_sales, cash_refunds, cash_expenses, deposits, withdrawals, actual_cash, expected_cash, variance, classification, status, variance_reason, created_at").eq("org_id", ctx.orgId).order("created_at", { ascending: false }).limit(100)).data
+    : closingResult.data;
   const currencyConfig: CurrencyConfig = getCurrencyConfigFromSettings({ code: currencyRow?.code ?? ctx.currency, name: currencyRow?.name, symbol: currencyRow?.symbol, ...currencySettings });
   const tab = searchParams?.tab ?? "today";
   const todayClosings = (closings ?? []).filter((r: { closing_date: string }) => r.closing_date === today);

@@ -175,12 +175,12 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
       { label: "Journal Entries",     href: "/accounting?tab=journal",        icon: FileText },
       { label: "Bank Reconciliation", href: "/accounting?tab=reconciliation", icon: Landmark },
       { label: "Banking", href: "/banking", icon: Landmark },
-      { label: "End Of Day Accounts", href: "/banking/cash-closing", icon: ClipboardCheck },
       { label: "Customer Credit Management", href: "/accounting?tab=receivables", icon: Receipt },
       { label: "Accounts Payable",    href: "/accounting?tab=payables",       icon: ShoppingBag },
       { label: "Reports",             href: "/accounting?tab=reports",        icon: BarChart3 },
     ],
   },
+  { label: "End Of Day Accounts", href: "/banking/cash-closing", icon: ClipboardCheck, status: "live" },
   { label: "Assets",        href: "/assets",     icon: Package,      status: "live" },
   { label: "Projects",      href: "/projects",   icon: FolderKanban, status: "live" },
   {
