@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUpRight, ArrowDownRight, Minus, RotateCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Trend } from "@/lib/accounting/metrics";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -49,6 +50,7 @@ interface KpiFlipCardProps {
   trendSuffix?: string;
   detail: string;
   featured?: boolean;
+  animationIndex?: number;
 }
 
 export function KpiFlipCard({
@@ -60,6 +62,7 @@ export function KpiFlipCard({
   trendSuffix,
   detail,
   featured = false,
+  animationIndex = 0,
 }: KpiFlipCardProps) {
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -67,7 +70,7 @@ export function KpiFlipCard({
   const style = STYLES[color] ?? STYLES.blue;
 
   return (
-    <div className="flip-scene h-[132px]">
+    <div className="flip-scene dashboard-kpi h-[132px]" style={{ "--motion-index": animationIndex } as React.CSSProperties}>
       <div className="flip-card h-full">
         {/* FRONT */}
         <div
@@ -128,7 +131,7 @@ export function KpiFlipCard({
                 : "text-ink-900 dark:text-white"
             )}
           >
-            {formatKpiCurrencySpacing(value)}
+            <AnimatedKpiValue value={value} />
           </p>
 
           {trend && (
@@ -203,6 +206,31 @@ export function KpiFlipCard({
       </div>
     </div>
   );
+}
+
+function AnimatedKpiValue({ value }: { value: string }) {
+  const numericMatch = value.match(/^(.*?)(-?\d[\d,]*(?:\.\d+)?)(.*)$/);
+  const target = numericMatch ? Number(numericMatch[2].replace(/,/g, "")) : null;
+  const [current, setCurrent] = useState(target ?? 0);
+
+  useEffect(() => {
+    if (target === null) return;
+    let frame = 0;
+    const started = performance.now();
+    const duration = 650;
+    const tick = (now: number) => {
+      const progress = Math.min((now - started) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCurrent(target * eased);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+
+  if (target === null || !numericMatch) return <>{value}</>;
+  const decimals = numericMatch[2].includes(".") ? numericMatch[2].split(".")[1].length : 0;
+  return <>{numericMatch[1]}{current.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}{numericMatch[3]}</>;
 }
 
 /**

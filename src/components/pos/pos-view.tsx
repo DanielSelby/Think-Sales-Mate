@@ -1314,11 +1314,11 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                     <div className="space-y-2 rounded-md border border-ledger-100 p-3 dark:border-ledger-700">
                       <label className="block text-xs font-semibold text-ledger-600 dark:text-ledger-300">Physical cash counted</label>
                       <input type="number" min="0" step="0.01" value={registerActualCash} onChange={(e) => setRegisterActualCash(e.target.value)} className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" placeholder="Enter counted cash" />
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                        {[1, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].map((denomination) => (
-                          <label key={denomination} className="text-[10px] text-ledger-500">
+                      <div className="grid grid-cols-3 gap-3">
+                        {[1, 5, 10, 20, 50, 100, 200, 2000].map((denomination) => (
+                          <label key={denomination} className="text-xs font-medium text-ledger-500">
                             {denomination}
-                            <input type="number" min="0" step="1" value={registerDenominations[String(denomination)] ?? ""} onChange={(e) => setRegisterDenominations((current) => ({ ...current, [denomination]: Number(e.target.value) || 0 }))} className="mt-1 h-8 w-full rounded border border-ledger-200 px-1 text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                            <input type="number" min="0" step="1" value={registerDenominations[String(denomination)] ?? ""} onChange={(e) => setRegisterDenominations((current) => ({ ...current, [denomination]: Number(e.target.value) || 0 }))} className="mt-1 h-9 w-full rounded border border-ledger-200 px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
                           </label>
                         ))}
                       </div>

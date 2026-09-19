@@ -62,8 +62,8 @@ export function CashFlowSection({
           <BarChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
             <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#94a3b8", fontFamily: "var(--font-mono)" }} tickLine={false} axisLine={false} interval={Math.ceil(data.length / 6)} />
             <Tooltip content={<CustomTooltip currency={currency} />} />
-            <Bar dataKey="revenue" fill="#1d8f5e" radius={[3, 3, 0, 0]} maxBarSize={14} />
-            <Bar dataKey="expenses" fill="#b8402f" radius={[3, 3, 0, 0]} maxBarSize={14} />
+            <Bar dataKey="revenue" fill="#1d8f5e" radius={[3, 3, 0, 0]} maxBarSize={14} animationDuration={700} animationEasing="ease-out" />
+            <Bar dataKey="expenses" fill="#b8402f" radius={[3, 3, 0, 0]} maxBarSize={14} animationDuration={850} animationEasing="ease-out" />
           </BarChart>
         </ResponsiveContainer>
       </div>

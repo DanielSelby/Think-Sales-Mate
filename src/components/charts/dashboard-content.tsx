@@ -139,7 +139,7 @@ export function DashboardContent({
   ];
 
   return (
-   <div className="space-y-6">
+   <div className="dashboard-motion space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">{orgName}</h1>
@@ -160,9 +160,10 @@ export function DashboardContent({
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {kpis.map((kpi) => (
+        {kpis.map((kpi, index) => (
           <KpiFlipCard
             key={kpi.label}
+            animationIndex={index}
             color={kpi.color}
             label={kpi.label}
             value={kpi.value}

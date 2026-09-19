@@ -46,6 +46,8 @@ export function ProfitOverviewChart({ data, currency }: { data: DailyPoint[]; cu
             stroke={positive ? "#1d8f5e" : "#b8402f"}
             strokeWidth={2}
             fill="url(#profitFill)"
+            animationDuration={900}
+            animationEasing="ease-out"
           />
         </AreaChart>
       </ResponsiveContainer>

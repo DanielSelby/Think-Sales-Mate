@@ -90,8 +90,8 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axis
             <YAxis tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
             <Tooltip content={<CustomTooltip />} />
-            {series !== "expenses" && <Area type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} fill="url(#revG)" dot={false} />}
-            {series !== "revenue" && <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#expG)" dot={false} />}
+            {series !== "expenses" && <Area type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} fill="url(#revG)" dot={false} animationDuration={900} animationEasing="ease-out" />}
+            {series !== "revenue" && <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#expG)" dot={false} animationDuration={1050} animationEasing="ease-out" />}
           </AreaChart>
         ) : chartType === "bar" ? (
           <BarChart data={enriched} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -101,8 +101,8 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axis
             <YAxis tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
             <Tooltip content={<CustomTooltip />} />
-            {series !== "expenses" && <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={20} />}
-            {series !== "revenue" && <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={20} />}
+            {series !== "expenses" && <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={700} animationEasing="ease-out" />}
+            {series !== "revenue" && <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={850} animationEasing="ease-out" />}
           </BarChart>
         ) : (
           <ComposedChart data={enriched} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>

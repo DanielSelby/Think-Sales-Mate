@@ -466,7 +466,7 @@ export function RevenueByProductChart({
               }}
             />
 
-            <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18}>
+            <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18} animationDuration={700} animationEasing="ease-out">
               {activeData.map((_, index) => (
                 <Cell
                   key={index}

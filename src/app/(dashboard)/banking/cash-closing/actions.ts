@@ -148,7 +148,7 @@ export async function createCashClosing(formData: FormData) {
   if (error || !closing) redirect(`/banking/cash-closing?error=${encodeURIComponent(error?.message ?? "Could not save closing")}`);
   const audit = await auditContext();
   await db.from("cash_closing_audit").insert({ closing_id: closing.id, org_id: ctx.orgId, action: "created", actor_id: ctx.userId, metadata: { variance }, ...audit });
-  const denominations = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].flatMap((denomination) => {
+  const denominations = [1, 2, 5, 10, 20, 50, 100, 200].flatMap((denomination) => {
     const quantity = Math.max(0, Math.floor(n(formData.get(`denomination_${denomination}`))));
     return quantity ? [{ closing_id: closing.id, org_id: ctx.orgId, denomination, quantity }] : [];
   });

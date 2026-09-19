@@ -50,7 +50,7 @@ export function SalesOverviewChart({
             <LineChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
               <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#94a3b8", fontFamily: "var(--font-mono)" }} tickLine={false} axisLine={false} interval={Math.ceil(data.length / 6)} />
               <Tooltip content={<CustomTooltip currency={currency} />} />
-              <Line type="monotone" dataKey="revenue" stroke="#1d8f5e" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="revenue" stroke="#1d8f5e" strokeWidth={2} dot={false} activeDot={{ r: 4 }} animationDuration={900} animationEasing="ease-out" />
             </LineChart>
           </ResponsiveContainer>
         </div>
