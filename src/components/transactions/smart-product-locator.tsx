@@ -46,7 +46,7 @@ export function SmartProductSummary<T extends SmartProductRow>({
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<SmartFilter>("all");
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {

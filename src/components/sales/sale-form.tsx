@@ -308,6 +308,9 @@ export function SaleForm({
     if (!q) return locationProducts;
     return locationProducts.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
   }, [locationProducts, search]);
+  const hasOnlyUnavailableMatches = Boolean(search.trim())
+    && filteredProducts.length > 0
+    && filteredProducts.every((product) => !product.allowNegativeStock && product.stockQuantity <= 0);
 
   const computedLines = lines.map((line) => {
     const product = locationProductById.get(line.productId) ?? productById.get(line.productId);
@@ -1083,7 +1086,10 @@ export function SaleForm({
                   </div>
                 )}
               </div>
-              <CrossBranchStockButton query={search} enabled={canCheckCrossBranchStock && Boolean(search.trim()) && filteredProducts.length === 0} />
+              <CrossBranchStockButton
+                query={search}
+                enabled={canCheckCrossBranchStock && Boolean(search.trim()) && (filteredProducts.length === 0 || hasOnlyUnavailableMatches)}
+              />
               <div className="flex shrink-0 items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={addEmptyRow}>
                   <Plus className="h-3.5 w-3.5" /> Add Row
