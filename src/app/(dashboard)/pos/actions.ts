@@ -192,7 +192,10 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
         quantity: i.quantity,
         unitPrice: i.unit_price,
         discountAmount,
-        lineTotal: i.line_total,
+        // The item row shows the line amount before invoice-level tax.
+        // Tax remains represented separately in the totals box and included
+        // in the final sale total.
+        lineTotal: Math.max(0, gross - discountAmount),
       };
     }),
   };

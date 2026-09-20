@@ -83,6 +83,23 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
         </div>
       </div>
 
+      {selected && (
+        <aside className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-950 dark:bg-blue-950/20">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Selected Customer Profile</p>
+              <h2 className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{selected.customerName}</h2>
+              <p className="text-xs text-slate-500">{selected.branch} · {selected.invoiceNumber}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-right text-xs">
+              <Metric label="Credit Limit" value={money(currentCurrency, selected.totalAmount * 1.5)} />
+              <Metric label="Outstanding" value={money(currentCurrency, selected.outstandingAmount)} />
+              <Metric label="Risk" value={selected.daysOutstanding > 60 ? "High" : selected.daysOutstanding > 0 ? "Medium" : "Low"} />
+            </div>
+          </div>
+        </aside>
+      )}
+
       <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex min-w-max">
           {TABS.map(({ key, label, icon: Icon }) => (
@@ -129,22 +146,6 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
         />
       )}
 
-      {selected && activeTab !== "balances" && (
-        <aside className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-950 dark:bg-blue-950/20">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Selected Customer Profile</p>
-              <h2 className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{selected.customerName}</h2>
-              <p className="text-xs text-slate-500">{selected.branch} · {selected.invoiceNumber}</p>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-right text-xs">
-              <Metric label="Credit Limit" value={money(currentCurrency, selected.totalAmount * 1.5)} />
-              <Metric label="Outstanding" value={money(currentCurrency, selected.outstandingAmount)} />
-              <Metric label="Risk" value={selected.daysOutstanding > 60 ? "High" : selected.daysOutstanding > 0 ? "Medium" : "Low"} />
-            </div>
-          </div>
-        </aside>
-      )}
     </div>
   );
 }

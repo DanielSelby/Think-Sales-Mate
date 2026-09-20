@@ -119,10 +119,17 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
       <div className="mx-auto max-w-[1680px] space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><div className="mb-2 flex items-center gap-2 text-xs text-[#3975ae]"><span>Accounting</span><span>/</span><span className="text-ledger-500">End Of Day Accounts</span></div><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#3d9bf4] to-[#1670d2] text-white shadow-md"><WalletCards className="h-6 w-6" /></div><div><h1 className="text-2xl font-bold tracking-tight text-[#12345a] dark:text-white">End Of Day Accounts</h1><p className="text-xs text-ledger-500">Reconcile your cash, compare with system records and close your day.</p></div></div></div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-end justify-end gap-2">
             <BranchSelector selectedLocationId={selectedLocationId} locations={scopedLocations(locations)} isBranchScoped={ctx.isBranchScoped} selectedUserId={effectiveUserId} />
             {ctx.canViewOtherTransactions && <UserSelector selectedUserId={requestedUserId} selectedLocationId={selectedLocationId} users={userOptions} />}
-            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#d5e2ef] bg-white px-3 text-xs font-medium text-[#31577c] shadow-sm dark:border-ledger-700 dark:bg-ink-900"><CalendarDays className="h-4 w-4 text-[#2087e5]" />{new Date(today).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}<ChevronDown className="h-3 w-3" /></label>
+            <form method="get" className="flex flex-wrap items-end gap-2 rounded-lg border border-[#d5e2ef] bg-white p-2 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
+              <input type="hidden" name="tab" value={tab} />
+              {selectedLocationId && <input type="hidden" name="location_id" value={selectedLocationId} />}
+              {requestedUserId && <input type="hidden" name="user_id" value={requestedUserId} />}
+              <label className="text-[10px] font-medium text-ledger-500">From<input name="date_from" type="date" defaultValue={dateFrom} className="mt-1 block h-8 rounded border border-ledger-200 px-2 text-xs dark:border-ledger-700 dark:bg-ink-950" /></label>
+              <label className="text-[10px] font-medium text-ledger-500">To<input name="date_to" type="date" defaultValue={dateTo} className="mt-1 block h-8 rounded border border-ledger-200 px-2 text-xs dark:border-ledger-700 dark:bg-ink-950" /></label>
+              <button className="h-8 rounded bg-[#1478dd] px-3 text-xs font-semibold text-white" type="submit"><CalendarDays className="mr-1 inline h-3.5 w-3.5" />Apply</button>
+            </form>
           </div>
         </div>
         {params.error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{params.error}</div>}
@@ -135,8 +142,10 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
               <div><h2 className="font-bold text-[#17385d] dark:text-white">{tab === "history" ? "Closing History" : tab === "variance" ? "Variance Reports" : "Approval Queue"}</h2><p className="text-xs text-ledger-500">Showing records from your authorized organization and branches.</p></div>
               <form className="flex flex-wrap items-end gap-2" method="get">
                 <input type="hidden" name="tab" value={tab} />
-                <label className="text-[10px] text-ledger-500">From<input name="date_from" type="date" defaultValue={dateFrom} className="mt-1 block h-8 rounded border px-2 text-xs" /></label>
-                <label className="text-[10px] text-ledger-500">To<input name="date_to" type="date" defaultValue={dateTo} className="mt-1 block h-8 rounded border px-2 text-xs" /></label>
+                {dateFrom && <input type="hidden" name="date_from" value={dateFrom} />}
+                {dateTo && <input type="hidden" name="date_to" value={dateTo} />}
+                {selectedLocationId && <input type="hidden" name="location_id" value={selectedLocationId} />}
+                {requestedUserId && <input type="hidden" name="user_id" value={requestedUserId} />}
                 <select name="shift" defaultValue={requestedShift} className="h-8 rounded border px-2 text-xs"><option value="">All shifts</option><option value="full_day">Full day</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night</option></select>
                 <select name="classification" defaultValue={requestedClassification} className="h-8 rounded border px-2 text-xs"><option value="">All variance types</option><option value="balanced">Balanced</option><option value="shortage">Shortage</option><option value="excess">Excess</option></select>
                 <button className="h-8 rounded bg-[#1478dd] px-3 text-xs font-semibold text-white" type="submit">Filter</button>

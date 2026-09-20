@@ -854,14 +854,19 @@ export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLi
 
   if (!items || items.length === 0) return [];
 
-  return items.map((item) => ({
-    productId:   item.product_id,
-    productName: (item.product as { name: string; sku: string } | null)?.name ?? "Unknown product",
-    sku:         (item.product as { name: string; sku: string } | null)?.sku ?? "",
-    quantity:    item.quantity,
-    unitPrice:   item.unit_price,
-    discount:    item.discount_percent,
-    tax:         item.tax_percent,
-    lineTotal:   item.line_total,
-  }));
+  return items.map((item) => {
+    const gross = Number(item.quantity) * Number(item.unit_price);
+    const discountAmount = gross * (Number(item.discount_percent) / 100);
+    return {
+      productId:   item.product_id,
+      productName: (item.product as { name: string; sku: string } | null)?.name ?? "Unknown product",
+      sku:         (item.product as { name: string; sku: string } | null)?.sku ?? "",
+      quantity:    item.quantity,
+      unitPrice:   item.unit_price,
+      discount:    item.discount_percent,
+      tax:         item.tax_percent,
+      // Keep the item row pre-tax; tax is shown separately in the totals box.
+      lineTotal:   Math.max(0, gross - discountAmount),
+    };
+  });
 }

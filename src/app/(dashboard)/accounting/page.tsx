@@ -26,7 +26,19 @@ export default async function AccountingPage() {
       db.from("customer_credit_payments").select("id, invoice_id, amount, payment_method, payment_date, recorded_by").eq("org_id", context.orgId).order("payment_date", { ascending: false }),
     ]);
     initialAuditLogs = (auditLogs ?? []).map((log) => ({ userName: log.actor_id ?? "—", action: log.action, module: log.entity_type, createdAt: log.created_at }));
-    initialPayments = (payments ?? []).map((payment) => ({ id: payment.id, invoiceId: payment.invoice_id, amount: Number(payment.amount), paymentMethod: payment.payment_method, paymentDate: payment.payment_date, recordedBy: payment.recorded_by }));
+    const recorderIds = [...new Set((payments ?? []).map((payment) => payment.recorded_by).filter(Boolean))];
+    const { data: recorderProfiles } = recorderIds.length
+      ? await db.from("profiles").select("id, full_name").in("id", recorderIds)
+      : { data: [] };
+    const recorderNames = new Map((recorderProfiles ?? []).map((profile) => [profile.id, profile.full_name]));
+    initialPayments = (payments ?? []).map((payment) => ({
+      id: payment.id,
+      invoiceId: payment.invoice_id,
+      amount: Number(payment.amount),
+      paymentMethod: payment.payment_method,
+      paymentDate: payment.payment_date,
+      recordedBy: recorderNames.get(payment.recorded_by) ?? payment.recorded_by ?? "—",
+    }));
     const { data: sales } = await db
       .from("sales")
       .select("id, sale_number, customer_id, customer_name, sale_date, total, amount_paid, location:business_locations(name)")
