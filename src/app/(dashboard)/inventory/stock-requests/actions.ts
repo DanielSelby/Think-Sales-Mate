@@ -236,7 +236,7 @@ export async function approveStockRequest(requestId: string, comment?: string) {
     message: "Your branch stock request was approved and a transfer was created.",
     requesterId: request.requested_by,
     locationId: request.requesting_location_id,
-    recipientIds: (approvers ?? []).map((approver) => approver.user_id),
+    recipientIds: (approvers ?? []).map((approver) => approver.user_id).filter((userId): userId is string => Boolean(userId)),
   });
   revalidatePath("/inventory/stock-requests");
   revalidatePath("/inventory/transfers");

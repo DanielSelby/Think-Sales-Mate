@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Search, Filter, Plus, Download, Eye, Pencil, Printer, FileText, FileSpreadsheet,
+  Search, Filter, Plus, Download, Eye, Pencil, Printer, FileText, FileSpreadsheet, Receipt,
   ChevronLeft, ChevronRight, ShoppingCart, Wallet, Clock3, CheckCircle2, Undo2, Gem, XCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

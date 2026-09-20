@@ -79,10 +79,6 @@ export async function getRecentPosSales(locationId: string | null, limit: number
   return sales.map((s) => {
     const names = namesBySale.get(s.id) ?? [];
     const itemsSummary = names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ") || "No items";
-    const itemDiscountTotal = (items ?? []).reduce((sum, item) => {
-      const gross = Number(item.quantity) * Number(item.unit_price);
-      return sum + gross * (Number(item.discount_percent) / 100);
-    }, 0);
 
     return {
       id: s.id,
@@ -1052,6 +1048,10 @@ export async function getSaleForEdit(saleId: string): Promise<EditableSale | nul
     .from("sale_items")
     .select("product_id, quantity, unit_price, discount_percent, tax_percent, products(name, sku)")
     .eq("sale_id", saleId);
+  const itemDiscountTotal = (items ?? []).reduce((sum, item) => {
+    const gross = Number(item.quantity) * Number(item.unit_price);
+    return sum + gross * (Number(item.discount_percent ?? 0) / 100);
+  }, 0);
 
   return {
     locationId: sale.location_id,
