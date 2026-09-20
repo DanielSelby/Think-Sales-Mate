@@ -167,7 +167,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
   }
 
   return (
-    <div className="space-y-4 pb-24 text-xs">
+    <div className="procurement-page space-y-4 pb-24 text-xs">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">

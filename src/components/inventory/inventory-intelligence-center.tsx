@@ -31,8 +31,6 @@ export interface IntelligenceData {
 const tabs = ["Overview", "Fast Moving Products", "Slow Moving Products", "Dead Stock", "Overstocked Products", "Understocked Products", "Stock Aging", "Inventory Forecasting", "Branch Comparison", "Reorder Recommendations", "Supplier Performance", "Inventory Health Score", "AI Insights", "Reports"];
 const money = (value: number, currency: string) => formatMoney(value, currency);
 const compact = (value: number) => value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value.toLocaleString();
-const daysSince = (date: string | null) => date ? Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 86400000)) : 365;
-
 function MiniChart({ values, color = "#2563eb", negative = false }: { values: number[]; color?: string; negative?: boolean }) {
   const max = Math.max(...values, 1);
   return <div className="flex h-28 items-end gap-1.5">{values.map((value, index) => <div key={index} className="flex-1 rounded-t-sm transition-all hover:opacity-70" title={String(value)} style={{ height: `${Math.max(8, value / max * 100)}%`, background: negative ? "#fda4af" : color }} />)}</div>;

@@ -76,7 +76,7 @@ export function BusinessHealthCard({ summary }: { summary: FinancialSummary }) {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="relative h-28 w-28">
+      <div className="relative left-2 h-32 w-32 self-center">
         <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
           <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-ledger-100 dark:text-ledger-700" />
           <circle

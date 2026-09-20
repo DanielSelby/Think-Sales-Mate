@@ -54,7 +54,7 @@ export function ProductsTable({ products, canManage, currency = "GHS" }: { produ
                 <th className="px-4 py-3 min-w-[180px] whitespace-nowrap">Product</th>
                 <th className="px-4 py-3 min-w-[100px] text-right whitespace-nowrap">Price</th>
                 <th className="px-4 py-3 min-w-[90px] text-right whitespace-nowrap">Stock</th>
-                {canManage && <th className="px-4 py-3 min-w-[80px]" />}
+                {canManage && <th className="px-4 py-3 min-w-[80px] whitespace-nowrap">Actions</th>}
               </tr>
             </thead>
             <tbody>

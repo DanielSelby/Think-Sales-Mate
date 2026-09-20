@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import { createStockTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
+import { createNotification } from "@/lib/notifications";
 
 export interface StockRequestItemInput {
   productId: string;
@@ -21,6 +22,56 @@ export interface CreateStockRequestPayload {
   notes?: string;
   items: StockRequestItemInput[];
   submit?: boolean;
+}
+
+async function recordStockRequestAudit(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: { orgId: string; actorId: string; action: string; requestId: string; metadata?: Record<string, unknown> }
+) {
+  const { error } = await supabase.from("audit_logs").insert({
+    org_id: input.orgId,
+    actor_id: input.actorId,
+    action: input.action,
+    entity_type: "stock_request",
+    entity_id: input.requestId,
+    metadata: input.metadata ?? {},
+  });
+  if (error) console.error("[stock-requests] Failed to record audit event:", error);
+}
+
+async function notifyStockRequestUsers(input: {
+  orgId: string;
+  requestId: string;
+  title: string;
+  message: string;
+  requesterId?: string | null;
+  locationId?: string | null;
+  recipientIds?: string[];
+}) {
+  const recipients = new Set((input.recipientIds ?? []).filter(Boolean));
+  if (input.requesterId) recipients.add(input.requesterId);
+  if (recipients.size) {
+    await Promise.all([...recipients].map((userId) => createNotification({
+      orgId: input.orgId,
+      userId,
+      title: input.title,
+      message: input.message,
+      type: "general",
+      entityType: "stock_requests",
+      entityId: input.requestId,
+    })));
+  }
+  if (input.locationId) {
+    await createNotification({
+      orgId: input.orgId,
+      locationId: input.locationId,
+      title: input.title,
+      message: input.message,
+      type: "general",
+      entityType: "stock_requests",
+      entityId: input.requestId,
+    });
+  }
 }
 
 export async function createStockRequest(payload: CreateStockRequestPayload) {
@@ -78,6 +129,23 @@ export async function createStockRequest(payload: CreateStockRequestPayload) {
     actor_id: context.userId,
     event: payload.submit ? "submitted" : "created",
   });
+  await recordStockRequestAudit(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: payload.submit ? "stock_request_submitted" : "stock_request_created",
+    requestId: request.id,
+    metadata: { status: payload.submit ? "pending_approval" : "draft", item_count: items.length },
+  });
+  if (payload.submit) {
+    await notifyStockRequestUsers({
+      orgId: context.orgId,
+      requestId: request.id,
+      title: "Stock request submitted",
+      message: "A branch stock request is awaiting approval.",
+      requesterId: context.userId,
+      locationId: payload.requestingLocationId,
+    });
+  }
 
   revalidatePath("/inventory/stock-requests");
   return { requestId: request.id };
@@ -91,7 +159,7 @@ export async function approveStockRequest(requestId: string, comment?: string) {
   const supabase = await createClient();
   const { data: request, error } = await supabase
     .from("stock_requests")
-    .select("id, source_location_id, requesting_location_id, status, reference, notes")
+    .select("id, request_number, requested_by, source_location_id, requesting_location_id, status, reference, notes")
     .eq("id", requestId)
     .eq("org_id", context.orgId)
     .single();
@@ -141,6 +209,35 @@ export async function approveStockRequest(requestId: string, comment?: string) {
     event: "approved",
     details: { transfer_id: transfer.transferId },
   });
+  const { data: approvers } = await supabase
+    .from("organization_members")
+    .select("user_id")
+    .eq("org_id", context.orgId)
+    .eq("status", "active")
+    .in("role", ["owner", "admin", "manager"]);
+  await recordStockRequestAudit(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "stock_request_approved",
+    requestId,
+    metadata: { transfer_id: transfer.transferId, comment: comment?.trim() || null },
+  });
+  await recordStockRequestAudit(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "stock_request_transfer_generated",
+    requestId,
+    metadata: { transfer_id: transfer.transferId },
+  });
+  await notifyStockRequestUsers({
+    orgId: context.orgId,
+    requestId,
+    title: "Stock request approved",
+    message: "Your branch stock request was approved and a transfer was created.",
+    requesterId: request.requested_by,
+    locationId: request.requesting_location_id,
+    recipientIds: (approvers ?? []).map((approver) => approver.user_id),
+  });
   revalidatePath("/inventory/stock-requests");
   revalidatePath("/inventory/transfers");
   return { transferId: transfer.transferId };
@@ -153,6 +250,18 @@ export async function rejectStockRequest(requestId: string, reason: string) {
   }
   if (!reason.trim()) return { error: "Provide a rejection reason." };
   const supabase = await createClient();
+  const { data: request, error: requestError } = await supabase
+    .from("stock_requests")
+    .select("id, request_number, requested_by, source_location_id, requesting_location_id, status")
+    .eq("id", requestId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (requestError || !request) return { error: requestError?.message ?? "Stock request not found." };
+  if (context.isBranchScoped &&
+      (!context.allowedLocationIds.includes(request.source_location_id) || !context.allowedLocationIds.includes(request.requesting_location_id))) {
+    return { error: "You can only reject requests involving your assigned branches." };
+  }
+  if (request.status !== "pending_approval") return { error: "Only pending requests can be rejected." };
   const { error } = await supabase
     .from("stock_requests")
     .update({ status: "rejected", rejection_reason: reason.trim() })
@@ -174,6 +283,22 @@ export async function rejectStockRequest(requestId: string, reason: string) {
     event: "rejected",
     details: { reason: reason.trim() },
   });
+  await recordStockRequestAudit(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "stock_request_rejected",
+    requestId,
+    metadata: { reason: reason.trim() },
+  });
+  await notifyStockRequestUsers({
+    orgId: context.orgId,
+    requestId,
+    title: "Stock request rejected",
+    message: `Your branch stock request was rejected. Reason: ${reason.trim()}`,
+    requesterId: request.requested_by,
+    locationId: request.requesting_location_id,
+  });
   revalidatePath("/inventory/stock-requests");
+  revalidatePath("/inventory/stock-requests/history");
   return { success: true };
 }

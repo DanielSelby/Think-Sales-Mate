@@ -78,7 +78,7 @@ export function PurchaseDetailView({ purchase, currency }: { purchase: PurchaseD
   }
 
   return (
-    <div className="space-y-5">
+    <div className="procurement-page space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link

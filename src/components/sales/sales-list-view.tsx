@@ -164,8 +164,9 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
     const outstandingBalance = filtered.reduce((sum, s) => sum + Math.max(0, s.total - s.amountPaid), 0);
     const completedOrders = filtered.filter((s) => s.status === "completed").length;
     const returnedAmount = filtered.filter((s) => s.status === "returned").reduce((sum, s) => sum + s.refundedAmount, 0);
+    const returnedSalesAmount = filtered.filter((s) => s.status === "returned").reduce((sum, s) => sum + s.total, 0);
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    return { totalOrders, totalRevenue, outstandingBalance, completedOrders, returnedAmount, averageOrderValue };
+    return { totalOrders, totalRevenue, outstandingBalance, completedOrders, returnedAmount, returnedSalesAmount, averageOrderValue };
   }, [filtered]);
 
   const effectiveRowsPerPage = rowsPerPage === "all" ? Math.max(1, filtered.length) : rowsPerPage;
@@ -272,7 +273,6 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
           { label: "Quotations", href: "/sales/drafts?type=quotation", icon: FileText },
           { label: "Proformas", href: "/sales/drafts?type=proforma", icon: FileText },
           { label: "Sales Orders", href: "/orders?view=list", icon: FileSpreadsheet },
-          { label: "Credit Notes", href: "/accounting/invoices?tab=credit-notes", icon: FileText },
         ].map(({ label, href, icon: Icon }) => (
           <Link key={label} href={href} className={cn(
             "flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-xs font-medium",
@@ -284,10 +284,11 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </nav>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <HistoryKpi label="Total Sales" value={formatCurrency(filteredKpis.totalRevenue, currency)} icon={<Receipt className="h-5 w-5" />} tone="emerald" />
+        <HistoryKpi label="Returned Sales" value={formatCurrency(filteredKpis.returnedSalesAmount, currency)} icon={<Undo2 className="h-5 w-5" />} tone="amber" />
         <HistoryKpi label="Total Drafts" value={documentKpis.drafts} icon={<ShoppingCart className="h-5 w-5" />} tone="emerald" />
-        <HistoryKpi label="Total Quotations" value={documentKpis.quotations} icon={<Wallet className="h-5 w-5" />} tone="blue" />
-        <HistoryKpi label="Total Proformas" value={documentKpis.proformas} icon={<CheckCircle2 className="h-5 w-5" />} tone="amber" />
+        <HistoryKpi label="Total Quotations & Proformas" value={documentKpis.quotations + documentKpis.proformas} icon={<Wallet className="h-5 w-5" />} tone="blue" />
         <HistoryKpi label="Converted This Month" value={documentKpis.convertedThisMonth} icon={<CheckCircle2 className="h-5 w-5" />} tone="purple" />
       </div>
 
@@ -474,15 +475,15 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                     <td className="px-4 py-3.5 text-ledger-600 dark:text-ledger-300">{s.soldByName}</td>
                     <td className="px-4 py-3.5 pr-4">
                       <div className="flex items-center justify-end gap-1 text-ledger-400">
-                        <Link href={`/sales/${s.id}`} className="rounded-md p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40" title="View">
+                        <Link href={`/sales/${s.id}`} className="rounded-md p-1.5 text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-white/[0.08]" title="View">
                           <Eye className="h-4 w-4" strokeWidth={2.25} />
                         </Link>
-                        {s.status === "completed" && <Link href={`/sales/${s.id}/edit`} className="rounded-md p-1.5 text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40" title="Edit">
+                        {s.status === "completed" && <Link href={`/sales/${s.id}/edit`} className="rounded-md p-1.5 text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-white/[0.08]" title="Edit">
                           <Pencil className="h-4 w-4" strokeWidth={2.25} />
                         </Link>}
                         <button
                           onClick={() => handlePrint(s)}
-                          className="rounded-md p-1.5 text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/40"
+                          className="rounded-md p-1.5 text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-white/[0.08]"
                           title="Print"
                         >
                           <Printer className="h-4 w-4" strokeWidth={2.25} />

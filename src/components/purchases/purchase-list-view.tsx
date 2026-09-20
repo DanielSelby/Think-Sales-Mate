@@ -226,7 +226,7 @@ export function PurchaseListView({
   const maxCategoryTotal = Math.max(1, ...categories.map((c) => c.total));
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="procurement-page space-y-4 text-xs">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

@@ -22,7 +22,7 @@ export default async function InventoryIntelligencePage() {
   const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
   const [{ data: products }, { data: stockLevels }, { data: locations }, { data: sales }, { data: purchases }, { data: transfers }, { data: adjustments }] =
     await Promise.all([
-      supabase.from("products").select("id, sku, name, category, brand, supplier, cost_price, unit_price, stock_quantity, low_stock_threshold, is_active, location_id").eq("org_id", context.orgId).order("name").limit(2000),
+      supabase.from("products").select("id, sku, name, category, brand, supplier, cost_price, unit_price, stock_quantity, low_stock_threshold, is_active, location_id, created_at").eq("org_id", context.orgId).order("name").limit(2000),
       supabase.from("product_stock_levels").select("product_id, location_id, quantity, business_locations(name)").eq("org_id", context.orgId),
       supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
       supabase.from("sale_items").select("product_id, quantity, line_total, created_at, sales: sale_id (status, business_locations(name))").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
@@ -132,7 +132,10 @@ export default async function InventoryIntelligencePage() {
         revenue: salesData.revenue,
         profit: salesData.revenue - salesData.quantity * cost,
         lastSale: salesData.lastSale,
-        daysIdle: salesData.lastSale ? Math.max(0, Math.floor((Date.now() - new Date(salesData.lastSale).getTime()) / 86400000)) : 365,
+        daysIdle: Math.max(
+          0,
+          Math.floor((Date.now() - new Date(salesData.lastSale ?? product.created_at).getTime()) / 86400000)
+        ),
         averageMonthlySales,
         threshold: Number(product.low_stock_threshold ?? 5),
         active: product.is_active ?? true,

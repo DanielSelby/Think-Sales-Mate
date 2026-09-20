@@ -4,6 +4,7 @@ import { canPermission, requirePermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import type { HeldSaleKind } from "@/types/database";
@@ -78,6 +79,11 @@ export async function getRecentPosSales(locationId: string | null, limit: number
   return sales.map((s) => {
     const names = namesBySale.get(s.id) ?? [];
     const itemsSummary = names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ") || "No items";
+    const itemDiscountTotal = (items ?? []).reduce((sum, item) => {
+      const gross = Number(item.quantity) * Number(item.unit_price);
+      return sum + gross * (Number(item.discount_percent) / 100);
+    }, 0);
+
     return {
       id: s.id,
       saleNumber: s.sale_number,
@@ -1052,11 +1058,9 @@ export async function getSaleForEdit(saleId: string): Promise<EditableSale | nul
     customerId: sale.customer_id,
     customerName: sale.customer_name,
     paymentMethod: sale.payment_method ?? "Cash",
-    // The item-level discount/tax split from the original sale isn't
-    // reconstructible from the stored total alone, so on edit the whole
-    // discount_amount is treated as the cart's flat discount field — same
-    // simplification the POS cart already uses for a fresh sale.
-    discountAmount: sale.discount_amount ?? 0,
+    // sales.discount_amount includes item-level discounts. The POS edit
+    // field represents only the additional flat discount.
+    discountAmount: Math.max(0, Number(sale.discount_amount ?? 0) - itemDiscountTotal),
     shippingAmount: sale.shipping_amount ?? 0,
     saleDate: sale.sale_date,
     items: (items ?? []).map((i) => {
@@ -1164,8 +1168,17 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
     .eq("id", saleId);
   if (updateError) return { ok: false, error: updateError.message };
 
-  await supabase.from("sale_items").delete().eq("sale_id", saleId);
-  const { error: itemsError } = await supabase.from("sale_items").insert(
+  const admin = createAdminClient();
+  const { error: deleteItemsError, count: deletedItems } = await admin
+    .from("sale_items")
+    .delete({ count: "exact" })
+    .eq("sale_id", saleId)
+    .eq("org_id", context.orgId);
+  if (deleteItemsError) return { ok: false, error: deleteItemsError.message };
+  if ((deletedItems ?? 0) !== (oldItems ?? []).length) {
+    return { ok: false, error: "The existing sale items could not be replaced safely." };
+  }
+  const { error: itemsError } = await admin.from("sale_items").insert(
     lines.map((l) => ({
       sale_id: saleId,
       product_id: l.productId,

@@ -8,7 +8,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 
-export type CashSummary = { opening: number; sales: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
+export type CashSummary = { opening: number; sales: number; discounts: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
 function splitAmount(method: unknown, bucket: "cash" | "momo" | "card") {
   const value = String(method ?? "");
@@ -46,7 +46,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   const dayStart = `${date}T00:00:00.000Z`;
   const dayEnd = `${date}T23:59:59.999Z`;
   const salesDayFilter = `or(and(created_at.gte.${dayStart},created_at.lte.${dayEnd}),and(status_changed_at.gte.${dayStart},status_changed_at.lte.${dayEnd}))`;
-  let salesQuery = scoped(db.from("sales").select("total, amount_paid, refunded_amount, payment_method, status, created_at, status_changed_at, sold_by").eq("org_id", ctx.orgId).in("status", ["completed", "returned"]).or(salesDayFilter));
+  let salesQuery = scoped(db.from("sales").select("total, discount_amount, amount_paid, refunded_amount, payment_method, status, created_at, status_changed_at, sold_by").eq("org_id", ctx.orgId).in("status", ["completed", "returned"]).or(salesDayFilter));
   let expenseQuery = scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on, expense_date, recorded_by").eq("org_id", ctx.orgId).eq("payment_status", "paid").or(`expense_date.eq.${date},paid_on.eq.${date}`));
   let customerPaymentQuery = scoped(db.from("customer_credit_payments").select("amount, payment_method, recorded_by").eq("org_id", ctx.orgId).eq("payment_date", date));
   if (userId) {
@@ -73,6 +73,9 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .filter((s: Record<string, unknown>) => splitAmount(s.payment_method, "cash") !== null || String(s.payment_method ?? "").toLowerCase().includes("cash"))
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
     .reduce((a: number, s: Record<string, unknown>) => a + (splitAmount(s.payment_method, "cash") ?? n(s.total)), 0);
+  const discounts = (sales ?? [])
+    .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
+    .reduce((a: number, s: Record<string, unknown>) => a + n(s.discount_amount), 0);
   const customerDebt = (sales ?? [])
     .filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash"))
     .filter((s: Record<string, unknown>) => s.status === "completed")
@@ -109,7 +112,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
   const opening = (accounts ?? []).reduce((a: number, x: Record<string, unknown>) => a + n(x.opening_balance), 0);
   const totalElectronic = electronic + customerElectronicPayments;
-  return { opening, sales: cashSales, debt: customerDebt, customerPayments: customerCashPayments, electronic: totalElectronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + totalElectronic + customerCashPayments - refunds - cashExpenses - deposits - withdrawals };
+  return { opening, sales: cashSales, discounts, debt: customerDebt, customerPayments: customerCashPayments, electronic: totalElectronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + totalElectronic + customerCashPayments - refunds - cashExpenses - deposits - withdrawals };
 }
 
 export async function createCashClosing(formData: FormData) {

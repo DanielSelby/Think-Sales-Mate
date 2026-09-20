@@ -107,6 +107,7 @@ html.dark .dashboard-motion .rounded-card:hover {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
   .dashboard-motion > *,
   .dashboard-kpi {
     animation: none !important;
@@ -114,6 +115,12 @@ html.dark .dashboard-motion .rounded-card:hover {
   .dashboard-motion .rounded-card:hover {
     transform: none;
   }
+}
+
+.procurement-page .rounded-card,
+.procurement-page .rounded-2xl.border {
+  border-color: transparent !important;
+  background-color: #fff !important;
 }
 
 .flip-scene {

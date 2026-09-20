@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
+import { createNotification } from "@/lib/notifications";
 import type { Database, TransferStatus } from "@/types/database";
 
 export interface TransferItemInput {
@@ -211,7 +212,35 @@ export async function updateTransferStatus(transferId: string, status: TransferS
       .eq("transfer_id", transferId)
       .eq("org_id", context.orgId);
     if (requestUpdateError) return { error: requestUpdateError.message };
+    const { data: request } = await updateClient
+      .from("stock_requests")
+      .select("id, request_number, requested_by, requesting_location_id")
+      .eq("transfer_id", transferId)
+      .eq("org_id", context.orgId)
+      .maybeSingle();
+    if (request) {
+      const { error: auditError } = await updateClient.from("audit_logs").insert({
+        org_id: context.orgId,
+        actor_id: context.userId,
+        action: "stock_request_fulfilled",
+        entity_type: "stock_request",
+        entity_id: request.id,
+        metadata: { transfer_id: transferId },
+      });
+      if (auditError) console.error("[transfers] Failed to record stock request fulfillment audit:", auditError);
+      await createNotification({
+        orgId: context.orgId,
+        userId: request.requested_by,
+        locationId: request.requesting_location_id,
+        title: "Stock request fulfilled",
+        message: `Request REQ-${String(request.request_number).padStart(4, "0")} has been fulfilled.`,
+        type: "general",
+        entityType: "stock_requests",
+        entityId: request.id,
+      });
+    }
     revalidatePath("/inventory/stock-requests");
+    revalidatePath("/inventory/stock-requests/history");
   }
 
   revalidatePath("/inventory/transfers");

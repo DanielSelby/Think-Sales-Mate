@@ -123,12 +123,6 @@ export function DashboardContent({ summary, currency, orgName, lowStockItems, la
           <p className="mt-1 text-sm text-slate-400">Last 30 days · updated live</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/sales/new">
-            <button className="flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
-              style={{ background: theme.colors.primary, boxShadow: `0 4px 14px ${theme.colors.primary}40` }}>
-              <ShoppingCart className="h-4 w-4" /> New Sale
-            </button>
-          </Link>
           <Link href="/accounting/invoices/new">
             <button className="flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold border transition-all hover:bg-slate-50 active:scale-95"
               style={{ borderColor: "#e2e8f0", color: "#475569" }}>
