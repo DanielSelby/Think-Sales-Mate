@@ -35,8 +35,10 @@ import { AccountingSearchModal } from "./accounting-search-modal";
 import { AuditLogDrawer } from "./audit-log-drawer";
 import type { AccountsPayableItem } from "@/types/accounting";
 import type { AccountsReceivableItem } from "@/types/accounting";
+import type { LiveFinancialSnapshot } from "./financial-reports-tab";
+import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 
-export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [] }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] }) {
+export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [] }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[] }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, currentCurrency, currentBranch } = useAccountingStore();
@@ -227,7 +229,7 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
 
         {activeTab === "fixed_assets" && <FixedAssetsTab />}
 
-        {activeTab === "reports" && <FinancialReportsTab />}
+        {activeTab === "reports" && <FinancialReportsTab liveSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} />}
 
         {activeTab === "tax" && <TaxManagementTab />}
 

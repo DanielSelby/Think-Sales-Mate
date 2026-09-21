@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { computeHours, isLateCheckIn } from "@/lib/hrm/attendance";
 import type { AttendanceStatus } from "@/types/database";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export interface SimpleResult {
   ok: boolean;
@@ -132,14 +133,16 @@ export async function markAttendance(input: MarkAttendanceInput): Promise<Simple
     );
   if (error) return { ok: false, error: error.message };
 
-  await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: user.id,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
     action: "attendance.corrected",
-    entity_type: "attendance_records",
-    entity_id: null,
-    metadata: { employee_id: input.employeeId, work_date: input.workDate, status: input.status },
+    entityType: "attendance_records",
+    module: "HRM",
+    description: "Corrected an attendance record",
+    newValues: { employee_id: input.employeeId, work_date: input.workDate, status: input.status, total_hours: totalHours },
   });
+  if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/hrm/attendance");
   return { ok: true };

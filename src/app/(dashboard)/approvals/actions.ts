@@ -6,6 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import { approveStockRequest, rejectStockRequest } from "@/app/(dashboard)/inventory/stock-requests/actions";
 import { approveExpense, rejectExpense } from "@/app/(dashboard)/expenses/actions";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export type ApprovalDecisionInput = {
   type: "stock_request" | "expense" | "purchase_return" | "customer_order";
@@ -55,14 +56,18 @@ export async function decideApproval(input: ApprovalDecisionInput) {
       .eq("org_id", context.orgId)
       .eq("status", "submitted");
     if (error) return { error: error.message };
-    await supabase.from("audit_logs").insert({
-      org_id: context.orgId,
-      actor_id: context.userId,
+    const audit = await recordAuditEvent(supabase, {
+      orgId: context.orgId,
+      actorId: context.userId,
       action: input.decision === "approved" ? "purchase_return.approved" : "purchase_return.rejected",
-      entity_type: "purchase_returns",
-      entity_id: input.id,
-      metadata: { reason: input.reason?.trim() ?? null },
+      entityType: "purchase_returns",
+      entityId: input.id,
+      module: "Approvals",
+      description: `${input.decision === "approved" ? "Approved" : "Rejected"} purchase return`,
+      previousValues: { status: "submitted" },
+      newValues: { status: input.decision, reason: input.reason?.trim() ?? null },
     });
+    if (audit.error) return { error: audit.error };
   } else {
     const supabase = await createClient();
     const { error } = await supabase.from("customer_orders").update({
@@ -84,15 +89,17 @@ export async function markApprovalDone(input: Pick<ApprovalDecisionInput, "type"
     return { error: "You do not have permission to update approval history." };
   }
   const supabase = await createClient();
-  const { error } = await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: context.userId,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
     action: "approval.completed",
-    entity_type: input.type,
-    entity_id: input.id,
-    metadata: { approval_type: input.type, approval_id: input.id },
+    entityType: input.type,
+    entityId: input.id,
+    module: "Approvals",
+    description: `Completed ${input.type.replaceAll("_", " ")} approval`,
+    newValues: { approval_type: input.type, approval_id: input.id },
   });
-  if (error) return { error: error.message };
+  if (audit.error) return { error: audit.error };
   revalidatePath("/approvals");
   return { success: true };
 }

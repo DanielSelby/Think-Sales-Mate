@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { DEFAULT_LEAVE_TYPES, countBusinessDays } from "@/lib/hrm/leave";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export interface SimpleResult {
   ok: boolean;
@@ -93,14 +94,17 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
 
   if (error || !data) return { ok: false, error: error?.message ?? "Couldn't create the leave request." };
 
-  await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: user.id,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
     action: "leave.requested",
-    entity_type: "leave_requests",
-    entity_id: data.id,
-    metadata: { duration_days: duration },
+    entityType: "leave_requests",
+    entityId: data.id,
+    module: "HRM",
+    description: "Submitted a leave request",
+    newValues: { duration_days: duration, start_date: input.startDate, end_date: input.endDate, status: "pending" },
   });
+  if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/hrm/leave");
   return { ok: true };
@@ -128,14 +132,18 @@ export async function approveLeaveRequest(requestId: string): Promise<SimpleResu
 
   await adjustBalance(supabase, request.org_id, request.employee_id, request.duration_days);
 
-  await supabase.from("audit_logs").insert({
-    org_id: request.org_id,
-    actor_id: user.id,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: request.org_id,
+    actorId: user.id,
     action: "leave.approved",
-    entity_type: "leave_requests",
-    entity_id: requestId,
-    metadata: {},
+    entityType: "leave_requests",
+    entityId: requestId,
+    module: "HRM",
+    description: "Approved a leave request",
+    previousValues: { status: request.status },
+    newValues: { status: "approved", duration_days: request.duration_days },
   });
+  if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/hrm/leave");
   return { ok: true };
@@ -159,14 +167,18 @@ export async function rejectLeaveRequest(requestId: string, note?: string): Prom
     .eq("id", requestId);
   if (error) return { ok: false, error: error.message };
 
-  await supabase.from("audit_logs").insert({
-    org_id: request.org_id,
-    actor_id: user.id,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: request.org_id,
+    actorId: user.id,
     action: "leave.rejected",
-    entity_type: "leave_requests",
-    entity_id: requestId,
-    metadata: { note },
+    entityType: "leave_requests",
+    entityId: requestId,
+    module: "HRM",
+    description: "Rejected a leave request",
+    previousValues: { status: "pending" },
+    newValues: { status: "rejected", decision_note: note ?? null },
   });
+  if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/hrm/leave");
   return { ok: true };

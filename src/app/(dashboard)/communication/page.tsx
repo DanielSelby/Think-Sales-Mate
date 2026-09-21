@@ -798,7 +798,7 @@ export default function CommunicationPage() {
   if (busy) return <div className="flex h-[calc(100vh-6.5rem)] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-500">Loading communication workspace...</div>;
 
   return (
-    <div className="relative flex h-[calc(100vh-6.5rem)] min-h-[620px] min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white pt-14 shadow-sm">
+    <div className="communication-workspace relative flex h-[calc(100vh-6.5rem)] min-h-[620px] min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white pt-14 shadow-sm">
       <div className="absolute inset-x-0 top-0 z-20 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white p-2 shadow-sm">
         <button onClick={() => setWorkspaceTab("chat")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "chat" ? "" : "text-slate-500"}`} style={workspaceTab === "chat" ? { background: theme.colors.primaryPale, color: theme.colors.primary } : undefined}>Chats</button>
         <button onClick={() => setWorkspaceTab("dashboard")} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${workspaceTab === "dashboard" ? "" : "text-slate-500"}`} style={workspaceTab === "dashboard" ? { background: theme.colors.primaryPale, color: theme.colors.primary } : undefined}><BarChart3 className="h-3 w-3" />Dashboard</button>

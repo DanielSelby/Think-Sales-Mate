@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { AccountsPayableItem } from "@/types/accounting";
 import type { AccountsReceivableItem } from "@/types/accounting";
+import { getReportKpis, getBalanceSheet } from "@/lib/reports/calculations";
+import type { LiveFinancialSnapshot } from "@/components/accounting/financial-reports-tab";
+import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 
 export const metadata = {
   title: "Accounting & Financial Management | ThinkSales Pro",
@@ -17,8 +20,74 @@ export default async function AccountingPage() {
   let initialReceivables: AccountsReceivableItem[] = [];
   let initialAuditLogs: { userName: string; action: string; module: string; createdAt: string }[] = [];
   let initialPayments: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] = [];
+  let liveFinancialSnapshot: LiveFinancialSnapshot | undefined;
+  let liveAccounts: AccountingAccount[] = [];
+  let liveJournalEntries: JournalEntry[] = [];
   if (context) {
     const db = await createClient();
+    const accountingDb = db as any;
+    const [{ data: accountRows, error: accountsError }, { data: journalRows, error: journalsError }] = await Promise.all([
+      accountingDb.from("accounting_accounts").select("id, code, name, type, sub_type, parent_id, location_id, currency, current_balance, is_active, description").eq("org_id", context.orgId).order("code"),
+      accountingDb.from("journal_entries").select("id, entry_number, entry_date, location_id, reference, description, status, total_debit, total_credit, source_module, source_id, is_auto, posted_by, posted_at, journal_entry_lines(id, account_id, description, debit, credit)").eq("org_id", context.orgId).order("entry_date", { ascending: false }).limit(500),
+    ]);
+    if (accountsError) console.error("Failed to load accounting accounts:", accountsError);
+    if (journalsError) console.error("Failed to load accounting journal entries:", journalsError);
+    const allowedAccountingLocations = context.isBranchScoped ? new Set(context.allowedLocationIds) : null;
+    const scopedAccountRows = (accountRows ?? []).filter((account: any) => !allowedAccountingLocations || !account.location_id || allowedAccountingLocations.has(account.location_id));
+    const scopedJournalRows = (journalRows ?? []).filter((journal: any) => !allowedAccountingLocations || !journal.location_id || allowedAccountingLocations.has(journal.location_id));
+    const accountNames = new Map(scopedAccountRows.map((account: any) => [account.id, account.name]));
+    const locationRowsForAccounting = await accountingDb.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true);
+    const locationNamesForAccounting = new Map((locationRowsForAccounting.data ?? []).map((location: any) => [location.id, location.name]));
+    liveAccounts = scopedAccountRows.map((account: any) => ({
+      id: account.id,
+      code: account.code,
+      name: account.name,
+      type: account.type,
+      subType: account.sub_type ?? undefined,
+      parentId: account.parent_id,
+      branch: locationNamesForAccounting.get(account.location_id) ?? "All Locations",
+      currency: account.currency ?? context.currency,
+      balance: Number(account.current_balance ?? 0),
+      status: account.is_active ? "active" : "inactive",
+      description: account.description ?? undefined,
+    }));
+    liveJournalEntries = scopedJournalRows.map((journal: any) => ({
+      id: journal.id,
+      entryNumber: journal.entry_number,
+      date: journal.entry_date,
+      branch: locationNamesForAccounting.get(journal.location_id) ?? "All Locations",
+      reference: journal.reference ?? "",
+      description: journal.description,
+      status: journal.status,
+      totalDebit: Number(journal.total_debit ?? 0),
+      totalCredit: Number(journal.total_credit ?? 0),
+      sourceModule: journal.source_module ?? undefined,
+      sourceId: journal.source_id ?? undefined,
+      isAuto: journal.is_auto,
+      postedBy: journal.posted_by ?? undefined,
+      postedAt: journal.posted_at ?? undefined,
+      lines: (journal.journal_entry_lines ?? []).map((line: any) => ({
+        id: line.id,
+        accountId: line.account_id,
+        accountCode: scopedAccountRows.find((account: any) => account.id === line.account_id)?.code ?? "",
+        accountName: accountNames.get(line.account_id) ?? "Unknown account",
+        debit: Number(line.debit ?? 0),
+        credit: Number(line.credit ?? 0),
+        description: line.description ?? undefined,
+      })),
+    }));
+    const reportToday = new Date();
+    const dateFrom = new Date(reportToday.getFullYear(), reportToday.getMonth(), 1).toISOString().slice(0, 10);
+    const dateTo = reportToday.toISOString().slice(0, 10);
+    const [reportKpis, balanceSheet] = await Promise.all([
+      getReportKpis({ orgId: context.orgId, dateFrom, dateTo, locationId: context.isBranchScoped ? context.allowedLocationIds[0] : context.masterLocationId }),
+      getBalanceSheet(context.orgId, dateTo),
+    ]);
+    liveFinancialSnapshot = {
+      kpis: reportKpis,
+      balanceSheet,
+      periodLabel: `${dateFrom} to ${dateTo}`,
+    };
     const { data: locations } = await db.from("business_locations").select("name").eq("org_id", context.orgId).eq("is_active", true).order("name");
     initialBranches = (locations ?? []).map((location) => location.name);
     const [{ data: auditLogs }, { data: payments }] = await Promise.all([
@@ -130,7 +199,7 @@ export default async function AccountingPage() {
         </div>
       }
     >
-      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} />
+      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} />
     </Suspense>
   );
 }

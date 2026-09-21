@@ -9,6 +9,8 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canAccessLocation, canUseLocation } from "@/lib/organizations/location-access";
 import type { SaleStatus } from "@/types/database";
 import { dispatchAutomatedCustomerMessage } from "@/lib/communication/automation";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -379,15 +381,17 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         cost: systemPrices.get(line.product_id)?.cost ?? 0,
       }));
       if (lowMarginItems.length) {
-        const { error: lowMarginError } = await supabase.from("audit_logs").insert({
-          org_id: input.orgId,
-          actor_id: user.id,
+        const lowMarginAudit = await recordAuditEvent(supabase, {
+          orgId: input.orgId,
+          actorId: user.id,
           action: "sale.low_margin_flagged",
-          entity_type: "sale",
-          entity_id: sale.id,
-          metadata: { sale_number: sale.sale_number, price_tier: input.priceTier ?? "retail", items: lowMarginItems },
+          entityType: "sale",
+          entityId: sale.id,
+          module: "Sales",
+          description: `Low-margin items flagged on sale #${sale.sale_number}`,
+          newValues: { price_tier: input.priceTier ?? "retail", items: lowMarginItems },
         });
-        if (lowMarginError) throw new Error(lowMarginError.message);
+        if (lowMarginAudit.error) throw new Error(lowMarginAudit.error);
       }
       const priceOverrides = allLines.flatMap((line) => {
         const product = systemPrices.get(line.product_id);
@@ -402,22 +406,20 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
       });
 
       if (priceOverrides.length) {
-        const { error: auditError } = await supabase.from("audit_logs").insert({
-          org_id: input.orgId,
-          actor_id: user.id,
+        const overrideAudit = await recordAuditEvent(supabase, {
+          orgId: input.orgId,
+          actorId: user.id,
           action: "price_override",
-          entity_type: "sale",
-          entity_id: sale.id,
-          metadata: {
-            module: "Sales",
-            description: `Transaction price override on sale #${sale.sale_number}`,
-            branch_id: input.locationId ?? null,
-            sale_number: sale.sale_number,
-            previous_values: { price_source: "system catalog price" },
-            new_values: { price_overrides: priceOverrides },
-          },
+          entityType: "sale",
+          entityId: sale.id,
+          module: "Sales",
+          description: `Transaction price override on sale #${sale.sale_number}`,
+          branchId: input.locationId,
+          previousValues: { price_source: "system catalog price" },
+          newValues: { price_overrides: priceOverrides },
+          metadata: { sale_number: sale.sale_number },
         });
-        if (auditError) throw new Error(auditError.message);
+        if (overrideAudit.error) throw new Error(overrideAudit.error);
       }
     }
 
@@ -463,6 +465,27 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
           });
         } catch (messageError) {
           console.error("Automated customer message failed after sale creation", messageError);
+        }
+
+        const accounts = await resolveOperationalAccounts(supabase, input.orgId, "sale");
+        if (accounts.error) {
+          console.error("Automatic sales journal was not posted:", accounts.error);
+        } else if (accounts.debitAccountId && accounts.creditAccountId) {
+          const journal = await postOperationalJournal(supabase, {
+            orgId: input.orgId,
+            actorId: user.id,
+            sourceModule: "sales",
+            sourceId: sale.id,
+            date: input.saleDate ?? new Date().toISOString().slice(0, 10),
+            locationId: input.locationId ?? null,
+            reference: `SALE-${sale.sale_number}`,
+            description: `Sale #${sale.sale_number}`,
+            lines: [
+              { account_id: accounts.debitAccountId, description: "Sale proceeds", debit: Number(input.total), credit: 0 },
+              { account_id: accounts.creditAccountId, description: "Sales revenue", debit: 0, credit: Number(input.total) },
+            ],
+          });
+          if (journal.error) console.error("Automatic sales journal was not posted:", journal.error);
         }
       }
     }

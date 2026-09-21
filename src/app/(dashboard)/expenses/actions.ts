@@ -6,6 +6,8 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canUseLocation } from "@/lib/organizations/location-access";
 import { canPermission } from "@/lib/rbac/permissions";
 import { formatExpenseNumber } from "@/lib/expenses/format";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 
 export interface ExpenseItemInput {
   description: string;
@@ -145,14 +147,18 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
     return { ok: false, error: itemsError.message };
   }
 
-  await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: user.id,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
     action: input.action === "draft" ? "expense.created" : "expense.submitted",
-    entity_type: "expenses",
-    entity_id: data.id,
-    metadata: { expense_number: data.expense_number, amount: total, category: input.category },
+    entityType: "expenses",
+    entityId: data.id,
+    module: "Expenses",
+    description: input.action === "draft" ? "Created an expense draft" : "Submitted an expense for approval",
+    branchId: input.locationId,
+    newValues: { expense_number: data.expense_number, amount: total, category: input.category, status: input.action === "draft" ? "draft" : "submitted" },
   });
+  if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/expenses");
   return { ok: true, expenseId: data.id, expenseNumber: formatExpenseNumber(data.expense_number) };
@@ -504,12 +510,33 @@ export async function markExpensePaid(expenseId: string, paidOn?: string): Promi
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
-  const { data: expense, error: fetchError } = await supabase.from("expenses").select("org_id, expense_number, status").eq("id", expenseId).single();
+  const { data: expense, error: fetchError } = await supabase.from("expenses").select("org_id, expense_number, status, amount, expense_date, location_id").eq("id", expenseId).single();
   if (fetchError || !expense) return { ok: false, error: "Expense not found." };
   if (expense.status !== "approved") return { ok: false, error: "Only approved expenses can be marked as paid." };
 
   const { error } = await supabase.from("expenses").update({ payment_status: "paid", paid_on: paidOn ?? new Date().toISOString().slice(0, 10) }).eq("id", expenseId);
   if (error) return { ok: false, error: error.message };
+
+  const accounts = await resolveOperationalAccounts(supabase, expense.org_id, "expense");
+  if (accounts.error) {
+    console.error("Automatic expense journal was not posted:", accounts.error);
+  } else if (accounts.debitAccountId && accounts.creditAccountId) {
+    const journal = await postOperationalJournal(supabase, {
+      orgId: expense.org_id,
+      actorId: user.id,
+      sourceModule: "expenses",
+      sourceId: expenseId,
+      date: paidOn ?? new Date().toISOString().slice(0, 10),
+      locationId: expense.location_id,
+      reference: String(expense.expense_number),
+      description: `Paid expense #${expense.expense_number}`,
+      lines: [
+        { account_id: accounts.debitAccountId, description: "Expense payment", debit: Number(expense.amount), credit: 0 },
+        { account_id: accounts.creditAccountId, description: "Expense payable", debit: 0, credit: Number(expense.amount) },
+      ],
+    });
+    if (journal.error) console.error("Automatic expense journal was not posted:", journal.error);
+  }
 
   await logExpenseAction(expense.org_id, user.id, "expense.paid", expenseId, { expense_number: expense.expense_number });
   revalidatePath("/expenses");

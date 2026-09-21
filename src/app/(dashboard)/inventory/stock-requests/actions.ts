@@ -6,6 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import { createStockTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
 import { createNotification } from "@/lib/notifications";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export interface StockRequestItemInput {
   productId: string;
@@ -28,15 +29,19 @@ async function recordStockRequestAudit(
   supabase: Awaited<ReturnType<typeof createClient>>,
   input: { orgId: string; actorId: string; action: string; requestId: string; metadata?: Record<string, unknown> }
 ) {
-  const { error } = await supabase.from("audit_logs").insert({
-    org_id: input.orgId,
-    actor_id: input.actorId,
+  const result = await recordAuditEvent(supabase, {
+    orgId: input.orgId,
+    actorId: input.actorId,
     action: input.action,
-    entity_type: "stock_request",
-    entity_id: input.requestId,
-    metadata: input.metadata ?? {},
+    entityType: "stock_request",
+    entityId: input.requestId,
+    module: "Inventory",
+    description: input.metadata?.description
+      ? String(input.metadata.description)
+      : `${input.action.replaceAll("_", " ")} stock request`,
+    metadata: input.metadata,
   });
-  if (error) console.error("[stock-requests] Failed to record audit event:", error);
+  if (result.error) console.error("[stock-requests] Failed to record audit event:", result.error);
 }
 
 async function notifyStockRequestUsers(input: {

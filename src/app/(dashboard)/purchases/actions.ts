@@ -8,6 +8,8 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canUseLocation } from "@/lib/organizations/location-access";
 import { formatPurchaseNumber } from "@/lib/purchases/format";
 import type { PurchaseStatus } from "@/types/database";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 
 export interface PurchaseItemInput {
   productId: string;
@@ -181,14 +183,41 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
     }
   }
 
-  await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: user.id,
+  const creationAudit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
     action: "purchase.created",
-    entity_type: "purchases",
-    entity_id: purchase.id,
-    metadata: { status, purchase_number: purchase.purchase_number, total },
+    entityType: "purchases",
+    entityId: purchase.id,
+    module: "Purchases",
+    description: `Created purchase ${formatPurchaseNumber(purchase.purchase_number)}`,
+    branchId: input.locationId,
+    newValues: { status, purchase_number: purchase.purchase_number, total },
   });
+  if (creationAudit.error) return { ok: false, error: creationAudit.error };
+
+  if (status !== "draft") {
+    const accounts = await resolveOperationalAccounts(supabase, context.orgId, "purchase");
+    if (accounts.error) {
+      console.error("Automatic purchase journal was not posted:", accounts.error);
+    } else if (accounts.debitAccountId && accounts.creditAccountId) {
+      const journal = await postOperationalJournal(supabase, {
+        orgId: context.orgId,
+        actorId: user.id,
+        sourceModule: "purchases",
+        sourceId: purchase.id,
+        date: input.purchaseDate,
+        locationId: input.locationId,
+        reference: formatPurchaseNumber(purchase.purchase_number),
+        description: `Purchase ${formatPurchaseNumber(purchase.purchase_number)}`,
+        lines: [
+          { account_id: accounts.debitAccountId, description: "Inventory purchased", debit: Number(total), credit: 0 },
+          { account_id: accounts.creditAccountId, description: "Supplier payable", debit: 0, credit: Number(total) },
+        ],
+      });
+      if (journal.error) console.error("Automatic purchase journal was not posted:", journal.error);
+    }
+  }
 
   revalidatePath("/purchases");
   revalidatePath("/inventory");
@@ -356,14 +385,17 @@ export async function receivePurchaseItems({
       .eq("id", purchaseId);
     if (statusError) throw new Error(statusError.message);
 
-    await supabase.from("audit_logs").insert({
-      org_id: purchase.org_id,
-      actor_id: user.id,
+    const receiveAudit = await recordAuditEvent(supabase, {
+      orgId: purchase.org_id,
+      actorId: user.id,
       action: "purchase.items_received",
-      entity_type: "purchases",
-      entity_id: purchaseId,
-      metadata: { lines: toReceive, note, resulting_status: nextStatus },
+      entityType: "purchases",
+      entityId: purchaseId,
+      module: "Purchases",
+      description: `Received purchase items; status is now ${nextStatus}`,
+      newValues: { lines: toReceive, note, resulting_status: nextStatus },
     });
+    if (receiveAudit.error) throw new Error(receiveAudit.error);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong receiving items." };
   }
@@ -456,14 +488,17 @@ export async function duplicatePurchase(purchaseId: string): Promise<DuplicatePu
     return { ok: false, error: itemsError.message };
   }
 
-  await supabase.from("audit_logs").insert({
-    org_id: original.org_id,
-    actor_id: user.id,
+  const duplicateAudit = await recordAuditEvent(supabase, {
+    orgId: original.org_id,
+    actorId: user.id,
     action: "purchase.duplicated",
-    entity_type: "purchases",
-    entity_id: copy.id,
-    metadata: { duplicated_from: purchaseId, purchase_number: copy.purchase_number },
+    entityType: "purchases",
+    entityId: copy.id,
+    module: "Purchases",
+    description: "Duplicated a purchase",
+    newValues: { duplicated_from: purchaseId, purchase_number: copy.purchase_number },
   });
+  if (duplicateAudit.error) return { ok: false, error: duplicateAudit.error };
 
   revalidatePath("/purchases");
   return { ok: true, purchaseId: copy.id, purchaseNumber: formatPurchaseNumber(copy.purchase_number) };
@@ -503,6 +538,8 @@ export async function recordPurchasePayment(
   }
 
   const nextPaid = Math.min(purchase.total, purchase.paid_amount + amount);
+  const appliedAmount = nextPaid - purchase.paid_amount;
+  if (appliedAmount <= 0) return { ok: false, error: "This purchase is already fully paid." };
 
   const { error: updateError } = await supabase
     .from("purchases")
@@ -510,14 +547,39 @@ export async function recordPurchasePayment(
     .eq("id", purchaseId);
   if (updateError) return { ok: false, error: updateError.message };
 
-  await supabase.from("audit_logs").insert({
-    org_id: purchase.org_id,
-    actor_id: user.id,
+  const accounts = await resolveOperationalAccounts(supabase, purchase.org_id, "purchase_payment");
+  if (!accounts.error && accounts.debitAccountId && accounts.creditAccountId) {
+    const journal = await postOperationalJournal(supabase, {
+      orgId: purchase.org_id,
+      actorId: user.id,
+      sourceModule: "purchase_payments",
+      sourceId: `${purchaseId}:${nextPaid}`,
+      date: new Date().toISOString().slice(0, 10),
+      locationId: purchase.location_id,
+      reference: purchaseId,
+      description: "Purchase payment",
+      lines: [
+        { account_id: accounts.debitAccountId, description: "Reduce supplier payable", debit: Number(appliedAmount), credit: 0 },
+        { account_id: accounts.creditAccountId, description: "Payment from cash/bank", debit: 0, credit: Number(appliedAmount) },
+      ],
+    });
+    if (journal.error) console.error("Automatic purchase payment journal was not posted:", journal.error);
+  } else if (accounts.error) {
+    console.error("Automatic purchase payment journal was not posted:", accounts.error);
+  }
+
+  const paymentAudit = await recordAuditEvent(supabase, {
+    orgId: purchase.org_id,
+    actorId: user.id,
     action: "purchase.payment_recorded",
-    entity_type: "purchases",
-    entity_id: purchaseId,
-    metadata: { amount, note, resulting_paid_amount: nextPaid },
+    entityType: "purchases",
+    entityId: purchaseId,
+    module: "Purchases",
+    description: "Recorded a payment against a purchase",
+    previousValues: { paid_amount: purchase.paid_amount },
+    newValues: { paid_amount: nextPaid, payment_amount: amount, note },
   });
+  if (paymentAudit.error) return { ok: false, error: paymentAudit.error };
 
   revalidatePath("/purchases");
   return { ok: true };
@@ -713,14 +775,17 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
     }
   }
 
-  await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: user.id,
+  const updateAudit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
     action: "purchase.updated",
-    entity_type: "purchases",
-    entity_id: purchaseId,
-    metadata: { total },
+    entityType: "purchases",
+    entityId: purchaseId,
+    module: "Purchases",
+    description: "Updated purchase details",
+    newValues: { total },
   });
+  if (updateAudit.error) return { ok: false, error: updateAudit.error };
 
   revalidatePath("/purchases");
   revalidatePath(`/purchases/${purchaseId}`);

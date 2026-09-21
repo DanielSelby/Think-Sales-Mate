@@ -236,8 +236,9 @@ export function ReportsDashboard({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs text-ledger-400">Dashboard &gt; Reports</p>
-          <h1 className="mt-1 font-display text-2xl font-semibold text-ink-900 dark:text-white">Reports</h1>
+          <p className="text-xs text-ledger-400">Dashboard &gt; Business Reports</p>
+          <h1 className="mt-1 font-display text-2xl font-semibold text-ink-900 dark:text-white">Business Reports</h1>
+          <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Operational performance, branch analytics, inventory insights, and management KPIs.</p>
         </div>
       </div>
 

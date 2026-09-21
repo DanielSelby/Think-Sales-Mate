@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 
 const path = "/route-sales";
 
@@ -142,6 +144,46 @@ export async function recordRouteCollection(input: { customerId: string; routeId
       return { error: paymentError.message };
     }
   }
+  if (allocations.length > 0) {
+    const accounts = await resolveOperationalAccounts(supabase, context.orgId, "collection");
+    if (accounts.error) {
+      console.error("Automatic collection journal was not posted:", accounts.error);
+    } else if (accounts.debitAccountId && accounts.creditAccountId) {
+      const journal = await postOperationalJournal(supabase, {
+        orgId: context.orgId,
+        actorId: context.userId,
+        sourceModule: "route_collections",
+        sourceId: collection.id,
+        date: new Date().toISOString().slice(0, 10),
+        locationId: primaryAllocation?.locationId ?? null,
+        reference: collection.id,
+        description: "Route Sales customer collection",
+        lines: [
+          { account_id: accounts.debitAccountId, description: "Customer collection received", debit: Number(input.amount), credit: 0 },
+          { account_id: accounts.creditAccountId, description: "Reduce customer receivable", debit: 0, credit: Number(input.amount) },
+        ],
+      });
+      if (journal.error) console.error("Automatic collection journal was not posted:", journal.error);
+    }
+  }
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "route_collection.recorded",
+    entityType: "route_sales_collection",
+    entityId: collection.id,
+    module: "Route Sales",
+    description: `Recorded ${input.paymentMethod || "Cash"} collection of ${input.amount}`,
+    branchId: context.isBranchScoped ? context.locationId : primaryAllocation?.locationId,
+    newValues: {
+      customer_id: input.customerId,
+      amount_collected: input.amount,
+      outstanding_amount: input.outstanding,
+      payment_method: input.paymentMethod || "Cash",
+      allocated_invoices: allocations.map((allocation) => ({ invoice_id: allocation.invoiceId, amount: allocation.amount })),
+    },
+  });
+  if (audit.error) return { error: audit.error };
   revalidatePath(path);
   revalidatePath("/accounting");
   return { success: true };

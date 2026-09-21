@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { SupplierStatus } from "@/types/database";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export interface CreateSupplierInput {
   name: string;
@@ -58,14 +59,17 @@ export async function createSupplier(input: CreateSupplierInput): Promise<Create
 
   if (error || !data) return { ok: false, error: error?.message ?? "Couldn't create the supplier." };
 
-  await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: user.id,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
     action: "supplier.created",
-    entity_type: "suppliers",
-    entity_id: data.id,
-    metadata: { name: input.name },
+    entityType: "suppliers",
+    entityId: data.id,
+    module: "Purchases",
+    description: "Created a supplier",
+    newValues: { name: input.name },
   });
+  if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/purchases/suppliers");
   return { ok: true, supplierId: data.id };
@@ -86,7 +90,7 @@ export async function updateSupplierStatus(supplierId: string, status: SupplierS
 
   const { data: supplier, error: fetchError } = await supabase
     .from("suppliers")
-    .select("org_id, name")
+    .select("org_id, name, status")
     .eq("id", supplierId)
     .single();
   if (fetchError || !supplier) return { ok: false, error: "Supplier not found." };
@@ -94,14 +98,18 @@ export async function updateSupplierStatus(supplierId: string, status: SupplierS
   const { error } = await supabase.from("suppliers").update({ status }).eq("id", supplierId);
   if (error) return { ok: false, error: error.message };
 
-  await supabase.from("audit_logs").insert({
-    org_id: supplier.org_id,
-    actor_id: user.id,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: supplier.org_id,
+    actorId: user.id,
     action: "supplier.status_changed",
-    entity_type: "suppliers",
-    entity_id: supplierId,
-    metadata: { name: supplier.name, status },
+    entityType: "suppliers",
+    entityId: supplierId,
+    module: "Purchases",
+    description: `Changed supplier status to ${status}`,
+    previousValues: { status: supplier.status },
+    newValues: { name: supplier.name, status },
   });
+  if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/purchases/suppliers");
   return { ok: true };

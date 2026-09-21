@@ -15,17 +15,27 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import type { BalanceSheetSummary, ReportKpis } from "@/lib/reports/calculations";
+import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 
-export function FinancialReportsTab() {
+export interface LiveFinancialSnapshot {
+  kpis: ReportKpis;
+  balanceSheet: BalanceSheetSummary;
+  periodLabel: string;
+}
+
+export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEntries }: { liveSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[] }) {
   const {
-    accounts,
-    journalEntries,
+    accounts: seededAccounts,
+    journalEntries: seededJournalEntries,
     receivables,
     payables,
     fixedAssets,
     currentCurrency,
     currentBranch,
   } = useAccountingStore();
+  const accounts = liveAccounts?.length ? liveAccounts : seededAccounts;
+  const journalEntries = liveJournalEntries?.length ? liveJournalEntries : seededJournalEntries;
 
   const [selectedReport, setSelectedReport] = useState<
     "pnl" | "balance_sheet" | "cash_flow" | "trial_balance" | "general_ledger" | "tax_report"
@@ -38,32 +48,72 @@ export function FinancialReportsTab() {
   const activeAccounts = accounts.filter((a) =>
     reportBranch === "all" ? true : a.branch === reportBranch
   );
+  const reportDateRange = (() => {
+    const today = new Date();
+    const from = new Date(today);
+    if (period === "This Month") {
+      from.setDate(1);
+    } else if (period === "Last 30 Days") {
+      from.setDate(today.getDate() - 29);
+    } else {
+      from.setMonth(0, 1);
+    }
+    return {
+      from: from.toISOString().slice(0, 10),
+      to: today.toISOString().slice(0, 10),
+    };
+  })();
+  const filteredJournalEntries = journalEntries.filter((journal) =>
+    journal.status === "posted" &&
+    journal.date >= reportDateRange.from &&
+    journal.date <= reportDateRange.to &&
+    (reportBranch === "all" || journal.branch === reportBranch)
+  );
+  const journalBalances = new Map<string, { debit: number; credit: number }>();
+  if (liveJournalEntries?.length) {
+    for (const journal of filteredJournalEntries) {
+      for (const line of journal.lines) {
+        const current = journalBalances.get(line.accountId) ?? { debit: 0, credit: 0 };
+        current.debit += line.debit;
+        current.credit += line.credit;
+        journalBalances.set(line.accountId, current);
+      }
+    }
+  }
 
   // Profit & Loss calculations
   const revenues = activeAccounts.filter((a) => a.type === "revenue");
   const cogs = activeAccounts.filter((a) => a.type === "cogs");
   const expenses = activeAccounts.filter((a) => a.type === "expense");
 
-  const totalRevenue = revenues.reduce((sum, a) => sum + a.balance, 0) || 125430.0;
-  const totalCogs = cogs.reduce((sum, a) => sum + a.balance, 0) || 36656.25;
-  const grossProfit = totalRevenue - totalCogs; // 88,773.75
-  const totalExpenses = expenses.reduce((sum, a) => sum + a.balance, 0) || 49593.75;
-  const netProfit = grossProfit - totalExpenses; // 39,180.00
+  const totalRevenue = liveSnapshot?.kpis.totalRevenue ?? revenues.reduce((sum, a) => sum + a.balance, 0);
+  const totalCogs = liveSnapshot ? totalRevenue - (liveSnapshot.kpis.netProfit + liveSnapshot.kpis.totalExpenses) : cogs.reduce((sum, a) => sum + a.balance, 0);
+  const grossProfit = liveSnapshot ? totalRevenue - totalCogs : totalRevenue - totalCogs;
+  const totalExpenses = liveSnapshot?.kpis.totalExpenses ?? expenses.reduce((sum, a) => sum + a.balance, 0);
+  const netProfit = liveSnapshot?.kpis.netProfit ?? grossProfit - totalExpenses;
 
   // Balance Sheet calculations
   const assetAccounts = activeAccounts.filter((a) => a.type === "asset");
   const liabilityAccounts = activeAccounts.filter((a) => a.type === "liability");
   const equityAccounts = activeAccounts.filter((a) => a.type === "equity");
 
-  const totalAssets = assetAccounts.reduce((sum, a) => sum + a.balance, 0) || 520000.0;
-  const totalLiabilities = Math.abs(liabilityAccounts.reduce((sum, a) => sum + a.balance, 0)) || 210000.0;
-  const totalEquity = (equityAccounts.reduce((sum, a) => sum + a.balance, 0) || 270820.0) + netProfit; // Equity + Retained Earnings
+  const totalAssets = liveSnapshot?.balanceSheet.totalAssets ?? assetAccounts.reduce((sum, a) => sum + a.balance, 0);
+  const totalLiabilities = liveSnapshot?.balanceSheet.totalLiabilities ?? Math.abs(liabilityAccounts.reduce((sum, a) => sum + a.balance, 0));
+  const totalEquity = liveSnapshot?.balanceSheet.totalEquity ?? equityAccounts.reduce((sum, a) => sum + a.balance, 0) + netProfit;
 
   // Trial balance debits and credits
   const trialBalanceRows = activeAccounts.map((a) => {
     const isDebit = a.type === "asset" || a.type === "expense" || a.type === "cogs";
-    const debit = isDebit ? Math.max(0, a.balance) : a.balance < 0 ? Math.abs(a.balance) : 0;
-    const credit = !isDebit ? Math.max(0, a.balance) : a.balance < 0 ? Math.abs(a.balance) : 0;
+    const journalBalance = journalBalances.get(a.id);
+    const debitBalance = journalBalance ? journalBalance.debit : a.balance;
+    const creditBalance = journalBalance ? journalBalance.credit : 0;
+    const netBalance = debitBalance - creditBalance;
+    const debit = journalBalance
+      ? Math.max(0, netBalance)
+      : isDebit ? Math.max(0, a.balance) : a.balance < 0 ? Math.abs(a.balance) : 0;
+    const credit = journalBalance
+      ? Math.max(0, -netBalance)
+      : !isDebit ? Math.max(0, a.balance) : a.balance < 0 ? Math.abs(a.balance) : 0;
     return {
       code: a.code,
       name: a.name,
@@ -74,6 +124,18 @@ export function FinancialReportsTab() {
   });
   const totalTBDebit = trialBalanceRows.reduce((sum, r) => sum + r.debit, 0);
   const totalTBCredit = trialBalanceRows.reduce((sum, r) => sum + r.credit, 0);
+  const cashAccountIds = new Set(
+    activeAccounts
+      .filter((account) => account.type === "asset" && /cash|bank|mobile money|momo/i.test(`${account.name} ${account.subType ?? ""}`))
+      .map((account) => account.id),
+  );
+  const netCashMovement = filteredJournalEntries.reduce(
+    (total, journal) =>
+      total + journal.lines
+        .filter((line) => cashAccountIds.has(line.accountId))
+        .reduce((sum, line) => sum + line.debit - line.credit, 0),
+    0,
+  );
 
   const handleExportExcel = () => {
     let exportData: any[] = [];
@@ -244,8 +306,10 @@ export function FinancialReportsTab() {
             ThinkSales Pro ERP — {selectedReport === "pnl" ? "Profit & Loss Statement" : selectedReport === "balance_sheet" ? "Balance Sheet Statement" : selectedReport === "cash_flow" ? "Cash Flow Statement" : selectedReport === "trial_balance" ? "Trial Balance Verification" : "General Ledger Register"}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            For the period: <span className="font-semibold text-slate-700 dark:text-slate-300">{period}</span> · Branch: <span className="font-semibold text-slate-700 dark:text-slate-300">{reportBranch === "all" ? "All Locations" : reportBranch}</span> · Currency: <span className="font-semibold text-slate-700 dark:text-slate-300">{currentCurrency}</span>
+            For the period: <span className="font-semibold text-slate-700 dark:text-slate-300">{liveSnapshot?.periodLabel ?? period}</span> · Branch: <span className="font-semibold text-slate-700 dark:text-slate-300">{reportBranch === "all" ? "All Locations" : reportBranch}</span> · Currency: <span className="font-semibold text-slate-700 dark:text-slate-300">{currentCurrency}</span>
           </p>
+          {liveSnapshot && <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">Live operational figures from sales, purchases, expenses, and accounting balances.</p>}
+          {liveJournalEntries?.length ? <p className="mt-1 text-[11px] text-blue-600 dark:text-blue-400">Accounting source: {liveJournalEntries.length} persisted journal entries.</p> : null}
         </div>
 
         {/* ── PROFIT & LOSS REPORT ── */}
@@ -471,21 +535,13 @@ export function FinancialReportsTab() {
                   <span className="font-mono">{netProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-2 text-slate-700 pl-4">
-                  <span>Depreciation &amp; Amortization (Non-Cash)</span>
-                  <span className="font-mono">7,466.67</span>
-                </div>
-                <div className="flex justify-between py-2 text-slate-700 pl-4">
-                  <span>Decrease in Accounts Receivable</span>
-                  <span className="font-mono">14,200.00</span>
-                </div>
-                <div className="flex justify-between py-2 text-slate-700 pl-4">
-                  <span>Increase in Accounts Payable</span>
-                  <span className="font-mono">8,450.00</span>
+                  <span>Net movement in cash and bank accounts (posted journals)</span>
+                  <span className="font-mono">{netCashMovement.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-slate-900">
                 <span className="pl-2">Net Cash from Operating Activities</span>
-                <span className="font-mono text-emerald-600">69,296.67</span>
+                <span className="font-mono text-emerald-600">{netCashMovement.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 
@@ -495,23 +551,27 @@ export function FinancialReportsTab() {
                 <span>Amount ({currentCurrency})</span>
               </div>
               <div className="divide-y divide-slate-100 py-1 dark:divide-slate-800">
-                <div className="flex justify-between py-2 text-slate-700 pl-4">
-                  <span>Purchase of IT &amp; Office Equipment</span>
-                  <span className="font-mono text-rose-500">(25,000.00)</span>
+                <div className="py-2 pl-4 text-slate-500">
+                  Investing activity classification will appear when posted journal entries identify fixed-asset transactions.
                 </div>
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-slate-900">
                 <span className="pl-2">Net Cash from Investing Activities</span>
-                <span className="font-mono text-rose-500">(25,000.00)</span>
+                <span className="font-mono text-rose-500">0.00</span>
               </div>
             </div>
 
             <div className="rounded-xl bg-blue-50 p-4 border border-blue-200 dark:bg-blue-950/40 flex justify-between font-bold text-sm">
               <span className="text-blue-900 dark:text-blue-300">Net Increase in Cash &amp; Bank Balances</span>
               <span className="font-mono text-blue-700 dark:text-blue-300">
-                {currentCurrency} 44,296.67
+                {currentCurrency} {netCashMovement.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
+            {!liveJournalEntries?.length && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                No persisted posted journal entries are available for this organization, so cash flow is currently zero rather than estimated from demo values.
+              </p>
+            )}
           </div>
         )}
 
@@ -530,7 +590,7 @@ export function FinancialReportsTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {journalEntries.map((j) => (
+                {filteredJournalEntries.map((j) => (
                   <tr key={j.id} className="hover:bg-slate-50/50">
                     <td className="p-2.5">{j.date}</td>
                     <td className="p-2.5 font-mono font-bold text-blue-600">{j.entryNumber}</td>

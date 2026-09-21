@@ -123,6 +123,109 @@ html.dark .dashboard-motion .rounded-card:hover {
   background-color: #fff !important;
 }
 
+html.dark .audit-center,
+html.dark .communication-workspace,
+html.dark .support-page {
+  color: #e2e8f0;
+}
+
+html.dark .communication-workspace {
+  background-color: #0f1d2d !important;
+  border-color: #26384d !important;
+}
+
+html.dark .audit-center .bg-white,
+html.dark .communication-workspace .bg-white,
+html.dark .support-page .bg-white {
+  background-color: #0f1d2d !important;
+}
+
+html.dark .audit-center .bg-slate-50,
+html.dark .communication-workspace .bg-slate-50,
+html.dark .support-page .bg-slate-50 {
+  background-color: #132337 !important;
+}
+
+html.dark .audit-center [class~="bg-blue-50"],
+html.dark .support-page [class~="bg-blue-50"] {
+  background-color: #102d4a !important;
+}
+
+html.dark .support-page [class~="bg-emerald-50"] {
+  background-color: #10352d !important;
+}
+
+html.dark .audit-center [class~="border-slate-200"],
+html.dark .audit-center [class~="border-slate-100"],
+html.dark .communication-workspace [class~="border-slate-200"],
+html.dark .communication-workspace [class~="border-slate-100"],
+html.dark .support-page [class~="border-slate-200"],
+html.dark .support-page [class~="border-slate-100"],
+html.dark .support-page [class~="border-blue-100"],
+html.dark .support-page [class~="border-emerald-100"] {
+  border-color: #26384d !important;
+}
+
+html.dark .audit-center [class~="text-slate-950"],
+html.dark .audit-center [class~="text-slate-900"],
+html.dark .communication-workspace [class~="text-slate-900"],
+html.dark .support-page [class~="text-slate-950"],
+html.dark .support-page [class~="text-slate-900"],
+html.dark .support-page [class~="text-slate-800"] {
+  color: #f8fafc !important;
+}
+
+html.dark .audit-center [class~="text-slate-700"],
+html.dark .audit-center [class~="text-slate-600"],
+html.dark .audit-center [class~="text-slate-500"],
+html.dark .communication-workspace [class~="text-slate-700"],
+html.dark .communication-workspace [class~="text-slate-600"],
+html.dark .communication-workspace [class~="text-slate-500"],
+html.dark .support-page [class~="text-slate-700"],
+html.dark .support-page [class~="text-slate-600"],
+html.dark .support-page [class~="text-slate-500"] {
+  color: #a9b8ca !important;
+}
+
+html.dark .audit-center [class~="text-slate-400"],
+html.dark .communication-workspace [class~="text-slate-400"],
+html.dark .support-page [class~="text-slate-400"] {
+  color: #8294aa !important;
+}
+
+html.dark .audit-center [class~="hover:bg-slate-50"]:hover,
+html.dark .communication-workspace [class~="hover:bg-slate-50"]:hover,
+html.dark .support-page [class~="hover:bg-slate-50"]:hover {
+  background-color: #1a3048 !important;
+}
+
+html.dark .audit-center input,
+html.dark .audit-center select,
+html.dark .audit-center textarea,
+html.dark .communication-workspace input,
+html.dark .communication-workspace select,
+html.dark .communication-workspace textarea,
+html.dark .support-page input,
+html.dark .support-page select,
+html.dark .support-page textarea {
+  background-color: #0b1726;
+  border-color: #334960;
+  color: #e2e8f0;
+}
+
+html.dark .support-page > section:first-child {
+  border-color: #285b52;
+  background-color: #12382f;
+}
+
+html.dark .support-page > section:first-child > .bg-gradient-to-r {
+  background-image: linear-gradient(to right, rgb(18 56 47 / 95%), rgb(18 56 47 / 75%), transparent);
+}
+
+html.dark .audit-center .recharts-cartesian-axis-tick-value {
+  fill: #9fb0c4;
+}
+
 .flip-scene {
   perspective: 1200px;
 }

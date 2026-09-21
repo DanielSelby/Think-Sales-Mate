@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export type PriceUpdate = {
   sellingPrice: number;
@@ -16,8 +17,21 @@ export async function setUseSystemPrices(useSystemPrices: boolean) {
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to change price settings." };
   const supabase = await createClient();
+  const { data: organization } = await supabase.from("organizations").select("use_system_prices").eq("id", context.orgId).maybeSingle();
   const { error } = await supabase.from("organizations").update({ use_system_prices: useSystemPrices }).eq("id", context.orgId);
   if (error) return { ok: false, error: error.message };
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "organization.price_settings_updated",
+    entityType: "organization",
+    entityId: context.orgId,
+    module: "Inventory",
+    description: "Changed whether sales use system catalog prices",
+    previousValues: { use_system_prices: organization?.use_system_prices ?? null },
+    newValues: { use_system_prices: useSystemPrices },
+  });
+  if (audit.error) return { ok: false, error: audit.error };
   revalidatePath("/inventory/prices");
   revalidatePath("/pos");
   revalidatePath("/sales/new");
@@ -36,20 +50,25 @@ export async function updateProductPrices(productId: string, prices: PriceUpdate
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to update prices." };
   const supabase = await createClient();
+  const { data: previous } = await supabase.from("products").select("unit_price, wholesale_price, vip_price, special_price").eq("id", productId).eq("org_id", context.orgId).maybeSingle();
   const { error } = await supabase
     .from("products")
     .update({ unit_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice, special_price: prices.specialPrice, updated_at: new Date().toISOString() })
     .eq("id", productId)
     .eq("org_id", context.orgId);
   if (error) return { ok: false, error: error.message };
-  await supabase.from("audit_logs").insert({
-    org_id: context.orgId,
-    actor_id: context.userId,
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
     action: "product.price_updated",
-    entity_type: "products",
-    entity_id: productId,
-    metadata: { new_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice, special_price: prices.specialPrice },
+    entityType: "products",
+    entityId: productId,
+    module: "Inventory",
+    description: "Updated product selling prices",
+    previousValues: previous ?? null,
+    newValues: { unit_price: prices.sellingPrice, wholesale_price: prices.wholesalePrice, vip_price: prices.vipPrice, special_price: prices.specialPrice },
   });
+  if (audit.error) return { ok: false, error: audit.error };
   revalidatePath("/inventory/prices");
   revalidatePath("/inventory");
   revalidatePath("/pos");
@@ -70,6 +89,8 @@ export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate
   }
 
   const supabase = await createClient();
+  const productIds = entries.map(([productId]) => productId);
+  const { data: previousProducts } = await supabase.from("products").select("id, unit_price, wholesale_price, vip_price, special_price").in("id", productIds).eq("org_id", context.orgId);
   const results = await Promise.all(
     entries.map(([productId, price]) =>
       supabase
@@ -81,16 +102,21 @@ export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate
   );
   const failed = results.find((result) => result.error);
   if (failed?.error) return { ok: false, error: failed.error.message, updatedCount: 0 };
-  await Promise.all(entries.map(([productId, price]) =>
-    supabase.from("audit_logs").insert({
-      org_id: context.orgId,
-      actor_id: context.userId,
-      action: "product.price_updated",
-      entity_type: "products",
-      entity_id: productId,
-      metadata: { new_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, special_price: price.specialPrice, bulk: true },
-    })
-  ));
+  const previousById = new Map((previousProducts ?? []).map((product) => [product.id, product]));
+  const auditResults = await Promise.all(entries.map(([productId, price]) => recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "product.price_updated",
+    entityType: "products",
+    entityId: productId,
+    module: "Inventory",
+    description: "Updated product selling prices in bulk",
+    previousValues: previousById.get(productId) ?? null,
+    newValues: { unit_price: price.sellingPrice, wholesale_price: price.wholesalePrice, vip_price: price.vipPrice, special_price: price.specialPrice },
+    metadata: { bulk: true },
+  })));
+  const failedAudit = auditResults.find((result) => result.error);
+  if (failedAudit?.error) return { ok: false, error: failedAudit.error, updatedCount: entries.length };
 
   revalidatePath("/inventory/prices");
   revalidatePath("/inventory");

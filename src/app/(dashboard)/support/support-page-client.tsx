@@ -48,7 +48,7 @@ export default function SupportPageClient({ contacts }: { contacts: Contact[] })
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="support-page mx-auto max-w-6xl space-y-6">
       <section className="relative min-h-[270px] overflow-hidden rounded-3xl border border-emerald-100 bg-[#eaf7ee] shadow-xl">
         <img src="/support-center-artwork.jpeg" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover object-right" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#effaf2]/95 via-[#effaf2]/75 to-transparent" />

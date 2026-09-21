@@ -7,6 +7,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications";
 import type { Database, TransferStatus } from "@/types/database";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export interface TransferItemInput {
   productId: string;
@@ -219,15 +220,17 @@ export async function updateTransferStatus(transferId: string, status: TransferS
       .eq("org_id", context.orgId)
       .maybeSingle();
     if (request) {
-      const { error: auditError } = await updateClient.from("audit_logs").insert({
-        org_id: context.orgId,
-        actor_id: context.userId,
+      const audit = await recordAuditEvent(updateClient, {
+        orgId: context.orgId,
+        actorId: context.userId,
         action: "stock_request_fulfilled",
-        entity_type: "stock_request",
-        entity_id: request.id,
-        metadata: { transfer_id: transferId },
+        entityType: "stock_request",
+        entityId: request.id,
+        module: "Inventory",
+        description: "Fulfilled a stock request through a transfer",
+        newValues: { transfer_id: transferId, status: "completed" },
       });
-      if (auditError) console.error("[transfers] Failed to record stock request fulfillment audit:", auditError);
+      if (audit.error) console.error("[transfers] Failed to record stock request fulfillment audit:", audit.error);
       await createNotification({
         orgId: context.orgId,
         userId: request.requested_by,

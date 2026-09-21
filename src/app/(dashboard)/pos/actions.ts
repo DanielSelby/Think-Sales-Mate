@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import type { HeldSaleKind } from "@/types/database";
 
@@ -964,15 +965,17 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     return { ok: false, error: itemsError.message };
   }
   if (lowMarginItems.length > 0) {
-    const { error: lowMarginError } = await supabase.from("audit_logs").insert({
-      org_id: context.orgId,
-      actor_id: user.id,
+    const lowMarginAudit = await recordAuditEvent(supabase, {
+      orgId: context.orgId,
+      actorId: user.id,
       action: "sale.low_margin_flagged",
-      entity_type: "sale",
-      entity_id: sale.id,
-      metadata: { sale_number: sale.sale_number, price_tier: input.priceTier ?? "retail", items: lowMarginItems },
+      entityType: "sale",
+      entityId: sale.id,
+      module: "Sales",
+      description: `Low-margin items flagged on sale #${sale.sale_number}`,
+      newValues: { price_tier: input.priceTier ?? "retail", items: lowMarginItems },
     });
-    if (lowMarginError) return { ok: false, error: lowMarginError.message, saleId: sale.id };
+    if (lowMarginAudit.error) return { ok: false, error: lowMarginAudit.error, saleId: sale.id };
   }
 
   // Untracked products (no product_stock_levels row anywhere) were validated
