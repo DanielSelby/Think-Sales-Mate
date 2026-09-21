@@ -84,13 +84,66 @@ export async function updateVisitStatus(visitId: string, status: "Scheduled" | "
 export async function recordRouteCollection(input: { customerId: string; routeId?: string; outstanding: number; amount: number; paymentMethod: string }) {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "No active organization." };
+  if (!input.customerId || !Number.isFinite(input.amount) || input.amount <= 0) {
+    return { error: "Select a customer and enter a valid collection amount." };
+  }
   const supabase = await createClient();
-  const { error } = await (supabase as any).from("route_sales_collections").insert({
+  const db = supabase as any;
+  const [{ data: sales }, { data: creditPayments }] = await Promise.all([
+    db.from("sales")
+      .select("id, sale_number, total, amount_paid, sale_date, location_id")
+      .eq("org_id", context.orgId)
+      .eq("customer_id", input.customerId)
+      .in("status", ["completed", "returned"])
+      .order("sale_date", { ascending: true }),
+    db.from("customer_credit_payments")
+      .select("invoice_id, amount")
+      .eq("org_id", context.orgId),
+  ]);
+  const paidByInvoice = new Map<string, number>();
+  for (const payment of creditPayments ?? []) {
+    paidByInvoice.set(payment.invoice_id, (paidByInvoice.get(payment.invoice_id) ?? 0) + Number(payment.amount ?? 0));
+  }
+  let remaining = input.amount;
+  const allocations: { saleId: string; invoiceId: string; amount: number; locationId: string | null }[] = [];
+  for (const sale of sales ?? []) {
+    if (remaining <= 0) break;
+    const invoiceId = `SALE-${sale.sale_number}`;
+    const outstanding = Math.max(0, Number(sale.total ?? 0) - Number(sale.amount_paid ?? 0) - (paidByInvoice.get(invoiceId) ?? 0));
+    if (outstanding <= 0) continue;
+    const amount = Math.min(remaining, outstanding);
+    allocations.push({ saleId: sale.id, invoiceId, amount, locationId: sale.location_id ?? null });
+    remaining -= amount;
+  }
+  const primaryAllocation = allocations[0] ?? null;
+  const { data: collection, error } = await db.from("route_sales_collections").insert({
     org_id: context.orgId, customer_id: input.customerId, route_id: input.routeId || null,
-    outstanding_amount: input.outstanding, amount_collected: input.amount, payment_method: input.paymentMethod, collector_id: context.userId,
-  });
-  if (error) return { error: error.message };
+    invoice_id: primaryAllocation?.saleId ?? null,
+    outstanding_amount: input.outstanding, amount_collected: input.amount, payment_method: input.paymentMethod || "Cash", collector_id: context.userId,
+  }).select("id").single();
+  if (error || !collection) return { error: error?.message ?? "Could not record collection." };
+  if (allocations.length > 0) {
+    const paymentMethod = /mobile money|mobile|momo/i.test(input.paymentMethod) ? "MoMo" : input.paymentMethod || "Cash";
+    const { error: paymentError } = await db.from("customer_credit_payments").insert(
+      allocations.map((allocation) => ({
+        org_id: context.orgId,
+        customer_id: input.customerId,
+        invoice_id: allocation.invoiceId,
+        amount: allocation.amount,
+        payment_method: paymentMethod,
+        payment_date: new Date().toISOString().slice(0, 10),
+        location_id: allocation.locationId ?? (context.isBranchScoped ? context.locationId : null),
+        recorded_by: context.userId,
+        notes: "Recorded from Route Sales collection",
+      }))
+    );
+    if (paymentError) {
+      await db.from("route_sales_collections").delete().eq("id", collection.id).eq("org_id", context.orgId);
+      return { error: paymentError.message };
+    }
+  }
   revalidatePath(path);
+  revalidatePath("/accounting");
   return { success: true };
 }
 

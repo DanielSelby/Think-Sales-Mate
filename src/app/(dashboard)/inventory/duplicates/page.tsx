@@ -46,16 +46,16 @@ export default async function DuplicateReviewCenterPage({
         </div>
       </div>
       <div className="flex gap-1 border-b border-ledger-200">
-        <Link href="/inventory/duplicates" className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold ${activeTab === "duplicates" ? "border-brand-600 text-brand-700" : "border-transparent text-ledger-500"}`}>
+        <Link href="/inventory/duplicates" className={`inline-flex items-center gap-2 rounded-lg border-b-2 px-4 py-2.5 text-sm font-semibold ${activeTab === "duplicates" ? "border-[var(--theme-primary)] bg-[var(--theme-primary-pale)] text-[var(--theme-primary)]" : "border-transparent text-ledger-500"}`}>
           <ScanSearch className="h-4 w-4" /> Duplicate Review
         </Link>
         {can(context.role, "inventory.manage") && (
-          <Link href="/inventory/duplicates?tab=merge" className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold ${activeTab === "merge" ? "border-brand-600 text-brand-700" : "border-transparent text-ledger-500"}`}>
+          <Link href="/inventory/duplicates?tab=merge" className={`inline-flex items-center gap-2 rounded-lg border-b-2 px-4 py-2.5 text-sm font-semibold ${activeTab === "merge" ? "border-[var(--theme-primary)] bg-[var(--theme-primary-pale)] text-[var(--theme-primary)]" : "border-transparent text-ledger-500"}`}>
             <GitMerge className="h-4 w-4" /> Merge Products
           </Link>
         )}
         {can(context.role, "settings.view") && (
-          <Link href="/inventory/duplicates?tab=control" className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold ${activeTab === "control" ? "border-brand-600 text-brand-700" : "border-transparent text-ledger-500"}`}>
+          <Link href="/inventory/duplicates?tab=control" className={`inline-flex items-center gap-2 rounded-lg border-b-2 px-4 py-2.5 text-sm font-semibold ${activeTab === "control" ? "border-[var(--theme-primary)] bg-[var(--theme-primary-pale)] text-[var(--theme-primary)]" : "border-transparent text-ledger-500"}`}>
             <ShieldCheck className="h-4 w-4" /> Duplicate Product Control
           </Link>
         )}

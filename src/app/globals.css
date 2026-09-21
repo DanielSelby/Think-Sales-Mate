@@ -90,7 +90,7 @@ html.dark .dashboard-motion .rounded-card:hover {
    that a number is data to be trusted, not display type. */
 .figure {
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   letter-spacing: -0.01em;
 }
 

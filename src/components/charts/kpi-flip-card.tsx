@@ -51,6 +51,7 @@ interface KpiFlipCardProps {
   detail: string;
   featured?: boolean;
   animationIndex?: number;
+  borderClassName?: string;
 }
 
 export function KpiFlipCard({
@@ -63,6 +64,7 @@ export function KpiFlipCard({
   detail,
   featured = false,
   animationIndex = 0,
+  borderClassName,
 }: KpiFlipCardProps) {
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -77,7 +79,7 @@ export function KpiFlipCard({
           className={cn(
             "flip-face absolute inset-0 flex flex-col overflow-hidden rounded-2xl p-4 shadow-card transition-shadow hover:shadow-card-hover",
             !featured &&
-              "border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-ink-900"
+              cn("border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-ink-900", borderClassName)
           )}
           style={
             featured
@@ -194,7 +196,7 @@ export function KpiFlipCard({
         </div>
 
         {/* BACK */}
-        <div className="flip-face flip-face-back flex flex-col rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className={cn("flip-face flip-face-back flex flex-col rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900", borderClassName)}>
           <p className="text-xs font-semibold uppercase tracking-wide text-ledger-400">
             {label}
           </p>

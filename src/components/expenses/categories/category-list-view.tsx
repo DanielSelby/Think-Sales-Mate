@@ -244,8 +244,8 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
                         </td>
                         <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{c.description ?? "—"}</td>
                         <td className="px-4 py-3">{c.department ? <Badge tone="neutral">{c.department}</Badge> : "—"}</td>
-                        <td className="px-4 py-3 text-right font-mono text-ledger-600 dark:text-ledger-300">{c.budgetLimit ? formatCurrency(c.budgetLimit, currency) : "—"}</td>
-                        <td className="px-4 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(c.totalExpenses, currency)}</td>
+                        <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{c.budgetLimit ? formatCurrency(c.budgetLimit, currency) : "—"}</td>
+                        <td className="px-4 py-3 text-right font-medium text-ink-900 dark:text-white">{formatCurrency(c.totalExpenses, currency)}</td>
                         <td className="px-4 py-3 text-right text-ledger-600 dark:text-ledger-300">{c.transactions}</td>
                         <td className="px-4 py-3"><Badge tone={CATEGORY_STATUS_TONE[c.status]}>{CATEGORY_STATUS_LABEL[c.status]}</Badge></td>
                         <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{c.createdByName}</td>
@@ -330,7 +330,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
               {topCategories.map((c) => (
                 <div key={c.id} className="flex items-center justify-between text-sm">
                   <span className="truncate text-ink-900 dark:text-white">{c.name}</span>
-                  <span className="font-mono text-xs text-ledger-500">{formatCurrency(c.totalExpenses, currency)}</span>
+                  <span className="text-xs text-ledger-500">{formatCurrency(c.totalExpenses, currency)}</span>
                 </div>
               ))}
             </CardContent>
@@ -379,7 +379,7 @@ function Kpi({ icon: Icon, accent, label, value, sub }: { icon: React.ComponentT
         <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass)}><Icon className="h-5 w-5" /></div>
         <div className="min-w-0">
           <p className="text-[11px] font-medium text-ledger-400">{label}</p>
-          <span className="mt-0.5 block truncate font-display font-mono text-xl font-bold text-ink-900 dark:text-white">{value}</span>
+          <span className="mt-0.5 block truncate font-display text-xl font-bold text-ink-900 dark:text-white">{value}</span>
         </div>
       </div>
       {sub && <p className="mt-2 text-[10px] text-ledger-400">{sub}</p>}

@@ -6,6 +6,7 @@ import { BarChart3, CalendarDays, CheckCircle2, ChevronRight, DollarSign, FileTe
 import { Button } from "@/components/ui/button";
 import { deleteCustomer } from "@/app/(dashboard)/crm/actions";
 import { formatMoney } from "@/lib/currency";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 
 export type CrmCustomer = {
   id: string; name: string; company: string | null; email: string | null; phone: string | null;
@@ -17,6 +18,8 @@ export type CrmInvoice = { customer_name: string; amount: number; status: string
 const stages = ["New Lead", "Contacted", "Qualified", "Proposal Sent", "Negotiation", "Won", "Lost"];
 
 export function CrmWorkspace({ customers, sales, invoices, canManage, currency }: { customers: CrmCustomer[]; sales: CrmSale[]; invoices: CrmInvoice[]; canManage: boolean; currency: string }) {
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [tab, setTab] = useState("Overview");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(customers[0]?.id ?? "");
@@ -38,7 +41,7 @@ export function CrmWorkspace({ customers, sales, invoices, canManage, currency }
       <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Workspace</p><h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">CRM & Customer Relationship Management</h1><p className="mt-1 text-sm text-slate-500">Manage leads, opportunities and customer relationships in one place.</p></div>
       <div className="flex flex-wrap gap-2">{["Add Lead", "Add Opportunity", "Schedule Meeting", "Create Task"].map((label) => <Button key={label} variant="outline" onClick={() => addAction(label)}><Plus className="h-4 w-4" />{label}</Button>)}</div>
     </div>
-    <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-ink-900">{["Overview", "Leads", "Opportunities", "Activities", "Tasks", "Quotations", "Orders", "Financial Summary", "Communications", "Documents"].map((item) => <button key={item} onClick={() => setTab(item)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${tab === item ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-50"}`}>{item}</button>)}</div>
+    <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-ink-900">{["Overview", "Leads", "Opportunities", "Activities", "Tasks", "Quotations", "Orders", "Financial Summary", "Communications", "Documents"].map((item) => <button key={item} onClick={() => setTab(item)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${tab === item ? "" : "text-slate-500 hover:bg-slate-50"}`} style={tab === item ? { background: theme.colors.primaryPale, color: theme.colors.primary } : undefined}>{item}</button>)}</div>
     {tab === "Overview" && <><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{([
       ["Total Customers", customers.length, Users2, "12% vs last month"], ["Active Leads", activeLeads, Target, "18% vs last month"], ["Opportunities", pipeline.length, TrendingUp, "22% vs last month"], ["Won Deals", wonDeals, CheckCircle2, "35% vs last month"], ["Pipeline Value", money(pipelineValue), DollarSign, "28% vs last month"], ["Credit Outstanding", money(customers.reduce((sum, item) => sum + item.outstanding, 0)), FileText, "8% vs last month"], ["Average Order", money(averageOrder), BarChart3, "6% vs last month"], ["Conversion Rate", `${pipeline.length ? Math.round((wonDeals / pipeline.length) * 100) : 0}%`, CheckCircle2, "4% vs last month"]
     ] as Array<[string, string | number, typeof Users2, string]>).map(([label, value, Icon, trend]) => <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-ink-900"><div className="flex items-center justify-between"><span className="rounded-xl bg-blue-50 p-2 text-blue-600"><Icon className="h-4 w-4" /></span><span className="text-[10px] font-semibold text-emerald-600">↑ {trend}</span></div><p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{String(value)}</p></div>)}</div>

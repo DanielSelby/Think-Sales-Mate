@@ -39,7 +39,11 @@ export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, syst
       <GlobalCallNotifications />
       <div
         className="flex h-screen overflow-hidden"
-        style={{ background: darkMode ? "#08111f" : theme.colors.background }}
+        style={{
+          background: darkMode ? "#08111f" : theme.colors.background,
+          "--theme-primary": theme.colors.primary,
+          "--theme-primary-pale": theme.colors.primaryPale,
+        } as React.CSSProperties}
       >
         <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">

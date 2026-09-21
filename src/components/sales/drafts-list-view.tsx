@@ -162,7 +162,7 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
       </nav>
 
       {activeTab === "requests" ? (
-        <Card accent="neutral" className="overflow-hidden rounded-2xl shadow-card">
+        <Card accent="neutral" className="overflow-hidden rounded-2xl border-white shadow-card dark:border-white">
           <div className="border-b border-ledger-100 px-4 py-3 text-xs text-ledger-500 dark:border-ledger-700">{branchRequests.length} branch requests</div>
           <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-ledger-100 bg-ledger-50/60 text-ledger-500"><th className="px-4 py-3">Request</th><th className="px-3 py-3">From</th><th className="px-3 py-3">Requesting Branch</th><th className="px-3 py-3">Date</th><th className="px-3 py-3">Qty</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
             {branchRequests.map((request) => <tr key={request.id}><td className="px-4 py-3 font-mono font-medium text-signal">{request.label}</td><td className="px-3 py-3">{request.source}</td><td className="px-3 py-3">{request.destination}</td><td className="px-3 py-3">{new Date(request.createdAt).toLocaleDateString()}</td><td className="px-3 py-3">{request.totalQuantity}</td><td className="px-3 py-3"><Badge tone={request.status === "approved" || request.status === "completed" ? "signal" : request.status === "rejected" ? "alert" : "neutral"}>{request.status.replace("_", " ")}</Badge></td><td className="px-3 py-3 text-right">            <Link href={`/inventory/transfers/new?requestId=${request.id}`} className="rounded-md border border-ledger-200 px-2 py-1 font-medium text-signal hover:bg-signal-soft">Review & Edit</Link>{request.transferId && <Link href={`/inventory/transfers/${request.transferId}`} className="ml-2 text-signal underline">Transfer</Link>}</td></tr>)}
@@ -171,13 +171,13 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
         </Card>
       ) : <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiFlipCard color="green" label="Total Drafts" value={`${rows.filter((row) => row.documentStatus === "draft").length}`} icon={<FileText className="h-full w-full" />} detail={formatCurrency(totals.draft, currency)} />
-        <KpiFlipCard color="blue" label="Total Quotations" value={`${rows.filter((row) => row.documentStatus === "quotation").length}`} icon={<FileText className="h-full w-full" />} detail={formatCurrency(totals.quotation, currency)} />
-        <KpiFlipCard color="purple" label="Total Proformas" value={`${rows.filter((row) => row.documentStatus === "proforma").length}`} icon={<FileSpreadsheet className="h-full w-full" />} detail={formatCurrency(totals.proforma, currency)} />
-        <KpiFlipCard color="amber" label="Total Sales Value" value={formatCurrency(rows.reduce((sum, row) => sum + row.total, 0), currency)} icon={<FileText className="h-full w-full" />} detail="Total value of all saved sales documents." />
+        <KpiFlipCard color="green" label="Total Drafts" value={`${rows.filter((row) => row.documentStatus === "draft").length}`} icon={<FileText className="h-full w-full" />} detail={formatCurrency(totals.draft, currency)} borderClassName="border-white dark:border-white" />
+        <KpiFlipCard color="blue" label="Total Quotations" value={`${rows.filter((row) => row.documentStatus === "quotation").length}`} icon={<FileText className="h-full w-full" />} detail={formatCurrency(totals.quotation, currency)} borderClassName="border-white dark:border-white" />
+        <KpiFlipCard color="purple" label="Total Proformas" value={`${rows.filter((row) => row.documentStatus === "proforma").length}`} icon={<FileSpreadsheet className="h-full w-full" />} detail={formatCurrency(totals.proforma, currency)} borderClassName="border-white dark:border-white" />
+        <KpiFlipCard color="amber" label="Total Sales Value" value={formatCurrency(rows.reduce((sum, row) => sum + row.total, 0), currency)} icon={<FileText className="h-full w-full" />} detail="Total value of all saved sales documents." borderClassName="border-white dark:border-white" />
       </div>
 
-      <Card accent="neutral" className="rounded-2xl shadow-card">
+      <Card accent="neutral" className="rounded-2xl border-white shadow-card dark:border-white">
         <CardContent className="pt-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
@@ -193,7 +193,7 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
 
       {notice && <div className={cn("flex items-center justify-between rounded-md border px-4 py-2.5 text-sm", notice.tone === "success" ? "border-signal/30 bg-signal-soft text-ink-900" : "border-alert/30 bg-alert-soft text-alert")}>{notice.message}<button onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button></div>}
 
-      <Card accent="neutral" className="overflow-hidden rounded-2xl shadow-card">
+      <Card accent="neutral" className="overflow-hidden rounded-2xl border-white shadow-card dark:border-white">
         <div className="flex items-center justify-between border-b border-ledger-100 px-4 py-3 text-xs text-ledger-500 dark:border-ledger-700">
           <span>Showing {filtered.length} of {rows.length} documents</span>
           <Button variant="outline" size="sm"><Download className="h-3.5 w-3.5" /> Export</Button>

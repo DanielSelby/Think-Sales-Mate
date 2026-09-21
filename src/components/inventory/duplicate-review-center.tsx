@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { AlertTriangle, Barcode, GitMerge, Search, Tag, Layers3 } from "lucide-react";
 
 type ReviewRow = {
@@ -24,6 +25,8 @@ const tabs = [
 ] as const;
 
 export function DuplicateReviewCenter({ rows }: { rows: ReviewRow[] }) {
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>("exact");
   const [query, setQuery] = useState("");
   const visibleRows = useMemo(() => rows.filter((row) =>
@@ -35,7 +38,7 @@ export function DuplicateReviewCenter({ rows }: { rows: ReviewRow[] }) {
     <div className="flex flex-wrap gap-2 border-b border-ledger-100 p-4 text-xs dark:border-ledger-700">
       {tabs.map((tab) => {
         const count = rows.filter((row) => row.type === tab.key).length;
-        return <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={`rounded-lg px-3 py-2 font-semibold transition ${activeTab === tab.key ? "bg-brand-50 text-brand-700 ring-1 ring-brand-200" : "text-ledger-500 hover:bg-ledger-50"}`}>{tab.label} ({count})</button>;
+        return <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={`rounded-lg px-3 py-2 font-semibold transition ${activeTab === tab.key ? "ring-1" : "text-ledger-500 hover:bg-ledger-50"}`} style={activeTab === tab.key ? { background: theme.colors.primaryPale, color: theme.colors.primary, boxShadow: `inset 0 0 0 1px ${theme.colors.primary}33` } : undefined}>{tab.label} ({count})</button>;
       })}
     </div>
     <div className="border-b border-ledger-100 p-4 dark:border-ledger-700">

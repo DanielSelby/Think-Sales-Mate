@@ -657,7 +657,7 @@ export function OrdersListView({
                           )}
                         >
                           {/* Order No */}
-                          <td className="py-3 pl-4 pr-2 font-mono font-semibold" style={{ color: theme.colors.primary }}>
+                          <td className="py-3 pl-4 pr-2 font-semibold" style={{ color: theme.colors.primary }}>
                             <Link
                               href={`/orders/${o.id}`}
                               onClick={(e) => e.stopPropagation()}
@@ -720,7 +720,7 @@ export function OrdersListView({
                           </td>
 
                           {/* Total Amount */}
-                          <td className="px-2 py-3 font-mono font-semibold text-ink-900 dark:text-white">
+                          <td className="px-2 py-3 font-semibold text-ink-900 dark:text-white">
                             {formatCurrency(o.total, currency)}
                           </td>
 
@@ -978,7 +978,7 @@ export function OrdersListView({
               <div className="rounded-xl border border-ledger-200/80 bg-white p-5 shadow-sm dark:border-ledger-700/80 dark:bg-ink-900">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="font-display text-sm font-bold text-ink-900 dark:text-white">Order Timeline</h3>
-                  <span className="font-mono text-[11px] font-semibold" style={{ color: theme.colors.primary }}>
+                  <span className="text-[11px] font-semibold" style={{ color: theme.colors.primary }}>
                     {selectedOrder.orderNumber}
                   </span>
                 </div>
@@ -1090,7 +1090,7 @@ export function OrdersListView({
 
                   <div className="flex items-center justify-between border-t border-ledger-100 pt-2 text-sm font-bold dark:border-ledger-800">
                     <span className="text-ink-900 dark:text-white">Total Amount</span>
-                    <span className="font-mono" style={{ color: theme.colors.primary }}>
+                    <span style={{ color: theme.colors.primary }}>
                       {formatCurrency(selectedOrder.total, currency)}
                     </span>
                   </div>
@@ -1328,7 +1328,7 @@ function KanbanCard({
     <div className={cn("rounded-xl border bg-ledger-50/60 p-3 dark:bg-ink-850", borderColor)}>
       <p className="text-xs font-semibold text-ink-900 dark:text-white truncate">{title}</p>
       <p className="mt-1 text-[11px] text-ledger-500 dark:text-ledger-400">{count} Orders</p>
-      <p className="font-mono text-xs font-bold text-ink-900 dark:text-white truncate">{value}</p>
+      <p className="text-xs font-bold text-ink-900 dark:text-white truncate">{value}</p>
     </div>
   );
 }

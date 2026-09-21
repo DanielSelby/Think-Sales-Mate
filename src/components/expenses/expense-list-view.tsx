@@ -95,7 +95,7 @@ function ExpenseKpiCard({
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-medium text-ledger-400">{label}</p>
-          <span className="mt-0.5 block truncate font-display font-mono text-xl font-bold text-ink-900 dark:text-white">{value}</span>
+          <span className="mt-0.5 block truncate font-display text-xl font-bold text-ink-900 dark:text-white">{value}</span>
         </div>
       </div>
       <p className="mt-2 text-[10px] text-ledger-400">{detail}</p>
@@ -371,7 +371,7 @@ export function ExpenseListView({
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.description ?? "—"}</td>
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.vendor ?? "—"}</td>
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.paymentMethod ?? "—"}</td>
-                      <td className="px-4 py-3 text-right font-mono font-medium text-ink-900 dark:text-white">{formatCurrency(e.amount, currency)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-ink-900 dark:text-white">{formatCurrency(e.amount, currency)}</td>
                       <td className="px-4 py-3"><Badge tone={DISPLAY_STATUS_TONE[e.displayStatus]}>{DISPLAY_STATUS_LABEL[e.displayStatus]}</Badge></td>
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.paidOn ? new Date(e.paidOn).toLocaleDateString("en-GH", { day: "2-digit", month: "short" }) : "—"}</td>
                       <td className="px-4 py-3 pr-4">
@@ -454,7 +454,7 @@ export function ExpenseListView({
               <div key={c.category}>
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span className="truncate text-ink-900 dark:text-white">{c.category}</span>
-                  <span className="font-mono text-xs text-ledger-500">{formatCurrency(c.total, currency)}</span>
+                  <span className="text-xs text-ledger-500">{formatCurrency(c.total, currency)}</span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-ledger-100 dark:bg-white/[0.06]">
                   <div className="h-1.5 rounded-full bg-signal" style={{ width: `${(c.total / maxCategoryTotal) * 100}%` }} />
