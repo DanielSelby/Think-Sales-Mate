@@ -49,7 +49,7 @@ function HistoryKpi({ label, value, icon, tone }: { label: string; value: number
     amber: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
     purple: "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400",
   };
-  return <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><span className="font-display text-2xl font-bold text-ink-900 dark:text-white">{value}</span></div></div><p className="mt-2 text-[10px] text-ledger-400">Current sales history records</p></div>;
+  return <div className="rounded-2xl border-0 bg-white p-5 shadow-card dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><span className="font-display text-2xl font-bold text-ink-900 dark:text-white">{value}</span></div></div><p className="mt-2 text-[10px] text-ledger-400">Current sales history records</p></div>;
 }
 
 export interface SalesKpis {
@@ -293,7 +293,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Filter bar */}
-      <Card accent="neutral" className="sticky top-2 z-20 rounded-2xl shadow-card">
+      <Card accent="neutral" className="sticky top-2 z-20 rounded-2xl border-0 shadow-card">
         <CardContent className="pt-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>

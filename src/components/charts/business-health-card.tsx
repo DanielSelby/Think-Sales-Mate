@@ -3,6 +3,7 @@
 import { CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import type { FinancialSummary } from "@/lib/accounting/metrics";
 import { cn } from "@/lib/utils";
+import { THEMES, useAppStore } from "@/store/useAppStore";
 
 interface HealthSignal {
   ok: boolean | "warn";
@@ -70,13 +71,14 @@ function computeHealth(summary: FinancialSummary): { score: number; label: strin
 
 export function BusinessHealthCard({ summary }: { summary: FinancialSummary }) {
   const { score, label, signals } = computeHealth(summary);
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme];
   const circumference = 2 * Math.PI * 40;
   const offset = circumference * (1 - score / 100);
-  const color = score >= 75 ? "#1d8f5e" : score >= 50 ? "#a8781f" : "#b8402f";
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="relative left-2 h-32 w-32 self-center">
+      <div className="relative h-44 w-44 self-center">
         <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
           <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-ledger-100 dark:text-ledger-700" />
           <circle
@@ -84,7 +86,7 @@ export function BusinessHealthCard({ summary }: { summary: FinancialSummary }) {
             cy="50"
             r="40"
             fill="none"
-            stroke={color}
+            stroke={theme.colors.primary}
             strokeWidth="8"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
