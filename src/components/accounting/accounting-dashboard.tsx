@@ -38,15 +38,13 @@ import type { AccountsReceivableItem } from "@/types/accounting";
 import type { LiveFinancialSnapshot } from "./financial-reports-tab";
 import type { AccountingAccount, AccountingSettings, FixedAsset, JournalEntry, TaxFilingSummary, TaxRateConfig } from "@/types/accounting";
 
-export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings }) {
+export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, currentCurrency, currentBranch } = useAccountingStore();
 
-  const [dateRangeText, setDateRangeText] = useState(() => {
-    const today = new Date();
-    return `${today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-  });
+  const formatDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const [dateRangeText, setDateRangeText] = useState(() => `${formatDate(initialDateFrom ?? new Date().toISOString().slice(0, 10))} - ${formatDate(initialDateTo ?? new Date().toISOString().slice(0, 10))}`);
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState(false);
@@ -140,10 +138,10 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
                     const endOfYear = new Date(today.getFullYear(), 11, 31);
                     const format = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
                     return [
-                      { label: "Today", val: format(today) },
-                      { label: "This Week", val: `${format(startOfWeek)} - ${format(today)}` },
-                      { label: "This Month", val: `${format(startOfMonth)} - ${format(endOfMonth)}` },
-                      { label: "Financial Year", val: `${format(startOfYear)} - ${format(endOfYear)}` },
+                      { label: "Today", val: format(today), from: today.toISOString().slice(0, 10), to: today.toISOString().slice(0, 10) },
+                      { label: "This Week", val: `${format(startOfWeek)} - ${format(today)}`, from: startOfWeek.toISOString().slice(0, 10), to: today.toISOString().slice(0, 10) },
+                      { label: "This Month", val: `${format(startOfMonth)} - ${format(endOfMonth)}`, from: startOfMonth.toISOString().slice(0, 10), to: endOfMonth.toISOString().slice(0, 10) },
+                      { label: "Financial Year", val: `${format(startOfYear)} - ${format(endOfYear)}`, from: startOfYear.toISOString().slice(0, 10), to: endOfYear.toISOString().slice(0, 10) },
                     ];
                   })(),
                 ].map((item) => (
@@ -152,6 +150,7 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
                     onClick={() => {
                       setDateRangeText(item.val);
                       setIsDateMenuOpen(false);
+                      router.replace(`/accounting?tab=${activeTab}&from=${item.from}&to=${item.to}`, { scroll: false });
                     }}
                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                   >

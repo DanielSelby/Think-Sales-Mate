@@ -13,8 +13,15 @@ export const metadata = {
   description: "Enterprise double-entry accounting, General Ledger, Chart of Accounts, and Financial Reports.",
 };
 
-export default async function AccountingPage() {
+export default async function AccountingPage({ searchParams }: { searchParams?: Promise<{ from?: string; to?: string }> }) {
   const context = await getCurrentOrgContext();
+  const requestedRange = searchParams ? await searchParams : {};
+  const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+  const reportToday = new Date();
+  const defaultFrom = new Date(reportToday.getFullYear(), reportToday.getMonth(), 1).toISOString().slice(0, 10);
+  const defaultTo = reportToday.toISOString().slice(0, 10);
+  const dateFrom = requestedRange.from && isoDate.test(requestedRange.from) ? requestedRange.from : defaultFrom;
+  const dateTo = requestedRange.to && isoDate.test(requestedRange.to) && requestedRange.to >= dateFrom ? requestedRange.to : defaultTo;
   let initialPayables: AccountsPayableItem[] = [];
   let initialBranches: string[] = [];
   let initialReceivables: AccountsReceivableItem[] = [];
@@ -140,9 +147,6 @@ export default async function AccountingPage() {
         description: line.description ?? undefined,
       })),
     }));
-    const reportToday = new Date();
-    const dateFrom = new Date(reportToday.getFullYear(), reportToday.getMonth(), 1).toISOString().slice(0, 10);
-    const dateTo = reportToday.toISOString().slice(0, 10);
     const [reportKpis, balanceSheet] = await Promise.all([
       getReportKpis({ orgId: context.orgId, dateFrom, dateTo, locationId: context.isBranchScoped ? context.allowedLocationIds[0] : context.masterLocationId }),
       getBalanceSheet(context.orgId, dateTo),
@@ -277,7 +281,7 @@ export default async function AccountingPage() {
         </div>
       }
     >
-      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} />
+      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} />
     </Suspense>
   );
 }
