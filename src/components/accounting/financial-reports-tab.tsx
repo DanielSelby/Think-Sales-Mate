@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatCurrencyAmount } from "@/lib/currency";
 import type { BalanceSheetSummary, ReportKpis } from "@/lib/reports/calculations";
 import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 
@@ -30,6 +31,7 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
     payables,
     fixedAssets,
     currentCurrency,
+    currencyConfig,
     currentBranch,
   } = useAccountingStore();
   const accounts = liveAccounts ?? [];
@@ -89,6 +91,7 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
   const grossProfit = liveSnapshot ? totalRevenue - totalCogs : totalRevenue - totalCogs;
   const totalExpenses = liveSnapshot?.kpis.totalExpenses ?? expenses.reduce((sum, a) => sum + a.balance, 0);
   const netProfit = liveSnapshot?.kpis.netProfit ?? grossProfit - totalExpenses;
+  const money = (value: number) => formatCurrencyAmount(value, currencyConfig);
 
   // Balance Sheet calculations
   const assetAccounts = activeAccounts.filter((a) => a.type === "asset");
@@ -361,7 +364,7 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
             <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 dark:bg-slate-800/60 dark:border-slate-700 flex justify-between font-bold text-sm">
               <span className="text-slate-800 dark:text-white">Gross Profit</span>
               <span className="font-mono text-slate-900 dark:text-white">
-                {currentCurrency} {grossProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(grossProfit)}
               </span>
             </div>
 
@@ -391,7 +394,7 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
             <div className="rounded-2xl bg-emerald-50/70 p-4 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900 flex justify-between items-center text-base font-bold">
               <span className="text-emerald-900 dark:text-emerald-300">Net Profit for the Period</span>
               <span className="font-mono text-xl text-emerald-700 dark:text-emerald-400">
-                {currentCurrency} {netProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(netProfit)}
               </span>
             </div>
           </div>
@@ -470,7 +473,7 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
             <div className="rounded-xl bg-slate-50 p-4 border border-slate-200 dark:bg-slate-800/60 dark:border-slate-700 flex justify-between items-center font-bold text-sm">
               <span className="text-slate-800 dark:text-white">Total Liabilities &amp; Equity</span>
               <span className="font-mono text-blue-600 dark:text-blue-400">
-                {currentCurrency} {(totalLiabilities + totalEquity).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(totalLiabilities + totalEquity)}
               </span>
             </div>
           </div>
@@ -562,7 +565,7 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
             <div className="rounded-xl bg-blue-50 p-4 border border-blue-200 dark:bg-blue-950/40 flex justify-between font-bold text-sm">
               <span className="text-blue-900 dark:text-blue-300">Net Increase in Cash &amp; Bank Balances</span>
               <span className="font-mono text-blue-700 dark:text-blue-300">
-                {currentCurrency} {netCashMovement.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(netCashMovement)}
               </span>
             </div>
             {!liveJournalEntries?.length && (

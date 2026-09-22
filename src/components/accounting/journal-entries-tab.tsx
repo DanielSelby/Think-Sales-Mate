@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatCurrencyAmount } from "@/lib/currency";
 import type { JournalEntry, JournalLineItem } from "@/types/accounting";
 import { createManualJournal } from "@/app/(dashboard)/accounting/actions";
 import { updateJournalStatus } from "@/app/(dashboard)/accounting/actions";
@@ -31,6 +32,7 @@ interface JournalEntriesTabProps {
 export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts = [], initialOpenNewModal = false, onModalClosed }: JournalEntriesTabProps) {
   const {
     currentCurrency,
+    currencyConfig,
     currentBranch,
     createJournalEntry,
   } = useAccountingStore();
@@ -80,6 +82,7 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
   const totalCredit = lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
   const difference = Math.abs(totalDebit - totalCredit);
   const isBalanced = difference < 0.01 && totalDebit > 0;
+  const money = (value: number) => formatCurrencyAmount(value, currencyConfig);
 
   const handleAddLine = () => {
     setLines([
@@ -310,10 +313,10 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                       {entry.description}
                     </td>
                     <td className="px-4 py-3 text-right font-display font-semibold text-slate-900 dark:text-white">
-                      {entry.totalDebit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {money(entry.totalDebit)}
                     </td>
                     <td className="px-4 py-3 text-right font-display font-semibold text-slate-900 dark:text-white">
-                      {entry.totalCredit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {money(entry.totalCredit)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
@@ -536,12 +539,12 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                     {isBalanced ? (
                       <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
                         <CheckCircle2 className="h-4 w-4" /> Entry is balanced! (Total: {currentCurrency}{" "}
-                        {totalDebit.toLocaleString("en-US", { minimumFractionDigits: 2 })})
+                        {money(totalDebit)})
                       </span>
                     ) : (
                       <span className="flex items-center gap-1.5 text-rose-500 font-semibold">
                         <AlertCircle className="h-4 w-4" /> Unbalanced by {currentCurrency}{" "}
-                        {difference.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        {money(difference)}
                       </span>
                     )}
                   </div>
@@ -666,10 +669,10 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                       </td>
                       <td className="p-2.5 text-slate-600 dark:text-slate-400">{l.description || "-"}</td>
                       <td className="p-2.5 text-right font-mono font-semibold">
-                        {l.debit > 0 ? l.debit.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "-"}
+                        {l.debit > 0 ? money(l.debit) : "-"}
                       </td>
                       <td className="p-2.5 text-right font-mono font-semibold">
-                        {l.credit > 0 ? l.credit.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "-"}
+                        {l.credit > 0 ? money(l.credit) : "-"}
                       </td>
                     </tr>
                   ))}
@@ -678,10 +681,10 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                       Total:
                     </td>
                     <td className="p-2.5 text-right font-mono text-slate-900 dark:text-white">
-                      {viewVoucher.totalDebit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {money(viewVoucher.totalDebit)}
                     </td>
                     <td className="p-2.5 text-right font-mono text-slate-900 dark:text-white">
-                      {viewVoucher.totalCredit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {money(viewVoucher.totalCredit)}
                     </td>
                   </tr>
                 </tbody>

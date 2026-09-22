@@ -50,7 +50,7 @@ const money = (currency: string, value: number) => formatMoney(value, currency);
 export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditLogs = [], initialPayments = [] }: { initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { receivables: storeReceivables, currentCurrency } = useAccountingStore();
+  const { receivables: storeReceivables, currentCurrency, currentCurrencyCode } = useAccountingStore();
   const receivables = initialReceivables;
 
   const totalReceivables = receivables.reduce((sum, item) => sum + item.outstandingAmount, 0);
@@ -92,8 +92,8 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
               <p className="text-xs text-slate-500">{selected.branch} · {selected.invoiceNumber}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-right text-xs">
-              <Metric label="Credit Limit" value={money(currentCurrency, selected.totalAmount * 1.5)} />
-              <Metric label="Outstanding" value={money(currentCurrency, selected.outstandingAmount)} />
+              <Metric label="Credit Limit" value={money(currentCurrencyCode, selected.totalAmount * 1.5)} />
+              <Metric label="Outstanding" value={money(currentCurrencyCode, selected.outstandingAmount)} />
               <Metric label="Risk" value={selected.daysOutstanding > 60 ? "High" : selected.daysOutstanding > 0 ? "Medium" : "Low"} />
             </div>
           </div>
@@ -124,7 +124,7 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
         <AccountsReceivableTab initialReceivables={receivables} />
       ) : activeTab === "overview" ? (
         <Overview
-          currency={currentCurrency}
+          currency={currentCurrencyCode}
           totalReceivables={totalReceivables}
           overdue={overdue}
           customers={customers}
@@ -137,7 +137,7 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
       ) : (
         <WorkspaceSection
           tab={activeTab}
-          currency={currentCurrency}
+          currency={currentCurrencyCode}
           receivables={receivables}
           auditLogs={initialAuditLogs}
           payments={initialPayments}

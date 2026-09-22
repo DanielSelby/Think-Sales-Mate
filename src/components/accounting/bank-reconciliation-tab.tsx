@@ -16,12 +16,14 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatCurrencyAmount } from "@/lib/currency";
 import { autoMatchBankStatement, finalizeBankReconciliation, importBankStatement, toggleBankStatementMatch } from "@/app/(dashboard)/accounting/actions";
 import { useRouter } from "next/navigation";
 
 export function BankReconciliationTab({ initialBankAccounts = [], initialBankTransactions = {} }: { initialBankAccounts?: import("@/types/accounting").BankAccountItem[]; initialBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]> }) {
   const {
     currentCurrency,
+    currencyConfig,
     currentBranch,
   } = useAccountingStore();
   const router = useRouter();
@@ -182,7 +184,7 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
               <div>
                 <p className="text-xs text-slate-400">Bank Statement Balance</p>
                 <p className="font-display text-lg font-bold text-slate-900 dark:text-white">
-                  {currentCurrency} {currentAccount.statementBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {formatCurrencyAmount(currentAccount.statementBalance, currencyConfig)}
                 </p>
               </div>
             </div>
@@ -198,7 +200,7 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
               <div>
                 <p className="text-xs text-slate-400">General Ledger Balance</p>
                 <p className="font-display text-lg font-bold text-slate-900 dark:text-white">
-                  {currentCurrency} {currentAccount.bookBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {formatCurrencyAmount(currentAccount.bookBalance, currencyConfig)}
                 </p>
               </div>
             </div>
@@ -224,7 +226,7 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
                     difference === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600"
                   }`}
                 >
-                  {currentCurrency} {difference.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {formatCurrencyAmount(difference, currencyConfig)}
                 </p>
               </div>
             </div>
@@ -321,7 +323,7 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right font-display font-semibold text-slate-900 dark:text-white">
-                    {tx.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {formatCurrencyAmount(tx.amount, currencyConfig)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {tx.matched ? (

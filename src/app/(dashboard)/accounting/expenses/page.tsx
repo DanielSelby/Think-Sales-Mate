@@ -6,11 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { ExpensesTable, type ExpenseRow } from "@/components/accounting/expenses-table";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 
 export default async function ExpensesPage() {
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
+  const currencyConfig = await getOrganizationCurrencyConfig();
 
   const supabase = await createClient();
   let query = supabase
@@ -60,7 +62,7 @@ export default async function ExpensesPage() {
         </div>
       </div>
 
-      <ExpensesTable expenses={expenses} canManage={canManage} currency={context.currency} />
+      <ExpensesTable expenses={expenses} canManage={canManage} currencyConfig={currencyConfig} />
     </div>
   );
 }

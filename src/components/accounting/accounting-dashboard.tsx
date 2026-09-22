@@ -37,11 +37,13 @@ import type { AccountsPayableItem } from "@/types/accounting";
 import type { AccountsReceivableItem } from "@/types/accounting";
 import type { LiveFinancialSnapshot } from "./financial-reports-tab";
 import type { AccountingAccount, AccountingSettings, FixedAsset, JournalEntry, TaxFilingSummary, TaxRateConfig } from "@/types/accounting";
+import type { CurrencyConfig } from "@/lib/currency";
 
-export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string }) {
+export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig }) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { activeTab, setActiveTab, currentCurrency, currentBranch } = useAccountingStore();
+  const { activeTab, setActiveTab, setCurrencyConfig } = useAccountingStore();
+  const currentCurrency = useAccountingStore((state) => state.currentCurrency);
 
   const formatDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const [dateRangeText, setDateRangeText] = useState(() => `${formatDate(initialDateFrom ?? new Date().toISOString().slice(0, 10))} - ${formatDate(initialDateTo ?? new Date().toISOString().slice(0, 10))}`);
@@ -51,7 +53,10 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
 
   // Quick Action Modals Trigger States
   const [openNewJournalModal, setOpenNewJournalModal] = useState(false);
-  const [openNewBillModal, setOpenNewBillModal] = useState(false);
+
+  useEffect(() => {
+    if (liveCurrencyConfig) setCurrencyConfig(liveCurrencyConfig.code, liveCurrencyConfig.symbol, liveCurrencyConfig);
+  }, [liveCurrencyConfig, setCurrencyConfig]);
 
   // Sync tab from URL if present
   useEffect(() => {
@@ -207,12 +212,18 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
               setActiveTab("journal");
               setOpenNewJournalModal(true);
             }}
+            onOpenExpenseModal={() => {
+              router.push("/expenses/new");
+            }}
+            onOpenIncomeModal={() => {
+              setActiveTab("journal");
+              setOpenNewJournalModal(true);
+            }}
             onOpenBillModal={() => {
-              setActiveTab("payables");
-              setOpenNewBillModal(true);
+              router.push("/purchases/new");
             }}
             onOpenInvoiceModal={() => {
-              setActiveTab("receivables");
+              router.push("/accounting/invoices/new");
             }}
           />
         )}
@@ -236,8 +247,6 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
           <AccountsPayableTab
             initialPayables={initialPayables}
             initialBranches={initialBranches}
-            initialOpenBillModal={openNewBillModal}
-            onModalClosed={() => setOpenNewBillModal(false)}
           />
         )}
 

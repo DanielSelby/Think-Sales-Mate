@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { deleteExpense } from "@/app/(dashboard)/accounting/expenses/actions";
-import { formatCurrency } from "@/lib/sales/format";
 
 export interface ExpenseRow {
   id: string;
@@ -14,9 +13,9 @@ export interface ExpenseRow {
   expenseDate: string;
 }
 
-import { formatMoney } from "@/lib/currency";
+import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 
-export function ExpensesTable({ expenses, canManage, currency }: { expenses: ExpenseRow[]; canManage: boolean; currency: string }) {
+export function ExpensesTable({ expenses, canManage, currencyConfig }: { expenses: ExpenseRow[]; canManage: boolean; currencyConfig: CurrencyConfig }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +58,7 @@ export function ExpensesTable({ expenses, canManage, currency }: { expenses: Exp
                 </td>
                 <td className="px-4 py-3 text-ink-900 dark:text-white">{expense.category}</td>
                 <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">{expense.vendor ?? "—"}</td>
-                <td className="px-4 py-3 text-right figure text-alert">{formatCurrency(expense.amount, currency)}</td>
+                <td className="px-4 py-3 text-right figure text-alert">{formatCurrencyAmount(expense.amount, currencyConfig)}</td>
                 {canManage && (
                   <td className="px-4 py-3 text-right">
                     <button

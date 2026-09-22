@@ -112,7 +112,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
       type: formData.type,
       subType: formData.subType,
       parentId: formData.parentId || null,
-      currency: currentCurrency,
+      currency: useAccountingStore.getState().currentCurrencyCode,
       description: formData.description,
     });
     if (!result.ok) return;
@@ -131,7 +131,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
       type: formData.type,
       subType: formData.subType,
       parentId: formData.parentId || null,
-      currency: currentCurrency,
+      currency: useAccountingStore.getState().currentCurrencyCode,
       description: formData.description,
     });
     if (!result.ok) return;

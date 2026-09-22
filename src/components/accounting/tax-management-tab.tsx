@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatCurrencyAmount } from "@/lib/currency";
 import type { TaxFilingSummary, TaxRateConfig } from "@/types/accounting";
 import { fileAccountingTaxReturn, saveTaxRate } from "@/app/(dashboard)/accounting/actions";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,7 @@ import { useRouter } from "next/navigation";
 export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTaxFilings = [] }: { liveSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; initialTaxRates?: TaxRateConfig[]; initialTaxFilings?: TaxFilingSummary[] }) {
   const {
     currentCurrency,
+    currencyConfig,
   } = useAccountingStore();
   const router = useRouter();
   const taxRates = initialTaxRates;
@@ -48,6 +50,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
   const withholdingTaxCredited = 0;
   const netTaxPayable = totalOutputTax - inputTaxDeductions;
   const periodLabel = liveSummary?.periodLabel ?? "Current reporting period";
+  const money = (value: number) => formatCurrencyAmount(value, currencyConfig);
 
   const openRateForm = (rate?: TaxRateConfig) => {
     setEditingRate(rate ?? null);
@@ -182,7 +185,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
             <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="text-xs text-slate-400">Total Output Tax (Collected)</p>
               <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {totalOutputTax.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(totalOutputTax)}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">VAT + NHIL + GETFund + COVID</p>
             </div>
@@ -190,7 +193,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
             <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="text-xs text-slate-400">Input Tax Deductions (Paid)</p>
               <p className="mt-1 font-display text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                {currentCurrency} {inputTaxDeductions.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(inputTaxDeductions)}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">Allowable purchases deduction</p>
             </div>
@@ -198,7 +201,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
             <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="text-xs text-slate-400">Withholding Tax Credits</p>
               <p className="mt-1 font-display text-lg font-bold text-purple-600 dark:text-purple-400">
-                {currentCurrency} {withholdingTaxCredited.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(withholdingTaxCredited)}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">WHT certificates received</p>
             </div>
@@ -206,7 +209,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
             <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm dark:border-blue-950/40 dark:bg-blue-950/20">
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Net Tax Payable (Due to GRA)</p>
               <p className="mt-1 font-display text-xl font-bold text-blue-600 dark:text-blue-400">
-                {currentCurrency} {netTaxPayable.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {money(netTaxPayable)}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">Based on {periodLabel}</p>
             </div>
@@ -222,48 +225,48 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
             <div className="mt-4 divide-y divide-slate-100 text-xs dark:divide-slate-800">
               <div className="flex justify-between py-2.5">
                 <span className="font-medium text-slate-700 dark:text-slate-300">Gross Sales Revenue</span>
-                <span className="font-mono font-semibold">{currentCurrency} {grossSales.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono font-semibold">{money(grossSales)}</span>
               </div>
               <div className="flex justify-between py-2.5">
                 <span className="font-medium text-slate-700 dark:text-slate-300">Exempt &amp; Zero-Rated Supplies</span>
-                <span className="font-mono">{currentCurrency} {exemptSales.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(exemptSales)}</span>
               </div>
               <div className="flex justify-between py-2.5 font-bold bg-slate-50/50 px-2 rounded-lg dark:bg-slate-800/40">
                 <span>Net Taxable Sales</span>
-                <span className="font-mono">{currentCurrency} {taxableSales.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(taxableSales)}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
                 <span>• Recorded output tax</span>
-                <span className="font-mono">{currentCurrency} {standardVAT.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(standardVAT)}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
                 <span>• NHIL (separately recorded)</span>
-                <span className="font-mono">{currentCurrency} {nhil.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(nhil)}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
                 <span>• GETFund (separately recorded)</span>
-                <span className="font-mono">{currentCurrency} {getFund.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(getFund)}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
                 <span>• COVID-19 levy (separately recorded)</span>
-                <span className="font-mono">{currentCurrency} {covidLevy.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(covidLevy)}</span>
               </div>
               <div className="flex justify-between py-2.5 font-bold text-slate-900 dark:text-white">
                 <span>Total Output Tax Liability</span>
-                <span className="font-mono text-rose-500">{currentCurrency} {totalOutputTax.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono text-rose-500">{money(totalOutputTax)}</span>
               </div>
               <div className="flex justify-between py-2.5 text-emerald-600">
                 <span>Less: Permissible Input Tax Deductions</span>
-                <span className="font-mono font-semibold">({currentCurrency} {inputTaxDeductions.toLocaleString("en-US", { minimumFractionDigits: 2 })})</span>
+                <span className="font-mono font-semibold">({money(inputTaxDeductions)})</span>
               </div>
               <div className="flex justify-between py-2.5 text-purple-600">
                 <span>Less: Withholding Tax Credits (WHT)</span>
-                <span className="font-mono font-semibold">({currentCurrency} {withholdingTaxCredited.toLocaleString("en-US", { minimumFractionDigits: 2 })})</span>
+                <span className="font-mono font-semibold">({money(withholdingTaxCredited)})</span>
               </div>
               <div className="flex justify-between py-3 font-bold text-sm bg-blue-50 px-3 rounded-xl dark:bg-blue-950/40 text-blue-900 dark:text-blue-200">
                 <span>Net Tax Payable</span>
                 <span className="font-mono text-blue-700 dark:text-blue-300">
-                  {currentCurrency} {netTaxPayable.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {money(netTaxPayable)}
                 </span>
               </div>
             </div>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatCurrencyAmount } from "@/lib/currency";
 import type { FixedAsset, DepreciationMethod } from "@/types/accounting";
 import { getAssetsForAccounting } from "@/app/(dashboard)/assets/actions";
 import { postFixedAssetDepreciation, saveFixedAssetTreatment } from "@/app/(dashboard)/accounting/actions";
@@ -23,6 +24,7 @@ import { postFixedAssetDepreciation, saveFixedAssetTreatment } from "@/app/(dash
 export function FixedAssetsTab({ initialFixedAssets = [] }: { initialFixedAssets?: FixedAsset[] }) {
   const {
     currentCurrency,
+    currencyConfig,
     currentBranch,
   } = useAccountingStore();
   const fixedAssets = initialFixedAssets;
@@ -173,7 +175,7 @@ export function FixedAssetsTab({ initialFixedAssets = [] }: { initialFixedAssets
         <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <p className="text-xs text-slate-400">Total Asset Cost (Acquisition)</p>
           <p className="mt-1 font-display text-xl font-bold text-slate-900 dark:text-white">
-            {currentCurrency} {totalCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrencyAmount(totalCost, currencyConfig)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">{fixedAssets.length} registered assets</p>
         </div>
@@ -181,7 +183,7 @@ export function FixedAssetsTab({ initialFixedAssets = [] }: { initialFixedAssets
         <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <p className="text-xs text-slate-400">Accumulated Depreciation</p>
           <p className="mt-1 font-display text-xl font-bold text-rose-500">
-            {currentCurrency} {totalAccumulated.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrencyAmount(totalAccumulated, currencyConfig)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">Total amortization to date</p>
         </div>
@@ -189,7 +191,7 @@ export function FixedAssetsTab({ initialFixedAssets = [] }: { initialFixedAssets
         <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <p className="text-xs text-slate-400">Net Book Value (Current)</p>
           <p className="mt-1 font-display text-xl font-bold text-emerald-600 dark:text-emerald-400">
-            {currentCurrency} {totalCurrentValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrencyAmount(totalCurrentValue, currencyConfig)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">Carrying balance in Balance Sheet</p>
         </div>
@@ -274,17 +276,17 @@ export function FixedAssetsTab({ initialFixedAssets = [] }: { initialFixedAssets
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{asset.category}</td>
                   <td className="px-4 py-3 text-slate-500">{asset.purchaseDate}</td>
                   <td className="px-4 py-3 text-right font-display text-slate-900 dark:text-white font-medium">
-                    {asset.cost.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {formatCurrencyAmount(asset.cost, currencyConfig)}
                   </td>
                   <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-400">
                     {asset.depreciationMethod.replace("_", " ")}
                   </td>
                   <td className="px-4 py-3 text-center font-mono">{asset.usefulLifeYears}y</td>
                   <td className="px-4 py-3 text-right font-display text-rose-500">
-                    {asset.accumulatedDepreciation.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {formatCurrencyAmount(asset.accumulatedDepreciation, currencyConfig)}
                   </td>
                   <td className="px-4 py-3 text-right font-display font-bold text-emerald-600 dark:text-emerald-400">
-                    {asset.currentValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {formatCurrencyAmount(asset.currentValue, currencyConfig)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
@@ -466,7 +468,7 @@ export function FixedAssetsTab({ initialFixedAssets = [] }: { initialFixedAssets
               {deprResult && (
                 <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 font-medium text-xs dark:bg-emerald-950/60 dark:text-emerald-300">
                   <CheckCircle2 className="inline h-4 w-4 mr-1.5" />
-                  Successfully posted depreciation: <b>{currentCurrency} {deprResult.totalDepreciation.toLocaleString()}</b>.
+                  Successfully posted depreciation: <b>{formatCurrencyAmount(deprResult.totalDepreciation, currencyConfig)}</b>.
                 </div>
               )}
 

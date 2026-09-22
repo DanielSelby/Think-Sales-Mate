@@ -6,12 +6,14 @@ import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { InvoicesTable, type InvoiceRow } from "@/components/accounting/invoices-table";
-import { formatCurrency } from "@/lib/sales/format";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 
 export default async function InvoicesPage({ searchParams }: { searchParams?: { tab?: string } }) {
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
+  const currencyConfig = await getOrganizationCurrencyConfig();
 
   const supabase = await createClient();
   const { data: rows } = await supabase
@@ -54,7 +56,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams?: { 
                   <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{sale.customer_name ?? "Walk-in Customer"}</td>
                   <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">{new Date(sale.sale_date).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{names.get(sale.sold_by) ?? "Unknown"}</td>
-                  <td className="px-4 py-3 text-right font-medium text-ink-900 dark:text-white">{formatCurrency(sale.total, context.currency)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-ink-900 dark:text-white">{formatCurrencyAmount(sale.total, currencyConfig)}</td>
                 </tr>
               ))}
               {!returnedSales?.length && <tr><td colSpan={5} className="px-4 py-14 text-center text-ledger-400">No credit notes found.</td></tr>}
@@ -96,7 +98,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams?: { 
         </div>
       </div>
 
-      <InvoicesTable invoices={invoices} canManage={canManage} currency={context.currency} />
+          <InvoicesTable invoices={invoices} canManage={canManage} currencyConfig={currencyConfig} />
     </div>
   );
 }

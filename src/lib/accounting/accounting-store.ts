@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { getCurrencyConfig, type CurrencyConfig } from "@/lib/currency";
 import type {
   AccountingAccount,
   JournalEntry,
@@ -24,6 +25,8 @@ interface AccountingState {
   // Global Filters & Context
   currentBranch: string;
   currentCurrency: string;
+  currentCurrencyCode: string;
+  currencyConfig: CurrencyConfig;
   dateRange: { from: string; to: string; label: string };
   activeTab: string;
 
@@ -44,6 +47,7 @@ interface AccountingState {
   setActiveTab: (tab: string) => void;
   setBranch: (branch: string) => void;
   setCurrency: (currency: string) => void;
+  setCurrencyConfig: (code: string, symbol: string, overrides?: Partial<CurrencyConfig>) => void;
   setDateRange: (from: string, to: string, label: string) => void;
 
   // Chart of Accounts Actions
@@ -278,6 +282,8 @@ export const useAccountingStore = create<AccountingState>()(
     (set, get) => ({
       currentBranch: "all",
       currentCurrency: "GHS",
+      currentCurrencyCode: "GHS",
+      currencyConfig: getCurrencyConfig("GHS"),
       dateRange: { from: "2026-05-01", to: "2026-05-31", label: "May 1, 2026 - May 31, 2026" },
       activeTab: "overview",
 
@@ -295,7 +301,14 @@ export const useAccountingStore = create<AccountingState>()(
 
       setActiveTab: (tab) => set({ activeTab: tab }),
       setBranch: (branch) => set({ currentBranch: branch }),
-      setCurrency: (currency) => set({ currentCurrency: currency }),
+      setCurrency: (currency) => {
+        const config = getCurrencyConfig(currency);
+        set({ currentCurrencyCode: config.code, currentCurrency: config.symbol, currencyConfig: config });
+      },
+      setCurrencyConfig: (code, symbol, overrides) => {
+        const config = getCurrencyConfig(code, { ...overrides, symbol });
+        set({ currentCurrencyCode: config.code, currentCurrency: config.symbol, currencyConfig: config });
+      },
       setDateRange: (from, to, label) => set({ dateRange: { from, to, label } }),
 
       // ── Chart of Accounts ───────────────────────────────────────

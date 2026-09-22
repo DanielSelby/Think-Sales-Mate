@@ -7,6 +7,8 @@ import type { AccountsReceivableItem } from "@/types/accounting";
 import { getReportKpis, getBalanceSheet } from "@/lib/reports/calculations";
 import type { LiveFinancialSnapshot } from "@/components/accounting/financial-reports-tab";
 import type { AccountingAccount, JournalEntry } from "@/types/accounting";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
+import type { CurrencyConfig } from "@/lib/currency";
 
 export const metadata = {
   title: "Accounting & Financial Management | ThinkSales Pro",
@@ -37,9 +39,12 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   let liveAccountingSettings: Parameters<typeof AccountingDashboard>[0]["liveAccountingSettings"];
   let liveTaxRates: import("@/types/accounting").TaxRateConfig[] = [];
   let liveTaxFilings: import("@/types/accounting").TaxFilingSummary[] = [];
+  let liveCurrencyConfig: CurrencyConfig | undefined;
   if (context) {
     const db = await createClient();
     const accountingDb = db as any;
+    const currencyConfig = await getOrganizationCurrencyConfig();
+    liveCurrencyConfig = currencyConfig;
     const [{ data: accountRows, error: accountsError }, { data: journalRows, error: journalsError }] = await Promise.all([
       accountingDb.from("accounting_accounts").select("id, code, name, type, sub_type, parent_id, location_id, currency, current_balance, is_active, description").eq("org_id", context.orgId).order("code"),
       accountingDb.from("journal_entries").select("id, entry_number, entry_date, location_id, reference, description, status, total_debit, total_credit, source_module, source_id, is_auto, posted_by, posted_at, journal_entry_lines(id, account_id, description, debit, credit)").eq("org_id", context.orgId).order("entry_date", { ascending: false }).limit(500),
@@ -281,7 +286,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} />
+      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
     </Suspense>
   );
 }

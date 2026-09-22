@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatCurrencyAmount } from "@/lib/currency";
 import type { AccountsPayableItem } from "@/types/accounting";
 
 interface AccountsPayableTabProps {
@@ -28,6 +29,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
     payables: storePayables,
     bankAccounts,
     currentCurrency,
+    currencyConfig,
     currentBranch,
     createSupplierBill,
     recordSupplierPayment,
@@ -68,6 +70,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
   });
 
   const totalOutstanding = payables.reduce((sum, p) => sum + p.outstandingAmount, 0);
+  const money = (value: number) => formatCurrencyAmount(value, currencyConfig);
 
   const handleCreateBill = (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +140,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-950/40 dark:bg-emerald-950/20">
           <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Current (Due Soon)</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding <= 0).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {money(payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding <= 0).reduce((sum, p) => sum + p.outstandingAmount, 0))}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding <= 0).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
@@ -145,7 +148,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
         <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4 dark:border-amber-950/40 dark:bg-amber-950/20">
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">1 - 30 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 0 && p.daysOutstanding <= 30).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {money(payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 0 && p.daysOutstanding <= 30).reduce((sum, p) => sum + p.outstandingAmount, 0))}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 0 && p.daysOutstanding <= 30).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
@@ -153,7 +156,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
         <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-950/40 dark:bg-rose-950/20">
           <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">31 - 60 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 30 && p.daysOutstanding <= 60).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {money(payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 30 && p.daysOutstanding <= 60).reduce((sum, p) => sum + p.outstandingAmount, 0))}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 30 && p.daysOutstanding <= 60).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
@@ -161,7 +164,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
         <div className="rounded-2xl border border-rose-200 bg-rose-100/50 p-4 dark:border-rose-900/60 dark:bg-rose-950/40">
           <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">Over 60 Days Past</p>
           <p className="mt-1 font-display text-lg font-bold text-slate-900 dark:text-white">
-            {currentCurrency} {payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 60).reduce((sum, p) => sum + p.outstandingAmount, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {money(payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 60).reduce((sum, p) => sum + p.outstandingAmount, 0))}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">{totalOutstanding ? Math.round((payables.filter((p) => p.outstandingAmount > 0 && p.daysOutstanding > 60).reduce((sum, p) => sum + p.outstandingAmount, 0) / totalOutstanding) * 100) : 0}% of payables</p>
         </div>
@@ -169,7 +172,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
         <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-950/40 dark:bg-rose-950/20">
           <p className="text-xs font-semibold text-rose-700 dark:text-rose-400">Total Payables</p>
           <p className="mt-1 font-display text-lg font-bold text-rose-600 dark:text-rose-400">
-            {currentCurrency} {totalOutstanding.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {money(totalOutstanding)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">{payables.length} supplier bills</p>
         </div>

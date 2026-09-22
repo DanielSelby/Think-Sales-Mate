@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { formatReturnNumber } from "@/lib/purchase-returns/format";
+import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
 
 // ---------------------------------------------------------------------------
 // Eligible purchases (for the "Original Purchase Order" picker)
@@ -284,7 +285,7 @@ export async function approvePurchaseReturn(returnId: string): Promise<ApprovePu
 
   const { data: ret, error: fetchError } = await supabase
     .from("purchase_returns")
-    .select("id, org_id, location_id, status, return_number")
+    .select("id, org_id, location_id, status, return_number, return_date, reference, total_return_value")
     .eq("id", returnId)
     .single();
   if (fetchError || !ret) return { ok: false, error: "Return not found." };
@@ -312,6 +313,41 @@ export async function approvePurchaseReturn(returnId: string): Promise<ApprovePu
       .update({ status: "approved", approved_at: new Date().toISOString(), approved_by: user.id })
       .eq("id", returnId);
     if (updateError) throw new Error(updateError.message);
+
+    const accountingDb = supabase as any;
+    const { data: accounts, error: accountsError } = await accountingDb
+      .from("accounting_accounts")
+      .select("id, name, type")
+      .eq("org_id", ret.org_id)
+      .eq("is_active", true);
+    const payableAccount = (accounts ?? []).find((account: { name: string; type: string }) =>
+      account.type === "liability" && /payable|supplier/i.test(account.name),
+    );
+    const inventoryAccount = (accounts ?? []).find((account: { name: string; type: string }) =>
+      account.type === "asset" && /inventory|stock/i.test(account.name),
+    );
+    const returnValue = Number(ret.total_return_value ?? 0);
+    if (accountsError) {
+      console.error("Automatic purchase return journal was not posted:", accountsError.message);
+    } else if (!payableAccount || !inventoryAccount || returnValue <= 0) {
+      console.error("Automatic purchase return journal was not posted: configure payable and inventory accounts.");
+    } else {
+      const journal = await postOperationalJournal(supabase, {
+        orgId: ret.org_id,
+        actorId: user.id,
+        sourceModule: "purchase_return",
+        sourceId: ret.id,
+        date: ret.return_date ?? new Date().toISOString().slice(0, 10),
+        locationId: ret.location_id,
+        reference: ret.reference ?? `PUR-RETURN-${ret.return_number}`,
+        description: `Purchase return #${ret.return_number}`,
+        lines: [
+          { account_id: payableAccount.id, description: "Supplier payable reduced by purchase return", debit: returnValue, credit: 0 },
+          { account_id: inventoryAccount.id, description: "Inventory returned to supplier", debit: 0, credit: returnValue },
+        ],
+      });
+      if (journal.error) console.error("Automatic purchase return journal was not posted:", journal.error);
+    }
 
     await supabase.from("audit_logs").insert({
       org_id: ret.org_id,

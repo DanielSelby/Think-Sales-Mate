@@ -8,6 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
+import { canUseLocation } from "@/lib/organizations/location-access";
+import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 import type { HeldSaleKind } from "@/types/database";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -1091,8 +1093,11 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
-  const { data: oldSale } = await supabase.from("sales").select("location_id").eq("id", saleId).single();
+  const { data: oldSale } = await supabase.from("sales").select("location_id, total").eq("id", saleId).single();
   if (!oldSale) return { ok: false, error: "Sale not found." };
+  if (!canUseLocation(context, oldSale.location_id) || !canUseLocation(context, input.locationId)) {
+    return { ok: false, error: "You are not assigned to this branch." };
+  }
   const { data: oldItems } = await supabase.from("sale_items").select("product_id, quantity").eq("sale_id", saleId);
 
   // Same branch-aware precheck as a fresh sale, but the OLD quantities are
@@ -1218,6 +1223,36 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
         ? `Someone just sold the last unit(s) of "${item.name}" at this branch. Adjust the quantity and try again.`
         : `Sale updated, but stock adjustment failed for one item: ${rpcError.message}`;
       return { ok: false, error: friendly, saleId };
+    }
+  }
+
+  const totalDelta = Number(total) - Number(oldSale.total ?? 0);
+  if (Math.abs(totalDelta) > 0.005) {
+    const accounts = await resolveOperationalAccounts(supabase, context.orgId, "sale");
+    if (accounts.error || !accounts.debitAccountId || !accounts.creditAccountId) {
+      console.error("Automatic POS edit journal was not posted:", accounts.error ?? "Sales accounts are not configured.");
+    } else {
+      const amount = Math.abs(totalDelta);
+      const journal = await postOperationalJournal(supabase, {
+        orgId: context.orgId,
+        actorId: user.id,
+        sourceModule: "pos_edit",
+        sourceId: `${saleId}:${input.saleDate ?? new Date().toISOString().slice(0, 10)}:${total.toFixed(2)}`,
+        date: input.saleDate || new Date().toISOString().slice(0, 10),
+        locationId: input.locationId,
+        reference: `POS-EDIT-${saleId}`,
+        description: "POS sale edit adjustment",
+        lines: totalDelta > 0
+          ? [
+              { account_id: accounts.debitAccountId, description: "Additional POS sale proceeds", debit: amount, credit: 0 },
+              { account_id: accounts.creditAccountId, description: "Additional sales revenue", debit: 0, credit: amount },
+            ]
+          : [
+              { account_id: accounts.creditAccountId, description: "Reduced sales revenue", debit: amount, credit: 0 },
+              { account_id: accounts.debitAccountId, description: "Reduced POS sale proceeds", debit: 0, credit: amount },
+            ],
+      });
+      if (journal.error) console.error("Automatic POS edit journal was not posted:", journal.error);
     }
   }
 

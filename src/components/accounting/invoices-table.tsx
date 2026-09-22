@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { markInvoicePaid, voidInvoice } from "@/app/(dashboard)/accounting/invoices/actions";
-import { formatCurrency } from "@/lib/sales/format";
 
 export interface InvoiceRow {
   id: string;
@@ -13,7 +12,7 @@ export interface InvoiceRow {
   dueDate: string;
 }
 
-import { formatMoney } from "@/lib/currency";
+import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 
 const STATUS_STYLES: Record<InvoiceRow["status"], string> = {
   draft: "bg-ledger-100 text-ledger-600 dark:bg-white/10 dark:text-ledger-300",
@@ -23,7 +22,7 @@ const STATUS_STYLES: Record<InvoiceRow["status"], string> = {
   void: "bg-ledger-100 text-ledger-400 dark:bg-white/5 dark:text-ledger-500"
 };
 
-export function InvoicesTable({ invoices, canManage, currency }: { invoices: InvoiceRow[]; canManage: boolean; currency: string }) {
+export function InvoicesTable({ invoices, canManage, currencyConfig }: { invoices: InvoiceRow[]; canManage: boolean; currencyConfig: CurrencyConfig }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +81,7 @@ export function InvoicesTable({ invoices, canManage, currency }: { invoices: Inv
                     {invoice.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">{formatCurrency(invoice.amount, currency)}</td>
+                <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">{formatCurrencyAmount(invoice.amount, currencyConfig)}</td>
                 {canManage && (
                   <td className="px-4 py-3">
                     {(invoice.status === "sent" || invoice.status === "overdue") && (

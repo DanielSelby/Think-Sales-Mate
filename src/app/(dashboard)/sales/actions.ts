@@ -140,7 +140,7 @@ export async function updateSaleStatus({
       const lines = (returnLines ?? []).filter((l) => l.quantity > 0);
       const { data: saleItems } = await supabase
         .from("sale_items")
-        .select("id, product_id, quantity")
+        .select("id, product_id, quantity, product:products(cost_price)")
         .eq("sale_id", saleId);
       const { data: existingReturns } = await supabase
         .from("sale_return_items")
@@ -235,6 +235,32 @@ export async function updateSaleStatus({
     if (updateError) throw new Error(updateError.message);
     if ((updatedCount ?? 0) === 0) {
       throw new Error("The status update didn't apply to any row — check the sales table's UPDATE policy.");
+    }
+
+    if (status === "returned" || status === "cancelled") {
+      const accounts = await resolveOperationalAccounts(supabase, sale.org_id, "sale");
+      if (accounts.error || !accounts.debitAccountId || !accounts.creditAccountId) {
+        console.error("Automatic sale return journal was not posted:", accounts.error ?? "Sales accounts are not configured.");
+      } else {
+        const refundValue = status === "returned" ? nextRefundedAmount : Number(sale.total);
+        const returnLinesValue = (returnLines ?? []).reduce((sum, line) => sum + Math.max(0, line.quantity), 0);
+        const reversalValue = refundValue > 0 ? refundValue : Number(sale.total);
+        const journal = await postOperationalJournal(supabase, {
+          orgId: sale.org_id,
+          actorId: user.id,
+          sourceModule: status === "cancelled" ? "sale_cancellation" : "sale_return",
+          sourceId: sale.id,
+          date: new Date().toISOString().slice(0, 10),
+          locationId: restockLocationId,
+          reference: `SALE-${sale.id}`,
+          description: status === "cancelled" ? "Cancelled sale reversal" : `Sale return${returnLinesValue ? ` (${returnLinesValue} item(s))` : ""}`,
+          lines: [
+            { account_id: accounts.creditAccountId, description: "Reverse sales revenue", debit: reversalValue, credit: 0 },
+            { account_id: accounts.debitAccountId, description: "Refund or reverse sale proceeds", debit: 0, credit: reversalValue },
+          ],
+        });
+        if (journal.error) console.error("Automatic sale return journal was not posted:", journal.error);
+      }
     }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong. Try again." };

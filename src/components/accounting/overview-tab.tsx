@@ -48,6 +48,7 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const {
     currentCurrency,
+    currentCurrencyCode,
     setActiveTab,
     getKPIs,
     getIncomeVsExpensesTrend,
@@ -73,7 +74,7 @@ export function OverviewTab({
   const apAging = getPayablesAging();
   const fyProgress = getFinancialYearProgress();
 
-  const formatCurrency = (val: number) => val < 0 ? `(${formatMoney(Math.abs(val), currentCurrency)})` : formatMoney(val, currentCurrency);
+  const formatCurrency = (val: number) => val < 0 ? `(${formatMoney(Math.abs(val), currentCurrencyCode)})` : formatMoney(val, currentCurrencyCode);
 
   const totalExpenseVal = expenseSlices.reduce((sum, s) => sum + s.value, 0);
 

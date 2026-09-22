@@ -7,6 +7,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
+import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
 
 export type CashSummary = { opening: number; sales: number; discounts: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -19,6 +20,51 @@ function splitAmount(method: unknown, bucket: "cash" | "momo" | "card") {
 async function auditContext() {
   const h = await headers();
   return { device: h.get("user-agent") ?? "unknown", ip_address: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "unknown" };
+}
+
+async function postCashClosingVarianceJournal(db: any, closing: { id: string; org_id: string; location_id: string | null; closing_date: string; variance: number; classification: string }, actorId: string) {
+  const variance = Number(closing.variance ?? 0);
+  if (Math.abs(variance) <= 0.005) return;
+  const { data: accounts, error } = await db
+    .from("accounting_accounts")
+    .select("id, name, type")
+    .eq("org_id", closing.org_id)
+    .eq("is_active", true);
+  if (error) {
+    console.error("Automatic cash closing journal was not posted:", error.message);
+    return;
+  }
+  const cashAccount = (accounts ?? []).find((account: { name: string; type: string }) =>
+    account.type === "asset" && /cash|bank/i.test(account.name),
+  );
+  const varianceAccount = (accounts ?? []).find((account: { name: string; type: string }) =>
+    (account.type === "expense" || account.type === "revenue") && /cash|short|over|variance|adjust/i.test(account.name),
+  ) ?? (accounts ?? []).find((account: { type: string }) => account.type === "expense");
+  if (!cashAccount || !varianceAccount) {
+    console.error("Automatic cash closing journal was not posted: configure a cash and variance account.");
+    return;
+  }
+  const amount = Math.abs(variance);
+  const journal = await postOperationalJournal(db, {
+    orgId: closing.org_id,
+    actorId,
+    sourceModule: "cash_closing",
+    sourceId: closing.id,
+    date: closing.closing_date,
+    locationId: closing.location_id,
+    reference: `CASH-CLOSING-${closing.id}`,
+    description: `Cash closing ${closing.classification} variance`,
+    lines: variance > 0
+      ? [
+          { account_id: cashAccount.id, description: "Cash closing excess", debit: amount, credit: 0 },
+          { account_id: varianceAccount.id, description: "Cash closing excess variance", debit: 0, credit: amount },
+        ]
+      : [
+          { account_id: varianceAccount.id, description: "Cash closing shortage variance", debit: amount, credit: 0 },
+          { account_id: cashAccount.id, description: "Cash closing shortage", debit: 0, credit: amount },
+        ],
+  });
+  if (journal.error) console.error("Automatic cash closing journal was not posted:", journal.error);
 }
 
 export async function logCashClosingAction(closingId: string | null, action: "exported" | "printed") {
@@ -165,6 +211,9 @@ export async function createCashClosing(formData: FormData) {
   if (approvalRequired || classification !== "balanced") {
     await db.from("notifications").insert({ org_id: ctx.orgId, location_id: locationId, title: approvalRequired ? "Cash closing approval required" : `Cash ${classification}`, message: `${date} ${shift} closing has a ${Math.abs(variance).toFixed(2)} variance.`, type: "cash_closing", entity_type: "cash_closing", entity_id: closing.id });
   }
+  if (!approvalRequired && classification !== "balanced") {
+    await postCashClosingVarianceJournal(db, { ...closing, variance, classification, closing_date: date, location_id: locationId, org_id: ctx.orgId }, ctx.userId);
+  }
   revalidatePath("/banking/cash-closing");
   redirect("/banking/cash-closing?saved=1");
 }
@@ -172,8 +221,9 @@ export async function createCashClosing(formData: FormData) {
 export async function approveCashClosing(id: string) {
   const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("banking", "approve")) return { error: "Approval permission required" };
   const db = await createClient() as any;
-  const { error } = await db.from("cash_closings").update({ status: "approved", approved_by: ctx.userId, approved_at: new Date().toISOString() }).eq("id", id).eq("org_id", ctx.orgId).eq("status", "pending_approval");
+  const { data: closing, error } = await db.from("cash_closings").update({ status: "approved", approved_by: ctx.userId, approved_at: new Date().toISOString() }).eq("id", id).eq("org_id", ctx.orgId).eq("status", "pending_approval").select("id, org_id, location_id, closing_date, variance, classification").maybeSingle();
   if (error) return { error: error.message };
+  if (closing) await postCashClosingVarianceJournal(db, closing, ctx.userId);
   await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, action: "approved", actor_id: ctx.userId, ...(await auditContext()) });
   revalidatePath("/banking/cash-closing"); return { success: true };
 }

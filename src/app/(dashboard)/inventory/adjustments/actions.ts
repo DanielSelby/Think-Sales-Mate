@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
+import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
 
 export type AdjustmentStatus = "draft" | "in_progress" | "completed";
 export type AdjustmentCountType = "stock_taking" | "adjustment_only";
@@ -125,6 +126,50 @@ export async function createStockAdjustment(payload: CreateAdjustmentPayload): P
         return {
           error: `Saved the count, but couldn't apply it to stock levels (${rpcError.message}). Please check inventory manually before relying on it.`
         };
+      }
+    }
+
+    const totalVariance = items.reduce(
+      (sum, item) => sum + (item.countedStock - item.systemStock) * item.unitCost,
+      0,
+    );
+    if (Math.abs(totalVariance) > 0.005) {
+      const accountingDb = supabase as any;
+      const { data: accounts, error: accountsError } = await accountingDb
+        .from("accounting_accounts")
+        .select("id, name, type")
+        .eq("org_id", context.orgId)
+        .eq("is_active", true);
+      const inventoryAccount = (accounts ?? []).find((account: { name: string; type: string }) =>
+        account.type === "asset" && /inventory|stock/i.test(account.name),
+      );
+      const varianceAccount = (accounts ?? []).find((account: { name: string; type: string }) =>
+        (account.type === "expense" || account.type === "revenue") && /inventory|stock|shrink|variance|adjust/i.test(account.name),
+      ) ?? (accounts ?? []).find((account: { type: string }) => account.type === "expense");
+
+      if (accountsError) {
+        console.error("Automatic inventory adjustment journal was not posted:", accountsError.message);
+      } else if (!inventoryAccount || !varianceAccount) {
+        console.error("Automatic inventory adjustment journal was not posted: configure inventory and adjustment accounts.");
+      } else {
+        const amount = Math.abs(totalVariance);
+        const inventoryDebit = totalVariance > 0 ? amount : 0;
+        const varianceDebit = totalVariance < 0 ? amount : 0;
+        const journal = await postOperationalJournal(supabase, {
+          orgId: context.orgId,
+          actorId: context.userId,
+          sourceModule: "inventory_adjustment",
+          sourceId: adjustment.id,
+          date: payload.adjustmentDate || new Date().toISOString().slice(0, 10),
+          locationId,
+          reference: payload.referenceNo?.trim() || adjustment.id,
+          description: payload.reason?.trim() || "Inventory stock adjustment",
+          lines: [
+            { account_id: inventoryAccount.id, description: "Inventory quantity variance", debit: inventoryDebit, credit: varianceDebit },
+            { account_id: varianceAccount.id, description: "Inventory adjustment variance", debit: varianceDebit, credit: inventoryDebit },
+          ],
+        });
+        if (journal.error) console.error("Automatic inventory adjustment journal was not posted:", journal.error);
       }
     }
   }
