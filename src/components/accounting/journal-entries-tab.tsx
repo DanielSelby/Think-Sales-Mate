@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Plus,
   Search,
@@ -27,9 +27,11 @@ interface JournalEntriesTabProps {
   initialAccounts?: import("@/types/accounting").AccountingAccount[];
   initialOpenNewModal?: boolean;
   onModalClosed?: () => void;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
-export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts = [], initialOpenNewModal = false, onModalClosed }: JournalEntriesTabProps) {
+export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts = [], initialOpenNewModal = false, onModalClosed, dateFrom, dateTo }: JournalEntriesTabProps) {
   const {
     currentCurrency,
     currencyConfig,
@@ -67,14 +69,19 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
     { id: "2", accountId: "", debit: "", credit: "", description: "" },
   ]);
 
+  useEffect(() => {
+    setIsNewModalOpen(initialOpenNewModal);
+  }, [initialOpenNewModal]);
+
   const filteredEntries = journalEntries.filter((j) => {
+    const matchesDate = (!dateFrom || j.date >= dateFrom) && (!dateTo || j.date <= dateTo);
     const matchesStatus = statusFilter === "all" || j.status === statusFilter;
     const matchesBranch = branchFilter === "all" || j.branch === branchFilter;
     const matchesSearch =
       j.entryNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       j.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
       j.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesBranch && matchesSearch;
+    return matchesDate && matchesStatus && matchesBranch && matchesSearch;
   });
 
   // Calculate dynamic totals for active line items in modal

@@ -184,7 +184,7 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
   { label: "Assets",        href: "/assets",     icon: Package,      status: "live" },
   { label: "Projects",      href: "/projects",   icon: FolderKanban, status: "live" },
   {
-    label: "Reports", href: "/reports", icon: BarChart3, status: "live",
+    label: "Bussiness Reports", href: "/reports", icon: BarChart3, status: "live",
     children: [
       { label: "Reports Overview", href: "/reports", icon: BarChart3 },
       { label: "Branch Performance", href: "/reports/branch-performance", icon: BarChart3 },

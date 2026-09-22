@@ -47,6 +47,8 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
 
   const formatDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const [dateRangeText, setDateRangeText] = useState(() => `${formatDate(initialDateFrom ?? new Date().toISOString().slice(0, 10))} - ${formatDate(initialDateTo ?? new Date().toISOString().slice(0, 10))}`);
+  const [customDateFrom, setCustomDateFrom] = useState(initialDateFrom ?? "");
+  const [customDateTo, setCustomDateTo] = useState(initialDateTo ?? "");
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState(false);
@@ -162,6 +164,25 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
                     <span>{item.label}</span>
                   </button>
                 ))}
+                <div className="mt-1 border-t border-slate-100 p-2 dark:border-slate-700">
+                  <p className="mb-2 font-semibold text-slate-500 dark:text-slate-400">Custom date range</p>
+                  <div className="space-y-2">
+                    <input type="date" value={customDateFrom} onChange={(event) => setCustomDateFrom(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+                    <input type="date" value={customDateTo} min={customDateFrom} onChange={(event) => setCustomDateTo(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+                    <button
+                      type="button"
+                      disabled={!customDateFrom || !customDateTo || customDateTo < customDateFrom}
+                      onClick={() => {
+                        setDateRangeText(`${formatDate(customDateFrom)} - ${formatDate(customDateTo)}`);
+                        setIsDateMenuOpen(false);
+                        router.replace(`/accounting?tab=${activeTab}&from=${customDateFrom}&to=${customDateTo}`, { scroll: false });
+                      }}
+                      className="w-full rounded-lg bg-blue-600 px-2 py-1.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Apply range
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -236,6 +257,8 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
             initialAccounts={liveAccounts}
             initialOpenNewModal={openNewJournalModal}
             onModalClosed={() => setOpenNewJournalModal(false)}
+            dateFrom={initialDateFrom}
+            dateTo={initialDateTo}
           />
         )}
 
