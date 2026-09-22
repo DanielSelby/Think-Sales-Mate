@@ -36,14 +36,17 @@ import { AuditLogDrawer } from "./audit-log-drawer";
 import type { AccountsPayableItem } from "@/types/accounting";
 import type { AccountsReceivableItem } from "@/types/accounting";
 import type { LiveFinancialSnapshot } from "./financial-reports-tab";
-import type { AccountingAccount, JournalEntry } from "@/types/accounting";
+import type { AccountingAccount, AccountingSettings, FixedAsset, JournalEntry } from "@/types/accounting";
 
-export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [] }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[] }) {
+export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, currentCurrency, currentBranch } = useAccountingStore();
 
-  const [dateRangeText, setDateRangeText] = useState("May 1, 2026 - May 31, 2026");
+  const [dateRangeText, setDateRangeText] = useState(() => {
+    const today = new Date();
+    return `${today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  });
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState(false);
@@ -56,7 +59,7 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
   useEffect(() => {
     const tabParam = searchParams.get("tab");
     if (tabParam && tabParam !== activeTab) {
-      setActiveTab(tabParam as any);
+      if (TABS.some((tab) => tab.key === tabParam)) setActiveTab(tabParam as any);
     }
   }, [searchParams, activeTab, setActiveTab]);
 
@@ -127,12 +130,22 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
             {isDateMenuOpen && (
               <div className="absolute right-0 z-40 mt-1 w-56 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 text-xs">
                 {[
-                  { label: "Today", val: "Today · May 31, 2026" },
-                  { label: "This Week", val: "May 25, 2026 - May 31, 2026" },
-                  { label: "This Month (Default)", val: "May 1, 2026 - May 31, 2026" },
-                  { label: "Last Month", val: "Apr 1, 2026 - Apr 30, 2026" },
-                  { label: "This Quarter", val: "Apr 1, 2026 - Jun 30, 2026" },
-                  { label: "Financial Year 2026", val: "Jan 1, 2026 - Dec 31, 2026" },
+                  ...(() => {
+                    const today = new Date();
+                    const startOfWeek = new Date(today);
+                    startOfWeek.setDate(today.getDate() - today.getDay());
+                    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    const startOfYear = new Date(today.getFullYear(), 0, 1);
+                    const endOfYear = new Date(today.getFullYear(), 11, 31);
+                    const format = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                    return [
+                      { label: "Today", val: format(today) },
+                      { label: "This Week", val: `${format(startOfWeek)} - ${format(today)}` },
+                      { label: "This Month", val: `${format(startOfMonth)} - ${format(endOfMonth)}` },
+                      { label: "Financial Year", val: `${format(startOfYear)} - ${format(endOfYear)}` },
+                    ];
+                  })(),
                 ].map((item) => (
                   <button
                     key={item.label}
@@ -205,16 +218,18 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
           />
         )}
 
-        {activeTab === "coa" && <ChartOfAccountsTab />}
+        {activeTab === "coa" && <ChartOfAccountsTab initialAccounts={liveAccounts} />}
 
         {activeTab === "journal" && (
           <JournalEntriesTab
+            initialJournalEntries={liveJournalEntries}
+            initialAccounts={liveAccounts}
             initialOpenNewModal={openNewJournalModal}
             onModalClosed={() => setOpenNewJournalModal(false)}
           />
         )}
 
-        {activeTab === "reconciliation" && <BankReconciliationTab />}
+        {activeTab === "reconciliation" && <BankReconciliationTab initialBankAccounts={liveBankAccounts} initialBankTransactions={liveBankTransactions} />}
 
         {activeTab === "receivables" && <CustomerCreditWorkspace initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} />}
 
@@ -227,13 +242,13 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
           />
         )}
 
-        {activeTab === "fixed_assets" && <FixedAssetsTab />}
+        {activeTab === "fixed_assets" && <FixedAssetsTab initialFixedAssets={liveFixedAssets} />}
 
         {activeTab === "reports" && <FinancialReportsTab liveSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} />}
 
-        {activeTab === "tax" && <TaxManagementTab />}
+        {activeTab === "tax" && <TaxManagementTab liveSummary={liveTaxSummary} />}
 
-        {activeTab === "settings" && <AccountingSettingsTab />}
+        {activeTab === "settings" && <AccountingSettingsTab initialSettings={liveAccountingSettings} />}
       </div>
 
       {/* ── Global Search Modal (Ctrl + K) ── */}

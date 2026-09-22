@@ -18,22 +18,24 @@ import {
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import type { JournalEntry, JournalLineItem } from "@/types/accounting";
+import { createManualJournal } from "@/app/(dashboard)/accounting/actions";
+import { updateJournalStatus } from "@/app/(dashboard)/accounting/actions";
 
 interface JournalEntriesTabProps {
+  initialJournalEntries?: JournalEntry[];
+  initialAccounts?: import("@/types/accounting").AccountingAccount[];
   initialOpenNewModal?: boolean;
   onModalClosed?: () => void;
 }
 
-export function JournalEntriesTab({ initialOpenNewModal = false, onModalClosed }: JournalEntriesTabProps) {
+export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts = [], initialOpenNewModal = false, onModalClosed }: JournalEntriesTabProps) {
   const {
-    journalEntries,
-    accounts,
     currentCurrency,
     currentBranch,
     createJournalEntry,
-    postJournalEntry,
-    reverseJournalEntry,
   } = useAccountingStore();
+  const journalEntries = initialJournalEntries;
+  const accounts = initialAccounts;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -109,38 +111,29 @@ export function JournalEntriesTab({ initialOpenNewModal = false, onModalClosed }
     setLines(updated);
   };
 
-  const handleSaveEntry = (postNow: boolean) => {
+  const handleSaveEntry = async (postNow: boolean) => {
     if (!entryDesc || !isBalanced) return;
 
-    const formattedLines: JournalLineItem[] = lines
+    const formattedLines = lines
       .filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0))
-      .map((l, idx) => {
-        const acc = accounts.find((a) => a.id === l.accountId);
-        return {
-          id: `line-${Date.now()}-${idx}`,
-          accountId: l.accountId,
-          accountCode: acc?.code || "0000",
-          accountName: acc?.name || "Unknown",
-          debit: Number(l.debit) || 0,
-          credit: Number(l.credit) || 0,
-          description: l.description || entryDesc,
-        };
-      });
-
-    createJournalEntry(
-      {
-        date: entryDate,
-        branch: entryBranch,
-        reference: entryRef || "REF-MANUAL",
-        description: entryDesc,
-        status: postNow ? "posted" : "draft",
-        lines: formattedLines,
-        totalDebit,
-        totalCredit,
-        sourceModule: "Manual Journal",
-      },
-      postNow
-    );
+      .map((l) => ({
+        accountId: l.accountId,
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0,
+        description: l.description || entryDesc,
+      }));
+    const result = await createManualJournal({
+      date: entryDate,
+      locationId: null,
+      reference: entryRef || "REF-MANUAL",
+      description: entryDesc,
+      status: postNow ? "posted" : "draft",
+      lines: formattedLines,
+    });
+    if (!result.ok) {
+      console.error(result.error);
+      return;
+    }
 
     setIsNewModalOpen(false);
     if (onModalClosed) onModalClosed();
@@ -158,7 +151,9 @@ export function JournalEntriesTab({ initialOpenNewModal = false, onModalClosed }
 
   const handleConfirmReverse = () => {
     if (!reverseTarget) return;
-    reverseJournalEntry(reverseTarget.id, reverseReason || "Manual correction");
+    updateJournalStatus(reverseTarget.id, "reversed", reverseReason || "Manual correction").then((result) => {
+      if (!result.ok) console.error(result.error);
+    });
     setReverseTarget(null);
     setReverseReason("");
   };
@@ -346,7 +341,10 @@ export function JournalEntriesTab({ initialOpenNewModal = false, onModalClosed }
                         {entry.status === "draft" && (
                           <button
                             title="Post Entry to Ledger"
-                            onClick={() => postJournalEntry(entry.id)}
+                            onClick={async () => {
+                              const result = await updateJournalStatus(entry.id, "posted");
+                              if (!result.ok) console.error(result.error);
+                            }}
                             className="rounded-lg p-1 text-emerald-600 hover:bg-emerald-50"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />

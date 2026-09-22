@@ -23,6 +23,11 @@ export default async function AccountingPage() {
   let liveFinancialSnapshot: LiveFinancialSnapshot | undefined;
   let liveAccounts: AccountingAccount[] = [];
   let liveJournalEntries: JournalEntry[] = [];
+  let liveTaxSummary: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number } | undefined;
+  let liveBankAccounts: import("@/types/accounting").BankAccountItem[] = [];
+  let liveBankTransactions: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]> = {};
+  let liveFixedAssets: import("@/types/accounting").FixedAsset[] = [];
+  let liveAccountingSettings: Parameters<typeof AccountingDashboard>[0]["liveAccountingSettings"];
   if (context) {
     const db = await createClient();
     const accountingDb = db as any;
@@ -30,6 +35,50 @@ export default async function AccountingPage() {
       accountingDb.from("accounting_accounts").select("id, code, name, type, sub_type, parent_id, location_id, currency, current_balance, is_active, description").eq("org_id", context.orgId).order("code"),
       accountingDb.from("journal_entries").select("id, entry_number, entry_date, location_id, reference, description, status, total_debit, total_credit, source_module, source_id, is_auto, posted_by, posted_at, journal_entry_lines(id, account_id, description, debit, credit)").eq("org_id", context.orgId).order("entry_date", { ascending: false }).limit(500),
     ]);
+    const [{ data: bankRows }, { data: transactionRows }] = await Promise.all([
+      accountingDb.from("bank_accounts").select("id, name, account_type, opening_balance, current_balance").eq("org_id", context.orgId).order("name"),
+      accountingDb.from("bank_statement_transactions").select("id, bank_account_id, transaction_date, reference, description, amount, type, matched").eq("org_id", context.orgId).order("transaction_date", { ascending: false }),
+    ]);
+    const [{ data: fixedAssetRows }, { data: settingsRow }] = await Promise.all([
+      accountingDb.from("fixed_assets_register").select("*").eq("org_id", context.orgId).order("asset_name"),
+      accountingDb.from("accounting_settings").select("*").eq("org_id", context.orgId).maybeSingle(),
+    ]);
+    liveFixedAssets = (fixedAssetRows ?? []).map((asset: any) => ({
+      id: asset.id, assetCode: asset.asset_code, assetName: asset.asset_name, category: asset.category,
+      purchaseDate: asset.purchase_date, cost: Number(asset.cost ?? 0), depreciationMethod: asset.depreciation_method,
+      usefulLifeYears: Number(asset.useful_life_years ?? 0), salvageValue: Number(asset.salvage_value ?? 0),
+      accumulatedDepreciation: Number(asset.accumulated_depreciation ?? 0), currentValue: Number(asset.current_value ?? 0),
+      branch: "All Locations", status: asset.status, notes: asset.notes ?? undefined,
+    }));
+    if (settingsRow) {
+      liveAccountingSettings = {
+        financialYearStart: settingsRow.financial_year_start,
+        financialYearEnd: settingsRow.financial_year_end,
+        periodLockDate: settingsRow.period_lock_date ?? "",
+        defaultCurrency: settingsRow.default_currency,
+        approvalThreshold: Number(settingsRow.approval_threshold ?? 0),
+        autoJournalRules: {
+          sales: settingsRow.auto_journal_sales, purchases: settingsRow.auto_journal_purchases,
+          expenses: settingsRow.auto_journal_expenses, inventoryAdjustments: settingsRow.auto_journal_inventory, payroll: settingsRow.auto_journal_payroll,
+        },
+        numberSequences: {
+          journalPrefix: settingsRow.sequence_prefix_journal, nextJournalNumber: 1,
+          invoicePrefix: settingsRow.sequence_prefix_invoice, nextInvoiceNumber: 1,
+          billPrefix: settingsRow.sequence_prefix_bill, nextBillNumber: 1, assetPrefix: "AST-", nextAssetNumber: 1,
+        },
+        exchangeRates: {}, taxRegistrationNumber: "",
+      };
+    }
+    liveBankAccounts = (bankRows ?? []).map((bank: any) => ({
+      id: bank.id, name: bank.name, bankName: bank.name, type: bank.account_type,
+      bookBalance: Number(bank.current_balance ?? 0), statementBalance: Number(bank.current_balance ?? 0),
+      difference: 0, status: "unreconciled",
+    }));
+    for (const transaction of transactionRows ?? []) {
+      const list = liveBankTransactions[transaction.bank_account_id] ?? [];
+      list.push({ id: transaction.id, date: transaction.transaction_date, reference: transaction.reference ?? "", description: transaction.description ?? "", amount: Number(transaction.amount ?? 0), type: transaction.type, matched: Boolean(transaction.matched) });
+      liveBankTransactions[transaction.bank_account_id] = list;
+    }
     if (accountsError) console.error("Failed to load accounting accounts:", accountsError);
     if (journalsError) console.error("Failed to load accounting journal entries:", journalsError);
     const allowedAccountingLocations = context.isBranchScoped ? new Set(context.allowedLocationIds) : null;
@@ -87,6 +136,20 @@ export default async function AccountingPage() {
       kpis: reportKpis,
       balanceSheet,
       periodLabel: `${dateFrom} to ${dateTo}`,
+    };
+    const taxLocationFilter = context.isBranchScoped ? context.allowedLocationIds : null;
+    let salesTaxQuery = db.from("sales").select("total, tax_amount").eq("org_id", context.orgId).in("status", ["completed", "returned"]).gte("sale_date", dateFrom).lte("sale_date", dateTo);
+    let purchasesTaxQuery = db.from("purchases").select("tax_amount").eq("org_id", context.orgId).neq("status", "cancelled").gte("purchase_date", dateFrom).lte("purchase_date", dateTo);
+    if (taxLocationFilter) {
+      salesTaxQuery = salesTaxQuery.in("location_id", taxLocationFilter);
+      purchasesTaxQuery = purchasesTaxQuery.in("location_id", taxLocationFilter);
+    }
+    const [{ data: taxSales }, { data: taxPurchases }] = await Promise.all([salesTaxQuery, purchasesTaxQuery]);
+    liveTaxSummary = {
+      periodLabel: `${dateFrom} to ${dateTo}`,
+      grossSales: (taxSales ?? []).reduce((sum, sale) => sum + Number(sale.total ?? 0), 0),
+      outputTax: (taxSales ?? []).reduce((sum, sale) => sum + Number(sale.tax_amount ?? 0), 0),
+      inputTax: (taxPurchases ?? []).reduce((sum, purchase) => sum + Number(purchase.tax_amount ?? 0), 0),
     };
     const { data: locations } = await db.from("business_locations").select("name").eq("org_id", context.orgId).eq("is_active", true).order("name");
     initialBranches = (locations ?? []).map((location) => location.name);
@@ -199,7 +262,7 @@ export default async function AccountingPage() {
         </div>
       }
     >
-      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} />
+      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} />
     </Suspense>
   );
 }

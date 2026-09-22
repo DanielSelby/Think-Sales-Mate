@@ -51,7 +51,7 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { receivables: storeReceivables, currentCurrency } = useAccountingStore();
-  const receivables = initialReceivables.length ? initialReceivables : storeReceivables;
+  const receivables = initialReceivables;
 
   const totalReceivables = receivables.reduce((sum, item) => sum + item.outstandingAmount, 0);
   const overdue = receivables

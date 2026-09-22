@@ -26,16 +26,14 @@ export interface LiveFinancialSnapshot {
 
 export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEntries }: { liveSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[] }) {
   const {
-    accounts: seededAccounts,
-    journalEntries: seededJournalEntries,
     receivables,
     payables,
     fixedAssets,
     currentCurrency,
     currentBranch,
   } = useAccountingStore();
-  const accounts = liveAccounts?.length ? liveAccounts : seededAccounts;
-  const journalEntries = liveJournalEntries?.length ? liveJournalEntries : seededJournalEntries;
+  const accounts = liveAccounts ?? [];
+  const journalEntries = liveJournalEntries ?? [];
 
   const [selectedReport, setSelectedReport] = useState<
     "pnl" | "balance_sheet" | "cash_flow" | "trial_balance" | "general_ledger" | "tax_report"

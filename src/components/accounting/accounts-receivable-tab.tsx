@@ -28,7 +28,7 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
     recordCustomerPayment,
     sendCustomerReminder,
   } = useAccountingStore();
-  const receivables = initialReceivables.length ? initialReceivables : storeReceivables;
+  const receivables = initialReceivables;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [agingFilter, setAgingFilter] = useState<string>("all");

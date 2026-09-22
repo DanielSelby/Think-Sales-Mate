@@ -33,7 +33,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
     recordSupplierPayment,
     scheduleSupplierPayment,
   } = useAccountingStore();
-  const payables = initialPayables ?? storePayables;
+  const payables = initialPayables ?? [];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [agingFilter, setAgingFilter] = useState<string>("all");

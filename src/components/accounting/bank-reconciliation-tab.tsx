@@ -16,18 +16,17 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { autoMatchBankStatement, finalizeBankReconciliation, importBankStatement, toggleBankStatementMatch } from "@/app/(dashboard)/accounting/actions";
+import { useRouter } from "next/navigation";
 
-export function BankReconciliationTab() {
+export function BankReconciliationTab({ initialBankAccounts = [], initialBankTransactions = {} }: { initialBankAccounts?: import("@/types/accounting").BankAccountItem[]; initialBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]> }) {
   const {
-    bankAccounts,
-    bankTransactions,
     currentCurrency,
     currentBranch,
-    importBankStatement,
-    autoReconcileBank,
-    toggleReconcileLine,
-    finalizeReconciliation,
   } = useAccountingStore();
+  const router = useRouter();
+  const bankAccounts = initialBankAccounts;
+  const bankTransactions = initialBankTransactions;
 
   const [selectedAccountId, setSelectedAccountId] = useState(bankAccounts[1]?.id || bankAccounts[0]?.id || "");
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -35,34 +34,40 @@ export function BankReconciliationTab() {
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const currentAccount = bankAccounts.find((b) => b.id === selectedAccountId) || bankAccounts[0];
-  const transactions = (currentAccount && bankTransactions[currentAccount.id]) || [
-    { id: "stmt-1", date: "2026-05-17", reference: "CHQ-8902", description: "Deposit from POS Sales", amount: 3250.0, type: "deposit", matched: true },
-    { id: "stmt-2", date: "2026-05-16", reference: "ACH-3921", description: "Transfer - Customer Apex", amount: 2400.0, type: "deposit", matched: true },
-    { id: "stmt-3", date: "2026-05-15", reference: "DEB-1120", description: "Electronic Wire - Prime Logistics", amount: 1850.0, type: "withdrawal", matched: true },
-    { id: "stmt-4", date: "2026-05-14", reference: "BNK-FEE", description: "Monthly Ledger Maintenance Fee", amount: 120.0, type: "withdrawal", matched: true },
-    { id: "stmt-5", date: "2026-05-12", reference: "ATM-0941", description: "Cash withdrawal petty cash", amount: 450.0, type: "withdrawal", matched: false },
-  ];
+  const transactions = (currentAccount && bankTransactions[currentAccount.id]) || [];
 
   const matchedCount = transactions.filter((t) => t.matched).length;
   const difference = currentAccount ? Math.abs(currentAccount.statementBalance - currentAccount.bookBalance) : 0;
 
-  const handleAutoReconcile = () => {
+  const handleAutoReconcile = async () => {
     if (!currentAccount) return;
-    const matches = autoReconcileBank(currentAccount.id);
+    const result = await autoMatchBankStatement(currentAccount.id);
+    if (!result.ok) {
+      setFeedbackMsg({ text: result.error ?? "Auto-reconciliation failed.", type: "error" });
+      return;
+    }
+    const matches = result.matched ?? 0;
     setFeedbackMsg({
       text: `Auto-reconciliation complete: ${matches} transactions successfully matched against general ledger.`,
       type: "success",
     });
+    router.refresh();
     setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     if (!currentAccount) return;
-    finalizeReconciliation(currentAccount.id);
+    const statementBalance = Number(statementBalanceInput || currentAccount.statementBalance);
+    const result = await finalizeBankReconciliation({ accountId: currentAccount.id, statementBalance });
+    if (!result.ok) {
+      setFeedbackMsg({ text: result.error ?? "Finalization failed.", type: "error" });
+      return;
+    }
     setFeedbackMsg({
       text: `Reconciliation finalized for ${currentAccount.name}. Balance verified and audit timestamp generated.`,
       type: "success",
     });
+    router.refresh();
     setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
@@ -90,7 +95,13 @@ export function BankReconciliationTab() {
               : "deposit") as "deposit" | "withdrawal",
           }));
 
-          importBankStatement(currentAccount.id, formatted);
+          void importBankStatement({ accountId: currentAccount.id, transactions: formatted }).then((result) => {
+            if (!result.ok) {
+              setFeedbackMsg({ text: result.error ?? "Statement import failed.", type: "error" });
+              return;
+            }
+            router.refresh();
+          });
           setIsImportModalOpen(false);
           setFeedbackMsg({
             text: `Successfully imported ${formatted.length} statement rows into ${currentAccount.name}.`,
@@ -273,7 +284,10 @@ export function BankReconciliationTab() {
               {transactions.map((tx) => (
                 <tr
                   key={tx.id}
-                  onClick={() => currentAccount && toggleReconcileLine(currentAccount.id, tx.id)}
+                  onClick={() => void toggleBankStatementMatch(tx.id, !tx.matched).then((result) => {
+                    if (!result.ok) setFeedbackMsg({ text: result.error ?? "Could not update match status.", type: "error" });
+                    else router.refresh();
+                  })}
                   className={`cursor-pointer transition-colors ${
                     tx.matched ? "bg-emerald-50/20 hover:bg-emerald-50/40" : "hover:bg-slate-50/70"
                   }`}
@@ -282,7 +296,10 @@ export function BankReconciliationTab() {
                     <input
                       type="checkbox"
                       checked={tx.matched}
-                      onChange={() => currentAccount && toggleReconcileLine(currentAccount.id, tx.id)}
+                      onChange={() => void toggleBankStatementMatch(tx.id, !tx.matched).then((result) => {
+                        if (!result.ok) setFeedbackMsg({ text: result.error ?? "Could not update match status.", type: "error" });
+                        else router.refresh();
+                      })}
                       className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                   </td>

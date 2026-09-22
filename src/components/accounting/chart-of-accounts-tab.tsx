@@ -18,17 +18,15 @@ import {
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import type { AccountingAccount, AccountType } from "@/types/accounting";
+import { saveAccountingAccount, setAccountingAccountStatus } from "@/app/(dashboard)/accounting/actions";
 
-export function ChartOfAccountsTab() {
+export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?: AccountingAccount[] }) {
   const {
-    accounts,
     currentCurrency,
     currentBranch,
-    addAccount,
-    updateAccount,
-    toggleAccountStatus,
     mergeAccounts,
   } = useAccountingStore();
+  const accounts = initialAccounts;
 
   const [selectedType, setSelectedType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,39 +102,39 @@ export function ChartOfAccountsTab() {
     setIsEditModalOpen(true);
   };
 
-  const handleSaveAdd = (e: React.FormEvent) => {
+  const handleSaveAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code || !formData.name) return;
 
-    addAccount({
+    const result = await saveAccountingAccount({
       code: formData.code,
       name: formData.name,
       type: formData.type,
       subType: formData.subType,
       parentId: formData.parentId || null,
-      branch: formData.branch,
       currency: currentCurrency,
-      status: "active",
       description: formData.description,
-      openingBalance: Number(formData.openingBalance) || 0,
     });
+    if (!result.ok) return;
 
     setIsAddModalOpen(false);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAccount) return;
 
-    updateAccount(selectedAccount.id, {
+    const result = await saveAccountingAccount({
+      id: selectedAccount.id,
       code: formData.code,
       name: formData.name,
       type: formData.type,
       subType: formData.subType,
       parentId: formData.parentId || null,
-      branch: formData.branch,
+      currency: currentCurrency,
       description: formData.description,
     });
+    if (!result.ok) return;
 
     setIsEditModalOpen(false);
   };
@@ -363,7 +361,10 @@ export function ChartOfAccountsTab() {
                           </button>
                           <button
                             title={acc.status === "active" ? "Deactivate Account" : "Activate Account"}
-                            onClick={() => toggleAccountStatus(acc.id)}
+                            onClick={async () => {
+                              const result = await setAccountingAccountStatus(acc.id, acc.status !== "active");
+                              if (!result.ok) console.error(result.error);
+                            }}
                             className={`rounded-lg p-1 ${
                               acc.status === "active"
                                 ? "text-slate-400 hover:bg-rose-50 hover:text-rose-600"

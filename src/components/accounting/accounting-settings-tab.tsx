@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Settings,
   Calendar,
@@ -13,37 +13,45 @@ import {
   Save,
 } from "lucide-react";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { saveAccountingSettings } from "@/app/(dashboard)/accounting/actions";
+import type { AccountingSettings } from "@/types/accounting";
 
-export function AccountingSettingsTab() {
-  const { settings, updateSettings, currentCurrency } = useAccountingStore();
+export function AccountingSettingsTab({ initialSettings }: { initialSettings?: AccountingSettings }) {
+  const { settings, currentCurrency } = useAccountingStore();
+  const effectiveSettings = initialSettings ?? settings;
 
   const [savedMsg, setSavedMsg] = useState(false);
 
   // Form State
-  const [fyStart, setFyStart] = useState(settings.financialYearStart);
-  const [fyEnd, setFyEnd] = useState(settings.financialYearEnd);
-  const [lockDate, setLockDate] = useState(settings.periodLockDate);
-  const [defCurrency, setDefCurrency] = useState(settings.defaultCurrency);
-  const [approvalThreshold, setApprovalThreshold] = useState(settings.approvalThreshold);
+  const [fyStart, setFyStart] = useState(effectiveSettings.financialYearStart);
+  const [fyEnd, setFyEnd] = useState(effectiveSettings.financialYearEnd);
+  const [lockDate, setLockDate] = useState(effectiveSettings.periodLockDate);
+  const [defCurrency, setDefCurrency] = useState(effectiveSettings.defaultCurrency);
+  const [approvalThreshold, setApprovalThreshold] = useState(effectiveSettings.approvalThreshold);
 
-  const [autoRules, setAutoRules] = useState({ ...settings.autoJournalRules });
-  const [sequences, setSequences] = useState({ ...settings.numberSequences });
+  const [autoRules, setAutoRules] = useState({ ...effectiveSettings.autoJournalRules });
+  const [sequences, setSequences] = useState({ ...effectiveSettings.numberSequences });
 
-  // 12 Accounting Periods Mock
-  const [periods, setPeriods] = useState([
-    { month: "January 2026", status: "Closed", lock: true },
-    { month: "February 2026", status: "Closed", lock: true },
-    { month: "March 2026", status: "Closed", lock: true },
-    { month: "April 2026", status: "Closed", lock: true },
-    { month: "May 2026", status: "Open", lock: false },
-    { month: "June 2026", status: "Open", lock: false },
-    { month: "July 2026", status: "Open", lock: false },
-    { month: "August 2026", status: "Open", lock: false },
-    { month: "September 2026", status: "Open", lock: false },
-    { month: "October 2026", status: "Open", lock: false },
-    { month: "November 2026", status: "Open", lock: false },
-    { month: "December 2026", status: "Open", lock: false },
-  ]);
+  useEffect(() => {
+    if (!initialSettings) return;
+    setFyStart(initialSettings.financialYearStart);
+    setFyEnd(initialSettings.financialYearEnd);
+    setLockDate(initialSettings.periodLockDate);
+    setDefCurrency(initialSettings.defaultCurrency);
+    setApprovalThreshold(initialSettings.approvalThreshold);
+    setAutoRules({ ...initialSettings.autoJournalRules });
+    setSequences({ ...initialSettings.numberSequences });
+  }, [initialSettings]);
+
+  const [periods, setPeriods] = useState(() => {
+    const year = new Date().getFullYear();
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(year, index, 1);
+      const month = date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const lock = Boolean(lockDate && `${year}-${String(index + 1).padStart(2, "0")}-01` <= lockDate);
+      return { month, status: lock ? "Closed" : "Open", lock };
+    });
+  });
 
   const togglePeriodLock = (idx: number) => {
     const updated = [...periods];
@@ -52,17 +60,16 @@ export function AccountingSettingsTab() {
     setPeriods(updated);
   };
 
-  const handleSaveAll = (e: React.FormEvent) => {
+  const handleSaveAll = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings({
-      financialYearStart: fyStart,
-      financialYearEnd: fyEnd,
-      periodLockDate: lockDate,
-      defaultCurrency: defCurrency,
-      approvalThreshold,
-      autoJournalRules: autoRules,
-      numberSequences: sequences,
+    const result = await saveAccountingSettings({
+      financialYearStart: fyStart, financialYearEnd: fyEnd, periodLockDate: lockDate,
+      defaultCurrency: defCurrency, approvalThreshold, autoJournalRules: autoRules, numberSequences: sequences,
     });
+    if (!result.ok) {
+      console.error(result.error);
+      return;
+    }
     setSavedMsg(true);
     setTimeout(() => setSavedMsg(false), 3000);
   };

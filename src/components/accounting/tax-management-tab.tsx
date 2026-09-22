@@ -15,12 +15,11 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
-import type { TaxRateConfig, TaxFilingSummary } from "@/types/accounting";
+import type { TaxRateConfig } from "@/types/accounting";
 
-export function TaxManagementTab() {
+export function TaxManagementTab({ liveSummary }: { liveSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number } }) {
   const {
     taxRates,
-    taxFilings,
     currentCurrency,
     updateTaxRate,
     fileTaxReturn,
@@ -30,27 +29,25 @@ export function TaxManagementTab() {
   const [isFilingModalOpen, setIsFilingModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Live Tax Calculations based on May 2026 sales & purchases
-  const grossSales = 125430.0;
+  const grossSales = liveSummary?.grossSales ?? 0;
   const exemptSales = 0.0;
   const taxableSales = grossSales - exemptSales;
 
-  // Output taxes
-  const standardVAT = taxableSales * 0.15; // 18,814.50
-  const nhil = taxableSales * 0.025; // 3,135.75
-  const getFund = taxableSales * 0.025; // 3,135.75
-  const covidLevy = taxableSales * 0.01; // 1,254.30
-  const totalOutputTax = standardVAT + nhil + getFund + covidLevy; // 26,340.30
+  const standardVAT = liveSummary?.outputTax ?? 0;
+  const nhil = 0;
+  const getFund = 0;
+  const covidLevy = 0;
+  const totalOutputTax = standardVAT;
 
-  // Input taxes from purchases & expenses
-  const inputTaxDeductions = 14210.0;
-  const withholdingTaxCredited = 1520.0;
-  const netTaxPayable = totalOutputTax - inputTaxDeductions - withholdingTaxCredited; // 10,610.30
+  const inputTaxDeductions = liveSummary?.inputTax ?? 0;
+  const withholdingTaxCredited = 0;
+  const netTaxPayable = totalOutputTax - inputTaxDeductions;
+  const periodLabel = liveSummary?.periodLabel ?? "Current reporting period";
 
   const handleFileReturn = (e: React.FormEvent) => {
     e.preventDefault();
     fileTaxReturn({
-      period: "May 2026",
+      period: periodLabel,
       grossSales,
       exemptSales,
       taxableSales,
@@ -85,7 +82,7 @@ export function TaxManagementTab() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Tax Filing Summary");
-    XLSX.writeFile(workbook, `Tax_Filing_Summary_May_2026.xlsx`);
+    XLSX.writeFile(workbook, `Tax_Filing_Summary_${periodLabel.replace(/[^a-z0-9]+/gi, "-")}.xlsx`);
   };
 
   return (
@@ -182,7 +179,7 @@ export function TaxManagementTab() {
               <p className="mt-1 font-display text-xl font-bold text-blue-600 dark:text-blue-400">
                 {currentCurrency} {netTaxPayable.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </p>
-              <p className="mt-0.5 text-xs text-slate-500">Due by June 15, 2026</p>
+              <p className="mt-0.5 text-xs text-slate-500">Based on {periodLabel}</p>
             </div>
           </div>
 
@@ -191,7 +188,7 @@ export function TaxManagementTab() {
             <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
               GRA Tax Calculation Breakdown (Ghana Revenue Authority)
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Computed automatically from POS and sales ledger</p>
+            <p className="text-xs text-slate-400 mt-0.5">Computed from recorded sales and purchase tax amounts for {periodLabel}</p>
 
             <div className="mt-4 divide-y divide-slate-100 text-xs dark:divide-slate-800">
               <div className="flex justify-between py-2.5">
@@ -207,19 +204,19 @@ export function TaxManagementTab() {
                 <span className="font-mono">{currentCurrency} {taxableSales.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
-                <span>• Value Added Tax (VAT 15%)</span>
+                <span>• Recorded output tax</span>
                 <span className="font-mono">{currentCurrency} {standardVAT.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
-                <span>• National Health Insurance Levy (NHIL 2.5%)</span>
+                <span>• NHIL (separately recorded)</span>
                 <span className="font-mono">{currentCurrency} {nhil.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
-                <span>• Ghana Education Trust Fund (GETFund 2.5%)</span>
+                <span>• GETFund (separately recorded)</span>
                 <span className="font-mono">{currentCurrency} {getFund.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between py-2.5 pl-4 text-slate-600 dark:text-slate-400">
-                <span>• COVID-19 Health Recovery Levy (1%)</span>
+                <span>• COVID-19 levy (separately recorded)</span>
                 <span className="font-mono">{currentCurrency} {covidLevy.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between py-2.5 font-bold text-slate-900 dark:text-white">
@@ -291,28 +288,8 @@ export function TaxManagementTab() {
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">Historical record of tax submissions and assessments</p>
 
-          <div className="mt-4 space-y-3 text-xs">
-            <div className="rounded-xl border border-slate-100 p-3.5 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40 flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-slate-800 dark:text-white">April 2026 Monthly VAT &amp; Levies Return Filed</p>
-                <p className="text-slate-500 text-[11px] mt-0.5">Reference: GRA-RET-2026-04 · Net Tax Paid: GHS 9,840.00 via GCB Bank</p>
-                <p className="text-[10px] text-slate-400 font-mono mt-1">Submitted: May 14, 2026 · Officer: Daniel K. Selby</p>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
-                Acknowledged by GRA
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-slate-100 p-3.5 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40 flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-slate-800 dark:text-white">Q1 2026 Withholding Tax Remittance</p>
-                <p className="text-slate-500 text-[11px] mt-0.5">WHT Certificates: 14 suppliers · Total: GHS 4,280.00</p>
-                <p className="text-[10px] text-slate-400 font-mono mt-1">Submitted: April 15, 2026 · Officer: Daniel K. Selby</p>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
-                Certified
-              </span>
-            </div>
+          <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            Tax filing history is not persisted yet. Submitted filings will appear here once the tax filing storage workflow is connected.
           </div>
         </div>
       )}
@@ -325,7 +302,7 @@ export function TaxManagementTab() {
               Confirm Monthly Tax Return Submission
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              You are preparing to submit the official GRA return for <b>May 2026</b> with a net payable amount of <b>{currentCurrency} {netTaxPayable.toLocaleString()}</b>.
+              You are preparing to submit the tax return for <b>{periodLabel}</b> with a net payable amount of <b>{currentCurrency} {netTaxPayable.toLocaleString()}</b>.
             </p>
 
             <div className="mt-4 rounded-xl bg-slate-50 p-3.5 border border-slate-200 dark:bg-slate-800 text-xs space-y-1.5 font-mono">

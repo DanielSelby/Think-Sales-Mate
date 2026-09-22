@@ -18,22 +18,21 @@ import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import type { FixedAsset, DepreciationMethod } from "@/types/accounting";
 import { getAssetsForAccounting } from "@/app/(dashboard)/assets/actions";
+import { postFixedAssetDepreciation, saveFixedAssetTreatment } from "@/app/(dashboard)/accounting/actions";
 
-export function FixedAssetsTab() {
+export function FixedAssetsTab({ initialFixedAssets = [] }: { initialFixedAssets?: FixedAsset[] }) {
   const {
-    fixedAssets,
     currentCurrency,
     currentBranch,
-    addFixedAsset,
-    runDepreciationPosting,
   } = useAccountingStore();
+  const fixedAssets = initialFixedAssets;
   const [operationalAssets, setOperationalAssets] = useState<FixedAsset[] | null>(null);
 
   useEffect(() => {
     let active = true;
     getAssetsForAccounting().then((assets) => {
       if (!active) return;
-      setOperationalAssets(assets.map((asset) => {
+      const mappedAssets = assets.map((asset) => {
         const treatment = fixedAssets.find((fixedAsset) => fixedAsset.assetCode === asset.assetCode);
         return {
           id: treatment?.id ?? asset.id,
@@ -51,7 +50,12 @@ export function FixedAssetsTab() {
           status: asset.status,
           notes: treatment?.notes,
         };
-      }));
+      });
+      const operationalCodes = new Set(mappedAssets.map((asset) => asset.assetCode));
+      setOperationalAssets([
+        ...mappedAssets,
+        ...fixedAssets.filter((asset) => !operationalCodes.has(asset.assetCode)),
+      ]);
     }).catch((error: unknown) => {
       console.error(error);
       if (active) setOperationalAssets([]);
@@ -61,7 +65,7 @@ export function FixedAssetsTab() {
     };
   }, [currentBranch, fixedAssets]);
 
-  const accountingAssets = operationalAssets ?? fixedAssets;
+  const accountingAssets = operationalAssets ?? [];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -97,17 +101,17 @@ export function FixedAssetsTab() {
     e.preventDefault();
     if (!assetName || cost <= 0) return;
 
-    addFixedAsset({
-      assetCode: "",
-      assetName,
-      category,
-      purchaseDate,
-      cost,
-      depreciationMethod: method,
-      usefulLifeYears: usefulLife,
-      salvageValue,
-      branch,
-      status: "in_use",
+    void saveFixedAssetTreatment({
+      assetCode: `AST-${Date.now()}`,
+      assetName, category, purchaseDate, cost, depreciationMethod: method,
+      usefulLifeYears: usefulLife, salvageValue, currentValue: cost,
+      accumulatedDepreciation: 0, status: "in_use", notes: null,
+    }).then((result) => {
+      if (!result.ok) {
+        console.error(result.error);
+        return;
+      }
+      setOperationalAssets(null);
     });
 
     setIsAddModalOpen(false);
@@ -116,9 +120,13 @@ export function FixedAssetsTab() {
     setSalvageValue(0);
   };
 
-  const handleRunDepreciation = () => {
-    const res = runDepreciationPosting(deprMonths);
-    setDeprResult(res);
+  const handleRunDepreciation = async () => {
+    const result = await postFixedAssetDepreciation(deprMonths);
+    if (!result.ok) {
+      console.error(result.error);
+      return;
+    }
+    setDeprResult({ totalDepreciation: result.totalDepreciation ?? 0, entriesCreated: result.entriesCreated ?? 0 });
     setTimeout(() => {
       setDeprResult(null);
       setIsDeprModalOpen(false);
