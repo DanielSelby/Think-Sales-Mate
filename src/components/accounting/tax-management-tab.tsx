@@ -15,15 +15,17 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
-import type { TaxRateConfig } from "@/types/accounting";
+import type { TaxFilingSummary, TaxRateConfig } from "@/types/accounting";
+import { fileAccountingTaxReturn } from "@/app/(dashboard)/accounting/actions";
+import { useRouter } from "next/navigation";
 
-export function TaxManagementTab({ liveSummary }: { liveSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number } }) {
+export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTaxFilings = [] }: { liveSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; initialTaxRates?: TaxRateConfig[]; initialTaxFilings?: TaxFilingSummary[] }) {
   const {
-    taxRates,
     currentCurrency,
-    updateTaxRate,
-    fileTaxReturn,
   } = useAccountingStore();
+  const router = useRouter();
+  const taxRates = initialTaxRates;
+  const taxFilings = initialTaxFilings;
 
   const [activeSubTab, setActiveSubTab] = useState<"summary" | "setup" | "audit">("summary");
   const [isFilingModalOpen, setIsFilingModalOpen] = useState(false);
@@ -44,9 +46,9 @@ export function TaxManagementTab({ liveSummary }: { liveSummary?: { periodLabel:
   const netTaxPayable = totalOutputTax - inputTaxDeductions;
   const periodLabel = liveSummary?.periodLabel ?? "Current reporting period";
 
-  const handleFileReturn = (e: React.FormEvent) => {
+  const handleFileReturn = async (e: React.FormEvent) => {
     e.preventDefault();
-    fileTaxReturn({
+    const result = await fileAccountingTaxReturn({
       period: periodLabel,
       grossSales,
       exemptSales,
@@ -60,8 +62,13 @@ export function TaxManagementTab({ liveSummary }: { liveSummary?: { periodLabel:
       withholdingTaxCredited,
       netTaxPayable,
     });
+    if (!result.ok) {
+      setSuccessMsg(result.error ?? "Could not record tax filing.");
+      return;
+    }
     setIsFilingModalOpen(false);
     setSuccessMsg("Monthly GRA Tax Filing successfully recorded and logged in tax audit trail.");
+    router.refresh();
     setTimeout(() => setSuccessMsg(null), 4000);
   };
 
@@ -289,7 +296,16 @@ export function TaxManagementTab({ liveSummary }: { liveSummary?: { periodLabel:
           <p className="text-xs text-slate-400 mt-0.5">Historical record of tax submissions and assessments</p>
 
           <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            Tax filing history is not persisted yet. Submitted filings will appear here once the tax filing storage workflow is connected.
+            {taxFilings.length === 0 ? "No tax filings have been recorded for this organization." : (
+              <div className="space-y-2">
+                {taxFilings.map((filing, index) => (
+                  <div key={`${filing.period}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{filing.period}</span>
+                    <span>{currentCurrency} {filing.netTaxPayable.toLocaleString("en-US", { minimumFractionDigits: 2 })} payable</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

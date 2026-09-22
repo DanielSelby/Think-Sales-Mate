@@ -28,6 +28,8 @@ export default async function AccountingPage() {
   let liveBankTransactions: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]> = {};
   let liveFixedAssets: import("@/types/accounting").FixedAsset[] = [];
   let liveAccountingSettings: Parameters<typeof AccountingDashboard>[0]["liveAccountingSettings"];
+  let liveTaxRates: import("@/types/accounting").TaxRateConfig[] = [];
+  let liveTaxFilings: import("@/types/accounting").TaxFilingSummary[] = [];
   if (context) {
     const db = await createClient();
     const accountingDb = db as any;
@@ -39,10 +41,23 @@ export default async function AccountingPage() {
       accountingDb.from("bank_accounts").select("id, name, account_type, opening_balance, current_balance").eq("org_id", context.orgId).order("name"),
       accountingDb.from("bank_statement_transactions").select("id, bank_account_id, transaction_date, reference, description, amount, type, matched").eq("org_id", context.orgId).order("transaction_date", { ascending: false }),
     ]);
-    const [{ data: fixedAssetRows }, { data: settingsRow }] = await Promise.all([
+    const [{ data: fixedAssetRows }, { data: settingsRow }, { data: taxRateRows }, { data: taxFilingRows }] = await Promise.all([
       accountingDb.from("fixed_assets_register").select("*").eq("org_id", context.orgId).order("asset_name"),
       accountingDb.from("accounting_settings").select("*").eq("org_id", context.orgId).maybeSingle(),
+      accountingDb.from("accounting_tax_rates").select("*").eq("org_id", context.orgId).order("name"),
+      accountingDb.from("accounting_tax_filings").select("*").eq("org_id", context.orgId).order("filed_at", { ascending: false }),
     ]);
+    liveTaxRates = (taxRateRows ?? []).map((rate: any) => ({
+      id: rate.id, name: rate.name, code: rate.code, rate: Number(rate.rate ?? 0), isCompound: Boolean(rate.is_compound),
+      appliesTo: rate.applies_to, isActive: Boolean(rate.is_active), description: rate.description ?? "",
+    }));
+    liveTaxFilings = (taxFilingRows ?? []).map((filing: any) => ({
+      period: filing.period, grossSales: Number(filing.gross_sales ?? 0), exemptSales: Number(filing.exempt_sales ?? 0),
+      taxableSales: Number(filing.taxable_sales ?? 0), standardVAT: Number(filing.standard_vat ?? 0),
+      nhil: Number(filing.nhil ?? 0), getFund: Number(filing.get_fund ?? 0), covidLevy: Number(filing.covid_levy ?? 0),
+      totalOutputTax: Number(filing.total_output_tax ?? 0), inputTaxDeductions: Number(filing.input_tax_deductions ?? 0),
+      withholdingTaxCredited: Number(filing.withholding_tax_credited ?? 0), netTaxPayable: Number(filing.net_tax_payable ?? 0),
+    }));
     liveFixedAssets = (fixedAssetRows ?? []).map((asset: any) => ({
       id: asset.id, assetCode: asset.asset_code, assetName: asset.asset_name, category: asset.category,
       purchaseDate: asset.purchase_date, cost: Number(asset.cost ?? 0), depreciationMethod: asset.depreciation_method,
@@ -262,7 +277,7 @@ export default async function AccountingPage() {
         </div>
       }
     >
-      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} />
+      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} />
     </Suspense>
   );
 }

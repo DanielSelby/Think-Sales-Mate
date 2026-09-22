@@ -294,3 +294,38 @@ export async function finalizeBankReconciliation(input: { accountId: string; sta
   revalidatePath("/accounting");
   return { ok: true };
 }
+
+export async function saveTaxRate(input: {
+  id?: string; name: string; code: string; rate: number; isCompound: boolean;
+  appliesTo: "sales" | "purchases" | "both"; isActive: boolean; description: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const context = await getCurrentOrgContext();
+  if (!context || !(await canPermission("accounting", input.id ? "edit" : "create"))) return { ok: false, error: "You do not have permission to manage tax rates." };
+  if (!input.name.trim() || !input.code.trim() || !Number.isFinite(input.rate) || input.rate < 0) return { ok: false, error: "Enter valid tax rate details." };
+  const db = await createClient() as any;
+  const payload = { org_id: context.orgId, name: input.name.trim(), code: input.code.trim(), rate: input.rate, is_compound: input.isCompound, applies_to: input.appliesTo, is_active: input.isActive, description: input.description.trim() };
+  const query = input.id ? db.from("accounting_tax_rates").update(payload).eq("id", input.id).eq("org_id", context.orgId) : db.from("accounting_tax_rates").insert(payload);
+  const { error } = await query;
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/accounting");
+  return { ok: true };
+}
+
+export async function fileAccountingTaxReturn(input: {
+  period: string; grossSales: number; exemptSales: number; taxableSales: number; standardVAT: number;
+  nhil: number; getFund: number; covidLevy: number; totalOutputTax: number; inputTaxDeductions: number;
+  withholdingTaxCredited: number; netTaxPayable: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  const context = await getCurrentOrgContext();
+  if (!context || !(await canPermission("accounting", "create"))) return { ok: false, error: "You do not have permission to file tax returns." };
+  const db = await createClient() as any;
+  const { error } = await db.from("accounting_tax_filings").insert({
+    org_id: context.orgId, period: input.period, gross_sales: input.grossSales, exempt_sales: input.exemptSales,
+    taxable_sales: input.taxableSales, standard_vat: input.standardVAT, nhil: input.nhil, get_fund: input.getFund,
+    covid_levy: input.covidLevy, total_output_tax: input.totalOutputTax, input_tax_deductions: input.inputTaxDeductions,
+    withholding_tax_credited: input.withholdingTaxCredited, net_tax_payable: input.netTaxPayable, filed_by: context.userId,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/accounting");
+  return { ok: true };
+}
