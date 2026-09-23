@@ -367,7 +367,7 @@ export function OrdersListView({
   }
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="orders-page space-y-6 pb-16">
       {/* Header & Breadcrumbs */}
       <div>
         <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white">{view === "list" ? "Order List" : "Order Tracker"}</h1>

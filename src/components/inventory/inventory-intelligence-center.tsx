@@ -72,7 +72,7 @@ export function InventoryIntelligenceCenter({ initialData }: { initialData: Inte
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const link = document.createElement("a"); link.href = url; link.download = "inventory-intelligence.csv"; link.click(); URL.revokeObjectURL(url);
   };
 
-  return <main className="min-h-screen bg-[#f5f8fc] px-4 py-5 text-slate-900 sm:px-6 lg:px-8">
+  return <main className="inventory-intelligence-page min-h-screen bg-[#f5f8fc] px-4 py-5 text-slate-900 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-[1600px]">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 xl:flex-row xl:items-center xl:justify-between">
         <div><div className="flex items-center gap-2 text-xs font-medium text-blue-600"><Boxes className="h-3.5 w-3.5" /> Inventory <span className="text-slate-400">/</span> Intelligence Center</div><h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight">Inventory Intelligence Center <Sparkles className="h-5 w-5 text-violet-500" /></h1><p className="mt-1 text-sm text-slate-500">Monitor inventory health, stock movement, forecasting, risks, branch performance, and AI recommendations from a single workspace.</p></div>

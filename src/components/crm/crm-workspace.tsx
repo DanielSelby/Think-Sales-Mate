@@ -36,7 +36,7 @@ export function CrmWorkspace({ customers, sales, invoices, canManage, currency }
   const moveDeal = (id: string, stage: string) => setPipeline((items) => items.map((item) => item.id === id ? { ...item, stage } : item));
   const addAction = (label: string) => setNotice(`${label} is ready to connect to your existing CRM workflow.`);
 
-  return <div className="space-y-5">
+  return <div className="crm-page space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Workspace</p><h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">CRM & Customer Relationship Management</h1><p className="mt-1 text-sm text-slate-500">Manage leads, opportunities and customer relationships in one place.</p></div>
       <div className="flex flex-wrap gap-2">{["Add Lead", "Add Opportunity", "Schedule Meeting", "Create Task"].map((label) => <Button key={label} variant="outline" onClick={() => addAction(label)}><Plus className="h-4 w-4" />{label}</Button>)}</div>

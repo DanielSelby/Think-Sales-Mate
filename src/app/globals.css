@@ -100,11 +100,31 @@ html.dark .dashboard-motion .rounded-card:hover {
   letter-spacing: -0.01em;
 }
 
-/* HRM cards use the same clean white outline as the stock detail surfaces. */
+/* HRM and Payroll use borderless cards in both themes. */
 .hrm-page .rounded-card.border,
 .hrm-page .rounded-2xl.border,
+.hrm-page .rounded-xl.border,
 .hrm-page .rounded-lg.border {
-  border-color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+html.dark .hrm-page .rounded-card,
+html.dark .hrm-page .rounded-2xl,
+html.dark .hrm-page .rounded-xl,
+html.dark .hrm-page .rounded-lg {
+  border-color: transparent !important;
+  background-color: #0f1d2d !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2) !important;
+}
+
+html.dark .hrm-page .bg-white {
+  background-color: #0f1d2d !important;
+}
+
+html.dark .hrm-page .bg-ledger-50,
+html.dark .hrm-page .bg-ledger-50\/60,
+html.dark .hrm-page .bg-slate-50 {
+  background-color: #132337 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -127,6 +147,77 @@ html.dark .dashboard-motion .rounded-card:hover {
 .procurement-page .rounded-2xl.border {
   border-color: transparent !important;
   background-color: #fff !important;
+}
+
+html.dark .procurement-page .rounded-card,
+html.dark .procurement-page .rounded-2xl.border,
+html.dark .orders-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark .orders-page [class*="rounded-xl"][class*="bg-white"],
+html.dark .crm-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark .crm-page [class*="rounded-xl"][class*="bg-white"],
+html.dark .inventory-intelligence-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark .inventory-intelligence-page [class*="rounded-xl"][class*="bg-white"] {
+  background-color: #0f1d2d !important;
+  border-color: transparent !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2) !important;
+}
+
+html.dark .procurement-page .bg-white,
+html.dark .orders-page .bg-white,
+html.dark .crm-page .bg-white,
+html.dark .inventory-intelligence-page .bg-white {
+  background-color: #0f1d2d !important;
+}
+
+html.dark .procurement-page [class~="bg-ledger-50"],
+html.dark .orders-page [class~="bg-ledger-50"],
+html.dark .crm-page [class~="bg-slate-50"],
+html.dark .inventory-intelligence-page [class~="bg-slate-50"],
+html.dark .inventory-intelligence-page [class~="bg-[#f5f8fc]"] {
+  background-color: #132337 !important;
+}
+
+html.dark .procurement-page [class~="border-ledger-100"],
+html.dark .procurement-page [class~="border-ledger-200"],
+html.dark .orders-page [class~="border-ledger-100"],
+html.dark .orders-page [class~="border-ledger-200"],
+html.dark .crm-page [class~="border-slate-100"],
+html.dark .crm-page [class~="border-slate-200"],
+html.dark .inventory-intelligence-page [class~="border-slate-100"],
+html.dark .inventory-intelligence-page [class~="border-slate-200"] {
+  border-color: transparent !important;
+}
+
+html.dark .inventory-intelligence-page {
+  background-color: #08111f !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .inventory-intelligence-page [class~="text-slate-900"],
+html.dark .inventory-intelligence-page [class~="text-slate-800"],
+html.dark .crm-page [class~="text-slate-900"],
+html.dark .crm-page [class~="text-slate-800"] {
+  color: #f8fafc !important;
+}
+
+html.dark .inventory-intelligence-page [class~="text-slate-700"],
+html.dark .inventory-intelligence-page [class~="text-slate-600"],
+html.dark .crm-page [class~="text-slate-700"],
+html.dark .crm-page [class~="text-slate-600"] {
+  color: #a9b8ca !important;
+}
+
+html.dark .procurement-page input,
+html.dark .procurement-page select,
+html.dark .orders-page input,
+html.dark .orders-page select,
+html.dark .crm-page input,
+html.dark .crm-page select,
+html.dark .inventory-intelligence-page input,
+html.dark .inventory-intelligence-page select {
+  background-color: #0b1726 !important;
+  border-color: #334960 !important;
+  color: #e2e8f0 !important;
 }
 
 html.dark .audit-center,
