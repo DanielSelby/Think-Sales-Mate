@@ -355,9 +355,9 @@ export async function saveTaxRate(input: {
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
   if (!context || !(await canPermission("accounting", input.id ? "edit" : "create"))) return { ok: false, error: "You do not have permission to manage tax rates." };
-  if (!input.name.trim() || !input.code.trim() || !Number.isFinite(input.rate) || input.rate < 0) return { ok: false, error: "Enter valid tax rate details." };
+  if (!input.name.trim() || !input.code.trim() || !Number.isFinite(input.rate) || input.rate < 0 || input.rate > 100) return { ok: false, error: "Enter a tax rate between 0 and 100." };
   const db = await createClient() as any;
-  const payload = { org_id: context.orgId, name: input.name.trim(), code: input.code.trim(), rate: input.rate, is_compound: input.isCompound, applies_to: input.appliesTo, is_active: input.isActive, description: input.description.trim() };
+  const payload = { org_id: context.orgId, name: input.name.trim(), code: input.code.trim().toUpperCase(), rate: input.rate, is_compound: input.isCompound, applies_to: input.appliesTo, is_active: input.isActive, description: input.description.trim() };
   const query = input.id ? db.from("accounting_tax_rates").update(payload).eq("id", input.id).eq("org_id", context.orgId) : db.from("accounting_tax_rates").insert(payload);
   const { error } = await query;
   if (error) return { ok: false, error: error.message };
@@ -372,6 +372,9 @@ export async function fileAccountingTaxReturn(input: {
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
   if (!context || !(await canPermission("accounting", "create"))) return { ok: false, error: "You do not have permission to file tax returns." };
+  const amounts = [input.grossSales, input.exemptSales, input.taxableSales, input.standardVAT, input.nhil, input.getFund, input.covidLevy, input.totalOutputTax, input.inputTaxDeductions, input.withholdingTaxCredited, input.netTaxPayable];
+  if (!input.period.trim() || amounts.some((amount) => !Number.isFinite(amount) || amount < 0)) return { ok: false, error: "The filing contains invalid tax amounts." };
+  if (Math.abs(input.netTaxPayable - (input.totalOutputTax - input.inputTaxDeductions - input.withholdingTaxCredited)) > 0.01) return { ok: false, error: "Net tax payable does not match the filing deductions." };
   const db = await createClient() as any;
   const { error } = await db.from("accounting_tax_filings").insert({
     org_id: context.orgId, period: input.period, gross_sales: input.grossSales, exempt_sales: input.exemptSales,

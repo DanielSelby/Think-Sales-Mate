@@ -183,6 +183,7 @@ export interface TaxRateConfig {
 }
 
 export interface TaxFilingSummary {
+  id?: string;
   period: string;
   grossSales: number;
   exemptSales: number;
@@ -195,6 +196,8 @@ export interface TaxFilingSummary {
   inputTaxDeductions: number;
   withholdingTaxCredited: number;
   netTaxPayable: number;
+  filedAt?: string;
+  filedBy?: string | null;
 }
 
 export interface AccountingSettings {

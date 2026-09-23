@@ -35,6 +35,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
   const [editingRate, setEditingRate] = useState<TaxRateConfig | null>(null);
   const [rateForm, setRateForm] = useState({ name: "", code: "", rate: "0", appliesTo: "both" as TaxRateConfig["appliesTo"], description: "", isCompound: false, isActive: true });
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const grossSales = liveSummary?.grossSales ?? 0;
   const exemptSales = 0.0;
@@ -60,7 +61,10 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
 
   const handleSaveRate = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSaving) return;
+    setIsSaving(true);
     const result = await saveTaxRate({ id: editingRate?.id, name: rateForm.name, code: rateForm.code, rate: Number(rateForm.rate), appliesTo: rateForm.appliesTo, description: rateForm.description, isCompound: rateForm.isCompound, isActive: rateForm.isActive });
+    setIsSaving(false);
     if (!result.ok) {
       setSuccessMsg(result.error ?? "Could not save tax rate.");
       return;
@@ -73,6 +77,8 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
 
   const handleFileReturn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+    setIsSaving(true);
     const result = await fileAccountingTaxReturn({
       period: periodLabel,
       grossSales,
@@ -88,9 +94,11 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
       netTaxPayable,
     });
     if (!result.ok) {
+      setIsSaving(false);
       setSuccessMsg(result.error ?? "Could not record tax filing.");
       return;
     }
+    setIsSaving(false);
     setIsFilingModalOpen(false);
     setSuccessMsg("Monthly GRA Tax Filing successfully recorded and logged in tax audit trail.");
     router.refresh();
@@ -330,10 +338,11 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
               </select>
             </div>
             <textarea placeholder="Description" value={rateForm.description} onChange={(e) => setRateForm({ ...rateForm, description: e.target.value })} className="w-full rounded-xl border p-2 text-xs dark:border-slate-700 dark:bg-slate-800" />
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={rateForm.isCompound} onChange={(e) => setRateForm({ ...rateForm, isCompound: e.target.checked })} /> Compound tax</label>
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={rateForm.isActive} onChange={(e) => setRateForm({ ...rateForm, isActive: e.target.checked })} /> Active</label>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setIsRateModalOpen(false)} className="rounded-xl border px-3 py-2 text-xs">Cancel</button>
-              <button type="submit" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Save Rate</button>
+              <button type="submit" disabled={isSaving} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{isSaving ? "Saving…" : "Save Rate"}</button>
             </div>
           </form>
         </div>
@@ -351,7 +360,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
             {taxFilings.length === 0 ? "No tax filings have been recorded for this organization." : (
               <div className="space-y-2">
                 {taxFilings.map((filing, index) => (
-                  <div key={`${filing.period}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                  <div key={`${filing.period}-${filing.filedAt ?? index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
                     <span className="font-semibold text-slate-700 dark:text-slate-200">{filing.period}</span>
                     <span>{formatCurrencyAmount(filing.netTaxPayable, currencyConfig)} payable</span>
                   </div>
@@ -401,7 +410,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
                 onClick={handleFileReturn}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm"
               >
-                Confirm &amp; Record Filing
+                {isSaving ? "Recording…" : "Confirm & Record Filing"}
               </button>
             </div>
           </div>

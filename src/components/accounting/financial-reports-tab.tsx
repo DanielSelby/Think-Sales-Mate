@@ -17,15 +17,18 @@ import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { formatCurrencyAmount } from "@/lib/currency";
 import type { BalanceSheetSummary, ReportKpis } from "@/lib/reports/calculations";
+import type { RevenueExpensePoint, ExpenseCategorySlice } from "@/lib/reports/calculations";
 import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 
 export interface LiveFinancialSnapshot {
   kpis: ReportKpis;
   balanceSheet: BalanceSheetSummary;
   periodLabel: string;
+  revenueExpenseSeries?: RevenueExpensePoint[];
+  expensesByCategory?: ExpenseCategorySlice[];
 }
 
-export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEntries }: { liveSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[] }) {
+export function FinancialReportsTab({ orgName, dateFrom, dateTo, liveSnapshot, liveAccounts, liveJournalEntries }: { orgName: string; dateFrom?: string; dateTo?: string; liveSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[] }) {
   const {
     receivables,
     payables,
@@ -48,7 +51,7 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
   const activeAccounts = accounts.filter((a) =>
     reportBranch === "all" ? true : a.branch === reportBranch
   );
-  const reportDateRange = (() => {
+  const reportDateRange = dateFrom && dateTo ? { from: dateFrom, to: dateTo } : (() => {
     const today = new Date();
     const from = new Date(today);
     if (period === "This Month") {
@@ -208,8 +211,16 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .financial-report-print, .financial-report-print * { visibility: visible !important; }
+          .financial-report-print { position: absolute; inset: 0; width: 100%; max-width: none !important; margin: 0 !important; box-shadow: none !important; border: 0 !important; }
+          .financial-report-controls { display: none !important; }
+        }
+      `}</style>
       {/* ── Report Type Switcher & Action Buttons ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="financial-report-controls flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setSelectedReport("pnl")}
@@ -297,14 +308,14 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
       </div>
 
       {/* ── Report Presentation Paper Card ── */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 max-w-4xl mx-auto">
+      <div className="financial-report-print rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 max-w-4xl mx-auto">
         {/* Document Header */}
         <div className="border-b border-slate-200 pb-5 dark:border-slate-800 text-center">
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-base mb-2">
             S
           </div>
           <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white">
-            ThinkSales Pro ERP — {selectedReport === "pnl" ? "Profit & Loss Statement" : selectedReport === "balance_sheet" ? "Balance Sheet Statement" : selectedReport === "cash_flow" ? "Cash Flow Statement" : selectedReport === "trial_balance" ? "Trial Balance Verification" : "General Ledger Register"}
+            {orgName} — {selectedReport === "pnl" ? "Profit & Loss Statement" : selectedReport === "balance_sheet" ? "Balance Sheet Statement" : selectedReport === "cash_flow" ? "Cash Flow Statement" : selectedReport === "trial_balance" ? "Trial Balance Verification" : "General Ledger Register"}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             For the period: <span className="font-semibold text-slate-700 dark:text-slate-300">{liveSnapshot?.periodLabel ?? period}</span> · Branch: <span className="font-semibold text-slate-700 dark:text-slate-300">{reportBranch === "all" ? "All Locations" : reportBranch}</span> · Currency: <span className="font-semibold text-slate-700 dark:text-slate-300">{currentCurrency}</span>

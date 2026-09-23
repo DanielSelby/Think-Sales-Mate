@@ -29,9 +29,10 @@ interface JournalEntriesTabProps {
   onModalClosed?: () => void;
   dateFrom?: string;
   dateTo?: string;
+  orgName?: string;
 }
 
-export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts = [], initialOpenNewModal = false, onModalClosed, dateFrom, dateTo }: JournalEntriesTabProps) {
+export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts = [], initialOpenNewModal = false, onModalClosed, dateFrom, dateTo, orgName = "Organization" }: JournalEntriesTabProps) {
   const {
     currentCurrency,
     currencyConfig,
@@ -612,7 +613,7 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                   <h3 className="font-display text-lg font-bold text-slate-900 dark:text-white">
                     Journal Voucher
                   </h3>
-                  <p className="text-xs text-slate-500">ThinkSales Pro ERP System</p>
+                  <p className="text-xs text-slate-500">{orgName}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

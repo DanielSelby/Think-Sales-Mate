@@ -130,9 +130,13 @@ export function OverviewTab({
     }
     monthlyTotals.set(month, monthTotals);
   }
-  const liveTrendData = [...monthlyTotals.entries()].map(([month, values]) => ({ month, ...values }));
+  const liveTrendData = liveSnapshot?.revenueExpenseSeries?.map((point) => ({
+    month: point.label,
+    income: point.revenue,
+    expenses: point.expenses,
+  })) ?? [...monthlyTotals.entries()].map(([month, values]) => ({ month, ...values }));
   const liveExpenseTotal = [...liveExpenseTotals.values()].reduce((sum, value) => sum + value, 0);
-  const liveExpenseSlices = [...liveExpenseTotals.entries()]
+  const journalExpenseSlices = [...liveExpenseTotals.entries()]
     .sort(([, first], [, second]) => second - first)
     .map(([name, value], index) => ({
       name,
@@ -140,6 +144,12 @@ export function OverviewTab({
       percentage: liveExpenseTotal > 0 ? Math.round((value / liveExpenseTotal) * 1000) / 10 : 0,
       color: ["#2563EB", "#0D9488", "#EAB308", "#F97316", "#64748B"][index % 5],
     }));
+  const liveExpenseSlices = liveSnapshot?.expensesByCategory?.map((slice, index) => ({
+    name: slice.category,
+    value: slice.amount,
+    percentage: slice.pct,
+    color: ["#2563EB", "#0D9488", "#EAB308", "#F97316", "#64748B"][index % 5],
+  })) ?? journalExpenseSlices;
   const liveRecentTransactions = postedJournals.slice(0, 5).map((journal) => {
     const income = journal.lines.reduce((sum, line) => {
       const account = liveAccountsById.get(line.accountId);

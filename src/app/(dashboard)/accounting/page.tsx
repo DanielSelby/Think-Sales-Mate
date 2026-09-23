@@ -4,14 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { AccountsPayableItem } from "@/types/accounting";
 import type { AccountsReceivableItem } from "@/types/accounting";
-import { getReportKpis, getBalanceSheet } from "@/lib/reports/calculations";
+import { getReportKpis, getBalanceSheet, getRevenueExpenseSeries, getExpensesByCategory } from "@/lib/reports/calculations";
 import type { LiveFinancialSnapshot } from "@/components/accounting/financial-reports-tab";
 import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import type { CurrencyConfig } from "@/lib/currency";
 
 export const metadata = {
-  title: "Accounting & Financial Management | ThinkSales Pro",
+  title: "Accounting & Financial Management",
   description: "Enterprise double-entry accounting, General Ledger, Chart of Accounts, and Financial Reports.",
 };
 
@@ -65,11 +65,13 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       appliesTo: rate.applies_to, isActive: Boolean(rate.is_active), description: rate.description ?? "",
     }));
     liveTaxFilings = (taxFilingRows ?? []).map((filing: any) => ({
+      id: filing.id,
       period: filing.period, grossSales: Number(filing.gross_sales ?? 0), exemptSales: Number(filing.exempt_sales ?? 0),
       taxableSales: Number(filing.taxable_sales ?? 0), standardVAT: Number(filing.standard_vat ?? 0),
       nhil: Number(filing.nhil ?? 0), getFund: Number(filing.get_fund ?? 0), covidLevy: Number(filing.covid_levy ?? 0),
       totalOutputTax: Number(filing.total_output_tax ?? 0), inputTaxDeductions: Number(filing.input_tax_deductions ?? 0),
       withholdingTaxCredited: Number(filing.withholding_tax_credited ?? 0), netTaxPayable: Number(filing.net_tax_payable ?? 0),
+      filedAt: filing.filed_at, filedBy: filing.filed_by,
     }));
     liveFixedAssets = (fixedAssetRows ?? []).map((asset: any) => ({
       id: asset.id, assetCode: asset.asset_code, assetName: asset.asset_name, category: asset.category,
@@ -156,18 +158,26 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         description: line.description ?? undefined,
       })),
     }));
-    const [reportKpis, balanceSheet] = await Promise.all([
-      getReportKpis({ orgId: context.orgId, dateFrom, dateTo, locationId: context.isBranchScoped ? context.allowedLocationIds[0] : context.masterLocationId }),
+    const reportFilters = { orgId: context.orgId, dateFrom, dateTo, locationId: context.masterLocationId, allowedLocationIds: context.isBranchScoped ? context.allowedLocationIds : undefined };
+    const [reportKpis, balanceSheet, revenueExpenseSeries, expensesByCategory] = await Promise.all([
+      getReportKpis(reportFilters),
       getBalanceSheet(context.orgId, dateTo),
+      getRevenueExpenseSeries(reportFilters, "monthly"),
+      getExpensesByCategory(reportFilters),
     ]);
     liveFinancialSnapshot = {
       kpis: reportKpis,
       balanceSheet,
       periodLabel: `${dateFrom} to ${dateTo}`,
+      revenueExpenseSeries,
+      expensesByCategory,
     };
     const taxLocationFilter = context.isBranchScoped ? context.allowedLocationIds : null;
-    let salesTaxQuery = db.from("sales").select("total, tax_amount").eq("org_id", context.orgId).in("status", ["completed", "returned"]).gte("sale_date", dateFrom).lte("sale_date", dateTo);
-    let purchasesTaxQuery = db.from("purchases").select("tax_amount").eq("org_id", context.orgId).neq("status", "cancelled").gte("purchase_date", dateFrom).lte("purchase_date", dateTo);
+    const exclusiveDateTo = new Date(`${dateTo}T00:00:00.000Z`);
+    exclusiveDateTo.setUTCDate(exclusiveDateTo.getUTCDate() + 1);
+    const exclusiveDateToIso = exclusiveDateTo.toISOString();
+    let salesTaxQuery = db.from("sales").select("total, tax_amount").eq("org_id", context.orgId).in("status", ["completed", "returned"]).gte("sale_date", dateFrom).lt("sale_date", exclusiveDateToIso);
+    let purchasesTaxQuery = db.from("purchases").select("tax_amount").eq("org_id", context.orgId).neq("status", "cancelled").gte("purchase_date", dateFrom).lt("purchase_date", exclusiveDateToIso);
     if (taxLocationFilter) {
       salesTaxQuery = salesTaxQuery.in("location_id", taxLocationFilter);
       purchasesTaxQuery = purchasesTaxQuery.in("location_id", taxLocationFilter);
@@ -310,7 +320,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
+      <AccountingDashboard orgName={context?.orgName ?? "Organization"} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
     </Suspense>
   );
 }
