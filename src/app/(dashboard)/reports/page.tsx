@@ -9,7 +9,8 @@ import {
   getRevenueExpenseSeries,
   getExpensesByCategory,
   getTopCustomers,
-  getTaxSummary
+  getTaxSummary,
+  getOperationalReportData
 } from "@/lib/reports/calculations";
 import { getRecentReports } from "@/app/(dashboard)/reports/actions";
 import { ReportsDashboard } from "@/components/reports/reports-dashboard";
@@ -47,9 +48,19 @@ export default async function ReportsPage({
   if (!context) return null;
 
   const defaults = defaultDateRange();
-  const requestedPeriod = searchParams.period || "monthly";
-  const requestedRange = searchParams.from && searchParams.to
-    ? { from: searchParams.from, to: searchParams.to }
+  const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+  const requestedPeriod = ["today", "yesterday", "weekly", "monthly", "quarterly", "yearly", "custom"].includes(searchParams.period ?? "")
+    ? searchParams.period!
+    : "monthly";
+  const hasValidRange = Boolean(
+    searchParams.from &&
+    searchParams.to &&
+    isoDate.test(searchParams.from) &&
+    isoDate.test(searchParams.to) &&
+    searchParams.from <= searchParams.to
+  );
+  const requestedRange = hasValidRange
+    ? { from: searchParams.from!, to: searchParams.to! }
     : periodDateRange(requestedPeriod);
   const dateFrom = requestedRange.from || defaults.from;
   const dateTo = requestedRange.to || defaults.to;
@@ -82,7 +93,7 @@ export default async function ReportsPage({
   if (context.isBranchScoped) locationsQuery = locationsQuery.in("id", context.allowedLocationIds);
   const { data: locationRows } = await locationsQuery;
 
-  const [kpis, profitAndLoss, balanceSheet, revenueExpenseSeries, expensesByCategory, topCustomers, taxSummary, recentReports] =
+  const [kpis, profitAndLoss, balanceSheet, revenueExpenseSeries, expensesByCategory, topCustomers, taxSummary, operationalReports, recentReports] =
     await Promise.all([
       getReportKpis(filters),
       getProfitAndLoss(filters),
@@ -91,6 +102,7 @@ export default async function ReportsPage({
       getExpensesByCategory(filters),
       getTopCustomers(filters),
       getTaxSummary(filters),
+      getOperationalReportData(filters),
       getRecentReports()
     ]);
 
@@ -98,7 +110,7 @@ export default async function ReportsPage({
     <ReportsDashboard
       orgName={context.orgName}
       currency={context.currency}
-      canExport={can(context.role, "reports.view")}
+      canExport={can(context.role, "reports.export")}
       locations={(locationRows ?? []).map((l) => ({ id: l.id, name: l.name }))}
       filters={{ dateFrom, dateTo, locationId, period }}
       kpis={kpis}
@@ -108,6 +120,7 @@ export default async function ReportsPage({
       expensesByCategory={expensesByCategory}
       topCustomers={topCustomers}
       taxSummary={taxSummary}
+      operationalReports={operationalReports}
       recentReports={recentReports}
     />
   );

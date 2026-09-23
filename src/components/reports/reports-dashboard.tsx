@@ -46,7 +46,8 @@ import type {
   RevenueExpensePoint,
   ExpenseCategorySlice,
   TopCustomerRow,
-  TaxSummary
+  TaxSummary,
+  OperationalReportData
 } from "@/lib/reports/calculations";
 import type { RecentReportRow } from "@/app/(dashboard)/reports/actions";
 
@@ -123,6 +124,7 @@ export function ReportsDashboard({
   expensesByCategory,
   topCustomers,
   taxSummary,
+  operationalReports,
   recentReports
 }: {
   orgName: string;
@@ -137,6 +139,7 @@ export function ReportsDashboard({
   expensesByCategory: ExpenseCategorySlice[];
   topCustomers: TopCustomerRow[];
   taxSummary: TaxSummary;
+  operationalReports: OperationalReportData;
   recentReports: RecentReportRow[];
 }) {
   const router = useRouter();
@@ -178,6 +181,7 @@ export function ReportsDashboard({
       const range = rangeForPeriod(nextPeriod);
       setDateFrom(range.from);
       setDateTo(range.to);
+      applyFilters({ period: nextPeriod, dateFrom: range.from, dateTo: range.to });
     }
   }
 
@@ -412,6 +416,7 @@ export function ReportsDashboard({
           expensesByCategory={expensesByCategory}
           topCustomers={topCustomers}
           taxSummary={taxSummary}
+          operationalReports={operationalReports}
           onSelectReport={(report) => {
             setSelectedReport(report);
             setNotice(`${report} selected for ${dateFrom} to ${dateTo}.`);
@@ -482,8 +487,13 @@ export function ReportsDashboard({
           <select
             value={period}
             onChange={(e) => {
-              setPeriod(e.target.value);
-              applyFilters({ period: e.target.value });
+              const nextPeriod = e.target.value;
+              setPeriod(nextPeriod);
+              if (nextPeriod === "custom") return;
+              const range = rangeForPeriod(nextPeriod);
+              setDateFrom(range.from);
+              setDateTo(range.to);
+              applyFilters({ period: nextPeriod, dateFrom: range.from, dateTo: range.to });
             }}
             className="h-8 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           >
@@ -700,6 +710,28 @@ const REPORTS_BY_TAB: Record<string, string[]> = {
   "Custom Reports": ["Report Builder", "Saved Templates", "Scheduled Reports", "Shared Reports"]
 };
 
+const REPORT_DATASETS: Record<string, keyof OperationalReportData | "customers" | "expenses" | "tax" | "series"> = {
+  "Sales by Product": "salesByProduct",
+  "Sales by Category": "salesByCategory",
+  "Sales by Branch": "salesByBranch",
+  "Sales Returns": "salesReturns",
+  "Purchases by Supplier": "purchasesBySupplier",
+  "Purchases by Product": "purchasesByProduct",
+  "Purchase Return Report": "purchaseReturns",
+  "Current Inventory": "currentInventory",
+  "Inventory Valuation": "inventoryValuation",
+  "Reorder Report": "reorderReport",
+  "Top Customers": "customers",
+  "Expenses by Category": "expenses",
+  "VAT Summary": "tax",
+  "Sales Tax Collected": "tax",
+  "Tax Liability": "tax",
+  "Branch Performance Comparison": "salesByBranch",
+  "Branch Sales": "salesByBranch",
+  "Product Performance": "salesByProduct",
+  "Product Sales Trend": "salesByProduct"
+};
+
 function ReportWorkspace({
   tab,
   currency,
@@ -712,6 +744,7 @@ function ReportWorkspace({
   expensesByCategory,
   topCustomers,
   taxSummary,
+  operationalReports,
   onSelectReport
 }: {
   tab: string;
@@ -725,6 +758,7 @@ function ReportWorkspace({
   expensesByCategory: ExpenseCategorySlice[];
   topCustomers: TopCustomerRow[];
   taxSummary: TaxSummary;
+  operationalReports: OperationalReportData;
   onSelectReport: (report: string) => void;
 }) {
   const reports = REPORTS_BY_TAB[tab] ?? [];
@@ -734,20 +768,31 @@ function ReportWorkspace({
     ["Net Profit", fmt(kpis.netProfit, currency)],
     ["Gross Margin", `${kpis.grossMargin}%`]
   ];
-  const selectedRows = selectedReport?.includes("Customer")
+  const datasetKey = selectedReport ? REPORT_DATASETS[selectedReport] : undefined;
+  const selectedRows = datasetKey === "customers"
     ? topCustomers.map((row) => [String(row.rank), row.customerName, fmt(row.revenue, currency)])
-    : selectedReport?.includes("Expense") || selectedReport?.includes("Category")
+    : datasetKey === "expenses"
       ? expensesByCategory.map((row) => [row.category, `${row.pct}%`, fmt(row.amount, currency)])
-      : selectedReport?.includes("Tax") || selectedReport?.includes("VAT")
+      : datasetKey === "tax"
         ? [["Tax collected", String(taxSummary.salesCount), fmt(taxSummary.taxCollected, currency)]]
-        : revenueExpenseSeries.map((row) => [row.label, fmt(row.revenue, currency), fmt(row.expenses, currency)]);
-  const selectedHeaders = selectedReport?.includes("Customer")
+        : datasetKey === "series"
+          ? revenueExpenseSeries.map((row) => [row.label, fmt(row.revenue, currency), fmt(row.expenses, currency)])
+          : datasetKey
+            ? (operationalReports[datasetKey] as Array<{ label: string; secondary?: string; quantity?: number; amount?: number; count?: number }>).map((row) => [
+                row.label,
+                row.secondary ?? (row.quantity != null ? String(row.quantity) : row.count != null ? String(row.count) : ""),
+                row.amount != null ? fmt(row.amount, currency) : ""
+              ])
+            : [];
+  const selectedHeaders = datasetKey === "customers"
     ? ["Rank", "Customer", "Revenue"]
-    : selectedReport?.includes("Expense") || selectedReport?.includes("Category")
+    : datasetKey === "expenses"
       ? ["Category", "Share", "Amount"]
-      : selectedReport?.includes("Tax") || selectedReport?.includes("VAT")
+      : datasetKey === "tax"
         ? ["Metric", "Sales", "Amount"]
-        : ["Period", "Revenue", "Expenses"];
+        : datasetKey === "series"
+          ? ["Period", "Revenue", "Expenses"]
+          : ["Name", "Quantity / Details", "Amount"];
   return (
     <div className="space-y-5">
       <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
@@ -756,7 +801,7 @@ function ReportWorkspace({
             <h2 className="text-base font-semibold text-ink-900 dark:text-white">{tab}</h2>
             <p className="mt-1 text-xs text-ledger-400">{dateFrom} to {dateTo} · filtered live data</p>
           </div>
-          <span className="rounded-full bg-signal-soft px-2.5 py-1 text-xs font-medium text-signal">Connected to ERP data</span>
+          <span className="rounded-full bg-signal-soft px-2.5 py-1 text-xs font-medium text-signal">Live filtered data</span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {values.map(([label, value]) => (
@@ -782,7 +827,9 @@ function ReportWorkspace({
               }`}
             >
               {report}
-              <span className="mt-1 block text-xs text-ledger-400">Uses the selected filters</span>
+              <span className="mt-1 block text-xs text-ledger-400">
+                {REPORT_DATASETS[report] ? "Live filtered result" : "Not yet available"}
+              </span>
             </button>
           ))}
         </div>
@@ -801,7 +848,7 @@ function ReportWorkspace({
               ))}
             </div>
             <div className="mt-4 overflow-x-auto rounded-md border border-signal/20 bg-white dark:bg-ink-900">
-              {selectedRows.length > 0 ? (
+              {datasetKey && selectedRows.length > 0 ? (
                 <table className="w-full min-w-[420px] text-left text-xs">
                   <thead className="border-b border-ledger-100 dark:border-ledger-700">
                     <tr>
@@ -824,7 +871,9 @@ function ReportWorkspace({
                 </table>
               ) : (
                 <p className="px-3 py-4 text-xs text-ledger-500 dark:text-ledger-400">
-                  No records match the selected date and branch filters.
+                  {datasetKey
+                    ? "No records match the selected date and branch filters."
+                    : "This report does not have a live data source yet."}
                 </p>
               )}
             </div>

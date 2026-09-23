@@ -8,6 +8,28 @@ export interface ReportFilters {
   allowedLocationIds?: string[];
 }
 
+export interface OperationalReportRow {
+  label: string;
+  secondary?: string;
+  quantity?: number;
+  amount?: number;
+  count?: number;
+}
+
+export interface OperationalReportData {
+  salesByProduct: OperationalReportRow[];
+  salesByCategory: OperationalReportRow[];
+  salesByBranch: OperationalReportRow[];
+  salesReturns: OperationalReportRow[];
+  purchasesBySupplier: OperationalReportRow[];
+  purchasesByProduct: OperationalReportRow[];
+  purchaseReturns: OperationalReportRow[];
+  currentInventory: OperationalReportRow[];
+  inventoryValuation: OperationalReportRow[];
+  reorderReport: OperationalReportRow[];
+  branchExpenses: OperationalReportRow[];
+}
+
 function dateToExclusive(date: string) {
   const next = new Date(`${date}T00:00:00.000Z`);
   next.setUTCDate(next.getUTCDate() + 1);
@@ -341,6 +363,160 @@ export interface TaxSummary {
 export async function getTaxSummary(filters: ReportFilters): Promise<TaxSummary> {
   const f = await fetchPeriodFigures(filters);
   return { taxCollected: f.totalTax, salesCount: f.sales.length };
+}
+
+export async function getOperationalReportData(filters: ReportFilters): Promise<OperationalReportData> {
+  const supabase = await createClient();
+  const { orgId, dateFrom, dateTo, locationId, allowedLocationIds } = filters;
+  const applyLocation = <T extends { eq: Function; in: Function }>(query: T, column = "location_id") => {
+    if (locationId) return query.eq(column, locationId);
+    if (allowedLocationIds?.length) return query.in(column, allowedLocationIds);
+    return query;
+  };
+
+  let salesQuery = supabase
+    .from("sales")
+    .select("id, total, location_id, sale_date")
+    .eq("org_id", orgId)
+    .eq("status", "completed")
+    .gte("sale_date", dateFrom)
+    .lt("sale_date", dateToExclusive(dateTo));
+  salesQuery = applyLocation(salesQuery);
+  const { data: sales } = await salesQuery;
+  const saleIds = (sales ?? []).map((row) => row.id);
+  const { data: saleItems } = saleIds.length
+    ? await supabase.from("sale_items").select("sale_id, product_id, quantity, line_total").in("sale_id", saleIds)
+    : { data: [] };
+  const productIds = [...new Set((saleItems ?? []).map((row) => row.product_id))];
+  const { data: products } = productIds.length
+    ? await supabase.from("products").select("id, name, category, stock_quantity, cost_price, unit_price, low_stock_threshold").in("id", productIds)
+    : { data: [] };
+  const productMap = new Map((products ?? []).map((row) => [row.id, row]));
+  const salesByProductMap = new Map<string, { quantity: number; amount: number }>();
+  const salesByCategoryMap = new Map<string, { quantity: number; amount: number }>();
+  for (const item of saleItems ?? []) {
+    const product = productMap.get(item.product_id);
+    const productName = product?.name ?? "Unknown product";
+    const category = product?.category || "Uncategorized";
+    const productCurrent = salesByProductMap.get(productName) ?? { quantity: 0, amount: 0 };
+    productCurrent.quantity += item.quantity;
+    productCurrent.amount += item.line_total;
+    salesByProductMap.set(productName, productCurrent);
+    const categoryCurrent = salesByCategoryMap.get(category) ?? { quantity: 0, amount: 0 };
+    categoryCurrent.quantity += item.quantity;
+    categoryCurrent.amount += item.line_total;
+    salesByCategoryMap.set(category, categoryCurrent);
+  }
+
+  const { data: locations } = await supabase
+    .from("business_locations")
+    .select("id, name")
+    .eq("org_id", orgId);
+  const locationMap = new Map((locations ?? []).map((row) => [row.id, row.name]));
+  const salesByBranchMap = new Map<string, { count: number; amount: number }>();
+  for (const sale of sales ?? []) {
+    const name = sale.location_id ? locationMap.get(sale.location_id) ?? "Unassigned" : "Unassigned";
+    const current = salesByBranchMap.get(name) ?? { count: 0, amount: 0 };
+    current.count += 1;
+    current.amount += sale.total;
+    salesByBranchMap.set(name, current);
+  }
+
+  let purchasesQuery = supabase
+    .from("purchases")
+    .select("id, total, supplier_id, location_id")
+    .eq("org_id", orgId)
+    .neq("status", "cancelled")
+    .gte("purchase_date", dateFrom)
+    .lt("purchase_date", dateToExclusive(dateTo));
+  purchasesQuery = applyLocation(purchasesQuery);
+  const { data: purchases } = await purchasesQuery;
+  const purchaseIds = (purchases ?? []).map((row) => row.id);
+  const supplierIds = [...new Set((purchases ?? []).map((row) => row.supplier_id))];
+  const [{ data: purchaseItems }, { data: suppliers }] = await Promise.all([
+    purchaseIds.length
+      ? supabase.from("purchase_items").select("purchase_id, product_id, quantity, line_total").in("purchase_id", purchaseIds)
+      : { data: [] },
+    supplierIds.length
+      ? supabase.from("suppliers").select("id, name").in("id", supplierIds)
+      : { data: [] }
+  ]);
+  const supplierMap = new Map((suppliers ?? []).map((row) => [row.id, row.name]));
+  const purchaseProductIds = [...new Set((purchaseItems ?? []).map((row) => row.product_id))];
+  const { data: purchaseProducts } = purchaseProductIds.length
+    ? await supabase.from("products").select("id, name").in("id", purchaseProductIds)
+    : { data: [] };
+  const purchaseProductMap = new Map((purchaseProducts ?? []).map((row) => [row.id, row.name]));
+  const purchasesBySupplierMap = new Map<string, { count: number; amount: number }>();
+  for (const purchase of purchases ?? []) {
+    const name = supplierMap.get(purchase.supplier_id) ?? "Unknown supplier";
+    const current = purchasesBySupplierMap.get(name) ?? { count: 0, amount: 0 };
+    current.count += 1;
+    current.amount += purchase.total;
+    purchasesBySupplierMap.set(name, current);
+  }
+  const purchasesByProductMap = new Map<string, { quantity: number; amount: number }>();
+  for (const item of purchaseItems ?? []) {
+    const name = purchaseProductMap.get(item.product_id) ?? "Unknown product";
+    const current = purchasesByProductMap.get(name) ?? { quantity: 0, amount: 0 };
+    current.quantity += item.quantity;
+    current.amount += item.line_total;
+    purchasesByProductMap.set(name, current);
+  }
+
+  let saleReturnsQuery = supabase
+    .from("sale_return_items")
+    .select("product_id, quantity, created_at")
+    .eq("org_id", orgId)
+    .gte("created_at", dateFrom)
+    .lt("created_at", dateToExclusive(dateTo));
+  const { data: saleReturns } = await saleReturnsQuery;
+  const salesReturnMap = new Map<string, number>();
+  for (const item of saleReturns ?? []) {
+    const name = productMap.get(item.product_id)?.name ?? "Unknown product";
+    salesReturnMap.set(name, (salesReturnMap.get(name) ?? 0) + item.quantity);
+  }
+
+  let purchaseReturnsQuery = supabase
+    .from("purchase_returns")
+    .select("id, total_return_value, supplier_id, location_id, return_date")
+    .eq("org_id", orgId)
+    .eq("status", "approved")
+    .gte("return_date", dateFrom)
+    .lt("return_date", dateToExclusive(dateTo));
+  purchaseReturnsQuery = applyLocation(purchaseReturnsQuery);
+  const { data: purchaseReturns } = await purchaseReturnsQuery;
+
+  let inventoryQuery = supabase
+    .from("products")
+    .select("id, name, stock_quantity, cost_price, unit_price, low_stock_threshold")
+    .eq("org_id", orgId)
+    .eq("is_active", true);
+  const { data: inventory } = await inventoryQuery;
+  const scopedInventory = locationId || allowedLocationIds?.length
+    ? await (async () => {
+        let stockQuery = supabase.from("product_stock_levels").select("product_id, quantity, location_id").eq("org_id", orgId);
+        stockQuery = applyLocation(stockQuery);
+        const { data: stock } = await stockQuery;
+        const quantities = new Map<string, number>();
+        for (const row of stock ?? []) quantities.set(row.product_id, (quantities.get(row.product_id) ?? 0) + row.quantity);
+        return (inventory ?? []).map((row) => ({ ...row, stock_quantity: quantities.get(row.id) ?? 0 }));
+      })()
+    : inventory ?? [];
+
+  return {
+    salesByProduct: [...salesByProductMap.entries()].sort((a, b) => b[1].amount - a[1].amount).map(([label, value]) => ({ label, ...value })),
+    salesByCategory: [...salesByCategoryMap.entries()].sort((a, b) => b[1].amount - a[1].amount).map(([label, value]) => ({ label, ...value })),
+    salesByBranch: [...salesByBranchMap.entries()].sort((a, b) => b[1].amount - a[1].amount).map(([label, value]) => ({ label, ...value })),
+    salesReturns: [...salesReturnMap.entries()].sort((a, b) => b[1] - a[1]).map(([label, quantity]) => ({ label, quantity })),
+    purchasesBySupplier: [...purchasesBySupplierMap.entries()].sort((a, b) => b[1].amount - a[1].amount).map(([label, value]) => ({ label, ...value })),
+    purchasesByProduct: [...purchasesByProductMap.entries()].sort((a, b) => b[1].amount - a[1].amount).map(([label, value]) => ({ label, ...value })),
+    purchaseReturns: (purchaseReturns ?? []).map((row) => ({ label: supplierMap.get(row.supplier_id) ?? "Unknown supplier", amount: row.total_return_value })),
+    currentInventory: scopedInventory.map((row) => ({ label: row.name, quantity: row.stock_quantity })),
+    inventoryValuation: scopedInventory.map((row) => ({ label: row.name, quantity: row.stock_quantity, amount: row.stock_quantity * (row.cost_price ?? row.unit_price ?? 0) })).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)),
+    reorderReport: scopedInventory.filter((row) => row.low_stock_threshold != null && row.stock_quantity <= row.low_stock_threshold).map((row) => ({ label: row.name, quantity: row.stock_quantity, secondary: `Reorder at ${row.low_stock_threshold}` })),
+    branchExpenses: []
+  };
 }
 
 export interface TopCustomerRow {

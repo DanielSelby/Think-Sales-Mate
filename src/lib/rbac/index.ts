@@ -57,6 +57,7 @@ export const CAPABILITIES = {
   "projects.create": "staff",
   "projects.manage": "manager",
   "reports.view": "viewer",
+  "reports.export": "staff",
   "ai.view": "viewer",
   "ai.generate": "manager",
   "orders.view_all": "admin",
