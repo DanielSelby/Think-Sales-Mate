@@ -18,18 +18,17 @@ import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { formatCurrencyAmount } from "@/lib/currency";
 import type { AccountsReceivableItem } from "@/types/accounting";
-import { recordCustomerCreditPayment } from "@/app/(dashboard)/accounting/actions";
+import { recordCustomerCreditPayment, sendCustomerReminder as persistCustomerReminder } from "@/app/(dashboard)/accounting/actions";
+import { useRouter } from "next/navigation";
 
 export function AccountsReceivableTab({ initialReceivables = [] }: { initialReceivables?: AccountsReceivableItem[] }) {
   const {
-    receivables: storeReceivables,
     bankAccounts,
     currentCurrency,
     currencyConfig,
     currentBranch,
-    recordCustomerPayment,
-    sendCustomerReminder,
   } = useAccountingStore();
+  const router = useRouter();
   const receivables = initialReceivables;
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,9 +76,8 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
       locationId: undefined,
     });
     if (!result.ok) return;
-    recordCustomerPayment(paymentTarget.id, paymentAmount, paymentMethod, paymentBankId);
     setPaymentTarget(null);
-    window.location.reload();
+    router.refresh();
   };
 
   const handleOpenReminder = (item: AccountsReceivableItem) => {
@@ -91,8 +89,18 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
 
   const handleSendReminder = () => {
     if (!reminderTarget) return;
-    sendCustomerReminder(reminderTarget.id, reminderMessage);
-    setReminderTarget(null);
+    void persistCustomerReminder({
+      invoiceId: reminderTarget.invoiceNumber,
+      customerName: reminderTarget.customerName,
+      message: reminderMessage,
+    }).then((result) => {
+      if (!result.ok) {
+        console.error(result.error);
+        return;
+      }
+      setReminderTarget(null);
+      router.refresh();
+    });
   };
 
   const handleExportExcel = () => {
@@ -224,10 +232,10 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
                   <td className="px-4 py-3 text-slate-500">{item.issueDate}</td>
                   <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">{item.dueDate}</td>
                   <td className="px-4 py-3 text-right font-display text-slate-700 dark:text-slate-300">
-                    {item.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(item.totalAmount)}
                   </td>
                   <td className="px-4 py-3 text-right font-display font-bold text-slate-900 dark:text-white">
-                    {item.outstandingAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(item.outstandingAmount)}
                   </td>
                   <td className="px-4 py-3 text-center font-mono font-semibold">
                     <span className={item.daysOutstanding > 30 ? "text-rose-600" : "text-slate-600"}>
@@ -309,7 +317,7 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Total outstanding: {currentCurrency} {paymentTarget.outstandingAmount.toLocaleString()}
+                  Total outstanding: {money(paymentTarget.outstandingAmount)}
                 </p>
               </div>
 
@@ -441,7 +449,7 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
                 <div>
                   <p className="text-slate-400">Total Outstanding Balance</p>
                   <p className="font-display text-xl font-bold text-blue-600 dark:text-blue-400">
-                    {currentCurrency} {statementTarget.outstandingAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(statementTarget.outstandingAmount)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -464,9 +472,9 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
                   <tr>
                     <td className="p-2.5">{statementTarget.issueDate}</td>
                     <td className="p-2.5 font-mono font-bold text-blue-600">{statementTarget.invoiceNumber}</td>
-                    <td className="p-2.5 text-right font-mono">{statementTarget.totalAmount.toLocaleString()}</td>
-                    <td className="p-2.5 text-right font-mono text-emerald-600">{statementTarget.paidAmount.toLocaleString()}</td>
-                    <td className="p-2.5 text-right font-mono font-bold">{statementTarget.outstandingAmount.toLocaleString()}</td>
+                    <td className="p-2.5 text-right font-mono">{money(statementTarget.totalAmount)}</td>
+                    <td className="p-2.5 text-right font-mono text-emerald-600">{money(statementTarget.paidAmount)}</td>
+                    <td className="p-2.5 text-right font-mono font-bold">{money(statementTarget.outstandingAmount)}</td>
                   </tr>
                 </tbody>
               </table>

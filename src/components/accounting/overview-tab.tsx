@@ -30,6 +30,8 @@ import {
 } from "recharts";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { formatMoney } from "@/lib/currency";
+import type { AccountsPayableItem, AccountsReceivableItem, AccountingAccount, JournalEntry } from "@/types/accounting";
+import type { LiveFinancialSnapshot } from "./financial-reports-tab";
 
 interface OverviewTabProps {
   onOpenJournalModal?: () => void;
@@ -37,6 +39,13 @@ interface OverviewTabProps {
   onOpenIncomeModal?: () => void;
   onOpenInvoiceModal?: () => void;
   onOpenBillModal?: () => void;
+  liveSnapshot?: LiveFinancialSnapshot;
+  liveAccounts?: AccountingAccount[];
+  liveJournalEntries?: JournalEntry[];
+  liveReceivables?: AccountsReceivableItem[];
+  livePayables?: AccountsPayableItem[];
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export function OverviewTab({
@@ -45,6 +54,13 @@ export function OverviewTab({
   onOpenIncomeModal,
   onOpenInvoiceModal,
   onOpenBillModal,
+  liveSnapshot,
+  liveAccounts = [],
+  liveJournalEntries = [],
+  liveReceivables = [],
+  livePayables = [],
+  dateFrom,
+  dateTo,
 }: OverviewTabProps) {
   const {
     currentCurrency,
@@ -64,15 +80,112 @@ export function OverviewTab({
   const [incomePeriod, setIncomePeriod] = useState("This Year");
   const [expensePeriod, setExpensePeriod] = useState("This Month");
 
-  const kpis = getKPIs();
-  const trendData = getIncomeVsExpensesTrend();
-  const expenseSlices = getExpenseBreakdown();
-  const recentTransactions = getRecentTransactions();
-  const accountsSummary = getAccountsSummary();
-  const accountBalances = getAccountBalancesList();
-  const arAging = getReceivablesAging();
-  const apAging = getPayablesAging();
-  const fyProgress = getFinancialYearProgress();
+  const fallbackKpis = getKPIs();
+  const fallbackTrendData = getIncomeVsExpensesTrend();
+  const fallbackExpenseSlices = getExpenseBreakdown();
+  const fallbackRecentTransactions = getRecentTransactions();
+  const fallbackAccountsSummary = getAccountsSummary();
+  const fallbackAccountBalances = getAccountBalancesList();
+  const fallbackArAging = getReceivablesAging();
+  const fallbackApAging = getPayablesAging();
+  const fallbackFyProgress = getFinancialYearProgress();
+
+  const liveKpis = liveSnapshot?.kpis;
+  const liveBalanceSheet = liveSnapshot?.balanceSheet;
+  const kpis = liveKpis
+    ? {
+        totalIncome: liveKpis.totalRevenue,
+        totalIncomeChangePct: liveKpis.totalRevenueChange,
+        totalExpenses: liveKpis.totalExpenses,
+        totalExpensesChangePct: liveKpis.totalExpensesChange,
+        netProfit: liveKpis.netProfit,
+        netProfitChangePct: liveKpis.netProfitChange,
+        totalAssets: liveBalanceSheet?.totalAssets ?? 0,
+        totalAssetsChangePct: 0,
+        totalLiabilities: liveBalanceSheet?.totalLiabilities ?? 0,
+        totalLiabilitiesChangePct: 0,
+        totalEquity: liveBalanceSheet?.totalEquity ?? 0,
+        totalEquityChangePct: 0,
+      }
+    : fallbackKpis;
+
+  const hasLiveData = Boolean(liveSnapshot);
+  const liveAccountsById = new Map(liveAccounts.map((account) => [account.id, account]));
+  const postedJournals = liveJournalEntries.filter((journal) => journal.status === "posted");
+  const liveExpenseTotals = new Map<string, number>();
+  const monthlyTotals = new Map<string, { income: number; expenses: number }>();
+  for (const journal of postedJournals) {
+    const month = new Date(`${journal.date}T00:00:00`).toLocaleDateString("en-US", { month: "short" });
+    const monthTotals = monthlyTotals.get(month) ?? { income: 0, expenses: 0 };
+    for (const line of journal.lines) {
+      const account = liveAccountsById.get(line.accountId);
+      const debit = Number(line.debit ?? 0);
+      const credit = Number(line.credit ?? 0);
+      if (account?.type === "revenue") monthTotals.income += credit - debit;
+      if (account?.type === "expense" || account?.type === "cogs") {
+        const amount = debit - credit;
+        monthTotals.expenses += amount;
+        liveExpenseTotals.set(account.name, (liveExpenseTotals.get(account.name) ?? 0) + amount);
+      }
+    }
+    monthlyTotals.set(month, monthTotals);
+  }
+  const liveTrendData = [...monthlyTotals.entries()].map(([month, values]) => ({ month, ...values }));
+  const liveExpenseTotal = [...liveExpenseTotals.values()].reduce((sum, value) => sum + value, 0);
+  const liveExpenseSlices = [...liveExpenseTotals.entries()]
+    .sort(([, first], [, second]) => second - first)
+    .map(([name, value], index) => ({
+      name,
+      value,
+      percentage: liveExpenseTotal > 0 ? Math.round((value / liveExpenseTotal) * 1000) / 10 : 0,
+      color: ["#2563EB", "#0D9488", "#EAB308", "#F97316", "#64748B"][index % 5],
+    }));
+  const liveRecentTransactions = postedJournals.slice(0, 5).map((journal) => {
+    const income = journal.lines.reduce((sum, line) => {
+      const account = liveAccountsById.get(line.accountId);
+      return sum + (account?.type === "revenue" ? Number(line.credit ?? 0) - Number(line.debit ?? 0) : 0);
+    }, 0);
+    return {
+      id: journal.id,
+      date: new Date(`${journal.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      reference: journal.reference || journal.entryNumber,
+      description: journal.description,
+      account: journal.lines[0]?.accountName ?? "Journal entry",
+      type: income > 0 ? "Income" as const : "Expense" as const,
+      amount: Math.max(Number(journal.totalDebit ?? 0), Number(journal.totalCredit ?? 0)),
+      status: journal.status === "posted" ? "Posted" as const : journal.status === "reversed" ? "Reversed" as const : "Draft" as const,
+    };
+  });
+  const liveAccountsSummary = liveAccounts.map((account) => ({ name: `${account.code} - ${account.name}`, balance: account.balance }));
+  const liveAccountBalances = liveAccounts.map((account) => ({
+    name: account.name,
+    balance: account.balance,
+    type: account.subType || account.type,
+    icon: account.type === "asset" ? "landmark" : account.type === "liability" ? "credit-card" : "wallet",
+  }));
+  const aging = (items: { outstandingAmount: number; daysOutstanding: number }[]) => {
+    const buckets = [0, 0, 0, 0];
+    for (const item of items) {
+      if (item.outstandingAmount <= 0) continue;
+      if (item.daysOutstanding <= 0) buckets[0] += item.outstandingAmount;
+      else if (item.daysOutstanding <= 30) buckets[1] += item.outstandingAmount;
+      else if (item.daysOutstanding <= 60) buckets[2] += item.outstandingAmount;
+      else buckets[3] += item.outstandingAmount;
+    }
+    const total = buckets.reduce((sum, value) => sum + value, 0);
+    const pct = (value: number) => total > 0 ? Math.round((value / total) * 1000) / 10 : 0;
+    return { current: buckets[0], currentPct: pct(buckets[0]), days30: buckets[1], days30Pct: pct(buckets[1]), days60: buckets[2], days60Pct: pct(buckets[2]), over60: buckets[3], over60Pct: pct(buckets[3]), total };
+  };
+  const arAging = hasLiveData ? aging(liveReceivables) : fallbackArAging;
+  const apAging = hasLiveData ? aging(livePayables) : fallbackApAging;
+  const trendData = hasLiveData ? liveTrendData : fallbackTrendData;
+  const expenseSlices = hasLiveData ? liveExpenseSlices : fallbackExpenseSlices;
+  const recentTransactions = hasLiveData ? liveRecentTransactions : fallbackRecentTransactions;
+  const accountsSummary = hasLiveData ? liveAccountsSummary : fallbackAccountsSummary;
+  const accountBalances = hasLiveData ? liveAccountBalances : fallbackAccountBalances;
+  const fyProgress = hasLiveData && dateFrom && dateTo
+    ? { percentage: Math.min(100, Math.max(0, Math.round(((new Date(dateTo).getTime() - new Date(dateFrom).getTime() + 86400000) / (365 * 86400000)) * 100))), label: `${dateFrom} to ${dateTo}` }
+    : fallbackFyProgress;
 
   const formatCurrency = (val: number) => val < 0 ? `(${formatMoney(Math.abs(val), currentCurrencyCode)})` : formatMoney(val, currentCurrencyCode);
 
@@ -91,7 +204,7 @@ export function OverviewTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Income</p>
               <p className="font-display text-lg font-bold text-slate-900 dark:text-white truncate">
-                {currentCurrency} {kpis.totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(kpis.totalIncome)}
               </p>
             </div>
           </div>
@@ -110,7 +223,7 @@ export function OverviewTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Expenses</p>
               <p className="font-display text-lg font-bold text-slate-900 dark:text-white truncate">
-                {currentCurrency} {kpis.totalExpenses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(kpis.totalExpenses)}
               </p>
             </div>
           </div>
@@ -129,7 +242,7 @@ export function OverviewTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Net Profit</p>
               <p className="font-display text-lg font-bold text-slate-900 dark:text-white truncate">
-                {currentCurrency} {kpis.netProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(kpis.netProfit)}
               </p>
             </div>
           </div>
@@ -148,7 +261,7 @@ export function OverviewTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Assets</p>
               <p className="font-display text-lg font-bold text-slate-900 dark:text-white truncate">
-                {currentCurrency} {kpis.totalAssets.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(kpis.totalAssets)}
               </p>
             </div>
           </div>
@@ -167,7 +280,7 @@ export function OverviewTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Liabilities</p>
               <p className="font-display text-lg font-bold text-slate-900 dark:text-white truncate">
-                {currentCurrency} {kpis.totalLiabilities.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(kpis.totalLiabilities)}
               </p>
             </div>
           </div>
@@ -186,7 +299,7 @@ export function OverviewTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Equity</p>
               <p className="font-display text-lg font-bold text-slate-900 dark:text-white truncate">
-                {currentCurrency} {kpis.totalEquity.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(kpis.totalEquity)}
               </p>
             </div>
           </div>
@@ -242,7 +355,7 @@ export function OverviewTab({
                   tickFormatter={(val) => `${val / 1000}K`}
                 />
                 <RechartsTooltip
-                  formatter={(val: number) => [`${currentCurrency} ${val.toLocaleString()}`, ""]}
+                  formatter={(val: number) => [formatCurrency(val), ""]}
                   contentStyle={{
                     backgroundColor: "#1e293b",
                     borderRadius: "8px",
@@ -292,7 +405,7 @@ export function OverviewTab({
                     ))}
                   </Pie>
                   <RechartsTooltip
-                    formatter={(val: number) => [`${currentCurrency} ${val.toLocaleString()}`, ""]}
+                    formatter={(val: number) => [formatCurrency(val), ""]}
                     contentStyle={{
                       backgroundColor: "#1e293b",
                       borderRadius: "8px",
@@ -306,7 +419,7 @@ export function OverviewTab({
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{currentCurrency}</span>
                 <span className="font-display text-sm font-bold text-slate-800 dark:text-white">
-                  {totalExpenseVal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(totalExpenseVal)}
                 </span>
               </div>
             </div>
@@ -474,7 +587,7 @@ export function OverviewTab({
                       </span>
                     </td>
                     <td className="py-2.5 whitespace-nowrap text-right font-medium text-slate-900 dark:text-white">
-                      {currentCurrency} {tx.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {formatCurrency(tx.amount)}
                     </td>
                     <td className="py-2.5 whitespace-nowrap text-center">
                       <span className="inline-flex rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
@@ -518,8 +631,8 @@ export function OverviewTab({
                       }`}
                     >
                       {acc.balance < 0
-                        ? `(${Math.abs(acc.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })})`
-                        : acc.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        ? `(${formatCurrency(Math.abs(acc.balance))})`
+                        : formatCurrency(acc.balance)}
                     </td>
                   </tr>
                 ))}
@@ -568,7 +681,7 @@ export function OverviewTab({
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{bal.name}</p>
                       <p className="font-display text-xs font-bold text-slate-900 dark:text-white">
-                        {currentCurrency} {bal.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        {formatCurrency(bal.balance)}
                       </p>
                     </div>
                   </div>
@@ -617,7 +730,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-950/40 dark:bg-emerald-950/20">
               <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Current</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {arAging.current.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(arAging.current)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{arAging.currentPct}%</p>
             </div>
@@ -626,7 +739,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 dark:border-amber-950/40 dark:bg-amber-950/20">
               <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400">1 - 30 Days</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {arAging.days30.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(arAging.days30)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{arAging.days30Pct}%</p>
             </div>
@@ -635,7 +748,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-3 dark:border-rose-950/40 dark:bg-rose-950/20">
               <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">31 - 60 Days</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {arAging.days60.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(arAging.days60)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{arAging.days60Pct}%</p>
             </div>
@@ -644,7 +757,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-rose-200 bg-rose-100/50 p-3 dark:border-rose-900/60 dark:bg-rose-950/40">
               <p className="text-[11px] font-medium text-rose-700 dark:text-rose-300">Over 60 Days</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {arAging.over60.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(arAging.over60)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{arAging.over60Pct}%</p>
             </div>
@@ -668,7 +781,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-950/40 dark:bg-emerald-950/20">
               <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Current</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {apAging.current.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(apAging.current)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{apAging.currentPct}%</p>
             </div>
@@ -677,7 +790,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 dark:border-amber-950/40 dark:bg-amber-950/20">
               <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400">1 - 30 Days</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {apAging.days30.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(apAging.days30)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{apAging.days30Pct}%</p>
             </div>
@@ -686,7 +799,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-3 dark:border-rose-950/40 dark:bg-rose-950/20">
               <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">31 - 60 Days</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {apAging.days60.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(apAging.days60)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{apAging.days60Pct}%</p>
             </div>
@@ -695,7 +808,7 @@ export function OverviewTab({
             <div className="rounded-xl border border-rose-200 bg-rose-100/50 p-3 dark:border-rose-900/60 dark:bg-rose-950/40">
               <p className="text-[11px] font-medium text-rose-700 dark:text-rose-300">Over 60 Days</p>
               <p className="mt-1 font-display text-sm font-bold text-slate-900 dark:text-white">
-                {currentCurrency} {apAging.over60.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(apAging.over60)}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">{apAging.over60Pct}%</p>
             </div>

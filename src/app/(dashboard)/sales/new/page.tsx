@@ -99,9 +99,13 @@ export default async function NewSalePage() {
     if (!availableByProduct.has(row.product_id)) availableByProduct.set(row.product_id, new Set());
     availableByProduct.get(row.product_id)!.add(row.location_id);
   }
-  const products: SellableProduct[] = (productRows ?? [])
-    .filter((p) => !context.isBranchScoped || availableByProduct.has(p.id) || p.allow_negative_stock)
-    .map((p) => ({
+  const scopedProductRows = context.isBranchScoped
+    ? (productRows ?? []).filter((p) => {
+        const allowedLocations = availableByProduct.get(p.id);
+        return Boolean(allowedLocations && allowedLocations.size > 0) || Boolean(p.allow_negative_stock);
+      })
+    : (productRows ?? []);
+  const products: SellableProduct[] = scopedProductRows.map((p) => ({
       id: p.id,
       sku: p.sku,
       name: p.name,

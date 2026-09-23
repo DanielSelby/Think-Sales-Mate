@@ -326,14 +326,14 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                 {revenues.map((r) => (
                   <div key={r.id} className="flex justify-between py-2 text-slate-700 dark:text-slate-300">
                     <span className="pl-4">{r.code} - {r.name}</span>
-                    <span className="font-mono font-medium">{r.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-mono font-medium">{money(r.balance)}</span>
                   </div>
                 ))}
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-slate-900 dark:border-slate-800 dark:text-white">
                 <span className="pl-2">Total Operating Revenue</span>
                 <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                  {totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {money(totalRevenue)}
                 </span>
               </div>
             </div>
@@ -348,14 +348,14 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                 {cogs.map((c) => (
                   <div key={c.id} className="flex justify-between py-2 text-slate-700 dark:text-slate-300">
                     <span className="pl-4">{c.code} - {c.name}</span>
-                    <span className="font-mono font-medium">{c.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-mono font-medium">{money(c.balance)}</span>
                   </div>
                 ))}
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-slate-900 dark:border-slate-800 dark:text-white">
                 <span className="pl-2">Total Cost of Goods Sold</span>
                 <span className="font-mono font-bold text-rose-500">
-                  ({totalCogs.toLocaleString("en-US", { minimumFractionDigits: 2 })})
+                  ({money(totalCogs)})
                 </span>
               </div>
             </div>
@@ -378,14 +378,14 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                 {expenses.map((e) => (
                   <div key={e.id} className="flex justify-between py-2 text-slate-700 dark:text-slate-300">
                     <span className="pl-4">{e.code} - {e.name}</span>
-                    <span className="font-mono font-medium">{e.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-mono font-medium">{money(e.balance)}</span>
                   </div>
                 ))}
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-slate-900 dark:border-slate-800 dark:text-white">
                 <span className="pl-2">Total Operating Expenses</span>
                 <span className="font-mono font-bold text-rose-500">
-                  ({totalExpenses.toLocaleString("en-US", { minimumFractionDigits: 2 })})
+                  ({money(totalExpenses)})
                 </span>
               </div>
             </div>
@@ -413,13 +413,13 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                 {assetAccounts.map((a) => (
                   <div key={a.id} className="flex justify-between py-2 text-slate-700 dark:text-slate-300">
                     <span className="pl-4">{a.code} - {a.name}</span>
-                    <span className="font-mono">{a.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-mono">{money(a.balance)}</span>
                   </div>
                 ))}
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-blue-600 text-sm">
                 <span>Total Assets</span>
-                <span className="font-mono">{totalAssets.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(totalAssets)}</span>
               </div>
             </div>
 
@@ -433,13 +433,13 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                 {liabilityAccounts.map((a) => (
                   <div key={a.id} className="flex justify-between py-2 text-slate-700 dark:text-slate-300">
                     <span className="pl-4">{a.code} - {a.name}</span>
-                    <span className="font-mono">{Math.abs(a.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-mono">{money(Math.abs(a.balance))}</span>
                   </div>
                 ))}
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-rose-600 text-sm">
                 <span>Total Liabilities</span>
-                <span className="font-mono">{totalLiabilities.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(totalLiabilities)}</span>
               </div>
             </div>
 
@@ -453,19 +453,19 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                 {equityAccounts.map((a) => (
                   <div key={a.id} className="flex justify-between py-2 text-slate-700 dark:text-slate-300">
                     <span className="pl-4">{a.code} - {a.name}</span>
-                    <span className="font-mono">{a.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-mono">{money(a.balance)}</span>
                   </div>
                 ))}
                 <div className="flex justify-between py-2 text-slate-700 dark:text-slate-300">
                   <span className="pl-4 font-semibold text-emerald-600">Current Period Net Profit</span>
                   <span className="font-mono font-semibold text-emerald-600">
-                    {netProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(netProfit)}
                   </span>
                 </div>
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-purple-600 text-sm">
                 <span>Total Equity</span>
-                <span className="font-mono">{totalEquity.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{money(totalEquity)}</span>
               </div>
             </div>
 
@@ -499,10 +499,10 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                     <td className="p-2.5 font-medium">{r.name}</td>
                     <td className="p-2.5 uppercase font-mono text-[10px] text-slate-400">{r.type}</td>
                     <td className="p-2.5 text-right font-mono font-semibold">
-                      {r.debit > 0 ? r.debit.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "-"}
+                      {r.debit > 0 ? money(r.debit) : "-"}
                     </td>
                     <td className="p-2.5 text-right font-mono font-semibold">
-                      {r.credit > 0 ? r.credit.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "-"}
+                      {r.credit > 0 ? money(r.credit) : "-"}
                     </td>
                   </tr>
                 ))}
@@ -511,10 +511,10 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                     Verification Total:
                   </td>
                   <td className="p-2.5 text-right font-mono text-emerald-600">
-                    {totalTBDebit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(totalTBDebit)}
                   </td>
                   <td className="p-2.5 text-right font-mono text-emerald-600">
-                    {totalTBCredit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(totalTBCredit)}
                   </td>
                 </tr>
               </tbody>
@@ -533,16 +533,16 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
               <div className="divide-y divide-slate-100 py-1 dark:divide-slate-800">
                 <div className="flex justify-between py-2 text-slate-700 pl-4">
                   <span>Net Profit</span>
-                  <span className="font-mono">{netProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{money(netProfit)}</span>
                 </div>
                 <div className="flex justify-between py-2 text-slate-700 pl-4">
                   <span>Net movement in cash and bank accounts (posted journals)</span>
-                  <span className="font-mono">{netCashMovement.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{money(netCashMovement)}</span>
                 </div>
               </div>
               <div className="flex justify-between border-t border-slate-200 py-2 font-bold text-slate-900">
                 <span className="pl-2">Net Cash from Operating Activities</span>
-                <span className="font-mono text-emerald-600">{netCashMovement.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono text-emerald-600">{money(netCashMovement)}</span>
               </div>
             </div>
 
@@ -598,10 +598,10 @@ export function FinancialReportsTab({ liveSnapshot, liveAccounts, liveJournalEnt
                     <td className="p-2.5 font-mono text-slate-500">{j.reference}</td>
                     <td className="p-2.5 font-medium">{j.description}</td>
                     <td className="p-2.5 text-right font-mono font-semibold">
-                      {j.totalDebit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {money(j.totalDebit)}
                     </td>
                     <td className="p-2.5 text-right font-mono font-semibold">
-                      {j.totalCredit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {money(j.totalCredit)}
                     </td>
                   </tr>
                 ))}

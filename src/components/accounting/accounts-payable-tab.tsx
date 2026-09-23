@@ -16,6 +16,8 @@ import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { formatCurrencyAmount } from "@/lib/currency";
 import type { AccountsPayableItem } from "@/types/accounting";
+import { recordPurchasePayment, schedulePurchasePayment } from "@/app/(dashboard)/purchases/actions";
+import { useRouter } from "next/navigation";
 
 interface AccountsPayableTabProps {
   initialPayables?: AccountsPayableItem[];
@@ -31,10 +33,8 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
     currentCurrency,
     currencyConfig,
     currentBranch,
-    createSupplierBill,
-    recordSupplierPayment,
-    scheduleSupplierPayment,
   } = useAccountingStore();
+  const router = useRouter();
   const payables = initialPayables ?? [];
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,6 +60,10 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
   const [billTotal, setBillTotal] = useState<number>(0);
   const [billBranch, setBillBranch] = useState(currentBranch || initialBranches[0] || "");
 
+  React.useEffect(() => {
+    if (initialOpenBillModal) router.push("/purchases/new");
+  }, [initialOpenBillModal, router]);
+
   const filteredPayables = payables.filter((p) => {
     const matchesAging = agingFilter === "all" || p.status === agingFilter;
     const matchesBranch = branchFilter === "all" || p.branch === branchFilter;
@@ -74,22 +78,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
 
   const handleCreateBill = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!billSupplier || billTotal <= 0) return;
-
-    createSupplierBill({
-      supplierName: billSupplier,
-      billNumber: "",
-      billDate,
-      dueDate: billDueDate || billDate,
-      totalAmount: billTotal,
-      outstandingAmount: billTotal,
-      branch: billBranch,
-    });
-
-    setIsBillModalOpen(false);
-    if (onModalClosed) onModalClosed();
-    setBillSupplier("");
-    setBillTotal(0);
+    router.push("/purchases/new");
   };
 
   const handleOpenPayment = (bill: AccountsPayableItem) => {
@@ -101,15 +90,27 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
   const handleConfirmPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentTarget || paymentAmount <= 0) return;
-    recordSupplierPayment(paymentTarget.id, paymentAmount, paymentBankId);
-    setPaymentTarget(null);
+    void recordPurchasePayment(paymentTarget.id, paymentAmount, paymentBankId).then((result) => {
+      if (!result.ok) {
+        console.error(result.error);
+        return;
+      }
+      setPaymentTarget(null);
+      router.refresh();
+    });
   };
 
   const handleConfirmSchedule = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scheduleTarget || !scheduleDate) return;
-    scheduleSupplierPayment(scheduleTarget.id, scheduleDate, scheduleMethod);
-    setScheduleTarget(null);
+    void schedulePurchasePayment(scheduleTarget.id, scheduleDate, scheduleMethod).then((result) => {
+      if (!result.ok) {
+        console.error(result.error);
+        return;
+      }
+      setScheduleTarget(null);
+      router.refresh();
+    });
   };
 
   const handleExportExcel = () => {
@@ -212,7 +213,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
           </button>
 
           <button
-            onClick={() => setIsBillModalOpen(true)}
+            onClick={() => router.push("/purchases/new")}
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
           >
             <Plus className="h-3.5 w-3.5" /> Create Bill
@@ -249,10 +250,10 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
                   <td className="px-4 py-3 text-slate-500">{bill.billDate}</td>
                   <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">{bill.dueDate}</td>
                   <td className="px-4 py-3 text-right font-display text-slate-700 dark:text-slate-300">
-                    {bill.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(bill.totalAmount)}
                   </td>
                   <td className="px-4 py-3 text-right font-display font-bold text-rose-600 dark:text-rose-400">
-                    {bill.outstandingAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(bill.outstandingAmount)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span
@@ -407,7 +408,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
                   type="submit"
                   className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm"
                 >
-                  Create Bill
+                  Continue to purchase form
                 </button>
               </div>
             </form>
@@ -497,8 +498,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
               <div>
                 <label className="font-semibold text-slate-700 dark:text-slate-300">Supplier & Bill</label>
                 <p className="text-slate-900 dark:text-white font-medium">
-                  {scheduleTarget.supplierName} ({scheduleTarget.billNumber}) - {currentCurrency}{" "}
-                  {scheduleTarget.outstandingAmount.toLocaleString()}
+                  {scheduleTarget.supplierName} ({scheduleTarget.billNumber}) - {money(scheduleTarget.outstandingAmount)}
                 </p>
               </div>
 
@@ -575,7 +575,7 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
                 <div>
                   <p className="text-slate-400">Total Payable Liability</p>
                   <p className="font-display text-xl font-bold text-rose-600 dark:text-rose-400">
-                    {currentCurrency} {statementTarget.outstandingAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {money(statementTarget.outstandingAmount)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -598,9 +598,9 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
                   <tr>
                     <td className="p-2.5">{statementTarget.billDate}</td>
                     <td className="p-2.5 font-mono font-bold text-rose-600">{statementTarget.billNumber}</td>
-                    <td className="p-2.5 text-right font-mono">{statementTarget.totalAmount.toLocaleString()}</td>
-                    <td className="p-2.5 text-right font-mono text-emerald-600">{statementTarget.paidAmount.toLocaleString()}</td>
-                    <td className="p-2.5 text-right font-mono font-bold">{statementTarget.outstandingAmount.toLocaleString()}</td>
+                    <td className="p-2.5 text-right font-mono">{money(statementTarget.totalAmount)}</td>
+                    <td className="p-2.5 text-right font-mono text-emerald-600">{money(statementTarget.paidAmount)}</td>
+                    <td className="p-2.5 text-right font-mono font-bold">{money(statementTarget.outstandingAmount)}</td>
                   </tr>
                 </tbody>
               </table>

@@ -39,7 +39,7 @@ import type { LiveFinancialSnapshot } from "./financial-reports-tab";
 import type { AccountingAccount, AccountingSettings, FixedAsset, JournalEntry, TaxFilingSummary, TaxRateConfig } from "@/types/accounting";
 import type { CurrencyConfig } from "@/lib/currency";
 
-export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig }) {
+export function AccountingDashboard({ initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig }: { initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, setCurrencyConfig } = useAccountingStore();
@@ -229,6 +229,13 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
       <div>
         {activeTab === "overview" && (
           <OverviewTab
+            liveSnapshot={liveFinancialSnapshot}
+            liveAccounts={liveAccounts}
+            liveJournalEntries={liveJournalEntries}
+            liveReceivables={initialReceivables}
+            livePayables={initialPayables}
+            dateFrom={initialDateFrom}
+            dateTo={initialDateTo}
             onOpenJournalModal={() => {
               setActiveTab("journal");
               setOpenNewJournalModal(true);
@@ -249,7 +256,7 @@ export function AccountingDashboard({ initialPayables = [], initialBranches = []
           />
         )}
 
-        {activeTab === "coa" && <ChartOfAccountsTab initialAccounts={liveAccounts} />}
+        {activeTab === "coa" && <ChartOfAccountsTab initialAccounts={liveAccounts} initialBranches={initialBranchOptions} />}
 
         {activeTab === "journal" && (
           <JournalEntriesTab

@@ -14,6 +14,8 @@ export interface PortalContext {
   systemLogoUrl: string | null;
   currency: string;
   isEnabled: boolean;
+  portalTheme: "light" | "dark";
+  portalColorTheme: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
   showPrices: boolean;
   accountRequirement: "optional" | "required" | "guest_only";
   allowCustomerSelectDelivery: boolean;
@@ -60,6 +62,10 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
       activeUntil: settings?.active_until?.slice(0, 5) ?? "23:59",
       scheduleTimezone: settings?.schedule_timezone ?? "UTC",
     }),
+    portalTheme: settings?.portal_theme === "dark" ? "dark" : "light",
+    portalColorTheme: ["green", "navy", "teal", "plum", "fintech", "royal", "harvest", "eclipse"].includes(settings?.portal_color_theme ?? "")
+      ? settings?.portal_color_theme as PortalContext["portalColorTheme"]
+      : "fintech",
     showPrices: settings?.show_prices_to_customers ?? true,
     accountRequirement: settings?.account_requirement ?? "optional",
     allowCustomerSelectDelivery: settings?.allow_customer_select_delivery ?? true,

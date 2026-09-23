@@ -92,6 +92,24 @@ function csvEscape(value: string) {
   return value.includes(",") || value.includes('"') ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
+function rangeForPeriod(period: string) {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  if (period === "today") return { from: today, to: today };
+  if (period === "yesterday") {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const value = yesterday.toISOString().slice(0, 10);
+    return { from: value, to: value };
+  }
+  const from = new Date(now);
+  if (period === "weekly") from.setDate(now.getDate() - 6);
+  else if (period === "monthly") from.setDate(now.getDate() - 29);
+  else if (period === "quarterly") from.setMonth(now.getMonth() - 2, 1);
+  else if (period === "yearly") from.setMonth(0, 1);
+  return { from: from.toISOString().slice(0, 10), to: today };
+}
+
 export function ReportsDashboard({
   orgName,
   currency,
@@ -130,6 +148,7 @@ export function ReportsDashboard({
   const [dateTo, setDateTo] = useState(filters.dateTo);
   const [locationId, setLocationId] = useState(filters.locationId ?? "all");
   const [period, setPeriod] = useState(filters.period);
+  const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const setBranch = useAccountingStore((state) => state.setBranch);
 
   function applyFilters(overrides?: Partial<ReportFiltersState>) {
@@ -151,6 +170,15 @@ export function ReportsDashboard({
     setLocationId("all");
     setPeriod("monthly");
     applyFilters({ dateFrom: from, dateTo: to, locationId: "all", period: "monthly" });
+  }
+
+  function changePeriod(nextPeriod: string) {
+    setPeriod(nextPeriod);
+    if (nextPeriod !== "custom") {
+      const range = rangeForPeriod(nextPeriod);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    }
   }
 
   function saveReportView() {
@@ -260,7 +288,15 @@ export function ReportsDashboard({
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" className="mb-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="mb-2"
+          onClick={() => {
+            setActiveTab("Custom Reports");
+            setNotice("Choose a custom report template below to continue.");
+          }}
+        >
           <FileText className="h-3.5 w-3.5" />
           Custom Report
         </Button>
@@ -306,7 +342,7 @@ export function ReportsDashboard({
         </div>
         <select
           value={period}
-          onChange={(e) => setPeriod(e.target.value)}
+          onChange={(e) => changePeriod(e.target.value)}
           className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
         >
           {PERIOD_OPTIONS.map((p) => (
@@ -368,6 +404,11 @@ export function ReportsDashboard({
           profitAndLoss={profitAndLoss}
           dateFrom={dateFrom}
           dateTo={dateTo}
+          selectedReport={selectedReport}
+          onSelectReport={(report) => {
+            setSelectedReport(report);
+            setNotice(`${report} selected for ${dateFrom} to ${dateTo}.`);
+          }}
         />
       )}
 
@@ -658,7 +699,9 @@ function ReportWorkspace({
   kpis,
   profitAndLoss,
   dateFrom,
-  dateTo
+  dateTo,
+  selectedReport,
+  onSelectReport
 }: {
   tab: string;
   currency: string;
@@ -666,6 +709,8 @@ function ReportWorkspace({
   profitAndLoss: ProfitLossLine[];
   dateFrom: string;
   dateTo: string;
+  selectedReport: string | null;
+  onSelectReport: (report: string) => void;
 }) {
   const reports = REPORTS_BY_TAB[tab] ?? [];
   const values = [
@@ -697,12 +742,26 @@ function ReportWorkspace({
         <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Available reports</h3>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((report) => (
-            <button key={report} className="rounded-md border border-ledger-100 p-3 text-left text-sm text-ink-900 hover:border-signal hover:bg-signal-soft dark:border-ledger-700 dark:text-white">
+            <button
+              key={report}
+              type="button"
+              onClick={() => onSelectReport(report)}
+              className={`rounded-md border p-3 text-left text-sm text-ink-900 hover:border-signal hover:bg-signal-soft dark:text-white ${
+                selectedReport === report
+                  ? "border-signal bg-signal-soft"
+                  : "border-ledger-100 dark:border-ledger-700"
+              }`}
+            >
               {report}
               <span className="mt-1 block text-xs text-ledger-400">Uses the selected filters</span>
             </button>
           ))}
         </div>
+        {selectedReport && (
+          <div className="mt-4 rounded-md bg-signal-soft px-3 py-2 text-xs text-signal">
+            Viewing <strong>{selectedReport}</strong> for {dateFrom} to {dateTo}.
+          </div>
+        )}
         <p className="mt-4 text-xs text-ledger-400">Detailed transaction rows are available in the financial statement below after selecting Financial Reports.</p>
       </div>
       <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">

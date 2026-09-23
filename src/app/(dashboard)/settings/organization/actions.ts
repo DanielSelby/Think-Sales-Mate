@@ -7,7 +7,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import type { MemberRole } from "@/lib/rbac";
 import { getCurrencyConfig } from "@/lib/currency";
-import { normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
+import { defaultPermissionMatrixForRole, normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
 
 function databaseRole(role: string): MemberRole {
   const key = role.toLowerCase();
@@ -18,14 +18,16 @@ function databaseRole(role: string): MemberRole {
   return "staff";
 }
 
-function submittedPermissions(formData: FormData): Record<string, unknown> {
+function submittedPermissions(formData: FormData, requestedRole = ""): Record<string, unknown> {
   const raw = formData.get("permissions") ?? formData.get("permission_matrix");
-  if (typeof raw !== "string" || !raw.trim()) return {};
-  try {
-    return normalizePermissionMatrix(JSON.parse(raw));
-  } catch {
-    return {};
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      return normalizePermissionMatrix(JSON.parse(raw));
+    } catch {
+      return defaultPermissionMatrixForRole(requestedRole);
+    }
   }
+  return defaultPermissionMatrixForRole(requestedRole);
 }
 
 async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> {
@@ -89,7 +91,7 @@ export async function inviteMember(formData: FormData) {
     can_check_cross_branch_stock: canCheckCrossBranchStock,
     access_permissions: {
       role_key: requestedRole,
-      permissions: submittedPermissions(formData)
+      permissions: submittedPermissions(formData, requestedRole)
     },
   }).select("id").single();
 
@@ -164,9 +166,11 @@ export async function createStaffAccount(formData: FormData) {
     ? "admin"
     : requestedRole === "manager" || requestedRole === "branch_manager"
       ? "manager"
-      : requestedRole === "viewer"
-        ? "viewer"
-        : "staff";
+      : requestedRole === "cashier"
+        ? "staff"
+        : requestedRole === "viewer"
+          ? "viewer"
+          : "staff";
 
   const admin = createAdminClient();
   const { data: duplicateUsername, error: duplicateError } = await admin
@@ -209,7 +213,7 @@ export async function createStaffAccount(formData: FormData) {
 
   const accessPermissions = {
     role_key: requestedRole,
-    permissions: submittedPermissions(formData),
+    permissions: submittedPermissions(formData, requestedRole),
     approvals: {
       stockTransfers: formData.get("approval_stock_transfers") === "true",
       purchases: formData.get("approval_purchases") === "true",
@@ -453,9 +457,14 @@ export async function updateMemberRole(memberId: string, role: MemberRole) {
   const { data: existing } = await supabase.from("organization_members")
     .select("access_permissions").eq("id", memberId).eq("org_id", context.orgId).maybeSingle();
   const current = (existing?.access_permissions as Record<string, unknown>) ?? {};
+  const nextRoleKey = (current as Record<string, unknown>)?.role_key ?? role;
   const { error } = await supabase.from("organization_members").update({
     role,
-    access_permissions: { ...current, role_key: role }
+    access_permissions: {
+      ...current,
+      role_key: nextRoleKey,
+      permissions: normalizePermissionMatrix((current as Record<string, unknown>)?.permissions ?? defaultPermissionMatrixForRole(String(nextRoleKey)))
+    }
   }).eq("id", memberId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
 

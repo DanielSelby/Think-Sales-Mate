@@ -2106,6 +2106,8 @@ export interface Database {
         Row: {
           id: string;
           org_id: string;
+          portal_theme: "light" | "dark";
+          portal_color_theme: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
           is_enabled: boolean;
           schedule_enabled: boolean;
           active_from: string;
@@ -2132,6 +2134,8 @@ export interface Database {
         Insert: {
           id?: string;
           org_id: string;
+          portal_theme?: "light" | "dark";
+          portal_color_theme?: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
           is_enabled?: boolean;
           schedule_enabled?: boolean;
           active_from?: string;

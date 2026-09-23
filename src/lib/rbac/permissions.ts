@@ -40,6 +40,23 @@ export function normalizePermissionMatrix(value: unknown): PermissionMatrix {
   return result;
 }
 
+export function defaultPermissionMatrixForRole(role: string): PermissionMatrix {
+  switch (role.toLowerCase()) {
+    case "cashier":
+      return {
+        pos: ["view", "create", "edit", "print"],
+        sales: ["view", "create", "edit", "print"],
+        expenses: ["view", "create", "edit"],
+        banking: ["view"],
+        dashboard: ["view"],
+        customers: ["view", "create", "edit"],
+        reports: ["view"]
+      };
+    default:
+      return {};
+  }
+}
+
 export function hasPermission(matrix: PermissionMatrix, module: string, action: PermissionAction): boolean {
   const key = canonicalModule(module);
   return matrix[key]?.includes(action) === true || matrix[module]?.includes(action) === true;
@@ -58,8 +75,11 @@ export async function loadPermissionMatrix(
   const explicit = normalizePermissionMatrix(accessPermissions.permissions);
   if (Object.keys(explicit).length > 0) return explicit;
 
-  const supabase = await createClient();
   const roleKey = roleKeyForMember(role, accessPermissions);
+  const fallback = defaultPermissionMatrixForRole(roleKey);
+  if (Object.keys(fallback).length > 0) return fallback;
+
+  const supabase = await createClient();
   const { data } = await (supabase as any)
     .from("organization_role_templates")
     .select("permissions")

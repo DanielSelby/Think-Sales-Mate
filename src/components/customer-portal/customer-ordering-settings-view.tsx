@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Copy, Check, MapPin, ShieldCheck, Bell, DollarSign, FileText, CheckCircle2, MessageSquare, Mail, Printer, Globe, Phone } from "lucide-react";
+import { Loader2, Copy, Check, MapPin, ShieldCheck, Bell, DollarSign, FileText, CheckCircle2, MessageSquare, Mail, Printer, Globe, Phone, Sun, Moon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -281,6 +281,42 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
       </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card accent="signal" className="lg:col-span-2 border-ledger-200/80 dark:border-ledger-700/80">
+          <CardHeader className="pb-3">
+            <CardTitle className="normal-case tracking-normal text-base font-semibold text-ink-900 dark:text-white flex items-center gap-2">
+              {settings.portalTheme === "dark" ? <Moon className="h-5 w-5 text-signal" /> : <Sun className="h-5 w-5 text-signal" />}
+              Customer Portal Theme
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ToggleRow
+              label="Use Dark Theme"
+              description="Controls the public customer ordering portal appearance. This does not change the staff dashboard theme."
+              checked={settings.portalTheme === "dark"}
+              onChange={(enabled) => patch("portalTheme", enabled ? "dark" : "light")}
+            />
+            <div className="mt-4">
+              <label htmlFor="portal-color-theme" className="text-sm font-medium text-ink-900 dark:text-white">Portal Color Theme</label>
+              <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">Choose the accent palette customers see across the ordering portal.</p>
+              <select
+                id="portal-color-theme"
+                value={settings.portalColorTheme}
+                onChange={(event) => patch("portalColorTheme", event.target.value as PortalSettings["portalColorTheme"])}
+                className="mt-2 h-10 w-full max-w-md rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+              >
+                <option value="fintech">Fintech Blue</option>
+                <option value="green">Forest Green</option>
+                <option value="navy">Navy &amp; Gold</option>
+                <option value="teal">Teal &amp; Sand</option>
+                <option value="plum">Plum &amp; Blush</option>
+                <option value="royal">Royal Blue</option>
+                <option value="harvest">Harvest</option>
+                <option value="eclipse">Eclipse</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Branch / Location Selection Setting (Key requirement) */}
         <Card accent="signal" className="lg:col-span-2 border-ledger-200/80 dark:border-ledger-700/80">
           <CardHeader className="pb-3">

@@ -20,6 +20,23 @@ function defaultDateRange() {
   return { from: from.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
 }
 
+function periodDateRange(period: string) {
+  const now = new Date();
+  const to = now.toISOString().slice(0, 10);
+  const from = new Date(now);
+  if (period === "today") return { from: to, to };
+  if (period === "yesterday") {
+    from.setDate(now.getDate() - 1);
+    const value = from.toISOString().slice(0, 10);
+    return { from: value, to: value };
+  }
+  if (period === "weekly") from.setDate(now.getDate() - 6);
+  else if (period === "monthly") from.setDate(now.getDate() - 29);
+  else if (period === "quarterly") from.setMonth(now.getMonth() - 2, 1);
+  else if (period === "yearly") from.setMonth(0, 1);
+  return { from: from.toISOString().slice(0, 10), to };
+}
+
 export default async function ReportsPage({
   searchParams
 }: {
@@ -30,13 +47,16 @@ export default async function ReportsPage({
   if (!context) return null;
 
   const defaults = defaultDateRange();
-  const dateFrom = searchParams.from || defaults.from;
-  const dateTo = searchParams.to || defaults.to;
+  const requestedPeriod = searchParams.period || "monthly";
+  const requestedRange = searchParams.from && searchParams.to
+    ? { from: searchParams.from, to: searchParams.to }
+    : periodDateRange(requestedPeriod);
+  const dateFrom = requestedRange.from || defaults.from;
+  const dateTo = requestedRange.to || defaults.to;
   const requestedLocationId = context.masterLocationId ?? (searchParams.location && searchParams.location !== "all" ? searchParams.location : null);
   const locationId = context.isBranchScoped
     ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : context.allowedLocationIds[0])
     : requestedLocationId;
-  const requestedPeriod = searchParams.period || "monthly";
   const period = (requestedPeriod === "today" || requestedPeriod === "yesterday" || requestedPeriod === "custom"
     ? "daily"
     : requestedPeriod) as "daily" | "weekly" | "monthly" | "quarterly" | "yearly";

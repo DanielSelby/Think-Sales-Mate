@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canPermission } from "@/lib/rbac/permissions";
 import type { CustomerAccountRequirement } from "@/types/database";
 
 export interface PortalSettings {
+  portalTheme: "light" | "dark";
+  portalColorTheme: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
   isEnabled: boolean;
   scheduleEnabled: boolean;
   activeFrom: string;
@@ -31,6 +34,8 @@ export interface PortalSettings {
 export async function getPortalSettings(): Promise<PortalSettings> {
   const context = await getCurrentOrgContext();
   const defaults: PortalSettings = {
+    portalTheme: "light",
+    portalColorTheme: "fintech",
     isEnabled: false,
     scheduleEnabled: false,
     activeFrom: "00:00",
@@ -59,6 +64,10 @@ export async function getPortalSettings(): Promise<PortalSettings> {
   if (!data) return defaults;
 
   return {
+    portalTheme: data.portal_theme === "dark" ? "dark" : defaults.portalTheme,
+    portalColorTheme: ["green", "navy", "teal", "plum", "fintech", "royal", "harvest", "eclipse"].includes(data.portal_color_theme)
+      ? data.portal_color_theme
+      : defaults.portalColorTheme,
     isEnabled: data.is_enabled ?? defaults.isEnabled,
     scheduleEnabled: data.schedule_enabled ?? defaults.scheduleEnabled,
     activeFrom: data.active_from?.slice(0, 5) ?? defaults.activeFrom,
@@ -90,6 +99,13 @@ export interface SimpleResult {
 export async function updatePortalSettings(settings: PortalSettings): Promise<SimpleResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
+  if (!(await canPermission("customer_orders", "edit"))) {
+    return { ok: false, error: "You do not have permission to change customer ordering settings." };
+  }
+  const allowedColorThemes = ["green", "navy", "teal", "plum", "fintech", "royal", "harvest", "eclipse"] as const;
+  if (!allowedColorThemes.includes(settings.portalColorTheme)) {
+    return { ok: false, error: "Please select a valid customer portal color theme." };
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -112,6 +128,8 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
   const { error } = await supabase.from("customer_portal_settings").upsert(
     {
       org_id: context.orgId,
+      portal_theme: settings.portalTheme,
+      portal_color_theme: settings.portalColorTheme,
       is_enabled: settings.isEnabled,
       schedule_enabled: settings.scheduleEnabled,
       active_from: settings.activeFrom,

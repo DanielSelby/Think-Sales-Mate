@@ -1,6 +1,6 @@
 "use server";
 
-import { requirePermission } from "@/lib/rbac/permissions";
+import { canPermission, requirePermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -581,6 +581,64 @@ export async function recordPurchasePayment(
   });
   if (paymentAudit.error) return { ok: false, error: paymentAudit.error };
 
+  revalidatePath("/purchases");
+  return { ok: true };
+}
+
+export async function schedulePurchasePayment(
+  purchaseId: string,
+  scheduledDate: string,
+  paymentMethod: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
+    return { ok: false, error: "Enter a valid scheduled payment date." };
+  }
+  if (!paymentMethod.trim()) return { ok: false, error: "Select a payment method." };
+
+  const supabase = await createClient();
+  const context = await getCurrentOrgContext();
+  if (!context || !(await canPermission("purchases", "edit"))) {
+    return { ok: false, error: "You do not have permission to schedule supplier payments." };
+  }
+
+  const { data: purchase, error: fetchError } = await supabase
+    .from("purchases")
+    .select("id, org_id, location_id, total, paid_amount")
+    .eq("id", purchaseId)
+    .eq("org_id", context.orgId)
+    .single();
+  if (fetchError || !purchase || !canUseLocation(context, purchase.location_id)) {
+    return { ok: false, error: "Purchase not found." };
+  }
+  if (Number(purchase.total) <= Number(purchase.paid_amount)) {
+    return { ok: false, error: "This purchase is already fully paid." };
+  }
+
+  const db = supabase as any;
+  const { error } = await db
+    .from("purchases")
+    .update({
+      scheduled_payment_date: scheduledDate,
+      scheduled_payment_method: paymentMethod.trim(),
+    })
+    .eq("id", purchaseId)
+    .eq("org_id", context.orgId);
+  if (error) return { ok: false, error: error.message };
+
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "purchase.payment_scheduled",
+    entityType: "purchases",
+    entityId: purchaseId,
+    module: "Purchases",
+    branchId: purchase.location_id,
+    description: "Scheduled a supplier payment",
+    newValues: { scheduled_payment_date: scheduledDate, scheduled_payment_method: paymentMethod.trim() },
+  });
+  if (audit.error) return { ok: false, error: audit.error };
+
+  revalidatePath("/accounting");
   revalidatePath("/purchases");
   return { ok: true };
 }

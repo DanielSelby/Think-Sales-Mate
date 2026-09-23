@@ -26,8 +26,9 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   const dateTo = requestedRange.to && isoDate.test(requestedRange.to) && requestedRange.to >= dateFrom ? requestedRange.to : defaultTo;
   let initialPayables: AccountsPayableItem[] = [];
   let initialBranches: string[] = [];
+  let initialBranchOptions: { id: string; name: string }[] = [];
   let initialReceivables: AccountsReceivableItem[] = [];
-  let initialAuditLogs: { userName: string; action: string; module: string; createdAt: string }[] = [];
+  let initialAuditLogs: { userName: string; action: string; module: string; createdAt: string; branchId?: string }[] = [];
   let initialPayments: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] = [];
   let liveFinancialSnapshot: LiveFinancialSnapshot | undefined;
   let liveAccounts: AccountingAccount[] = [];
@@ -114,6 +115,9 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     const accountNames = new Map(scopedAccountRows.map((account: any) => [account.id, account.name]));
     const locationRowsForAccounting = await accountingDb.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true);
     const locationNamesForAccounting = new Map((locationRowsForAccounting.data ?? []).map((location: any) => [location.id, location.name]));
+    initialBranchOptions = (locationRowsForAccounting.data ?? [])
+      .filter((location: any) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
+      .map((location: any) => ({ id: location.id, name: location.name }));
     liveAccounts = scopedAccountRows.map((account: any) => ({
       id: account.id,
       code: account.code,
@@ -175,13 +179,44 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       outputTax: (taxSales ?? []).reduce((sum, sale) => sum + Number(sale.tax_amount ?? 0), 0),
       inputTax: (taxPurchases ?? []).reduce((sum, purchase) => sum + Number(purchase.tax_amount ?? 0), 0),
     };
-    const { data: locations } = await db.from("business_locations").select("name").eq("org_id", context.orgId).eq("is_active", true).order("name");
+    let locationsQuery = db.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name");
+    if (context.isBranchScoped) locationsQuery = locationsQuery.in("id", context.allowedLocationIds);
+    const { data: locations } = await locationsQuery;
     initialBranches = (locations ?? []).map((location) => location.name);
-    const [{ data: auditLogs }, { data: payments }] = await Promise.all([
-      db.from("audit_logs").select("actor_id, action, entity_type, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }).limit(100),
-      db.from("customer_credit_payments").select("id, invoice_id, amount, payment_method, payment_date, recorded_by").eq("org_id", context.orgId).order("payment_date", { ascending: false }),
+    const auditQuery = db.from("audit_logs").select("actor_id, action, entity_type, created_at, metadata").eq("org_id", context.orgId).order("created_at", { ascending: false }).limit(100);
+    const paymentsQuery = db.from("customer_credit_payments").select("id, invoice_id, amount, payment_method, payment_date, recorded_by, location_id").eq("org_id", context.orgId).order("payment_date", { ascending: false });
+    const salesQuery = db
+      .from("sales")
+      .select("id, sale_number, customer_id, customer_name, sale_date, total, amount_paid, location_id, location:business_locations(name)")
+      .eq("org_id", context.orgId)
+      .in("status", ["completed", "returned"])
+      .order("sale_date", { ascending: false });
+    const purchasesQuery = accountingDb
+      .from("purchases")
+      .select("id, purchase_number, purchase_date, invoice_number, total, paid_amount, expected_delivery_date, payment_method, location_id, scheduled_payment_date, scheduled_payment_method, supplier:suppliers(name), location:business_locations(name)")
+      .eq("org_id", context.orgId)
+      .neq("status", "cancelled")
+      .order("purchase_date", { ascending: false });
+    if (context.isBranchScoped) {
+      paymentsQuery.in("location_id", context.allowedLocationIds);
+      salesQuery.in("location_id", context.allowedLocationIds);
+      purchasesQuery.in("location_id", context.allowedLocationIds);
+    }
+    const [{ data: auditLogs }, { data: payments }, { data: sales }, { data: purchases }] = await Promise.all([
+      auditQuery,
+      paymentsQuery,
+      salesQuery,
+      purchasesQuery,
     ]);
-    initialAuditLogs = (auditLogs ?? []).map((log) => ({ userName: log.actor_id ?? "—", action: log.action, module: log.entity_type, createdAt: log.created_at }));
+    initialAuditLogs = (auditLogs ?? [])
+      .filter((log: any) => !context.isBranchScoped || context.allowedLocationIds.includes(log.metadata?.branch_id))
+      .map((log: any) => ({
+        userName: log.actor_id ?? "—",
+        action: log.action,
+        module: log.entity_type,
+        createdAt: log.created_at,
+        branchId: log.metadata?.branch_id,
+      }));
     const recorderIds = [...new Set((payments ?? []).map((payment) => payment.recorded_by).filter(Boolean))];
     const { data: recorderProfiles } = recorderIds.length
       ? await db.from("profiles").select("id, full_name").in("id", recorderIds)
@@ -195,12 +230,6 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       paymentDate: payment.payment_date,
       recordedBy: recorderNames.get(payment.recorded_by) ?? payment.recorded_by ?? "—",
     }));
-    const { data: sales } = await db
-      .from("sales")
-      .select("id, sale_number, customer_id, customer_name, sale_date, total, amount_paid, location:business_locations(name)")
-      .eq("org_id", context.orgId)
-      .in("status", ["completed", "returned"])
-      .order("sale_date", { ascending: false });
     const payableToday = new Date();
     const paymentsByInvoice = new Map<string, number>();
     for (const payment of payments ?? []) {
@@ -237,14 +266,8 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         branch: location?.name ?? "Unassigned",
       };
     });
-    const { data } = await db
-      .from("purchases")
-      .select("id, purchase_number, purchase_date, invoice_number, total, paid_amount, expected_delivery_date, payment_method, location_id, supplier:suppliers(name), location:business_locations(name)")
-      .eq("org_id", context.orgId)
-      .neq("status", "cancelled")
-      .order("purchase_date", { ascending: false });
     const today = new Date();
-    initialPayables = (data ?? []).map((purchase) => {
+    initialPayables = (purchases ?? []).map((purchase: any) => {
       const dueDate = purchase.expected_delivery_date ?? purchase.purchase_date;
       const outstandingAmount = Math.max(0, Number(purchase.total ?? 0) - Number(purchase.paid_amount ?? 0));
       const daysOutstanding = Math.max(0, Math.floor((today.getTime() - new Date(dueDate).getTime()) / 86400000));
@@ -272,6 +295,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         status,
         branch: location?.name ?? "Unassigned",
         paymentMethod: purchase.payment_method ?? undefined,
+        scheduledDate: purchase.scheduled_payment_date ?? undefined,
       };
     });
   }
@@ -286,7 +310,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
+      <AccountingDashboard initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
     </Suspense>
   );
 }

@@ -17,16 +17,20 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
+import { formatCurrencyAmount } from "@/lib/currency";
 import type { AccountingAccount, AccountType } from "@/types/accounting";
-import { saveAccountingAccount, setAccountingAccountStatus } from "@/app/(dashboard)/accounting/actions";
+import { mergeAccountingAccounts, saveAccountingAccount, setAccountingAccountStatus } from "@/app/(dashboard)/accounting/actions";
+import { useRouter } from "next/navigation";
 
-export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?: AccountingAccount[] }) {
+export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] }: { initialAccounts?: AccountingAccount[]; initialBranches?: { id: string; name: string }[] }) {
   const {
     currentCurrency,
+    currencyConfig,
     currentBranch,
-    mergeAccounts,
   } = useAccountingStore();
   const accounts = initialAccounts;
+  const router = useRouter();
+  const money = (value: number) => formatCurrencyAmount(value, currencyConfig);
 
   const [selectedType, setSelectedType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,6 +50,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
     subType: string;
     parentId: string;
     branch: string;
+    branchId: string;
     openingBalance: number;
     description: string;
   }>({
@@ -55,6 +60,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
     subType: "Current Assets",
     parentId: "",
     branch: "Main Branch",
+    branchId: "",
     openingBalance: 0,
     description: "",
   });
@@ -81,6 +87,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
       subType: "Current Assets",
       parentId: "",
       branch: currentBranch || "Main Branch",
+      branchId: initialBranches.find((branch) => branch.name === (currentBranch || "Main Branch"))?.id ?? "",
       openingBalance: 0,
       description: "",
     });
@@ -96,6 +103,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
       subType: acc.subType || "",
       parentId: acc.parentId || "",
       branch: acc.branch,
+      branchId: initialBranches.find((branch) => branch.name === acc.branch)?.id ?? "",
       openingBalance: 0,
       description: acc.description || "",
     });
@@ -112,6 +120,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
       type: formData.type,
       subType: formData.subType,
       parentId: formData.parentId || null,
+      locationId: formData.branchId || null,
       currency: useAccountingStore.getState().currentCurrencyCode,
       description: formData.description,
     });
@@ -131,6 +140,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
       type: formData.type,
       subType: formData.subType,
       parentId: formData.parentId || null,
+      locationId: formData.branchId || null,
       currency: useAccountingStore.getState().currentCurrencyCode,
       description: formData.description,
     });
@@ -139,13 +149,14 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
     setIsEditModalOpen(false);
   };
 
-  const handlePerformMerge = () => {
+  const handlePerformMerge = async () => {
     if (!mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId) return;
-    const success = mergeAccounts(mergeSourceId, mergeTargetId);
-    if (success) {
+    const result = await mergeAccountingAccounts(mergeSourceId, mergeTargetId);
+    if (result.ok) {
       setIsMergeModalOpen(false);
       setMergeSourceId("");
       setMergeTargetId("");
+      router.refresh();
     }
   };
 
@@ -169,7 +180,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
   const handleExportCSV = () => {
     const headers = ["Account Code,Account Name,Account Type,Sub Type,Branch,Balance,Currency,Status"];
     const rows = filteredAccounts.map(
-      (a) => `"${a.code}","${a.name}","${a.type}","${a.subType || ""}","${a.branch}",${a.balance},"${currentCurrency}","${a.status}"`
+      (a) => `"${a.code}","${a.name}","${a.type}","${a.subType || ""}","${a.branch}",${a.balance},"${currencyConfig.code || currentCurrency}","${a.status}"`
     );
     const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -335,9 +346,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
                       </td>
                       <td className="px-4 py-3 text-slate-500">{acc.branch}</td>
                       <td className={`px-4 py-3 text-right font-display font-semibold ${acc.balance < 0 ? "text-rose-600" : "text-slate-900 dark:text-white"}`}>
-                        {acc.balance < 0
-                          ? `(${Math.abs(acc.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })})`
-                          : acc.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        {formatCurrencyAmount(acc.balance, currencyConfig)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span
@@ -451,13 +460,15 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
                 <div>
                   <label className="font-medium text-slate-700 dark:text-slate-300">Branch</label>
                   <select
-                    value={formData.branch}
-                    onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                    value={formData.branchId}
+                    onChange={(e) => {
+                      const branch = initialBranches.find((option) => option.id === e.target.value);
+                      setFormData({ ...formData, branchId: e.target.value, branch: branch?.name ?? "" });
+                    }}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
                   >
-                    <option value="Main Branch">Main Branch</option>
-                    <option value="Kumasi Branch">Kumasi Branch</option>
-                    <option value="Takoradi Branch">Takoradi Branch</option>
+                    <option value="">All Locations</option>
+                    {initialBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -571,13 +582,15 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
                 <div>
                   <label className="font-medium text-slate-700 dark:text-slate-300">Branch</label>
                   <select
-                    value={formData.branch}
-                    onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                    value={formData.branchId}
+                    onChange={(e) => {
+                      const branch = initialBranches.find((option) => option.id === e.target.value);
+                      setFormData({ ...formData, branchId: e.target.value, branch: branch?.name ?? "" });
+                    }}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
                   >
-                    <option value="Main Branch">Main Branch</option>
-                    <option value="Kumasi Branch">Kumasi Branch</option>
-                    <option value="Takoradi Branch">Takoradi Branch</option>
+                    <option value="">All Locations</option>
+                    {initialBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -641,7 +654,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
                   <option value="">Select source account...</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.code} - {a.name} ({currentCurrency} {a.balance.toLocaleString()})
+                      {a.code} - {a.name} ({money(a.balance)})
                     </option>
                   ))}
                 </select>
@@ -659,7 +672,7 @@ export function ChartOfAccountsTab({ initialAccounts = [] }: { initialAccounts?:
                     .filter((a) => a.id !== mergeSourceId)
                     .map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.code} - {a.name} ({currentCurrency} {a.balance.toLocaleString()})
+                        {a.code} - {a.name} ({money(a.balance)})
                       </option>
                     ))}
                 </select>

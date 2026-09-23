@@ -353,7 +353,7 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
                 {taxFilings.map((filing, index) => (
                   <div key={`${filing.period}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
                     <span className="font-semibold text-slate-700 dark:text-slate-200">{filing.period}</span>
-                    <span>{currentCurrency} {filing.netTaxPayable.toLocaleString("en-US", { minimumFractionDigits: 2 })} payable</span>
+                    <span>{formatCurrencyAmount(filing.netTaxPayable, currencyConfig)} payable</span>
                   </div>
                 ))}
               </div>
@@ -370,21 +370,21 @@ export function TaxManagementTab({ liveSummary, initialTaxRates = [], initialTax
               Confirm Monthly Tax Return Submission
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              You are preparing to submit the tax return for <b>{periodLabel}</b> with a net payable amount of <b>{currentCurrency} {netTaxPayable.toLocaleString()}</b>.
+              You are preparing to submit the tax return for <b>{periodLabel}</b> with a net payable amount of <b>{formatCurrencyAmount(netTaxPayable, currencyConfig)}</b>.
             </p>
 
             <div className="mt-4 rounded-xl bg-slate-50 p-3.5 border border-slate-200 dark:bg-slate-800 text-xs space-y-1.5 font-mono">
               <div className="flex justify-between">
                 <span>Output Tax:</span>
-                <span>{currentCurrency} {totalOutputTax.toFixed(2)}</span>
+                <span>{money(totalOutputTax)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Input Deductions:</span>
-                <span>({currentCurrency} {inputTaxDeductions.toFixed(2)})</span>
+                <span>({money(inputTaxDeductions)})</span>
               </div>
               <div className="flex justify-between font-bold border-t border-slate-200 pt-1 text-blue-600">
                 <span>Net Due:</span>
-                <span>{currentCurrency} {netTaxPayable.toFixed(2)}</span>
+                <span>{money(netTaxPayable)}</span>
               </div>
             </div>
 

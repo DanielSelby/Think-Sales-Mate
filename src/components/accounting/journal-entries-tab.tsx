@@ -545,13 +545,11 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                   <div className="flex items-center gap-2">
                     {isBalanced ? (
                       <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-                        <CheckCircle2 className="h-4 w-4" /> Entry is balanced! (Total: {currentCurrency}{" "}
-                        {money(totalDebit)})
+                        <CheckCircle2 className="h-4 w-4" /> Entry is balanced! (Total: {money(totalDebit)})
                       </span>
                     ) : (
                       <span className="flex items-center gap-1.5 text-rose-500 font-semibold">
-                        <AlertCircle className="h-4 w-4" /> Unbalanced by {currentCurrency}{" "}
-                        {money(difference)}
+                        <AlertCircle className="h-4 w-4" /> Unbalanced by {money(difference)}
                       </span>
                     )}
                   </div>

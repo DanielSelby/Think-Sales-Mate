@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { canPermission } from "@/lib/rbac/permissions";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export async function recordCustomerCreditPayment(input: {
   invoiceId: string; customerId?: string | null; amount: number; paymentMethod: string;
@@ -26,6 +27,41 @@ export async function recordCustomerCreditPayment(input: {
   return { ok: true };
 }
 
+export async function sendCustomerReminder(input: {
+  invoiceId: string;
+  customerName: string;
+  message: string;
+  locationId?: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const context = await getCurrentOrgContext();
+  if (!context || !(await canPermission("accounting", "edit"))) {
+    return { ok: false, error: "You do not have permission to send payment reminders." };
+  }
+  if (!input.invoiceId || !input.message.trim()) {
+    return { ok: false, error: "A reminder message is required." };
+  }
+  if (input.locationId && context.isBranchScoped && !context.allowedLocationIds.includes(input.locationId)) {
+    return { ok: false, error: "You are not assigned to this branch." };
+  }
+
+  const supabase = await createClient();
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "customer.payment_reminder_sent",
+    entityType: "customer_credit_invoices",
+    entityId: input.invoiceId,
+    module: "Accounts Receivable",
+    branchId: input.locationId ?? (context.isBranchScoped ? context.locationId : null),
+    description: `Sent a payment reminder to ${input.customerName}`,
+    newValues: { customer_name: input.customerName, message: input.message.trim() },
+  });
+  if (audit.error) return { ok: false, error: audit.error };
+
+  revalidatePath("/accounting");
+  return { ok: true };
+}
+
 export async function saveAccountingAccount(input: {
   id?: string; code: string; name: string; type: "asset" | "liability" | "equity" | "revenue" | "cogs" | "expense";
   subType?: string; parentId?: string | null; locationId?: string | null; currency: string; description?: string;
@@ -33,6 +69,9 @@ export async function saveAccountingAccount(input: {
   const context = await getCurrentOrgContext();
   if (!context || !(await canPermission("accounting", input.id ? "edit" : "create"))) return { ok: false, error: "You do not have permission to manage accounts." };
   if (!input.code.trim() || !input.name.trim()) return { ok: false, error: "Account code and name are required." };
+  if (input.locationId && !context.allowedLocationIds.includes(input.locationId) && context.isBranchScoped) {
+    return { ok: false, error: "You are not assigned to this branch." };
+  }
   const supabase = await createClient() as any;
   const payload = { org_id: context.orgId, code: input.code.trim(), name: input.name.trim(), type: input.type,
     sub_type: input.subType?.trim() || null, parent_id: input.parentId || null, location_id: input.locationId || null,
@@ -51,6 +90,21 @@ export async function setAccountingAccountStatus(id: string, active: boolean): P
   if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to manage accounts." };
   const supabase = await createClient() as any;
   const { error } = await supabase.from("accounting_accounts").update({ is_active: active }).eq("id", id).eq("org_id", context.orgId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/accounting");
+  return { ok: true };
+}
+
+export async function mergeAccountingAccounts(sourceId: string, targetId: string): Promise<{ ok: boolean; error?: string }> {
+  const context = await getCurrentOrgContext();
+  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to merge accounts." };
+  if (!sourceId || !targetId || sourceId === targetId) return { ok: false, error: "Choose two different accounts." };
+  const supabase = await createClient() as any;
+  const { error } = await supabase.rpc("merge_accounting_accounts", {
+    p_org_id: context.orgId,
+    p_source_id: sourceId,
+    p_target_id: targetId,
+  });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/accounting");
   return { ok: true };
