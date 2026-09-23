@@ -53,15 +53,24 @@ export default async function ReportsPage({
     : periodDateRange(requestedPeriod);
   const dateFrom = requestedRange.from || defaults.from;
   const dateTo = requestedRange.to || defaults.to;
-  const requestedLocationId = context.masterLocationId ?? (searchParams.location && searchParams.location !== "all" ? searchParams.location : null);
-  const locationId = context.isBranchScoped
-    ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : context.allowedLocationIds[0])
-    : requestedLocationId;
+  const hasLocationFilter = typeof searchParams.location === "string";
+  const requestedLocationId = hasLocationFilter
+    ? (searchParams.location !== "all" ? searchParams.location : null)
+    : context.masterLocationId;
+  const locationId: string | null = context.isBranchScoped
+    ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : null)
+    : (requestedLocationId ?? null);
   const period = (requestedPeriod === "today" || requestedPeriod === "yesterday" || requestedPeriod === "custom"
     ? "daily"
     : requestedPeriod) as "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 
-  const filters = { orgId: context.orgId, dateFrom, dateTo, locationId };
+  const filters = {
+    orgId: context.orgId,
+    dateFrom,
+    dateTo,
+    locationId,
+    allowedLocationIds: context.isBranchScoped ? context.allowedLocationIds : undefined
+  };
 
   const supabase = await createClient();
   let locationsQuery = supabase

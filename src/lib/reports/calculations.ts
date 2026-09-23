@@ -5,6 +5,13 @@ export interface ReportFilters {
   dateFrom: string; // ISO date
   dateTo: string; // ISO date
   locationId?: string | null;
+  allowedLocationIds?: string[];
+}
+
+function dateToExclusive(date: string) {
+  const next = new Date(`${date}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString();
 }
 
 function prevPeriod(dateFrom: string, dateTo: string) {
@@ -23,7 +30,7 @@ function pctChange(current: number, previous: number) {
 
 async function fetchPeriodFigures(filters: ReportFilters) {
   const supabase = await createClient();
-  const { orgId, dateFrom, dateTo, locationId } = filters;
+  const { orgId, dateFrom, dateTo, locationId, allowedLocationIds } = filters;
 
   let salesQuery = supabase
     .from("sales")
@@ -31,8 +38,9 @@ async function fetchPeriodFigures(filters: ReportFilters) {
     .eq("org_id", orgId)
     .eq("status", "completed")
     .gte("sale_date", dateFrom)
-    .lte("sale_date", dateTo);
+    .lt("sale_date", dateToExclusive(dateTo));
   if (locationId) salesQuery = salesQuery.eq("location_id", locationId);
+  else if (allowedLocationIds?.length) salesQuery = salesQuery.in("location_id", allowedLocationIds);
   const { data: sales } = await salesQuery;
 
   const saleIds = (sales ?? []).map((s) => s.id);
@@ -62,8 +70,9 @@ async function fetchPeriodFigures(filters: ReportFilters) {
     .eq("org_id", orgId)
     .in("status", ["approved"])
     .gte("expense_date", dateFrom)
-    .lte("expense_date", dateTo);
+    .lt("expense_date", dateToExclusive(dateTo));
   if (locationId) expenseQuery = expenseQuery.eq("location_id", locationId);
+  else if (allowedLocationIds?.length) expenseQuery = expenseQuery.in("location_id", allowedLocationIds);
   const { data: expenses } = await expenseQuery;
 
   const totalRevenue = (sales ?? []).reduce((sum, s) => sum + s.total, 0);
@@ -78,8 +87,9 @@ async function fetchPeriodFigures(filters: ReportFilters) {
     .eq("org_id", orgId)
     .neq("status", "cancelled")
     .gte("purchase_date", dateFrom)
-    .lte("purchase_date", dateTo);
+    .lt("purchase_date", dateToExclusive(dateTo));
   if (locationId) purchaseQuery = purchaseQuery.eq("location_id", locationId);
+  else if (allowedLocationIds?.length) purchaseQuery = purchaseQuery.in("location_id", allowedLocationIds);
   const { data: purchases } = await purchaseQuery;
   const purchasesPaid = (purchases ?? []).reduce((sum, p) => sum + p.paid_amount, 0);
 
@@ -235,8 +245,9 @@ export async function getRevenueExpenseSeries(
     .eq("org_id", filters.orgId)
     .eq("status", "completed")
     .gte("sale_date", filters.dateFrom)
-    .lte("sale_date", filters.dateTo);
+    .lt("sale_date", dateToExclusive(filters.dateTo));
   if (filters.locationId) salesQuery = salesQuery.eq("location_id", filters.locationId);
+  else if (filters.allowedLocationIds?.length) salesQuery = salesQuery.in("location_id", filters.allowedLocationIds);
 
   let expenseQuery = supabase
     .from("expenses")
@@ -244,8 +255,9 @@ export async function getRevenueExpenseSeries(
     .eq("org_id", filters.orgId)
     .eq("status", "approved")
     .gte("expense_date", filters.dateFrom)
-    .lte("expense_date", filters.dateTo);
+    .lt("expense_date", dateToExclusive(filters.dateTo));
   if (filters.locationId) expenseQuery = expenseQuery.eq("location_id", filters.locationId);
+  else if (filters.allowedLocationIds?.length) expenseQuery = expenseQuery.in("location_id", filters.allowedLocationIds);
 
   const [{ data: sales }, { data: expenses }] = await Promise.all([salesQuery, expenseQuery]);
 
@@ -306,8 +318,9 @@ export async function getExpensesByCategory(filters: ReportFilters): Promise<Exp
     .eq("org_id", filters.orgId)
     .eq("status", "approved")
     .gte("expense_date", filters.dateFrom)
-    .lte("expense_date", filters.dateTo);
+    .lt("expense_date", dateToExclusive(filters.dateTo));
   if (filters.locationId) query = query.eq("location_id", filters.locationId);
+  else if (filters.allowedLocationIds?.length) query = query.in("location_id", filters.allowedLocationIds);
   const { data } = await query;
 
   const map = new Map<string, number>();
@@ -344,8 +357,9 @@ export async function getTopCustomers(filters: ReportFilters, limit = 5): Promis
     .eq("org_id", filters.orgId)
     .eq("status", "completed")
     .gte("sale_date", filters.dateFrom)
-    .lte("sale_date", filters.dateTo);
+    .lt("sale_date", dateToExclusive(filters.dateTo));
   if (filters.locationId) query = query.eq("location_id", filters.locationId);
+  else if (filters.allowedLocationIds?.length) query = query.in("location_id", filters.allowedLocationIds);
   const { data } = await query;
 
   const map = new Map<string, number>();

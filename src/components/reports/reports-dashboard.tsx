@@ -277,7 +277,10 @@ export function ReportsDashboard({
           {TABS.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab);
+                setSelectedReport(null);
+              }}
               className={`border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors ${
                 activeTab === tab
                   ? "border-signal text-ink-900 dark:text-white"
@@ -405,6 +408,10 @@ export function ReportsDashboard({
           dateFrom={dateFrom}
           dateTo={dateTo}
           selectedReport={selectedReport}
+          revenueExpenseSeries={revenueExpenseSeries}
+          expensesByCategory={expensesByCategory}
+          topCustomers={topCustomers}
+          taxSummary={taxSummary}
           onSelectReport={(report) => {
             setSelectedReport(report);
             setNotice(`${report} selected for ${dateFrom} to ${dateTo}.`);
@@ -701,6 +708,10 @@ function ReportWorkspace({
   dateFrom,
   dateTo,
   selectedReport,
+  revenueExpenseSeries,
+  expensesByCategory,
+  topCustomers,
+  taxSummary,
   onSelectReport
 }: {
   tab: string;
@@ -710,6 +721,10 @@ function ReportWorkspace({
   dateFrom: string;
   dateTo: string;
   selectedReport: string | null;
+  revenueExpenseSeries: RevenueExpensePoint[];
+  expensesByCategory: ExpenseCategorySlice[];
+  topCustomers: TopCustomerRow[];
+  taxSummary: TaxSummary;
   onSelectReport: (report: string) => void;
 }) {
   const reports = REPORTS_BY_TAB[tab] ?? [];
@@ -719,6 +734,20 @@ function ReportWorkspace({
     ["Net Profit", fmt(kpis.netProfit, currency)],
     ["Gross Margin", `${kpis.grossMargin}%`]
   ];
+  const selectedRows = selectedReport?.includes("Customer")
+    ? topCustomers.map((row) => [String(row.rank), row.customerName, fmt(row.revenue, currency)])
+    : selectedReport?.includes("Expense") || selectedReport?.includes("Category")
+      ? expensesByCategory.map((row) => [row.category, `${row.pct}%`, fmt(row.amount, currency)])
+      : selectedReport?.includes("Tax") || selectedReport?.includes("VAT")
+        ? [["Tax collected", String(taxSummary.salesCount), fmt(taxSummary.taxCollected, currency)]]
+        : revenueExpenseSeries.map((row) => [row.label, fmt(row.revenue, currency), fmt(row.expenses, currency)]);
+  const selectedHeaders = selectedReport?.includes("Customer")
+    ? ["Rank", "Customer", "Revenue"]
+    : selectedReport?.includes("Expense") || selectedReport?.includes("Category")
+      ? ["Category", "Share", "Amount"]
+      : selectedReport?.includes("Tax") || selectedReport?.includes("VAT")
+        ? ["Metric", "Sales", "Amount"]
+        : ["Period", "Revenue", "Expenses"];
   return (
     <div className="space-y-5">
       <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
@@ -758,11 +787,51 @@ function ReportWorkspace({
           ))}
         </div>
         {selectedReport && (
-          <div className="mt-4 rounded-md bg-signal-soft px-3 py-2 text-xs text-signal">
-            Viewing <strong>{selectedReport}</strong> for {dateFrom} to {dateTo}.
+          <div className="mt-4 rounded-md border border-signal/30 bg-signal-soft p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold text-ink-900 dark:text-white">{selectedReport}</h4>
+              <span className="text-xs text-signal">{dateFrom} to {dateTo}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {values.map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-xs text-ledger-500 dark:text-ledger-400">{label}</p>
+                  <p className="figure mt-1 text-sm font-semibold text-ink-900 dark:text-white">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-md border border-signal/20 bg-white dark:bg-ink-900">
+              {selectedRows.length > 0 ? (
+                <table className="w-full min-w-[420px] text-left text-xs">
+                  <thead className="border-b border-ledger-100 dark:border-ledger-700">
+                    <tr>
+                      {selectedHeaders.map((header) => (
+                        <th key={header} className="px-3 py-2 font-medium text-ledger-500 dark:text-ledger-400">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedRows.map((row, index) => (
+                      <tr key={`${row[0]}-${index}`} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
+                        {row.map((value, valueIndex) => (
+                          <td key={`${value}-${valueIndex}`} className={`px-3 py-2 ${valueIndex === row.length - 1 ? "text-right figure text-ink-900 dark:text-white" : "text-ledger-600 dark:text-ledger-300"}`}>
+                            {value}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="px-3 py-4 text-xs text-ledger-500 dark:text-ledger-400">
+                  No records match the selected date and branch filters.
+                </p>
+              )}
+            </div>
+            <p className="mt-3 text-xs text-signal">This result uses the currently applied date and branch filters.</p>
           </div>
         )}
-        <p className="mt-4 text-xs text-ledger-400">Detailed transaction rows are available in the financial statement below after selecting Financial Reports.</p>
+        <p className="mt-4 text-xs text-ledger-400">Select a report above to view its filtered result summary.</p>
       </div>
       <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Filtered transaction summary</h3>
