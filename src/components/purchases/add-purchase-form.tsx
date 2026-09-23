@@ -19,6 +19,7 @@ import { ProductRowCell } from "@/components/purchases/product-row-cell";
 import { AttachmentsDropzone, type StagedFile } from "@/components/purchases/attachments-dropzone";
 import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
 import { Dialog } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { PurchaseStatus } from "@/types/database";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
@@ -218,6 +219,7 @@ export function AddPurchaseForm({
   const [addSupplierOpen, setAddSupplierOpen] = React.useState(false);
   const [pendingSupplierName, setPendingSupplierName] = React.useState<string | null>(null);
   const [editingLineId, setEditingLineId] = React.useState<string | null>(null);
+  const [pendingRemoveKey, setPendingRemoveKey] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!pendingSupplierName) return;
@@ -331,7 +333,13 @@ export function AddPurchaseForm({
       );
       return;
     }
-    setItems((prev) => prev.filter((l) => l.key !== key));
+    setPendingRemoveKey(key);
+  }
+
+  function confirmRemoveLine() {
+    if (!pendingRemoveKey) return;
+    setItems((prev) => prev.filter((l) => l.key !== pendingRemoveKey));
+    setPendingRemoveKey(null);
   }
 
   const computedLines = items.map((l) => ({ line: l, ...lineTotal(l) }));
@@ -470,6 +478,12 @@ export function AddPurchaseForm({
             </>
           )}
         </div>
+        <ConfirmDialog
+          open={pendingRemoveKey !== null}
+          description="Remove this item from the purchase?"
+          onCancel={() => setPendingRemoveKey(null)}
+          onConfirm={confirmRemoveLine}
+        />
       </div>
 
       {/* Info banner */}

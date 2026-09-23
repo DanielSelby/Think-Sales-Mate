@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { createStockAdjustment } from "@/app/(dashboard)/inventory/adjustments/actions";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export interface AdjustLocation {
   id: string;
@@ -164,6 +165,7 @@ export function StockAdjustmentForm({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [copiedRef, setCopiedRef] = useState<boolean>(false);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [pendingDeleteProductId, setPendingDeleteProductId] = useState<string | null>(null);
 
   // Modals state
   const [showBarcodeScanner, setShowBarcodeScanner] = useState<boolean>(false);
@@ -373,7 +375,13 @@ export function StockAdjustmentForm({
   };
 
   const handleDeleteRow = (productId: string) => {
-    setTableRows((prev) => prev.filter((r) => r.productId !== productId));
+    setPendingDeleteProductId(productId);
+  };
+
+  const confirmDeleteRow = () => {
+    if (!pendingDeleteProductId) return;
+    setTableRows((prev) => prev.filter((r) => r.productId !== pendingDeleteProductId));
+    setPendingDeleteProductId(null);
   };
 
   const handleCopyRef = () => {
@@ -1700,6 +1708,12 @@ export function StockAdjustmentForm({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDeleteProductId !== null}
+        description="Remove this product from the stock adjustment?"
+        onCancel={() => setPendingDeleteProductId(null)}
+        onConfirm={confirmDeleteRow}
+      />
     </div>
   );
 }

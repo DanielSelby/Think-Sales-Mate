@@ -199,16 +199,20 @@ export interface BalanceSheetSummary {
 // inventory value, unpaid invoices (AR), fixed assets, and unpaid
 // purchases (AP), with equity as the balancing figure. Not a substitute
 // for a full double-entry balance sheet.
-export async function getBalanceSheet(orgId: string, asOfDate: string): Promise<BalanceSheetSummary> {
+export async function getBalanceSheet(filters: ReportFilters): Promise<BalanceSheetSummary> {
   const supabase = await createClient();
+  const { orgId, dateTo, locationId, allowedLocationIds } = filters;
 
   const { data: bankAccounts } = await supabase.from("bank_accounts").select("current_balance").eq("org_id", orgId);
   const cash = (bankAccounts ?? []).reduce((s, a) => s + a.current_balance, 0);
 
-  const { data: stockLevels } = await supabase
+  let stockQuery = supabase
     .from("product_stock_levels")
     .select("quantity, products(unit_price)")
     .eq("org_id", orgId);
+  if (locationId) stockQuery = stockQuery.eq("location_id", locationId);
+  else if (allowedLocationIds?.length) stockQuery = stockQuery.in("location_id", allowedLocationIds);
+  const { data: stockLevels } = await stockQuery;
   const inventoryValue = (stockLevels ?? []).reduce((sum, row) => {
     const product = Array.isArray(row.products) ? row.products[0] : row.products;
     return sum + row.quantity * (product?.unit_price ?? 0);
@@ -221,14 +225,21 @@ export async function getBalanceSheet(orgId: string, asOfDate: string): Promise<
     .in("status", ["sent", "overdue"]);
   const accountsReceivable = (invoices ?? []).reduce((s, i) => s + i.amount, 0);
 
-  const { data: assets } = await supabase.from("assets").select("current_value").eq("org_id", orgId).eq("status", "in_use");
+  let assetsQuery = supabase.from("assets").select("current_value").eq("org_id", orgId).eq("status", "in_use");
+  if (locationId) assetsQuery = assetsQuery.eq("location", locationId);
+  else if (allowedLocationIds?.length) assetsQuery = assetsQuery.in("location", allowedLocationIds);
+  const { data: assets } = await assetsQuery;
   const fixedAssets = (assets ?? []).reduce((s, a) => s + a.current_value, 0);
 
-  const { data: purchases } = await supabase
+  let purchasesQuery = supabase
     .from("purchases")
     .select("total, paid_amount, status")
     .eq("org_id", orgId)
-    .neq("status", "cancelled");
+    .neq("status", "cancelled")
+    .lte("purchase_date", dateTo);
+  if (locationId) purchasesQuery = purchasesQuery.eq("location_id", locationId);
+  else if (allowedLocationIds?.length) purchasesQuery = purchasesQuery.in("location_id", allowedLocationIds);
+  const { data: purchases } = await purchasesQuery;
   const accountsPayable = (purchases ?? []).reduce((s, p) => s + Math.max(0, p.total - p.paid_amount), 0);
 
   const currentAssets = cash + inventoryValue + accountsReceivable;

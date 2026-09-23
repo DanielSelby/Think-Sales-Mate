@@ -161,7 +161,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     const reportFilters = { orgId: context.orgId, dateFrom, dateTo, locationId: context.masterLocationId, allowedLocationIds: context.isBranchScoped ? context.allowedLocationIds : undefined };
     const [reportKpis, balanceSheet, revenueExpenseSeries, expensesByCategory] = await Promise.all([
       getReportKpis(reportFilters),
-      getBalanceSheet(context.orgId, dateTo),
+      getBalanceSheet(reportFilters),
       getRevenueExpenseSeries(reportFilters, "monthly"),
       getExpensesByCategory(reportFilters),
     ]);

@@ -19,6 +19,7 @@ import {
   getPurchaseForReturn, createPurchaseReturn, type EligiblePurchase, type PurchaseForReturn, type ReturnableLine,
 } from "@/app/(dashboard)/purchases/returns/actions";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 export interface LocationOption { id: string; name: string; }
@@ -63,6 +64,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
   const [paymentStatus, setPaymentStatus] = React.useState("Unpaid");
 
   const [lines, setLines] = React.useState<LineState[]>([]);
+  const [pendingRemoveLineId, setPendingRemoveLineId] = React.useState<string | null>(null);
   const [restockingFee, setRestockingFee] = React.useState(0);
   const [taxAdjustment, setTaxAdjustment] = React.useState(0);
 
@@ -102,7 +104,13 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
     setLines((prev) => prev.map((l) => (l.purchaseItemId === purchaseItemId ? { ...l, ...patch } : l)));
   }
   function removeLine(purchaseItemId: string) {
-    setLines((prev) => prev.filter((l) => l.purchaseItemId !== purchaseItemId));
+    setPendingRemoveLineId(purchaseItemId);
+  }
+
+  function confirmRemoveLine() {
+    if (!pendingRemoveLineId) return;
+    setLines((prev) => prev.filter((l) => l.purchaseItemId !== pendingRemoveLineId));
+    setPendingRemoveLineId(null);
   }
 
   const activeLines = lines.filter((l) => Number(l.returnQty) > 0);
@@ -176,6 +184,12 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
           <p className="mt-1 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">
             Purchases <ChevronRight className="h-3.5 w-3.5" /> Purchase Returns <ChevronRight className="h-3.5 w-3.5" /> New Return
           </p>
+          <ConfirmDialog
+            open={pendingRemoveLineId !== null}
+            description="Remove this item from the purchase return?"
+            onCancel={() => setPendingRemoveLineId(null)}
+            onConfirm={confirmRemoveLine}
+          />
         </div>
         <div className="flex items-center gap-3">
           <span className="rounded-full bg-amber-soft px-3 py-1 text-xs font-semibold text-amber">Draft</span>

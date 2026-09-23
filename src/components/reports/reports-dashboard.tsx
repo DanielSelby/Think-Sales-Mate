@@ -155,13 +155,19 @@ export function ReportsDashboard({
   const setBranch = useAccountingStore((state) => state.setBranch);
 
   function applyFilters(overrides?: Partial<ReportFiltersState>) {
+    const nextDateFrom = overrides?.dateFrom ?? dateFrom;
+    const nextDateTo = overrides?.dateTo ?? dateTo;
+    if (!nextDateFrom || !nextDateTo || nextDateFrom > nextDateTo) {
+      setNotice("Choose a valid date range before applying filters.");
+      return;
+    }
     const params = new URLSearchParams({
-      from: overrides?.dateFrom ?? dateFrom,
-      to: overrides?.dateTo ?? dateTo,
+      from: nextDateFrom,
+      to: nextDateTo,
       location: overrides?.locationId ?? locationId,
       period: overrides?.period ?? period
     });
-    router.push(`/reports?${params.toString()}`);
+    startTransition(() => router.push(`/reports?${params.toString()}`));
   }
 
   function clearFilters() {
@@ -313,7 +319,7 @@ export function ReportsDashboard({
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {kpiCards.map((kpi) => (
-          <div key={kpi.label} className="rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div key={kpi.label} className="rounded-card border border-ledger-100 bg-transparent p-4 shadow-card dark:border-ledger-700">
             <div className="flex items-center gap-3">
               <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${kpi.bg} ${kpi.color}`}>
                 <kpi.icon className="h-4 w-4" />
@@ -330,27 +336,27 @@ export function ReportsDashboard({
 
       {/* Filters */}
       {notice && <p className="rounded-md bg-signal-soft px-3 py-2 text-sm text-signal">{notice}</p>}
-      <div className="flex flex-wrap items-center gap-2 rounded-card border border-ledger-100 bg-white p-3 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="flex flex-wrap items-center gap-2 rounded-card border border-ledger-100 bg-transparent p-3 shadow-card dark:border-ledger-700">
         <div className="flex items-center gap-1.5">
           <Calendar className="h-3.5 w-3.5 text-ledger-400" />
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="h-9 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
           />
           <span className="text-ledger-400">–</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="h-9 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
           />
         </div>
         <select
           value={period}
           onChange={(e) => changePeriod(e.target.value)}
-          className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+          className="h-9 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
         >
           {PERIOD_OPTIONS.map((p) => (
             <option key={p.value} value={p.value}>
@@ -365,7 +371,7 @@ export function ReportsDashboard({
             setLocationId(nextLocationId);
             setBranch(locations.find((location) => location.id === nextLocationId)?.name ?? "all");
           }}
-          className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+          className="h-9 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
         >
           <option value="all">All Branches</option>
           {locations.map((l) => (
@@ -388,7 +394,7 @@ export function ReportsDashboard({
             <ChevronDown className="h-3 w-3" />
           </Button>
           {showExportMenu && (
-            <div className="absolute right-0 top-10 z-10 w-40 rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+            <div className="absolute right-0 top-10 z-10 w-40 rounded-md border border-ledger-100 bg-ink-900 py-1 shadow-card-hover dark:border-ledger-700">
               <button onClick={handleExportPdf} className="block w-full px-3 py-2 text-left text-xs text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]">
                 PDF
               </button>
@@ -428,7 +434,7 @@ export function ReportsDashboard({
         <>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* P&L */}
-        <div id="profit-loss" className="rounded-card border border-ledger-100 bg-white p-5 shadow-card lg:col-span-2 dark:border-ledger-700 dark:bg-ink-900">
+        <div id="profit-loss" className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card lg:col-span-2 dark:border-ledger-700">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Profit &amp; Loss Statement</h2>
           <table className="mt-3 w-full text-sm">
             <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
@@ -456,7 +462,7 @@ export function ReportsDashboard({
         </div>
 
         {/* Report shortcuts */}
-        <div id="report-shortcuts" className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div id="report-shortcuts" className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Report Shortcuts</h2>
           <ul className="mt-3 space-y-3">
             {[
@@ -481,7 +487,7 @@ export function ReportsDashboard({
       </div>
 
       {/* Revenue vs Expenses chart */}
-      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Revenue vs Expenses</h2>
           <select
@@ -495,7 +501,7 @@ export function ReportsDashboard({
               setDateTo(range.to);
               applyFilters({ period: nextPeriod, dateFrom: range.from, dateTo: range.to });
             }}
-            className="h-8 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="h-8 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
           >
             {PERIOD_OPTIONS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -530,7 +536,7 @@ export function ReportsDashboard({
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Balance sheet */}
-        <div id="balance-sheet" className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div id="balance-sheet" className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Balance Sheet Summary</h2>
           <p className="text-xs text-ledger-400">As at {dateTo} · simplified, derived from cash, inventory, AR/AP, and fixed assets</p>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -562,7 +568,7 @@ export function ReportsDashboard({
         </div>
 
         {/* Expenses by category */}
-        <div id="expenses-category" className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div id="expenses-category" className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Expenses by Category</h2>
           {expensesByCategory.length === 0 ? (
             <p className="mt-6 text-center text-sm text-ledger-400">No approved expenses in this period.</p>
@@ -602,7 +608,7 @@ export function ReportsDashboard({
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Top customers */}
-        <div id="top-customers" className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div id="top-customers" className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Top Revenue Customers</h2>
           <table className="mt-3 w-full text-sm">
             <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
@@ -632,7 +638,7 @@ export function ReportsDashboard({
         </div>
 
         {/* Tax summary */}
-        <div id="tax-summary" className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div id="tax-summary" className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Tax Summary</h2>
           <div className="mt-4 flex items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-signal-soft text-signal">
@@ -647,7 +653,7 @@ export function ReportsDashboard({
       </div>
 
       {/* Recent reports */}
-      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
         <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Recent Reports</h2>
         <table className="mt-3 w-full text-sm">
           <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
@@ -681,7 +687,7 @@ export function ReportsDashboard({
       </div>
 
       {/* Report settings */}
-      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
         <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Report Settings</h2>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <SettingsLink icon={ClipboardList} label="Chart of Accounts" desc="View and manage accounts" href="/accounting" />
@@ -795,7 +801,7 @@ function ReportWorkspace({
           : ["Name", "Quantity / Details", "Amount"];
   return (
     <div className="space-y-5">
-      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-ink-900 dark:text-white">{tab}</h2>
@@ -812,7 +818,7 @@ function ReportWorkspace({
           ))}
         </div>
       </div>
-      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
         <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Available reports</h3>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((report) => (
@@ -847,7 +853,7 @@ function ReportWorkspace({
                 </div>
               ))}
             </div>
-            <div className="mt-4 overflow-x-auto rounded-md border border-signal/20 bg-white dark:bg-ink-900">
+            <div className="mt-4 overflow-x-auto rounded-md border border-signal/20 bg-transparent">
               {datasetKey && selectedRows.length > 0 ? (
                 <table className="w-full min-w-[420px] text-left text-xs">
                   <thead className="border-b border-ledger-100 dark:border-ledger-700">
@@ -881,19 +887,6 @@ function ReportWorkspace({
           </div>
         )}
         <p className="mt-4 text-xs text-ledger-400">Select a report above to view its filtered result summary.</p>
-      </div>
-      <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-        <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Filtered transaction summary</h3>
-        <table className="mt-3 w-full text-sm">
-          <tbody>
-            {profitAndLoss.slice(0, 6).map((line) => (
-              <tr key={line.label} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
-                <td className="py-2 text-ink-900 dark:text-white">{line.label}</td>
-                <td className="py-2 text-right figure text-ink-900 dark:text-white">{fmt(line.amount, currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );

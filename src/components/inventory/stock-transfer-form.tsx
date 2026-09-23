@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Search,
   Plus,
@@ -158,6 +159,7 @@ export function StockTransferForm({
 
   // REAL Items State — starts empty!
   const [items, setItems] = useState<TransferItemRow[]>([]);
+  const [pendingRemoveRowId, setPendingRemoveRowId] = useState<string | null>(null);
   const smartLocator = useSmartProductLocator(items.map((item) => ({ key: item.id, productId: item.productId, quantity: item.transferQty })));
   const [searchQuery, setSearchQuery] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -344,7 +346,13 @@ export function StockTransferForm({
   };
 
   const handleRemoveItem = (rowId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== rowId));
+    setPendingRemoveRowId(rowId);
+  };
+
+  const confirmRemoveItem = () => {
+    if (!pendingRemoveRowId) return;
+    setItems((prev) => prev.filter((i) => i.id !== pendingRemoveRowId));
+    setPendingRemoveRowId(null);
   };
 
   // Calculations & Totals
@@ -1589,6 +1597,12 @@ export function StockTransferForm({
                 </div>
               </div>
             )}
+            <ConfirmDialog
+              open={pendingRemoveRowId !== null}
+              description="Remove this item from the stock transfer?"
+              onCancel={() => setPendingRemoveRowId(null)}
+              onConfirm={confirmRemoveItem}
+            />
           </div>
         </div>
       )}

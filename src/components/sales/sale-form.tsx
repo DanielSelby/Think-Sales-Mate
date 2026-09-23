@@ -32,6 +32,7 @@ import {
   Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -204,6 +205,7 @@ export function SaleForm({
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
   const [confirmZeroPayment, setConfirmZeroPayment] = useState(false);
+  const [pendingRemoveKey, setPendingRemoveKey] = useState<string | null>(null);
   const [payBalanceOpen, setPayBalanceOpen] = useState(false);
   const [payBalanceInput, setPayBalanceInput] = useState("");
 
@@ -407,8 +409,14 @@ export function SaleForm({
   }
 
   function removeLine(key: string) {
-    setLines((prev) => prev.filter((l) => l.key !== key));
-    if (editingLineId === key) setEditingLineId(null);
+    setPendingRemoveKey(key);
+  }
+
+  function confirmRemoveLine() {
+    if (!pendingRemoveKey) return;
+    setLines((prev) => prev.filter((l) => l.key !== pendingRemoveKey));
+    if (editingLineId === pendingRemoveKey) setEditingLineId(null);
+    setPendingRemoveKey(null);
   }
 
   function selectCustomer(customer: SaleCustomer) {
@@ -1604,6 +1612,12 @@ export function SaleForm({
       </div>
 
       <AddContactDialog open={addContactOpen} onClose={() => setAddContactOpen(false)} onSave={handleSaveContact} />
+      <ConfirmDialog
+        open={pendingRemoveKey !== null}
+        description="Remove this item from the sale?"
+        onCancel={() => setPendingRemoveKey(null)}
+        onConfirm={confirmRemoveLine}
+      />
     </div>
   );
 }

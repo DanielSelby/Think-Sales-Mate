@@ -67,7 +67,7 @@ export default async function ReportsPage({
   const hasLocationFilter = typeof searchParams.location === "string";
   const requestedLocationId = hasLocationFilter
     ? (searchParams.location !== "all" ? searchParams.location : null)
-    : context.masterLocationId;
+    : null;
   const locationId: string | null = context.isBranchScoped
     ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : null)
     : (requestedLocationId ?? null);
@@ -97,7 +97,7 @@ export default async function ReportsPage({
     await Promise.all([
       getReportKpis(filters),
       getProfitAndLoss(filters),
-      getBalanceSheet(context.orgId, dateTo),
+      getBalanceSheet(filters),
       getRevenueExpenseSeries(filters, period),
       getExpensesByCategory(filters),
       getTopCustomers(filters),
