@@ -62,6 +62,27 @@ export function hasPermission(matrix: PermissionMatrix, module: string, action: 
   return matrix[key]?.includes(action) === true || matrix[module]?.includes(action) === true;
 }
 
+function tabPermissionKey(module: string, page: string, tab: string) {
+  return `${canonicalModule(module)}.${page}.${tab}`;
+}
+
+/** Checks a tab action, falling back to the existing module/page grant for compatibility. */
+export function hasTabPermission(
+  matrix: PermissionMatrix,
+  module: string,
+  page: string,
+  tab: string,
+  action: PermissionAction
+): boolean {
+  const exact = matrix[tabPermissionKey(module, page, tab)] ?? matrix[`${module}.${page}.${tab}`];
+  if (exact) return exact.includes(action);
+  return hasPermission(matrix, module, action);
+}
+
+export function isTabVisible(matrix: PermissionMatrix, module: string, page: string, tab: string) {
+  return hasTabPermission(matrix, module, page, tab, "view");
+}
+
 function roleKeyForMember(role: MemberRole, accessPermissions: Record<string, unknown>): string {
   return typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : role;
 }
@@ -102,6 +123,20 @@ export async function canPermission(
   return hasPermission(matrix, module, action);
 }
 
+export async function canTabPermission(
+  module: string,
+  page: string,
+  tab: string,
+  action: PermissionAction,
+  activeOrgId?: string
+): Promise<boolean> {
+  const context = await getCurrentOrgContext(activeOrgId);
+  if (!context) return false;
+  if (context.role === "owner") return true;
+  const matrix = await loadPermissionMatrix(context.orgId, context.role, context.accessPermissions);
+  return hasTabPermission(matrix, module, page, tab, action);
+}
+
 /** Fail closed for server actions that require an explicit module capability. */
 export async function requirePermission(
   module: string,
@@ -109,6 +144,17 @@ export async function requirePermission(
 ): Promise<void> {
   if (!(await canPermission(module, action))) {
     throw new Error(`You do not have permission to ${action} ${module}.`);
+  }
+}
+
+export async function requireTabPermission(
+  module: string,
+  page: string,
+  tab: string,
+  action: PermissionAction
+): Promise<void> {
+  if (!(await canTabPermission(module, page, tab, action))) {
+    throw new Error(`You do not have permission to ${action} the ${tab} tab.`);
   }
 }
 

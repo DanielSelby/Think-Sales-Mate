@@ -9,7 +9,9 @@ import type {
   LoginSession,
   ApprovalRule,
   BranchAccessRule,
-  InvitationRecord
+  InvitationRecord,
+  PermissionPageConfig,
+  PermissionTabConfig
 } from "./types";
 
 export const PERMISSION_ACTIONS: { key: PermissionAction; label: string; description: string }[] = [
@@ -21,6 +23,39 @@ export const PERMISSION_ACTIONS: { key: PermissionAction; label: string; descrip
   { key: "export", label: "Export", description: "Can export datasets to CSV / Excel / PDF" },
   { key: "print", label: "Print", description: "Can print receipts, invoices, and audit slips" }
 ];
+
+const TAB_ACTIONS: PermissionAction[] = ["view", "create", "edit", "delete", "approve", "export"];
+const tabs = (items: Array<[string, string]>): PermissionTabConfig[] =>
+  items.map(([key, name]) => ({ key, name, supportedActions: TAB_ACTIONS }));
+const pages = (items: Array<[string, string, Array<[string, string]>]>): PermissionPageConfig[] =>
+  items.map(([key, name, tabItems]) => ({ key, name, tabs: tabs(tabItems) }));
+
+/** Hierarchical registry for the optional Module -> Page -> Tab -> Action layer. */
+export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
+  sales: pages([
+    ["sales", "Sales", [["new_sales", "New Sales"], ["sales_history", "Sales History"], ["returns", "Returns"], ["reports", "Reports"], ["settings", "Settings"]]]
+  ]),
+  inventory: pages([
+    ["products", "Products", [["product_list", "Product List"], ["add_product", "Add Product"], ["price_management", "Price Management"], ["product_locations", "Product Locations"], ["import_products", "Import Products"]]],
+    ["stock_transfer", "Stock Transfer", [["create_transfer", "Create Transfer"], ["transfer_history", "Transfer History"], ["approvals", "Approvals"]]],
+    ["inventory_intelligence", "Inventory Intelligence", [["dashboard", "Dashboard"], ["dead_stock", "Dead Stock"], ["slow_moving_stock", "Slow Moving Stock"], ["forecasting", "Forecasting"]]]
+  ]),
+  hrm_payroll: pages([
+    ["hrm", "HRM & Payroll", [["employees", "Employees"], ["attendance", "Attendance"], ["leave_management", "Leave Management"], ["payroll", "Payroll"], ["payslips", "Payslips"], ["performance_reviews", "Performance Reviews"], ["departments", "Departments"], ["recruitment", "Recruitment"], ["training", "Training & Development"], ["asset_assignment", "Asset Assignment"], ["discipline", "Discipline & Incidents"], ["organization_chart", "Organization Chart"], ["reports", "Reports & Analytics"]]]
+  ]),
+  purchases: pages([
+    ["purchases", "Purchases", [["new_purchase", "New Purchase"], ["purchase_history", "Purchase History"], ["returns", "Returns"], ["reports", "Reports"]]]
+  ]),
+  accounting: pages([
+    ["accounting", "Accounting", [["overview", "Overview"], ["payables", "Payables"], ["receivables", "Receivables"], ["financial_reports", "Financial Reports"], ["tax", "Tax Management"], ["journals", "Journal Entries"]]]
+  ]),
+  crm: pages([
+    ["crm", "CRM", [["customers", "Customers"], ["leads", "Leads"], ["activities", "Activities"], ["reports", "Reports"]]]
+  ]),
+  banking: pages([
+    ["banking", "Banking", [["accounts", "Accounts"], ["transactions", "Transactions"], ["reconciliation", "Reconciliation"]]]
+  ])
+};
 
 export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "dashboard", name: "Dashboard", description: "Overview metrics, KPIs, and executive charts", iconName: "LayoutDashboard", supportedActions: ["view", "export", "print"] },

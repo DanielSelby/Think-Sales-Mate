@@ -8,6 +8,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import type { MemberRole } from "@/lib/rbac";
 import { getCurrencyConfig } from "@/lib/currency";
 import { defaultPermissionMatrixForRole, normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
+import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 function databaseRole(role: string): MemberRole {
   const key = role.toLowerCase();
@@ -484,6 +485,22 @@ export async function saveRolePermissions(
   }
   const result = await savePermissionTemplate(context.orgId, roleKey.replace(/^role-/, ""), permissions, name);
   if (result.error) return result;
+  const auditResult = await recordAuditEvent(await createClient(), {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "role_permissions_updated",
+    entityType: "role_permission_matrix",
+    entityId: roleKey.replace(/^role-/, ""),
+    module: "user_management",
+    description: `Updated module, page, tab, and action permissions for ${name ?? roleKey}`,
+    newValues: { permissions },
+    metadata: {
+      role: name ?? roleKey,
+      permission_scope: "module.page.tab.action",
+      tab_permissions: Object.keys(permissions).filter((key) => key.split(".").length === 3)
+    }
+  });
+  if (auditResult.error) return { error: auditResult.error };
   revalidatePath("/settings/organization");
   return { success: true };
 }

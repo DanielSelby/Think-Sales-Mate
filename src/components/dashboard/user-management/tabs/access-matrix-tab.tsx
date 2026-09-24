@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MODULE_CONFIGS, PERMISSION_ACTIONS } from "../constants";
+import { MODULE_CONFIGS, PERMISSION_ACTIONS, PERMISSION_PAGE_CONFIGS } from "../constants";
 import type { RoleDefinition, ModuleCategory, PermissionAction } from "../types";
 
 interface AccessMatrixTabProps {
@@ -41,6 +41,7 @@ export function AccessMatrixTab({
   const [search, setSearch] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
+  const [activeTabModule, setActiveTabModule] = useState(Object.keys(PERMISSION_PAGE_CONFIGS)[0] ?? "sales");
 
   const activeRole = roles.find((r) => r.key === activeRoleKey || r.id === activeRoleKey) || roles[0];
   const activePermissions = matrixData[activeRoleKey] || activeRole?.permissions || ({} as any);
@@ -63,6 +64,21 @@ export function AccessMatrixTab({
           [moduleKey]: nextActions
         }
       };
+    });
+    setHasChanges(true);
+  };
+
+  const tabKey = (module: string, page: string, tab: string) => `${module}.${page}.${tab}`;
+  const handleToggleTab = (module: string, page: string, tab: string, action: PermissionAction) => {
+    if (!canManage) return;
+    const key = tabKey(module, page, tab);
+    setMatrixData((prev) => {
+      const rolePerms = prev[activeRoleKey] || {};
+      const current = rolePerms[key] || [];
+      const next = current.includes(action)
+        ? current.filter((item) => item !== action)
+        : [...current, action];
+      return { ...prev, [activeRoleKey]: { ...rolePerms, [key]: next } };
     });
     setHasChanges(true);
   };
@@ -306,6 +322,85 @@ export function AccessMatrixTab({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Optional hierarchical Module -> Page -> Tab -> Action matrix. */}
+      <div className="space-y-4 rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-blue-600" />
+              <h2 className="text-base font-bold text-ink-900 dark:text-white">Tab Access</h2>
+            </div>
+            <p className="text-xs text-ledger-500 dark:text-ledger-400">
+              Control which tabs are visible and which actions are available inside each page.
+            </p>
+          </div>
+          <select
+            value={activeTabModule}
+            onChange={(event) => setActiveTabModule(event.target.value)}
+            className="h-8 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-semibold dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
+          >
+            {Object.keys(PERMISSION_PAGE_CONFIGS).map((moduleKey) => (
+              <option key={moduleKey} value={moduleKey}>
+                {MODULE_CONFIGS.find((module) => module.key === moduleKey)?.name ?? moduleKey}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {(PERMISSION_PAGE_CONFIGS[activeTabModule] ?? []).map((page) => (
+          <div key={page.key} className="overflow-x-auto rounded-xl border border-ledger-200 dark:border-ledger-700">
+            <div className="border-b border-ledger-200 bg-slate-50 px-3 py-2 text-xs font-bold text-ink-900 dark:border-ledger-700 dark:bg-slate-800 dark:text-white">
+              {page.name}
+            </div>
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-800">
+                <tr>
+                  <th className="p-2.5 font-bold text-ink-900 dark:text-white">Action</th>
+                  {page.tabs.map((tab) => (
+                    <th key={tab.key} className="min-w-[110px] p-2.5 text-center font-bold text-ink-900 dark:text-white">
+                      {tab.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
+                {PERMISSION_ACTIONS.filter((action) => action.key !== "print").map((action) => (
+                  <tr key={action.key}>
+                    <td className="p-2.5 font-semibold text-ink-900 dark:text-white">
+                      <span className="capitalize">{action.label}</span>
+                      <span className="ml-2 text-[10px] font-normal text-ledger-400">{action.description}</span>
+                    </td>
+                    {page.tabs.map((tab) => {
+                      const supported = (tab.supportedActions ?? PERMISSION_ACTIONS.map((item) => item.key)).includes(action.key);
+                      const permissionKey = tabKey(activeTabModule, page.key, tab.key);
+                      const hasExplicitGrant = Object.prototype.hasOwnProperty.call(activePermissions, permissionKey);
+                      const current = activePermissions[permissionKey] ?? [];
+                      const checked = hasExplicitGrant
+                        ? current.includes(action.key)
+                        : (activePermissions[activeTabModule] ?? []).includes(action.key);
+                      return (
+                        <td key={tab.key} className="p-2.5 text-center">
+                          {supported ? (
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleToggleTab(activeTabModule, page.key, tab.key, action.key)}
+                              disabled={!canManage}
+                              aria-label={`${action.label} ${tab.name}`}
+                              className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          ) : <span className="text-ledger-300">—</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
 
     </div>

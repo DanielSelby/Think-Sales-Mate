@@ -152,6 +152,19 @@ export interface ModulePermissionConfig {
   description: string;
   iconName: string;
   supportedActions: PermissionAction[];
+  pages?: PermissionPageConfig[];
+}
+
+export interface PermissionPageConfig {
+  key: string;
+  name: string;
+  tabs: PermissionTabConfig[];
+}
+
+export interface PermissionTabConfig {
+  key: string;
+  name: string;
+  supportedActions?: PermissionAction[];
 }
 
 export interface FieldChangeDiff {

@@ -24,12 +24,12 @@ const TABS = [
   ["Reports & Analytics", "/hrm/reports", BarChart3],
 ] as const;
 
-export function HrmTabNavigation() {
+export function HrmTabNavigation({ visibleTabs }: { visibleTabs?: string[] }) {
   const pathname = usePathname();
   return (
     <nav aria-label="HRM sections" className="mb-5 overflow-x-auto border-b border-ledger-200 dark:border-ledger-700">
       <div className="flex min-w-max gap-1">
-        {TABS.map(([label, href, Icon]) => {
+        {TABS.filter(([, href]) => !visibleTabs || visibleTabs.includes(href)).map(([label, href, Icon]) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link key={href} href={href} className={cn(
