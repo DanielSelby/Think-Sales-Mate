@@ -107,7 +107,33 @@ html.dark .dashboard-motion .rounded-card:hover {
     border-color: rgb(226 232 240) !important;
   }
 
+  .page-canvas .new-sale-page .sale-details-section [class~="border"] {
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-color: rgb(226 232 240) !important;
+  }
+
+  .page-canvas .new-sale-page .sale-details-section [class~="border-t"] {
+    border-top-width: 1px !important;
+  }
+
+  .page-canvas .new-sale-page .sale-details-section [class~="border-r"] {
+    border-right-width: 1px !important;
+  }
+
+  .page-canvas .new-sale-page .sale-details-section [class~="border-b"] {
+    border-bottom-width: 1px !important;
+  }
+
+  .page-canvas .new-sale-page .sale-details-section [class~="border-l"] {
+    border-left-width: 1px !important;
+  }
+
   html.dark .page-canvas .new-sale-page .sale-details-section {
+    border-color: rgb(51 73 96) !important;
+  }
+
+  html.dark .page-canvas .new-sale-page .sale-details-section [class~="border"] {
     border-color: rgb(51 73 96) !important;
   }
   body {
