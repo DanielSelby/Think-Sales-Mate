@@ -42,7 +42,7 @@ export function ProductsTable({ products, canManage, currency = "GHS" }: { produ
   }
 
   return (
-    <div className="space-y-3">
+    <div className="product-page space-y-3">
       {error && <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
 
       <div className="overflow-hidden rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">

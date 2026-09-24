@@ -175,7 +175,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
   }
 
   return (
-    <div className="procurement-page space-y-4 pb-24 text-xs">
+    <div className="procurement-page purchase-page space-y-4 pb-24 text-xs">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -395,7 +395,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-5">
+        <div className="procurement-page purchase-page space-y-5">
           <Card accent="signal" className="rounded-2xl shadow-card xl:sticky xl:top-2">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Summary</CardTitle></CardHeader>
             <CardContent className="space-y-2.5 pt-0 text-sm">

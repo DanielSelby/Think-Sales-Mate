@@ -85,7 +85,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
   }
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-5">
+    <div className="approval-page mx-auto max-w-[1500px] space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><div className="mb-1 text-xs text-ledger-400">Home <span className="mx-1">›</span> Approval Center</div><h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Approval Center</h1><p className="text-sm text-ledger-500">Review and approve pending requests across your organization.</p></div>
         <div className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"><ClipboardList className="h-4 w-4" /> {rows.length} Pending</div>

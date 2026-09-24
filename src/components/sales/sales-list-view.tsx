@@ -234,7 +234,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   }
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="sales-page space-y-4 text-xs">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

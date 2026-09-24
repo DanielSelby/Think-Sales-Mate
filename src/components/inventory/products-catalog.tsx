@@ -582,7 +582,7 @@ export function ProductsCatalog({
   }
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="product-page space-y-4 text-xs">
       <input
         ref={fileInputRef}
         type="file"

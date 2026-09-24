@@ -125,7 +125,7 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
   }
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="sales-page space-y-4 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs text-ledger-400">Sales &gt; Sales Documents</p>

@@ -451,7 +451,7 @@ export function AddPurchaseForm({
   }
 
   return (
-    <div className="procurement-page space-y-5 pb-24">
+    <div className="procurement-page purchase-page space-y-5 pb-24">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">

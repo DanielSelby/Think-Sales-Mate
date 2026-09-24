@@ -70,6 +70,16 @@ html.dark .dashboard-motion .rounded-card:hover {
 
   /* POS uses spacing and surface contrast instead of bordered cards. */
   .pos-page [class*="border"] {
+    border: 0 !important;
+    border-color: transparent !important;
+  }
+
+  .approval-page [class*="border"],
+  .sales-page [class*="border"],
+  .orders-page [class*="border"],
+  .procurement-page [class*="border"],
+  .product-page [class*="border"] {
+    border: 0 !important;
     border-color: transparent !important;
   }
   body {

@@ -779,7 +779,7 @@ export function SaleForm({
   }
 
   return (
-    <div className="w-full pb-32">
+    <div className="sales-page w-full pb-32">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {duplicateProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><h2 className="font-semibold text-ink-900 dark:text-white">Product already exists</h2><p className="mt-2 text-sm text-ledger-500">"{duplicateProduct.name}" already exists in {duplicateProduct.keys.length} row{duplicateProduct.keys.length === 1 ? "" : "s"}.</p><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { smartLocator.locate(duplicateProduct.keys[0]); setDuplicateProduct(null); }} className="rounded-lg border border-ledger-200 px-3 py-2 text-xs font-semibold">Go To Existing Row</button><button type="button" onClick={() => { setLines((prev) => [...prev, { key: crypto.randomUUID(), productId: duplicateProduct.id, quantity: 1, discountPercent: 0, taxPercent: 0 }]); setDuplicateProduct(null); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Add Another Row</button></div></div></div>}
       {/* Header */}

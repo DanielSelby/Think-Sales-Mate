@@ -364,7 +364,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="product-page space-y-6">
       {/* ── Breadcrumb & Top Bar ────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
