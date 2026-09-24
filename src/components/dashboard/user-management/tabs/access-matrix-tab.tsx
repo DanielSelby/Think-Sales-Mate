@@ -22,12 +22,14 @@ interface AccessMatrixTabProps {
   roles: RoleDefinition[];
   canManage: boolean;
   onUpdateRolePermissions: (roleId: string, permissions: Record<ModuleCategory, PermissionAction[]>) => void;
+  mode?: "all" | "tabs" | "actions";
 }
 
 export function AccessMatrixTab({
   roles,
   canManage,
-  onUpdateRolePermissions
+  onUpdateRolePermissions,
+  mode = "all"
 }: AccessMatrixTabProps) {
   const [activeRoleKey, setActiveRoleKey] = useState<string>(roles[0]?.key || "administrator");
   const [matrixData, setMatrixData] = useState<Record<string, Record<ModuleCategory, PermissionAction[]>>>(() => {
@@ -216,7 +218,7 @@ export function AccessMatrixTab({
       </div>
 
       {/* Dense Excel Matrix Table */}
-      <div className="relative rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900 overflow-hidden">
+      {mode !== "tabs" && <div className="relative rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900 overflow-hidden">
         <div className="overflow-x-auto max-h-[68vh]">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="sticky top-0 z-20 bg-slate-100 text-ink-900 dark:bg-slate-800 dark:text-white border-b border-ledger-200 dark:border-ledger-700 shadow-sm">
@@ -323,6 +325,7 @@ export function AccessMatrixTab({
           </table>
         </div>
       </div>
+      }
 
       {/* Optional hierarchical Module -> Page -> Tab -> Action matrix. */}
       <div className="space-y-4 rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
@@ -330,10 +333,14 @@ export function AccessMatrixTab({
           <div>
             <div className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-blue-600" />
-              <h2 className="text-base font-bold text-ink-900 dark:text-white">Tab Access</h2>
+              <h2 className="text-base font-bold text-ink-900 dark:text-white">
+                {mode === "actions" ? "Action Permissions" : "Tab Access"}
+              </h2>
             </div>
             <p className="text-xs text-ledger-500 dark:text-ledger-400">
-              Control which tabs are visible and which actions are available inside each page.
+              {mode === "actions"
+                ? "Configure View, Create, Edit, Delete, Approve, and Export actions for every tab."
+                : "Control which tabs are visible and which actions are available inside each page."}
             </p>
           </div>
           <select

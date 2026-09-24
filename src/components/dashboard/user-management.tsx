@@ -1318,6 +1318,7 @@ export function UserManagement({
           <AccessMatrixTab
             roles={roles}
             canManage={canManage}
+            mode={activeTab === "action_permissions" ? "actions" : "tabs"}
             onUpdateRolePermissions={(roleId, permissions) => {
               setRoles((prev) => prev.map((role) => role.id === roleId ? { ...role, permissions } : role));
               const updatedRole = roles.find((role) => role.id === roleId);
