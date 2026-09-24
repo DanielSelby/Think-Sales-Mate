@@ -1142,6 +1142,8 @@ export function UserManagement({
           { key: "roles", label: "Roles & Templates", count: roles.length },
           { key: "permissions", label: "Permissions", count: permissionsCount },
           { key: "matrix", label: "Access Matrix" },
+          { key: "tab_access", label: "Tab Access" },
+          { key: "action_permissions", label: "Action Permissions" },
           { key: "approvals", label: "Approval Matrix" },
           { key: "branches", label: "Branch Access" },
           { key: "audit", label: "Activity Logs", count: auditLogs.length },
@@ -1310,6 +1312,28 @@ export function UserManagement({
     });
   }}
 />
+        )}
+
+        {(activeTab === "tab_access" || activeTab === "action_permissions") && (
+          <AccessMatrixTab
+            roles={roles}
+            canManage={canManage}
+            onUpdateRolePermissions={(roleId, permissions) => {
+              setRoles((prev) => prev.map((role) => role.id === roleId ? { ...role, permissions } : role));
+              const updatedRole = roles.find((role) => role.id === roleId);
+              recordAudit(
+                "Role Tab and Action Permissions Updated",
+                "User Management",
+                `Updated tab and action permissions for ${updatedRole?.name || roleId}`,
+                { recordId: roleId }
+              );
+              showToast(`Tab and action permissions updated for ${updatedRole?.name || "role"}`);
+              startTransition(async () => {
+                const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
+                if ("error" in result && result.error) showToast(result.error);
+              });
+            }}
+          />
         )}
 
         {activeTab === "approvals" && (

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { AccountingDashboard } from "@/components/accounting/accounting-dashboard";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -9,13 +10,14 @@ import type { LiveFinancialSnapshot } from "@/components/accounting/financial-re
 import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import type { CurrencyConfig } from "@/lib/currency";
+import { isTabVisible, loadPermissionMatrix } from "@/lib/rbac/permissions";
 
 export const metadata = {
   title: "Accounting & Financial Management",
   description: "Enterprise double-entry accounting, General Ledger, Chart of Accounts, and Financial Reports.",
 };
 
-export default async function AccountingPage({ searchParams }: { searchParams?: Promise<{ from?: string; to?: string }> }) {
+export default async function AccountingPage({ searchParams }: { searchParams?: Promise<{ from?: string; to?: string; tab?: string }> }) {
   const context = await getCurrentOrgContext();
   const requestedRange = searchParams ? await searchParams : {};
   const isoDate = /^\d{4}-\d{2}-\d{2}$/;
@@ -41,7 +43,16 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   let liveTaxRates: import("@/types/accounting").TaxRateConfig[] = [];
   let liveTaxFilings: import("@/types/accounting").TaxFilingSummary[] = [];
   let liveCurrencyConfig: CurrencyConfig | undefined;
+  let visibleAccountingTabs = ["overview", "coa", "journal", "reconciliation", "receivables", "payables", "fixed_assets", "reports", "tax", "settings"];
   if (context) {
+    const permissionMatrix = await loadPermissionMatrix(context.orgId, context.role, context.accessPermissions);
+    if (context.role !== "owner") {
+      visibleAccountingTabs = visibleAccountingTabs.filter((tab) => isTabVisible(permissionMatrix, "accounting", "accounting", tab));
+    }
+    const requestedTab = (await searchParams)?.tab;
+    if (requestedTab && !visibleAccountingTabs.includes(requestedTab)) {
+      redirect(`/accounting?tab=${visibleAccountingTabs[0] ?? "overview"}`);
+    }
     const db = await createClient();
     const accountingDb = db as any;
     const currencyConfig = await getOrganizationCurrencyConfig();
@@ -320,7 +331,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard orgName={context?.orgName ?? "Organization"} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
+      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
     </Suspense>
   );
 }

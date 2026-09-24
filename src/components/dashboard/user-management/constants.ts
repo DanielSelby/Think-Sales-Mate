@@ -47,7 +47,7 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
     ["purchases", "Purchases", [["new_purchase", "New Purchase"], ["purchase_history", "Purchase History"], ["returns", "Returns"], ["reports", "Reports"]]]
   ]),
   accounting: pages([
-    ["accounting", "Accounting", [["overview", "Overview"], ["payables", "Payables"], ["receivables", "Receivables"], ["financial_reports", "Financial Reports"], ["tax", "Tax Management"], ["journals", "Journal Entries"]]]
+    ["accounting", "Accounting", [["overview", "Overview"], ["coa", "Chart of Accounts"], ["journal", "Journal Entries"], ["reconciliation", "Bank Reconciliation"], ["receivables", "Accounts Receivable"], ["payables", "Accounts Payable"], ["fixed_assets", "Fixed Assets"], ["reports", "Financial Reports"], ["tax", "Tax Management"], ["settings", "Settings"]]]
   ]),
   crm: pages([
     ["crm", "CRM", [["customers", "Customers"], ["leads", "Leads"], ["activities", "Activities"], ["reports", "Reports"]]]
