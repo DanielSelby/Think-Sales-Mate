@@ -13,7 +13,7 @@ const TABS = [
   ["Attendance", "/hrm/attendance", CalendarCheck],
   ["Leave Management", "/hrm/leave", ClipboardList],
   ["Payroll", "/hrm/payroll", Wallet],
-  ["Payslips", "/hrm/payslips", FileText],
+  ["Payslip Generated", "/hrm/payslips", FileText],
   ["Performance Reviews", "/hrm/performance-reviews", Star],
   ["Departments", "/hrm/departments", Building2],
   ["Recruitment", "/hrm/recruitment", UserPlus],
