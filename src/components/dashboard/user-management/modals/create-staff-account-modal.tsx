@@ -177,7 +177,7 @@ export function CreateStaffAccountModal({
             <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={copyCredentials}><Copy className="mr-1.5 h-3.5 w-3.5" /> Copy credentials</Button><Button type="button" onClick={resetAndClose} className="bg-blue-600 text-white hover:bg-blue-700">Done</Button></div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-col bg-white dark:bg-slate-900">
             <div className="space-y-5 overflow-y-auto p-6">
               {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
               <section className="space-y-3">

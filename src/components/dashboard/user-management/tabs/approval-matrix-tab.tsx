@@ -122,7 +122,7 @@ export function ApprovalMatrixTab({ roles, canManage }: ApprovalMatrixTabProps) 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-2xl bg-white p-4 dark:bg-slate-950">
       
       {/* Header Bar */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900">

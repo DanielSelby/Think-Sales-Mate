@@ -53,7 +53,7 @@ export function RolesTab({
   onFilterByRole, roleThemes, canManageThemes, onSaveRoleTheme
 }: RolesTabProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-2xl border border-ledger-200 bg-white p-4 dark:border-ledger-800 dark:bg-slate-950">
       
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900">
@@ -85,13 +85,13 @@ export function RolesTab({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+        <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-purple-200 bg-white sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 dark:border-purple-900/60 dark:bg-slate-900">
           {PERMISSION_TEMPLATES.map((tmpl) => (
             <button
               key={tmpl.key}
               type="button"
               onClick={() => onApplyTemplate(tmpl.key)}
-              className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-purple-100 bg-white hover:border-purple-300 hover:shadow-sm dark:border-ledger-800 dark:bg-slate-850 dark:hover:border-purple-800 transition-all text-center group"
+              className="flex flex-col items-center justify-center border-b border-r border-purple-100 bg-white p-2.5 text-center transition-all group hover:bg-purple-50 hover:border-purple-300 hover:shadow-sm dark:border-ledger-800 dark:bg-slate-850 dark:hover:border-purple-800"
             >
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors dark:bg-purple-950 dark:text-purple-300 mb-1">
                 <Shield className="h-3.5 w-3.5" />
@@ -105,7 +105,7 @@ export function RolesTab({
       </div>
 
       {/* Role Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-ledger-200 bg-white md:grid-cols-2 lg:grid-cols-3 dark:border-ledger-800 dark:bg-slate-900">
         {roles.map((role) => {
           const roleUsers = users.filter(
             (u) => u.role === role.key || u.role === role.id || u.roleLabel === role.name
@@ -116,7 +116,7 @@ export function RolesTab({
           return (
             <div
               key={role.id}
-              className="flex flex-col justify-between rounded-2xl border border-ledger-200 bg-white p-5 shadow-sm transition-all hover:border-purple-300 hover:shadow-md dark:border-ledger-800 dark:bg-slate-900 dark:hover:border-purple-900"
+              className="flex flex-col justify-between border-b border-r border-ledger-200 bg-white p-5 shadow-sm transition-all hover:bg-purple-50/20 hover:border-purple-300 hover:shadow-md dark:border-ledger-800 dark:bg-slate-900 dark:hover:border-purple-900"
             >
               <div className="space-y-4">
                 
