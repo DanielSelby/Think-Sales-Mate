@@ -1142,7 +1142,6 @@ export function UserManagement({
           { key: "roles", label: "Roles & Templates", count: roles.length },
           { key: "permissions", label: "Permissions", count: permissionsCount },
           { key: "matrix", label: "Access Matrix" },
-          { key: "tab_access", label: "Tab Access" },
           { key: "action_permissions", label: "Action Permissions" },
           { key: "approvals", label: "Approval Matrix" },
           { key: "branches", label: "Branch Access" },
@@ -1314,11 +1313,11 @@ export function UserManagement({
 />
         )}
 
-        {(activeTab === "tab_access" || activeTab === "action_permissions") && (
+        {activeTab === "action_permissions" && (
           <AccessMatrixTab
             roles={roles}
             canManage={canManage}
-            mode={activeTab === "action_permissions" ? "actions" : "tabs"}
+            mode="actions"
             onUpdateRolePermissions={(roleId, permissions) => {
               setRoles((prev) => prev.map((role) => role.id === roleId ? { ...role, permissions } : role));
               const updatedRole = roles.find((role) => role.id === roleId);
