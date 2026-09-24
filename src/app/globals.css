@@ -92,6 +92,15 @@ html.dark .dashboard-motion .rounded-card:hover {
     border-color: transparent !important;
     background-color: transparent !important;
   }
+
+  .page-canvas .new-sale-page .rounded-card,
+  .page-canvas .new-sale-page [class*="rounded-2xl"][class*="bg-white"],
+  .page-canvas .new-sale-page [class*="rounded-xl"][class*="bg-white"],
+  .page-canvas .new-sale-page [class*="rounded-lg"][class*="bg-white"],
+  .page-canvas .new-sale-page .bg-white,
+  .page-canvas .new-sale-page [class*="bg-white/"] {
+    background-color: #fff !important;
+  }
   body {
     @apply bg-ledger-50 text-ink-900 dark:bg-ink-950 dark:text-ledger-100;
     -webkit-font-smoothing: antialiased;
