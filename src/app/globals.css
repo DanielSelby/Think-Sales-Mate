@@ -82,6 +82,16 @@ html.dark .dashboard-motion .rounded-card:hover {
     border: 0 !important;
     border-color: transparent !important;
   }
+
+  /* Keep dashboard cards open against the page canvas across every module.
+     Inputs and other controls retain their own surfaces and focus states. */
+  .page-canvas .rounded-card,
+  .page-canvas [class*="rounded-2xl"][class*="bg-white"],
+  .page-canvas [class*="rounded-xl"][class*="bg-white"],
+  .page-canvas [class*="rounded-lg"][class*="bg-white"] {
+    border-color: transparent !important;
+    background-color: transparent !important;
+  }
   body {
     @apply bg-ledger-50 text-ink-900 dark:bg-ink-950 dark:text-ledger-100;
     -webkit-font-smoothing: antialiased;
@@ -161,13 +171,32 @@ html.dark .hrm-page .bg-slate-50 {
 .procurement-page .rounded-card,
 .procurement-page .rounded-2xl.border {
   border-color: transparent !important;
-  background-color: #fff !important;
+  background-color: transparent !important;
+}
+
+.approval-page .bg-white,
+.sales-page .bg-white,
+.orders-page .bg-white,
+.procurement-page .bg-white,
+.product-page .bg-white,
+.approval-page [class*="bg-white/"],
+.sales-page [class*="bg-white/"],
+.orders-page [class*="bg-white/"],
+.procurement-page [class*="bg-white/"],
+.product-page [class*="bg-white/"] {
+  background-color: transparent !important;
 }
 
 html.dark .procurement-page .rounded-card,
 html.dark .procurement-page .rounded-2xl.border,
+html.dark .approval-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark .approval-page [class*="rounded-xl"][class*="bg-white"],
+html.dark .sales-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark .sales-page [class*="rounded-xl"][class*="bg-white"],
 html.dark .orders-page [class*="rounded-2xl"][class*="bg-white"],
 html.dark .orders-page [class*="rounded-xl"][class*="bg-white"],
+html.dark .product-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark .product-page [class*="rounded-xl"][class*="bg-white"],
 html.dark .crm-page [class*="rounded-2xl"][class*="bg-white"],
 html.dark .crm-page [class*="rounded-xl"][class*="bg-white"],
 html.dark .inventory-intelligence-page [class*="rounded-2xl"][class*="bg-white"],
@@ -178,14 +207,28 @@ html.dark .inventory-intelligence-page [class*="rounded-xl"][class*="bg-white"] 
 }
 
 html.dark .procurement-page .bg-white,
+html.dark .approval-page .bg-white,
+html.dark .sales-page .bg-white,
 html.dark .orders-page .bg-white,
+html.dark .product-page .bg-white,
 html.dark .crm-page .bg-white,
 html.dark .inventory-intelligence-page .bg-white {
   background-color: #0f1d2d !important;
 }
 
+html.dark .approval-page [class*="bg-white/"],
+html.dark .sales-page [class*="bg-white/"],
+html.dark .orders-page [class*="bg-white/"],
+html.dark .procurement-page [class*="bg-white/"],
+html.dark .product-page [class*="bg-white/"] {
+  background-color: #0f1d2d !important;
+}
+
 html.dark .procurement-page [class~="bg-ledger-50"],
+html.dark .approval-page [class~="bg-ledger-50"],
+html.dark .sales-page [class~="bg-ledger-50"],
 html.dark .orders-page [class~="bg-ledger-50"],
+html.dark .product-page [class~="bg-ledger-50"],
 html.dark .crm-page [class~="bg-slate-50"],
 html.dark .inventory-intelligence-page [class~="bg-slate-50"],
 html.dark .inventory-intelligence-page [class~="bg-[#f5f8fc]"] {
