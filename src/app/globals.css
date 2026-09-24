@@ -67,6 +67,11 @@ html.dark .dashboard-motion .rounded-card:hover {
     text-rendering: optimizeLegibility;
     font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
   }
+
+  /* POS uses spacing and surface contrast instead of bordered cards. */
+  .pos-page [class*="border"] {
+    border-color: transparent !important;
+  }
   body {
     @apply bg-ledger-50 text-ink-900 dark:bg-ink-950 dark:text-ledger-100;
     -webkit-font-smoothing: antialiased;

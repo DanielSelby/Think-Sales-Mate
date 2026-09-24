@@ -698,7 +698,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const dateLabel = now.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" }) + " " + now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
 
   return (
-    <div className="flex min-h-0 h-full flex-col gap-3 overflow-x-hidden pb-16 lg:pb-0">
+    <div className="pos-page flex min-h-0 h-full flex-col gap-3 overflow-x-hidden pb-16 lg:pb-0">
       {notice && <div className="rounded-md border border-signal/30 bg-signal-soft px-3 py-2 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">{notice}</div>}
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{error}</div>}
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => { setTransactionFeedback(null); router.refresh(); }} />}
