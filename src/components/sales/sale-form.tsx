@@ -825,7 +825,7 @@ export function SaleForm({
 
       <div className="mt-5 space-y-5">
           {/* Customer & Sale Details — merged, matching the reference layout */}
-          <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+          <div className="sale-details-section rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-ledger-400" />

@@ -101,6 +101,15 @@ html.dark .dashboard-motion .rounded-card:hover {
   .page-canvas .new-sale-page [class*="bg-white/"] {
     background-color: #fff !important;
   }
+
+  .page-canvas .new-sale-page .sale-details-section {
+    border: 1px solid rgb(226 232 240) !important;
+    border-color: rgb(226 232 240) !important;
+  }
+
+  html.dark .page-canvas .new-sale-page .sale-details-section {
+    border-color: rgb(51 73 96) !important;
+  }
   body {
     @apply bg-ledger-50 text-ink-900 dark:bg-ink-950 dark:text-ledger-100;
     -webkit-font-smoothing: antialiased;
