@@ -163,7 +163,7 @@ export async function updateJournalStatus(id: string, status: "posted" | "revers
 
 export async function saveAccountingSettings(input: {
   financialYearStart: string; financialYearEnd: string; periodLockDate: string | null; defaultCurrency: string;
-  approvalThreshold: number; autoJournalRules: { sales: boolean; purchases: boolean; expenses: boolean; inventoryAdjustments: boolean };
+  approvalThreshold: number; autoJournalRules: { sales: boolean; purchases: boolean; expenses: boolean; inventoryAdjustments: boolean; payroll?: boolean };
   numberSequences: { journalPrefix: string; invoicePrefix: string; billPrefix: string };
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
@@ -174,6 +174,7 @@ export async function saveAccountingSettings(input: {
     period_lock_date: input.periodLockDate || null, default_currency: input.defaultCurrency, approval_threshold: input.approvalThreshold,
     auto_journal_sales: input.autoJournalRules.sales, auto_journal_purchases: input.autoJournalRules.purchases,
     auto_journal_expenses: input.autoJournalRules.expenses, auto_journal_inventory: input.autoJournalRules.inventoryAdjustments,
+    auto_journal_payroll: input.autoJournalRules.payroll ?? true,
     sequence_prefix_journal: input.numberSequences.journalPrefix, sequence_prefix_invoice: input.numberSequences.invoicePrefix,
     sequence_prefix_bill: input.numberSequences.billPrefix, updated_at: new Date().toISOString(),
   }, { onConflict: "org_id" });

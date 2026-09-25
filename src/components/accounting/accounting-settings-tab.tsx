@@ -193,6 +193,19 @@ export function AccountingSettingsTab({ initialSettings }: { initialSettings?: A
           <label className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/40 cursor-pointer">
             <input
               type="checkbox"
+              checked={autoRules.payroll ?? true}
+              onChange={(e) => setAutoRules({ ...autoRules, payroll: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <div>
+              <p className="font-semibold text-slate-800 dark:text-white">Payroll Integration</p>
+              <p className="text-[11px] text-slate-400">Include payroll salary expenses in accounting automation.</p>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/40 cursor-pointer">
+            <input
+              type="checkbox"
               checked={autoRules.purchases}
               onChange={(e) => setAutoRules({ ...autoRules, purchases: e.target.checked })}
               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"

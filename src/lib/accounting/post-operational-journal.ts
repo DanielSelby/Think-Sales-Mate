@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type AccountRow = {
   id: string;
   name: string;
+  sub_type: string | null;
   type: "asset" | "liability" | "equity" | "revenue" | "cogs" | "expense";
 };
 
@@ -34,7 +35,7 @@ export async function postOperationalJournal(
 ): Promise<{ journalId: string | null; error: string | null }> {
   const { data: accounts, error: accountsError } = await supabase
     .from("accounting_accounts")
-    .select("id, name, type")
+    .select("id, name, sub_type, type")
     .eq("org_id", input.orgId)
     .eq("is_active", true);
 
@@ -63,16 +64,29 @@ export async function postOperationalJournal(
 export async function resolveOperationalAccounts(
   supabase: SupabaseClient,
   orgId: string,
-  kind: "sale" | "expense" | "purchase" | "purchase_payment" | "collection",
+  kind: "sale" | "expense" | "purchase" | "purchase_payment" | "collection" | "payroll",
 ): Promise<{ debitAccountId: string | null; creditAccountId: string | null; error: string | null }> {
   const { data, error } = await supabase
     .from("accounting_accounts")
-    .select("id, name, type")
+    .select("id, name, sub_type, type")
     .eq("org_id", orgId)
     .eq("is_active", true);
   if (error) return { debitAccountId: null, creditAccountId: null, error: error.message };
 
   const accounts = (data ?? []) as AccountRow[];
+  if (kind === "payroll") {
+    const payrollAccounts = accounts.filter((account) => /payroll|salary|wages/i.test(`${account.name} ${account.sub_type ?? ""}`));
+    const debit = payrollAccounts.find((account) => account.type === "expense" && /payroll|salary|wages/i.test(`${account.name} ${account.sub_type ?? ""}`));
+    const credit = payrollAccounts.find((account) => account.type === "liability" && /payable|liability|payroll|salary/i.test(`${account.name} ${account.sub_type ?? ""}`));
+    if (!debit || !credit) {
+      return {
+        debitAccountId: debit?.id ?? null,
+        creditAccountId: credit?.id ?? null,
+        error: "Configure a payroll salary expense account and a payroll payable liability account before running automatic payroll journals.",
+      };
+    }
+    return { debitAccountId: debit.id, creditAccountId: credit.id, error: null };
+  }
   const debit = kind === "sale" || kind === "collection"
     ? chooseAccount(accounts, "asset", kind === "collection" ? ["cash", "bank", "mobile", "momo"] : ["cash", "bank", "mobile", "momo", "receivable"])
     : kind === "purchase"

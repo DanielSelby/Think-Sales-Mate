@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import { generatePayslipsForRun } from "@/app/(dashboard)/hrm/actions";
+import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 
 function redirectWithError(message: string): never {
   redirect(`/hrm/payroll?error=${encodeURIComponent(message)}`);
@@ -52,6 +53,26 @@ export async function runPayroll(): Promise<void> {
   }
 
   const totalAmount = employees.reduce((sum, e) => sum + Number(e.monthly_salary), 0);
+
+  const db = supabase as any;
+  const { data: accountingSettings, error: accountingSettingsError } = await db
+    .from("accounting_settings")
+    .select("auto_journal_payroll")
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (accountingSettingsError) redirectWithError(accountingSettingsError.message);
+
+  const autoJournalPayroll = accountingSettings?.auto_journal_payroll ?? true;
+  const payrollAccounts = autoJournalPayroll
+    ? await resolveOperationalAccounts(supabase, context.orgId, "payroll")
+    : null;
+  if (payrollAccounts?.error) redirectWithError(payrollAccounts.error);
+  if (
+    autoJournalPayroll
+    && (!payrollAccounts || !payrollAccounts.debitAccountId || !payrollAccounts.creditAccountId)
+  ) {
+    redirectWithError("Configure payroll accounting accounts before running payroll.");
+  }
 
   const { data: expense, error: expenseError } = await supabase
     .from("expenses")
@@ -108,7 +129,48 @@ export async function runPayroll(): Promise<void> {
   }));
 
   const { error: itemsError } = await supabase.from("payroll_run_items").insert(itemRows);
-  if (itemsError) redirectWithError(itemsError.message);
+  if (itemsError) {
+    await supabase.from("payroll_runs").delete().eq("id", run.id).eq("org_id", context.orgId);
+    await supabase.from("expenses").delete().eq("id", expense.id).eq("org_id", context.orgId);
+    redirectWithError(itemsError.message);
+  }
+
+  if (autoJournalPayroll && payrollAccounts) {
+    const debitAccountId = payrollAccounts.debitAccountId;
+    const creditAccountId = payrollAccounts.creditAccountId;
+    if (!debitAccountId || !creditAccountId) {
+      redirectWithError("Configure payroll accounting accounts before running payroll.");
+    }
+    const journal = await postOperationalJournal(supabase, {
+      orgId: context.orgId,
+      actorId: context.userId,
+      sourceModule: "payroll",
+      sourceId: run.id,
+      date: periodEnd,
+      locationId: context.isBranchScoped ? context.locationId : null,
+      reference: `PAYROLL-${periodMonth.slice(0, 7)}`,
+      description: `Payroll salary accrual — ${periodLabel}`,
+      lines: [
+        {
+          account_id: debitAccountId,
+          description: `Salary expense — ${periodLabel}`,
+          debit: totalAmount,
+          credit: 0,
+        },
+        {
+          account_id: creditAccountId,
+          description: `Payroll payable — ${periodLabel}`,
+          debit: 0,
+          credit: totalAmount,
+        },
+      ],
+    });
+    if (journal.error) {
+      await supabase.from("payroll_runs").delete().eq("id", run.id).eq("org_id", context.orgId);
+      await supabase.from("expenses").delete().eq("id", expense.id).eq("org_id", context.orgId);
+      redirectWithError(`Payroll was not completed because its accounting journal could not be posted: ${journal.error}`);
+    }
+  }
 
   const generation = await generatePayslipsForRun({
     runId: run.id,

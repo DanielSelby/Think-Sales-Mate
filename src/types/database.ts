@@ -1732,6 +1732,14 @@ export interface Database {
           deductions: number;
           net_pay: number;
           amount: number;
+          allowances: number;
+          overtime: number;
+          bonus: number;
+          tax: number;
+          ssnit: number;
+          payment_status: "pending" | "partially_paid" | "paid";
+          paid_at: string | null;
+          paid_by: string | null;
           created_at: string;
         };
         Insert: {
@@ -1744,6 +1752,14 @@ export interface Database {
           deductions?: number;
           net_pay?: number;
           amount: number;
+          allowances?: number;
+          overtime?: number;
+          bonus?: number;
+          tax?: number;
+          ssnit?: number;
+          payment_status?: "pending" | "partially_paid" | "paid";
+          paid_at?: string | null;
+          paid_by?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["payroll_run_items"]["Row"]>;
@@ -1756,6 +1772,28 @@ export interface Database {
             referencedColumns: ["id"];
           }
         ];
+      };
+      payroll_approval_history: {
+        Row: {
+          id: string;
+          org_id: string;
+          payroll_run_id: string;
+          actor_id: string | null;
+          action: "draft" | "submitted" | "approved" | "rejected" | "paid";
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          payroll_run_id: string;
+          actor_id?: string | null;
+          action: "draft" | "submitted" | "approved" | "rejected" | "paid";
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["payroll_approval_history"]["Row"]>;
+        Relationships: [];
       };
       payslips: {
         Row: {
