@@ -4,8 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import {
-  Search, Filter, ChevronLeft, ChevronRight, Calendar, Download, LogIn, X, RefreshCw,
-  Users, CheckCircle2, XCircle, Clock3, LogOut as LogOutIcon, Plus, Settings, Upload, FileBarChart,
+  Search, ChevronLeft, ChevronRight, Calendar, Download, LogIn, X, RefreshCw,
+  Users, CheckCircle2, XCircle, Clock3, LogOut as LogOutIcon, Plus, FileBarChart,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ATTENDANCE_STATUS_LABEL, ATTENDANCE_STATUS_TONE, WORK_TYPES, formatTime } from "@/lib/hrm/attendance";
 import { AttendanceRowMenu } from "@/components/hrm/attendance/attendance-row-menu";
-import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
+import { PayrollKpi } from "@/components/hrm/payroll-kpi";
 import { MarkAttendanceDialog, type EmployeeOption, type EditingAttendance } from "@/components/hrm/attendance/mark-attendance-dialog";
 import { checkIn, bulkMarkAbsent } from "@/app/(dashboard)/hrm/attendance/actions";
 import type { AttendanceStatus } from "@/types/database";
@@ -210,11 +210,11 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <KpiFlipCard color="blue" label="Total Employees" value={`${filteredKpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Number of attendance rows matching the current filters." />
-            <KpiFlipCard color="green" label="Present Today" value={`${filteredKpis.present} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.present / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<CheckCircle2 className="h-full w-full" />} detail="Filtered employees marked Present today." featured />
-            <KpiFlipCard color="red" label="Absent Today" value={`${filteredKpis.absent} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.absent / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<XCircle className="h-full w-full" />} detail="Filtered employees marked Absent today." />
-            <KpiFlipCard color="amber" label="Late Today" value={`${filteredKpis.late} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.late / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<Clock3 className="h-full w-full" />} detail="Filtered employees marked Late today." />
-            <KpiFlipCard color="purple" label="Early Leave" value={`${filteredKpis.earlyLeave} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.earlyLeave / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<LogOutIcon className="h-full w-full" />} detail="Filtered employees who left early today." />
+            <PayrollKpi tone="blue" label="Total Employees" value={`${filteredKpis.totalEmployees}`} icon={<Users className="h-4 w-4" />} />
+            <PayrollKpi tone="green" label="Present Today" value={`${filteredKpis.present} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.present / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<CheckCircle2 className="h-4 w-4" />} />
+            <PayrollKpi tone="orange" label="Absent Today" value={`${filteredKpis.absent} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.absent / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<XCircle className="h-4 w-4" />} />
+            <PayrollKpi tone="purple" label="Late Today" value={`${filteredKpis.late} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.late / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<Clock3 className="h-4 w-4" />} />
+            <PayrollKpi tone="teal" label="Early Leave" value={`${filteredKpis.earlyLeave} (${filteredKpis.totalEmployees ? Math.round((filteredKpis.earlyLeave / filteredKpis.totalEmployees) * 100) : 0}%)`} icon={<LogOutIcon className="h-4 w-4" />} />
           </div>
 
           {/* Filters */}
@@ -239,7 +239,6 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
                   <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Search employees..." className="pl-9" />
                 </div>
-                <Button variant="outline" size="md"><Filter className="h-4 w-4" /> Filters</Button>
                 <Button variant="ghost" size="md" onClick={() => { setQuery(""); setDepartment("all"); setStatus("all"); setPage(1); }}>
                   <RefreshCw className="h-4 w-4" /> Clear
                 </Button>
@@ -377,9 +376,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Quick Actions</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-2 pt-0">
               <QuickAction icon={Plus} label="Add Manual Entry" onClick={openAdd} />
-              <QuickAction icon={Settings} label="Attendance Settings" disabled />
-              <QuickAction icon={Upload} label="Import Attendance" disabled />
-              <QuickAction icon={FileBarChart} label="Generate Report" onClick={exportCsv} />
+              <QuickAction icon={FileBarChart} label="Export Attendance" onClick={exportCsv} />
             </CardContent>
           </Card>
         </div>
@@ -391,9 +388,9 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
 }
 
 
-function QuickAction({ icon: Icon, label, onClick, disabled }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick?: () => void; disabled?: boolean }) {
+function QuickAction({ icon: Icon, label, onClick }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} disabled={disabled} title={disabled ? "Not built yet" : undefined} className={cn("flex flex-col items-center gap-1.5 rounded-md border border-ledger-100 p-3 text-center text-xs dark:border-ledger-700", disabled ? "opacity-40" : "hover:border-ledger-300 hover:bg-ledger-50 dark:hover:bg-white/[0.06]")}>
+    <button type="button" onClick={onClick} className="flex flex-col items-center gap-1.5 rounded-md border border-ledger-100 p-3 text-center text-xs hover:border-ledger-300 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]">
       <Icon className="h-4 w-4 text-ledger-500" />
       <span className="text-ledger-600 dark:text-ledger-300">{label}</span>
     </button>

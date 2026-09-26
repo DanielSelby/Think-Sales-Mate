@@ -3,8 +3,8 @@
 import * as React from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import {
-  Search, Filter, Plus, Download, X, RefreshCw, Users, CalendarOff, Clock3, CheckCircle2, XCircle,
-  ChevronLeft, ChevronRight, Settings,
+  Search, Plus, Download, X, RefreshCw, Users, CalendarOff, Clock3, CheckCircle2, XCircle,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
   LEAVE_STATUS_LABEL, LEAVE_STATUS_TONE, BALANCE_BUCKET_LABEL, BALANCE_BUCKET_COLOR, type BalanceBucket,
 } from "@/lib/hrm/leave";
 import { LeaveRowMenu } from "@/components/hrm/leave/leave-row-menu";
-import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
+import { PayrollKpi } from "@/components/hrm/payroll-kpi";
 import { NewLeaveRequestDialog, type EmployeeOption } from "@/components/hrm/leave/new-leave-request-dialog";
 import type { LeaveTypeOption } from "@/app/(dashboard)/hrm/leave/actions";
 import type { LeaveStatus } from "@/types/database";
@@ -136,7 +136,6 @@ export function LeaveListView({
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="md" onClick={exportCsv}><Download className="h-4 w-4" /> Export Report</Button>
-          <Button variant="outline" size="md" disabled title="Not built yet"><Settings className="h-4 w-4" /> Leave Settings</Button>
           <Button variant="primary" size="md" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> New Leave Request</Button>
         </div>
       </div>
@@ -154,11 +153,11 @@ export function LeaveListView({
       <div className="space-y-5">
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <KpiFlipCard color="blue" label="Total Employees" value={`${kpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Org-wide employee headcount — not scoped to these leave filters." />
-            <KpiFlipCard color="green" label="On Leave Today" value={`${filteredKpis.onLeaveToday}`} icon={<CalendarOff className="h-full w-full" />} detail="Filtered, approved requests covering today's date." featured />
-            <KpiFlipCard color="amber" label="Pending Requests" value={`${filteredKpis.pendingRequests}`} icon={<Clock3 className="h-full w-full" />} detail="Filtered requests awaiting a decision." />
-            <KpiFlipCard color="teal" label="Approved (This Month)" value={`${filteredKpis.approvedThisMonth}`} icon={<CheckCircle2 className="h-full w-full" />} detail="Filtered requests approved since the 1st of this month." />
-            <KpiFlipCard color="red" label="Rejected (This Month)" value={`${filteredKpis.rejectedThisMonth}`} icon={<XCircle className="h-full w-full" />} detail="Filtered requests rejected since the 1st of this month." />
+            <PayrollKpi tone="blue" label="Total Employees" value={`${kpis.totalEmployees}`} icon={<Users className="h-4 w-4" />} />
+            <PayrollKpi tone="green" label="On Leave Today" value={`${filteredKpis.onLeaveToday}`} icon={<CalendarOff className="h-4 w-4" />} />
+            <PayrollKpi tone="orange" label="Pending Requests" value={`${filteredKpis.pendingRequests}`} icon={<Clock3 className="h-4 w-4" />} />
+            <PayrollKpi tone="teal" label="Approved (This Month)" value={`${filteredKpis.approvedThisMonth}`} icon={<CheckCircle2 className="h-4 w-4" />} />
+            <PayrollKpi tone="purple" label="Rejected (This Month)" value={`${filteredKpis.rejectedThisMonth}`} icon={<XCircle className="h-4 w-4" />} />
           </div>
 
           <Card accent="neutral">
@@ -191,7 +190,6 @@ export function LeaveListView({
                     <option value="rejected">Rejected</option>
                   </Select>
                 </div>
-                <Button variant="outline" size="md"><Filter className="h-4 w-4" /> Filters</Button>
                 <Button variant="ghost" size="md" onClick={() => { setQuery(""); setDepartment("all"); setLeaveType("all"); setStatus("all"); setPage(1); }}>
                   <RefreshCw className="h-4 w-4" /> Clear
                 </Button>

@@ -5,18 +5,16 @@ import Link from "next/link";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import {
   Users, Banknote, TrendingUp, TrendingDown, Clock3, Plus, PlayCircle, FileBarChart,
-  Settings, CalendarClock, UserPlus, ClipboardCheck, Wallet, Receipt,
+  CalendarClock, UserPlus, ClipboardCheck, Wallet, Receipt,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/sales/format";
 import {
   EMPLOYMENT_TYPE_LABEL, EMPLOYMENT_TYPE_TONE, EMPLOYEE_STATUS_LABEL, EMPLOYEE_STATUS_TONE,
   deriveEmployeeStatus, formatEmployeeCode,
 } from "@/lib/hrm/format";
-import { ProcessPayrollDialog } from "@/components/hrm/process-payroll-dialog";
-import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
+import { PayrollKpi } from "@/components/hrm/payroll-kpi";
 import type { EmploymentType } from "@/types/database";
 
 export interface DashboardKpis {
@@ -84,40 +82,46 @@ export function HrmDashboardView({
   kpis, payrollHistory, distribution, employeesPreview, totalEmployeeCount, activeEmployeeCount,
   grossPayPreview, currency, upcomingPayments, recentActivity,
 }: HrmDashboardViewProps) {
-  const [payrollDialogOpen, setPayrollDialogOpen] = React.useState(false);
   const distributionTotal = distribution.reduce((sum, d) => sum + d.value, 0);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto max-w-[1680px] space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">HRM &amp; Payroll</h1>
-          <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">Home &gt; HRM &amp; Payroll</p>
+          <p className="mb-1 text-[11px] font-semibold text-[var(--theme-primary)]">HRM &amp; Payroll <span className="mx-1 text-slate-300">›</span> Overview</p>
+          <h1 className="text-xl font-bold text-[#12345a] dark:text-white">HRM &amp; Payroll Overview</h1>
+          <p className="text-xs text-ledger-500 dark:text-ledger-400">Monitor employees, payroll costs and upcoming payments.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/hrm/employees/new" className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-ink-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-ink-950 dark:bg-white dark:text-ink-900">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/hrm/employees/new" className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: "var(--theme-primary)" }}>
             <Plus className="h-4 w-4" /> Add Employee
           </Link>
-          <Button variant="outline" size="md" onClick={() => setPayrollDialogOpen(true)}><PlayCircle className="h-4 w-4" /> Run Payroll</Button>
-          <Button variant="outline" size="md" disabled title="Not built yet"><FileBarChart className="h-4 w-4" /> Reports</Button>
-          <Button variant="outline" size="md" disabled title="Not built yet"><Settings className="h-4 w-4" /> Settings</Button>
+          <Link href="/hrm/payroll" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-ink-800">
+            <PlayCircle className="h-4 w-4" /> Run Payroll
+          </Link>
+          <Link href="/hrm/reports" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-ink-800">
+            <FileBarChart className="h-4 w-4" /> Reports
+          </Link>
+          <Link href="/hrm/payslips" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-ink-800">
+            <Receipt className="h-4 w-4" /> Payslips
+          </Link>
         </div>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-        <KpiFlipCard color="blue" label="Total Employees" value={`${kpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Total employee headcount across the organization." />
-        <KpiFlipCard color="green" label="Total Payroll (This Month)" value={formatCurrency(kpis.totalPayrollThisMonth, currency)} icon={<Banknote className="h-full w-full" />} detail="Combined payroll cost recorded so far this month." featured />
-        <KpiFlipCard color="teal" label="Net Pay (This Month)" value={formatCurrency(kpis.netPayThisMonth, currency)} icon={<TrendingUp className="h-full w-full" />} detail="Total net pay disbursed to employees this month, after deductions." />
-        <KpiFlipCard color="amber" label="Deductions (This Month)" value={formatCurrency(kpis.deductionsThisMonth, currency)} icon={<TrendingDown className="h-full w-full" />} detail="Total deductions withheld across this month's payroll." />
-        <KpiFlipCard color="red" label="Pending Payments" value={`${kpis.pendingPayments}`} icon={<Clock3 className="h-full w-full" />} detail="Payroll payments still awaiting disbursement." />
+        <PayrollKpi tone="blue" label="Total Employees" value={`${kpis.totalEmployees}`} icon={<Users className="h-4 w-4" />} />
+        <PayrollKpi tone="green" label="Total Payroll (This Month)" value={formatCurrency(kpis.totalPayrollThisMonth, currency)} icon={<Banknote className="h-4 w-4" />} />
+        <PayrollKpi tone="teal" label="Net Pay (This Month)" value={formatCurrency(kpis.netPayThisMonth, currency)} icon={<TrendingUp className="h-4 w-4" />} />
+        <PayrollKpi tone="purple" label="Deductions (This Month)" value={formatCurrency(kpis.deductionsThisMonth, currency)} icon={<TrendingDown className="h-4 w-4" />} />
+        <PayrollKpi tone="orange" label="Pending Payments" value={`${kpis.pendingPayments}`} icon={<Clock3 className="h-4 w-4" />} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_360px]">
         {/* Payroll Overview */}
         <Card accent="neutral">
           <CardHeader className="pb-2">
-            <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Payroll Overview</CardTitle>
+            <CardTitle className="normal-case tracking-normal text-sm font-bold text-[#12345a] dark:text-white">Payroll Overview</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             {payrollHistory.length === 0 ? (
@@ -165,7 +169,7 @@ export function HrmDashboardView({
         {/* Payroll Run */}
         <Card accent="signal">
           <CardHeader className="pb-2">
-            <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Payroll Run</CardTitle>
+            <CardTitle className="normal-case tracking-normal text-sm font-bold text-[#12345a] dark:text-white">Payroll Run</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5 pt-0 text-sm">
             <Row label="Active Employees" value={`${activeEmployeeCount}`} />
@@ -174,9 +178,9 @@ export function HrmDashboardView({
               <span className="text-ledger-500">Status</span>
               <Badge tone="neutral">Not yet processed</Badge>
             </div>
-            <Button variant="primary" size="md" onClick={() => setPayrollDialogOpen(true)} className="mt-2 w-full" disabled={activeEmployeeCount === 0}>
+            <Link href="/hrm/payroll" className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50" style={{ backgroundColor: "var(--theme-primary)" }}>
               <PlayCircle className="h-4 w-4" /> Process Payroll
-            </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
@@ -185,7 +189,7 @@ export function HrmDashboardView({
         {/* Employees preview */}
         <Card accent="neutral" className="overflow-hidden">
           <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Employees</CardTitle>
+            <CardTitle className="normal-case tracking-normal text-sm font-bold text-[#12345a] dark:text-white">Employees</CardTitle>
             <Link href="/hrm/employees" className="text-xs font-medium text-signal hover:underline">View all {totalEmployeeCount} →</Link>
           </CardHeader>
           <CardContent className="pt-0">
@@ -225,19 +229,19 @@ export function HrmDashboardView({
         {/* Sidebar */}
         <div className="space-y-5">
           <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Quick Actions</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-sm font-bold text-[#12345a] dark:text-white">Quick Actions</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-2 pt-0">
               <QuickAction icon={UserPlus} label="Add Employee" href="/hrm/employees/new" />
-              <QuickAction icon={PlayCircle} label="Run Payroll" onClick={() => setPayrollDialogOpen(true)} />
+              <QuickAction icon={PlayCircle} label="Run Payroll" href="/hrm/payroll" />
               <QuickAction icon={CalendarClock} label="Attendance" href="/hrm/attendance" />
               <QuickAction icon={ClipboardCheck} label="Leave Request" href="/hrm/leave" />
-              <QuickAction icon={Wallet} label="Salary Advance" href="/hrm/payroll" />
+              <QuickAction icon={Wallet} label="Payroll Records" href="/hrm/payroll" />
               <QuickAction icon={Receipt} label="Payslip" href="/hrm/payslips" />
             </CardContent>
           </Card>
 
           <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Upcoming Payments</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-sm font-bold text-[#12345a] dark:text-white">Upcoming Payments</CardTitle></CardHeader>
             <CardContent className="space-y-2.5 pt-0">
               {upcomingPayments.length === 0 && <p className="text-sm text-ledger-400">No upcoming payments scheduled.</p>}
               {upcomingPayments.map((p) => (
@@ -253,7 +257,7 @@ export function HrmDashboardView({
           </Card>
 
           <Card accent="neutral">
-            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Recent HR Activity</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-sm font-bold text-[#12345a] dark:text-white">Recent HR Activity</CardTitle></CardHeader>
             <CardContent className="space-y-2.5 pt-0">
               {recentActivity.length === 0 && <p className="text-sm text-ledger-400">No recent activity.</p>}
               {recentActivity.map((a) => (
@@ -269,14 +273,6 @@ export function HrmDashboardView({
         </div>
       </div>
 
-      <ProcessPayrollDialog
-        open={payrollDialogOpen}
-        onClose={() => setPayrollDialogOpen(false)}
-        activeEmployeeCount={activeEmployeeCount}
-        grossPayPreview={grossPayPreview}
-        currency={currency}
-        onProcessed={() => {}}
-      />
     </div>
   );
 }
@@ -291,14 +287,12 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function QuickAction({ icon: Icon, label, href, onClick, disabled }: { icon: React.ComponentType<{ className?: string }>; label: string; href?: string; onClick?: () => void; disabled?: boolean }) {
+function QuickAction({ icon: Icon, label, href }: { icon: React.ComponentType<{ className?: string }>; label: string; href: string }) {
   const content = (
-    <div className={`flex flex-col items-center gap-1.5 rounded-md border border-ledger-100 p-3 text-center text-xs dark:border-ledger-700 ${disabled ? "opacity-40" : "hover:border-ledger-300 hover:bg-ledger-50 dark:hover:bg-white/[0.06]"}`}>
+    <div className="flex flex-col items-center gap-1.5 rounded-md border border-ledger-100 p-3 text-center text-xs hover:border-ledger-300 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]">
       <Icon className="h-4 w-4 text-ledger-500" />
       <span className="text-ledger-600 dark:text-ledger-300">{label}</span>
     </div>
   );
-  if (disabled) return <div title="Not built yet">{content}</div>;
-  if (href) return <Link href={href}>{content}</Link>;
-  return <button onClick={onClick} className="w-full">{content}</button>;
+  return <Link href={href}>{content}</Link>;
 }

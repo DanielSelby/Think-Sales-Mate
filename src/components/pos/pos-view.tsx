@@ -29,6 +29,7 @@ import type { HeldSaleKind } from "@/types/database";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 export interface PosProduct {
@@ -132,6 +133,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
   const [transactionFeedback, setTransactionFeedback] = React.useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [outOfStockFeedback, setOutOfStockFeedback] = React.useState<{ item: OutOfStockItem; message: string } | null>(null);
 
   const [heldOpen, setHeldOpen] = React.useState(false);
   const [heldKind, setHeldKind] = React.useState<HeldSaleKind>("hold");
@@ -218,16 +220,50 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     });
   }, [locationProducts, query, activeCategory, activeBrand]);
 
+  function showOutOfStock(product: OutOfStockItem, message?: string) {
+    setError(null);
+    const availableMatch = message?.match(/only\s+(\d+)\s+unit/i);
+    const availableStock = availableMatch
+      ? Number(availableMatch[1])
+      : message && /out of stock|insufficient[_ ]stock/i.test(message)
+        ? 0
+        : product.stockQuantity;
+    setOutOfStockFeedback({
+      item: {
+        ...product,
+        availableStock,
+      },
+      message: message ?? "Sorry! This item is currently out of stock. Please check back later or explore similar products.",
+    });
+  }
+
+  function browseSimilarProduct(product: OutOfStockItem) {
+    setQuery("");
+    if (product.brand) {
+      setBrowseTab("brands");
+      setActiveBrand(product.brand);
+    } else if (product.category) {
+      setBrowseTab("category");
+      setActiveCategory(product.category);
+    } else {
+      setBrowseTab("category");
+      setActiveCategory("all");
+      setActiveBrand("all");
+    }
+    setSearchDropdownOpen(false);
+    setOutOfStockFeedback(null);
+  }
+
   // Adding a product opens the price/description popup on that line — a
   // new line at qty 1, or the existing line with its quantity bumped.
   function addToCart(product: PosProduct) {
     if (product.stockQuantity <= 0) {
-      setError(`${product.name} is out of stock.`);
+      showOutOfStock(product);
       return;
     }
     const existing = cart.find((l) => l.productId === product.id);
     if (existing && existing.quantity >= product.stockQuantity) {
-      setError(`Only ${product.stockQuantity} unit(s) of ${product.name} available.`);
+      showOutOfStock(product, `Only ${product.stockQuantity} unit(s) of ${product.name} are available at this location.`);
       return;
     }
     const line: CartLine = existing
@@ -397,8 +433,16 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         saleDate,
       });
       if (!result.ok) {
-        setTransactionFeedback({ kind: "error", message: result.error ?? "Something went wrong. Review the transaction and try again." });
-        setError(result.error ?? "Something went wrong.");
+        const message = result.error ?? "Something went wrong. Review the transaction and try again.";
+        if (/out of stock|only \d+ unit|insufficient[_ ]stock/i.test(message)) {
+          const affectedLine = cart.find((line) => message.toLowerCase().includes(line.name.toLowerCase()));
+          const affectedProduct = affectedLine ? products.find((product) => product.id === affectedLine.productId) : undefined;
+          showOutOfStock(affectedProduct ?? { name: affectedLine?.name ?? "Selected product", category: null, brand: null }, message);
+          setTransactionFeedback(null);
+        } else {
+          setTransactionFeedback({ kind: "error", message });
+          setError(message);
+        }
         return;
       }
       setTransactionFeedback({ kind: "success", message: `Sale completed successfully using ${method}.` });
@@ -419,8 +463,16 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
         saleDate,
       });
       if (!result.ok) {
-        setTransactionFeedback({ kind: "error", message: result.error ?? "Something went wrong. Review the transaction and try again." });
-        setError(result.error ?? "Something went wrong.");
+        const message = result.error ?? "Something went wrong. Review the transaction and try again.";
+        if (/out of stock|only \d+ unit|insufficient[_ ]stock/i.test(message)) {
+          const affectedLine = cart.find((line) => message.toLowerCase().includes(line.name.toLowerCase()));
+          const affectedProduct = affectedLine ? products.find((product) => product.id === affectedLine.productId) : undefined;
+          showOutOfStock(affectedProduct ?? { name: affectedLine?.name ?? "Selected product", category: null, brand: null }, message);
+          setTransactionFeedback(null);
+        } else {
+          setTransactionFeedback({ kind: "error", message });
+          setError(message);
+        }
         return;
       }
       clearCart();
@@ -702,6 +754,14 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
       {notice && <div className="rounded-md border border-signal/30 bg-signal-soft px-3 py-2 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">{notice}</div>}
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{error}</div>}
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => { setTransactionFeedback(null); router.refresh(); }} />}
+      {outOfStockFeedback && (
+        <OutOfStockFeedback
+          {...outOfStockFeedback}
+          onCheckAgain={() => { setOutOfStockFeedback(null); router.refresh(); }}
+          onBrowseSimilar={() => browseSimilarProduct(outOfStockFeedback.item)}
+          onClose={() => setOutOfStockFeedback(null)}
+        />
+      )}
       {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
 
       {/* Toolbar */}
@@ -819,24 +879,27 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
               <button
                 key={p.id}
                 onClick={() => addToCart(p)}
+                aria-disabled={p.stockQuantity <= 0}
                 className={cn(
-                  "flex flex-col items-center rounded-md border bg-white p-2.5 text-center transition-all hover:border-signal hover:shadow-card-hover dark:bg-ink-900",
+                  "flex flex-col items-center rounded-md border bg-white p-2.5 text-center transition-all dark:bg-ink-900",
                   p.stockQuantity <= 0
-                    ? "border-red-200 opacity-55 dark:border-red-900/60"
-                    : "border-ledger-100 dark:border-ledger-700"
+                    ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 grayscale dark:border-ledger-700 dark:bg-ink-950"
+                    : "border-ledger-100 hover:border-signal hover:shadow-card-hover dark:border-ledger-700"
                 )}
               >
                 <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white p-1.5 dark:border-ledger-700 dark:bg-ink-900">
                   {p.imageUrl ? (
-                    <Image src={p.imageUrl} alt={p.name} fill className="object-contain" unoptimized />
+                    <Image src={p.imageUrl} alt={p.name} fill className={cn("object-contain", p.stockQuantity <= 0 && "grayscale")} unoptimized />
                   ) : (
                     <Package className="h-6 w-6 text-ledger-400" />
                   )}
                 </div>
-                <p className="line-clamp-2 text-[11px] font-medium leading-tight text-ink-900 dark:text-white">{p.name}</p>
+                <p className={cn("line-clamp-2 text-[11px] font-medium leading-tight", p.stockQuantity <= 0 ? "text-slate-500 dark:text-ledger-400" : "text-ink-900 dark:text-white")}>{p.name}</p>
                 <div className="mt-1 flex w-full items-center justify-between gap-1">
-                  <span className="font-mono text-xs text-ink-900 dark:text-white">{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
-                  <span className={cn("text-[10px] font-medium", p.stockQuantity > 0 ? "text-signal" : "text-alert")}>({p.stockQuantity})</span>
+                  <span className={cn("font-mono text-xs", p.stockQuantity <= 0 ? "text-slate-500" : "text-ink-900 dark:text-white")}>{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
+                  {p.stockQuantity > 0
+                    ? <span className="text-[10px] font-medium text-signal">({p.stockQuantity})</span>
+                    : <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold uppercase text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">Out of stock</span>}
                 </div>
               </button>
             ))}
@@ -921,18 +984,30 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
                       {filteredProducts.slice(0, 10).map((p) => (
                         <button
                           key={p.id}
+                          type="button"
+                          aria-disabled={p.stockQuantity <= 0}
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { addToCart(p); setQuery(""); setSearchDropdownOpen(false); }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary + "20"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                          onClick={() => {
+                            addToCart(p);
+                            if (p.stockQuantity > 0) {
+                              setQuery("");
+                              setSearchDropdownOpen(false);
+                            }
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = p.stockQuantity > 0 ? theme.colors.primary + "20" : "#f1f5f9";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = p.stockQuantity > 0 ? "transparent" : "";
+                          }}
                           className={cn(
-                            "block w-full px-3 py-2 text-left",
-                            p.stockQuantity <= 0 && "bg-red-50/50 text-ledger-500 dark:bg-red-950/20"
+                            "block w-full px-3 py-2 text-left transition-colors",
+                            p.stockQuantity <= 0 && "cursor-not-allowed bg-slate-100 opacity-65 dark:bg-ink-950"
                           )}
                         >
-                          <p className="truncate text-sm font-medium text-ink-900 dark:text-white">{p.name}</p>
-                          <p className="text-xs text-ledger-400">
-                            Price: {formatCurrency(getTierPrice(p, priceTier), currency)} · {p.stockQuantity > 0 ? `${p.stockQuantity}Pc(s)` : "Out of stock"}
+                          <p className={cn("truncate text-sm font-medium", p.stockQuantity > 0 ? "text-ink-900 dark:text-white" : "text-slate-500 dark:text-ledger-400")}>{p.name}</p>
+                          <p className={cn("text-xs", p.stockQuantity > 0 ? "text-ledger-400" : "text-slate-500 dark:text-ledger-400")}>
+                            Price: {formatCurrency(getTierPrice(p, priceTier), currency)} · {p.stockQuantity > 0 ? `${p.stockQuantity}Pc(s)` : <span className="font-semibold text-rose-700 dark:text-rose-300">Out of stock</span>}
                           </p>
                         </button>
                       ))}

@@ -1,4 +1,5 @@
 import { HrmTabNavigation } from "@/components/hrm/hrm-tab-navigation";
+import styles from "@/components/hrm/hrm-theme.module.css";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { isTabVisible, loadPermissionMatrix } from "@/lib/rbac/permissions";
 
@@ -28,7 +29,7 @@ export default async function HrmLayout({ children }: { children: React.ReactNod
     .map(([href]) => href);
 
   return (
-    <div className="hrm-page space-y-1">
+    <div className={`hrm-page space-y-1 ${styles.shell}`}>
       <HrmTabNavigation visibleTabs={visibleTabs} />
       {children}
     </div>

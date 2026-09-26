@@ -77,8 +77,9 @@ export default async function HrmDashboardPage() {
   if (upcomingRun) {
     const { data: items } = await supabase
       .from("payroll_run_items")
-      .select("id, employee_name, amount")
+      .select("id, employee_name, amount, payment_status")
       .eq("payroll_run_id", upcomingRun.id)
+      .neq("payment_status", "paid")
       .order("amount", { ascending: false })
       .limit(3);
     upcomingPayments = (items ?? []).map((i) => ({
@@ -91,7 +92,8 @@ export default async function HrmDashboardPage() {
     const { count } = await supabase
       .from("payroll_run_items")
       .select("id", { count: "exact", head: true })
-      .eq("payroll_run_id", upcomingRun.id);
+      .eq("payroll_run_id", upcomingRun.id)
+      .neq("payment_status", "paid");
     kpis.pendingPayments = count ?? 0;
   }
 

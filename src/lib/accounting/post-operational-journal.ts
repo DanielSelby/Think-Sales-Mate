@@ -76,13 +76,15 @@ export async function resolveOperationalAccounts(
   const accounts = (data ?? []) as AccountRow[];
   if (kind === "payroll") {
     const payrollAccounts = accounts.filter((account) => /payroll|salary|wages/i.test(`${account.name} ${account.sub_type ?? ""}`));
-    const debit = payrollAccounts.find((account) => account.type === "expense" && /payroll|salary|wages/i.test(`${account.name} ${account.sub_type ?? ""}`));
-    const credit = payrollAccounts.find((account) => account.type === "liability" && /payable|liability|payroll|salary/i.test(`${account.name} ${account.sub_type ?? ""}`));
+    const debit = payrollAccounts.find((account) => account.type === "expense")
+      ?? accounts.find((account) => account.type === "expense" && /salary|wages|payroll/i.test(account.name));
+    const credit = payrollAccounts.find((account) => account.type === "liability")
+      ?? accounts.find((account) => account.type === "liability" && /accounts payable|payroll payable|salary payable/i.test(account.name));
     if (!debit || !credit) {
       return {
         debitAccountId: debit?.id ?? null,
         creditAccountId: credit?.id ?? null,
-        error: "Configure a payroll salary expense account and a payroll payable liability account before running automatic payroll journals.",
+        error: "Automatic payroll journals need an active salary expense account and either a payroll payable or Accounts Payable liability account. Add or activate these in Accounting → Chart of Accounts.",
       };
     }
     return { debitAccountId: debit.id, creditAccountId: credit.id, error: null };

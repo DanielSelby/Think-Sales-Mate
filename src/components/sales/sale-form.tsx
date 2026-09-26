@@ -44,6 +44,7 @@ import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 
 
@@ -202,6 +203,7 @@ export function SaleForm({
   const [error, setError] = useState<string | null>(null);
   const [transactionFeedback, setTransactionFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [stockWarning, setStockWarning] = useState<string | null>(null);
+  const [outOfStockFeedback, setOutOfStockFeedback] = useState<{ item: OutOfStockItem; message: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
   const [confirmZeroPayment, setConfirmZeroPayment] = useState(false);
@@ -372,7 +374,10 @@ export function SaleForm({
     const product = locationProductById.get(productId);
     if (!product) return;
     if (!product.allowNegativeStock && product.stockQuantity <= 0) {
-      setStockWarning(`"${product.name}" is out of stock and cannot be added.`);
+      setOutOfStockFeedback({
+        item: { name: product.name, category: null, brand: null, stockQuantity: 0, availableStock: 0 },
+        message: `"${product.name}" is out of stock at this location and cannot be added.`,
+      });
       return;
     }
     const existing = lines.filter((l) => l.productId === productId);
@@ -458,6 +463,27 @@ export function SaleForm({
     }
   }
 
+  function showStockError(message: string) {
+    if (!/out of stock|only \d+ unit|insufficient[_ ]stock/i.test(message)) return false;
+    const name = message.match(/"([^"]+)"/)?.[1];
+    const product = name
+      ? products.find((candidate) => candidate.name === name)
+      : undefined;
+    const availableMatch = message.match(/only\s+(\d+)\s+unit/i);
+    const availableStock = availableMatch ? Number(availableMatch[1]) : 0;
+    setOutOfStockFeedback({
+      item: {
+        name: product?.name ?? name ?? "Selected product",
+        category: null,
+        brand: null,
+        stockQuantity: product?.stockQuantity ?? 0,
+        availableStock,
+      },
+      message,
+    });
+    return true;
+  }
+
   function clearSale() {
     setSelectedCustomerId(null);
     setWalkInName("");
@@ -527,8 +553,12 @@ export function SaleForm({
             }),
         });
         if (!result.ok) {
-          setTransactionFeedback({ kind: "error", message: result.error ?? "Review the sale details and try again." });
-          setError(result.error ?? "Something went wrong.");
+          const message = result.error ?? "Review the sale details and try again.";
+          if (showStockError(message)) setError(null);
+          else {
+            setTransactionFeedback({ kind: "error", message });
+            setError(message);
+          }
           return;
         }
         router.push("/sales/drafts");
@@ -569,8 +599,11 @@ export function SaleForm({
         })
       });
       if (result.error) {
-        setTransactionFeedback({ kind: "error", message: result.error });
-        setError(result.error);
+        if (showStockError(result.error)) setError(null);
+        else {
+          setTransactionFeedback({ kind: "error", message: result.error });
+          setError(result.error);
+        }
         return;
       }
       router.push("/sales/drafts");
@@ -810,6 +843,22 @@ export function SaleForm({
       </div>
 
       {error && <p className="mt-4 rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
+      {outOfStockFeedback && (
+        <OutOfStockFeedback
+          {...outOfStockFeedback}
+          onClose={() => setOutOfStockFeedback(null)}
+          onCheckAgain={() => {
+            setOutOfStockFeedback(null);
+            router.refresh();
+          }}
+          onBrowseSimilar={() => {
+            setOutOfStockFeedback(null);
+            setSearch("");
+            setSearchDropdownOpen(true);
+            searchRef.current?.focus();
+          }}
+        />
+      )}
       {stockWarning && (
         <div className="mt-4 flex items-center gap-2 rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">
           <AlertTriangle className="h-4 w-4 shrink-0" />

@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithIdentifier } from "./actions";
 import { Input } from "@/components/ui/input";
@@ -147,12 +148,18 @@ function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true); setError(null);
-    const { error: err } = await loginWithIdentifier(identifier, password);
-    setLoading(false);
-    if (err) { setError(err); return; }
-    router.push(searchParams.get("next") ?? "/dashboard");
-    router.refresh();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    try {
+      const { error: err } = await loginWithIdentifier(identifier, password);
+      if (err) { setError(err); setLoading(false); return; }
+      router.replace(searchParams.get("next") ?? "/dashboard");
+      router.refresh();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Unable to sign in. Please try again.");
+      setLoading(false);
+    }
   }
 
   async function handleOAuth(provider: "google" | "azure") {
@@ -331,7 +338,7 @@ function LoginForm() {
                 <p className="mt-2 text-[13px] text-slate-400">Sign in to continue to Think-SalesMate ERP</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="mt-8">
+              <form onSubmit={handleSubmit} className="mt-8" aria-busy={loading}>
                 {error && (
                   <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
                 )}
@@ -343,7 +350,7 @@ function LoginForm() {
                     <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
                     </div>
-                    <Input type="text" autoComplete="username" required value={identifier} onChange={e => setIdentifier(e.target.value)}
+                    <Input type="text" autoComplete="username" required value={identifier} onChange={e => setIdentifier(e.target.value)} disabled={loading}
                       placeholder="Enter your email or username"
                       className="h-12 rounded-xl pl-12 pr-4 text-sm shadow-none placeholder:text-slate-400"
                       style={{ borderColor: theme.input.border }} />
@@ -363,7 +370,7 @@ function LoginForm() {
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
                     </div>
                     <Input type={showPass ? "text" : "password"} autoComplete="current-password" required
-                      value={password} onChange={e => setPassword(e.target.value)}
+                      value={password} onChange={e => setPassword(e.target.value)} disabled={loading}
                       placeholder="Enter your password"
                       className="h-12 rounded-xl pl-12 pr-12 text-sm shadow-none placeholder:text-slate-400"
                       style={{ borderColor: theme.input.border }} />
@@ -397,15 +404,16 @@ function LoginForm() {
 
                 {/* Submit */}
                 <button type="submit" disabled={loading}
-                  className="mt-6 flex h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-6 flex h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-80"
                   style={{ background: theme.btn.bg, boxShadow: theme.btn.shadow }}>
-                  {loading ? "Signing in…" : "Sign In"}
+                  {loading ? <><LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> Signing in securely…</> : "Sign In"}
                   {!loading && (
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
                     </svg>
                   )}
                 </button>
+                {loading && <p role="status" aria-live="polite" className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-500"><LoaderCircle className="h-3.5 w-3.5 animate-spin" /> Verifying your account and preparing your workspace…</p>}
               </form>
 
               {/* Divider */}

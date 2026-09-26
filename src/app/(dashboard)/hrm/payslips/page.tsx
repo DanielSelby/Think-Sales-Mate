@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { CalendarDays, Eye, FileText, Mail, MoreHorizontal, Pencil, Printer, Search, Download, Building2, BriefcaseBusiness, WalletCards } from "lucide-react";
+import { PayrollKpi } from "@/components/hrm/payroll-kpi";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
@@ -73,8 +73,7 @@ export default async function PayslipsPage({ searchParams }: { searchParams?: Pr
   const clearHref = "/hrm/payslips";
 
   return (
-    <div className="min-h-full bg-[#f4f8fc] px-4 py-5 dark:bg-ink-950 md:px-6">
-      <div className="mx-auto max-w-[1680px] space-y-4">
+    <div className="mx-auto max-w-[1680px] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ backgroundColor: "var(--theme-primary)" }}><FileText className="h-6 w-6" /></div>
@@ -93,24 +92,17 @@ export default async function PayslipsPage({ searchParams }: { searchParams?: Pr
         </form>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Kpi icon={<FileText />} label="Total Payslips" value={String(rows.length)} tone="blue" />
-          <Kpi icon={<WalletIcon />} label="Total Salary Amount" value={formatCurrency(totalSalary, currency)} tone="green" />
-          <Kpi icon={<CalendarDays />} label="Current Month Payroll" value={formatCurrency(currentMonthTotal, currency)} tone="purple" />
-          <Kpi icon={<BriefcaseBusiness />} label="Departments" value={String(departmentCount)} tone="orange" />
-          <Kpi icon={<Building2 />} label="Branches" value={String(branchCount)} tone="teal" />
+          <PayrollKpi icon={<FileText className="h-4 w-4" />} label="Total Payslips" value={String(rows.length)} tone="blue" />
+          <PayrollKpi icon={<WalletCards className="h-4 w-4" />} label="Total Salary Amount" value={formatCurrency(totalSalary, currency)} tone="green" />
+          <PayrollKpi icon={<CalendarDays className="h-4 w-4" />} label="Current Month Payroll" value={formatCurrency(currentMonthTotal, currency)} tone="purple" />
+          <PayrollKpi icon={<BriefcaseBusiness className="h-4 w-4" />} label="Departments" value={String(departmentCount)} tone="orange" />
+          <PayrollKpi icon={<Building2 className="h-4 w-4" />} label="Branches" value={String(branchCount)} tone="teal" />
         </div>
 
         <section className="overflow-hidden rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-ledger-700"><div className="flex items-center gap-2"><FileText className="h-5 w-5 text-blue-600" /><h2 className="font-bold text-[#12345a] dark:text-white">Payslip List</h2><span className="text-xs text-slate-400">Showing {rows.length} records</span></div><div className="flex gap-2"><button type="button" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300"><Download className="h-3.5 w-3.5" />Export</button><Link href="/hrm/payslips" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300"><Printer className="h-3.5 w-3.5" />Print</Link></div></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[1180px] text-left text-xs"><thead className="bg-[#eef6ff] text-[10px] font-bold uppercase tracking-wide text-slate-500"><tr>{["Date", "Salary Month", "Employee ID", "Employee Name", "Salary Amount", "Branch", "Department", "Status", "Actions"].map((heading) => <th key={heading} className="border-b border-slate-200 px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y divide-slate-100 dark:divide-ledger-700">{rows.map((row) => <tr key={row.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40"><td className="px-3 py-3 text-slate-500">{new Date(row.payment_date).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}</td><td className="px-3 py-3">{monthLabel(row.pay_period_start.slice(0, 7))}</td><td className="px-3 py-3 font-mono text-[11px]">{row.employee_number ? `EMP-${String(row.employee_number).padStart(3, "0")}` : "—"}</td><td className="px-3 py-3 font-semibold text-[#12345a] dark:text-white">{row.employee_name}</td><td className="px-3 py-3 font-bold">{formatCurrency(Number(row.net_pay), row.currency || currency)}</td><td className="px-3 py-3">{locationNames.get(row.location_id ?? "") ?? "—"}</td><td className="px-3 py-3">{row.department ?? "—"}</td><td className="px-3 py-3"><span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold capitalize text-emerald-700">{row.status}</span></td><td className="px-3 py-3"><div className="flex items-center gap-1"><Link href={`/hrm/payslips/${row.id}`} title="View payslip" className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-50"><Eye className="h-3 w-3" />View</Link><Link href={`/hrm/payslips/${row.id}`} title="Print or download" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-semibold text-white" style={{ backgroundColor: "var(--theme-primary)" }}><Printer className="h-3 w-3" />Print</Link><Link href={`/hrm/payslips/${row.id}`} title="Download PDF" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-semibold text-slate-600"><Download className="h-3 w-3" />PDF</Link><button type="button" disabled title="Email delivery requires an email provider configuration" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-semibold text-slate-400 disabled:cursor-not-allowed"><Mail className="h-3 w-3" />Email</button>{openRunIds.has(row.payroll_run_id) ? <Link href={`/hrm/payslips/${row.id}?edit=1`} title="Edit payslip" className="inline-flex items-center gap-1 rounded-md border border-[var(--theme-primary)] px-2 py-1.5 text-[10px] font-semibold text-[var(--theme-primary)]"><Pencil className="h-3 w-3" />Edit</Link> : <span title="Payroll Finalized" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-semibold text-slate-400"><Pencil className="h-3 w-3" />Finalized</span>}<button type="button" title="More actions" className="rounded-md border border-slate-200 p-1.5 text-slate-500"><MoreHorizontal className="h-3.5 w-3.5" /></button></div></td></tr>)}</tbody></table>{rows.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No generated payslips match the selected filters.</div>}</div>
         </section>
-      </div>
     </div>
   );
-}
-
-function WalletIcon() { return <WalletCards />; }
-function Kpi({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: "blue" | "green" | "purple" | "orange" | "teal" }) {
-  const styles = { blue: "bg-blue-50 text-blue-600", green: "bg-emerald-50 text-emerald-600", purple: "bg-purple-50 text-purple-600", orange: "bg-orange-50 text-orange-600", teal: "bg-teal-50 text-teal-600" };
-  return <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900"><div className={`flex h-9 w-9 items-center justify-center rounded-full ${styles[tone]}`}>{icon}</div><div><p className="text-[10px] font-semibold text-slate-500">{label}</p><p className="mt-1 text-lg font-bold text-[#12345a] dark:text-white">{value}</p></div></div>;
 }

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import { headers } from "next/headers";
+import { after } from "next/server";
 
 function getLoginClientDetails(requestHeaders: Headers) {
   const userAgent = requestHeaders.get("user-agent") ?? "";
@@ -50,31 +51,36 @@ export async function loginWithIdentifier(identifier: string, password: string) 
   const { data: sessionData, error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
   if (error) return { error: error.message };
 
-  try {
-    const requestHeaders = await headers();
-    const clientDetails = getLoginClientDetails(requestHeaders);
-    const userId = sessionData.user.id;
-    const admin = createAdminClient();
-    const { data: memberships } = await admin
-      .from("organization_members")
-      .select("org_id")
-      .eq("user_id", userId)
-      .eq("status", "active");
-    const platform = createPlatformAdminClient();
-    const { error: auditError } = await platform.from("platform_audit_logs").insert(
-      (memberships ?? []).map((membership) => ({
-        organization_id: membership.org_id,
-        action: "user_login",
-        module: "authentication",
-        metadata: { userId, email: authEmail, device: clientDetails.device, browser: clientDetails.browser },
-        ip_address: clientDetails.ipAddress,
-        user_agent: clientDetails.userAgent,
-      })),
-    );
-    if (auditError) throw auditError;
-  } catch (auditError) {
-    console.error("Organization login audit recording failed:", auditError);
-  }
+  const requestHeaders = await headers();
+  const clientDetails = getLoginClientDetails(requestHeaders);
+  const userId = sessionData.user.id;
+  after(async () => {
+    try {
+      const admin = createAdminClient();
+      const { data: memberships, error: membershipsError } = await admin
+        .from("organization_members")
+        .select("org_id")
+        .eq("user_id", userId)
+        .eq("status", "active");
+      if (membershipsError) throw membershipsError;
+      if (!memberships?.length) return;
+
+      const platform = createPlatformAdminClient();
+      const { error: auditError } = await platform.from("platform_audit_logs").insert(
+        memberships.map((membership) => ({
+          organization_id: membership.org_id,
+          action: "user_login",
+          module: "authentication",
+          metadata: { userId, email: authEmail, device: clientDetails.device, browser: clientDetails.browser },
+          ip_address: clientDetails.ipAddress,
+          user_agent: clientDetails.userAgent,
+        })),
+      );
+      if (auditError) throw auditError;
+    } catch (auditError) {
+      console.error("Organization login audit recording failed:", auditError);
+    }
+  });
 
   return { success: true };
 }

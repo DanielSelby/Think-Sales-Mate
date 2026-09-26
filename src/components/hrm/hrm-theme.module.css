@@ -1,0 +1,94 @@
+.shell {
+  min-height: 100%;
+  padding: 1.25rem 1.5rem;
+  background: #f4f8fc;
+}
+
+.shell :global(nav[aria-label="HRM sections"]) {
+  margin-bottom: 1rem;
+  border-color: #dce8f2;
+}
+
+.shell :global(.rounded-card) {
+  border: 1px solid #dce8f2;
+  border-left-width: 1px;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgb(18 52 90 / 7%);
+}
+
+.shell :global(h1) {
+  color: #12345a;
+  font-family: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.5rem;
+}
+
+.shell :global(h2),
+.shell :global(h3) {
+  color: #12345a;
+}
+
+.shell :global(table) {
+  font-size: 0.75rem;
+}
+
+.shell :global(table thead) {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #eef6ff;
+  color: #64748b;
+}
+
+.shell :global(table thead th) {
+  border-bottom: 1px solid #dce8f2;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell :global(table tbody tr) {
+  transition: background-color 150ms ease;
+}
+
+.shell :global(table tbody tr:hover) {
+  background-color: rgb(238 246 255 / 65%);
+}
+
+:global(.dark) .shell {
+  background: #080f1f;
+}
+
+:global(.dark) .shell :global(.rounded-card) {
+  border-color: #28374b;
+  background-color: #111c2d;
+}
+
+:global(.dark) .shell :global(h1),
+:global(.dark) .shell :global(h2),
+:global(.dark) .shell :global(h3) {
+  color: #fff;
+}
+
+:global(.dark) .shell :global(table thead) {
+  background-color: #0b1525;
+  color: #a5b4c7;
+}
+
+:global(.dark) .shell :global(table thead th) {
+  border-color: #28374b;
+}
+
+:global(.dark) .shell :global(table tbody tr:hover) {
+  background-color: rgb(255 255 255 / 4%);
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding: 1rem;
+  }
+}

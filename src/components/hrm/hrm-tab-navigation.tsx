@@ -35,7 +35,7 @@ export function HrmTabNavigation({ visibleTabs }: { visibleTabs?: string[] }) {
             <Link key={href} href={href} className={cn(
               "inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-medium transition-colors",
               active
-                ? "border-signal text-signal"
+                ? "border-[var(--theme-primary)] text-[var(--theme-primary)]"
                 : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900 dark:hover:text-white"
             )}>
               <Icon className="h-3.5 w-3.5" />

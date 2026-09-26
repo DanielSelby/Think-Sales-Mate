@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { Search, Filter, Plus, Download, Upload, X, RefreshCw, Users, UserCheck, CalendarOff, Building2, UserPlus2 } from "lucide-react";
+import { Search, Filter, Plus, Download, X, RefreshCw, Users, UserCheck, CalendarOff, Building2, UserPlus2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
   deriveEmployeeStatus, formatEmployeeCode, type EmployeeDisplayStatus,
 } from "@/lib/hrm/format";
 import { EmployeeRowMenu } from "@/components/hrm/employees/employee-row-menu";
-import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
+import { PayrollKpi } from "@/components/hrm/payroll-kpi";
 import type { EmploymentType } from "@/types/database";
 
 export interface EmployeeRow {
@@ -156,7 +156,6 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
           <p className="mt-0.5 flex items-center gap-1 text-sm text-ledger-500 dark:text-ledger-400">Home &gt; HRM &amp; Payroll &gt; Employees</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="md"><Upload className="h-4 w-4" /> Import</Button>
           <Button variant="outline" size="md" onClick={exportCsv}><Download className="h-4 w-4" /> Export</Button>
           <Link href="/hrm/employees/new" className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-ink-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-ink-950 dark:bg-white dark:text-ink-900">
             <Plus className="h-4 w-4" /> Add Employee
@@ -178,11 +177,11 @@ export function EmployeeListView({ employees, kpis, currency, departments, emplo
         <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <KpiFlipCard color="blue" label="Total Employees" value={`${filteredKpis.totalEmployees}`} icon={<Users className="h-full w-full" />} detail="Number of employees matching the current filters." />
-            <KpiFlipCard color="green" label="Active Employees" value={`${filteredKpis.activeEmployees}`} icon={<UserCheck className="h-full w-full" />} detail="Filtered employees currently Active." featured />
-            <KpiFlipCard color="amber" label="On Leave" value={`${filteredKpis.onLeave}`} icon={<CalendarOff className="h-full w-full" />} detail="Filtered employees currently on leave." />
-            <KpiFlipCard color="red" label="Inactive Employees" value={`${filteredKpis.inactiveEmployees}`} icon={<UserPlus2 className="h-full w-full" />} detail="Employees currently inactive." />
-            <KpiFlipCard color="purple" label="Pending Approvals" value={`${filteredKpis.pendingApprovals}`} icon={<Building2 className="h-full w-full" />} detail="Pending staff account invitations awaiting approval." />
+            <PayrollKpi tone="blue" label="Total Employees" value={`${filteredKpis.totalEmployees}`} icon={<Users className="h-4 w-4" />} />
+            <PayrollKpi tone="green" label="Active Employees" value={`${filteredKpis.activeEmployees}`} icon={<UserCheck className="h-4 w-4" />} />
+            <PayrollKpi tone="orange" label="On Leave" value={`${filteredKpis.onLeave}`} icon={<CalendarOff className="h-4 w-4" />} />
+            <PayrollKpi tone="purple" label="Inactive Employees" value={`${filteredKpis.inactiveEmployees}`} icon={<UserPlus2 className="h-4 w-4" />} />
+            <PayrollKpi tone="teal" label="Pending Approvals" value={`${filteredKpis.pendingApprovals}`} icon={<Building2 className="h-4 w-4" />} />
           </div>
 
           {/* Filters */}

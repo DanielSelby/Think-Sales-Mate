@@ -6,14 +6,26 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 
 export async function approvePayrollRun(runId: string) {
+  return approvePayrollRuns([runId]);
+}
+
+export async function approvePayrollRuns(runIds: string[]) {
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("hrm", "edit")) return { ok: false, error: "You don't have permission to approve payroll." };
+  const ids = Array.from(new Set(runIds.filter(Boolean)));
+  if (!ids.length) return { ok: false, error: "Select at least one payroll run." };
   const supabase = await createClient();
-  const { error } = await supabase.from("payroll_runs").update({ approval_status: "approved", approved_by: context.userId, approved_at: new Date().toISOString() }).eq("id", runId).eq("org_id", context.orgId);
+  const { data: runs, error: readError } = await supabase.from("payroll_runs").select("id").eq("org_id", context.orgId).in("id", ids);
+  if (readError) return { ok: false, error: readError.message };
+  if ((runs ?? []).length !== ids.length) return { ok: false, error: "One or more selected payroll runs could not be found." };
+  const { error } = await supabase.from("payroll_runs").update({ approval_status: "approved", approved_by: context.userId, approved_at: new Date().toISOString() }).eq("org_id", context.orgId).in("id", ids);
   if (error) return { ok: false, error: error.message };
-  await supabase.from("payroll_approval_history").insert({ org_id: context.orgId, payroll_run_id: runId, actor_id: context.userId, action: "approved" });
+  const { error: historyError } = await supabase.from("payroll_approval_history").insert(ids.map((runId) => ({
+    org_id: context.orgId, payroll_run_id: runId, actor_id: context.userId, action: "approved",
+  })));
+  if (historyError) return { ok: false, error: historyError.message };
   revalidatePath("/hrm/payroll");
-  revalidatePath(`/hrm/payroll/${runId}`);
+  for (const runId of ids) revalidatePath(`/hrm/payroll/${runId}`);
   return { ok: true };
 }
 
@@ -57,9 +69,9 @@ export async function markPayrollItemsPaid(itemIds: string[]) {
 }
 
 export async function markPayrollItemPaid(itemId: string) {
-  await markPayrollItemsPaid([itemId]);
+  return markPayrollItemsPaid([itemId]);
 }
 
 export async function approvePayrollRunFromForm(runId: string) {
-  await approvePayrollRun(runId);
+  return approvePayrollRun(runId);
 }
