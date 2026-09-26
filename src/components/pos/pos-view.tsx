@@ -196,17 +196,14 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     return map;
   }, [stockLevels]);
 
-  // Products scoped to the selected branch: a product that has NEVER been
-  // assigned to any specific location (no rows at all in product_stock_levels)
-  // is shown everywhere using its org-wide total. A product that IS tracked
-  // per-location only shows — with that branch's real quantity — at
-  // branches it's actually stocked at.
+  // The organization-wide stock cache cannot establish availability at a
+  // selected branch. Only list products with positive stock recorded there.
   const locationProducts = React.useMemo(() => {
-    if (!locationId) return products;
-    return products.map((p) => {
+    if (!locationId) return [];
+    return products.flatMap((p) => {
       const rows = stockByProduct.get(p.id);
-      if (!rows) return p;
-      return { ...p, stockQuantity: rows.get(locationId) ?? 0 };
+      const quantity = rows?.get(locationId) ?? 0;
+      return quantity > 0 ? [{ ...p, stockQuantity: quantity }] : [];
     });
   }, [products, stockByProduct, locationId]);
 

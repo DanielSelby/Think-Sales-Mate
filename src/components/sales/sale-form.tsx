@@ -287,20 +287,15 @@ export function SaleForm({
     return map;
   }, [stockLevels]);
 
-  // Only products stocked at the selected branch are searchable/addable.
-  // A product never tracked per-location shows everywhere with its
-  // org-wide total.
+  // The organization-wide stock cache cannot establish availability at a
+  // selected branch. Only list products with positive stock recorded there.
   const locationProducts = useMemo(() => {
-    if (!locationId || !stockLevels || stockLevels.length === 0) {
-      return products.map((p) => ({ ...p, stockQuantity: p.stockQuantity }));
-    }
-
-    return products.map((p) => {
-      const rows = stockByProduct.get(p.id);
-      const branchQty = rows ? (rows.get(locationId) ?? 0) : p.stockQuantity;
-      return { ...p, stockQuantity: branchQty };
+    if (!locationId) return [];
+    return products.flatMap((p) => {
+      const branchQty = stockByProduct.get(p.id)?.get(locationId) ?? 0;
+      return branchQty > 0 ? [{ ...p, stockQuantity: branchQty }] : [];
     });
-  }, [products, stockByProduct, locationId, stockLevels]);
+  }, [products, stockByProduct, locationId]);
 
   const locationProductById = useMemo(
     () => new Map(locationProducts.map((p) => [p.id, p])),
