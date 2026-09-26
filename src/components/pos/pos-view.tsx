@@ -107,6 +107,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
          const [expandMenuOpen, setExpandMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
+  const [stockFilter, setStockFilter] = React.useState<"all" | "available">("all");
   const [activeCategory, setActiveCategory] = React.useState("all");
   const [activeBrand, setActiveBrand] = React.useState("all");
   const [priceTier, setPriceTier] = React.useState<"retail" | "wholesale" | "vip" | "special">(allowedPriceGroups[0] ?? "retail");
@@ -196,26 +197,26 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
     return map;
   }, [stockLevels]);
 
-  // The organization-wide stock cache cannot establish availability at a
-  // selected branch. Only list products with positive stock recorded there.
+  // Keep the branch-visible catalog searchable, but use only this location's
+  // quantity. Zero-stock items remain visible and are rendered unavailable.
   const locationProducts = React.useMemo(() => {
     if (!locationId) return [];
-    return products.flatMap((p) => {
-      const rows = stockByProduct.get(p.id);
-      const quantity = rows?.get(locationId) ?? 0;
-      return quantity > 0 ? [{ ...p, stockQuantity: quantity }] : [];
-    });
+    return products.map((p) => ({
+      ...p,
+      stockQuantity: stockByProduct.get(p.id)?.get(locationId) ?? 0,
+    }));
   }, [products, stockByProduct, locationId]);
 
   const filteredProducts = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return locationProducts.filter((p) => {
+      if (stockFilter === "available" && p.stockQuantity <= 0) return false;
       if (activeCategory !== "all" && p.category !== activeCategory) return false;
       if (activeBrand !== "all" && p.brand !== activeBrand) return false;
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) && !(p.barcode ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [locationProducts, query, activeCategory, activeBrand]);
+  }, [locationProducts, query, activeCategory, activeBrand, stockFilter]);
 
   function showOutOfStock(product: OutOfStockItem, message?: string) {
     setError(null);
@@ -768,6 +769,20 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
           <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
+        </div>
+        <div className="flex h-10 items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700" role="group" aria-label="Filter products by stock">
+          {(["all", "available"] as const).map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              aria-pressed={stockFilter === filter}
+              onClick={() => setStockFilter(filter)}
+              className={cn("h-full rounded px-2.5 text-xs font-semibold transition-colors", stockFilter !== filter && "text-ledger-500 hover:bg-ledger-50 dark:hover:bg-white/[0.06]")}
+              style={stockFilter === filter ? { background: theme.colors.primary, color: "#fff" } : undefined}
+            >
+              {filter === "all" ? "Show All" : "Show Available"}
+            </button>
+          ))}
         </div>
         <span className="flex h-10 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:w-auto" style={{ background: theme.colors.primary }}>{dateLabel}</span>
         <div className="flex items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700">

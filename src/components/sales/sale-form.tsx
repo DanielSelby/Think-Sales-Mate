@@ -233,6 +233,7 @@ export function SaleForm({
   // Products
   const [search, setSearch] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const [stockFilter, setStockFilter] = useState<"all" | "available">("all");
   const [lines, setLines] = useState<LineItem[]>([]);
   const smartLocator = useSmartProductLocator(lines);
   const [autoMergeDuplicates, setAutoMergeDuplicates] = useState(false);
@@ -287,14 +288,14 @@ export function SaleForm({
     return map;
   }, [stockLevels]);
 
-  // The organization-wide stock cache cannot establish availability at a
-  // selected branch. Only list products with positive stock recorded there.
+  // Keep the branch-visible catalog searchable, but use only this location's
+  // quantity. Zero-stock items remain visible and are rendered unavailable.
   const locationProducts = useMemo(() => {
     if (!locationId) return [];
-    return products.flatMap((p) => {
-      const branchQty = stockByProduct.get(p.id)?.get(locationId) ?? 0;
-      return branchQty > 0 ? [{ ...p, stockQuantity: branchQty }] : [];
-    });
+    return products.map((p) => ({
+      ...p,
+      stockQuantity: stockByProduct.get(p.id)?.get(locationId) ?? 0,
+    }));
   }, [products, stockByProduct, locationId]);
 
   const locationProductById = useMemo(
@@ -304,9 +305,11 @@ export function SaleForm({
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return locationProducts;
-    return locationProducts.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
-  }, [locationProducts, search]);
+    return locationProducts.filter((p) => {
+      if (stockFilter === "available" && p.stockQuantity <= 0) return false;
+      return !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    });
+  }, [locationProducts, search, stockFilter]);
   const hasOnlyUnavailableMatches = Boolean(search.trim())
     && filteredProducts.length > 0
     && filteredProducts.every((product) => !product.allowNegativeStock && product.stockQuantity <= 0);
@@ -1076,6 +1079,20 @@ export function SaleForm({
                 <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded-full px-3 py-1.5 text-xs font-semibold transition-colors", priceTier === tier ? "text-white" : "border border-ledger-200 text-ledger-500 dark:border-ledger-700")} style={priceTier === tier ? { background: theme.colors.primary } : undefined}>{tier === "special" ? "S.P" : tier}</button>
               ))}
               {!canChoosePriceTier && <span className="text-[11px] text-ledger-400">You do not have permission to change pricing.</span>}
+              <div className="ml-auto flex items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700" role="group" aria-label="Filter products by stock">
+                {(["all", "available"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    aria-pressed={stockFilter === filter}
+                    onClick={() => setStockFilter(filter)}
+                    className={cn("rounded px-2.5 py-1.5 text-xs font-semibold transition-colors", stockFilter !== filter && "text-ledger-500 hover:bg-ledger-50 dark:hover:bg-white/[0.06]")}
+                    style={stockFilter === filter ? { background: theme.colors.primary, color: "#fff" } : undefined}
+                  >
+                    {filter === "all" ? "Show All" : "Show Available"}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">

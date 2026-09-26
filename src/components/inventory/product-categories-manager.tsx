@@ -279,7 +279,7 @@ export function ProductCategoriesManager({
     setPage(1);
   }
 
-  const selectClass = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 dark:border-ledger-700 dark:bg-ink-950 dark:text-white";
+  const selectClass = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500";
 
   return (
     <main className="mx-auto max-w-[1680px] space-y-4 pb-10">
@@ -357,7 +357,7 @@ export function ProductCategoriesManager({
       </section>
 
       {formOpen && (
-        <Modal title={editing ? "Edit Product Category" : "Add Product Category"} onClose={() => setFormOpen(false)}>
+        <Modal title={editing ? "Edit Product Category" : "Add Product Category"} onClose={() => setFormOpen(false)} light>
           <form onSubmit={(event) => void saveCategory(event)} className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Category Name"><input required autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={selectClass} placeholder="e.g. Electronics" /></Field>
@@ -370,7 +370,7 @@ export function ProductCategoriesManager({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Category Icon (optional)"><input value={form.icon} onChange={(event) => setForm({ ...form, icon: event.target.value })} className={selectClass} placeholder="Icon key, e.g. package" /></Field>
-              <Field label="Color Tag (optional)"><div className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-2 dark:border-ledger-700"><input type="color" value={form.color || "#2563eb"} onChange={(event) => setForm({ ...form, color: event.target.value })} className="h-7 w-8 border-0 bg-transparent" /><input value={form.color} onChange={(event) => setForm({ ...form, color: event.target.value })} className="min-w-0 flex-1 bg-transparent text-xs" /></div></Field>
+              <Field label="Color Tag (optional)"><div className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-2"><input type="color" value={form.color || "#2563eb"} onChange={(event) => setForm({ ...form, color: event.target.value })} className="h-7 w-8 border-0 bg-transparent" /><input value={form.color} onChange={(event) => setForm({ ...form, color: event.target.value })} className="min-w-0 flex-1 bg-transparent text-xs text-slate-700" /></div></Field>
             </div>
             <Field label="Display Order"><input type="number" value={form.displayOrder} onChange={(event) => setForm({ ...form, displayOrder: event.target.value })} className={selectClass} /></Field>
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-ledger-700"><button type="button" onClick={() => setFormOpen(false)} className="h-9 rounded-lg border border-slate-200 px-4 text-xs font-semibold dark:border-ledger-700">Cancel</button><button type="submit" disabled={saving} className="h-9 rounded-lg bg-[var(--theme-primary)] px-4 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving…" : editing ? "Save Changes" : "Create Category"}</button></div>
@@ -406,11 +406,11 @@ function Kpi({ icon, label, value, tone }: { icon: React.ReactNode; label: strin
 }
 
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" title={label} aria-label={label} onClick={onClick} className="rounded-md border border-slate-200 p-1.5 text-[var(--theme-primary)] hover:bg-slate-50 dark:border-ledger-700 dark:hover:bg-white/5">{children}</button>;
+  return <button type="button" title={label} aria-label={label} onClick={onClick} className="rounded-md border border-slate-200 p-1 text-[var(--theme-primary)] hover:bg-slate-50 [&_svg]:h-3.5 [&_svg]:w-3.5 dark:border-ledger-700 dark:hover:bg-white/5">{children}</button>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-label={title} className="my-8 w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-ledger-700 dark:bg-ink-900"><header className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3 dark:border-ledger-700"><h2 className="text-base font-bold text-[#12345a] dark:text-white">{title}</h2><button type="button" aria-label="Close dialog" onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5"><X className="h-4 w-4" /></button></header>{children}</section></div>;
+function Modal({ title, onClose, children, light = false }: { title: string; onClose: () => void; children: React.ReactNode; light?: boolean }) {
+  return <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-label={title} className={`my-8 w-full max-w-2xl rounded-2xl border p-5 shadow-2xl ${light ? "border-slate-200 bg-white" : "border-slate-200 bg-white dark:border-ledger-700 dark:bg-ink-900"}`}><header className={`mb-4 flex items-center justify-between border-b pb-3 ${light ? "border-slate-100" : "border-slate-100 dark:border-ledger-700"}`}><h2 className={`text-base font-bold ${light ? "text-[#12345a]" : "text-[#12345a] dark:text-white"}`}>{title}</h2><button type="button" aria-label="Close dialog" onClick={onClose} className={`rounded-lg p-1 text-slate-500 ${light ? "hover:bg-slate-100" : "hover:bg-slate-100 dark:hover:bg-white/5"}`}><X className="h-4 w-4" /></button></header>{children}</section></div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

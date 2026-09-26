@@ -93,21 +93,7 @@ export default async function NewSalePage() {
     isReturning: returningCustomerIds.has(c.id)
   }));
 
-  const availableByProduct = new Map<string, Set<string>>();
-  const quantityByProduct = new Map<string, number>();
-  for (const row of stockLevelRows ?? []) {
-    quantityByProduct.set(row.product_id, (quantityByProduct.get(row.product_id) ?? 0) + Number(row.quantity ?? 0));
-    if (row.quantity <= 0) continue;
-    if (!availableByProduct.has(row.product_id)) availableByProduct.set(row.product_id, new Set());
-    availableByProduct.get(row.product_id)!.add(row.location_id);
-  }
-  const scopedProductRows = context.isBranchScoped
-    ? (productRows ?? []).filter((p) => {
-        const allowedLocations = availableByProduct.get(p.id);
-        return Boolean(allowedLocations && allowedLocations.size > 0) || Boolean(p.allow_negative_stock);
-      })
-    : (productRows ?? []);
-  const products: SellableProduct[] = scopedProductRows.map((p) => ({
+  const products: SellableProduct[] = (productRows ?? []).map((p) => ({
       id: p.id,
       sku: p.sku,
       name: p.name,
@@ -116,7 +102,7 @@ export default async function NewSalePage() {
       vipPrice: p.vip_price,
       specialPrice: p.special_price,
       costPrice: Number(p.cost_price ?? 0),
-      stockQuantity: context.isBranchScoped ? quantityByProduct.get(p.id) ?? 0 : p.stock_quantity,
+      stockQuantity: context.isBranchScoped ? 0 : p.stock_quantity,
       allowNegativeStock: Boolean(p.allow_negative_stock)
     }));
 

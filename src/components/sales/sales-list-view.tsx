@@ -49,7 +49,7 @@ function HistoryKpi({ label, value, icon, tone }: { label: string; value: number
     amber: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
     purple: "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400",
   };
-  return <div className="rounded-2xl border-0 bg-white p-5 shadow-card dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><span className="font-display text-2xl font-bold text-ink-900 dark:text-white">{value}</span></div></div><p className="mt-2 text-[10px] text-ledger-400">Current sales history records</p></div>;
+  return <div className="rounded-2xl border-0 bg-white p-5 shadow-card dark:bg-ink-900"><div className="flex items-center gap-3.5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}>{icon}</div><div><p className="text-[11px] font-medium text-ledger-400">{label}</p><span className="font-display text-xl font-bold text-ink-900 dark:text-white">{value}</span></div></div><p className="mt-2 text-[10px] text-ledger-400">Current sales history records</p></div>;
 }
 
 export interface SalesKpis {
@@ -62,6 +62,8 @@ export interface SalesKpis {
   completedOrders: number;
   returnedAmount: number;
 }
+
+type SalesDateFilter = "all" | "today" | "yesterday" | "month" | "year" | "custom";
 
 export interface SalesDocumentKpis {
   drafts: number;
@@ -118,6 +120,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [dateFilter, setDateFilter] = useState<SalesDateFilter>("all");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
@@ -151,8 +154,10 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
         if (!invoice.includes(q) && !s.customerName.toLowerCase().includes(q)) return false;
       }
 
-      if (dateFrom && s.saleDate.slice(0, 10) < dateFrom) return false;
-      if (dateTo && s.saleDate.slice(0, 10) > dateTo) return false;
+      const saleDate = new Date(s.saleDate);
+      const saleDateKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, "0")}-${String(saleDate.getDate()).padStart(2, "0")}`;
+      if (dateFrom && saleDateKey < dateFrom) return false;
+      if (dateTo && saleDateKey > dateTo) return false;
       if (paymentMethodFilter !== "all" && s.paymentMethod !== paymentMethodFilter) return false;
       return true;
     });
@@ -166,7 +171,8 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
     const returnedAmount = filtered.filter((s) => s.status === "returned").reduce((sum, s) => sum + s.refundedAmount, 0);
     const returnedSalesAmount = filtered.filter((s) => s.status === "returned").reduce((sum, s) => sum + s.total, 0);
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    return { totalOrders, totalRevenue, outstandingBalance, completedOrders, returnedAmount, returnedSalesAmount, averageOrderValue };
+    const totalReturns = filtered.reduce((sum, sale) => sum + sale.refundedAmount, 0);
+    return { totalOrders, totalRevenue, outstandingBalance, completedOrders, returnedAmount, returnedSalesAmount, totalReturns, averageOrderValue };
   }, [filtered]);
 
   const effectiveRowsPerPage = rowsPerPage === "all" ? Math.max(1, filtered.length) : rowsPerPage;
@@ -228,9 +234,36 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
     setPaymentStatus("all");
     setDateFrom("");
     setDateTo("");
+    setDateFilter("all");
     setPaymentMethodFilter("all");
     setActiveTab("all");
     setPage(1);
+  }
+
+  function applyDateFilter(value: SalesDateFilter) {
+    setDateFilter(value);
+    setPage(1);
+    if (value === "custom") return;
+    if (value === "all") {
+      setDateFrom("");
+      setDateTo("");
+      return;
+    }
+
+    const today = new Date();
+    const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const end = new Date(start);
+    if (value === "yesterday") {
+      start.setDate(start.getDate() - 1);
+      end.setDate(end.getDate() - 1);
+    } else if (value === "month") {
+      start.setDate(1);
+    } else if (value === "year") {
+      start.setMonth(0, 1);
+    }
+    setDateFrom(dateKey(start));
+    setDateTo(dateKey(end));
   }
 
   return (
@@ -287,6 +320,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <HistoryKpi label="Total Sales" value={formatCurrency(filteredKpis.totalRevenue, currency)} icon={<Receipt className="h-5 w-5" />} tone="emerald" />
         <HistoryKpi label="Returned Sales" value={formatCurrency(filteredKpis.returnedSalesAmount, currency)} icon={<Undo2 className="h-5 w-5" />} tone="amber" />
+        <HistoryKpi label="Total Returns" value={formatCurrency(filteredKpis.totalReturns, currency)} icon={<Undo2 className="h-5 w-5" />} tone="amber" />
         <HistoryKpi label="Total Drafts" value={documentKpis.drafts} icon={<ShoppingCart className="h-5 w-5" />} tone="emerald" />
         <HistoryKpi label="Total Quotations & Proformas" value={documentKpis.quotations + documentKpis.proformas} icon={<Wallet className="h-5 w-5" />} tone="blue" />
         <HistoryKpi label="Converted This Month" value={documentKpis.convertedThisMonth} icon={<CheckCircle2 className="h-5 w-5" />} tone="purple" />
@@ -308,6 +342,18 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                 placeholder="Search by number, customer or reference..."
                 className="pl-9"
               />
+            </div>
+
+            <div className="w-40">
+              <label className="mb-1 block text-xs font-medium text-ledger-500">Date Range</label>
+              <Select value={dateFilter} onChange={(e) => applyDateFilter(e.target.value as SalesDateFilter)}>
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+                {dateFilter === "custom" && <option value="custom">Custom Range</option>}
+              </Select>
             </div>
 
             <div className="w-40">
@@ -353,11 +399,11 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
             <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
               <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Date From</label>
-                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} />
+                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateFilter("custom"); setPage(1); }} />
               </div>
               <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Date To</label>
-                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} />
+                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateFilter("custom"); setPage(1); }} />
               </div>
               <div className="w-44">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Payment Type</label>

@@ -37,14 +37,11 @@ export default async function PosPage() {
   const rawLocations = context.masterLocationId
     ? (locations ?? []).filter((location) => location.id === context.masterLocationId)
     : (locations ?? []);
-  const availableProductIds = context.isBranchScoped || context.masterLocationId
-    ? new Set((stockLevels ?? []).filter((stock) => Number(stock.quantity) > 0).map((stock) => stock.product_id))
-    : null;
   const quantityByProduct = new Map<string, number>();
   for (const stock of stockLevels ?? []) {
     quantityByProduct.set(stock.product_id, (quantityByProduct.get(stock.product_id) ?? 0) + Number(stock.quantity ?? 0));
   }
-  const rawProducts = (products ?? []).filter((product) => !availableProductIds || availableProductIds.has(product.id));
+  const rawProducts = products ?? [];
   const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
     ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
     : rawLocations;
