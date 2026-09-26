@@ -171,7 +171,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
     const returnedAmount = filtered.filter((s) => s.status === "returned").reduce((sum, s) => sum + s.refundedAmount, 0);
     const returnedSalesAmount = filtered.filter((s) => s.status === "returned").reduce((sum, s) => sum + s.total, 0);
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    const totalReturns = filtered.reduce((sum, sale) => sum + sale.refundedAmount, 0);
+    const totalReturns = filtered.filter((sale) => sale.status === "returned" || sale.refundedAmount > 0).length;
     return { totalOrders, totalRevenue, outstandingBalance, completedOrders, returnedAmount, returnedSalesAmount, totalReturns, averageOrderValue };
   }, [filtered]);
 
@@ -320,7 +320,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <HistoryKpi label="Total Sales" value={formatCurrency(filteredKpis.totalRevenue, currency)} icon={<Receipt className="h-5 w-5" />} tone="emerald" />
         <HistoryKpi label="Returned Sales" value={formatCurrency(filteredKpis.returnedSalesAmount, currency)} icon={<Undo2 className="h-5 w-5" />} tone="amber" />
-        <HistoryKpi label="Total Returns" value={formatCurrency(filteredKpis.totalReturns, currency)} icon={<Undo2 className="h-5 w-5" />} tone="amber" />
+        <HistoryKpi label="Total Returns" value={filteredKpis.totalReturns} icon={<Undo2 className="h-5 w-5" />} tone="amber" />
         <HistoryKpi label="Total Drafts" value={documentKpis.drafts} icon={<ShoppingCart className="h-5 w-5" />} tone="emerald" />
         <HistoryKpi label="Total Quotations & Proformas" value={documentKpis.quotations + documentKpis.proformas} icon={<Wallet className="h-5 w-5" />} tone="blue" />
         <HistoryKpi label="Converted This Month" value={documentKpis.convertedThisMonth} icon={<CheckCircle2 className="h-5 w-5" />} tone="purple" />

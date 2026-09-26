@@ -50,6 +50,7 @@ import { SmartProductSummary, useSmartProductLocator } from "@/components/transa
 
 export interface SellableProduct {
   id: string;
+  locationId: string | null;
   sku: string;
   name: string;
   unitPrice: number;
@@ -292,10 +293,11 @@ export function SaleForm({
   // quantity. Zero-stock items remain visible and are rendered unavailable.
   const locationProducts = useMemo(() => {
     if (!locationId) return [];
-    return products.map((p) => ({
-      ...p,
-      stockQuantity: stockByProduct.get(p.id)?.get(locationId) ?? 0,
-    }));
+    return products.flatMap((p) => {
+      const locationStock = stockByProduct.get(p.id);
+      if (p.locationId !== locationId && !locationStock?.has(locationId)) return [];
+      return [{ ...p, stockQuantity: locationStock?.get(locationId) ?? 0 }];
+    });
   }, [products, stockByProduct, locationId]);
 
   const locationProductById = useMemo(

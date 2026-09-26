@@ -34,6 +34,7 @@ import { SmartProductSummary, useSmartProductLocator } from "@/components/transa
 
 export interface PosProduct {
   id: string;
+  locationId: string | null;
   name: string;
   sku: string;
   barcode: string | null;
@@ -54,8 +55,6 @@ export interface StockLevel { productId: string; locationId: string; quantity: n
 
 interface PosViewProps {
   products: PosProduct[];
-  categories: string[];
-  brands: string[];
   locations: LocationOption[];
   stockLevels: StockLevel[];
   currency: string;
@@ -88,7 +87,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, categories, brands, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts }: PosViewProps) {
+export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -201,11 +200,20 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
   // quantity. Zero-stock items remain visible and are rendered unavailable.
   const locationProducts = React.useMemo(() => {
     if (!locationId) return [];
-    return products.map((p) => ({
-      ...p,
-      stockQuantity: stockByProduct.get(p.id)?.get(locationId) ?? 0,
-    }));
+    return products.flatMap((p) => {
+      const locationStock = stockByProduct.get(p.id);
+      if (p.locationId !== locationId && !locationStock?.has(locationId)) return [];
+      return [{ ...p, stockQuantity: locationStock?.get(locationId) ?? 0 }];
+    });
   }, [products, stockByProduct, locationId]);
+  const categories = React.useMemo(
+    () => Array.from(new Set(locationProducts.map((product) => product.category).filter((category): category is string => Boolean(category)))),
+    [locationProducts]
+  );
+  const brands = React.useMemo(
+    () => Array.from(new Set(locationProducts.map((product) => product.brand).filter((brand): brand is string => Boolean(brand)))),
+    [locationProducts]
+  );
 
   const filteredProducts = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -764,7 +772,7 @@ export function PosView({ products, categories, brands, locations, stockLevels, 
 
       {/* Toolbar */}
       <div className="flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 rounded-lg border border-ledger-200 p-1.5 dark:border-ledger-700">
           <span className="text-xs font-medium text-ledger-500">Location:</span>
           <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}

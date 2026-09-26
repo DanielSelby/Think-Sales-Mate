@@ -15,7 +15,7 @@ export default async function PosPage() {
   const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }, { data: mobileMoneyAccounts }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, image_urls")
+      .select("id, location_id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, image_urls")
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
@@ -46,13 +46,11 @@ export default async function PosPage() {
     ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
     : rawLocations;
 
-  const categories = Array.from(new Set(rawProducts.map((p) => p.category).filter(Boolean))) as string[];
-  const brands = Array.from(new Set(rawProducts.map((p) => p.brand).filter(Boolean))) as string[];
-
   return (
     <PosView
       products={rawProducts.map((p) => ({
         id: p.id,
+        locationId: p.location_id,
         name: p.name,
         sku: p.sku,
         barcode: p.barcode,
@@ -68,8 +66,6 @@ export default async function PosPage() {
           : p.stock_quantity,
         imageUrl: p.image_urls?.[0] ?? null,
       }))}
-      categories={categories}
-      brands={brands}
       locations={scopedLocations.map((l) => ({ id: l.id, name: l.name }))}
       stockLevels={(stockLevels ?? []).map((s) => ({ productId: s.product_id, locationId: s.location_id, quantity: s.quantity }))}
       currency={context.currency}
