@@ -54,6 +54,7 @@ interface ExpenseListViewProps {
   expenses: ExpenseRow[];
   kpis: ExpenseKpis;
   currency: string;
+  initialCategory?: string;
   categories: string[];
   paymentMethods: string[];
   departments: string[];
@@ -104,14 +105,14 @@ function ExpenseKpiCard({
 }
 
 export function ExpenseListView({
-  expenses, kpis, currency, categories, paymentMethods, departments, categoryBreakdown, recentActivity,
+  expenses, kpis, currency, initialCategory = "all", categories, paymentMethods, departments, categoryBreakdown, recentActivity,
 }: ExpenseListViewProps) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
   const [activeTab, setActiveTab] = React.useState<"all" | DisplayStatus>("all");
   const [query, setQuery] = React.useState("");
-  const [category, setCategory] = React.useState("all");
+  const [category, setCategory] = React.useState(initialCategory);
   const [paymentMethod, setPaymentMethod] = React.useState("all");
   const [department, setDepartment] = React.useState("all");
   const [selected, setSelected] = React.useState<string[]>([]);
@@ -140,7 +141,9 @@ export function ExpenseListView({
     const q = query.trim().toLowerCase();
     return withDisplayStatus.filter((e) => {
       if (activeTab !== "all" && e.displayStatus !== activeTab) return false;
-      if (category !== "all" && e.category !== category) return false;
+      if (category === "payroll") {
+        if (!/salary|payroll/i.test(`${e.category} ${e.description ?? ""}`)) return false;
+      } else if (category !== "all" && e.category !== category) return false;
       if (paymentMethod !== "all" && e.paymentMethod !== paymentMethod) return false;
       if (department !== "all" && e.department !== department) return false;
       if (q) {
@@ -273,6 +276,7 @@ export function ExpenseListView({
                   <label className="mb-1 block text-xs font-medium text-ledger-500">Category</label>
                   <Select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }}>
                     <option value="all">All Categories</option>
+                    <option value="payroll">Salary &amp; Payroll</option>
                     {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                   </Select>
                 </div>

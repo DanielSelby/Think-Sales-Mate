@@ -207,7 +207,11 @@ export async function getFinancialSummary(
     .lt("created_at", periodStart);
   let productsQuery = supabase
     .from("products")
-    .select("stock_quantity, unit_price, low_stock_threshold, is_active, category, location_id")
+    .select("id, stock_quantity, unit_price, low_stock_threshold, is_active, category, location_id")
+    .eq("org_id", orgId);
+  let stockLevelsQuery = supabase
+    .from("product_stock_levels")
+    .select("product_id, quantity, location_id")
     .eq("org_id", orgId);
   let expenseQuery = supabase
     .from("expenses")
@@ -227,7 +231,7 @@ export async function getFinancialSummary(
     salesPrevQuery = salesPrevQuery.eq("location_id", locationId);
     itemsQuery = itemsQuery.eq("sales.location_id", locationId);
     itemsPrevQuery = itemsPrevQuery.eq("sales.location_id", locationId);
-    productsQuery = productsQuery.eq("location_id", locationId);
+    stockLevelsQuery = stockLevelsQuery.eq("location_id", locationId);
     expenseQuery = expenseQuery.eq("location_id", locationId);
     expensePrevQuery = expensePrevQuery.eq("location_id", locationId);
   }
@@ -243,6 +247,7 @@ export async function getFinancialSummary(
     { data: itemsWithCost },
     { data: itemsPrevPeriod },
     { data: products },
+    { data: stockLevels, error: stockLevelsError },
     { data: expenseRows },
     { data: expenseRowsPrev },
     { data: invoiceRows },
@@ -257,6 +262,7 @@ export async function getFinancialSummary(
     // explicit generated Database type.
     itemsPrevQuery,
     productsQuery,
+    locationId ? stockLevelsQuery : Promise.resolve({ data: [], error: null }),
     expenseQuery,
     expensePrevQuery,
     supabase.from("invoices").select("amount, status, paid_at").eq("org_id", orgId),
@@ -265,6 +271,11 @@ export async function getFinancialSummary(
 
   const itemRows = (itemsWithCost ?? []) as unknown as SaleItemRow[];
   const itemPrevRows = (itemsPrevPeriod ?? []) as unknown as SaleItemRow[];
+  if (stockLevelsError) throw new Error(`Unable to load branch inventory summary: ${stockLevelsError.message}`);
+  const stockByProduct = new Map<string, number>();
+  for (const level of stockLevels ?? []) {
+    stockByProduct.set(level.product_id, (stockByProduct.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+  }
 
   // IMPORTANT: sales.total is an order's grand total, which can span
   // several categories. Once a category filter is active, "revenue" has to
@@ -350,7 +361,10 @@ export async function getFinancialSummary(
   const outstanding = (invoiceRows ?? []).filter((i) => i.status === "sent" || i.status === "overdue");
   const outstandingInvoicesTotal = outstanding.reduce((sum, i) => sum + Number(i.amount), 0);
 
-  const activeProducts = (products ?? []).filter((p) => p.is_active);
+  const activeProducts = (products ?? []).filter((product) => product.is_active).map((product) => ({
+    ...product,
+    stock_quantity: locationId ? stockByProduct.get(product.id) ?? 0 : Number(product.stock_quantity ?? 0),
+  }));
   const inventoryValue = activeProducts.reduce((sum, p) => sum + p.stock_quantity * Number(p.unit_price), 0);
   const lowStockCount = activeProducts.filter((p) => p.stock_quantity <= p.low_stock_threshold).length;
   const outOfStockCount = activeProducts.filter((p) => p.stock_quantity === 0).length;

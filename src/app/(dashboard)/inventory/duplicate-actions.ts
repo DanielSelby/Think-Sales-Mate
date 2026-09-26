@@ -45,7 +45,9 @@ export async function findProductDuplicates(name: string, barcode?: string | nul
   const { data: products } = await supabase.from("products").select("id, name, sku, brand, category, barcode, stock_quantity, image_urls").eq("org_id", context.orgId).eq("is_active", true).neq("status", "merged").limit(500);
   const productRows = products ?? [];
   const ids = productRows.map((product) => product.id);
-  const { data: levels } = ids.length ? await supabase.from("product_stock_levels").select("product_id, location_id, quantity").in("product_id", ids) : { data: [] };
+  let levelQuery = supabase.from("product_stock_levels").select("product_id, location_id, quantity").in("product_id", ids);
+  if (context.isBranchScoped) levelQuery = levelQuery.in("location_id", context.allowedLocationIds);
+  const { data: levels } = ids.length ? await levelQuery : { data: [] };
   const locationIds = [...new Set((levels ?? []).map((level) => level.location_id))];
   const { data: locations } = locationIds.length ? await supabase.from("business_locations").select("id, name").in("id", locationIds) : { data: [] };
   const locationById = new Map((locations ?? []).map((location) => [location.id, location.name]));
@@ -59,7 +61,7 @@ export async function findProductDuplicates(name: string, barcode?: string | nul
   }
   const matches = productRows.map((product) => {
     const score = productNameScore(name, product.name);
-    const stock = stockByProduct.get(product.id) ?? { quantity: product.stock_quantity, locations: [] };
+    const stock = stockByProduct.get(product.id) ?? { quantity: context.isBranchScoped ? 0 : product.stock_quantity, locations: [] };
     return { id: product.id, name: product.name, sku: product.sku, brand: product.brand, category: product.category, barcode: product.barcode, imageUrl: product.image_urls?.[0] ?? null, stockQuantity: stock.quantity, locations: stock.locations, score, exact: normalizeProductName(name) === normalizeProductName(product.name) };
   }).filter((product) => product.score >= 70).sort((left, right) => right.score - left.score).slice(0, 10);
   const barcodeMatch = barcode?.trim() ? matches.find((product) => product.barcode?.toLowerCase() === barcode.trim().toLowerCase()) ?? null : null;
@@ -74,10 +76,13 @@ export async function getDuplicateReviewRows() {
   const products = data ?? [];
   const productIds = products.map((product) => product.id);
   const { data: stockLevels } = productIds.length
-    ? await supabase.from("product_stock_levels").select("product_id, location_id").in("product_id", productIds)
+    ? await (context.isBranchScoped
+      ? supabase.from("product_stock_levels").select("product_id, location_id").in("product_id", productIds).in("location_id", context.allowedLocationIds)
+      : supabase.from("product_stock_levels").select("product_id, location_id").in("product_id", productIds))
     : { data: [] };
   const locationIds = [...new Set([
-    ...products.map((product) => product.location_id).filter((id): id is string => Boolean(id)),
+    ...products.map((product) => product.location_id)
+      .filter((id): id is string => id !== null && (!context.isBranchScoped || context.allowedLocationIds.includes(id))),
     ...(stockLevels ?? []).map((level) => level.location_id),
   ])];
   const { data: locations } = locationIds.length

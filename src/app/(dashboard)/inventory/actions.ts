@@ -35,6 +35,7 @@ function parseProductForm(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
+  const productCategoryId = String(formData.get("product_category_id") ?? "").trim();
   const brand = String(formData.get("brand") ?? "").trim();
   const supplier = String(formData.get("supplier") ?? "").trim();
   const barcode = String(formData.get("barcode") ?? "").trim();
@@ -69,6 +70,7 @@ function parseProductForm(formData: FormData) {
     name,
     description: description || null,
     category: category || null,
+    product_category_id: productCategoryId || null,
     brand: brand || null,
     supplier: supplier || null,
     barcode: barcode || null,
@@ -113,6 +115,16 @@ export async function createProduct(formData: FormData): Promise<void> {
   }
 
   const supabase = await createClient();
+  if (fields.product_category_id) {
+    const { data: category, error: categoryError } = await supabase.from("product_categories")
+      .select("id, name, status").eq("id", fields.product_category_id).eq("org_id", context.orgId).maybeSingle();
+    if (categoryError || !category || category.status !== "active") {
+      redirectWithError("/inventory/new", categoryError?.message ?? "Choose an active product category.");
+    }
+    fields.category = category.name;
+  } else if (fields.category) {
+    redirectWithError("/inventory/new", "Choose a category from the managed category list.");
+  }
   const duplicateOverride = formData.get("duplicate_override") === "true";
   const [duplicateSettings, duplicateMatches] = await Promise.all([
     getDuplicateSettings(),
@@ -210,12 +222,23 @@ export async function updateProduct(productId: string, formData: FormData): Prom
   const supabase = await createClient();
   const { data: existingProduct, error: existingError } = await supabase
     .from("products")
-    .select("location_id")
+    .select("location_id, product_category_id")
     .eq("id", productId)
     .eq("org_id", context.orgId)
     .single();
   if (existingError || !existingProduct) {
     redirectWithError(`/inventory/${productId}/edit`, existingError?.message ?? "Product not found.");
+  }
+  if (fields.product_category_id) {
+    const { data: category, error: categoryError } = await supabase.from("product_categories")
+      .select("id, name, status").eq("id", fields.product_category_id).eq("org_id", context.orgId).maybeSingle();
+    const unchangedInactiveCategory = fields.product_category_id === existingProduct.product_category_id;
+    if (categoryError || !category || (category.status !== "active" && !unchangedInactiveCategory)) {
+      redirectWithError(`/inventory/${productId}/edit`, categoryError?.message ?? "Choose an active product category.");
+    }
+    fields.category = category.name;
+  } else if (fields.category) {
+    redirectWithError(`/inventory/${productId}/edit`, "Choose a category from the managed category list.");
   }
   const existingLocationIds = [
     existingProduct.location_id,
@@ -304,6 +327,9 @@ export async function bulkDeactivateProducts(productIds: string[]): Promise<Prod
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to deactivate products." };
+  }
+  if (context.isBranchScoped) {
+    return { error: "Organization-wide product changes require organization-wide branch access." };
   }
   const ids = [...new Set(productIds.filter(Boolean))];
   if (!ids.length) return { error: "Select at least one product." };
@@ -532,14 +558,27 @@ export async function uploadProductImage(formData: FormData): Promise<UploadProd
 // type-to-filter datalists — real data, not a fixed hardcoded list.
 // ---------------------------------------------------------------------------
 
-export async function getCategoryAndBrandOptions(): Promise<{ categories: string[]; brands: string[] }> {
+export interface ProductCategoryOption {
+  id: string;
+  name: string;
+  status: "active" | "inactive";
+}
+
+export async function getCategoryAndBrandOptions(): Promise<{ categories: ProductCategoryOption[]; brands: string[] }> {
   const context = await getCurrentOrgContext();
   if (!context) return { categories: [], brands: [] };
   const supabase = await createClient();
-  const { data } = await supabase.from("products").select("category, brand").eq("org_id", context.orgId);
-  const categories = Array.from(new Set((data ?? []).map((p) => p.category).filter(Boolean))) as string[];
-  const brands = Array.from(new Set((data ?? []).map((p) => p.brand).filter(Boolean))) as string[];
-  return { categories: categories.sort(), brands: brands.sort() };
+  const [{ data: categories, error: categoryError }, { data: products, error: productsError }] = await Promise.all([
+    supabase.from("product_categories").select("id, name, status").eq("org_id", context.orgId).order("display_order").order("name"),
+    supabase.from("products").select("brand").eq("org_id", context.orgId),
+  ]);
+  if (categoryError) throw new Error(`Unable to load product categories: ${categoryError.message}`);
+  if (productsError) throw new Error(`Unable to load product brands: ${productsError.message}`);
+  const brands = Array.from(new Set((products ?? []).map((p) => p.brand).filter(Boolean))) as string[];
+  return {
+    categories: (categories ?? []).map((category) => ({ id: category.id, name: category.name, status: category.status as "active" | "inactive" })),
+    brands: brands.sort(),
+  };
 }
 
 // ---------------------------------------------------------------------------

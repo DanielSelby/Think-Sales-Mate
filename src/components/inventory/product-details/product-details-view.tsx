@@ -111,7 +111,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
   const currency = product.currency || "GHS";
 
   const selectedBranch = useMemo(
-    () => product.branches.find((branch) => branch.name === branchFilter) ?? null,
+    () => product.branches.find((branch) => branch.id === branchFilter) ?? null,
     [branchFilter, product.branches]
   );
 
@@ -123,22 +123,13 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
   const activeLedgerMovements = useMemo(() => {
     const baseMovements = branchFilter === "All Branches"
       ? product.movements
-      : product.movements.filter((movement) => movement.branchName === branchFilter);
+      : product.movements.filter((movement) => movement.branchId === branchFilter);
 
     if (baseMovements.length === 0) {
       return [];
     }
 
-    const selectedQty = branchFilter === "All Branches"
-      ? product.stockQuantity
-      : (selectedBranch?.quantity ?? 0);
-    const nonOpeningMovement = baseMovements
-      .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
-      .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
-    const hasOpeningEntry = baseMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
-    const adjustedOpeningBalance = hasOpeningEntry ? 0 : selectedQty - nonOpeningMovement;
-
-    return calculateRunningBalances(baseMovements, adjustedOpeningBalance);
+    return calculateRunningBalances(baseMovements);
   }, [branchFilter, product.movements, product.stockQuantity, selectedBranch]);
 
   const displayAnalytics = useMemo(() => {
@@ -158,10 +149,9 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
     }
 
     const nonOpeningMovement = activeLedgerMovements
-      .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
+      .filter((movement) => movement.type !== "Opening Stock")
       .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
-    const hasOpeningEntry = activeLedgerMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
-    const openingBalance = hasOpeningEntry ? 0 : (selectedBranch?.quantity ?? 0) - nonOpeningMovement;
+    const openingBalance = (selectedBranch?.quantity ?? 0) - nonOpeningMovement;
     const summary = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
     return summary.analytics;
   }, [activeLedgerMovements, branchFilter, product.analytics, product.costPrice, selectedBranch]);
@@ -183,7 +173,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
     }
 
     const nonOpeningMovement = activeLedgerMovements
-      .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
+      .filter((movement) => movement.type !== "Opening Stock")
       .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
     const openingBalance = selectedQty - nonOpeningMovement;
     const computed = computeLedgerAnalytics(activeLedgerMovements, product.costPrice, openingBalance);
@@ -809,7 +799,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                 >
                   <option value="All Branches">All Branches</option>
                   {product.branches.map((b) => (
-                    <option key={b.id} value={b.name}>
+                    <option key={b.id} value={b.id}>
                       {b.name}
                     </option>
                   ))}

@@ -100,6 +100,7 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
     status: "live",
     children: [
       { label: "All Products",           href: "/inventory",                icon: List         },
+      { label: "Product Categories",     href: "/inventory/categories",     icon: LayoutGrid   },
       { label: "Add Product",            href: "/inventory/new",             icon: PlusCircle   },
       { label: "Import Products",        href: "/inventory/import",          icon: Upload       },
       { label: "Price Management",       href: "/inventory/prices",           icon: DollarSign   },

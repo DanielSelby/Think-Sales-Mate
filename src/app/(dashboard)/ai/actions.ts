@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { getFinancialSummary } from "@/lib/accounting/metrics";
+import { defaultDateRange, getFinancialSummary } from "@/lib/accounting/metrics";
 import { canPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(message: string): never {
@@ -24,21 +24,40 @@ export async function generateInsights(): Promise<void> {
   }
 
   const supabase = await createClient();
-  const summary = await getFinancialSummary(context.orgId);
+  const summary = await getFinancialSummary(context.orgId, defaultDateRange(), {
+    locationId: context.isBranchScoped ? context.allowedLocationIds[0] : undefined,
+  });
 
   const { data: lowStockProducts } = await supabase
     .from("products")
-    .select("name, stock_quantity, low_stock_threshold")
+    .select("id, name, stock_quantity, low_stock_threshold")
     .eq("org_id", context.orgId)
     .eq("is_active", true);
 
-  const lowStock = (lowStockProducts ?? []).filter((p) => p.stock_quantity <= p.low_stock_threshold);
+  const { data: stockLevels, error: stockError } = await (async () => {
+    let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId);
+    return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
+  })();
+  if (stockError) redirectWithError(`Could not load inventory stock: ${stockError.message}`);
+  const quantityByProduct = new Map<string, number>();
+  for (const level of stockLevels ?? []) {
+    quantityByProduct.set(level.product_id, (quantityByProduct.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+  }
+  const lowStock = (lowStockProducts ?? [])
+    .filter((product) => !context.isBranchScoped || quantityByProduct.has(product.id))
+    .map((product) => ({
+      ...product,
+      stock_quantity: context.isBranchScoped ? quantityByProduct.get(product.id) ?? 0 : product.stock_quantity,
+    }))
+    .filter((product) => product.stock_quantity <= product.low_stock_threshold);
 
-  const { data: expenseRows } = await supabase
+  let expenseQuery = supabase
     .from("expenses")
     .select("category, amount")
     .eq("org_id", context.orgId)
     .gte("expense_date", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  if (context.isBranchScoped) expenseQuery = expenseQuery.in("location_id", context.allowedLocationIds);
+  const { data: expenseRows } = await expenseQuery;
 
   const expensesByCategory = new Map<string, number>();
   for (const row of expenseRows ?? []) {

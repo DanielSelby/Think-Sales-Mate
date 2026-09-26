@@ -12,21 +12,26 @@ export default async function InventoryReportPage({ searchParams }: { searchPara
   if (!context) return null;
 
   const supabase = await createClient();
-  let productsQuery = supabase
-    .from("products")
-    .select("sku, name, unit_price, stock_quantity, is_active, location_id")
-    .eq("org_id", context.orgId)
-    .eq("is_active", true)
-    .order("name");
   const locationId = context.masterLocationId ?? (searchParams?.location && searchParams.location !== "all" ? searchParams.location : null);
-  if (context.isBranchScoped) {
-    productsQuery = locationId && context.allowedLocationIds.includes(locationId)
-      ? productsQuery.eq("location_id", locationId)
-      : productsQuery.in("location_id", context.allowedLocationIds);
-  } else if (locationId) productsQuery = productsQuery.eq("location_id", locationId);
-  const { data: rows } = await productsQuery;
+  const allowedIds = context.isBranchScoped
+    ? locationId && context.allowedLocationIds.includes(locationId) ? [locationId] : context.allowedLocationIds
+    : locationId ? [locationId] : null;
+  let stockQuery = supabase
+    .from("product_stock_levels")
+    .select("product_id, location_id, quantity")
+    .eq("org_id", context.orgId)
+  if (allowedIds) stockQuery = stockQuery.in("location_id", allowedIds);
+  const { data: stockRows, error: stockError } = await stockQuery;
+  if (stockError) throw new Error(`Unable to load inventory stock: ${stockError.message}`);
+  const quantities = new Map<string, number>();
+  for (const row of stockRows ?? []) quantities.set(row.product_id, (quantities.get(row.product_id) ?? 0) + Number(row.quantity ?? 0));
+  const productIds = [...quantities.keys()];
+  const { data: rows, error: productError } = productIds.length
+    ? await supabase.from("products").select("id, sku, name, unit_price, is_active").eq("org_id", context.orgId).eq("is_active", true).in("id", productIds).order("name")
+    : { data: [], error: null };
+  if (productError) throw new Error(`Unable to load inventory products: ${productError.message}`);
 
-  const products = rows ?? [];
+  const products = (rows ?? []).map((product) => ({ ...product, stock_quantity: quantities.get(product.id) ?? 0 }));
   const totalValue = products.reduce((sum, p) => sum + p.unit_price * p.stock_quantity, 0);
 
   const csvRows = products.map((p) => [

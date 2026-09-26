@@ -47,6 +47,9 @@ export async function searchProductsForDetails(query: string): Promise<ProductSe
 export async function checkCrossBranchStock(query: string): Promise<CrossBranchStockResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "Your session has expired. Please sign in again." };
+  if (context.isBranchScoped) {
+    return { ok: false, error: "Cross-branch stock is not available to branch-scoped users." };
+  }
   if (!context.canCheckCrossBranchStock) {
     return { ok: false, error: "You do not have permission to check stock across branches." };
   }

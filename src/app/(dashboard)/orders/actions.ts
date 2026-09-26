@@ -139,8 +139,14 @@ export async function approveAndProcessOrder({ orderId, locationId }: ApproveOrd
   if (itemsError || !items || items.length === 0) return { ok: false, error: "This order has no items." };
 
   // Check and optionally reserve stock
-  const { data: products } = await supabase.from("products").select("id, stock_quantity").in("id", items.map((i) => i.product_id));
-  const stockById = new Map((products ?? []).map((p) => [p.id, p.stock_quantity]));
+  const { data: stockLevels, error: stockError } = await supabase
+    .from("product_stock_levels")
+    .select("product_id, quantity")
+    .eq("org_id", context.orgId)
+    .eq("location_id", targetLocationId)
+    .in("product_id", items.map((item) => item.product_id));
+  if (stockError) return { ok: false, error: stockError.message };
+  const stockById = new Map((stockLevels ?? []).map((level) => [level.product_id, Number(level.quantity ?? 0)]));
   for (const item of items) {
     const available = stockById.get(item.product_id) ?? 0;
     if (item.quantity > available) {
@@ -548,7 +554,19 @@ export interface StockCheckResult {
 
 export async function checkOrderStock(orderId: string): Promise<StockCheckResult> {
   await requirePermission("orders", "view");
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, allInStock: false, shortages: [], products: [] };
   const supabase = await createClient();
+  const { data: order, error: orderError } = await supabase
+    .from("customer_orders")
+    .select("org_id, location_id")
+    .eq("id", orderId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (orderError) throw new Error(`Unable to load order stock location: ${orderError.message}`);
+  if (!order || !canUseLocation(context, order.location_id)) {
+    return { ok: false, allInStock: false, shortages: [], products: [] };
+  }
   const { data: items } = await supabase
     .from("customer_order_items")
     .select("product_id, product_name, quantity")
@@ -557,29 +575,33 @@ export async function checkOrderStock(orderId: string): Promise<StockCheckResult
   if (!items || items.length === 0) return { ok: true, allInStock: true, shortages: [], products: [] };
 
   const productIds = items.map((i) => i.product_id);
-  const { data: products } = await supabase.from("products").select("id, stock_quantity").in("id", productIds);
-  const stockById = new Map((products ?? []).map((p) => [p.id, p.stock_quantity]));
-  const { data: stockLevels } = await supabase
+  const { data: stockLevels, error: stockError } = await supabase
     .from("product_stock_levels")
-    .select("product_id, quantity, business_locations(name)")
+    .select("product_id, location_id, quantity, business_locations(name)")
+    .eq("org_id", context.orgId)
     .in("product_id", productIds);
+  if (stockError) throw new Error(`Unable to load branch stock: ${stockError.message}`);
+  const visibleLevels = (stockLevels ?? []).filter((row) =>
+    !context.isBranchScoped || context.allowedLocationIds.includes(row.location_id),
+  );
   const locationStock = new Map<string, { locationName: string; quantity: number }[]>();
-  for (const row of stockLevels ?? []) {
+  for (const row of visibleLevels) {
     const location = Array.isArray(row.business_locations) ? row.business_locations[0] : row.business_locations;
     const list = locationStock.get(row.product_id) ?? [];
     list.push({ locationName: location?.name ?? "Unknown location", quantity: Number(row.quantity ?? 0) });
     locationStock.set(row.product_id, list);
   }
-  const productsById = new Map((products ?? []).map((p) => [p.id, p]));
   const productsSummary = items.map((item) => {
     const locations = locationStock.get(item.product_id) ?? [];
     const levelTotal = locations.reduce((sum, location) => sum + location.quantity, 0);
-    const totalAvailable = locations.length > 0 ? levelTotal : Number(productsById.get(item.product_id)?.stock_quantity ?? 0);
+    const totalAvailable = locations.length > 0 || context.isBranchScoped
+      ? levelTotal
+      : 0;
     return { productId: item.product_id, productName: item.product_name, requested: item.quantity, totalAvailable, locations };
   });
 
   const shortages = items
-    .filter((i) => (productsSummary.find((product) => product.productId === i.product_id)?.totalAvailable ?? stockById.get(i.product_id) ?? 0) < i.quantity)
+    .filter((i) => (productsSummary.find((product) => product.productId === i.product_id)?.totalAvailable ?? 0) < i.quantity)
     .map((i) => ({ productName: i.product_name, requested: i.quantity, available: productsSummary.find((product) => product.productId === i.product_id)?.totalAvailable ?? 0 }));
 
   await supabase.from("customer_orders").update({ stock_checked: true }).eq("id", orderId);

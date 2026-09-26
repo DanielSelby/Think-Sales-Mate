@@ -396,9 +396,9 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
       {/* ── Add Account Modal ── */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-slate-300">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
-              <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">Add Account</h3>
+              <h3 className="font-display text-base font-bold text-slate-900">Add Account</h3>
               <button onClick={() => setIsAddModalOpen(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
                 <X className="h-4 w-4" />
               </button>
@@ -407,22 +407,22 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
             <form onSubmit={handleSaveAdd} className="mt-4 space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-medium text-slate-700 dark:text-slate-300">Account Code *</label>
+                  <label className="font-medium text-slate-700">Account Code *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. 1030"
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                   />
                 </div>
                 <div>
-                  <label className="font-medium text-slate-700 dark:text-slate-300">Account Type *</label>
+                  <label className="font-medium text-slate-700">Account Type *</label>
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as AccountType })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                   >
                     <option value="asset">Asset (1000s)</option>
                     <option value="liability">Liability (2000s)</option>
@@ -435,37 +435,37 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
               </div>
 
               <div>
-                <label className="font-medium text-slate-700 dark:text-slate-300">Account Name *</label>
+                <label className="font-medium text-slate-700">Account Name *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Petty Cash - Kumasi"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-medium text-slate-700 dark:text-slate-300">Sub-Group</label>
+                  <label className="font-medium text-slate-700">Sub-Group</label>
                   <input
                     type="text"
                     placeholder="e.g. Cash & Bank"
                     value={formData.subType}
                     onChange={(e) => setFormData({ ...formData, subType: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                   />
                 </div>
                 <div>
-                  <label className="font-medium text-slate-700 dark:text-slate-300">Branch</label>
+                  <label className="font-medium text-slate-700">Branch</label>
                   <select
                     value={formData.branchId}
                     onChange={(e) => {
                       const branch = initialBranches.find((option) => option.id === e.target.value);
                       setFormData({ ...formData, branchId: e.target.value, branch: branch?.name ?? "" });
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                   >
                     <option value="">All Locations</option>
                     {initialBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
@@ -474,25 +474,25 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
               </div>
 
               <div>
-                <label className="font-medium text-slate-700 dark:text-slate-300">Opening Balance ({currentCurrency})</label>
+                <label className="font-medium text-slate-700">Opening Balance ({currentCurrency})</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
                   value={formData.openingBalance || ""}
                   onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                 />
               </div>
 
               <div>
-                <label className="font-medium text-slate-700 dark:text-slate-300">Description / Memo</label>
+                <label className="font-medium text-slate-700">Description / Memo</label>
                 <textarea
                   rows={2}
                   placeholder="Optional description..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                 />
               </div>
 

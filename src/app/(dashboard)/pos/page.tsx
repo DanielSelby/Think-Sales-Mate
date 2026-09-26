@@ -40,6 +40,10 @@ export default async function PosPage() {
   const availableProductIds = context.isBranchScoped || context.masterLocationId
     ? new Set((stockLevels ?? []).filter((stock) => Number(stock.quantity) > 0).map((stock) => stock.product_id))
     : null;
+  const quantityByProduct = new Map<string, number>();
+  for (const stock of stockLevels ?? []) {
+    quantityByProduct.set(stock.product_id, (quantityByProduct.get(stock.product_id) ?? 0) + Number(stock.quantity ?? 0));
+  }
   const rawProducts = (products ?? []).filter((product) => !availableProductIds || availableProductIds.has(product.id));
   const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
     ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
@@ -62,7 +66,9 @@ export default async function PosPage() {
         vipPrice: p.vip_price,
         specialPrice: p.special_price,
         costPrice: Number(p.cost_price ?? 0),
-        stockQuantity: p.stock_quantity,
+        stockQuantity: context.isBranchScoped || context.masterLocationId
+          ? quantityByProduct.get(p.id) ?? 0
+          : p.stock_quantity,
         imageUrl: p.image_urls?.[0] ?? null,
       }))}
       categories={categories}
@@ -72,7 +78,7 @@ export default async function PosPage() {
       currency={context.currency}
       taxRatePercent={15}
       cashierName={profile?.full_name || context.userEmail}
-      canCheckCrossBranchStock={context.canCheckCrossBranchStock}
+      canCheckCrossBranchStock={context.canCheckCrossBranchStock && !context.isBranchScoped}
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}
       useSystemPrices={context.useSystemPrices}

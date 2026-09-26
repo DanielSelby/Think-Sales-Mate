@@ -126,6 +126,13 @@ export interface Database {
             isOneToOne: false;
             referencedRelation: "business_locations";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "products_product_category_id_fkey";
+            columns: ["product_category_id"];
+            isOneToOne: false;
+            referencedRelation: "product_categories";
+            referencedColumns: ["id"];
           }
         ];
       };
@@ -795,6 +802,7 @@ export interface Database {
           name: string;
           description: string | null;
           category: string | null;
+          product_category_id: string | null;
           brand: string | null;
           supplier: string | null;
           barcode: string | null;
@@ -836,6 +844,7 @@ export interface Database {
           name: string;
           description?: string | null;
           category?: string | null;
+          product_category_id?: string | null;
           brand?: string | null;
           supplier?: string | null;
           barcode?: string | null;
@@ -2693,6 +2702,55 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["product_duplicate_settings"]["Row"]>;
         Relationships: [];
+      };
+      product_categories: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          code: string;
+          description: string | null;
+          status: "active" | "inactive";
+          icon: string | null;
+          color: string | null;
+          parent_id: string | null;
+          display_order: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          code: string;
+          description?: string | null;
+          status?: "active" | "inactive";
+          icon?: string | null;
+          color?: string | null;
+          parent_id?: string | null;
+          display_order?: number;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["product_categories"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "product_categories_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "product_categories_parent_fk";
+            columns: ["parent_id"];
+            isOneToOne: false;
+            referencedRelation: "product_categories";
+            referencedColumns: ["id"];
+          }
+        ];
       };
     };
     Views: {

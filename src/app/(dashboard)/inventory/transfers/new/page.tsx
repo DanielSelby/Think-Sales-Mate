@@ -31,7 +31,10 @@ export default async function NewStockTransferPage({ searchParams }: { searchPar
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
-    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId),
+    (() => {
+      let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId);
+      return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
+    })(),
     supabase
       .from("stock_transfers")
       .select(

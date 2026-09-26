@@ -59,7 +59,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const product = productRow;
 
   // 2. Fetch Locations & Per-Location Stock Levels & Profiles
-  const [{ data: locationRows }, { data: stockLevelRows }, { data: profileRows }] = await Promise.all([
+  const [{ data: allLocationRows }, { data: stockLevelRows }, { data: profileRows }] = await Promise.all([
     supabase
       .from("business_locations")
       .select("id, name, is_primary")
@@ -67,15 +67,21 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .eq("is_active", true)
       .order("is_primary", { ascending: false })
       .order("name"),
-    supabase
-      .from("product_stock_levels")
-      .select("location_id, quantity, business_locations(name)")
-      .eq("product_id", product.id)
-      .eq("org_id", context.orgId),
+    (() => {
+      let query = supabase
+        .from("product_stock_levels")
+        .select("location_id, quantity, business_locations(id, name)")
+        .eq("product_id", product.id)
+        .eq("org_id", context.orgId);
+      return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
+    })(),
     supabase
       .from("profiles")
       .select("id, full_name"),
   ]);
+  const locationRows = context.isBranchScoped
+    ? (allLocationRows ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
+    : allLocationRows ?? [];
 
   const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p.full_name]));
 
@@ -92,7 +98,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .from("sale_items")
       .select(`
         id, quantity, unit_price, line_total, created_at,
-        sales:sale_id ( id, sale_number, reference, sale_date, sold_by, status, business_locations(name) )
+        sales:sale_id ( id, sale_number, reference, sale_date, sold_by, status, business_locations(id, name) )
       `)
       .eq("product_id", product.id)
       .eq("org_id", context.orgId)
@@ -103,7 +109,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .from("purchase_items")
       .select(`
         id, quantity, quantity_received, unit_price, line_total, created_at,
-        purchases:purchase_id ( id, purchase_number, reference, invoice_number, purchase_date, created_by, status, business_locations(name) )
+        purchases:purchase_id ( id, purchase_number, reference, invoice_number, purchase_date, created_by, status, business_locations(id, name) )
       `)
       .eq("product_id", product.id)
       .eq("org_id", context.orgId)
@@ -129,7 +135,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .from("stock_adjustment_items")
       .select(`
         id, system_stock, counted_stock, unit_cost, created_at,
-        stock_adjustments:adjustment_id ( id, adjustment_number, reference_no, adjustment_date, reason, note, created_by, business_locations(name) )
+        stock_adjustments:adjustment_id ( id, adjustment_number, reference_no, adjustment_date, reason, note, created_by, business_locations(id, name) )
       `)
       .eq("product_id", product.id)
       .eq("org_id", context.orgId)
@@ -140,7 +146,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .from("sale_return_items")
       .select(`
         id, quantity, unit_cost, created_at, created_by,
-        sales:sale_id ( id, sale_number, reference, business_locations(name) )
+        sales:sale_id ( id, sale_number, reference, business_locations(id, name) )
       `)
       .eq("product_id", product.id)
       .eq("org_id", context.orgId)
@@ -151,7 +157,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .from("purchase_return_items")
       .select(`
         id, return_qty, unit_cost, created_at,
-        purchase_returns:return_id ( id, return_number, reference, status, business_locations(name) )
+        purchase_returns:return_id ( id, return_number, reference, status, business_locations(id, name) )
       `)
       .eq("product_id", product.id)
       .eq("org_id", context.orgId)
@@ -181,6 +187,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: sale.reference || `INV-${String(sale.sale_number).padStart(4, "0")}`,
       referenceType: "Invoice",
       branchName: location?.name ?? "Main Branch",
+      branchId: location?.id ?? undefined,
       inQty: null,
       outQty: item.quantity,
       runningBalance: 0,
@@ -213,6 +220,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: purchase.reference || purchase.invoice_number || `PO-${String(purchase.purchase_number).padStart(4, "0")}`,
       referenceType: "Purchase Order",
       branchName: location?.name ?? "Main Warehouse",
+      branchId: location?.id ?? undefined,
       inQty: receivedQty,
       outQty: null,
       runningBalance: 0,
@@ -250,6 +258,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: refNo,
       referenceType: "Stock Transfer",
       branchName: fromName,
+      branchId: transfer.from_location_id,
       inQty: null,
       outQty: item.quantity,
       runningBalance: 0,
@@ -273,6 +282,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         referenceNo: refNo,
         referenceType: "Stock Transfer",
         branchName: toName,
+        branchId: transfer.to_location_id,
         inQty: item.quantity,
         outQty: null,
         runningBalance: 0,
@@ -307,6 +317,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: adj.reference_no || `ADJ-${String(adj.adjustment_number).padStart(4, "0")}`,
       referenceType: "Stock Adjustment",
       branchName: location?.name ?? "Main Warehouse",
+      branchId: location?.id ?? undefined,
       inQty: variance > 0 ? variance : null,
       outQty: variance < 0 ? Math.abs(variance) : null,
       runningBalance: 0,
@@ -335,6 +346,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: sale?.reference || `SR-${String(sale?.sale_number ?? 0).padStart(4, "0")}`,
       referenceType: "Sales Return",
       branchName: location?.name ?? "Main Branch",
+      branchId: location?.id ?? undefined,
       inQty: item.quantity,
       outQty: null,
       runningBalance: 0,
@@ -362,6 +374,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: pret.reference || `PR-${String(pret.return_number).padStart(4, "0")}`,
       referenceType: "Purchase Return",
       branchName: location?.name ?? "Main Warehouse",
+      branchId: location?.id ?? undefined,
       inQty: null,
       outQty: item.return_qty,
       runningBalance: 0,
@@ -388,28 +401,28 @@ export default async function ProductDetailPage({ params }: PageProps) {
   });
 
   const totalCalculatedStock = branches.reduce((sum, b) => sum + b.quantity, 0);
-  const currentActualStock = totalCalculatedStock > 0 ? totalCalculatedStock : (product.stock_quantity || 0);
+  const hasLocationStockLevels = (stockLevelRows ?? []).length > 0;
+  const currentActualStock = hasLocationStockLevels
+    ? totalCalculatedStock
+    : context.isBranchScoped ? 0 : (product.stock_quantity || 0);
 
   // Ensure initial stock / imported quantity is visible in the product ledger.
-  const initialStockBranchNames = new Set(
+  const initialStockBranches = new Set(
     realMovements
       .filter((movement) => movement.type === "Opening Stock" || movement.type === "Import")
-      .map((movement) => `${movement.branchName}:${movement.type}`)
+      .map((movement) => `${movement.branchId ?? movement.branchName}:${movement.type}`)
   );
 
   for (const level of stockLevelRows ?? []) {
     const branchQty = Number(level.quantity ?? 0);
-    if (branchQty <= 0) continue;
+    const location = (locationRows ?? []).find((loc) => loc.id === level.location_id);
+    const branchName = location?.name ?? "Main Warehouse";
+    const stockKey = `${level.location_id}:${product.is_imported ? "Import" : "Opening Stock"}`;
+    if (initialStockBranches.has(stockKey)) continue;
 
-    const branchName = (locationRows ?? []).find((loc) => loc.id === level.location_id)?.name ?? "Main Warehouse";
-    const stockKey = `${branchName}:${product.is_imported ? "Import" : "Opening Stock"}`;
-    if (initialStockBranchNames.has(stockKey)) continue;
-
-    // The stock-level row is the current balance, not the original opening
-    // quantity. Subtract this branch's recorded movements so the generated
-    // opening row does not double-count transfers, sales, or adjustments.
+    // Infer the baseline per branch from its present stock and recorded movements.
     const branchNetMovement = realMovements
-      .filter((movement) => movement.branchName === branchName && movement.type !== "Opening Stock" && movement.type !== "Import")
+      .filter((movement) => movement.branchId === level.location_id && movement.type !== "Opening Stock" && movement.type !== "Import")
       .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
     const openingQty = branchQty - branchNetMovement;
     if (openingQty <= 0) continue;
@@ -425,6 +438,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       referenceNo: product.is_imported ? `IMP-${product.sku}` : `INIT-${product.sku}`,
       referenceType: product.is_imported ? "Product Import" : "Opening Balance",
       branchName,
+      branchId: level.location_id,
       inQty: openingQty,
       outQty: null,
       runningBalance: 0,
@@ -434,20 +448,52 @@ export default async function ProductDetailPage({ params }: PageProps) {
       sourceDocId: product.id,
       notes: product.is_imported ? "Imported opening stock quantity" : "Initial inventory stock on catalog creation",
     });
-    initialStockBranchNames.add(stockKey);
+    initialStockBranches.add(stockKey);
   }
 
-  // Use the current stock quantity as the reconciliation point and exclude
-  // opening/import rows from movement totals. Those rows remain visible in the
-  // ledger, but they are not part of the recurring in/out analytics.
-  const totalActivityNetMovement = realMovements
-    .filter((movement) => movement.type !== "Opening Stock" && movement.type !== "Import")
+  if (!context.isBranchScoped && !hasLocationStockLevels && Number(product.stock_quantity ?? 0) > 0) {
+    const location = (locationRows ?? []).find((row) => row.id === product.location_id);
+    const branchName = location?.name ?? "Main Warehouse";
+    const branchNetMovement = realMovements
+      .filter((movement) => movement.branchId
+        ? movement.branchId === product.location_id
+        : movement.branchName === branchName)
+      .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
+    const openingQty = Number(product.stock_quantity) - branchNetMovement;
+    if (openingQty > 0) {
+      const createdDate = new Date(product.created_at || Date.now());
+      realMovements.push({
+        id: `open-${product.id}-default`,
+        productId: product.id,
+        dateTime: createdDate.toISOString(),
+        dateFormatted: createdDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        timeFormatted: createdDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        type: product.is_imported ? "Import" : "Opening Stock",
+        referenceNo: product.is_imported ? `IMP-${product.sku}` : `INIT-${product.sku}`,
+        referenceType: product.is_imported ? "Product Import" : "Opening Balance",
+        branchName,
+        branchId: location?.id,
+        inQty: openingQty,
+        outQty: null,
+        runningBalance: 0,
+        unitCost: product.cost_price || 0,
+        totalValue: openingQty * (product.cost_price || 0),
+        userName: product.is_imported ? "Import Batch" : "System Initializer",
+        sourceDocId: product.id,
+      });
+    }
+  }
+
+  const visibleMovements = context.isBranchScoped
+    ? realMovements.filter((movement) => !!movement.branchId && context.allowedLocationIds.includes(movement.branchId))
+    : realMovements;
+  // Opening stock is the baseline; imports and subsequent transactions are movements.
+  const totalActivityNetMovement = visibleMovements
+    .filter((movement) => movement.type !== "Opening Stock")
     .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
   const computedOpeningBalance = currentActualStock - totalActivityNetMovement;
-  const hasOpeningEntry = realMovements.some((movement) => movement.type === "Opening Stock" || movement.type === "Import");
 
-  // Calculate Real Running Balances and Analytics
-  const finalMovements = calculateRunningBalances(realMovements, hasOpeningEntry ? 0 : computedOpeningBalance);
+  const finalMovements = calculateRunningBalances(visibleMovements);
 
   const analyticsData = computeLedgerAnalytics(
     finalMovements,

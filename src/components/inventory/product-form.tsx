@@ -16,6 +16,7 @@ export interface ProductFormValues {
   name?: string;
   description?: string | null;
   category?: string | null;
+  product_category_id?: string | null;
   brand?: string | null;
   supplier?: string | null;
   barcode?: string | null;
@@ -45,6 +46,12 @@ export interface ProductFormValues {
 export interface ProductFormLocation {
   id: string;
   name: string;
+}
+
+export interface ProductFormCategory {
+  id: string;
+  name: string;
+  status: "active" | "inactive";
 }
 
 const UNITS = ["pcs", "box", "kg", "g", "l", "ml", "m", "pack", "dozen"];
@@ -118,7 +125,7 @@ export function ProductForm({
   action: (formData: FormData) => void;
   initialValues?: ProductFormValues;
   locations: ProductFormLocation[];
-  categories?: string[];
+  categories?: ProductFormCategory[];
   brands?: string[];
   error?: string;
   submitLabel: string;
@@ -132,6 +139,11 @@ export function ProductForm({
     initialValues?.location_id ? [initialValues.location_id] : []
   );
   const [productType, setProductType] = React.useState(initialValues?.product_type ?? "standard");
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState(
+    initialValues?.product_category_id
+      ?? categories.find((category) => category.name === initialValues?.category)?.id
+      ?? ""
+  );
   const [isService, setIsService] = React.useState(initialValues?.product_type === "service");
 
   const [trackExpiry, setTrackExpiry] = React.useState(!!initialValues?.expiry_date);
@@ -244,6 +256,7 @@ export function ProductForm({
   return (
     <form ref={formRef} action={action} onSubmit={handleSubmit} className="space-y-4">
       <input type="hidden" name="duplicate_override" value={duplicateOverride ? "true" : "false"} />
+      <input type="hidden" name="product_category_id" value={selectedCategoryId} />
       {!isEdit && locationIds.map((selectedLocationId) => (
         <input key={selectedLocationId} type="hidden" name="location_ids" value={selectedLocationId} />
       ))}
@@ -265,8 +278,22 @@ export function ProductForm({
               </div>
               <div className="space-y-1.5">
                 <FieldLabel htmlFor="category">Category</FieldLabel>
-                <Input id="category" name="category" list="category-options" defaultValue={initialValues?.category ?? ""} placeholder="Select category" />
-                <datalist id="category-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+                <Select
+                  id="category"
+                  name="category"
+                  value={categories.find((category) => category.id === selectedCategoryId)?.name ?? ""}
+                  onChange={(event) => {
+                    const selected = categories.find((category) => category.name === event.target.value);
+                    setSelectedCategoryId(selected?.id ?? "");
+                  }}
+                >
+                  <option value="">Uncategorized</option>
+                  {categories.filter((category) => category.status === "active" || category.id === selectedCategoryId).map((category) => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}{category.status === "inactive" ? " (Inactive — current product)" : ""}
+                    </option>
+                  ))}
+                </Select>
               </div>
 
               <div className="space-y-1.5">

@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canUseLocation } from "@/lib/organizations/location-access";
 import { canPermission } from "@/lib/rbac/permissions";
 import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
 
@@ -46,6 +47,9 @@ export async function createStockAdjustment(payload: CreateAdjustmentPayload): P
   }
   if (!payload.locationId) {
     return { error: "Choose a warehouse/location for this count." };
+  }
+  if (!canUseLocation(context, payload.locationId)) {
+    return { error: "You are not assigned to this branch." };
   }
   const locationId = payload.locationId;
 

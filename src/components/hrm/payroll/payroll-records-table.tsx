@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { CheckCircle2, Download, Eye, Pencil, Printer } from "lucide-react";
 import { approvePayrollRuns, markPayrollItemsPaid } from "@/app/(dashboard)/hrm/payroll/approval-actions";
@@ -33,6 +34,7 @@ export function PayrollRecordsTable({
   currency: string;
   canManage: boolean;
 }) {
+  const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -89,6 +91,7 @@ export function PayrollRecordsTable({
       const result = action === "paid"
         ? await markPayrollItemsPaid(selectedRows.filter((row) => row.status !== "Paid").map((row) => row.id))
         : await approvePayrollRuns(selectedRunIds);
+      router.refresh();
       if (!result.ok) {
         setMessage(result.error ?? "The requested payroll action failed.");
         return;
@@ -104,6 +107,7 @@ export function PayrollRecordsTable({
       const result = action === "paid"
         ? await markPayrollItemsPaid([row.id])
         : await approvePayrollRuns([row.runId]);
+      router.refresh();
       if (!result.ok) {
         setMessage(result.error ?? "The requested payroll action failed.");
         return;

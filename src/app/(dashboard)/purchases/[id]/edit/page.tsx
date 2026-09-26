@@ -47,6 +47,7 @@ export default async function EditPurchasePage({ params }: PageProps) {
     { data: locations },
     { data: projects },
     { data: products },
+    { data: stockLevels },
     { data: bankAccounts },
   ] = await Promise.all([
     supabase
@@ -63,8 +64,19 @@ export default async function EditPurchasePage({ params }: PageProps) {
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
+    (() => {
+      let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId);
+      return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
+    })(),
     supabase.from("bank_accounts").select("id, name").eq("org_id", orgId),
   ]);
+  const visibleLocations = context.isBranchScoped
+    ? (locations ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
+    : locations ?? [];
+  const stockByProduct = new Map<string, number>();
+  for (const level of stockLevels ?? []) {
+    stockByProduct.set(level.product_id, (stockByProduct.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+  }
 
   const initialValues: PurchaseEditInitialValues = {
     status: purchase.status,
@@ -120,7 +132,7 @@ export default async function EditPurchasePage({ params }: PageProps) {
         paymentTerms: s.payment_terms,
         currency: s.currency,
       }))}
-      locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name, address: l.address }))}
+      locations={visibleLocations.map((l) => ({ id: l.id, name: l.name, address: l.address }))}
       projects={(projects ?? []).map((p) => ({ id: p.id, name: p.name }))}
       products={(products ?? []).map((p) => ({
         id: p.id,
@@ -128,7 +140,7 @@ export default async function EditPurchasePage({ params }: PageProps) {
         sku: p.sku,
         barcode: p.barcode,
         costPrice: p.cost_price ?? 0,
-        stockQuantity: p.stock_quantity,
+        stockQuantity: context.isBranchScoped ? stockByProduct.get(p.id) ?? 0 : p.stock_quantity,
       }))}
       bankAccounts={(bankAccounts ?? []).map((a) => ({ id: a.id, name: a.name }))}
       currency={context.currency}

@@ -25,7 +25,7 @@ export default async function EditProductPage({
     supabase
       .from("products")
       .select(
-        "id, sku, name, description, category, brand, supplier, barcode, hsn_code, location_id, unit, product_type, unit_price, cost_price, wholesale_price, mrp, tax_rate, warranty_months, expiry_date, stock_quantity, low_stock_threshold, track_inventory, allow_sale, allow_purchase, allow_negative_stock, has_variants, is_active, tags, image_urls"
+        "id, sku, name, description, category, product_category_id, brand, supplier, barcode, hsn_code, location_id, unit, product_type, unit_price, cost_price, wholesale_price, mrp, tax_rate, warranty_months, expiry_date, stock_quantity, low_stock_threshold, track_inventory, allow_sale, allow_purchase, allow_negative_stock, has_variants, is_active, tags, image_urls"
       )
       .eq("id", id)
       .eq("org_id", context.orgId)

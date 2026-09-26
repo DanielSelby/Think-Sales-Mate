@@ -76,7 +76,7 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
       .in("id", missingProductIds);
 
     for (const prod of missingProducts ?? []) {
-      const seedQty = (prod.location_id === payload.fromLocationId || !prod.location_id) ? (prod.stock_quantity ?? 0) : 0;
+      const seedQty = prod.location_id === payload.fromLocationId ? (prod.stock_quantity ?? 0) : 0;
       if (seedQty > 0) {
         await supabase.from("product_stock_levels").upsert(
           {

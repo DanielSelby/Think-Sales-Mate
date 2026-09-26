@@ -110,6 +110,10 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       .filter((row) => Number(row.quantity) > 0)
       .map((row) => row.product_id)
   );
+  const quantityByProduct = new Map<string, number>();
+  for (const level of stockLevelRows ?? []) {
+    quantityByProduct.set(level.product_id, (quantityByProduct.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+  }
   const existingProductIds = new Set(initialSale.items.map((item) => item.productId));
   const products: SellableProduct[] = (productRows ?? []).map((p) => ({
     id: p.id,
@@ -120,7 +124,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     vipPrice: p.vip_price,
     specialPrice: p.special_price,
     costPrice: Number(p.cost_price ?? 0),
-    stockQuantity: p.stock_quantity + (reclaimByProduct.get(p.id) ?? 0),
+    stockQuantity: (context.isBranchScoped ? quantityByProduct.get(p.id) ?? 0 : p.stock_quantity) + (reclaimByProduct.get(p.id) ?? 0),
     allowNegativeStock: Boolean(p.allow_negative_stock),
   })).filter((p) =>
     !context.isBranchScoped ||

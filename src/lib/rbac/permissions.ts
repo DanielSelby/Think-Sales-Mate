@@ -6,7 +6,7 @@ import type { PermissionAction } from "@/lib/rbac";
 export type PermissionMatrix = Record<string, PermissionAction[]>;
 
 const ACTIONS = new Set<PermissionAction>([
-  "view", "create", "edit", "delete", "approve", "export", "print"
+  "view", "create", "edit", "delete", "approve", "import", "export", "print"
 ]);
 
 const MODULE_ALIASES: Record<string, string> = {

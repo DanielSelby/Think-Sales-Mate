@@ -68,7 +68,13 @@ export default async function StockAdjustmentPage({ searchParams }: { searchPara
     supabase.from("profiles").select("id, full_name, avatar_url"),
   ]);
 
-  const locations: AdjustLocation[] = (locationRows ?? []).map((l) => ({
+  const visibleLocationRows = context.isBranchScoped
+    ? (locationRows ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
+    : locationRows ?? [];
+  const visibleStockLevels = context.isBranchScoped
+    ? (stockLevelRows ?? []).filter((level) => context.allowedLocationIds.includes(level.location_id))
+    : stockLevelRows ?? [];
+  const locations: AdjustLocation[] = visibleLocationRows.map((l) => ({
     id: l.id,
     name: l.name,
     isPrimary: l.is_primary,
@@ -76,14 +82,20 @@ export default async function StockAdjustmentPage({ searchParams }: { searchPara
 
   // Build stock by product and location
   const stockByProductLoc: Record<string, Record<string, number>> = {};
-  (stockLevelRows ?? []).forEach((sl) => {
+  const quantityByProduct = new Map<string, number>();
+  visibleStockLevels.forEach((sl) => {
     if (!stockByProductLoc[sl.product_id]) {
       stockByProductLoc[sl.product_id] = {};
     }
     stockByProductLoc[sl.product_id][sl.location_id] = sl.quantity;
+    quantityByProduct.set(sl.product_id, (quantityByProduct.get(sl.product_id) ?? 0) + Number(sl.quantity ?? 0));
   });
 
-  const products: AdjustableProduct[] = (productRows ?? []).map((p) => ({
+  const products: AdjustableProduct[] = (productRows ?? [])
+    .filter((product) => !context.isBranchScoped
+      || context.allowedLocationIds.includes(product.location_id ?? "")
+      || quantityByProduct.has(product.id))
+    .map((p) => ({
     id: p.id,
     sku: p.sku,
     barcode: p.barcode,
@@ -91,7 +103,7 @@ export default async function StockAdjustmentPage({ searchParams }: { searchPara
     category: p.category,
     brand: p.brand,
     locationId: p.location_id,
-    stockQuantity: p.stock_quantity ?? 0,
+    stockQuantity: context.isBranchScoped ? quantityByProduct.get(p.id) ?? 0 : p.stock_quantity ?? 0,
     costPrice: p.cost_price ?? 0,
     unitPrice: p.unit_price ?? 0,
     imageUrl: p.image_urls?.[0] || null,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, ChevronRight, FileText, Filter, Play, Search, WalletCards, Users } from "lucide-react";
+import { CalendarDays, ChevronRight, FileText, Filter, Play, WalletCards, Users } from "lucide-react";
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +7,7 @@ import { can } from "@/lib/rbac";
 import { formatCurrency } from "@/lib/sales/format";
 import { runPayroll } from "./actions";
 import { PayrollKpi } from "@/components/hrm/payroll-kpi";
+import { PayrollFilters } from "@/components/hrm/payroll/payroll-filters";
 import { PayrollRecordsTable, type PayrollRecordRow } from "@/components/hrm/payroll/payroll-records-table";
 
 type SearchParams = { month?: string; year?: string; branch?: string; department?: string; status?: string; payroll_type?: string; employee?: string; error?: string };
@@ -132,19 +133,16 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
           <PayrollKpi icon={<WalletCards className="h-4 w-4" />} label="Net Salary Payable" value={formatCurrency(totalPayroll, context.currency)} tone="blue" />
         </div>
 
-        <form method="get" className="grid gap-3 rounded-xl border border-[#dce8f2] bg-white p-3 shadow-sm dark:border-ledger-700 dark:bg-ink-900 md:grid-cols-3 xl:grid-cols-7">
-          <label className="text-[10px] font-semibold text-slate-500">Payroll Month<select name="month" defaultValue={filters.month ?? ""} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-ink-950"><option value="">All months</option>{monthOptions.map((month) => <option key={month} value={month}>{monthName(month)}</option>)}</select></label>
-          <label className="text-[10px] font-semibold text-slate-500">Payroll Year<select name="year" defaultValue={filters.year ?? ""} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-ink-950"><option value="">All years</option>{yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
-          <label className="text-[10px] font-semibold text-slate-500">Branch<select name="branch" defaultValue={filters.branch ?? ""} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-ink-950"><option value="">All branches</option>{(locations ?? []).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
-          <label className="text-[10px] font-semibold text-slate-500">Department<select name="department" defaultValue={filters.department ?? ""} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-ink-950"><option value="">All departments</option>{departmentOptions.map((department) => <option key={department} value={department}>{department}</option>)}</select></label>
-          <label className="text-[10px] font-semibold text-slate-500">Payment Status<select name="status" defaultValue={filters.status ?? ""} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-ink-950"><option value="">All statuses</option><option value="paid">Paid</option><option value="pending">Pending</option><option value="partially_paid">Partially Paid</option><option value="processing">Processing</option></select></label>
-          <label className="text-[10px] font-semibold text-slate-500">Payroll Type<select name="payroll_type" defaultValue={filters.payroll_type ?? ""} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-ink-950"><option value="">All types</option><option value="Monthly">Monthly</option><option value="Weekly">Weekly</option><option value="Contract">Contract</option></select></label>
-          <label className="text-[10px] font-semibold text-slate-500">Search Employee<div className="relative mt-1"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" /><input name="employee" defaultValue={filters.employee} placeholder="Name or employee ID..." className="h-9 w-full rounded-md border border-slate-200 pl-8 pr-2 text-xs dark:border-ledger-700 dark:bg-ink-950" /></div></label>
-          <div className="flex items-end gap-2"><button type="submit" className="h-9 flex-1 rounded-md px-3 text-xs font-semibold text-white" style={{ backgroundColor: "var(--theme-primary)" }}>Apply Filter</button><Link href="/hrm/payroll" className="inline-flex h-9 items-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300">Reset</Link></div>
-        </form>
+        <PayrollFilters
+          filters={filters}
+          monthOptions={monthOptions}
+          yearOptions={yearOptions}
+          branches={locations ?? []}
+          departmentOptions={departmentOptions}
+        />
 
         <section className="overflow-hidden rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-ledger-700"><div><h2 className="font-bold text-[#12345a] dark:text-white">Payroll Records</h2><p className="text-xs text-slate-500">Showing {filteredItems.length} employee records across {filteredRuns.length} payroll runs.</p></div><div className="flex gap-2"><Link href="/accounting/expenses" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300"><WalletCards className="h-3.5 w-3.5" />Salary Expenses</Link><Link href="/hrm/payslips" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300"><FileText className="h-3.5 w-3.5" />Payslip Generated</Link>{currentRun && <Link href={`/hrm/payroll/${currentRun.id}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300">Latest run <ChevronRight className="h-3.5 w-3.5" /></Link>}</div></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-ledger-700"><div><h2 className="font-bold text-[#12345a] dark:text-white">Payroll Records</h2><p className="text-xs text-slate-500">Showing {filteredItems.length} employee records across {filteredRuns.length} payroll runs.</p></div><div className="flex gap-2"><Link href="/expenses?category=payroll" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300"><WalletCards className="h-3.5 w-3.5" />Salary Expenses</Link><Link href="/hrm/payslips" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300"><FileText className="h-3.5 w-3.5" />Payslip Generated</Link>{currentRun && <Link href={`/hrm/payroll/${currentRun.id}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-ledger-700 dark:text-slate-300">Latest run <ChevronRight className="h-3.5 w-3.5" /></Link>}</div></div>
           <PayrollRecordsTable rows={rows} currency={context.currency} canManage={canManage} />
         </section>
     </div>

@@ -117,35 +117,37 @@ export function formatLedgerMoney(amount: number, currency: string = "GHS"): str
  * Calculates running balances chronologically for an array of movements
  */
 export function calculateRunningBalances(
-  movements: StockMovement[],
-  initialOpeningBalance: number = 0
+  movements: StockMovement[]
 ): StockMovement[] {
-  // Sort ascending by date to compute forward balance
-  const sortedAsc = [...movements].sort(
-    (a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
-  );
+  const byBranch = new Map<string, StockMovement[]>();
+  for (const movement of movements) {
+    const branchKey = movement.branchId ?? movement.branchName;
+    const branchMovements = byBranch.get(branchKey) ?? [];
+    branchMovements.push(movement);
+    byBranch.set(branchKey, branchMovements);
+  }
 
-  let currentBalance = initialOpeningBalance;
+  const withBalances: StockMovement[] = [];
+  for (const branchMovements of byBranch.values()) {
+    const sortedAsc = [...branchMovements].sort((a, b) =>
+      new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
+      || a.id.localeCompare(b.id)
+    );
+    let currentBalance = 0;
+    for (const movement of sortedAsc) {
+      currentBalance += (movement.inQty ?? 0) - (movement.outQty ?? 0);
+      withBalances.push({ ...movement, runningBalance: currentBalance });
+    }
+  }
 
-  const withBalancesAsc = sortedAsc.map((m) => {
-    const inVal = m.inQty ?? 0;
-    const outVal = m.outQty ?? 0;
-    currentBalance = currentBalance + inVal - outVal;
-
-    return {
-      ...m,
-      runningBalance: currentBalance,
-    };
-  });
-
-  // Return descending (newest first) for ERP ledger display
-  return withBalancesAsc.sort(
-    (a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()
+  return withBalances.sort((a, b) =>
+    new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()
+    || b.id.localeCompare(a.id)
   );
 }
 
 export function isOpeningBalanceMovement(type: TransactionType): boolean {
-  return type === "Opening Stock" || type === "Import";
+  return type === "Opening Stock";
 }
 
 export function computeLedgerAnalytics(

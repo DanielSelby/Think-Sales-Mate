@@ -61,7 +61,7 @@ export interface MergeExecutionResult {
  */
 export async function searchProductsForMerge(query: string): Promise<MergeProductOption[]> {
   const context = await getCurrentOrgContext();
-  if (!context) return [];
+  if (!context || context.isBranchScoped) return [];
 
   const supabase = await createClient();
   const term = query.trim();
@@ -141,7 +141,7 @@ async function formatProductOptions(rawProducts: any[], supabase: any, orgId: st
 
 export async function getProductsForMerge(productIds: string[]): Promise<MergeProductOption[]> {
   const context = await getCurrentOrgContext();
-  if (!context || productIds.length === 0) return [];
+  if (!context || context.isBranchScoped || productIds.length === 0) return [];
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -163,7 +163,7 @@ export async function previewProductMerge(
   selectedMasterId?: string
 ): Promise<{ ok: boolean; error?: string; preview?: MergePreviewData }> {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) {
+  if (!context || context.isBranchScoped || !await canPermission("inventory", "edit")) {
     return { ok: false, error: "Unauthorized: inventory manager role required." };
   }
 
@@ -327,7 +327,7 @@ export interface ExecuteMergePayload {
  */
 export async function executeProductMerge(payload: ExecuteMergePayload): Promise<MergeExecutionResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) {
+  if (!context || context.isBranchScoped || !await canPermission("inventory", "edit")) {
     return { ok: false, error: "Unauthorized: inventory manager role required." };
   }
 

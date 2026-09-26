@@ -9,12 +9,21 @@ export default async function PriceManagementPage() {
   const context = await getCurrentOrgContext((await cookies()).get("active_org_id")?.value);
   if (!context) return null;
   const supabase = await createClient();
-  const { data } = await supabase
+  const [{ data }, { data: stockLevels }] = await Promise.all([supabase
     .from("products")
     .select("id, name, sku, barcode, category, brand, unit_price, cost_price, wholesale_price, vip_price, special_price, stock_quantity, image_urls, updated_at")
     .eq("org_id", context.orgId)
     .eq("is_active", true)
-    .order("name");
+    .order("name"),
+    (() => {
+      let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", context.orgId);
+      return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
+    })()]);
+
+  const quantityByProduct = new Map<string, number>();
+  for (const level of stockLevels ?? []) {
+    quantityByProduct.set(level.product_id, (quantityByProduct.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+  }
 
   const products: PriceProduct[] = (data ?? []).map((product) => ({
     id: product.id,
@@ -28,10 +37,10 @@ export default async function PriceManagementPage() {
     wholesalePrice: product.wholesale_price == null ? null : Number(product.wholesale_price),
     vipPrice: product.vip_price == null ? null : Number(product.vip_price),
     specialPrice: product.special_price == null ? null : Number(product.special_price),
-    stockQuantity: Number(product.stock_quantity ?? 0),
+    stockQuantity: context.isBranchScoped ? quantityByProduct.get(product.id) ?? 0 : Number(product.stock_quantity ?? 0),
     imageUrl: product.image_urls?.[0] ?? null,
     updatedAt: product.updated_at,
-  }));
+    }));
 
   return <PriceManagementView products={products} currency={context.currency} canManage={context.role === "owner" || context.role === "admin" || context.role === "manager"} useSystemPrices={context.useSystemPrices} />;
 }

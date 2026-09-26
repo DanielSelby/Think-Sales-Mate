@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { canPermission } from "@/lib/rbac/permissions";
 import type { LocationType } from "@/types/database";
 
@@ -144,6 +145,9 @@ export interface LocationStats {
 export async function getLocationStats(locationId: string): Promise<LocationStats> {
   const context = await getCurrentOrgContext();
   if (!context) return { stockQuantity: 0, inventoryValue: 0 };
+  if (!canAccessLocation(context, locationId)) {
+    throw new Error("You are not assigned to this branch.");
+  }
 
   const supabase = await createClient();
   const { data } = await supabase

@@ -179,7 +179,9 @@ export function StockAdjustmentForm({
   // stockQuantity, which is an org-wide total.
   function availableAt(product: AdjustableProduct | undefined, locationId: string) {
     if (!product) return 0;
-    return product.locationStocks?.[locationId] ?? product.stockQuantity ?? 0;
+    return product.locationStocks
+      ? product.locationStocks[locationId] ?? 0
+      : product.stockQuantity ?? 0;
   }
 
   function availableAtById(productId: string, locationId: string) {

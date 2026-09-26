@@ -23,12 +23,15 @@ export default async function InventoryIntelligencePage() {
   const [{ data: products }, { data: stockLevels }, { data: locations }, { data: sales }, { data: purchases }, { data: transfers }, { data: adjustments }] =
     await Promise.all([
       supabase.from("products").select("id, sku, name, category, brand, supplier, cost_price, unit_price, stock_quantity, low_stock_threshold, is_active, location_id, created_at").eq("org_id", context.orgId).order("name").limit(2000),
-      supabase.from("product_stock_levels").select("product_id, location_id, quantity, business_locations(name)").eq("org_id", context.orgId),
+      (() => {
+        let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity, business_locations(name)").eq("org_id", context.orgId);
+        return context.isBranchScoped ? query.in("location_id", context.allowedLocationIds) : query;
+      })(),
       supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
-      supabase.from("sale_items").select("product_id, quantity, line_total, created_at, sales: sale_id (status, business_locations(name))").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
-      supabase.from("purchase_items").select("product_id, quantity_received, quantity, unit_price, line_total, created_at, purchases: purchase_id (status, supplier_id, expected_delivery_date, received_at, purchase_date, suppliers(name))").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
-      supabase.from("stock_transfer_items").select("quantity, created_at, stock_transfers: transfer_id (status)").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
-      supabase.from("stock_adjustment_items").select("system_stock, counted_stock, created_at").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
+      supabase.from("sale_items").select("product_id, quantity, line_total, created_at, sales: sale_id (status, location_id, business_locations(name))").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
+      supabase.from("purchase_items").select("product_id, quantity_received, quantity, unit_price, line_total, created_at, purchases: purchase_id (status, location_id, supplier_id, expected_delivery_date, received_at, purchase_date, suppliers(name))").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
+      supabase.from("stock_transfer_items").select("quantity, created_at, stock_transfers: transfer_id (status, from_location_id, to_location_id)").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
+      supabase.from("stock_adjustment_items").select("system_stock, counted_stock, created_at, stock_adjustments:adjustment_id(location_id)").eq("org_id", context.orgId).gte("created_at", since).limit(10000),
     ]);
 
   const locationNames = new Map((locations ?? []).map((location) => [location.id, location.name]));
@@ -45,6 +48,7 @@ export default async function InventoryIntelligencePage() {
   const supplierStats = new Map<string, { name: string; volume: number; products: Set<string>; delivered: number; deliveryTotal: number }>();
   for (const row of sales ?? []) {
     const sale = Array.isArray(row.sales) ? row.sales[0] : row.sales;
+    if (context.isBranchScoped && (!sale?.location_id || !context.allowedLocationIds.includes(sale.location_id))) continue;
     if (sale?.status === "cancelled") continue;
     const current = salesByProduct.get(row.product_id) ?? { quantity: 0, revenue: 0, lastSale: null };
     current.quantity += Number(row.quantity ?? 0);
@@ -58,6 +62,7 @@ export default async function InventoryIntelligencePage() {
   }
   for (const row of purchases ?? []) {
     const purchase = Array.isArray(row.purchases) ? row.purchases[0] : row.purchases;
+    if (context.isBranchScoped && (!purchase?.location_id || !context.allowedLocationIds.includes(purchase.location_id))) continue;
     if (purchase?.status === "cancelled" || purchase?.status === "draft") continue;
     const quantity = Number(row.quantity_received ?? row.quantity ?? 0);
     const month = row.created_at.slice(0, 7);
@@ -80,6 +85,7 @@ export default async function InventoryIntelligencePage() {
   for (const row of transfers ?? []) {
     const transfer = Array.isArray(row.stock_transfers) ? row.stock_transfers[0] : row.stock_transfers;
     if (transfer?.status !== "completed") continue;
+    if (context.isBranchScoped && !context.allowedLocationIds.some((id) => id === transfer.from_location_id || id === transfer.to_location_id)) continue;
     const month = row.created_at.slice(0, 7);
     const movement = monthlyMovement.get(month) ?? { inQty: 0, outQty: 0 };
     movement.inQty += Number(row.quantity ?? 0);
@@ -87,6 +93,8 @@ export default async function InventoryIntelligencePage() {
     monthlyMovement.set(month, movement);
   }
   for (const row of adjustments ?? []) {
+    const adjustment = Array.isArray(row.stock_adjustments) ? row.stock_adjustments[0] : row.stock_adjustments;
+    if (context.isBranchScoped && (!adjustment?.location_id || !context.allowedLocationIds.includes(adjustment.location_id))) continue;
     const variance = Number(row.counted_stock ?? 0) - Number(row.system_stock ?? 0);
     if (!variance) continue;
     const month = row.created_at.slice(0, 7);
@@ -98,7 +106,9 @@ export default async function InventoryIntelligencePage() {
 
   const intelligenceData: IntelligenceData = {
     currency: context.currency,
-    locations: (locations ?? []).map((location) => ({ id: location.id, name: location.name })),
+    locations: (locations ?? [])
+      .filter((location) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
+      .map((location) => ({ id: location.id, name: location.name })),
     categories: [...new Set((products ?? []).map((product) => product.category).filter(Boolean) as string[])].sort(),
     suppliers: [...new Set((products ?? []).map((product) => product.supplier).filter(Boolean) as string[])].sort(),
     brands: [...new Set((products ?? []).map((product) => product.brand).filter(Boolean) as string[])].sort(),
@@ -109,9 +119,15 @@ export default async function InventoryIntelligencePage() {
       deliveryAccuracy: stats.deliveryTotal ? Math.round(stats.delivered / stats.deliveryTotal * 100) : null,
       quality: null,
     })).sort((a, b) => b.purchaseVolume - a.purchaseVolume),
-    products: (products ?? []).map((product) => {
+    products: (products ?? [])
+      .filter((product) => !context.isBranchScoped
+        || (stockByProduct.get(product.id) ?? []).length > 0
+        || (product.location_id !== null && context.allowedLocationIds.includes(product.location_id)))
+      .map((product) => {
       const levels = stockByProduct.get(product.id) ?? [];
-      const stock = levels.length ? levels.reduce((sum, level) => sum + level.quantity, 0) : Number(product.stock_quantity ?? 0);
+      const stock = levels.length
+        ? levels.reduce((sum, level) => sum + level.quantity, 0)
+        : context.isBranchScoped ? 0 : Number(product.stock_quantity ?? 0);
       const salesData = salesByProduct.get(product.id) ?? { quantity: 0, revenue: 0, lastSale: null };
       const cost = Number(product.cost_price ?? 0);
       const averageMonthlySales = salesData.quantity / 12;
@@ -141,7 +157,7 @@ export default async function InventoryIntelligencePage() {
         active: product.is_active ?? true,
         levels,
       };
-    }),
+      }),
     monthlyMovement: [...monthlyMovement.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([month, values]) => ({ month, ...values })),
   };
   return <InventoryIntelligenceCenter initialData={intelligenceData} />;

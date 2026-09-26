@@ -56,7 +56,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
     stockLevelsQuery,
     supabase
       .from("sale_items")
-      .select("product_id, quantity, products(name)")
+      .select("product_id, quantity, products(name), sales:sale_id(location_id)")
       .eq("org_id", context.orgId)
       .gte("created_at", since30d)
   ]);
@@ -109,6 +109,8 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
 
   const bestSellerMap = new Map<string, { name: string; unitsSold: number }>();
   for (const row of recentItemRows ?? []) {
+    const sale = Array.isArray(row.sales) ? row.sales[0] : row.sales;
+    if (context.isBranchScoped && (!sale?.location_id || !context.allowedLocationIds.includes(sale.location_id))) continue;
     const product = Array.isArray(row.products) ? row.products[0] : row.products;
     if (!row.product_id || !product) continue;
     const existing = bestSellerMap.get(row.product_id) ?? { name: product.name, unitsSold: 0 };
@@ -127,7 +129,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
       bestSellers={bestSellers}
       canManage={can(context.role, "inventory.manage")}
       currency={context.currency}
-      canCheckCrossBranchStock={context.canCheckCrossBranchStock}
+      canCheckCrossBranchStock={context.canCheckCrossBranchStock && !context.isBranchScoped}
     />
   );
 }

@@ -9,6 +9,8 @@ export default async function AddPurchasePage() {
   if (!context) return null; // layout redirects when there's no org
 
   const orgId = context.orgId;
+  const isBranchScoped = context.isBranchScoped;
+  const allowedLocationIds = context.allowedLocationIds;
   const supabase = await createClient();
 
   const [
@@ -16,6 +18,7 @@ export default async function AddPurchasePage() {
     { data: locations },
     { data: projects },
     { data: products },
+    { data: stockLevels },
     { data: bankAccounts },
   ] = await Promise.all([
     supabase
@@ -32,9 +35,20 @@ export default async function AddPurchasePage() {
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
+    (() => {
+      let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId);
+      return isBranchScoped ? query.in("location_id", allowedLocationIds) : query;
+    })(),
     supabase.from("bank_accounts").select("id, name").eq("org_id", orgId),
   ]);
 
+  const visibleLocations = isBranchScoped
+    ? (locations ?? []).filter((location) => allowedLocationIds.includes(location.id))
+    : locations ?? [];
+  const stockByProduct = new Map<string, number>();
+  for (const level of stockLevels ?? []) {
+    stockByProduct.set(level.product_id, (stockByProduct.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+  }
   const recommendations = await buildRecommendations(orgId);
 
   return (
@@ -48,7 +62,7 @@ export default async function AddPurchasePage() {
         paymentTerms: s.payment_terms,
         currency: s.currency,
       }))}
-      locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name, address: l.address }))}
+      locations={visibleLocations.map((l) => ({ id: l.id, name: l.name, address: l.address }))}
       projects={(projects ?? []).map((p) => ({ id: p.id, name: p.name }))}
       products={(products ?? []).map((p) => ({
         id: p.id,
@@ -56,7 +70,7 @@ export default async function AddPurchasePage() {
         sku: p.sku,
         barcode: p.barcode,
         costPrice: p.cost_price ?? 0,
-        stockQuantity: p.stock_quantity,
+        stockQuantity: isBranchScoped ? stockByProduct.get(p.id) ?? 0 : p.stock_quantity,
       }))}
       bankAccounts={(bankAccounts ?? []).map((a) => ({ id: a.id, name: a.name }))}
       currency={context.currency}
@@ -80,7 +94,18 @@ export default async function AddPurchasePage() {
       .order("stock_quantity", { ascending: true })
       .limit(20);
 
-    for (const p of (lowStock ?? []).filter((p) => p.stock_quantity <= p.low_stock_threshold).slice(0, 3)) {
+    const { data: levels } = await (async () => {
+      let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId);
+      return isBranchScoped ? query.in("location_id", allowedLocationIds) : query;
+    })();
+    const visibleQuantity = new Map<string, number>();
+    for (const level of levels ?? []) visibleQuantity.set(level.product_id, (visibleQuantity.get(level.product_id) ?? 0) + Number(level.quantity ?? 0));
+    const lowStockRows = (lowStock ?? [])
+      .filter((product) => !isBranchScoped || visibleQuantity.has(product.id))
+      .map((product) => ({ ...product, stock_quantity: isBranchScoped ? visibleQuantity.get(product.id) ?? 0 : product.stock_quantity }))
+      .filter((product) => product.stock_quantity <= product.low_stock_threshold);
+
+    for (const p of lowStockRows.slice(0, 3)) {
       const suggestedQty = Math.max(1, p.low_stock_threshold * 2 - p.stock_quantity);
       out.push({
         productId: p.id,

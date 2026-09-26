@@ -19,6 +19,7 @@ export type PermissionAction =
   | "edit" 
   | "delete" 
   | "approve" 
+  | "import"
   | "export" 
   | "print";
 

@@ -20,6 +20,7 @@ export const PERMISSION_ACTIONS: { key: PermissionAction; label: string; descrip
   { key: "edit", label: "Edit", description: "Can modify existing records" },
   { key: "delete", label: "Delete", description: "Can remove or archive records" },
   { key: "approve", label: "Approve", description: "Can authorize transactions, transfers, & budgets" },
+  { key: "import", label: "Import", description: "Can import records from supported files" },
   { key: "export", label: "Export", description: "Can export datasets to CSV / Excel / PDF" },
   { key: "print", label: "Print", description: "Can print receipts, invoices, and audit slips" }
 ];
@@ -36,10 +37,17 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
     ["sales", "Sales", [["new_sales", "New Sales"], ["sales_history", "Sales History"], ["returns", "Returns"], ["reports", "Reports"], ["settings", "Settings"]]]
   ]),
   inventory: pages([
-    ["products", "Products", [["product_list", "Product List"], ["add_product", "Add Product"], ["price_management", "Price Management"], ["product_locations", "Product Locations"], ["import_products", "Import Products"]]],
+    ["products", "Products", [["product_list", "Product List"], ["add_product", "Add Product"], ["product_categories", "Product Categories"], ["price_management", "Price Management"], ["product_locations", "Product Locations"], ["import_products", "Import Products"]]],
     ["stock_transfer", "Stock Transfer", [["create_transfer", "Create Transfer"], ["transfer_history", "Transfer History"], ["approvals", "Approvals"]]],
     ["inventory_intelligence", "Inventory Intelligence", [["dashboard", "Dashboard"], ["dead_stock", "Dead Stock"], ["slow_moving_stock", "Slow Moving Stock"], ["forecasting", "Forecasting"]]]
-  ]),
+  ]).map((page) => page.key === "products"
+    ? {
+        ...page,
+        tabs: page.tabs.map((tab) => tab.key === "product_categories"
+          ? { ...tab, supportedActions: [...(tab.supportedActions ?? TAB_ACTIONS), "import"] }
+          : tab),
+      }
+    : page),
   hrm_payroll: pages([
     ["hrm", "HRM & Payroll", [["employees", "Employees"], ["attendance", "Attendance"], ["leave_management", "Leave Management"], ["payroll", "Payroll"], ["payslips", "Payslips"], ["performance_reviews", "Performance Reviews"], ["departments", "Departments"], ["recruitment", "Recruitment"], ["training", "Training & Development"], ["asset_assignment", "Asset Assignment"], ["discipline", "Discipline & Incidents"], ["organization_chart", "Organization Chart"], ["reports", "Reports & Analytics"]]]
   ]),
@@ -66,6 +74,7 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "orders", name: "Orders", description: "Customer order management, picking, delivery, and conversions", iconName: "Inbox", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "customer_ordering", name: "Customer Ordering", description: "Customer portal ordering, order settings, and order conversion", iconName: "Inbox", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
   { key: "products", name: "Products", description: "Product catalog, pricing tiers, barcodes, and units", iconName: "Boxes", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "product_categories", name: "Product Categories", description: "Manage product category names, hierarchy, status, and assignments", iconName: "LayoutGrid", supportedActions: ["view", "create", "edit", "delete", "import", "export"] },
   { key: "inventory", name: "Inventory", description: "Stock levels, batches, stock takes, and adjustments", iconName: "Layers", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "stock_adjustments", name: "Stock Adjustments", description: "Stock taking, adjustments, adjustment history, and variance review", iconName: "ClipboardEdit", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "stock_requests", name: "Stock Requests", description: "Branch stock requests, fulfillment, and request history", iconName: "ClipboardCheck", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },

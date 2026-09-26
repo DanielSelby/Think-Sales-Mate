@@ -829,6 +829,9 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
 
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
+  if (!canUseLocation(context, input.locationId)) {
+    return { ok: false, error: "You are not assigned to this branch." };
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -877,7 +880,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     const rows = rowsByProduct.get(item.productId);
     const available = rows
       ? (rows.find((r) => r.location_id === input.locationId)?.quantity ?? 0)
-      : (orgWideById.get(item.productId) ?? 0);
+      : context.isBranchScoped ? 0 : (orgWideById.get(item.productId) ?? 0);
     if (item.quantity > available) {
       return { ok: false, error: `Only ${available} unit(s) of "${item.name}" available at this branch.` };
     }
@@ -987,7 +990,9 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   // whole fix is for. Seed each untracked product at this location with its
   // org-wide total first, so the decrement below has something real to
   // subtract from. on conflict do nothing so a concurrent sale can't double-seed.
-  const untrackedIds = productIds.filter((id) => !rowsByProduct.has(id));
+  const untrackedIds = context.isBranchScoped
+    ? []
+    : productIds.filter((id) => !rowsByProduct.has(id));
   if (untrackedIds.length > 0) {
     const seedRows = untrackedIds.map((id) => ({
       org_id: context.orgId,
@@ -1121,7 +1126,7 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
     const rows = rowsByProduct.get(item.productId);
     const rawAvailable = rows
       ? (rows.find((r) => r.location_id === input.locationId)?.quantity ?? 0)
-      : (orgWideById.get(item.productId) ?? 0);
+      : context.isBranchScoped ? 0 : (orgWideById.get(item.productId) ?? 0);
     // Only add back the old quantity if it was reserved at the SAME
     // location this edit is now posting to — otherwise it'll be returned
     // to the old location separately below, not this one.
