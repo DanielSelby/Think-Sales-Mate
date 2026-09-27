@@ -73,6 +73,26 @@ html.dark .stock-transfer-surface [class~="dark:text-white"] {
   color: #111827 !important;
 }
 
+.stock-transfer-modal-surface {
+  background-color: #fff !important;
+  color: #111827 !important;
+}
+
+html.dark .stock-transfer-modal-surface {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.stock-transfer-modal-surface .stock-transfer-search-input {
+  border: 1px solid #9ca3af !important;
+}
+
+html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
+  border-color: #64748b !important;
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -106,8 +126,8 @@ html.dark .stock-transfer-surface [class~="dark:text-white"] {
     background-color: transparent !important;
   }
 
-  .page-canvas .stock-transfer-surface.rounded-2xl,
-  .page-canvas .stock-transfer-surface.rounded-xl {
+  .page-canvas .stock-transfer-modal-surface.rounded-2xl,
+  .page-canvas .stock-transfer-modal-surface.rounded-xl {
     background-color: #fff !important;
     border-color: #e2e8f0 !important;
   }
@@ -468,6 +488,27 @@ html.dark .support-page textarea {
 
 html.dark .support-page > section:first-child {
   border-color: #285b52;
+}
+
+.page-canvas .stock-transfer-catalogue-modal,
+.page-canvas .stock-transfer-confirm-surface {
+  background-color: #fff !important;
+  color: #111827 !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.dark .page-canvas .stock-transfer-catalogue-modal,
+html.dark .page-canvas .stock-transfer-confirm-surface {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark .page-canvas .stock-transfer-catalogue-modal input,
+html.dark .page-canvas .stock-transfer-catalogue-modal select {
+  background-color: #0f172a !important;
+  border-color: #475569 !important;
+  color: #f8fafc !important;
   background-color: #12382f;
 }
 

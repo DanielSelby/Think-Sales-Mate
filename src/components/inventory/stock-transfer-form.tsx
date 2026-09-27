@@ -1453,8 +1453,8 @@ export function StockTransferForm({
       {/* ── Product Lookup Catalogue Modal (Real Products) ──────────────── */}
       {showLookupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="stock-transfer-surface relative w-full max-w-2xl rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-ledger-100 pb-3 dark:border-ledger-700">
+          <div className="stock-transfer-catalogue-modal relative w-full max-w-2xl rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-ledger-100 bg-slate-50/75 pb-3 dark:border-ledger-700 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 <Layers className="h-5 w-5 text-emerald-600" />
                 <h3 className="font-bold text-base text-ink-900 dark:text-white">
@@ -1478,7 +1478,7 @@ export function StockTransferForm({
                   placeholder="Filter catalog by product name or SKU..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="stock-transfer-search-input h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-3 text-xs text-ink-900 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                  className="stock-transfer-search-input h-10 w-full rounded-xl border border-gray-400 bg-white pl-9 pr-3 text-xs text-ink-900 dark:border-slate-500 dark:bg-slate-900 dark:text-white"
                 />
               </div>
 
@@ -1497,10 +1497,10 @@ export function StockTransferForm({
                     return (
                       <div
                         key={p.id}
-                        className="stock-transfer-surface flex items-center justify-between rounded-xl border border-ledger-100 bg-white p-3 text-xs hover:bg-ledger-50/60 dark:border-ledger-700 dark:bg-white dark:hover:bg-slate-50"
+                        className="flex items-center justify-between rounded-xl border border-ledger-100 bg-white p-3 text-xs hover:bg-ledger-50/60 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-ink-950">
+                          <div                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-slate-900">
                             <Package className="h-4 w-4 text-ledger-400" />
                           </div>
                           <div>
@@ -1615,7 +1615,7 @@ export function StockTransferForm({
         description="Remove this item from the stock transfer?"
         onCancel={() => setPendingRemoveRowId(null)}
         onConfirm={confirmRemoveItem}
-        className="!bg-white !text-ink-900 dark:!border-ledger-200 dark:!bg-white dark:!text-ink-900 [&>h2]:dark:!text-ink-900"
+        className="stock-transfer-confirm-surface !bg-white !text-ink-900 dark:!border-slate-700 dark:!bg-slate-900 dark:!text-white [&>h2]:dark:!text-white"
       />
     </div>
   );
