@@ -509,7 +509,57 @@ html.dark .page-canvas .stock-transfer-catalogue-modal select {
   background-color: #0f172a !important;
   border-color: #475569 !important;
   color: #f8fafc !important;
-  background-color: #12382f;
+}
+
+.page-canvas .stock-transfer-themed-modal {
+  background-color: #fff !important;
+  color: #111827 !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.dark .page-canvas .stock-transfer-themed-modal {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+.page-canvas .stock-transfer-themed-modal .stock-transfer-modal-header,
+.page-canvas .stock-transfer-themed-modal .stock-transfer-modal-footer {
+  background-color: #f8fafc !important;
+}
+
+html.dark .page-canvas .stock-transfer-themed-modal .stock-transfer-modal-header,
+html.dark .page-canvas .stock-transfer-themed-modal .stock-transfer-modal-footer {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.page-canvas .stock-transfer-themed-modal .stock-transfer-modal-body {
+  background-color: #fff !important;
+}
+
+html.dark .page-canvas .stock-transfer-themed-modal .stock-transfer-modal-body {
+  background-color: #0f172a !important;
+}
+
+.page-canvas .stock-transfer-themed-modal .stock-transfer-modal-row {
+  background-color: #fff !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.dark .page-canvas .stock-transfer-themed-modal .stock-transfer-modal-row {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+html.dark .page-canvas .stock-transfer-themed-modal input {
+  background-color: #0f172a !important;
+  border-color: #475569 !important;
+  color: #f8fafc !important;
+}
+
+html.dark .page-canvas .stock-transfer-themed-modal input::placeholder {
+  color: #94a3b8 !important;
 }
 
 html.dark .support-page > section:first-child > .bg-gradient-to-r {

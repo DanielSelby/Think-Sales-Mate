@@ -1453,8 +1453,8 @@ export function StockTransferForm({
       {/* ── Product Lookup Catalogue Modal (Real Products) ──────────────── */}
       {showLookupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="stock-transfer-catalogue-modal relative w-full max-w-2xl rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-ledger-100 bg-slate-50/75 pb-3 dark:border-ledger-700 dark:bg-slate-800/50">
+          <div className="stock-transfer-themed-modal stock-transfer-catalogue-modal relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ledger-200 bg-white shadow-2xl dark:border-ledger-700 dark:bg-slate-900">
+            <div className="stock-transfer-modal-header flex shrink-0 items-center justify-between border-b border-ledger-100 bg-slate-50/75 px-6 py-4 dark:border-ledger-800 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 <Layers className="h-5 w-5 text-emerald-600" />
                 <h3 className="font-bold text-base text-ink-900 dark:text-white">
@@ -1470,7 +1470,7 @@ export function StockTransferForm({
               </button>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="stock-transfer-modal-body min-h-0 flex-1 space-y-3 overflow-y-auto bg-white p-6 pt-4 dark:bg-slate-900">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-ledger-400" />
                 <input
@@ -1497,10 +1497,10 @@ export function StockTransferForm({
                     return (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between rounded-xl border border-ledger-100 bg-white p-3 text-xs hover:bg-ledger-50/60 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800"
+                        className="stock-transfer-modal-row flex items-center justify-between rounded-xl border border-ledger-100 bg-white p-3 text-xs hover:bg-ledger-50/60 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800"
                       >
                         <div className="flex items-center gap-3">
-                          <div                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-slate-900">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-slate-900">
                             <Package className="h-4 w-4 text-ledger-400" />
                           </div>
                           <div>
@@ -1541,7 +1541,7 @@ export function StockTransferForm({
               </div>
             </div>
 
-            <div className="mt-5 flex justify-end border-t border-ledger-100 pt-3 dark:border-ledger-700">
+            <div className="stock-transfer-modal-footer flex shrink-0 justify-end border-t border-ledger-100 bg-slate-50/75 px-6 py-3.5 dark:border-ledger-800 dark:bg-slate-800/50">
               <Button
                 size="sm"
                 onClick={() => setShowLookupModal(false)}
@@ -1557,8 +1557,8 @@ export function StockTransferForm({
       {/* ── Barcode Scanner Simulator Modal ─────────────────────────────── */}
       {showScannerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="stock-transfer-surface relative w-full max-w-md rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 text-center">
-            <div className="flex items-center justify-between border-b border-ledger-100 pb-3 dark:border-ledger-700">
+          <div className="stock-transfer-themed-modal relative w-full max-w-md overflow-hidden rounded-2xl border border-ledger-200 bg-white text-center text-ink-900 shadow-2xl dark:border-ledger-700 dark:bg-slate-900 dark:text-white">
+            <div className="stock-transfer-modal-header flex items-center justify-between border-b border-ledger-100 bg-slate-50/75 px-6 py-4 dark:border-ledger-800 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 <Barcode className="h-5 w-5 text-emerald-600" />
                 <h3 className="font-bold text-base text-ink-900 dark:text-white">
@@ -1574,39 +1574,41 @@ export function StockTransferForm({
               </button>
             </div>
 
-            <div className="my-6 rounded-2xl border-2 border-dashed border-emerald-500 bg-emerald-50/20 p-8 dark:bg-emerald-950/20">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 animate-pulse">
-                <Barcode className="h-8 w-8" />
-              </div>
-              <p className="mt-4 font-bold text-sm text-ink-900 dark:text-white">
-                Scanner Ready
-              </p>
-              <p className="mt-1 text-xs text-ledger-400">
-                Scan product barcode to automatically add it to the transfer table.
-              </p>
-            </div>
-
-            {sourceProducts.length > 0 && (
-              <div className="space-y-2 text-xs text-left">
-                <span className="font-semibold text-ledger-500 block">Available inventory to scan:</span>
-                <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
-                  {sourceProducts.slice(0, 4).map((p) => (
-                    <Button
-                      key={p.id}
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        handleAddProduct(p);
-                        setShowScannerModal(false);
-                      }}
-                      className="text-xs truncate"
-                    >
-                      Scan {p.name.slice(0, 15)}...
-                    </Button>
-                  ))}
+            <div className="stock-transfer-modal-body space-y-6 bg-white p-6 dark:bg-slate-900">
+              <div className="rounded-2xl border-2 border-dashed border-emerald-500 bg-emerald-50/20 p-8 dark:bg-emerald-950/40">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 animate-pulse">
+                  <Barcode className="h-8 w-8" />
                 </div>
+                <p className="mt-4 font-bold text-sm text-ink-900 dark:text-white">
+                  Scanner Ready
+                </p>
+                <p className="mt-1 text-xs text-ledger-400">
+                  Scan product barcode to automatically add it to the transfer table.
+                </p>
               </div>
-            )}
+
+              {sourceProducts.length > 0 && (
+                <div className="space-y-2 text-xs text-left">
+                  <span className="font-semibold text-ledger-500 block">Available inventory to scan:</span>
+                  <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
+                    {sourceProducts.slice(0, 4).map((p) => (
+                      <Button
+                        key={p.id}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          handleAddProduct(p);
+                          setShowScannerModal(false);
+                        }}
+                        className="text-xs truncate"
+                      >
+                        Scan {p.name.slice(0, 15)}...
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
