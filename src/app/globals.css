@@ -106,6 +106,20 @@ html.dark .stock-transfer-surface [class~="dark:text-white"] {
     background-color: transparent !important;
   }
 
+  .page-canvas .stock-transfer-surface.rounded-2xl,
+  .page-canvas .stock-transfer-surface.rounded-xl {
+    background-color: #fff !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  .page-canvas .stock-transfer-search-input {
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  html.dark .page-canvas .stock-transfer-search-input {
+    border-color: #475569 !important;
+  }
+
   .page-canvas .new-sale-page .rounded-card,
   .page-canvas .new-sale-page [class*="rounded-2xl"][class*="bg-white"],
   .page-canvas .new-sale-page [class*="rounded-xl"][class*="bg-white"],

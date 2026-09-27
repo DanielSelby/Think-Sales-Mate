@@ -900,7 +900,7 @@ export function StockTransferForm({
                       setShowProductDropdown(true);
                     }}
                     onFocus={() => setShowProductDropdown(true)}
-                    className="h-11 w-full rounded-xl border border-ledger-200 bg-white pl-10 pr-4 text-xs font-medium text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    className="stock-transfer-search-input h-11 w-full rounded-xl border border-ledger-200 bg-white pl-10 pr-4 text-xs font-medium text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
                   />
                 </div>
 
@@ -1478,7 +1478,7 @@ export function StockTransferForm({
                   placeholder="Filter catalog by product name or SKU..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-3 text-xs text-ink-900 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                  className="stock-transfer-search-input h-10 w-full rounded-xl border border-ledger-200 bg-white pl-9 pr-3 text-xs text-ink-900 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
                 />
               </div>
 
@@ -1557,7 +1557,7 @@ export function StockTransferForm({
       {/* ── Barcode Scanner Simulator Modal ─────────────────────────────── */}
       {showScannerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 text-center">
+          <div className="stock-transfer-surface relative w-full max-w-md rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 text-center">
             <div className="flex items-center justify-between border-b border-ledger-100 pb-3 dark:border-ledger-700">
               <div className="flex items-center gap-2">
                 <Barcode className="h-5 w-5 text-emerald-600" />
@@ -1615,6 +1615,7 @@ export function StockTransferForm({
         description="Remove this item from the stock transfer?"
         onCancel={() => setPendingRemoveRowId(null)}
         onConfirm={confirmRemoveItem}
+        className="!bg-white !text-ink-900 dark:!border-ledger-200 dark:!bg-white dark:!text-ink-900 [&>h2]:dark:!text-ink-900"
       />
     </div>
   );

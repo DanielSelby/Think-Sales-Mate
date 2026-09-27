@@ -11,6 +11,7 @@ interface ConfirmDialogProps {
   onCancel: () => void;
   onConfirm: () => void;
   confirmLabel?: string;
+  className?: string;
 }
 
 export function ConfirmDialog({
@@ -19,10 +20,11 @@ export function ConfirmDialog({
   description = "This action cannot be undone.",
   onCancel,
   onConfirm,
-  confirmLabel = "OK"
+  confirmLabel = "OK",
+  className
 }: ConfirmDialogProps) {
   return (
-    <Dialog open={open} onClose={onCancel} title={title}>
+    <Dialog open={open} onClose={onCancel} title={title} className={className}>
       <div className="flex flex-col items-center text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-amber-200 text-amber-500 dark:border-amber-400/30">
           <AlertTriangle className="h-9 w-9" strokeWidth={1.5} />
