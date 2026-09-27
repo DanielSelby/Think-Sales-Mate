@@ -1528,7 +1528,9 @@ export function StockTransferForm({
                             variant={isAdded ? "outline" : "primary"}
                             onClick={() => handleAddProduct(p)}
                             className={`rounded-xl text-xs ${
-                              isAdded ? "" : "bg-emerald-700 text-white hover:bg-emerald-800"
+                              isAdded
+                                ? "border-emerald-700 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                                : "bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                             }`}
                           >
                             {isAdded ? "Add More" : "+ Select"}
