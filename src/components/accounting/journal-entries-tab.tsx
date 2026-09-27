@@ -383,45 +383,45 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
 
       {/* ── Create Journal Entry Modal (Double-Entry Form with Debits = Credits Guard) ── */}
       {isNewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div style={{ backgroundColor: "#fff", color: "#0f172a" }} className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-ledger-200 bg-white text-ink-900 shadow-2xl dark:border-ledger-700 dark:bg-slate-900 dark:text-white max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-ledger-100 bg-slate-50/75 px-6 py-4 shrink-0 dark:border-ledger-800 dark:bg-slate-800/50">
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900">
+                <h3 className="font-display text-base font-bold text-ink-900 dark:text-white">
                   New Journal Entry
                 </h3>
-                <p className="text-xs text-slate-400">Double-entry accounting transaction voucher</p>
+                <p className="text-xs text-ledger-500 dark:text-ledger-400">Double-entry accounting transaction voucher</p>
               </div>
               <button
                 onClick={() => {
                   setIsNewModalOpen(false);
                   if (onModalClosed) onModalClosed();
                 }}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+                className="rounded-lg p-1 text-ledger-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 flex-1 overflow-y-auto space-y-4 pr-1 text-xs">
+            <div className="flex-1 overflow-y-auto space-y-4 bg-white p-6 pt-4 text-xs dark:bg-slate-900">
               {/* Header Fields */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                 <div>
-                  <label className="font-medium text-slate-700">Date *</label>
+                  <label className="font-medium text-slate-700 dark:text-ledger-300">Date *</label>
                   <input
                     type="date"
                     required
                     value={entryDate}
                     onChange={(e) => setEntryDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="font-medium text-slate-700">Branch *</label>
+                  <label className="font-medium text-slate-700 dark:text-ledger-300">Branch *</label>
                   <select
                     value={entryBranch}
                     onChange={(e) => setEntryBranch(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 dark:border-slate-700"
                   >
                     <option value="Main Branch">Main Branch</option>
                     <option value="Kumasi Branch">Kumasi Branch</option>
@@ -429,42 +429,42 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                   </select>
                 </div>
                 <div>
-                  <label className="font-medium text-slate-700">Reference</label>
+                  <label className="font-medium text-slate-700 dark:text-ledger-300">Reference</label>
                   <input
                     type="text"
                     placeholder="e.g. INV-2026-901"
                     value={entryRef}
                     onChange={(e) => setEntryRef(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="font-medium text-slate-700">Currency</label>
+                  <label className="font-medium text-slate-700 dark:text-ledger-300">Currency</label>
                   <input
                     type="text"
                     disabled
                     value={currentCurrency}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-medium text-slate-700">Description / Memo *</label>
+                <label className="font-medium text-slate-700 dark:text-ledger-300">Description / Memo *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Sales revenue settlement or purchase invoice clearing"
                   value={entryDesc}
                   onChange={(e) => setEntryDesc(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 dark:border-slate-700"
                 />
               </div>
 
               {/* Dynamic Line Items Grid */}
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="rounded-xl border border-ledger-200 bg-slate-50/50 p-3 dark:border-ledger-700 dark:bg-slate-800/60">
                 <div className="flex items-center justify-between pb-2">
-                  <span className="font-semibold text-slate-700">Accounting Lines</span>
+                  <span className="font-semibold text-slate-700 dark:text-ledger-300">Accounting Lines</span>
                   <button
                     type="button"
                     onClick={handleAddLine}
@@ -542,7 +542,7 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                 </div>
 
                 {/* Validation & Balance Summary */}
-                <div className="mt-4 flex flex-col gap-2 rounded-xl bg-white p-3 border border-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-4 flex flex-col gap-2 rounded-xl border border-ledger-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between dark:border-ledger-700 dark:bg-slate-900">
                   <div className="flex items-center gap-2">
                     {isBalanced ? (
                       <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
@@ -556,11 +556,11 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
                   </div>
 
                   <div className="flex items-center gap-4 text-xs font-mono">
-                    <span className="text-slate-600">
-                      Total Debit: <b className="text-slate-900">{totalDebit.toFixed(2)}</b>
+                    <span className="text-slate-600 dark:text-ledger-300">
+                      Total Debit: <b className="text-slate-900 dark:text-white">{totalDebit.toFixed(2)}</b>
                     </span>
-                    <span className="text-slate-600">
-                      Total Credit: <b className="text-slate-900">{totalCredit.toFixed(2)}</b>
+                    <span className="text-slate-600 dark:text-ledger-300">
+                      Total Credit: <b className="text-slate-900 dark:text-white">{totalCredit.toFixed(2)}</b>
                     </span>
                   </div>
                 </div>
@@ -568,14 +568,14 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
             </div>
 
             {/* Footer Buttons */}
-            <div className="mt-4 flex items-center justify-end gap-2.5 border-t border-slate-100 pt-3 shrink-0">
+            <div className="flex shrink-0 items-center justify-end gap-2.5 border-t border-ledger-100 bg-slate-50/75 px-6 py-3.5 dark:border-ledger-800 dark:bg-slate-800/50">
               <button
                 type="button"
                 onClick={() => {
                   setIsNewModalOpen(false);
                   if (onModalClosed) onModalClosed();
                 }}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>

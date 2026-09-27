@@ -11,10 +11,9 @@ interface DialogProps {
   description?: string;
   children: React.ReactNode;
   className?: string;
-  style?: React.CSSProperties;
 }
 
-export function Dialog({ open, onClose, title, description, children, className, style }: DialogProps) {
+export function Dialog({ open, onClose, title, description, children, className }: DialogProps) {
   React.useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -37,7 +36,6 @@ export function Dialog({ open, onClose, title, description, children, className,
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
-        style={style}
         className={cn(
           "relative w-full max-w-md rounded-card border border-ledger-100 bg-white p-6 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900",
           className
