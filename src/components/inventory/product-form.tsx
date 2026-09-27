@@ -562,8 +562,9 @@ export function ProductForm({
             </div>
             <div className={cn("space-y-4", !trackInventory && "opacity-50")}>
               <div className="space-y-1.5">
-                <FieldLabel htmlFor="stock_quantity">Initial Stock</FieldLabel>
+                <FieldLabel htmlFor="stock_quantity">{isEdit ? "Stock at Default Location" : "Initial Stock"}</FieldLabel>
                 <Input id="stock_quantity" name="stock_quantity" type="number" min="0" disabled={!trackInventory} defaultValue={initialValues?.stock_quantity ?? 0} placeholder="Enter initial stock" />
+                {isEdit && <p className="text-xs text-ledger-400">Enter the absolute quantity for this product&apos;s default location; other locations are not included.</p>}
               </div>
               <div className="space-y-1.5">
                 <FieldLabel htmlFor="low_stock_threshold">Reorder Level</FieldLabel>

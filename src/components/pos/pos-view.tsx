@@ -31,6 +31,7 @@ import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
+import { RegisterApprovalSuccessDialog } from "@/components/pos/register-approval-success-dialog";
 
 export interface PosProduct {
   id: string;
@@ -65,6 +66,7 @@ interface PosViewProps {
   allowedPriceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
   useSystemPrices: boolean;
   mobileMoneyAccounts: MobileMoneyAccount[];
+  canApproveRegisterClosures: boolean;
 }
 
 interface CartLine extends CartItemInput {
@@ -87,7 +89,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts }: PosViewProps) {
+export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -165,6 +167,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
   const [registerVarianceReason, setRegisterVarianceReason] = React.useState("");
   const [historyList, setHistoryList] = React.useState<RegisterClosureRecord[]>([]);
   const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [registerApprovalPromptOpen, setRegisterApprovalPromptOpen] = React.useState(false);
 
   const [now, setNow] = React.useState(() => new Date());
   React.useEffect(() => {
@@ -657,7 +660,12 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
   function loadRegisterHistory() {
     setHistoryLoading(true);
-    listRegisterClosures(locationId).then((list) => { setHistoryList(list); setHistoryLoading(false); });
+    listRegisterClosures(locationId)
+      .then((list) => { setHistoryList(list); setHistoryLoading(false); })
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : "Could not load register history.");
+        setHistoryLoading(false);
+      });
   }
 
   function handleRegisterApproval(id: string, status: "approved" | "rejected" | "reopened") {
@@ -667,7 +675,12 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         setError(result.error ?? "Could not update register closure.");
         return;
       }
-      showNotice(status === "approved" ? "Register closure approved." : status === "reopened" ? "Register reopened." : "Register closure rejected.");
+      if (status === "approved") {
+        setRegisterOpen(false);
+        setRegisterApprovalPromptOpen(true);
+        return;
+      }
+      showNotice(status === "reopened" ? "Register reopened." : "Register closure rejected.");
       loadRegisterHistory();
     });
   }
@@ -1347,7 +1360,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       </Dialog>
 
       {/* Close Register — Close tab + History tab (the persistent register-details button) */}
-      <Dialog open={registerOpen} onClose={() => setRegisterOpen(false)} title="Register" className="max-w-lg">
+      <Dialog open={registerOpen} onClose={() => setRegisterOpen(false)} title="Register" className="max-w-lg !bg-white !text-ink-900 dark:!border-ledger-200 dark:!bg-white dark:!text-ink-900 [&>h2]:dark:!text-ink-900">
         <div className="space-y-4">
           <div className="flex gap-4 border-b border-ledger-100 dark:border-ledger-700">
             <button
@@ -1388,7 +1401,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                   <select
                     value={registerCashierId ?? ""}
                     onChange={(e) => handleRegisterCashierChange(e.target.value)}
-                    className="h-10 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    className="h-10 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm text-ink-900"
                   >
                     <option value="" disabled>Select a cashier...</option>
                     {cashiersToday.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1403,23 +1416,23 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                   <div className="rounded-md border border-ledger-100 dark:border-ledger-700">
                     <div className="flex items-center justify-between border-b border-ledger-100 px-3 py-2 text-sm dark:border-ledger-700">
                       <span className="text-ledger-500">Sales ({registerSummary.salesCount})</span>
-                      <span className="font-bold text-ink-900 dark:text-white">{formatCurrency(registerSummary.salesTotal, currency)}</span>
+                      <span className="font-bold text-ink-900">{formatCurrency(registerSummary.salesTotal, currency)}</span>
                     </div>
 
                     <div className="space-y-2 rounded-md border border-ledger-100 p-3 dark:border-ledger-700">
-                      <label className="block text-xs font-semibold text-ledger-600 dark:text-ledger-300">Physical cash counted</label>
-                      <input type="number" min="0" step="0.01" value={registerActualCash} onChange={(e) => setRegisterActualCash(e.target.value)} className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" placeholder="Enter counted cash" />
+                      <label className="block text-xs font-semibold text-ledger-600">Physical cash counted</label>
+                      <input type="number" min="0" step="0.01" value={registerActualCash} onChange={(e) => setRegisterActualCash(e.target.value)} className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ledger-400" placeholder="Enter counted cash" />
                       <div className="grid grid-cols-3 gap-3">
                         {[1, 5, 10, 20, 50, 100, 200, 2000].map((denomination) => (
                           <label key={denomination} className="text-xs font-medium text-ledger-500">
                             {denomination}
-                            <input type="number" min="0" step="1" value={registerDenominations[String(denomination)] ?? ""} onChange={(e) => setRegisterDenominations((current) => ({ ...current, [denomination]: Number(e.target.value) || 0 }))} className="mt-1 h-9 w-full rounded border border-ledger-200 px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                            <input type="number" min="0" step="1" value={registerDenominations[String(denomination)] ?? ""} onChange={(e) => setRegisterDenominations((current) => ({ ...current, [denomination]: Number(e.target.value) || 0 }))} className="mt-1 h-9 w-full rounded border border-ledger-200 bg-white px-2 text-sm text-ink-900" />
                           </label>
                         ))}
                       </div>
                       <p className="text-xs text-ledger-500">Denomination total: {formatCurrency(Object.entries(registerDenominations).reduce((sum, [denomination, quantity]) => sum + Number(denomination) * (Number(quantity) || 0), 0), currency)}</p>
                       {Number(registerActualCash) > 0 && <p className={cn("text-xs font-semibold", Number(registerActualCash) - ((registerSummary?.cashTotal ?? 0) - (registerSummary?.expensesTotal ?? 0)) < 0 ? "text-alert" : "text-signal")}>Cash variance: {formatCurrency(Number(registerActualCash) - ((registerSummary?.cashTotal ?? 0) - (registerSummary?.expensesTotal ?? 0)), currency)}</p>}
-                      <input value={registerVarianceReason} onChange={(e) => setRegisterVarianceReason(e.target.value)} className="h-9 w-full rounded-md border border-ledger-200 px-2 text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white" placeholder="Reason for variance (if any)" />
+                      <input value={registerVarianceReason} onChange={(e) => setRegisterVarianceReason(e.target.value)} className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs text-ink-900 placeholder:text-ledger-400" placeholder="Reason for variance (if any)" />
                     </div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Cash</span><span>{formatCurrency(registerSummary.cashTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500"><span>Card</span><span>{formatCurrency(registerSummary.cardTotal, currency)}</span></div>
@@ -1456,7 +1469,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
               {historyList.map((h) => (
                 <div key={h.id} className="rounded-md border border-ledger-100 p-3 text-sm dark:border-ledger-700">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-ink-900 dark:text-white">
+                    <p className="font-medium text-ink-900">
                       {h.scope === "all" ? "All cashiers" : (h.cashierName ?? "Individual")} · {h.locationName ?? "—"}
                     </p>
                     <span className="font-bold text-signal">{formatCurrency(h.netTotal, currency)}</span>
@@ -1464,13 +1477,13 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                   <p className="mt-0.5 text-xs text-ledger-400">
                     {new Date(h.closedAt).toLocaleString()} · {h.salesCount} sale(s) · {formatCurrency(h.salesTotal, currency)} sales, {formatCurrency(h.expensesTotal, currency)} expenses · {h.status}
                   </p>
-                  {h.status === "pending_approval" && (
+                  {h.status === "pending_approval" && canApproveRegisterClosures && (
                     <div className="mt-2 flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => handleRegisterApproval(h.id, "approved")}>Approve</Button>
                       <Button variant="outline" size="sm" onClick={() => handleRegisterApproval(h.id, "rejected")}>Reject</Button>
                     </div>
                   )}
-                  {h.status === "approved" && (
+                  {h.status === "approved" && canApproveRegisterClosures && (
                     <div className="mt-2">
                       <Button variant="outline" size="sm" onClick={() => handleRegisterApproval(h.id, "reopened")}>Reopen</Button>
                     </div>
@@ -1485,6 +1498,15 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
           )}
         </div>
       </Dialog>
+      <RegisterApprovalSuccessDialog
+        open={registerApprovalPromptOpen}
+        stayLabel="Stay in POS"
+        onContinue={() => router.push("/banking/cash-closing")}
+        onStay={() => {
+          setRegisterApprovalPromptOpen(false);
+          loadRegisterHistory();
+        }}
+      />
 
       {/* Add a new contact */}
      <AddContactDialog

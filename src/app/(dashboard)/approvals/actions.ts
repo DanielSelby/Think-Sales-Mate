@@ -7,9 +7,10 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { approveStockRequest, rejectStockRequest } from "@/app/(dashboard)/inventory/stock-requests/actions";
 import { approveExpense, rejectExpense } from "@/app/(dashboard)/expenses/actions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { approveRegisterClosure } from "@/app/(dashboard)/pos/actions";
 
 export type ApprovalDecisionInput = {
-  type: "stock_request" | "expense" | "purchase_return" | "customer_order";
+  type: "stock_request" | "expense" | "purchase_return" | "customer_order" | "register_closure";
   id: string;
   decision: "approved" | "rejected";
   reason?: string;
@@ -17,7 +18,8 @@ export type ApprovalDecisionInput = {
 
 export async function decideApproval(input: ApprovalDecisionInput) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("approvals", "approve")) {
+  const hasApprovalPermission = await canPermission("approvals", "approve");
+  if (!context || (input.type !== "register_closure" && !hasApprovalPermission)) {
     return { error: "You do not have permission to manage approvals." };
   }
 
@@ -25,7 +27,10 @@ export async function decideApproval(input: ApprovalDecisionInput) {
     return { error: "Provide a reason before rejecting a request." };
   }
 
-  if (input.type === "stock_request") {
+  if (input.type === "register_closure") {
+    const result = await approveRegisterClosure(input.id, input.decision, input.reason);
+    if (!result.ok) return { error: result.error ?? "Could not update register closure." };
+  } else if (input.type === "stock_request") {
     const result = input.decision === "approved"
       ? await approveStockRequest(input.id)
       : await rejectStockRequest(input.id, input.reason!.trim());
@@ -80,12 +85,14 @@ export async function decideApproval(input: ApprovalDecisionInput) {
   revalidatePath("/inventory/stock-requests");
   revalidatePath("/expenses");
   revalidatePath("/purchases/returns/new");
+  revalidatePath("/banking/cash-closing");
   return { success: true };
 }
 
 export async function markApprovalDone(input: Pick<ApprovalDecisionInput, "type" | "id">) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("approvals", "approve")) {
+  const hasApprovalPermission = await canPermission("approvals", "approve");
+  if (!context || !hasApprovalPermission) {
     return { error: "You do not have permission to update approval history." };
   }
   const supabase = await createClient();

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Check, CheckCircle2, ChevronRight, ClipboardList, Eye, FileText, Filter, RefreshCw, Search, ShoppingBag, Truck, X, XCircle } from "lucide-react";
+import { Check, CheckCircle2, ChevronRight, ClipboardCheck, ClipboardList, Eye, FileText, Filter, RefreshCw, Search, ShoppingBag, Truck, X, XCircle } from "lucide-react";
 import { decideApproval, markApprovalDone, type ApprovalDecisionInput } from "@/app/(dashboard)/approvals/actions";
 import { formatMoney } from "@/lib/currency";
+import { RegisterApprovalSuccessDialog } from "@/components/pos/register-approval-success-dialog";
 
 export type ApprovalRow = {
   id: string;
@@ -22,10 +24,11 @@ export type ApprovalRow = {
   items?: { productName: string; sku: string | null; quantity: number; reason: string | null }[];
 };
 
-const labels = { stock_request: "Stock Request", expense: "Expense", purchase_return: "Purchase Return", customer_order: "Customer Order" };
-const icons = { stock_request: Truck, expense: FileText, purchase_return: ShoppingBag, customer_order: ShoppingBag };
+const labels = { stock_request: "Stock Request", expense: "Expense", purchase_return: "Purchase Return", customer_order: "Customer Order", register_closure: "Register Close" };
+const icons = { stock_request: Truck, expense: FileText, purchase_return: ShoppingBag, customer_order: ShoppingBag, register_closure: ClipboardCheck };
 
-export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { rows: ApprovalRow[]; approvedRows: ApprovalRow[]; historyRows: ApprovalRow[]; currency: string }) {
+export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canManageApprovalHistory }: { rows: ApprovalRow[]; approvedRows: ApprovalRow[]; historyRows: ApprovalRow[]; currency: string; canManageApprovalHistory: boolean }) {
+  const router = useRouter();
   const [tab, setTab] = useState<"pending" | "approved" | "history">("pending");
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
@@ -35,6 +38,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
   const [rejecting, setRejecting] = useState<ApprovalRow | null>(null);
   const [reason, setReason] = useState("");
   const [viewing, setViewing] = useState<ApprovalRow | null>(null);
+  const [registerApprovalPromptOpen, setRegisterApprovalPromptOpen] = useState(false);
 
   const sourceRows = tab === "pending" ? rows : tab === "approved" ? approvedRows : historyRows;
   const filtered = useMemo(() => sourceRows.filter((row) =>
@@ -51,6 +55,12 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
     setBusy(null);
     if (result.error) setNotice(result.error);
     else {
+      if (row.type === "register_closure" && decision === "approved") {
+        setSelected((current) => current.filter((id) => id !== row.id));
+        setRegisterApprovalPromptOpen(true);
+        router.refresh();
+        return;
+      }
       setNotice(`${row.document} ${decision}. Refreshing…`);
       setSelected((current) => current.filter((id) => id !== row.id));
       if (reload) window.location.reload();
@@ -69,6 +79,13 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
         return;
       }
 
+    }
+    setBusy(null);
+    const includesRegisterClosure = selectedRows.some((row) => row.type === "register_closure");
+    if (includesRegisterClosure) {
+      setRegisterApprovalPromptOpen(true);
+      router.refresh();
+      return;
     }
     window.location.reload();
   }
@@ -104,7 +121,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {(["all", "stock_request", "expense", "purchase_return", "customer_order"] as const).map((key) => {
+        {(["all", "stock_request", "expense", "purchase_return", "customer_order", "register_closure"] as const).map((key) => {
           const count = key === "all" ? rows.length : rows.filter((row) => row.type === key).length;
           return <button key={key} onClick={() => setType(key)} className={`rounded-2xl border p-4 text-left shadow-card transition ${type === key ? "border-brand-300 ring-2 ring-brand-100" : "border-ledger-100 bg-white dark:border-ledger-700 dark:bg-ink-900"}`}><div className="flex items-center justify-between text-xs text-ledger-500"><span>{key === "all" ? "All Requests" : labels[key]}</span><ChevronRight className="h-4 w-4" /></div><p className="mt-2 text-2xl font-bold text-ink-900 dark:text-white">{count}</p><p className="mt-1 text-xs text-ledger-400">Pending approval</p></button>;
         })}
@@ -120,7 +137,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
           {notice && <div className="border-b border-ledger-100 bg-brand-50 px-4 py-3 text-sm text-brand-800">{notice}</div>}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-ledger-50 text-[10px] uppercase tracking-wide text-ledger-500 dark:bg-ink-950"><tr><th className="w-10 px-4 py-3"><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={() => setSelected(selected.length === filtered.length ? [] : filtered.map((row) => row.id))} /></th><th className="px-3 py-3">Document</th><th className="px-3 py-3">Requester</th><th className="px-3 py-3">Branch</th><th className="px-3 py-3">Date</th><th className="px-3 py-3">Amount</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Actions</th></tr></thead>
-              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">{filtered.map((row) => { const Icon = icons[row.type]; return <tr key={row.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]"><td className="px-4 py-4"><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggle(row.id)} /></td><td className="px-3 py-4"><div className="flex items-center gap-2"><span className="rounded-lg bg-brand-50 p-2 text-brand-600"><Icon className="h-4 w-4" /></span><div><Link href={row.href} className="font-semibold text-ink-900 hover:text-brand-600 dark:text-white">{row.document}</Link><p className="text-xs text-ledger-400">{row.title}</p></div></div></td><td className="px-3 py-4 text-xs font-medium">{row.requester}</td><td className="px-3 py-4 text-xs">{row.branch}</td><td className="px-3 py-4 text-xs text-ledger-500">{new Date(row.date).toLocaleDateString()}</td><td className="px-3 py-4 text-xs font-semibold">{formatAmount(row.amount)}</td><td className="px-3 py-4"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${row.priority === "high" || row.priority === "urgent" ? "bg-red-50 text-red-600" : tab === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{tab === "approved" ? "Approved" : tab === "history" ? "Completed" : row.priority}</span></td>                            <td className="px-3 py-4"><div className="flex items-center gap-1"><button type="button" onClick={() => setViewing(row)} title="View request details" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Eye className="h-4 w-4" /></button>{tab === "pending" ? <><button disabled={!!busy} onClick={() => decide(row, "approved")} title="Approve" className="rounded-lg p-2 text-emerald-600 hover:bg-emerald-50 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" /></button><button disabled={!!busy} onClick={() => setRejecting(row)} title="Reject" className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-40"><XCircle className="h-4 w-4" /></button></> : tab === "approved" ? <button disabled={!!busy} onClick={() => void complete(row)} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40">Done</button> : <span className="text-xs text-ledger-400">Completed</span>}</div></td></tr>; })}</tbody></table>
+              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">{filtered.map((row) => { const Icon = icons[row.type]; return <tr key={row.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]"><td className="px-4 py-4"><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggle(row.id)} /></td><td className="px-3 py-4"><div className="flex items-center gap-2"><span className="rounded-lg bg-brand-50 p-2 text-brand-600"><Icon className="h-4 w-4" /></span><div><Link href={row.href} className="font-semibold text-ink-900 hover:text-brand-600 dark:text-white">{row.document}</Link><p className="text-xs text-ledger-400">{row.title}</p></div></div></td><td className="px-3 py-4 text-xs font-medium">{row.requester}</td><td className="px-3 py-4 text-xs">{row.branch}</td><td className="px-3 py-4 text-xs text-ledger-500">{new Date(row.date).toLocaleDateString()}</td><td className="px-3 py-4 text-xs font-semibold">{formatAmount(row.amount)}</td><td className="px-3 py-4"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${row.priority === "high" || row.priority === "urgent" ? "bg-red-50 text-red-600" : tab === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{tab === "approved" ? "Approved" : tab === "history" ? "Completed" : row.priority}</span></td>                            <td className="px-3 py-4"><div className="flex items-center gap-1"><button type="button" onClick={() => setViewing(row)} title="View request details" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Eye className="h-4 w-4" /></button>{tab === "pending" ? <><button disabled={!!busy} onClick={() => decide(row, "approved")} title="Approve" className="rounded-lg p-2 text-emerald-600 hover:bg-emerald-50 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" /></button><button disabled={!!busy} onClick={() => setRejecting(row)} title="Reject" className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-40"><XCircle className="h-4 w-4" /></button></> : tab === "approved" ? canManageApprovalHistory ? <button disabled={!!busy} onClick={() => void complete(row)} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40">Done</button> : <span className="text-xs text-ledger-400">Approved</span> : <span className="text-xs text-ledger-400">Completed</span>}</div></td></tr>; })}</tbody></table>
           </div>
           {!filtered.length && <div className="p-12 text-center text-sm text-ledger-500"><Filter className="mx-auto mb-2 h-6 w-6 text-ledger-300" />No pending requests match your filters.</div>}
         </section>
@@ -131,6 +148,15 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency }: { 
       </div>
       {viewing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><div className="flex items-start justify-between"><div><h2 className="font-display text-lg font-bold">{viewing.document}</h2><p className="text-sm text-ledger-500">{viewing.title} · {viewing.requester}</p></div><button type="button" onClick={() => setViewing(null)} className="rounded p-1 text-ledger-400 hover:bg-ledger-100" title="Close"><X className="h-4 w-4" /></button></div><div className="mt-4 grid gap-3 sm:grid-cols-2">{[{ label: "Branch", value: viewing.branch }, { label: "Date", value: new Date(viewing.date).toLocaleString() }, { label: "Status", value: viewing.status.replace("_", " ") }, { label: "Priority", value: viewing.priority }, ...(viewing.details ?? [])].map((detail) => <div key={`${detail.label}-${detail.value}`} className="rounded-xl bg-ledger-50 px-3 py-2 dark:bg-ink-950"><p className="text-[10px] uppercase tracking-wide text-ledger-400">{detail.label}</p><p className="mt-1 text-sm font-medium text-ink-900 dark:text-white">{detail.value}</p></div>)}</div>{viewing.items?.length ? <div className="mt-4 overflow-hidden rounded-xl border border-ledger-100 dark:border-ledger-700"><table className="w-full text-left text-sm"><thead className="bg-ledger-50 text-xs text-ledger-500 dark:bg-ink-950"><tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Quantity</th><th className="px-3 py-2">Reason</th></tr></thead><tbody>{viewing.items.map((item) => <tr key={`${item.productName}-${item.sku}`} className="border-t border-ledger-100 dark:border-ledger-700"><td className="px-3 py-2">{item.productName}</td><td className="px-3 py-2">{item.sku ?? "—"}</td><td className="px-3 py-2">{item.quantity}</td><td className="px-3 py-2">{item.reason ?? "—"}</td></tr>)}</tbody></table></div> : null}</div></div>}
       {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><h2 className="font-display text-lg font-bold">Reject {rejecting.document}</h2><p className="mt-1 text-sm text-ledger-500">Tell the requester why this approval was rejected.</p><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} className="mt-4 w-full rounded-xl border border-ledger-200 p-3 text-sm outline-none dark:border-ledger-700 dark:bg-ink-950" placeholder="Rejection reason" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => { setRejecting(null); setReason(""); }} className="rounded-xl border border-ledger-200 px-4 py-2 text-sm">Cancel</button><button disabled={!reason.trim() || !!busy} onClick={() => { const row = rejecting; setRejecting(null); const value = reason; setReason(""); void decide(row, "rejected", value); }} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Reject request</button></div></div></div>}
+      <RegisterApprovalSuccessDialog
+        open={registerApprovalPromptOpen}
+        stayLabel="Stay in Approval Center"
+        onContinue={() => router.push("/banking/cash-closing")}
+        onStay={() => {
+          setRegisterApprovalPromptOpen(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

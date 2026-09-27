@@ -53,6 +53,26 @@ export default async function EditProductPage({
   }
   if (!product) notFound();
 
+  let defaultLocationStock = 0;
+  if (product.location_id) {
+    const { data: stockLevel, error: stockError } = await supabase
+      .from("product_stock_levels")
+      .select("quantity")
+      .eq("org_id", context.orgId)
+      .eq("product_id", product.id)
+      .eq("location_id", product.location_id)
+      .maybeSingle();
+    if (stockError) {
+      return (
+        <div className="mx-auto max-w-2xl rounded-md border border-alert/30 bg-alert-soft px-4 py-3 text-sm text-alert">
+          <p className="font-semibold">Couldn&apos;t load this product&apos;s stock for its default location.</p>
+          <p className="mt-1 font-mono text-xs">{stockError.message}</p>
+        </div>
+      );
+    }
+    defaultLocationStock = Number(stockLevel?.quantity ?? 0);
+  }
+
   const boundUpdate = updateProduct.bind(null, product.id);
 
   return (
@@ -67,7 +87,7 @@ export default async function EditProductPage({
 
       <ProductForm
         action={boundUpdate}
-        initialValues={product}
+        initialValues={{ ...product, stock_quantity: defaultLocationStock }}
         locations={(locationRows ?? []).map((l) => ({ id: l.id, name: l.name }))}
         categories={categories}
         brands={brands}

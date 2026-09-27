@@ -404,6 +404,9 @@ export async function closeRegister(input: CloseRegisterInput): Promise<SimpleRe
   }
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
+  if (!canUseLocation(context, input.locationId)) {
+    return { ok: false, error: "You do not have access to this branch." };
+  }
   const supabase = await createClient() as any;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -507,6 +510,8 @@ export interface RegisterClosureRecord extends RegisterSummary {
 export async function listRegisterClosures(locationId: string | null, limit: number = 20): Promise<RegisterClosureRecord[]> {
   const context = await getCurrentOrgContext();
   if (!context) return [];
+  if (context.isBranchScoped && context.allowedLocationIds.length === 0) return [];
+  if (context.isBranchScoped && locationId && !context.allowedLocationIds.includes(locationId)) return [];
   const supabase = await createClient();
 
   let q = supabase
@@ -526,11 +531,17 @@ export async function listRegisterClosures(locationId: string | null, limit: num
     q = q.eq("location_id", locationId);
   }
 
-  if (!context.canViewOtherTransactions) {
+  const canApproveClosures =
+    await canPermission("approvals", "approve") ||
+    await canPermission("pos", "approve") ||
+    await canPermission("cash_closing", "approve") ||
+    await canPermission("banking", "approve");
+  if (!context.canViewOtherTransactions && !canApproveClosures) {
     q = q.eq("closed_by", context.userId);
   }
 
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) throw new Error(`Could not load register closures: ${error.message}`);
 
   return (data ?? []).map((r) => {
     const location = Array.isArray(r.business_locations) ? r.business_locations[0] : r.business_locations;
@@ -557,20 +568,65 @@ export async function listRegisterClosures(locationId: string | null, limit: num
   });
 }
 
-export async function approveRegisterClosure(closureId: string, status: "approved" | "rejected" | "reopened" = "approved"): Promise<SimpleResult> {
-  if (!await canPermission("pos", "approve") && !await canPermission("banking", "approve")) {
+export async function approveRegisterClosure(
+  closureId: string,
+  status: "approved" | "rejected" | "reopened" = "approved",
+  reason?: string,
+): Promise<SimpleResult> {
+  const canApproveClosures =
+    await canPermission("approvals", "approve") ||
+    await canPermission("pos", "approve") ||
+    await canPermission("cash_closing", "approve") ||
+    await canPermission("banking", "approve");
+  if (!canApproveClosures) {
     return { ok: false, error: "Approval permission required." };
   }
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const supabase = await createClient() as any;
-  const { error } = await supabase.from("register_closures").update({
+  const admin = createAdminClient();
+  const { data: closure, error: lookupError } = await admin
+    .from("register_closures")
+    .select("id, org_id, location_id, status")
+    .eq("id", closureId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (lookupError) return { ok: false, error: lookupError.message };
+  if (!closure) return { ok: false, error: "Register closure not found." };
+  if (!canUseLocation(context, closure.location_id)) {
+    return { ok: false, error: "You do not have access to this branch." };
+  }
+  if (status === "reopened" ? closure.status !== "approved" : closure.status !== "pending_approval") {
+    return {
+      ok: false,
+      error: status === "reopened"
+        ? "Only an approved register closure can be reopened."
+        : "Only a pending register closure can be approved or rejected.",
+    };
+  }
+
+  const { data: updatedClosure, error } = await admin.from("register_closures").update({
     status,
     approved_by: status === "approved" ? context.userId : null,
     approved_at: status === "approved" ? new Date().toISOString() : null,
-  }).eq("id", closureId).eq("org_id", context.orgId);
+  }).eq("id", closureId).eq("org_id", context.orgId).eq("status", closure.status).select("id").maybeSingle();
   if (error) return { ok: false, error: error.message };
+  if (!updatedClosure) return { ok: false, error: "Register closure changed before your decision was saved. Refresh and try again." };
+
+  const audit = await recordAuditEvent(admin, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: `register_closure.${status}`,
+    entityType: "register_closures",
+    entityId: closureId,
+    module: "POS",
+    description: `${status === "reopened" ? "Reopened" : status === "approved" ? "Approved" : "Rejected"} register closure`,
+    branchId: closure.location_id,
+    previousValues: { status: closure.status },
+    newValues: { status, reason: reason?.trim() || null },
+  });
+  if (audit.error) return { ok: false, error: audit.error };
   revalidatePath("/pos");
+  revalidatePath("/approvals");
   return { ok: true };
 }
 

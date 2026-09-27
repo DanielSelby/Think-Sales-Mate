@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { PosView } from "@/components/pos/pos-view";
 
 export const metadata = { title: "POS · SalesMate ERP" };
@@ -75,6 +75,12 @@ export default async function PosPage() {
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}
       useSystemPrices={context.useSystemPrices}
+      canApproveRegisterClosures={
+        await canPermission("approvals", "approve") ||
+        await canPermission("pos", "approve") ||
+        await canPermission("cash_closing", "approve") ||
+        await canPermission("banking", "approve")
+      }
       mobileMoneyAccounts={(mobileMoneyAccounts ?? []).map((account) => ({ id: account.id, name: account.name, balance: account.current_balance }))}
     />
   );
