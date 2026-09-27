@@ -175,7 +175,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
   }
 
   return (
-    <div className="procurement-page purchase-page space-y-4 pb-24 text-xs">
+    <div className="procurement-page procurement-grid-lines purchase-page space-y-4 pb-24 text-xs">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -281,7 +281,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
                 <div>
                   <SmartProductSummary products={smartProducts} rows={smartRows} onLocate={smartLocator.locate} className="mb-3" />
                   <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-                  <table className="w-full text-left text-xs">
+                  <table className="purchase-line-grid w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-ledger-100 bg-ledger-50/60 text-xs text-ledger-400 dark:border-ledger-700 dark:bg-white/[0.03]">
                         <th className="w-8 px-3 py-2 font-medium">#</th>
@@ -395,7 +395,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
         </div>
 
         {/* Sidebar */}
-        <div className="procurement-page purchase-page space-y-5">
+        <div className="purchase-page space-y-5">
           <Card accent="signal" className="rounded-2xl shadow-card xl:sticky xl:top-2">
             <CardHeader className="pb-2"><CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Return Summary</CardTitle></CardHeader>
             <CardContent className="space-y-2.5 pt-0 text-sm">

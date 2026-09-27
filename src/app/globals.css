@@ -60,6 +60,19 @@ html.dark .dashboard-motion .rounded-card:hover {
   animation: smart-product-pulse 3s ease-in-out;
 }
 
+.stock-transfer-surface {
+  background-color: #fff !important;
+  color: #111827 !important;
+}
+
+.stock-transfer-surface [class*="bg-white"] {
+  background-color: #fff !important;
+}
+
+html.dark .stock-transfer-surface [class~="dark:text-white"] {
+  color: #111827 !important;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -77,7 +90,7 @@ html.dark .dashboard-motion .rounded-card:hover {
   .approval-page [class*="border"],
   .sales-page [class*="border"],
   .orders-page [class*="border"],
-  .procurement-page [class*="border"],
+  .procurement-page:not(.procurement-grid-lines) [class*="border"],
   .product-page [class*="border"] {
     border: 0 !important;
     border-color: transparent !important;
@@ -212,8 +225,8 @@ html.dark .hrm-page .bg-slate-50 {
   }
 }
 
-.procurement-page .rounded-card,
-.procurement-page .rounded-2xl.border {
+.procurement-page:not(.procurement-grid-lines) .rounded-card,
+.procurement-page:not(.procurement-grid-lines) .rounded-2xl.border {
   border-color: transparent !important;
   background-color: transparent !important;
 }
@@ -221,7 +234,12 @@ html.dark .hrm-page .bg-slate-50 {
 .approval-page .bg-white,
 .sales-page .bg-white,
 .orders-page .bg-white,
-.procurement-page .bg-white,
+.procurement-page:not(.procurement-grid-lines) .bg-white,
+.procurement-grid-lines .rounded-card,
+.procurement-grid-lines .rounded-2xl.border {
+  background-color: transparent !important;
+}
+
 .product-page .bg-white,
 .approval-page [class*="bg-white/"],
 .sales-page [class*="bg-white/"],
@@ -231,8 +249,8 @@ html.dark .hrm-page .bg-slate-50 {
   background-color: transparent !important;
 }
 
-html.dark .procurement-page .rounded-card,
-html.dark .procurement-page .rounded-2xl.border,
+html.dark .procurement-page:not(.procurement-grid-lines) .rounded-card,
+html.dark .procurement-page:not(.procurement-grid-lines) .rounded-2xl.border,
 html.dark .approval-page [class*="rounded-2xl"][class*="bg-white"],
 html.dark .approval-page [class*="rounded-xl"][class*="bg-white"],
 html.dark .sales-page [class*="rounded-2xl"][class*="bg-white"],
@@ -250,7 +268,8 @@ html.dark .inventory-intelligence-page [class*="rounded-xl"][class*="bg-white"] 
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.2) !important;
 }
 
-html.dark .procurement-page .bg-white,
+html.dark .procurement-page:not(.procurement-grid-lines) .bg-white,
+html.dark .procurement-grid-lines .bg-white,
 html.dark .approval-page .bg-white,
 html.dark .sales-page .bg-white,
 html.dark .orders-page .bg-white,
@@ -263,7 +282,8 @@ html.dark .inventory-intelligence-page .bg-white {
 html.dark .approval-page [class*="bg-white/"],
 html.dark .sales-page [class*="bg-white/"],
 html.dark .orders-page [class*="bg-white/"],
-html.dark .procurement-page [class*="bg-white/"],
+html.dark .procurement-page:not(.procurement-grid-lines) [class*="bg-white/"],
+html.dark .procurement-grid-lines [class*="bg-white/"],
 html.dark .product-page [class*="bg-white/"] {
   background-color: #0f1d2d !important;
 }
@@ -279,8 +299,8 @@ html.dark .inventory-intelligence-page [class~="bg-[#f5f8fc]"] {
   background-color: #132337 !important;
 }
 
-html.dark .procurement-page [class~="border-ledger-100"],
-html.dark .procurement-page [class~="border-ledger-200"],
+html.dark .procurement-page:not(.procurement-grid-lines) [class~="border-ledger-100"],
+html.dark .procurement-page:not(.procurement-grid-lines) [class~="border-ledger-200"],
 html.dark .orders-page [class~="border-ledger-100"],
 html.dark .orders-page [class~="border-ledger-200"],
 html.dark .crm-page [class~="border-slate-100"],
@@ -288,6 +308,26 @@ html.dark .crm-page [class~="border-slate-200"],
 html.dark .inventory-intelligence-page [class~="border-slate-100"],
 html.dark .inventory-intelligence-page [class~="border-slate-200"] {
   border-color: transparent !important;
+}
+
+.procurement-grid-lines .purchase-line-grid {
+  border-collapse: collapse;
+}
+
+.procurement-grid-lines .purchase-line-grid th,
+.procurement-grid-lines .purchase-line-grid td {
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.procurement-grid-lines .purchase-line-grid th:last-child,
+.procurement-grid-lines .purchase-line-grid td:last-child {
+  border-right: 0;
+}
+
+html.dark .procurement-grid-lines .purchase-line-grid th,
+html.dark .procurement-grid-lines .purchase-line-grid td {
+  border-color: #334155;
 }
 
 html.dark .inventory-intelligence-page {

@@ -287,12 +287,19 @@ export function StockTransferForm({
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
     return products.filter(
+      (p) => getStockQty(p.id, fromLocationId) > 0
+    ).filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.sku.toLowerCase().includes(q) ||
         (p.barcode && p.barcode.toLowerCase().includes(q))
     );
-  }, [products, searchQuery]);
+  }, [products, searchQuery, fromLocationId, stockLevels]);
+
+  const sourceProducts = useMemo(
+    () => products.filter((product) => getStockQty(product.id, fromLocationId) > 0),
+    [products, fromLocationId, stockLevels]
+  );
 
   // Add real product to transfer list
   const handleAddProduct = (product: TransferableProduct) => {
@@ -909,7 +916,7 @@ export function StockTransferForm({
 
               {/* Autocomplete Results Dropdown */}
               {showProductDropdown && searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-12 z-30 max-h-72 overflow-y-auto rounded-2xl border border-ledger-100 bg-white p-2 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
+                <div className="stock-transfer-surface absolute left-0 right-0 top-12 z-30 max-h-72 overflow-y-auto rounded-2xl border border-ledger-100 bg-white p-2 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
                   {searchResults.map((product) => {
                     const srcStock = getStockQty(product.id, fromLocationId);
                     const destStock = getStockQty(product.id, toLocationId);
@@ -1446,7 +1453,7 @@ export function StockTransferForm({
       {/* ── Product Lookup Catalogue Modal (Real Products) ──────────────── */}
       {showLookupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="relative w-full max-w-2xl rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 max-h-[90vh] overflow-y-auto">
+          <div className="stock-transfer-surface relative w-full max-w-2xl rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-ledger-100 pb-3 dark:border-ledger-700">
               <div className="flex items-center gap-2">
                 <Layers className="h-5 w-5 text-emerald-600" />
@@ -1476,18 +1483,21 @@ export function StockTransferForm({
               </div>
 
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                {products.length === 0 ? (
+                {sourceProducts.length === 0 ? (
                   <p className="py-8 text-center text-xs text-ledger-400">
-                    No active products found in inventory.
+                    No products with available stock at the selected source branch.
                   </p>
                 ) : (
-                  products.map((p) => {
+                  sourceProducts.filter((product) => {
+                    const query = searchQuery.trim().toLowerCase();
+                    return !query || `${product.name} ${product.sku} ${product.barcode ?? ""}`.toLowerCase().includes(query);
+                  }).map((p) => {
                     const srcQty = getStockQty(p.id, fromLocationId);
                     const isAdded = items.some((i) => i.productId === p.id);
                     return (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between rounded-xl border border-ledger-100 p-3 text-xs hover:bg-ledger-50/60 dark:border-ledger-700 dark:hover:bg-white/[0.02]"
+                        className="stock-transfer-surface flex items-center justify-between rounded-xl border border-ledger-100 bg-white p-3 text-xs hover:bg-ledger-50/60 dark:border-ledger-700 dark:bg-white dark:hover:bg-slate-50"
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ledger-100 bg-white dark:border-ledger-700 dark:bg-ink-950">
@@ -1576,11 +1586,11 @@ export function StockTransferForm({
               </p>
             </div>
 
-            {products.length > 0 && (
+            {sourceProducts.length > 0 && (
               <div className="space-y-2 text-xs text-left">
                 <span className="font-semibold text-ledger-500 block">Available inventory to scan:</span>
                 <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
-                  {products.slice(0, 4).map((p) => (
+                  {sourceProducts.slice(0, 4).map((p) => (
                     <Button
                       key={p.id}
                       size="sm"
@@ -1597,15 +1607,15 @@ export function StockTransferForm({
                 </div>
               </div>
             )}
-            <ConfirmDialog
-              open={pendingRemoveRowId !== null}
-              description="Remove this item from the stock transfer?"
-              onCancel={() => setPendingRemoveRowId(null)}
-              onConfirm={confirmRemoveItem}
-            />
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={pendingRemoveRowId !== null}
+        description="Remove this item from the stock transfer?"
+        onCancel={() => setPendingRemoveRowId(null)}
+        onConfirm={confirmRemoveItem}
+      />
     </div>
   );
 }

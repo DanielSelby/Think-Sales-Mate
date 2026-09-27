@@ -451,7 +451,7 @@ export function AddPurchaseForm({
   }
 
   return (
-    <div className="procurement-page purchase-page space-y-5 pb-24">
+    <div className="procurement-page procurement-grid-lines purchase-page space-y-5 pb-24">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -682,7 +682,7 @@ export function AddPurchaseForm({
             <CardContent className="pt-0">
               <SmartProductSummary products={products} rows={items} onLocate={smartLocator.locate} className="mb-3" />
               <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-                <table className="w-full text-left text-sm">
+                <table className="purchase-line-grid w-full text-left text-sm">
                   <thead>
                     <tr
                       className="text-xs font-semibold text-white"
