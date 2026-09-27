@@ -78,7 +78,33 @@ export function StockRequestForm({
             </div>
           </section>
           <section className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="mb-3 flex items-center justify-between"><h2 className="font-display text-sm font-bold">Requested Items</h2><div className="relative w-80"><Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-ledger-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product by name, SKU or barcode..." className="w-full rounded-lg border border-ledger-100 py-2 pl-9 pr-3 text-xs dark:border-ledger-700 dark:bg-ink-800" />{filteredProducts.length > 0 && <div className="absolute z-10 mt-1 w-full rounded-lg border border-ledger-100 bg-white p-1 shadow-card dark:border-ledger-700 dark:bg-ink-900">{filteredProducts.map((product) => <button key={product.id} onClick={() => addProduct(product)} className="block w-full rounded px-2 py-2 text-left hover:bg-ledger-50 dark:hover:bg-ink-800">{product.name} <span className="text-ledger-400">{product.sku}</span></button>)}</div>}</div></div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-display text-sm font-bold">Requested Items</h2>
+              <div className="relative w-80">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-ledger-400" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search product by name, SKU or barcode..."
+                  className="stock-request-product-input w-full rounded-lg border border-ledger-100 bg-white py-2 pl-9 pr-3 text-xs dark:border-ledger-700 dark:bg-ink-800"
+                />
+                {filteredProducts.length > 0 && (
+                  <div className="stock-request-product-picker absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-ledger-100 bg-white p-1 shadow-xl dark:border-ledger-700 dark:bg-ink-900">
+                    {filteredProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => addProduct(product)}
+                        className="block w-full rounded px-2 py-2 text-left hover:bg-ledger-50 dark:hover:bg-ink-800"
+                      >
+                        <span className="font-medium text-ink-900 dark:text-white">{product.name}</span>{" "}
+                        <span className="text-ledger-400">{product.sku}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="border-y border-ledger-100 text-[10px] uppercase tracking-wide text-ledger-400"><tr><th className="py-2">#</th><th>Product</th><th>SKU</th><th>Available Stock</th><th>Request Qty</th><th>Unit</th><th>Reason</th><th /></tr></thead><tbody>{rows.map((row, index) => { const product = products.find((item) => item.id === row.productId)!; const available = product.stockByLocation[sourceLocationId] ?? 0; return <tr key={row.productId} className="border-b border-ledger-50 dark:border-ledger-800"><td className="py-3">{index + 1}</td><td className="font-medium">{product.name}</td><td className="text-ledger-400">{product.sku}</td><td className="font-semibold text-signal">{available.toLocaleString()}</td><td><input type="number" min={1} value={row.quantity} onChange={(event) => setRows((current) => current.map((item) => item.productId === row.productId ? { ...item, quantity: Math.max(1, Number(event.target.value)) } : item))} className="w-20 rounded border border-ledger-100 px-2 py-1 dark:border-ledger-700 dark:bg-ink-800" /></td><td>{product.unit}</td><td><select value={row.reason} onChange={(event) => setRows((current) => current.map((item) => item.productId === row.productId ? { ...item, reason: event.target.value } : item))} className="rounded border border-ledger-100 px-2 py-1 dark:border-ledger-700 dark:bg-ink-800"><option>Store replenishment</option><option>Promotion</option><option>New branch opening</option></select></td><td><button onClick={() => setRows((current) => current.filter((item) => item.productId !== row.productId))} className="text-alert"><Trash2 className="h-3.5 w-3.5" /></button></td></tr>; })}</tbody></table></div>
             <button onClick={() => document.querySelector<HTMLInputElement>("input[placeholder^='Search product']")?.focus()} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-ledger-200 py-2 text-ledger-500 hover:border-signal hover:text-signal"><Plus className="h-3.5 w-3.5" /> Add Another Item</button>
           </section>

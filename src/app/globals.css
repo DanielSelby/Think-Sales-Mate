@@ -119,11 +119,37 @@ html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
   /* Keep dashboard cards open against the page canvas across every module.
      Inputs and other controls retain their own surfaces and focus states. */
   .page-canvas .rounded-card,
-  .page-canvas [class*="rounded-2xl"][class*="bg-white"],
-  .page-canvas [class*="rounded-xl"][class*="bg-white"],
-  .page-canvas [class*="rounded-lg"][class*="bg-white"] {
+  .page-canvas [class*="rounded-2xl"][class*="bg-white"]:not(.stock-request-product-picker):not(.stock-request-product-input),
+  .page-canvas [class*="rounded-xl"][class*="bg-white"]:not(.stock-request-product-picker):not(.stock-request-product-input),
+  .page-canvas [class*="rounded-lg"][class*="bg-white"]:not(.stock-request-product-picker):not(.stock-request-product-input) {
     border-color: transparent !important;
     background-color: transparent !important;
+  }
+
+  .page-canvas .stock-request-product-picker,
+  .page-canvas [class*="stock-request-product-picker"] {
+    background-color: #ffffff !important;
+    border-color: #efeadf !important;
+    opacity: 1 !important;
+  }
+
+  html.dark .page-canvas .stock-request-product-picker,
+  html.dark .page-canvas [class*="stock-request-product-picker"] {
+    background-color: #12161d !important;
+    border-color: #332f2a !important;
+    opacity: 1 !important;
+  }
+
+  .page-canvas .stock-request-product-input {
+    background-color: #ffffff !important;
+    border-color: #efeadf !important;
+    opacity: 1 !important;
+  }
+
+  html.dark .page-canvas .stock-request-product-input {
+    background-color: #221f1c !important;
+    border-color: #332f2a !important;
+    opacity: 1 !important;
   }
 
   .page-canvas .stock-transfer-modal-surface.rounded-2xl,
