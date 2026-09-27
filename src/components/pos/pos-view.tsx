@@ -785,9 +785,9 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
       {/* Toolbar */}
       <div className="flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
-        <div className="flex min-w-0 items-center gap-2 rounded-lg border border-ledger-200 p-1.5 dark:border-ledger-700">
+        <div className="flex min-w-0 items-center gap-2 rounded-lg border-2 border-ledger-300 p-1.5 dark:border-ledger-600">
           <span className="text-xs font-medium text-ledger-500">Location:</span>
-          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
+          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-300 bg-white px-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-ledger-600 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
@@ -940,7 +940,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         </div>
 
         {/* RIGHT: customer + search + cart table + totals */}
-        <Card accent="signal" className="relative flex min-h-0 flex-col" style={{ borderLeftColor: theme.colors.primary }}>
+        <Card accent="signal" className="relative flex min-h-0 flex-col border-2 border-ledger-300 dark:border-ledger-600" style={{ borderLeftColor: theme.colors.primary }}>
           <div className="absolute -left-3 top-1/2 z-20 -translate-y-1/2">
             <button
               title="Resize the cart panel"
@@ -1360,7 +1360,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       </Dialog>
 
       {/* Close Register — Close tab + History tab (the persistent register-details button) */}
-      <Dialog open={registerOpen} onClose={() => setRegisterOpen(false)} title="Register" className="max-w-lg !bg-white !text-ink-900 dark:!border-ledger-200 dark:!bg-white dark:!text-ink-900 [&>h2]:dark:!text-ink-900">
+      <Dialog open={registerOpen} onClose={() => setRegisterOpen(false)} title="Register" className="max-w-lg !bg-white !text-ink-900 dark:!border-ledger-200 dark:!bg-white dark:!text-ink-900 [&>h2]:dark:!text-ink-900" style={{ backgroundColor: "#fff", color: "#111827" }}>
         <div className="space-y-4">
           <div className="flex gap-4 border-b border-ledger-100 dark:border-ledger-700">
             <button
@@ -1413,13 +1413,13 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
               {!registerLoading && registerSummary && (registerScope === "all" || registerCashierId) && (
                 <>
-                  <div className="rounded-md border border-ledger-100 dark:border-ledger-700">
+                  <div className="rounded-md border border-ledger-100 bg-white dark:border-ledger-200">
                     <div className="flex items-center justify-between border-b border-ledger-100 px-3 py-2 text-sm dark:border-ledger-700">
                       <span className="text-ledger-500">Sales ({registerSummary.salesCount})</span>
                       <span className="font-bold text-ink-900">{formatCurrency(registerSummary.salesTotal, currency)}</span>
                     </div>
 
-                    <div className="space-y-2 rounded-md border border-ledger-100 p-3 dark:border-ledger-700">
+                    <div className="space-y-2 rounded-md border border-ledger-100 bg-white p-3 dark:border-ledger-200">
                       <label className="block text-xs font-semibold text-ledger-600">Physical cash counted</label>
                       <input type="number" min="0" step="0.01" value={registerActualCash} onChange={(e) => setRegisterActualCash(e.target.value)} className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ledger-400" placeholder="Enter counted cash" />
                       <div className="grid grid-cols-3 gap-3">

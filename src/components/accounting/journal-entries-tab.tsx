@@ -384,7 +384,7 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
       {/* ── Create Journal Entry Modal (Double-Entry Form with Debits = Credits Guard) ── */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl max-h-[90vh] flex flex-col">
+          <div style={{ backgroundColor: "#fff", color: "#0f172a" }} className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
               <div>
                 <h3 className="font-display text-base font-bold text-slate-900">
@@ -462,7 +462,7 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
               </div>
 
               {/* Dynamic Line Items Grid */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between pb-2">
                   <span className="font-semibold text-slate-700">Accounting Lines</span>
                   <button
