@@ -48,7 +48,7 @@
 
 html.dark .dashboard-motion .rounded-card,
 html.dark .dashboard-motion .flip-face:not([style]) {
-  background-color: #12161d !important;
+  background-color: #0f1d2d !important;
 }
 
 .dashboard-motion .rounded-card:hover {
