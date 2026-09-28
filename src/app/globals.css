@@ -46,6 +46,11 @@
     border-color 240ms ease;
 }
 
+html.dark .dashboard-motion .rounded-card,
+html.dark .dashboard-motion .flip-face:not([style]) {
+  background-color: #12161d !important;
+}
+
 .dashboard-motion .rounded-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 14px 30px rgb(15 23 42 / 0.10);
