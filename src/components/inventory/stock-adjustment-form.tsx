@@ -1681,17 +1681,24 @@ export function StockAdjustmentForm({
                 .map((p) => (
                   <div
                     key={p.id}
-                    onClick={() => handleAddProduct(p)}
-                    className="flex items-center justify-between rounded-xl border border-ledger-100 p-3 text-xs transition-colors hover:bg-emerald-50/50 hover:border-emerald-200 cursor-pointer dark:border-ledger-700 dark:hover:bg-white/[0.04]"
+                    className="flex items-center justify-between rounded-xl border border-ledger-100 p-3 text-xs transition-colors hover:border-emerald-200 hover:bg-emerald-50/50 dark:border-ledger-700 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/30"
                   >
                     <div>
                       <p className="font-semibold text-ink-900 dark:text-white">{p.name}</p>
                       <p className="font-mono text-[11px] text-ledger-400">{p.sku}</p>
                     </div>
-                    <div className="text-right">
-                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                    <div className="flex items-center gap-3">
+                      <span className="text-right font-bold text-emerald-700 dark:text-emerald-400">
                         {availableAt(p, selectedLocationId)} in stock
                       </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleAddProduct(p)}
+                        className="rounded-xl bg-emerald-700 text-xs text-white hover:bg-emerald-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+                      >
+                        + Select
+                      </Button>
                     </div>
                   </div>
                 ))}
