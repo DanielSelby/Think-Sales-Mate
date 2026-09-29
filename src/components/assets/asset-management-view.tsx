@@ -37,7 +37,7 @@ export function AssetManagementView({ assets, canManage, currency }: { assets: A
     void deleteAsset(asset.id).then((result) => result?.error ? setNotice(result.error) : setNotice("Asset removed."));
   };
 
-  return <div className="space-y-5">
+  return <div className="asset-management-page space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-600 p-3 text-white"><Package className="h-6 w-6" /></div><div><h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">Asset Management</h1><p className="text-sm text-ledger-500">Track, manage and maintain your organization's assets.</p></div></div>
       {canManage && <Link href="/assets/new" className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"><Plus className="h-4 w-4" /> Add Asset</Link>}

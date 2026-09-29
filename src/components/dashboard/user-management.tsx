@@ -716,7 +716,7 @@ export function UserManagement({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="user-management-page space-y-6 animate-in fade-in duration-200">
       
       {/* Toast Banner */}
       {toastMessage && (

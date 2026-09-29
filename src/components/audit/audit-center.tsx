@@ -256,7 +256,7 @@ export function AuditCenter({ records }: { records: AuditRecord[] }) {
   const maxTrend = Math.max(1, ...trend.map((point) => point.total));
   const actionBreakdown = [...new Set(filtered.map((record) => record.action))].map((name) => ({ name, value: filtered.filter((record) => record.action === name).length })).sort((a, b) => b.value - a.value).slice(0, 8);
 
-  return <section className="audit-center space-y-5">
+  return <section className="audit-center user-management-page space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold text-slate-900">Advanced Audit Center</h1><p className="mt-1 text-sm text-slate-500">Monitor every important action and event across your organization.</p></div><div className="text-right text-xs text-slate-500"><p>{records.length.toLocaleString()} recorded events</p><p>Organization audit trail · {today} today</p></div></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{[["Total Events", records.length], ["User Actions", tabCount("user")], ["Data Changes", tabCount("data")], ["Security Events", tabCount("security")], ["Failed Attempts", tabCount("failed")]].map(([label, value]) => <div key={String(label)} className="rounded-xl border bg-white p-4 shadow-sm"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p><p className="mt-1 text-[11px] text-slate-400">From real audit records</p></div>)}</div>
     <AuditVisuals records={records} />

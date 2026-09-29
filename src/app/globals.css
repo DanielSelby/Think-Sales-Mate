@@ -576,6 +576,37 @@ html.dark .accounting-page [class~="dark:bg-slate-900"] {
   background-color: #0f1d2d !important;
 }
 
+html.dark .end-of-day-page [class~="dark:bg-ink-900"],
+html.dark .asset-pages [class~="dark:bg-ink-900"],
+html.dark .asset-management-page [class~="dark:bg-ink-900"],
+html.dark .business-reports-page [class~="dark:bg-ink-900"],
+html.dark .fraud-detection-page [class~="dark:bg-ink-900"],
+html.dark .communication-page [class~="dark:bg-ink-900"],
+html.dark .customer-messaging-page [class~="dark:bg-ink-900"],
+html.dark .user-management-page [class~="dark:bg-ink-900"],
+html.dark .user-management-page [class~="dark:bg-slate-900"],
+html.dark .settings-pages [class~="dark:bg-ink-900"],
+html.dark .settings-pages [class~="dark:bg-slate-900"],
+html.dark .settings-pages [class~="dark:bg-slate-800"] {
+  background-color: #0f1d2d !important;
+}
+
+html.dark .end-of-day-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .asset-pages :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .asset-management-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .business-reports-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .fraud-detection-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .communication-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .customer-messaging-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .user-management-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
+html.dark .settings-pages :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"] {
+  background-color: #0f1d2d !important;
+}
+
+html.dark .business-reports-page .rounded-card[class~="bg-transparent"] {
+  background-color: #0f1d2d !important;
+}
+
 html.dark .price-management-page [class~="border-white"],
 html.dark .price-management-page [class*="dark:border-white"] {
   border-color: transparent !important;

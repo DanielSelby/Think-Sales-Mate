@@ -128,7 +128,7 @@ export default function CustomerMessagingWorkspace() {
 
   if (busy) return <div className="flex min-h-[620px] items-center justify-center rounded-2xl bg-white text-sm text-ledger-500">Loading customer messaging workspace...</div>;
 
-  return <div className="space-y-6 pb-16">
+  return <div className="customer-messaging-page space-y-6 pb-16">
     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
       <div><div className="flex items-center gap-2 text-xs text-ledger-400"><span>CRM</span><ChevronRight className="h-3 w-3" /><span>Customer Messaging &amp; Engagement</span></div><h1 className="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-white">Customer Messaging &amp; Engagement</h1><p className="mt-0.5 text-xs text-ledger-400">Automate customer communication, run targeted campaigns, and keep customers engaged.</p></div>
       <div className="flex items-center gap-2"><button onClick={() => void load()} className="flex h-10 items-center gap-2 rounded-xl border border-ledger-200 bg-white px-3 text-xs font-semibold text-ledger-600"><RefreshCw className="h-4 w-4" /> Refresh</button><button onClick={() => { setShowComposer(true); setForm((current) => ({ ...current, name: "", content: "" })); }} className="flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-semibold text-white" style={{ background: theme.colors.primary }}><Plus className="h-4 w-4" /> Create Campaign</button></div>

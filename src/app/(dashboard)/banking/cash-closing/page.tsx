@@ -115,7 +115,7 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     ["Deposits / Withdrawals", summary.deposits + summary.withdrawals, "bg-teal-50 text-teal-600", Landmark],
   ] as const;
   return (
-    <div className="min-h-full bg-[#f4f8fc] px-4 py-5 dark:bg-ink-950 md:px-6">
+    <div className="end-of-day-page min-h-full bg-[#f4f8fc] px-4 py-5 dark:bg-ink-950 md:px-6">
       <div className="mx-auto max-w-[1680px] space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><div className="mb-2 flex items-center gap-2 text-xs text-[#3975ae]"><span>Accounting</span><span>/</span><span className="text-ledger-500">End Of Day Accounts</span></div><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#3d9bf4] to-[#1670d2] text-white shadow-md"><WalletCards className="h-6 w-6" /></div><div><h1 className="text-2xl font-bold tracking-tight text-[#12345a] dark:text-white">End Of Day Accounts</h1><p className="text-xs text-ledger-500">Reconcile your cash, compare with system records and close your day.</p></div></div></div>
