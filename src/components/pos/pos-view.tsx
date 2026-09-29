@@ -920,7 +920,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                     : "hover:-translate-y-0.5 hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_4px_8px_rgba(15,23,42,0.08),0_14px_24px_rgba(15,23,42,0.14)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_4px_8px_rgba(0,0,0,0.3),0_14px_24px_rgba(0,0,0,0.4)]"
                 )}
               >
-                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_2px_rgba(148,163,184,0.16),0_2px_6px_rgba(15,23,42,0.1)] dark:from-slate-800 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),inset_-1px_-1px_2px_rgba(0,0,0,0.3),0_2px_6px_rgba(0,0,0,0.3)]">
+                <div className="relative mb-2 flex h-28 w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_2px_rgba(148,163,184,0.16),0_2px_6px_rgba(15,23,42,0.1)] dark:from-slate-800 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),inset_-1px_-1px_2px_rgba(0,0,0,0.3),0_2px_6px_rgba(0,0,0,0.3)]">
                   {p.imageUrl ? (
                     <Image src={p.imageUrl} alt={p.name} fill className={cn("object-contain transition-transform duration-200 group-hover:scale-[1.025]", p.stockQuantity <= 0 && "grayscale")} unoptimized />
                   ) : (
