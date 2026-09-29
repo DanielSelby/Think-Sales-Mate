@@ -787,8 +787,8 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       <div className="flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex min-w-0 items-center gap-2 rounded-lg p-1.5">
           <span className="text-xs font-bold text-ink-900 dark:text-white">Location:</span>
-          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border-0 bg-white px-2 text-sm font-bold text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
-            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border-0 bg-white px-2 text-sm font-bold text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:bg-slate-800 dark:text-white">            {locations.length === 0 && <option value="" className="dark:bg-slate-800 dark:text-white">No branch</option>}
+            {locations.map((l) => <option key={l.id} value={l.id} className="dark:bg-slate-800 dark:text-white">{l.name}</option>)}
           </select>
         </div>
         <div className="flex h-10 items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700" role="group" aria-label="Filter products by stock">
@@ -929,7 +929,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                 </div>
                 <p className={cn("line-clamp-2 text-[11px] font-medium leading-tight", p.stockQuantity <= 0 ? "text-slate-500 dark:text-ledger-400" : "text-ink-900 dark:text-white")}>{p.name}</p>
                 <div className="mt-1 flex w-full items-center justify-between gap-1">
-                  <span className={cn("font-mono text-sm font-semibold", p.stockQuantity <= 0 ? "text-slate-500" : "text-ink-900 dark:text-white")}>{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
+                  <span className={cn("font-mono text-sm font-normal", p.stockQuantity <= 0 ? "text-slate-500" : "text-ink-900 dark:text-white")}>{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
                   {p.stockQuantity > 0
                     ? <span className="text-xs font-semibold text-signal">({p.stockQuantity})</span>
                     : <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold uppercase text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">Out of stock</span>}
@@ -1166,17 +1166,17 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
             <button onClick={() => handleCompleteSale("Credit")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
               <FileText className="h-4 w-4" /> Credit Sale
             </button>
-            <button onClick={() => handleCompleteSale("Card")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
+            <button onClick={() => handleCompleteSale("Card")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-40 dark:text-blue-400 dark:hover:text-blue-300">
               <CreditCard className="h-4 w-4" /> Card
             </button>
 
             <Button variant="primary" className="w-full bg-ink-900 hover:bg-ink-900/90 sm:w-auto" onClick={() => setMultiPayOpen(true)} disabled={isPending || cart.length === 0}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Multiple Pay
             </Button>
-            <Button variant="primary" className="w-full bg-signal hover:bg-signal/90 sm:w-auto" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full !bg-signal !text-white hover:!bg-signal/90 dark:!bg-signal dark:!text-white dark:hover:!bg-signal/90 sm:w-auto" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
               <Banknote className="h-4 w-4" /> Cash
             </Button>
-            <Button variant="primary" className="w-full bg-amber hover:bg-amber/90 sm:w-auto" onClick={() => { setMomoPaymentOpen(true); }} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full !bg-amber !text-white hover:!bg-amber/90 dark:!bg-amber dark:!text-white dark:hover:!bg-amber/90 sm:w-auto" onClick={() => { setMomoPaymentOpen(true); }} disabled={isPending || cart.length === 0}>
               <Smartphone className="h-4 w-4" /> MOMO
             </Button>
             <Button variant="primary" className="w-full bg-alert hover:bg-alert/90 sm:w-auto" onClick={handleVoid} disabled={cart.length === 0}>
