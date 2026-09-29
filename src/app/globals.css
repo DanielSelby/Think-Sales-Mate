@@ -106,12 +106,6 @@ html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
     font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
   }
 
-  /* POS uses spacing and surface contrast instead of bordered cards. */
-  .pos-page [class*="border"] {
-    border: 0 !important;
-    border-color: transparent !important;
-  }
-
   .approval-page [class*="border"],
   .sales-page [class*="border"],
   .orders-page [class*="border"],
@@ -565,6 +559,70 @@ html.dark .page-canvas .stock-transfer-themed-modal input {
 
 html.dark .page-canvas .stock-transfer-themed-modal input::placeholder {
   color: #94a3b8 !important;
+}
+
+html.dark .pos-page [class~="dark:bg-ink-900"],
+html.dark .product-categories-page [class~="dark:bg-ink-900"],
+html.dark .order-tracker-page [class~="dark:bg-ink-900"],
+html.dark .price-management-page [class~="dark:bg-ink-900"],
+html.dark .duplicate-review-page [class~="dark:bg-ink-900"] {
+  background-color: #0f1d2d !important;
+}
+
+.pos-cart-grid,
+.product-category-grid,
+.order-tracker-items-grid,
+.price-management-grid,
+.duplicate-review-grid {
+  border-collapse: collapse;
+}
+
+.pos-cart-grid th,
+.pos-cart-grid td,
+.product-category-grid th,
+.product-category-grid td,
+.order-tracker-items-grid th,
+.order-tracker-items-grid td,
+.price-management-grid th,
+.price-management-grid td,
+.duplicate-review-grid th,
+.duplicate-review-grid td {
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.pos-cart-grid th:last-child,
+.pos-cart-grid td:last-child,
+.product-category-grid th:last-child,
+.product-category-grid td:last-child,
+.order-tracker-items-grid th:last-child,
+.order-tracker-items-grid td:last-child,
+.price-management-grid th:last-child,
+.price-management-grid td:last-child,
+.duplicate-review-grid th:last-child,
+.duplicate-review-grid td:last-child {
+  border-right: 0;
+}
+
+.pos-cart-grid tbody tr:last-child td,
+.product-category-grid tbody tr:last-child td,
+.order-tracker-items-grid tbody tr:last-child td,
+.price-management-grid tbody tr:last-child td,
+.duplicate-review-grid tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+html.dark .pos-cart-grid th,
+html.dark .pos-cart-grid td,
+html.dark .product-category-grid th,
+html.dark .product-category-grid td,
+html.dark .order-tracker-items-grid th,
+html.dark .order-tracker-items-grid td,
+html.dark .price-management-grid th,
+html.dark .price-management-grid td,
+html.dark .duplicate-review-grid th,
+html.dark .duplicate-review-grid td {
+  border-color: #334155;
 }
 
 html.dark .support-page > section:first-child > .bg-gradient-to-r {

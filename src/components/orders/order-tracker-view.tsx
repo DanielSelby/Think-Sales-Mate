@@ -71,7 +71,7 @@ export function OrderTrackerView({
   ];
 
   return (
-    <div className="space-y-5 pb-12">
+    <div className="order-tracker-page space-y-5 pb-12">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/orders?view=list" className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-ledger-500 hover:text-signal"><ArrowLeft className="h-3.5 w-3.5" /> Back to Order List</Link>
@@ -160,7 +160,7 @@ function Timeline({ order }: { order: OrderRow }) {
 }
 
 function Items({ order, currency }: { order: OrderRow; currency: string }) {
-  return <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="border-b border-ledger-100 text-[10px] uppercase text-ledger-400 dark:border-ledger-700"><tr><th className="px-2 py-2">Product</th><th className="px-2 py-2 text-right">Qty</th><th className="px-2 py-2 text-right">Unit Price</th><th className="px-2 py-2 text-right">Total</th></tr></thead><tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">{order.items.map((item) => <tr key={item.id}><td className="px-2 py-3 font-medium text-ink-900 dark:text-white">{item.productName}</td><td className="px-2 py-3 text-right">{item.quantity}</td><td className="px-2 py-3 text-right">{formatCurrency(item.unitPrice, currency)}</td><td className="px-2 py-3 text-right font-semibold">{formatCurrency(item.lineTotal, currency)}</td></tr>)}</tbody></table></div>;
+  return <div className="overflow-x-auto"><table className="order-tracker-items-grid w-full text-left text-xs"><thead className="border-b border-ledger-100 text-[10px] uppercase text-ledger-400 dark:border-ledger-700"><tr><th className="px-2 py-2">Product</th><th className="px-2 py-2 text-right">Qty</th><th className="px-2 py-2 text-right">Unit Price</th><th className="px-2 py-2 text-right">Total</th></tr></thead><tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">{order.items.map((item) => <tr key={item.id}><td className="px-2 py-3 font-medium text-ink-900 dark:text-white">{item.productName}</td><td className="px-2 py-3 text-right">{item.quantity}</td><td className="px-2 py-3 text-right">{formatCurrency(item.unitPrice, currency)}</td><td className="px-2 py-3 text-right font-semibold">{formatCurrency(item.lineTotal, currency)}</td></tr>)}</tbody></table></div>;
 }
 
 function Empty({ icon: Icon, text }: { icon: typeof Activity; text: string }) {

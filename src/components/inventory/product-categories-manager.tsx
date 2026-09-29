@@ -282,7 +282,7 @@ export function ProductCategoriesManager({
   const selectClass = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500";
 
   return (
-    <main className="mx-auto max-w-[1680px] space-y-4 pb-10">
+    <main className="product-categories-page mx-auto max-w-[1680px] space-y-4 pb-10">
       <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--theme-primary)] text-white"><Tag className="h-5 w-5" /></span>
@@ -325,7 +325,7 @@ export function ProductCategoriesManager({
           <span className="text-[11px] text-slate-500">Showing {pageRows.length ? (visiblePage - 1) * pageSize + 1 : 0}–{Math.min(visiblePage * pageSize, filtered.length)} of {filtered.length} categories</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-xs">
+          <table className="product-category-grid w-full min-w-[1100px] text-left text-xs">
             <thead className="bg-[#f2f7fc] text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-ink-950 dark:text-ledger-400"><tr>
               <th className="px-4 py-3">Category Name</th><th className="px-4 py-3">Category Code</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Parent Category</th><th className="px-4 py-3 text-center">Products</th><th className="px-4 py-3">Created By</th><th className="px-4 py-3">Created Date</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
             </tr></thead>

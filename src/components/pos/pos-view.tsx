@@ -1072,7 +1072,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
            <SmartProductSummary products={locationProducts} rows={cart} onLocate={smartLocator.locate} className="mb-3" />
            <div ref={cartListRef} className="min-h-0 flex-1 overflow-y-auto rounded-md border border-ledger-100 dark:border-ledger-700">
-             <table className="w-full text-[15px]">                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
+             <table className="pos-cart-grid w-full text-[15px]">                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
                   <tr>
                     <th className="px-2 py-2 text-left font-bold">Product</th>
                     <th className="px-2 py-2 text-center font-bold">Quantity</th>

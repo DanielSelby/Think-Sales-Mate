@@ -37,7 +37,7 @@ export default async function DuplicateReviewCenterPage({
     : null;
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-5">
+    <div className="duplicate-review-page mx-auto min-w-0 max-w-[1600px] space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs text-ledger-400">Products <span className="mx-1">›</span> Duplicate Review Center</p>
