@@ -179,7 +179,7 @@ export default function RouteSalesWorkspace({ initial, currency }: { orgId: stri
   const totalCollections = initial.collections.reduce((n, c) => n + Number(c.amount_collected || 0), 0);
 
   return (
-    <div className="space-y-5">
+    <div className="route-sales-page space-y-5">
       {notice && (
         <button onClick={() => setNotice("")} className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-xs text-blue-800">
           {notice}

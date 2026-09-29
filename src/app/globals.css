@@ -591,6 +591,12 @@ html.dark .settings-pages [class~="dark:bg-slate-800"] {
   background-color: #0f1d2d !important;
 }
 
+html.dark .route-sales-page [class~="dark:bg-ink-900"],
+html.dark .route-sales-page [class~="dark:bg-slate-900"],
+html.dark .route-sales-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"] {
+  background-color: #0f1d2d !important;
+}
+
 html.dark .end-of-day-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
 html.dark .asset-pages :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
 html.dark .asset-management-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
