@@ -8,7 +8,7 @@ export default function NewExpensePage({ searchParams }: { searchParams: { error
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="accounting-page mx-auto max-w-lg space-y-6">
       <div>
         <Link href="/accounting/expenses" className="inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white">
           <ArrowLeft className="h-3.5 w-3.5" />

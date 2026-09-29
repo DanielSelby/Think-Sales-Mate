@@ -141,7 +141,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
   const distributionTotal = categories.reduce((sum, c) => sum + c.totalExpenses, 0);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150 pb-16">
+    <div className="expenses-page space-y-6 animate-in fade-in duration-150 pb-16">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Expense Categories</h1>

@@ -224,7 +224,7 @@ export function PriceManagementView({ products, currency, canManage, useSystemPr
     reader.readAsText(file);
   }
 
-  return <div className="price-management-page mx-auto max-w-[1600px] space-y-5 pb-12 [&_.rounded-card]:!border-white">
+  return <div className="price-management-page mx-auto max-w-[1600px] space-y-5 pb-12">
     <div>
       <p className="text-xs text-ledger-400">Inventory &gt; Price Management</p>
       <h1 className="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-white">Product Price Management</h1>

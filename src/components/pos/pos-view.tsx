@@ -906,7 +906,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3 overflow-y-auto pb-2 sm:grid-cols-3 lg:grid-cols-4 xl:flex-1">
+          <div className="pos-product-grid grid grid-cols-2 gap-3 overflow-y-auto pb-2 sm:grid-cols-3 lg:grid-cols-4 xl:flex-1">
             {filteredProducts.length === 0 && <p className="col-span-full py-10 text-center text-sm text-ledger-400">No products match your search.</p>}
             {filteredProducts.map((p) => (
               <button
@@ -914,13 +914,13 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                 onClick={() => addToCart(p)}
                 aria-disabled={p.stockQuantity <= 0}
                 className={cn(
-                  "flex flex-col items-center rounded-md border bg-white p-2.5 text-center transition-all dark:bg-ink-900",
+                  "flex flex-col items-center rounded-md bg-white p-2.5 text-center transition-all dark:bg-ink-900",
                   p.stockQuantity <= 0
-                    ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 grayscale dark:border-ledger-700 dark:bg-ink-950"
-                    : "border-ledger-100 hover:border-signal hover:shadow-card-hover dark:border-ledger-700"
+                    ? "cursor-not-allowed bg-slate-50 opacity-60 grayscale dark:bg-ink-950"
+                    : "hover:shadow-card-hover"
                 )}
               >
-                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white p-1.5 dark:border-ledger-700 dark:bg-ink-900">
+                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-white p-1.5 dark:bg-ink-900">
                   {p.imageUrl ? (
                     <Image src={p.imageUrl} alt={p.name} fill className={cn("object-contain", p.stockQuantity <= 0 && "grayscale")} unoptimized />
                   ) : (

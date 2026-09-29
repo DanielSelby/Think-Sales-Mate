@@ -251,7 +251,7 @@ export function AddExpenseForm({
     : null;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150 pb-16">
+    <div className="expenses-page space-y-6 animate-in fade-in duration-150 pb-16">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
           <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-signal-soft px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-signal">

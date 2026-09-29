@@ -67,7 +67,7 @@ export function ExpenseDetailView({ expense }: { expense: ExpenseDetail }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="expenses-page space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link

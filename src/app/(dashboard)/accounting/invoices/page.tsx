@@ -36,7 +36,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams?: { 
     const names = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name ?? "Unknown"]));
 
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="accounting-page mx-auto max-w-5xl space-y-6">
         <div>
           <Link href="/sales" className="inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white">
             <ArrowLeft className="h-3.5 w-3.5" /> Back to sales
@@ -79,7 +79,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams?: { 
   const canManage = can(context.role, "accounting.manage");
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="accounting-page mx-auto max-w-4xl space-y-6">
       <div>
         <Link href="/accounting" className="inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white">
           <ArrowLeft className="h-3.5 w-3.5" />

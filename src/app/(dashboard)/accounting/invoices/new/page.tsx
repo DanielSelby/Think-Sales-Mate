@@ -6,7 +6,7 @@ import { createInvoice } from "@/app/(dashboard)/accounting/invoices/actions";
 
 export default function NewInvoicePage({ searchParams }: { searchParams: { error?: string } }) {
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="accounting-page mx-auto max-w-lg space-y-6">
       <div>
         <Link href="/accounting/invoices" className="inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white">
           <ArrowLeft className="h-3.5 w-3.5" />

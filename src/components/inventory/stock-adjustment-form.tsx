@@ -613,7 +613,7 @@ export function StockAdjustmentForm({
 
   if (locations.length === 0) {
     return (
-      <div className="mx-auto max-w-2xl">
+      <div className="stock-adjustment-page mx-auto max-w-2xl">
         <div className="rounded-2xl border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
           <p className="text-sm text-ledger-500 dark:text-ledger-400">
             You need at least one location before you can take stock.{" "}
@@ -630,7 +630,7 @@ export function StockAdjustmentForm({
   const selectedPersonName = teamMembers.find((tm) => tm.id === selectedPersonId)?.name ?? currentUserName;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
+    <div className="stock-adjustment-page space-y-6 animate-in fade-in duration-150">
       {/* ── Top Header & Breadcrumb ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>

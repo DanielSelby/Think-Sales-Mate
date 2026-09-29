@@ -569,6 +569,29 @@ html.dark .duplicate-review-page [class~="dark:bg-ink-900"] {
   background-color: #0f1d2d !important;
 }
 
+html.dark .stock-adjustment-page [class~="dark:bg-ink-900"],
+html.dark .expenses-page [class~="dark:bg-ink-900"],
+html.dark .accounting-page [class~="dark:bg-ink-900"],
+html.dark .accounting-page [class~="dark:bg-slate-900"] {
+  background-color: #0f1d2d !important;
+}
+
+html.dark .price-management-page [class~="border-white"],
+html.dark .price-management-page [class*="dark:border-white"] {
+  border-color: transparent !important;
+}
+
+html.dark .price-management-page .price-management-grid input {
+  border-color: #475569 !important;
+  background-color: #000 !important;
+  color: #fff !important;
+}
+
+.pos-product-grid > button,
+.pos-product-grid > button > div {
+  border: 0 !important;
+}
+
 .pos-cart-grid,
 .product-category-grid,
 .order-tracker-items-grid,

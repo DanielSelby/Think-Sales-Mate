@@ -101,7 +101,7 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
   const effectiveActiveTab = visibleTabs.some((tab) => tab.key === activeTab) ? activeTab : (visibleTabs[0]?.key ?? "overview");
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="accounting-page space-y-6 pb-16">
       {/* ── Top Bar Header (Matches reference image header) ── */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>

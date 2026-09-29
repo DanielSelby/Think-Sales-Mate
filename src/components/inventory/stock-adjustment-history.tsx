@@ -748,7 +748,7 @@ export function StockAdjustmentHistory({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
+    <div className="stock-adjustment-page space-y-6 animate-in fade-in duration-150">
       {/* ── Screen UI ── */}
       <div className="print-hide space-y-6">
         {/* ── Page Header matching reference image ────────────────────────── */}
