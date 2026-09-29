@@ -1083,9 +1083,15 @@ export function ProductsCatalog({
             const currentStock = getProductStockForWarehouse(p, warehouse);
             const status = getStatus(p, warehouse);
             return (
-              <div key={p.id} className="group rounded-card border border-ledger-100 bg-white p-4 shadow-card transition-all hover:shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
+              <div
+                key={p.id}
+                className="group rounded-card border border-slate-200/90 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_4px_8px_rgba(15,23,42,0.08),0_16px_30px_rgba(15,23,42,0.14)] dark:border-slate-700/90 dark:from-slate-900 dark:via-ink-900 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_2px_5px_rgba(0,0,0,0.25),0_10px_24px_rgba(0,0,0,0.28)] dark:hover:border-blue-400/50 dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_4px_8px_rgba(0,0,0,0.3),0_16px_30px_rgba(0,0,0,0.4)]"
+              >
                 <div className="flex items-start justify-between">
-                  <Link href={`/inventory/${p.id}`} className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-ledger-100 bg-white text-ledger-400 transition-transform group-hover:scale-105 dark:border-ledger-700 dark:bg-ink-900">
+                  <Link
+                    href={`/inventory/${p.id}`}
+                    className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-blue-100/80 bg-gradient-to-br from-white to-slate-100 text-ledger-400 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_2px_rgba(148,163,184,0.16),0_3px_8px_rgba(15,23,42,0.12)] transition-transform duration-200 group-hover:scale-[1.03] dark:border-slate-700 dark:from-slate-800 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),inset_-1px_-1px_2px_rgba(0,0,0,0.3),0_3px_9px_rgba(0,0,0,0.3)]"
+                  >
                     {p.imageUrl ? (
                       <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized />
                     ) : (

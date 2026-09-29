@@ -247,16 +247,16 @@ function ChildLinks({ items, sidebar }: {
 
 export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro" }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string }) {
   const pathname  = usePathname();
-  const { activeTheme, toggleSidebar } = useAppStore();
+  const { activeTheme, darkMode, toggleSidebar } = useAppStore();
   const theme     = THEMES[activeTheme];
   const sidebar   = {
     ...theme.sidebar,
     background: `${theme.colors.primary}16`,
-    text: theme.colors.text,
-    textMuted: theme.colors.textMuted,
+    text: darkMode ? "#f8fafc" : theme.colors.text,
+    textMuted: darkMode ? "rgba(226,232,240,0.72)" : theme.colors.textMuted,
     activeBackground: theme.colors.primary,
     activeText: "#FFFFFF",
-    borderColor: `${theme.colors.primary}22`,
+    borderColor: darkMode ? "rgba(148,163,184,0.18)" : `${theme.colors.primary}22`,
     hoverBackground: `${theme.colors.primary}12`,
   };
 

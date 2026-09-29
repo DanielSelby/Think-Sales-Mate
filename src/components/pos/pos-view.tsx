@@ -914,15 +914,15 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                 onClick={() => addToCart(p)}
                 aria-disabled={p.stockQuantity <= 0}
                 className={cn(
-                  "flex flex-col items-center rounded-md bg-white p-2.5 text-center transition-all dark:bg-ink-900",
+                  "group flex flex-col items-center rounded-md bg-gradient-to-br from-white via-white to-slate-50 p-2.5 text-center shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 dark:from-slate-900 dark:via-ink-900 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_2px_5px_rgba(0,0,0,0.25),0_8px_18px_rgba(0,0,0,0.28)]",
                   p.stockQuantity <= 0
                     ? "cursor-not-allowed bg-slate-50 opacity-60 grayscale dark:bg-ink-950"
-                    : "hover:shadow-card-hover"
+                    : "hover:-translate-y-0.5 hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_4px_8px_rgba(15,23,42,0.08),0_14px_24px_rgba(15,23,42,0.14)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_4px_8px_rgba(0,0,0,0.3),0_14px_24px_rgba(0,0,0,0.4)]"
                 )}
               >
-                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-white p-1.5 dark:bg-ink-900">
+                <div className="relative mb-2 flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_2px_rgba(148,163,184,0.16),0_2px_6px_rgba(15,23,42,0.1)] dark:from-slate-800 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),inset_-1px_-1px_2px_rgba(0,0,0,0.3),0_2px_6px_rgba(0,0,0,0.3)]">
                   {p.imageUrl ? (
-                    <Image src={p.imageUrl} alt={p.name} fill className={cn("object-contain", p.stockQuantity <= 0 && "grayscale")} unoptimized />
+                    <Image src={p.imageUrl} alt={p.name} fill className={cn("object-contain transition-transform duration-200 group-hover:scale-[1.025]", p.stockQuantity <= 0 && "grayscale")} unoptimized />
                   ) : (
                     <Package className="h-6 w-6 text-ledger-400" />
                   )}
