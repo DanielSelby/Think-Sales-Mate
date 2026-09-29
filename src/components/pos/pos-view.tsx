@@ -785,9 +785,9 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
       {/* Toolbar */}
       <div className="flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
-        <div className="flex min-w-0 items-center gap-2 rounded-lg border-2 border-ledger-300 p-1.5 dark:border-ledger-600">
-          <span className="text-xs font-medium text-ledger-500">Location:</span>
-          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-300 bg-white px-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-ledger-600 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
+        <div className="flex min-w-0 items-center gap-2 rounded-lg p-1.5">
+          <span className="text-xs font-bold text-ink-900 dark:text-white">Location:</span>
+          <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border-0 bg-white px-2 text-sm font-bold text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:bg-ink-900 dark:text-white">            {locations.length === 0 && <option value="">No branch</option>}
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
@@ -929,9 +929,9 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                 </div>
                 <p className={cn("line-clamp-2 text-[11px] font-medium leading-tight", p.stockQuantity <= 0 ? "text-slate-500 dark:text-ledger-400" : "text-ink-900 dark:text-white")}>{p.name}</p>
                 <div className="mt-1 flex w-full items-center justify-between gap-1">
-                  <span className={cn("font-mono text-xs", p.stockQuantity <= 0 ? "text-slate-500" : "text-ink-900 dark:text-white")}>{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
+                  <span className={cn("font-mono text-sm font-semibold", p.stockQuantity <= 0 ? "text-slate-500" : "text-ink-900 dark:text-white")}>{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
                   {p.stockQuantity > 0
-                    ? <span className="text-[10px] font-medium text-signal">({p.stockQuantity})</span>
+                    ? <span className="text-xs font-semibold text-signal">({p.stockQuantity})</span>
                     : <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold uppercase text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">Out of stock</span>}
                 </div>
               </button>
@@ -940,12 +940,12 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         </div>
 
         {/* RIGHT: customer + search + cart table + totals */}
-        <Card accent="signal" className="relative flex min-h-0 flex-col border-2 border-ledger-300 dark:border-ledger-600" style={{ borderLeftColor: theme.colors.primary }}>
+        <Card accent="signal" className="relative flex min-h-0 flex-col border-2 border-ledger-300 bg-gradient-to-br from-white via-white to-slate-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_3px_7px_rgba(15,23,42,0.07),0_12px_28px_rgba(15,23,42,0.1)] hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_5px_10px_rgba(15,23,42,0.08),0_18px_34px_rgba(15,23,42,0.16)] dark:border-ledger-600 dark:from-slate-900 dark:via-ink-900 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_3px_7px_rgba(0,0,0,0.25),0_12px_28px_rgba(0,0,0,0.3)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_5px_10px_rgba(0,0,0,0.3),0_18px_34px_rgba(0,0,0,0.42)]" style={{ borderLeftColor: theme.colors.primary }}>
           <div className="absolute -left-3 top-1/2 z-20 -translate-y-1/2">
             <button
               title="Resize the cart panel"
               onClick={() => setExpandMenuOpen((v) => !v)}
-              className="flex h-8 w-6 items-center justify-center rounded-md border border-ledger-200 bg-white text-ledger-500 shadow-card hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300"
+              className="flex h-8 w-6 items-center justify-center rounded-md border border-slate-200 bg-gradient-to-br from-white to-slate-100 text-ledger-500 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_2px_5px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_4px_8px_rgba(15,23,42,0.2)] dark:border-slate-700 dark:from-slate-800 dark:to-slate-950 dark:text-ledger-300 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_2px_5px_rgba(0,0,0,0.35)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.1),0_4px_8px_rgba(0,0,0,0.45)]"
             >
               {cartWidthPercent >= 50 ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
             </button>
