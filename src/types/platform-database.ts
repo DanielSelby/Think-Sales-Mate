@@ -56,6 +56,8 @@ export interface PlatformDatabase {
            industry: string | null;
            suspended_at: string | null;
            suspension_reason: string | null;
+           use_global_login_theme: boolean;
+           login_theme_id: string | null;
         };
         Insert: {
           id?: string;
@@ -69,6 +71,8 @@ export interface PlatformDatabase {
            industry?: string | null;
            suspended_at?: string | null;
            suspension_reason?: string | null;
+           use_global_login_theme?: boolean;
+           login_theme_id?: string | null;
         };
         Update: Partial<PlatformDatabase["public"]["Tables"]["platform_organizations"]["Row"]>;
         Relationships: [];
@@ -310,6 +314,25 @@ export interface PlatformDatabase {
         key: string;
         value?: Record<string, unknown>;
         updated_by?: string | null;
+        updated_at?: string;
+      }>;
+      login_themes: PlatformTable<{
+        id: string;
+        name: string;
+        description: string;
+        preview_image: string | null;
+        theme_type: string;
+        is_active: boolean;
+        created_at: string;
+        updated_at: string;
+      }, {
+        id: string;
+        name: string;
+        description?: string;
+        preview_image?: string | null;
+        theme_type: string;
+        is_active?: boolean;
+        created_at?: string;
         updated_at?: string;
       }>;
       platform_security_events: PlatformTable<{

@@ -211,6 +211,174 @@ export async function updatePlatformSetting(key: string, value: Record<string, u
   revalidatePath("/platform-admin");
 }
 
+export async function setGlobalLoginTheme(themeId: string) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const { data: theme, error: themeError } = await supabase
+    .from("login_themes")
+    .select("id, name, is_active")
+    .eq("id", themeId)
+    .single();
+  if (themeError) throw new Error(themeError.message);
+  if (!theme.is_active) throw new Error("An inactive login theme cannot be set globally.");
+
+  const { data: current, error: currentError } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "global_login_theme")
+    .maybeSingle();
+  if (currentError) throw new Error(currentError.message);
+  const previousId = typeof current?.value?.theme_id === "string" ? current.value.theme_id : "default-thinksales-login";
+  const { data: previousTheme } = await supabase.from("login_themes").select("name").eq("id", previousId).maybeSingle();
+  const { error } = await supabase.from("platform_settings").upsert({
+    key: "global_login_theme",
+    value: { theme_id: theme.id },
+    updated_by: admin.id,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "global_login_theme_changed",
+    module: "login_experience",
+    metadata: { previousThemeId: previousId, previousThemeName: previousTheme?.name ?? "System Default", newThemeId: theme.id, newThemeName: theme.name },
+  });
+  if (auditError) throw new Error(`Theme was saved, but its audit record failed: ${auditError.message}`);
+  revalidatePath("/platform-admin");
+}
+
+export async function setOrganizationLoginTheme(organizationId: string, themeId: string | null) {
+  const { admin, supabase } = await requirePlatformManagement();
+  if (themeId) {
+    const { data: theme, error: themeError } = await supabase
+      .from("login_themes")
+      .select("id, name, is_active")
+      .eq("id", themeId)
+      .single();
+    if (themeError) throw new Error(themeError.message);
+    if (!theme.is_active) throw new Error("An inactive login theme cannot be assigned.");
+  }
+
+  const { data: organization, error: organizationError } = await supabase
+    .from("platform_organizations")
+    .select("name, use_global_login_theme, login_theme_id")
+    .eq("organization_id", organizationId)
+    .single();
+  if (organizationError) throw new Error(organizationError.message);
+  const previousThemeId = organization.use_global_login_theme ? null : organization.login_theme_id;
+  const { data: previousTheme } = previousThemeId
+    ? await supabase.from("login_themes").select("name").eq("id", previousThemeId).maybeSingle()
+    : { data: null };
+  const { data: nextTheme } = themeId
+    ? await supabase.from("login_themes").select("name").eq("id", themeId).single()
+    : { data: null };
+
+  const { error } = await supabase
+    .from("platform_organizations")
+    .update({ use_global_login_theme: themeId === null, login_theme_id: themeId, updated_at: new Date().toISOString() })
+    .eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    organization_id: organizationId,
+    action: "organization_login_theme_changed",
+    module: "login_experience",
+    metadata: {
+      organizationName: organization.name,
+      previousThemeId,
+      previousThemeName: previousTheme?.name ?? "Use Global Theme",
+      newThemeId: themeId,
+      newThemeName: nextTheme?.name ?? "Use Global Theme",
+    },
+  });
+  if (auditError) throw new Error(`Theme was saved, but its audit record failed: ${auditError.message}`);
+  revalidatePath("/platform-admin");
+}
+
+export async function updateLoginTheme(themeId: string, name: string, description: string) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const cleanName = name.trim();
+  if (!cleanName) throw new Error("Enter a theme name.");
+  const { data: previous, error: previousError } = await supabase
+    .from("login_themes")
+    .select("name, description")
+    .eq("id", themeId)
+    .single();
+  if (previousError) throw new Error(previousError.message);
+  const { error } = await supabase
+    .from("login_themes")
+    .update({ name: cleanName, description: description.trim(), updated_at: new Date().toISOString() })
+    .eq("id", themeId);
+  if (error) throw new Error(error.message);
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "login_theme_updated",
+    module: "login_experience",
+    metadata: { themeId, previousTheme: previous, newTheme: { name: cleanName, description: description.trim() } },
+  });
+  if (auditError) throw new Error(`Theme was saved, but its audit record failed: ${auditError.message}`);
+  revalidatePath("/platform-admin");
+}
+
+export async function duplicateLoginTheme(themeId: string, name: string) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const cleanName = name.trim();
+  if (!cleanName) throw new Error("Enter a name for the duplicate theme.");
+  const { data: source, error: sourceError } = await supabase
+    .from("login_themes")
+    .select("description, preview_image, theme_type")
+    .eq("id", themeId)
+    .single();
+  if (sourceError) throw new Error(sourceError.message);
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from("login_themes").insert({
+    id,
+    name: cleanName,
+    description: source.description,
+    preview_image: source.preview_image,
+    theme_type: source.theme_type,
+    is_active: false,
+  });
+  if (error) throw new Error(error.message);
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "login_theme_duplicated",
+    module: "login_experience",
+    metadata: { sourceThemeId: themeId, duplicateThemeId: id, name: cleanName },
+  });
+  if (auditError) throw new Error(`Theme was duplicated, but its audit record failed: ${auditError.message}`);
+  revalidatePath("/platform-admin");
+}
+
+export async function setLoginThemeActive(themeId: string, isActive: boolean) {
+  const { admin, supabase } = await requirePlatformManagement();
+  if (!isActive && themeId === "default-thinksales-login") {
+    throw new Error("The system default login theme cannot be deactivated.");
+  }
+  const { data: theme, error: themeError } = await supabase.from("login_themes").select("name").eq("id", themeId).single();
+  if (themeError) throw new Error(themeError.message);
+  if (!isActive) {
+    const [{ data: globalSetting, error: settingError }, { count, error: assignmentError }] = await Promise.all([
+      supabase.from("platform_settings").select("value").eq("key", "global_login_theme").maybeSingle(),
+      supabase.from("platform_organizations").select("id", { count: "exact", head: true }).eq("use_global_login_theme", false).eq("login_theme_id", themeId),
+    ]);
+    if (settingError) throw new Error(settingError.message);
+    if (assignmentError) throw new Error(assignmentError.message);
+    if (globalSetting?.value?.theme_id === themeId || (count ?? 0) > 0) {
+      throw new Error("This theme is currently in use. Assign a different theme before deactivating it.");
+    }
+  }
+  const { error } = await supabase.from("login_themes").update({ is_active: isActive, updated_at: new Date().toISOString() }).eq("id", themeId);
+  if (error) throw new Error(error.message);
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: isActive ? "login_theme_activated" : "login_theme_deactivated",
+    module: "login_experience",
+    metadata: { themeId, themeName: theme.name },
+  });
+  if (auditError) throw new Error(`Theme status was updated, but its audit record failed: ${auditError.message}`);
+  revalidatePath("/platform-admin");
+}
+
 export async function uploadPlatformLogo(formData: FormData): Promise<{ logoUrl?: string; error?: string }> {
   try {
     const { admin, supabase } = await requirePlatformPermission("manage_platform");

@@ -23,6 +23,7 @@ import { PLATFORM_MODULES } from "@/lib/platform-modules";
 import { FeatureAccessManager } from "./feature-access-manager";
 import SupportCenter from "./support-center";
 import { formatMoney } from "@/lib/currency";
+import { LoginExperienceManager } from "./login-experience-manager";
 
 type Organization = {
   id: string;
@@ -113,6 +114,7 @@ type Tab =
   | "Security Center"
   | "Audit Logs"
   | "System Settings"
+  | "Login Experience"
   | "Feature Flags";
 
 const tabs: { label: Tab; icon: string }[] = [
@@ -131,6 +133,7 @@ const tabs: { label: Tab; icon: string }[] = [
   { label: "System Settings", icon: "⚙" },
   { label: "Feature Flags", icon: "⚑" },
   { label: "Audit Logs", icon: "▤" },
+  { label: "Login Experience", icon: "◉" },
 ];
 const modules: PlatformModule[] = PLATFORM_MODULES.map((module) => module.key);
 
@@ -198,6 +201,10 @@ export default function PlatformAdminConsole({
   settings,
   complaints,
   contacts,
+  loginThemes,
+  loginThemeAssignments,
+  globalLoginThemeId,
+  loginThemeAudit,
 }: {
   logoUrl: string;
   organizations: Organization[];
@@ -212,6 +219,10 @@ export default function PlatformAdminConsole({
   settings: PlatformSetting[];
   complaints: React.ComponentProps<typeof SupportCenter>["complaints"];
   contacts: React.ComponentProps<typeof SupportCenter>["contacts"];
+  loginThemes: React.ComponentProps<typeof LoginExperienceManager>["themes"];
+  loginThemeAssignments: React.ComponentProps<typeof LoginExperienceManager>["organizations"];
+  globalLoginThemeId: string;
+  loginThemeAudit: React.ComponentProps<typeof LoginExperienceManager>["auditLogs"];
 }) {
   const platformCurrency = String(settings.find((setting) => setting.key === "platform_currency")?.value?.code ?? "GHS");
   const formatPlatformMoney = (value: number) => formatMoney(value, platformCurrency);
@@ -512,11 +523,13 @@ export default function PlatformAdminConsole({
 
       <main className="min-w-0 flex-1 p-4 md:p-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-          {tab !== "Feature Access" && tab !== "Overview" && tab !== "Complaints & Support" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button><button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
+          {tab !== "Feature Access" && tab !== "Overview" && tab !== "Complaints & Support" && tab !== "Login Experience" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button><button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
         </div>
         {message && <button type="button" onClick={() => setMessage(null)} className="mb-4 w-full rounded-lg bg-blue-50 p-3 text-left text-sm text-blue-800">{message} ×</button>}
 
-        {tab === "Overview" ? (
+        {tab === "Login Experience" ? (
+          <LoginExperienceManager themes={loginThemes} organizations={loginThemeAssignments} globalThemeId={globalLoginThemeId} auditLogs={loginThemeAudit} />
+        ) : tab === "Overview" ? (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-blue-600">Platform Admin <span className="mx-1">›</span> Dashboard</p><h2 className="mt-1 text-2xl font-bold text-slate-950">Platform Administration</h2><p className="text-sm text-slate-500">Monitor and manage organizations, subscriptions, users, permissions and platform activities from one place.</p></div><div className="flex flex-wrap gap-2"><select value={overviewRange} onChange={(event) => setOverviewRange(event.target.value)} className="rounded-lg border bg-white px-3 py-2 text-xs"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option></select><button type="button" onClick={() => exportAuditLogs(auditLogs, "csv")} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-semibold"><Download className="h-3.5 w-3.5" /> Export</button><button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button></div></div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{overviewKpis.map(({ label, value, trend, Icon, color }) => <button type="button" key={label} onClick={() => setTab(label === "Total Organizations" || label === "Active Organizations" || label === "Suspended Organizations" ? "Organizations" : label === "Monthly Revenue" ? "Billing & Subscriptions" : "Usage & Analytics")} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between"><span className={`rounded-lg p-2 ${color}`}><Icon className="h-4 w-4" /></span><ChevronRight className="h-4 w-4 text-slate-300" /></div><p className="mt-3 text-xs text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p><p className="mt-1 text-[10px] text-emerald-600">↑ {trend}</p></button>)}</div>
