@@ -629,6 +629,40 @@ html.dark .price-management-page .price-management-grid input {
   border: 0 !important;
 }
 
+.sales-page table thead,
+.procurement-page table thead,
+.product-page table thead,
+.orders-page table thead,
+.order-tracker-page table thead {
+  background-color: #e8eef6 !important;
+  color: #334155 !important;
+}
+
+.sales-page table thead th,
+.procurement-page table thead th,
+.product-page table thead th,
+.orders-page table thead th,
+.order-tracker-page table thead th {
+  color: #334155 !important;
+}
+
+html.dark .sales-page table thead,
+html.dark .procurement-page table thead,
+html.dark .product-page table thead,
+html.dark .orders-page table thead,
+html.dark .order-tracker-page table thead {
+  background-color: #1b2b3e !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .sales-page table thead th,
+html.dark .procurement-page table thead th,
+html.dark .product-page table thead th,
+html.dark .orders-page table thead th,
+html.dark .order-tracker-page table thead th {
+  color: #f1f5f9 !important;
+}
+
 .pos-cart-grid,
 .product-category-grid,
 .order-tracker-items-grid,
