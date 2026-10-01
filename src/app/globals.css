@@ -747,6 +747,99 @@ html.dark .duplicate-review-page [class~="dark:bg-ink-900"] {
   background-color: #0f1d2d !important;
 }
 
+html.dark .pos-page {
+  background:
+    radial-gradient(ellipse at 16% 0%, rgb(20 93 75 / 0.10), transparent 34rem),
+    linear-gradient(145deg, #0d1b2a 0%, #101f30 55%, #0b1826 100%);
+  color: #e2eaf2;
+}
+
+html.dark .pos-page .pos-toolbar {
+  border-color: #2b4055 !important;
+  background: linear-gradient(135deg, #192c40, #142538) !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+html.dark .pos-page .pos-category-switch > button:not([style]) {
+  background: #27394c !important;
+  color: #d5e0ec !important;
+}
+
+html.dark .pos-page .pos-category-switch > button:not([style]):hover,
+html.dark .pos-page .pos-category-filters > button:not([style]):hover {
+  background-color: #344b61 !important;
+}
+
+html.dark .pos-page .pos-category-filters > button:not([style]) {
+  border-color: #344b61 !important;
+  background-color: #172a3d;
+  color: #c5d2df !important;
+}
+
+html.dark .pos-page .pos-product-grid > button {
+  border: 1px solid #293d52 !important;
+  background: linear-gradient(145deg, #1a2d41 0%, #15263a 60%, #122235 100%) !important;
+  box-shadow:
+    inset 1px 1px 0 rgb(255 255 255 / 0.07),
+    inset -1px -1px 0 rgb(0 0 0 / 0.18),
+    0 5px 12px rgb(0 0 0 / 0.2),
+    0 12px 24px rgb(0 0 0 / 0.16) !important;
+}
+
+html.dark .pos-page .pos-product-grid > button:hover {
+  border-color: #3b5873 !important;
+  box-shadow:
+    inset 1px 1px 0 rgb(255 255 255 / 0.09),
+    0 8px 16px rgb(0 0 0 / 0.24),
+    0 16px 28px rgb(0 0 0 / 0.22) !important;
+}
+
+html.dark .pos-page .pos-product-grid > button:disabled,
+html.dark .pos-page .pos-product-grid > button[aria-disabled="true"] {
+  background: linear-gradient(145deg, #172333, #111d2a) !important;
+}
+
+html.dark .pos-page .pos-product-grid > button > div {
+  border: 1px solid #31465c !important;
+  background: linear-gradient(145deg, #273b50, #1c2e42) !important;
+  box-shadow: inset 1px 1px 0 rgb(255 255 255 / 0.08), 0 3px 8px rgb(0 0 0 / 0.16) !important;
+}
+
+html.dark .pos-page .pos-cart-panel {
+  border-color: #38536d !important;
+  background: linear-gradient(150deg, #1a2d41 0%, #16283b 52%, #132438 100%) !important;
+  box-shadow:
+    inset 1px 1px 0 rgb(255 255 255 / 0.07),
+    inset -1px -1px 0 rgb(0 0 0 / 0.18),
+    0 8px 20px rgb(0 0 0 / 0.2),
+    0 18px 36px rgb(0 0 0 / 0.18) !important;
+}
+
+html.dark .pos-page .pos-cart-panel table thead {
+  background-color: #263c52 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .pos-page .pos-cart-panel tbody tr {
+  border-color: rgb(148 163 184 / 0.13) !important;
+}
+
+html.dark .pos-page .pos-toolbar select,
+html.dark .pos-page .pos-cart-panel input,
+html.dark .pos-page .pos-cart-panel select {
+  border-color: #3b526a !important;
+  background-color: #122338 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .pos-page .pos-toolbar select:focus-visible,
+html.dark .pos-page .pos-cart-panel input:focus-visible,
+html.dark .pos-page .pos-cart-panel select:focus-visible {
+  border-color: #34d399 !important;
+  box-shadow: 0 0 0 3px rgb(52 211 153 / 0.14);
+  outline: none;
+}
+
 html.dark .stock-adjustment-page [class~="dark:bg-ink-900"],
 html.dark .expenses-page [class~="dark:bg-ink-900"],
 html.dark .accounting-page [class~="dark:bg-ink-900"],

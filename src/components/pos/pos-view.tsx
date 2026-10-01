@@ -784,7 +784,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
 
       {/* Toolbar */}
-      <div className="flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
+      <div className="pos-toolbar flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex min-w-0 items-center gap-2 rounded-lg p-1.5">
           <span className="text-xs font-bold text-ink-900 dark:text-white">Location:</span>
           <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border-0 bg-white px-2 text-sm font-bold text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:bg-slate-800 dark:text-white">            {locations.length === 0 && <option value="" className="dark:bg-slate-800 dark:text-white">No branch</option>}
@@ -845,7 +845,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         style={{ "--pos-left": `${100 - cartWidthPercent}%`, "--pos-right": `${cartWidthPercent}%` } as React.CSSProperties}      >
         {/* LEFT: images/grid */}
         <div className="flex min-h-0 flex-col gap-3">
-          <div className="flex gap-2">
+          <div className="pos-category-switch flex gap-2">
             <button
               onClick={() => setBrowseTab("category")}
               className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab !== "category" && "bg-ledger-300 dark:bg-ledger-700")}
@@ -863,7 +863,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
           </div>
 
           {browseTab === "category" && (
-            <div className="flex flex-wrap gap-2">
+            <div className="pos-category-filters flex flex-wrap gap-2">
               <button
                 onClick={() => setActiveCategory("all")}
                 className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory !== "all" && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
@@ -884,7 +884,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
             </div>
           )}
           {browseTab === "brands" && (
-            <div className="flex flex-wrap gap-2">
+            <div className="pos-category-filters flex flex-wrap gap-2">
               <button
                 onClick={() => setActiveBrand("all")}
                 className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeBrand !== "all" && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
@@ -940,7 +940,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         </div>
 
         {/* RIGHT: customer + search + cart table + totals */}
-        <Card accent="signal" className="relative flex min-h-0 flex-col border-2 border-ledger-300 bg-gradient-to-br from-white via-white to-slate-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_3px_7px_rgba(15,23,42,0.07),0_12px_28px_rgba(15,23,42,0.1)] hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_5px_10px_rgba(15,23,42,0.08),0_18px_34px_rgba(15,23,42,0.16)] dark:border-ledger-600 dark:from-slate-900 dark:via-ink-900 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_3px_7px_rgba(0,0,0,0.25),0_12px_28px_rgba(0,0,0,0.3)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_5px_10px_rgba(0,0,0,0.3),0_18px_34px_rgba(0,0,0,0.42)]" style={{ borderLeftColor: theme.colors.primary }}>
+        <Card accent="signal" className="pos-cart-panel relative flex min-h-0 flex-col border-2 border-ledger-300 bg-gradient-to-br from-white via-white to-slate-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_3px_7px_rgba(15,23,42,0.07),0_12px_28px_rgba(15,23,42,0.1)] hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_5px_10px_rgba(15,23,42,0.08),0_18px_34px_rgba(15,23,42,0.16)] dark:border-ledger-600 dark:from-slate-900 dark:via-ink-900 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_3px_7px_rgba(0,0,0,0.25),0_12px_28px_rgba(0,0,0,0.3)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_5px_10px_rgba(0,0,0,0.3),0_18px_34px_rgba(0,0,0,0.42)]" style={{ borderLeftColor: theme.colors.primary }}>
           <div className="absolute -left-3 top-1/2 z-20 -translate-y-1/2">
             <button
               title="Resize the cart panel"

@@ -224,7 +224,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       <div className="min-w-0 flex-1" />
       <div className="hidden max-w-[220px] shrink-0 items-center gap-2 lg:flex">
         <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
-        <span className="truncate text-xs font-semibold text-white/85">{orgName}</span>
+        <span className="truncate text-sm font-semibold text-white/90">{orgName}</span>
       </div>
       <div className="min-w-0 flex-1" />
 

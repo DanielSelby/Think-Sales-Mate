@@ -320,7 +320,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       {/* ── Logo ── */}
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
-        <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl object-contain shadow-sm" />
+        <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />
         {!collapsed && (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="truncate text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>
