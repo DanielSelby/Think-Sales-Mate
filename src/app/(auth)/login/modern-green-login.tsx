@@ -56,7 +56,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
 
   return (
     <div className="flex min-h-[inherit] items-center justify-center px-5 py-10 sm:px-10 lg:px-12 xl:px-14">
-      <div className="w-full max-w-[500px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-10 sm:py-11">
+      <div className="w-full max-w-[540px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-11 sm:py-12">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
             {systemLogoUrl ? (
@@ -75,7 +75,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
           </p>
         </div>
 
-        <form className="mt-8 space-y-5" onSubmit={submit}>
+        <form className="mt-9 space-y-5" onSubmit={submit}>
           <div>
             <label htmlFor="modern-login-email" className="mb-2 block text-sm font-semibold text-slate-800">Email address or username</label>
             <div className="relative">
@@ -87,7 +87,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 onChange={(event) => setIdentifier(event.target.value)}
                 disabled={preview || loading}
                 placeholder="you@company.com"
-                className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10 disabled:bg-slate-50"
+                className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[15px] text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10 disabled:bg-slate-50"
               />
             </div>
           </div>
@@ -103,7 +103,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={preview || loading}
                 placeholder="Enter your password"
-                className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-sm text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10 disabled:bg-slate-50"
+                className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10 disabled:bg-slate-50"
               />
               <button
                 type="button"
@@ -135,7 +135,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
           <button
             type="submit"
             disabled={preview || loading}
-            className="flex h-12 w-full items-center justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 transition hover:from-emerald-800 hover:to-emerald-700 disabled:cursor-default disabled:opacity-75"
+            className="flex h-[52px] w-full items-center justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 transition hover:from-emerald-800 hover:to-emerald-700 disabled:cursor-default disabled:opacity-75"
           >
             <span>{preview ? "Sign in" : loading ? "Signing in..." : "Sign in"}</span>
             <ArrowRight className="h-5 w-5" />
@@ -195,16 +195,16 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
   return (
     <main className={`${pageHeight} ${previewWidth} overflow-hidden bg-[#f5f8f6] text-slate-900`}>
       <div className={`grid min-h-[inherit] min-w-0 ${splitLayout ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"}`}>
-        <section className={`relative min-h-[inherit] min-w-0 overflow-hidden bg-[#edf3f0] p-3 sm:p-4 ${splitLayout ? "hidden lg:block" : "hidden"}`}>
+        <section className={`relative min-h-[inherit] min-w-0 overflow-hidden bg-[#e9f4ed] p-3 sm:p-4 lg:p-5 ${splitLayout ? "hidden lg:block" : "hidden"}`}>
           <div className="relative h-full min-h-[inherit] min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.08)]">
             <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
           </div>
         </section>
-        <section className="relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.08),transparent_36%),#f8faf9]">
+        <section className="relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.12),transparent_38%),linear-gradient(135deg,#f1f8f3_0%,#e8f4eb_100%)]">
           <div className="flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">
             <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">◎ &nbsp; English &nbsp;⌄</span>
           </div>
-          <div className="flex flex-1 items-center justify-center">
+          <div className="modern-login-form-enter flex flex-1 items-center justify-center">
             <Suspense fallback={<div className="h-96" />}>
               <ModernGreenForm organizationName={organizationName} preview={preview} systemLogoUrl={systemLogoUrl} />
             </Suspense>

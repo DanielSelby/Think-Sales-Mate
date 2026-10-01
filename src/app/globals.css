@@ -24,6 +24,27 @@
   }
 }
 
+@keyframes modern-login-form-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(22px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.modern-login-form-enter {
+  animation: modern-login-form-enter 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modern-login-form-enter {
+    animation: none;
+  }
+}
+
 .dashboard-motion > * {
   animation: dashboard-rise-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
