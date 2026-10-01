@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LoaderCircle, LockKeyhole, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithIdentifier } from "./actions";
 
@@ -16,10 +16,12 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const submissionInProgress = useRef(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (preview || loading) return;
+    if (preview || submissionInProgress.current) return;
+    submissionInProgress.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -27,6 +29,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
       if (result.error) {
         setError(result.error);
         setLoading(false);
+        submissionInProgress.current = false;
         return;
       }
       router.replace(searchParams.get("next") ?? "/dashboard");
@@ -34,11 +37,13 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign in. Please try again.");
       setLoading(false);
+      submissionInProgress.current = false;
     }
   }
 
   async function oauth(provider: "google" | "azure") {
-    if (preview || loading) return;
+    if (preview || submissionInProgress.current) return;
+    submissionInProgress.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -51,14 +56,15 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to start sign-in. Please try again.");
       setLoading(false);
+      submissionInProgress.current = false;
     }
   }
 
   return (
     <div className="flex min-h-[inherit] items-center justify-center px-5 py-10 sm:px-10 lg:px-12 xl:px-14">
-      <div className="w-full max-w-[540px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-11 sm:py-12">
+      <div className="login-card-enter w-full max-w-[540px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-11 sm:py-12">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
+          <div className="login-logo-enter flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
             {systemLogoUrl ? (
               <img src={systemLogoUrl} alt="ThinkSales system logo" className="h-full w-full rounded-xl object-contain" />
             ) : (
@@ -75,7 +81,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
           </p>
         </div>
 
-        <form className="mt-9 space-y-5" onSubmit={submit}>
+        <form className="login-fields-stagger mt-9 space-y-5" onSubmit={submit} aria-busy={loading}>
           <div>
             <label htmlFor="modern-login-email" className="mb-2 block text-sm font-semibold text-slate-800">Email address or username</label>
             <div className="relative">
@@ -86,8 +92,9 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 disabled={preview || loading}
+                aria-invalid={Boolean(error)}
                 placeholder="you@company.com"
-                className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[15px] text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10 disabled:bg-slate-50"
+                className="login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
               />
             </div>
           </div>
@@ -102,8 +109,9 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={preview || loading}
+                aria-invalid={Boolean(error)}
                 placeholder="Enter your password"
-                className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10 disabled:bg-slate-50"
+                className="login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
               />
               <button
                 type="button"
@@ -131,14 +139,14 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
             <Link href="/forgot-password" onClick={(event) => { if (preview) event.preventDefault(); }} className="font-semibold text-emerald-800 hover:text-emerald-900">Forgot password?</Link>
           </div>
 
-          {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          {error && <p role="alert" aria-live="assertive" className="login-error-enter rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           <button
             type="submit"
             disabled={preview || loading}
-            className="flex h-[52px] w-full items-center justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 transition hover:from-emerald-800 hover:to-emerald-700 disabled:cursor-default disabled:opacity-75"
+            className="login-submit flex h-[52px] w-full items-center justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 hover:from-emerald-800 hover:to-emerald-700 disabled:cursor-default disabled:opacity-75"
           >
             <span>{preview ? "Sign in" : loading ? "Signing in..." : "Sign in"}</span>
-            <ArrowRight className="h-5 w-5" />
+            {loading ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-5 w-5" />}
           </button>
         </form>
 
@@ -193,7 +201,7 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
   }, []);
 
   return (
-    <main className={`${pageHeight} ${previewWidth} overflow-hidden bg-[#f5f8f6] text-slate-900`}>
+    <main className={`login-page-enter ${pageHeight} ${previewWidth} overflow-hidden bg-[#f5f8f6] text-slate-900`}>
       <div className={`grid min-h-[inherit] min-w-0 ${splitLayout ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"}`}>
         <section className={`relative min-h-[inherit] min-w-0 overflow-hidden bg-[#e9f4ed] p-3 sm:p-4 lg:p-5 ${splitLayout ? "hidden lg:block" : "hidden"}`}>
           <div className="relative h-full min-h-[inherit] min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.08)]">
@@ -201,6 +209,7 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
           </div>
         </section>
         <section className="relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.16),transparent_38%),linear-gradient(135deg,#e8f5ec_0%,#dcefe2_100%)] lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
+          <div className="login-background-glow" aria-hidden="true" />
           <div className="flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">
             <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">◎ &nbsp; English &nbsp;⌄</span>
           </div>

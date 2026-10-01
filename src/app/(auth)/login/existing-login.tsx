@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -67,13 +67,13 @@ function BrandMark({ size = "md", theme, logoUrl }: { size?: "sm" | "md" | "lg";
   const sz = { sm: "h-9 w-9", md: "h-11 w-11", lg: "h-14 w-14" }[size];
   if (logoUrl) {
     return (
-      <span className={`${sz} flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)]`}>
+      <span className={`login-logo-enter ${sz} flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)]`}>
         <img src={logoUrl} alt="ThinkSales" className="h-full w-full rounded-lg object-contain" />
       </span>
     );
   }
   return (
-    <div className={`${sz} flex shrink-0 items-center justify-center rounded-xl`}
+    <div className={`login-logo-enter ${sz} flex shrink-0 items-center justify-center rounded-xl`}
       style={{ background: theme.brand.bg, boxShadow: `0 8px 24px ${theme.brand.bg}30` }}>
       <svg viewBox="0 0 42 42" className="h-[65%] w-[65%]" fill="none">
         <rect x="7"  y="19" width="7" height="15" rx="1.5" fill={theme.brand.text} />
@@ -138,6 +138,7 @@ function LoginForm() {
   const [showPass,    setShowPass]    = useState(false);
   const [rememberMe,  setRememberMe]  = useState(true);
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
+  const submissionInProgress = useRef(false);
 
   useEffect(() => {
     fetch("/api/system-logo", { cache: "no-store" })
@@ -148,21 +149,25 @@ function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (loading) return;
+    if (submissionInProgress.current) return;
+    submissionInProgress.current = true;
     setLoading(true); setError(null);
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     try {
       const { error: err } = await loginWithIdentifier(identifier, password);
-      if (err) { setError(err); setLoading(false); return; }
+      if (err) { setError(err); setLoading(false); submissionInProgress.current = false; return; }
       router.replace(searchParams.get("next") ?? "/dashboard");
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to sign in. Please try again.");
       setLoading(false);
+      submissionInProgress.current = false;
     }
   }
 
   async function handleOAuth(provider: "google" | "azure") {
+    if (submissionInProgress.current) return;
+    submissionInProgress.current = true;
     setError(null); setLoading(true);
     try {
       const supabase = createClient();
@@ -170,15 +175,16 @@ function LoginForm() {
         provider,
         options: { redirectTo: `${window.location.origin}/auth/callback?next=${searchParams.get("next") ?? "/dashboard"}` },
       });
-      if (err) { setError(err.message); setLoading(false); }
+      if (err) { setError(err.message); setLoading(false); submissionInProgress.current = false; }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to continue.");
       setLoading(false);
+      submissionInProgress.current = false;
     }
   }
 
   return (
-    <main className="min-h-screen overflow-hidden" style={{ background: "#f7f8f6" }}>
+    <main className="login-page-enter min-h-screen overflow-hidden" style={{ background: "#f7f8f6" }}>
       <div className="grid min-h-screen lg:grid-cols-[50%_50%]">
 
         {/* ── LEFT PANEL ── */}
@@ -290,7 +296,7 @@ function LoginForm() {
 
           {/* Decorative shapes */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -right-36 top-20 h-[430px] w-[430px] rounded-full border-[18px]"
+            <div className="login-background-drift absolute -right-36 top-20 h-[430px] w-[430px] rounded-full border-[18px]"
               style={{ borderColor: themeKey === "harvest" ? "#e8e4c8" : "#e9ebe8" }} />
             <div className="absolute bottom-0 left-10 grid grid-cols-5 gap-3 opacity-30">
               {Array.from({ length: 35 }).map((_, i) => (
@@ -326,7 +332,7 @@ function LoginForm() {
             </div>
 
             {/* Card */}
-            <div className="rounded-[28px] p-7 sm:p-9"
+            <div className="login-card-enter rounded-[28px] p-7 sm:p-9"
               style={{ background: theme.card.bg, border: `1px solid ${theme.card.border}`, boxShadow: theme.card.shadow }}>
               <div className="text-center">
                 <div className="mx-auto mb-5 flex justify-center">
@@ -338,9 +344,9 @@ function LoginForm() {
                 <p className="mt-2 text-[13px] text-slate-400">Sign in to continue to Think-SalesMate ERP</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="mt-8" aria-busy={loading}>
+              <form onSubmit={handleSubmit} className="login-fields-stagger mt-8" aria-busy={loading}>
                 {error && (
-                  <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+                  <div role="alert" aria-live="assertive" className="login-error-enter mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
                 )}
 
                 {/* Email or username */}
@@ -351,9 +357,10 @@ function LoginForm() {
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
                     </div>
                     <Input type="text" autoComplete="username" required value={identifier} onChange={e => setIdentifier(e.target.value)} disabled={loading}
+                      aria-invalid={Boolean(error)}
                       placeholder="Enter your email or username"
-                      className="h-12 rounded-xl pl-12 pr-4 text-sm shadow-none placeholder:text-slate-400"
-                      style={{ borderColor: theme.input.border }} />
+                      className="login-input h-12 rounded-xl pl-12 pr-4 text-sm shadow-none placeholder:text-slate-400"
+                      style={{ borderColor: theme.input.border, "--login-focus-color": theme.input.focus, "--login-focus-ring": theme.input.ring } as React.CSSProperties} />
                   </div>
                 </div>
 
@@ -371,9 +378,10 @@ function LoginForm() {
                     </div>
                     <Input type={showPass ? "text" : "password"} autoComplete="current-password" required
                       value={password} onChange={e => setPassword(e.target.value)} disabled={loading}
+                      aria-invalid={Boolean(error)}
                       placeholder="Enter your password"
-                      className="h-12 rounded-xl pl-12 pr-12 text-sm shadow-none placeholder:text-slate-400"
-                      style={{ borderColor: theme.input.border }} />
+                      className="login-input h-12 rounded-xl pl-12 pr-12 text-sm shadow-none placeholder:text-slate-400"
+                      style={{ borderColor: theme.input.border, "--login-focus-color": theme.input.focus, "--login-focus-ring": theme.input.ring } as React.CSSProperties} />
                     <button type="button" onClick={() => setShowPass(v => !v)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors">
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
@@ -404,7 +412,7 @@ function LoginForm() {
 
                 {/* Submit */}
                 <button type="submit" disabled={loading}
-                  className="mt-6 flex h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-80"
+                  className="login-submit mt-6 flex h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-80"
                   style={{ background: theme.btn.bg, boxShadow: theme.btn.shadow }}>
                   {loading ? <><LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> Signing in securely…</> : "Sign In"}
                   {!loading && (

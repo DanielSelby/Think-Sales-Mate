@@ -39,9 +39,166 @@
   animation: modern-login-form-enter 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@keyframes login-page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes login-card-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes login-element-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 7px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes login-error-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes login-background-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-8px, 10px, 0); }
+}
+
+.login-page-enter {
+  animation: login-page-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-card-enter {
+  animation: login-card-enter 520ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-logo-enter {
+  animation: login-element-enter 460ms 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-fields-stagger > * {
+  animation: login-element-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-fields-stagger > *:nth-child(1) { animation-delay: 180ms; }
+.login-fields-stagger > *:nth-child(2) { animation-delay: 230ms; }
+.login-fields-stagger > *:nth-child(3) { animation-delay: 280ms; }
+.login-fields-stagger > *:nth-child(4) { animation-delay: 330ms; }
+.login-fields-stagger > *:nth-child(5) { animation-delay: 380ms; }
+
+.login-page-enter .login-background-drift {
+  animation: login-background-drift 18s ease-in-out infinite;
+}
+
+.login-background-glow {
+  position: absolute;
+  left: 12%;
+  bottom: 4%;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(16 185 129 / 0.13), transparent 68%);
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.login-page-enter .login-background-glow {
+  animation: login-background-drift 22s ease-in-out infinite;
+}
+
+.login-input-green {
+  --login-focus-color: #047857;
+  --login-focus-ring: rgb(4 120 87 / 0.15);
+}
+
+.login-input {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.login-input:focus-visible {
+  outline: none;
+  border-color: var(--login-focus-color, #15803d) !important;
+  box-shadow: 0 0 0 3px var(--login-focus-ring, rgb(21 128 61 / 0.14));
+}
+
+.login-input[aria-invalid="true"] {
+  border-color: #fca5a5 !important;
+  box-shadow: 0 0 0 2px rgb(239 68 68 / 0.08);
+}
+
+.login-input[aria-invalid="true"]:focus-visible {
+  border-color: var(--login-focus-color, #15803d) !important;
+  box-shadow: 0 0 0 3px var(--login-focus-ring, rgb(21 128 61 / 0.14));
+}
+
+.login-submit {
+  transition:
+    transform 160ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease,
+    opacity 180ms ease;
+}
+
+.login-submit:not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.login-submit:not(:disabled):active {
+  transform: translateY(0) scale(0.99);
+}
+
+.login-error-enter {
+  animation: login-error-enter 220ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .modern-login-form-enter {
+  .modern-login-form-enter,
+  .login-page-enter,
+  .login-card-enter,
+  .login-logo-enter,
+  .login-fields-stagger > *,
+  .login-page-enter .login-background-drift,
+  .login-page-enter .login-background-glow,
+  .login-error-enter {
     animation: none;
+  }
+
+  .login-input,
+  .login-submit {
+    transition-duration: 1ms;
+  }
+
+  .login-submit:not(:disabled):hover,
+  .login-submit:not(:disabled):active {
+    transform: none;
   }
 }
 
