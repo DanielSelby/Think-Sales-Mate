@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithIdentifier } from "./actions";
 
-function ModernGreenForm({ organizationName, preview }: { organizationName: string | null; preview: boolean }) {
+function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organizationName: string | null; preview: boolean; systemLogoUrl: string | null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState("");
@@ -55,15 +55,19 @@ function ModernGreenForm({ organizationName, preview }: { organizationName: stri
   }
 
   return (
-    <div className="flex min-h-[inherit] items-center justify-center px-5 py-10 sm:px-10 lg:px-14">
+    <div className="flex min-h-[inherit] items-center justify-center px-5 py-10 sm:px-10 lg:px-12 xl:px-14">
       <div className="w-full max-w-[500px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-10 sm:py-11">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-lg shadow-emerald-900/20">
-            <svg viewBox="0 0 42 42" className="h-8 w-8" fill="none" aria-hidden="true">
-              <rect x="7" y="19" width="7" height="15" rx="1.5" fill="currentColor" />
-              <rect x="17.5" y="12" width="7" height="22" rx="1.5" fill="currentColor" />
-              <rect x="28" y="6" width="7" height="28" rx="1.5" fill="currentColor" />
-            </svg>
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
+            {systemLogoUrl ? (
+              <img src={systemLogoUrl} alt="ThinkSales system logo" className="h-full w-full rounded-xl object-contain" />
+            ) : (
+              <svg viewBox="0 0 42 42" className="h-8 w-8 text-emerald-700" fill="none" aria-hidden="true">
+                <rect x="7" y="19" width="7" height="15" rx="1.5" fill="currentColor" />
+                <rect x="17.5" y="12" width="7" height="22" rx="1.5" fill="currentColor" />
+                <rect x="28" y="6" width="7" height="28" rx="1.5" fill="currentColor" />
+              </svg>
+            )}
           </div>
           <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">Welcome back!</h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -170,23 +174,39 @@ function MicrosoftMark() {
 }
 
 export function ModernGreenLogin({ organizationName = null, preview = false, device = "desktop", artworkUrl = null }: { organizationName?: string | null; preview?: boolean; device?: "desktop" | "tablet" | "mobile"; artworkUrl?: string | null }) {
+  const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
   const pageHeight = preview ? "min-h-[680px]" : "min-h-screen";
   const previewWidth = preview ? device === "mobile" ? "mx-auto max-w-[390px]" : device === "tablet" ? "mx-auto max-w-[900px]" : "w-full" : "w-full";
   const splitLayout = !preview || device !== "mobile";
 
+  useEffect(() => {
+    fetch("/api/system-logo", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Could not load system logo.");
+        return response.json() as Promise<{ logoUrl?: string | null }>;
+      })
+      .then((result) => setSystemLogoUrl(result.logoUrl ?? null))
+      .catch((error) => {
+        console.error("Could not load login system logo:", error);
+        setSystemLogoUrl(null);
+      });
+  }, []);
+
   return (
     <main className={`${pageHeight} ${previewWidth} overflow-hidden bg-[#f5f8f6] text-slate-900`}>
-      <div className={`grid min-h-[inherit] ${splitLayout ? "lg:grid-cols-2" : "grid-cols-1"}`}>
-        <section className={`relative min-h-[inherit] overflow-hidden bg-[#062e27] ${splitLayout ? "hidden lg:block" : "hidden"}`}>
-          <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
+      <div className={`grid min-h-[inherit] min-w-0 ${splitLayout ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"}`}>
+        <section className={`relative min-h-[inherit] min-w-0 overflow-hidden bg-[#edf3f0] p-3 sm:p-4 ${splitLayout ? "hidden lg:block" : "hidden"}`}>
+          <div className="relative h-full min-h-[inherit] min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.08)]">
+            <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
+          </div>
         </section>
-        <section className="relative flex min-h-[inherit] flex-col bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.08),transparent_36%),#f8faf9]">
+        <section className="relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.08),transparent_36%),#f8faf9]">
           <div className="flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">
             <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">◎ &nbsp; English &nbsp;⌄</span>
           </div>
           <div className="flex flex-1 items-center justify-center">
             <Suspense fallback={<div className="h-96" />}>
-              <ModernGreenForm organizationName={organizationName} preview={preview} />
+              <ModernGreenForm organizationName={organizationName} preview={preview} systemLogoUrl={systemLogoUrl} />
             </Suspense>
           </div>
           <p className="pb-4 text-center text-[11px] text-slate-400">© {new Date().getFullYear()} ThinkSales Pro. All rights reserved.</p>
