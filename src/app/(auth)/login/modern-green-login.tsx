@@ -200,7 +200,7 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
             <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
           </div>
         </section>
-        <section className="relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.12),transparent_38%),linear-gradient(135deg,#f1f8f3_0%,#e8f4eb_100%)]">
+        <section className="relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.16),transparent_38%),linear-gradient(135deg,#e8f5ec_0%,#dcefe2_100%)] lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
           <div className="flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">
             <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">◎ &nbsp; English &nbsp;⌄</span>
           </div>
