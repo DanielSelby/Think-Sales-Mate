@@ -101,7 +101,17 @@ export function LoginExperienceManager({
         method: "POST",
         body: new FormData(event.currentTarget),
       });
-      const result = await response.json() as { error?: string };
+      const responseText = await response.text();
+      let result: { error?: string };
+      try {
+        result = JSON.parse(responseText) as { error?: string };
+      } catch {
+        throw new Error(
+          response.redirected
+            ? "Your session was redirected. Sign in to Platform Administration again, then retry the upload."
+            : `The upload endpoint returned an unexpected response (HTTP ${response.status}).`,
+        );
+      }
       if (!response.ok) throw new Error(result.error ?? "Artwork upload failed.");
       setNotice("Login artwork uploaded and applied.");
       router.refresh();

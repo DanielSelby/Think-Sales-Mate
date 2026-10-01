@@ -8,7 +8,10 @@ export async function middleware(request: NextRequest) {
 
   let response = NextResponse.next({ request: { headers: request.headers } });
 
-  if (request.nextUrl.pathname.startsWith("/platform-admin")) {
+  if (
+    request.nextUrl.pathname.startsWith("/platform-admin")
+    || request.nextUrl.pathname === "/api/platform-admin/upload-theme-artwork"
+  ) {
     if (request.nextUrl.pathname === "/platform-admin/login") {
       const requestHeaders = new Headers(request.headers);
       requestHeaders.set("x-platform-public", "true");
