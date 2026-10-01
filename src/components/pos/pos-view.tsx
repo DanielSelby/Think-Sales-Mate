@@ -920,19 +920,21 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                     : "hover:-translate-y-0.5 hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_4px_8px_rgba(15,23,42,0.08),0_14px_24px_rgba(15,23,42,0.14)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_4px_8px_rgba(0,0,0,0.3),0_14px_24px_rgba(0,0,0,0.4)]"
                 )}
               >
-                <div className="relative mb-2 flex h-28 w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_2px_rgba(148,163,184,0.16),0_2px_6px_rgba(15,23,42,0.1)] dark:from-slate-800 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),inset_-1px_-1px_2px_rgba(0,0,0,0.3),0_2px_6px_rgba(0,0,0,0.3)]">
+                <div className="pos-product-image relative mb-2 flex h-28 w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_2px_rgba(148,163,184,0.16),0_2px_6px_rgba(15,23,42,0.1)] dark:from-slate-800 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),inset_-1px_-1px_2px_rgba(0,0,0,0.3),0_2px_6px_rgba(0,0,0,0.3)]">
                   {p.imageUrl ? (
                     <Image src={p.imageUrl} alt={p.name} fill className={cn("object-contain transition-transform duration-200 group-hover:scale-[1.025]", p.stockQuantity <= 0 && "grayscale")} unoptimized />
                   ) : (
                     <Package className="h-6 w-6 text-ledger-400" />
                   )}
                 </div>
-                <p className={cn("line-clamp-2 text-[11px] font-medium leading-tight", p.stockQuantity <= 0 ? "text-slate-500 dark:text-ledger-400" : "text-ink-900 dark:text-white")}>{p.name}</p>
-                <div className="mt-1 flex w-full items-center justify-between gap-1">
-                  <span className={cn("font-mono text-sm font-normal", p.stockQuantity <= 0 ? "text-slate-500" : "text-ink-900 dark:text-white")}>{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
-                  {p.stockQuantity > 0
-                    ? <span className="text-xs font-semibold text-signal">({p.stockQuantity})</span>
-                    : <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold uppercase text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">Out of stock</span>}
+                <div className="pos-product-info w-full rounded-md px-1.5 pb-1 pt-0.5">
+                  <p className={cn("line-clamp-2 text-[11px] font-semibold leading-tight", p.stockQuantity <= 0 ? "text-slate-500 dark:text-ledger-400" : "text-ink-900 dark:text-white")}>{p.name}</p>
+                  <div className="mt-1 flex w-full items-center justify-between gap-1">
+                    <span className={cn("font-mono text-sm font-semibold", p.stockQuantity <= 0 ? "text-slate-500" : "text-ink-900 dark:text-white")}>{formatCurrency(getTierPrice(p, priceTier), currency)}</span>
+                    {p.stockQuantity > 0
+                      ? <span className="text-xs font-semibold text-signal">({p.stockQuantity})</span>
+                      : <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold uppercase text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">Out of stock</span>}
+                  </div>
                 </div>
               </button>
             ))}
@@ -979,7 +981,16 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                 ) : (
                   <div className="flex gap-1">
                     <Input value={customerQuery} onFocus={() => setCustomerOpen(true)} onChange={(e) => { setCustomerQuery(e.target.value); setCustomerOpen(true); }} placeholder="Walk-In Customer" className="h-10" />
-                    <Button variant="outline" size="md" onClick={() => setAddContactOpen(true)} title="Add a new contact"><UserPlus className="h-4 w-4" /></Button>
+                    <Button
+                      variant="outline"
+                      size="md"
+                      onClick={() => setAddContactOpen(true)}
+                      title="Add a new contact"
+                      className="border-0 text-white shadow-sm transition-transform hover:scale-105 active:scale-95"
+                      style={{ background: theme.colors.primary }}
+                    >
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
                   </div>
                 )}
                 {customerOpen && !customer && customerResults.length > 0 && (
@@ -1085,24 +1096,24 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                     <tr><td colSpan={4} className="py-10 text-center text-sm text-ledger-400">Cart is empty — click a product to add it.</td></tr>
                   )}
                   {cart.map((l) => (
-                    <tr key={l.key} ref={(element) => { smartLocator.rowRefs.current[l.key] = element; }} className={cn("border-b border-ledger-50 last:border-0 dark:border-white/5", smartLocator.rowClassName(l.key))}>
+                    <tr key={l.key} ref={(element) => { smartLocator.rowRefs.current[l.key] = element; }} className={cn("pos-cart-item border-b border-ledger-50 last:border-0 dark:border-white/5", smartLocator.rowClassName(l.key))}>
                       <td className="px-2 py-2">
-                        <p className="truncate font-medium text-ink-900 dark:text-white">{l.name}</p>
-                        <p className="text-xs text-ledger-400">{formatCurrency(l.unitPrice, currency)}</p>
+                        <p className="pos-cart-product-name truncate text-[15px] font-semibold text-ink-900 dark:text-white">{l.name}</p>
+                        <p className="mt-0.5 text-[13px] text-ledger-500 dark:text-ledger-300">{formatCurrency(l.unitPrice, currency)} <span className="text-ledger-400">each</span></p>
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center justify-center gap-1">
-                         <button onClick={() => updateQty(l.key, -1)} className="rounded border border-alert/30 px-1.5 text-alert hover:bg-alert-soft">−</button>
+                         <button onClick={() => updateQty(l.key, -1)} aria-label={`Decrease ${l.name} quantity`} className="h-8 w-8 rounded-lg border border-alert/30 text-base font-semibold text-alert transition hover:bg-alert-soft">−</button>
                           <input
                             type="number"
                             value={l.quantity}
                             onChange={(e) => setQtyDirect(l.key, Number(e.target.value))}
-                            className="h-7 w-12 rounded border border-ledger-200 bg-white text-center text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            className="h-8 w-14 rounded-lg border border-ledger-200 bg-white text-center text-[15px] font-semibold dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                           />
-                          <button onClick={() => updateQty(l.key, 1)} className="rounded border border-signal/30 px-1.5 text-signal hover:bg-signal-soft">+</button>
+                          <button onClick={() => updateQty(l.key, 1)} aria-label={`Increase ${l.name} quantity`} className="h-8 w-8 rounded-lg border border-signal/30 text-base font-semibold text-signal transition hover:bg-signal-soft">+</button>
                         </div>
                       </td>
-                      <td className="px-2 py-2 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
+                      <td className="px-2 py-2 text-right font-mono text-[15px] font-semibold text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
                        <td className="px-2 py-2 text-center">
                         <button onClick={() => removeLine(l.key)} className="text-alert hover:text-alert/70">
                           <X className="h-5 w-5" strokeWidth={3} />

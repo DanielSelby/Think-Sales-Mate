@@ -801,8 +801,21 @@ html.dark .pos-page .pos-product-grid > button[aria-disabled="true"] {
 
 html.dark .pos-page .pos-product-grid > button > div {
   border: 1px solid #31465c !important;
-  background: linear-gradient(145deg, #273b50, #1c2e42) !important;
+  background: #24394e !important;
   box-shadow: inset 1px 1px 0 rgb(255 255 255 / 0.08), 0 3px 8px rgb(0 0 0 / 0.16) !important;
+}
+
+html.dark .pos-page .pos-product-grid > button .pos-product-info {
+  border: 1px solid #31465c;
+  background: #24394e;
+}
+
+html.dark .pos-page .pos-product-grid > button .pos-product-info .text-signal {
+  color: #6ee7b7;
+}
+
+html.dark .pos-page .pos-product-grid > button .pos-product-info .font-mono {
+  color: #f1f5f9;
 }
 
 html.dark .pos-page .pos-cart-panel {
@@ -822,6 +835,29 @@ html.dark .pos-page .pos-cart-panel table thead {
 
 html.dark .pos-page .pos-cart-panel tbody tr {
   border-color: rgb(148 163 184 / 0.13) !important;
+}
+
+html.dark .pos-page .pos-cart-grid tbody tr.pos-cart-item {
+  background: linear-gradient(100deg, rgb(255 255 255 / 0.025), transparent 75%);
+  transition: background-color 160ms ease;
+}
+
+html.dark .pos-page .pos-cart-grid tbody tr.pos-cart-item:hover {
+  background-color: rgb(148 163 184 / 0.08);
+}
+
+.pos-cart-grid th {
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.pos-cart-grid td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.pos-cart-product-name {
+  line-height: 1.35;
 }
 
 html.dark .pos-page .pos-toolbar select,
