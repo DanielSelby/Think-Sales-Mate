@@ -8,7 +8,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const experience = await getLoginExperience(params.org);
   if (experience.themeType === "modern-green") {
-    return <ModernGreenLogin organizationName={experience.organizationName} />;
+    return <ModernGreenLogin organizationName={experience.organizationName} artworkUrl={experience.artworkUrl} />;
   }
   return <ExistingLoginPage />;
 }

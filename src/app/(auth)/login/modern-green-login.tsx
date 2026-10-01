@@ -169,7 +169,7 @@ function MicrosoftMark() {
   return <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true"><rect x="3" y="3" width="8.5" height="8.5" fill="#F25022" /><rect x="12.5" y="3" width="8.5" height="8.5" fill="#7FBA00" /><rect x="3" y="12.5" width="8.5" height="8.5" fill="#00A4EF" /><rect x="12.5" y="12.5" width="8.5" height="8.5" fill="#FFB900" /></svg>;
 }
 
-export function ModernGreenLogin({ organizationName = null, preview = false, device = "desktop" }: { organizationName?: string | null; preview?: boolean; device?: "desktop" | "tablet" | "mobile" }) {
+export function ModernGreenLogin({ organizationName = null, preview = false, device = "desktop", artworkUrl = null }: { organizationName?: string | null; preview?: boolean; device?: "desktop" | "tablet" | "mobile"; artworkUrl?: string | null }) {
   const pageHeight = preview ? "min-h-[680px]" : "min-h-screen";
   const previewWidth = preview ? device === "mobile" ? "mx-auto max-w-[390px]" : device === "tablet" ? "mx-auto max-w-[900px]" : "w-full" : "w-full";
   const splitLayout = !preview || device !== "mobile";
@@ -178,7 +178,7 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
     <main className={`${pageHeight} ${previewWidth} overflow-hidden bg-[#f5f8f6] text-slate-900`}>
       <div className={`grid min-h-[inherit] ${splitLayout ? "lg:grid-cols-2" : "grid-cols-1"}`}>
         <section className={`relative min-h-[inherit] overflow-hidden bg-[#062e27] ${splitLayout ? "hidden lg:block" : "hidden"}`}>
-          <img src="/login/modern-green-artwork.jpeg" alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-contain object-center" />
+          <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-contain object-center" />
         </section>
         <section className="relative flex min-h-[inherit] flex-col bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.08),transparent_36%),#f8faf9]">
           <div className="flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Eye, Globe2, Monitor, Pencil, Plus, ShieldCheck, Smartphone, Tablet, Users } from "lucide-react";
+import { Check, ChevronDown, Eye, Globe2, ImagePlus, Monitor, Pencil, Plus, ShieldCheck, Smartphone, Tablet, Upload, Users } from "lucide-react";
 import { ModernGreenLogin } from "@/app/(auth)/login/modern-green-login";
 import {
   duplicateLoginTheme,
@@ -87,8 +87,30 @@ export function LoginExperienceManager({
   const [duplicateSource, setDuplicateSource] = useState<LoginTheme | null>(null);
   const [form, setForm] = useState({ name: "", description: "" });
   const [busy, setBusy] = useState(false);
+  const [uploadingThemeId, setUploadingThemeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function uploadArtwork(themeId: string, event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setUploadingThemeId(themeId);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/platform-admin/upload-theme-artwork", {
+        method: "POST",
+        body: new FormData(event.currentTarget),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Artwork upload failed.");
+      setNotice("Login artwork uploaded and applied.");
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Artwork upload failed.");
+    } finally {
+      setUploadingThemeId(null);
+    }
+  }
 
   async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true);
@@ -148,9 +170,10 @@ export function LoginExperienceManager({
               ).length;
               return (
                 <article key={theme.id} className="grid gap-4 rounded-xl border border-slate-200 p-3 sm:grid-cols-[220px_minmax(0,1fr)] sm:p-4">
-                  <button type="button" onClick={() => { setPreview(theme); setPreviewDevice("desktop"); }} className="group relative h-36 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-left">
+                  <div className="min-w-0">
+                    <button type="button" onClick={() => { setPreview(theme); setPreviewDevice("desktop"); }} className="group relative block h-36 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-left">
                     {theme.theme_type === "modern-green" ? (
-                      <img src={theme.preview_image ?? "/login/modern-green-artwork.jpeg"} alt="" className="h-full w-full object-cover object-left" />
+                      <img src={theme.preview_image ?? "/login/modern-green-artwork.jpeg"} alt="Modern login left-side artwork preview" className="h-full w-full object-cover object-left" />
                     ) : (
                       <div className="flex h-full">
                         <div className="w-1/2 bg-[#172517] p-3 text-[8px] font-semibold text-white"><span>ThinkSales Pro</span><p className="mt-3 text-sm leading-tight">Smart Sales.<br />Stronger Business.</p><div className="mt-4 h-10 rounded bg-white/10" /></div>
@@ -158,7 +181,34 @@ export function LoginExperienceManager({
                       </div>
                     )}
                     <span className="absolute inset-0 flex items-center justify-center bg-slate-950/0 text-xs font-semibold text-white opacity-0 transition group-hover:bg-slate-950/35 group-hover:opacity-100"><Eye className="mr-1.5 h-4 w-4" /> Preview</span>
-                  </button>
+                    </button>
+                    {theme.theme_type === "modern-green" && (
+                      <form onSubmit={(event) => void uploadArtwork(theme.id, event)} className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+                        <input type="hidden" name="themeId" value={theme.id} />
+                        <label htmlFor={`artwork-${theme.id}`} className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                          <ImagePlus className="h-4 w-4 text-emerald-700" /> Left-side artwork
+                        </label>
+                        <input
+                          id={`artwork-${theme.id}`}
+                          name="file"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          required
+                          disabled={uploadingThemeId !== null}
+                          className="block w-full cursor-pointer text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-white file:px-2.5 file:py-2 file:text-xs file:font-semibold file:text-slate-700 file:shadow-sm hover:file:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                        <p className="mt-2 text-[11px] leading-4 text-slate-500">JPG, PNG, or WebP · up to 20MB · preferred 2560 × 2880 px; minimum 1600 × 1800 px. Original image quality is preserved.</p>
+                        <button
+                          type="submit"
+                          disabled={uploadingThemeId !== null}
+                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          <Upload className="h-3.5 w-3.5" />
+                          {uploadingThemeId === theme.id ? "Uploading artwork…" : "Upload artwork"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
                   <div className="flex min-w-0 flex-col justify-between gap-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -200,7 +250,7 @@ export function LoginExperienceManager({
           <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
             {preview?.theme_type === "modern-green" ? (
               <div className="max-h-[460px] overflow-auto">
-                <ModernGreenLogin preview device={previewDevice} />
+                <ModernGreenLogin preview device={previewDevice} artworkUrl={preview.preview_image} />
               </div>
             ) : preview ? (
               <div className="max-h-[460px] overflow-auto"><LegacyLoginPreview /></div>
