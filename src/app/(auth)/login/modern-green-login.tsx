@@ -178,7 +178,7 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
     <main className={`${pageHeight} ${previewWidth} overflow-hidden bg-[#f5f8f6] text-slate-900`}>
       <div className={`grid min-h-[inherit] ${splitLayout ? "lg:grid-cols-2" : "grid-cols-1"}`}>
         <section className={`relative min-h-[inherit] overflow-hidden bg-[#062e27] ${splitLayout ? "hidden lg:block" : "hidden"}`}>
-          <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-contain object-center" />
+          <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
         </section>
         <section className="relative flex min-h-[inherit] flex-col bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.08),transparent_36%),#f8faf9]">
           <div className="flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Eye, Globe2, ImagePlus, Monitor, Pencil, Plus, ShieldCheck, Smartphone, Tablet, Upload, Users } from "lucide-react";
 import { ModernGreenLogin } from "@/app/(auth)/login/modern-green-login";
+import { createPlatformClient } from "@/lib/supabase/platform-client";
 import {
   duplicateLoginTheme,
   setGlobalLoginTheme,
@@ -97,9 +98,30 @@ export function LoginExperienceManager({
     setError(null);
     setNotice(null);
     try {
+      const formData = new FormData(event.currentTarget);
+      const file = formData.get("file");
+      if (!(file instanceof File) || file.size === 0) throw new Error("Choose an artwork image to upload.");
+      if (file.size > 20 * 1024 * 1024) throw new Error("Artwork must be 20MB or smaller.");
+
+      const extensionByType: Record<string, string> = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+      };
+      const extension = extensionByType[file.type];
+      if (!extension) throw new Error("Upload a valid JPG, PNG, or WebP image.");
+
+      const storagePath = `login-themes/${themeId}/${crypto.randomUUID()}.${extension}`;
+      const platformClient = createPlatformClient();
+      const { error: uploadError } = await platformClient.storage
+        .from("platform-assets")
+        .upload(storagePath, file, { contentType: file.type, cacheControl: "31536000" });
+      if (uploadError) throw new Error(`Could not upload login artwork: ${uploadError.message}`);
+
       const response = await fetch("/api/platform-admin/upload-theme-artwork", {
         method: "POST",
-        body: new FormData(event.currentTarget),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ themeId, storagePath }),
       });
       const responseText = await response.text();
       let result: { error?: string };
