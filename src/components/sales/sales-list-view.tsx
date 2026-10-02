@@ -111,6 +111,9 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   const { activeTheme, darkMode } = useAppStore();
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
+  const salesHeaderBackground = darkMode
+    ? `color-mix(in srgb, ${theme.colors.primary} 24%, #0a0c11)`
+    : theme.colors.primaryPale;
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | SaleStatus>("all");
   const [query, setQuery] = useState("");
@@ -267,7 +270,10 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   }
 
   return (
-    <div className="sales-page space-y-4 text-xs">
+    <div
+      className="sales-page sales-history-page flex h-full min-h-0 flex-col gap-4 overflow-hidden text-xs"
+      style={{ "--sales-history-table-header": salesHeaderBackground } as React.CSSProperties}
+    >
       {/* Header */}
       <div
         className="flex flex-wrap items-start justify-between gap-4 rounded-xl border px-4 py-4 sm:px-5"
@@ -343,8 +349,8 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
             <button type="button" onClick={resetFilters} className="text-xs font-medium text-signal hover:underline">Clear filters</button>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="relative min-w-[240px] flex-1">
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-8">
+            <div className="relative min-w-0 sm:col-span-2 xl:col-span-2">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
               <Input
                 value={query}
@@ -358,7 +364,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               />
             </div>
 
-            <div className="w-40">
+            <div className="min-w-0">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Date Range</label>
               <Select value={dateFilter} onChange={(e) => applyDateFilter(e.target.value as SalesDateFilter)}>
                 <option value="all">All Dates</option>
@@ -370,7 +376,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <div className="w-40">
+            <div className="min-w-0">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Branch</label>
               <Select value={location} onChange={(e) => { setLocation(e.target.value); setBranch(e.target.value); setPage(1); }}>
                 <option value="all">All Branches</option>
@@ -380,7 +386,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <div className="w-40">
+            <div className="min-w-0">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Sales Rep</label>
               <Select value={salesRep} onChange={(e) => { setSalesRep(e.target.value); setPage(1); }}>
                 <option value="all">All Sales Reps</option>
@@ -390,7 +396,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <div className="w-40">
+            <div className="min-w-0">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Payment Status</label>
               <Select value={paymentStatus} onChange={(e) => { setPaymentStatus(e.target.value as "all" | PaymentStatus); setPage(1); }}>
                 <option value="all">All</option>
@@ -400,26 +406,26 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <Button variant="outline" size="md" onClick={() => setShowMoreFilters((s) => !s)}>
+            <Button className="w-full" variant="outline" size="md" onClick={() => setShowMoreFilters((s) => !s)}>
               <Filter className="h-4 w-4" />
               More Filters
             </Button>
-            <Button variant="ghost" size="md" onClick={resetFilters}>
+            <Button className="w-full" variant="ghost" size="md" onClick={resetFilters}>
               Clear
             </Button>
           </div>
 
           {showMoreFilters && (
-            <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
-              <div className="w-40">
+            <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-ledger-100 pt-3 sm:grid-cols-2 xl:grid-cols-4 dark:border-ledger-700">
+              <div className="min-w-0">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Date From</label>
                 <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateFilter("custom"); setPage(1); }} />
               </div>
-              <div className="w-40">
+              <div className="min-w-0">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Date To</label>
                 <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateFilter("custom"); setPage(1); }} />
               </div>
-              <div className="w-44">
+              <div className="min-w-0">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Payment Type</label>
                 <Select value={paymentMethodFilter} onChange={(e) => { setPaymentMethodFilter(e.target.value); setPage(1); }}>
                   <option value="all">All Payment Types</option>
@@ -434,7 +440,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </Card>
 
       {/* Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {STATUS_TABS.map((tab) => (
             <button
@@ -466,20 +472,20 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-        <div className="max-h-[70vh] overflow-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-white text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-ink-900">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="sales-history-table w-full min-w-[1180px] text-left text-xs">
+            <thead className="border-b border-ledger-100 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700">
               <tr>
-                <th className="sticky top-0 z-10 min-w-[150px] bg-white px-4 py-3 dark:bg-ink-900">DOCUMENT</th>
-                <th className="sticky top-0 z-10 min-w-[170px] bg-white px-4 py-3 dark:bg-ink-900">CUSTOMER</th>
-                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 dark:bg-ink-900">BRANCH</th>
-                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 dark:bg-ink-900">DATE &amp; TIME</th>
-                <th className="sticky top-0 z-10 min-w-[160px] bg-white px-4 py-3 dark:bg-ink-900">PRODUCT</th>
-                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 text-right dark:bg-ink-900">AMOUNT</th>
-                <th className="sticky top-0 z-10 min-w-[120px] bg-white px-4 py-3 dark:bg-ink-900">STATUS</th>
-                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 dark:bg-ink-900">CREATED BY</th>
-                <th className="sticky top-0 z-10 min-w-[150px] bg-white px-4 py-3 pr-4 text-center dark:bg-ink-900">ACTIONS</th>
+                <th className="px-4 py-3 min-w-[150px]">DOCUMENT</th>
+                <th className="px-4 py-3 min-w-[170px]">CUSTOMER</th>
+                <th className="px-4 py-3 min-w-[130px]">BRANCH</th>
+                <th className="px-4 py-3 min-w-[130px]">DATE &amp; TIME</th>
+                <th className="px-4 py-3 min-w-[160px]">PRODUCT</th>
+                <th className="px-4 py-3 min-w-[130px] text-right">AMOUNT</th>
+                <th className="px-4 py-3 min-w-[120px]">STATUS</th>
+                <th className="px-4 py-3 min-w-[130px]">CREATED BY</th>
+                <th className="px-4 py-3 pr-4 min-w-[150px] text-center">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
@@ -559,7 +565,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
         </div>
 
         {/* Pagination */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-ledger-100 p-4 text-xs dark:border-ledger-700">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-t border-ledger-100 p-4 text-xs dark:border-ledger-700">
           <p className="text-ledger-400">
             Showing {pageRows.length === 0 ? 0 : (clampedPage - 1) * effectiveRowsPerPage + 1}–
             {(clampedPage - 1) * effectiveRowsPerPage + pageRows.length} of {filtered.length} sales

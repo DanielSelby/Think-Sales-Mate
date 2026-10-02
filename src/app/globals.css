@@ -970,6 +970,21 @@ html.dark .order-tracker-page table thead th {
   color: #f1f5f9 !important;
 }
 
+.page-canvas:has(.sales-history-page) {
+  overflow: hidden;
+}
+
+.sales-history-page .sales-history-table thead,
+.sales-history-page .sales-history-table thead th {
+  background-color: var(--sales-history-table-header) !important;
+}
+
+.sales-history-page .sales-history-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
 .pos-cart-grid,
 .product-category-grid,
 .order-tracker-items-grid,
