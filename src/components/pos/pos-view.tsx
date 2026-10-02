@@ -908,7 +908,6 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
           <div
             className="pos-product-grid grid grid-cols-2 gap-3 overflow-y-auto rounded-xl p-2 pb-2 sm:grid-cols-3 lg:grid-cols-4 xl:flex-1"
-            style={darkMode ? { backgroundColor: `${theme.colors.primaryLight}40` } : undefined}
           >
             {filteredProducts.length === 0 && <p className="col-span-full py-10 text-center text-sm text-ledger-400">No products match your search.</p>}
             {filteredProducts.map((p) => (
@@ -922,7 +921,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                     ? "cursor-not-allowed bg-slate-50 opacity-60 grayscale dark:bg-ink-950"
                     : "hover:-translate-y-0.5 hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_4px_8px_rgba(15,23,42,0.08),0_14px_24px_rgba(15,23,42,0.14)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_4px_8px_rgba(0,0,0,0.3),0_14px_24px_rgba(0,0,0,0.4)]"
                 )}
-                style={darkMode ? { backgroundColor: `${theme.colors.primaryLight}2b` } : undefined}
+                style={darkMode ? { backgroundColor: theme.colors.primaryLight } : undefined}
               >
                 <div className="pos-product-image relative mb-2 flex h-28 w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_2px_rgba(148,163,184,0.16),0_2px_6px_rgba(15,23,42,0.1)] dark:from-slate-800 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),inset_-1px_-1px_2px_rgba(0,0,0,0.3),0_2px_6px_rgba(0,0,0,0.3)]">
                   {p.imageUrl ? (
