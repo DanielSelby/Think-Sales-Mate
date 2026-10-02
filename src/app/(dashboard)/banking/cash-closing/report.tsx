@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 import { logCashClosingAction } from "./actions";
 import * as XLSX from "xlsx";
@@ -6,18 +7,39 @@ import * as XLSX from "xlsx";
 type DenominationLine = { closing_id: string; denomination: number; quantity: number; amount: number };
 type Row = { id: string; closing_date: string; shift?: string; opening_cash?: number; cash_sales?: number; cash_receipts?: number; cash_customer_payments?: number; cash_e_cash?: number; cash_refunds?: number; cash_expenses?: number; deposits?: number; withdrawals?: number; actual_cash: number; expected_cash: number; variance: number; classification: string; status: string; approval_required?: boolean; variance_reason: string | null; denomination_lines?: DenominationLine[] };
 
-export function CashClosingReport({ closings, currency, organizationName, logoUrl }: { closings: Row[]; currency: CurrencyConfig; organizationName: string; logoUrl: string | null }) {
+export function CashClosingReport({ closings, currency, organizationName, logoUrl, canExport = true, canPrint = true }: { closings: Row[]; currency: CurrencyConfig; organizationName: string; logoUrl: string | null; canExport?: boolean; canPrint?: boolean }) {
+  const [actionError, setActionError] = useState("");
   const shortage = closings.filter((r) => Number(r.variance) < 0).reduce((sum, r) => sum + Math.abs(Number(r.variance)), 0);
   const excess = closings.filter((r) => Number(r.variance) > 0).reduce((sum, r) => sum + Number(r.variance), 0);
   const balanced = closings.filter((r) => Number(r.variance) === 0).length;
-  const download = async () => {
-    await logCashClosingAction(closings[0]?.id ?? null, "exported");
-    const summaryRows = closings.map((r) => ({ Date: r.closing_date, Shift: r.shift ?? "full_day", Expected: r.expected_cash, Actual: r.actual_cash, Variance: r.variance, "Cash Sales": r.cash_sales ?? 0, "MoMo / E-Cash Sales": r.cash_e_cash ?? 0, "Total Sales": Number(r.cash_sales ?? 0) + Number(r.cash_e_cash ?? 0), "Customer Debt": r.cash_receipts ?? 0, "Customer Payment (Cash)": r.cash_customer_payments ?? 0, "Refund / Return Sales": r.cash_refunds ?? 0, "Cash Expenses": r.cash_expenses ?? 0, Classification: r.classification, Status: r.status, Reason: r.variance_reason ?? "" }));
+  const logExport = async () => {
+    if (!closings.length) throw new Error("There are no closing records to export.");
+    const results = await Promise.all(closings.map((row) => logCashClosingAction(row.id, "exported")));
+    const failed = results.find((result) => "error" in result);
+    if (failed && "error" in failed) throw new Error(failed.error);
+  };
+  const summaryRows = closings.map((r) => ({ "Closing ID": r.id, Date: r.closing_date, Shift: r.shift ?? "full_day", Expected: r.expected_cash, Actual: r.actual_cash, Variance: r.variance, "Cash Sales": r.cash_sales ?? 0, "MoMo / E-Cash Sales": r.cash_e_cash ?? 0, "Total Sales": Number(r.cash_sales ?? 0) + Number(r.cash_e_cash ?? 0), "Customer Debt": r.cash_receipts ?? 0, "Customer Payment (Cash)": r.cash_customer_payments ?? 0, "Refund / Return Sales": r.cash_refunds ?? 0, "Cash Expenses": r.cash_expenses ?? 0, Classification: r.classification, Status: r.status, Reason: r.variance_reason ?? "" }));
+  const download = async (format: "excel" | "csv") => {
+    setActionError("");
+    try {
+      await logExport();
     const denominationRows = closings.flatMap((r) => (r.denomination_lines ?? []).map((line) => ({ Date: r.closing_date, Shift: r.shift ?? "full_day", Denomination: line.denomination, Quantity: line.quantity, Amount: line.amount })));
+      if (format === "csv") {
+        const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(summaryRows));
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        link.download = "cash-closing-report.csv";
+        link.click();
+        URL.revokeObjectURL(link.href);
+        return;
+      }
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Summary");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(denominationRows), "Denomination Breakdown");
     XLSX.writeFile(workbook, "cash-closing-report.xlsx");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Could not export cash closing records.");
+    }
   };
   return <section id="cash-closing-report" className="cash-closing-report rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
     <div className="border-b border-[#dce8f2] p-6 print:border-b-2">
@@ -34,7 +56,7 @@ export function CashClosingReport({ closings, currency, organizationName, logoUr
     </div>
     <div className="mx-6 mb-6 rounded-lg border border-[#dce8f2] p-4"><h3 className="mb-4 font-bold text-[#17385d]">Denomination Breakdown</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b text-ledger-500"><th className="py-2">Date</th><th className="py-2">Denomination</th><th className="py-2">Quantity</th><th className="py-2 text-right">Amount</th></tr></thead><tbody>{closings.flatMap((row) => (row.denomination_lines ?? []).map((line) => <tr key={`${row.id}-${line.denomination}`} className="border-b border-[#edf2f7]"><td className="py-2">{row.closing_date}</td><td className="py-2">{formatCurrencyAmount(Number(line.denomination), currency)}</td><td className="py-2">{line.quantity}</td><td className="py-2 text-right">{formatCurrencyAmount(Number(line.amount), currency)}</td></tr>))}</tbody></table></div></div>
     <div className="grid gap-4 px-6 pb-6 lg:grid-cols-[1.5fr_1fr]"><div className="rounded-lg border border-[#dce8f2] p-4"><h3 className="mb-4 font-bold text-[#17385d]">Recent Activity</h3>{closings.slice(0, 5).map((r) => <div key={r.id} className="flex justify-between border-t py-2 text-[10px]"><span>{r.closing_date} · {(r.shift ?? "full_day").replace("_", " ")}</span><span className="capitalize">{r.classification}</span></div>)}</div><div className="rounded-lg border border-[#dce8f2] p-4"><h3 className="mb-4 font-bold text-[#17385d]">Quick Information</h3><div className="space-y-3 text-xs"><div className="flex justify-between"><span>Currency</span><strong>{currency.symbol} ({currency.code})</strong></div><div className="flex justify-between"><span>Report Generated</span><strong>{new Date().toLocaleString()}</strong></div><div className="flex justify-between"><span>Balanced Closings</span><strong>{balanced}</strong></div><div className="flex justify-between"><span>Excess Total</span><strong>{formatCurrencyAmount(excess, currency)}</strong></div></div></div></div>
-    <div className="flex flex-wrap justify-end gap-2 border-t p-5 print:hidden"><button onClick={download} className="rounded-md border px-4 py-2 text-xs font-medium">Export Excel Report</button><button onClick={async () => { await logCashClosingAction(closings[0]?.id ?? null, "printed"); window.print(); }} className="rounded-md bg-[#1478dd] px-4 py-2 text-xs font-semibold text-white">Print Report</button></div>
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t p-5 print:hidden">{actionError && <p role="alert" className="mr-auto text-xs text-red-600">{actionError}</p>}{canExport && <><button onClick={() => void download("csv")} className="rounded-md border px-4 py-2 text-xs font-medium">Export CSV</button><button onClick={() => void download("excel")} className="rounded-md border px-4 py-2 text-xs font-medium">Export Excel</button></>}{canPrint && <button onClick={async () => { setActionError(""); try { if (!closings.length) throw new Error("There are no closing records to print."); const results = await Promise.all(closings.map((row) => logCashClosingAction(row.id, "printed"))); const failed = results.find((result) => "error" in result); if (failed && "error" in failed) throw new Error(failed.error); window.print(); } catch (error) { setActionError(error instanceof Error ? error.message : "Could not print cash closing records."); } }} className="rounded-md bg-[#1478dd] px-4 py-2 text-xs font-semibold text-white">Print / Save PDF</button>}</div>
     <style jsx global>{`@media print { body * { visibility: hidden; } .cash-closing-report, .cash-closing-report * { visibility: visible; } .cash-closing-report { position: absolute; inset: 0; width: 100%; box-shadow: none; border: 0; } }`}</style>
   </section>;
 }

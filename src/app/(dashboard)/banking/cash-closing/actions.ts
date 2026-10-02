@@ -70,9 +70,23 @@ async function postCashClosingVarianceJournal(db: any, closing: { id: string; or
 export async function logCashClosingAction(closingId: string | null, action: "exported" | "printed") {
   const ctx = await getCurrentOrgContext();
   if (!ctx || !closingId) return { error: "Closing record not found." };
+  if (!await canPermission("cash_closing", action === "exported" ? "export" : "print")) {
+    return { error: `You do not have permission to ${action === "exported" ? "export" : "print"} cash closings.` };
+  }
   const db = await createClient() as any;
+  const { data: closing, error: lookupError } = await db.from("cash_closings")
+    .select("id, org_id, location_id, created_by")
+    .eq("id", closingId)
+    .eq("org_id", ctx.orgId)
+    .maybeSingle();
+  if (lookupError) return { error: lookupError.message };
+  if (!closing || (closing.location_id && !canAccessLocation(ctx, closing.location_id))
+    || (!ctx.canViewOtherTransactions && closing.created_by !== ctx.userId)) {
+    return { error: "You cannot access this closing." };
+  }
   const { error } = await db.from("cash_closing_audit").insert({
-    closing_id: closingId, org_id: ctx.orgId, action, actor_id: ctx.userId, ...(await auditContext()),
+    closing_id: closingId, org_id: ctx.orgId, location_id: closing.location_id,
+    action, actor_id: ctx.userId, ...(await auditContext()),
   });
   return error ? { error: error.message } : { success: true };
 }
@@ -80,13 +94,19 @@ export async function logCashClosingAction(closingId: string | null, action: "ex
 export async function calculateExpectedCash(date: string, locationId?: string | null, _shift = "full_day", userId?: string | null): Promise<CashSummary> {
   const ctx = await getCurrentOrgContext();
   if (!ctx) throw new Error("Session expired");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
+    throw new Error("A valid business date is required.");
+  }
   if (locationId && !canAccessLocation(ctx, locationId)) {
     throw new Error("You are not assigned to this branch.");
+  }
+  if (userId && !ctx.canViewOtherTransactions && userId !== ctx.userId) {
+    throw new Error("You cannot view another user's transactions.");
   }
   const db = await createClient() as any;
   const scoped = (q: any): any => {
     if (locationId) return q.eq("location_id", locationId);
-    if (ctx.isBranchScoped && ctx.allowedLocationIds.length > 0) return q.in("location_id", ctx.allowedLocationIds);
+    if (ctx.isBranchScoped) return q.in("location_id", ctx.allowedLocationIds);
     return q;
   };
   const dayStart = `${date}T00:00:00.000Z`;
@@ -158,13 +178,13 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
   const opening = (accounts ?? []).reduce((a: number, x: Record<string, unknown>) => a + n(x.opening_balance), 0);
   const totalElectronic = electronic + customerElectronicPayments;
-  return { opening, sales: cashSales, discounts, debt: customerDebt, customerPayments: customerCashPayments, electronic: totalElectronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + totalElectronic + customerCashPayments - refunds - cashExpenses - deposits - withdrawals };
+  return { opening, sales: cashSales, discounts, debt: customerDebt, customerPayments: customerCashPayments, electronic: totalElectronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + customerCashPayments - refunds - cashExpenses - deposits - withdrawals };
 }
 
 export async function createCashClosing(formData: FormData) {
   const ctx = await getCurrentOrgContext();
   if (!ctx) redirect("/banking/cash-closing?error=Session%20expired");
-  if (!await canPermission("banking", "create")) redirect("/banking/cash-closing?error=Permission%20required");
+  if (!await canPermission("cash_closing", "create")) redirect("/banking/cash-closing?error=Permission%20required");
   const date = String(formData.get("closing_date") ?? "").trim();
   const locationId = String(formData.get("location_id") ?? "").trim() || null;
   const actual = n(formData.get("actual_cash"));
@@ -174,10 +194,13 @@ export async function createCashClosing(formData: FormData) {
   const varianceReason = String(formData.get("variance_reason") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
   if (!date || actual < 0) redirect("/banking/cash-closing?error=Enter%20a%20valid%20date%20and%20cash");
+  if (ctx.isBranchScoped && !locationId) {
+    redirect("/banking/cash-closing?error=Select%20an%20assigned%20branch");
+  }
   if (locationId && !canAccessLocation(ctx, locationId)) {
     redirect("/banking/cash-closing?error=You%20are%20not%20assigned%20to%20this%20branch");
   }
-  const summary = await calculateExpectedCash(date, locationId, shift);
+  const summary = await calculateExpectedCash(date, locationId, shift, ctx.canViewOtherTransactions ? null : ctx.userId);
   const variance = Number((actual - summary.expected).toFixed(2));
   if (Math.abs(variance) > 0.005 && !varianceReason) redirect("/banking/cash-closing?error=Variance%20reason%20is%20required");
   const classification = variance === 0 ? "balanced" : variance > 0 ? "excess" : "shortage";
@@ -190,13 +213,17 @@ export async function createCashClosing(formData: FormData) {
     opening_cash: summary.opening, cash_sales: summary.sales, cash_receipts: summary.debt, cash_customer_payments: summary.customerPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
     deposits: summary.deposits, withdrawals: summary.withdrawals, expected_cash: summary.expected, actual_cash: actual, variance, classification,
     variance_reason: varianceReason || null, notes: notes || null, comments: notes || null, shift,
-    coin_breakdown: { notes: notesCount, coins: coinCount }, created_by: ctx.userId,
+    coin_breakdown: { notes: notesCount, coins: coinCount }, created_by: ctx.userId, staff_id: ctx.userId,
     approval_threshold: threshold, approval_required: approvalRequired,
     status: approvalRequired ? "pending_approval" : "approved",
+    approval_decision: approvalRequired ? null : "approved",
+    approved_by: approvalRequired ? null : ctx.userId,
+    approved_at: approvalRequired ? null : new Date().toISOString(),
+    submitted_at: new Date().toISOString(),
+    closed_at: new Date().toISOString(),
   }).select("id").single();
   if (error || !closing) redirect(`/banking/cash-closing?error=${encodeURIComponent(error?.message ?? "Could not save closing")}`);
   const audit = await auditContext();
-  await db.from("cash_closing_audit").insert({ closing_id: closing.id, org_id: ctx.orgId, action: "created", actor_id: ctx.userId, metadata: { variance }, ...audit });
   const denominations = [1, 2, 5, 10, 20, 50, 100, 200].flatMap((denomination) => {
     const quantity = Math.max(0, Math.floor(n(formData.get(`denomination_${denomination}`))));
     return quantity ? [{ closing_id: closing.id, org_id: ctx.orgId, denomination, quantity }] : [];
@@ -207,7 +234,25 @@ export async function createCashClosing(formData: FormData) {
     const quantity = Math.max(0, Math.floor(n(formData.get(`custom_denomination_quantity_${index}`))));
     if (denomination > 0 && quantity > 0) customDenominations.push({ closing_id: closing.id, org_id: ctx.orgId, denomination, quantity });
   }
-  if (denominations.length || customDenominations.length) await db.from("cash_closing_lines").insert([...denominations, ...customDenominations]);
+  if (denominations.length || customDenominations.length) {
+    const { error: linesError } = await db.from("cash_closing_lines").insert([...denominations, ...customDenominations]);
+    if (linesError) redirect(`/banking/cash-closing?error=${encodeURIComponent(`Closing saved, but cash count lines could not be recorded: ${linesError.message}`)}`);
+  }
+  const auditEvents = [
+    { closing_id: closing.id, org_id: ctx.orgId, location_id: locationId, action: "created", actor_id: ctx.userId, metadata: { variance }, ...audit },
+    { closing_id: closing.id, org_id: ctx.orgId, location_id: locationId, action: "submitted", actor_id: ctx.userId, metadata: { approval_required: approvalRequired }, ...audit },
+    ...(!approvalRequired ? [{
+      closing_id: closing.id,
+      org_id: ctx.orgId,
+      location_id: locationId,
+      action: "approved",
+      actor_id: ctx.userId,
+      metadata: { decision: "approved", automatic: true },
+      ...audit,
+    }] : []),
+  ];
+  const { error: auditError } = await db.from("cash_closing_audit").insert(auditEvents);
+  if (auditError) redirect(`/banking/cash-closing?error=${encodeURIComponent(`Closing saved, but its audit record could not be stored: ${auditError.message}`)}`);
   if (approvalRequired || classification !== "balanced") {
     await db.from("notifications").insert({ org_id: ctx.orgId, location_id: locationId, title: approvalRequired ? "Cash closing approval required" : `Cash ${classification}`, message: `${date} ${shift} closing has a ${Math.abs(variance).toFixed(2)} variance.`, type: "cash_closing", entity_type: "cash_closing", entity_id: closing.id });
   }
@@ -215,60 +260,79 @@ export async function createCashClosing(formData: FormData) {
     await postCashClosingVarianceJournal(db, { ...closing, variance, classification, closing_date: date, location_id: locationId, org_id: ctx.orgId }, ctx.userId);
   }
   revalidatePath("/banking/cash-closing");
+  revalidatePath("/dashboard");
   redirect("/banking/cash-closing?saved=1");
 }
 
-export async function approveCashClosing(id: string) {
-  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("banking", "approve")) return { error: "Approval permission required" };
+export async function approveCashClosing(id: string, comments = "") {
+  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
   const db = await createClient() as any;
-  const { data: closing, error } = await db.from("cash_closings").update({ status: "approved", approved_by: ctx.userId, approved_at: new Date().toISOString() }).eq("id", id).eq("org_id", ctx.orgId).eq("status", "pending_approval").select("id, org_id, location_id, closing_date, variance, classification").maybeSingle();
+  const { data: existing } = await db.from("cash_closings").select("location_id").eq("id", id).eq("org_id", ctx.orgId).maybeSingle();
+  if (!existing || (existing.location_id && !canAccessLocation(ctx, existing.location_id))) return { error: "Closing record not found." };
+  const approvedAt = new Date().toISOString();
+  const { data: closing, error } = await db.from("cash_closings").update({ status: "approved", approval_decision: "approved", approval_comments: comments.trim() || null, approved_by: ctx.userId, approved_at: approvedAt }).eq("id", id).eq("org_id", ctx.orgId).eq("status", "pending_approval").select("id, org_id, location_id, closing_date, variance, classification").maybeSingle();
   if (error) return { error: error.message };
+  if (!closing) return { error: "This closing is no longer awaiting approval." };
   if (closing) await postCashClosingVarianceJournal(db, closing, ctx.userId);
-  await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, action: "approved", actor_id: ctx.userId, ...(await auditContext()) });
-  revalidatePath("/banking/cash-closing"); return { success: true };
+  const { error: auditError } = await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, location_id: closing.location_id, action: "approved", actor_id: ctx.userId, metadata: { decision: "approved", comments: comments.trim() || null }, ...(await auditContext()) });
+  if (auditError) return { error: auditError.message };
+  revalidatePath("/banking/cash-closing"); revalidatePath("/dashboard"); return { success: true };
 }
 
 export async function approveCashClosingFromForm(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
+  const comments = String(formData.get("comments") ?? "").trim();
   if (!id) return;
-  await approveCashClosing(id);
+  const result = await approveCashClosing(id, comments);
+  if (result && "error" in result) redirect(`/banking/cash-closing?tab=approval&error=${encodeURIComponent(result.error)}`);
+  redirect("/banking/cash-closing?tab=approval&saved=approved");
 }
 
 export async function rejectCashClosing(id: string, reason: string) {
   const ctx = await getCurrentOrgContext();
-  if (!ctx || !await canPermission("banking", "approve")) return { error: "Approval permission required" };
+  if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
   if (!reason.trim()) return { error: "A rejection reason is required." };
   const db = await createClient() as any;
-  const { error } = await db.from("cash_closings")
-    .update({ status: "reopened", variance_reason: reason.trim() })
-    .eq("id", id).eq("org_id", ctx.orgId).eq("status", "pending_approval");
+  const { data: existing, error: lookupError } = await db.from("cash_closings")
+    .select("location_id").eq("id", id).eq("org_id", ctx.orgId).maybeSingle();
+  if (lookupError) return { error: lookupError.message };
+  if (!existing || (existing.location_id && !canAccessLocation(ctx, existing.location_id))) return { error: "Closing record not found." };
+  const { data: closing, error } = await db.from("cash_closings")
+    .update({ status: "rejected", approval_decision: "rejected", approval_comments: reason.trim(), approved_by: ctx.userId, approved_at: new Date().toISOString() })
+    .eq("id", id).eq("org_id", ctx.orgId).eq("status", "pending_approval").select("id, location_id").maybeSingle();
   if (error) return { error: error.message };
-  await db.from("cash_closing_audit").insert({
-    closing_id: id, org_id: ctx.orgId, action: "rejected", actor_id: ctx.userId,
+  if (!closing) return { error: "This closing is no longer awaiting approval." };
+  const { error: auditError } = await db.from("cash_closing_audit").insert({
+    closing_id: id, org_id: ctx.orgId, location_id: closing.location_id, action: "rejected", actor_id: ctx.userId,
     metadata: { reason: reason.trim() }, ...(await auditContext()),
   });
+  if (auditError) return { error: auditError.message };
   revalidatePath("/banking/cash-closing");
   return { success: true };
 }
 
 export async function requestCashClosingExplanation(id: string, message: string) {
   const ctx = await getCurrentOrgContext();
-  if (!ctx || !await canPermission("banking", "approve")) return { error: "Approval permission required" };
+  if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
   if (!message.trim()) return { error: "An explanation request is required." };
   const db = await createClient() as any;
-  const { data: closing } = await db.from("cash_closings")
+  const { data: closing, error: closingError } = await db.from("cash_closings")
     .select("id, org_id, location_id").eq("id", id).eq("org_id", ctx.orgId)
     .eq("status", "pending_approval").maybeSingle();
+  if (closingError) return { error: closingError.message };
   if (!closing) return { error: "Pending closing not found." };
-  await db.from("cash_closing_audit").insert({
-    closing_id: id, org_id: ctx.orgId, action: "explanation_requested", actor_id: ctx.userId,
+  if (closing.location_id && !canAccessLocation(ctx, closing.location_id)) return { error: "Closing record not found." };
+  const { error: auditError } = await db.from("cash_closing_audit").insert({
+    closing_id: id, org_id: ctx.orgId, location_id: closing.location_id, action: "explanation_requested", actor_id: ctx.userId,
     metadata: { message: message.trim() }, ...(await auditContext()),
   });
-  await db.from("notifications").insert({
+  if (auditError) return { error: auditError.message };
+  const { error: notificationError } = await db.from("notifications").insert({
     org_id: ctx.orgId, location_id: closing.location_id,
     title: "Cash closing explanation requested", message: message.trim(),
     type: "cash_closing", entity_type: "cash_closing", entity_id: id,
   });
+  if (notificationError) return { error: notificationError.message };
   revalidatePath("/banking/cash-closing");
   return { success: true };
 }
@@ -276,30 +340,64 @@ export async function requestCashClosingExplanation(id: string, message: string)
 export async function rejectCashClosingFromForm(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
-  if (id) await rejectCashClosing(id, reason);
+  if (!id) return;
+  const result = await rejectCashClosing(id, reason);
+  if (result && "error" in result) redirect(`/banking/cash-closing?tab=approval&error=${encodeURIComponent(result.error)}`);
+  redirect("/banking/cash-closing?tab=approval&saved=rejected");
 }
 
 export async function requestCashClosingExplanationFromForm(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
-  if (id) await requestCashClosingExplanation(id, message);
+  if (!id) return;
+  const result = await requestCashClosingExplanation(id, message);
+  if (result && "error" in result) redirect(`/banking/cash-closing?tab=approval&error=${encodeURIComponent(result.error)}`);
+  redirect("/banking/cash-closing?tab=approval&saved=explanation-requested");
 }
 
 export async function requestCashClosingReopen(id: string, reason: string) {
-  const ctx = await getCurrentOrgContext(); if (!ctx) return { error: "Session expired" };
+  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "edit")) return { error: "Reopen permission required." };
   const db = await createClient() as any;
   if (!reason.trim()) return { error: "A reopen reason is required." };
+  const { data: closing, error: lookupError } = await db.from("cash_closings").select("location_id, created_by")
+    .eq("id", id).eq("org_id", ctx.orgId).eq("status", "approved").maybeSingle();
+  if (lookupError) return { error: lookupError.message };
+  if (!closing || (closing.location_id && !canAccessLocation(ctx, closing.location_id))
+    || (!ctx.canViewOtherTransactions && closing.created_by !== ctx.userId)) return { error: "Closing record not found." };
   const { error } = await db.from("cash_closings").update({ reopen_status: "requested", reopen_requested_by: ctx.userId, reopen_requested_at: new Date().toISOString() }).eq("id", id).eq("org_id", ctx.orgId).eq("status", "approved").eq("reopen_status", "none");
   if (error) return { error: error.message };
-  await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, action: "reopen_requested", actor_id: ctx.userId, metadata: { reason }, ...(await auditContext()) });
+  const { error: auditError } = await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, location_id: closing.location_id, action: "reopen_requested", actor_id: ctx.userId, metadata: { reason: reason.trim() }, ...(await auditContext()) });
+  if (auditError) return { error: auditError.message };
   revalidatePath("/banking/cash-closing"); return { success: true };
 }
 
+export async function requestCashClosingReopenFromForm(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!id) return;
+  const result = await requestCashClosingReopen(id, reason);
+  if (result && "error" in result) redirect(`/banking/cash-closing?tab=history&closing_id=${encodeURIComponent(id)}&error=${encodeURIComponent(result.error)}`);
+  redirect(`/banking/cash-closing?tab=history&closing_id=${encodeURIComponent(id)}&saved=reopen-requested#closing-details`);
+}
+
 export async function approveCashClosingReopen(id: string) {
-  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("banking", "approve")) return { error: "Approval permission required" };
+  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
   const db = await createClient() as any;
+  const { data: closing, error: lookupError } = await db.from("cash_closings").select("location_id")
+    .eq("id", id).eq("org_id", ctx.orgId).eq("status", "approved").eq("reopen_status", "requested").maybeSingle();
+  if (lookupError) return { error: lookupError.message };
+  if (!closing || (closing.location_id && !canAccessLocation(ctx, closing.location_id))) return { error: "Closing record not found." };
   const { error } = await db.from("cash_closings").update({ status: "reopened", reopen_status: "approved" }).eq("id", id).eq("org_id", ctx.orgId).eq("status", "approved").eq("reopen_status", "requested");
   if (error) return { error: error.message };
-  await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, action: "reopen_approved", actor_id: ctx.userId, ...(await auditContext()) });
+  const { error: auditError } = await db.from("cash_closing_audit").insert({ closing_id: id, org_id: ctx.orgId, location_id: closing.location_id, action: "reopen_approved", actor_id: ctx.userId, ...(await auditContext()) });
+  if (auditError) return { error: auditError.message };
   revalidatePath("/banking/cash-closing"); return { success: true };
+}
+
+export async function approveCashClosingReopenFromForm(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+  const result = await approveCashClosingReopen(id);
+  if (result && "error" in result) redirect(`/banking/cash-closing?tab=approval&error=${encodeURIComponent(result.error)}`);
+  redirect("/banking/cash-closing?tab=approval&saved=reopen-approved");
 }
