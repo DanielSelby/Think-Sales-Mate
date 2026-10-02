@@ -11,8 +11,7 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#0b3b91",
     orientation: "any",
     icons: [
-      { src: "/thinksales-logo.jpeg", sizes: "192x192", type: "image/jpeg", purpose: "any" },
-      { src: "/thinksales-logo.jpeg", sizes: "512x512", type: "image/jpeg", purpose: "any" },
+      { src: "/thinksales-logo.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
     ],
   };
 }

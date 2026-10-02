@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   description: "Run sales, inventory, accounting, and your team from one workspace.",
   icons: {
     icon: [
-      { url: "/thinksales-logo.jpeg", type: "image/jpeg" },
       { url: "/thinksales-logo.svg", type: "image/svg+xml" },
+      { url: "/thinksales-logo.jpeg", type: "image/jpeg" },
     ],
     apple: "/thinksales-logo.jpeg",
   },
