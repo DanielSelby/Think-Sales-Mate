@@ -279,7 +279,7 @@ export function ProductCategoriesManager({
     setPage(1);
   }
 
-  const selectClass = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500";
+  const selectClass = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 dark:border-ledger-700 dark:bg-ink-900 dark:text-white";
 
   return (
     <main className="product-categories-page mx-auto max-w-[1680px] space-y-4 pb-10">
@@ -310,8 +310,8 @@ export function ProductCategoriesManager({
         <Kpi icon={<Tag />} label="Uncategorized Products" value={kpis.uncategorized} tone="amber" />
       </section>
 
-      <section className="grid gap-3 rounded-2xl border border-[#dce8f2] bg-white p-3 shadow-sm dark:border-ledger-700 dark:bg-ink-900 md:grid-cols-2 xl:grid-cols-6">
-        <label className="relative text-[10px] font-semibold text-slate-500"><span className="sr-only">Search Category</span><Search className="absolute left-3 top-[13px] h-4 w-4 text-slate-400" /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search categories..." className={`${selectClass} pl-9`} /></label>
+      <section className="product-category-filters grid gap-3 rounded-2xl border border-[#dce8f2] bg-white p-3 shadow-sm dark:border-ledger-700 dark:bg-ink-900 md:grid-cols-2 xl:grid-cols-7">
+        <label className="relative text-[10px] font-semibold text-slate-500 xl:col-span-2"><span className="sr-only">Search Category</span><Search className="absolute left-3 top-[13px] h-4 w-4 text-slate-400" /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search categories..." className={`product-category-search ${selectClass} pl-9`} /></label>
         <label className="text-[10px] font-semibold text-slate-500">Status<select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className={selectClass}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
         <label className="text-[10px] font-semibold text-slate-500">Created Date<select value={createdDateFilter} onChange={(event) => { setCreatedDateFilter(event.target.value); setPage(1); }} className={selectClass}><option value="all">All dates</option><option value="month">This month</option><option value="year">This year</option></select></label>
         <label className="text-[10px] font-semibold text-slate-500">Created By<select value={creatorFilter} onChange={(event) => { setCreatorFilter(event.target.value); setPage(1); }} className={selectClass}><option value="all">All users</option>{creators.map((creator) => <option key={creator} value={creator}>{creator}</option>)}</select></label>

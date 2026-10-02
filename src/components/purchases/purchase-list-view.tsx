@@ -236,7 +236,7 @@ export function PurchaseListView({
           </p>
         </div>
         {showMoreFilters && (
-          <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+        <div className="purchase-filter-fields mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
             <div><label className="mb-1 block text-xs font-medium text-ledger-500">Purchase date from</label><Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} /></div>
             <div><label className="mb-1 block text-xs font-medium text-ledger-500">Purchase date to</label><Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} /></div>
           </div>
@@ -289,9 +289,9 @@ export function PurchaseListView({
         </div>
 
         {/* Filters */}
-        <Card accent="neutral">
+        <Card accent="neutral" className="purchase-filter-panel">
           <CardContent className="pt-5">
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="purchase-filter-fields flex flex-wrap items-end gap-3">
               <div className="relative min-w-[240px] flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
                 <Input
@@ -374,7 +374,7 @@ export function PurchaseListView({
         {/* Table */}
         <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="purchase-history-table w-full text-left text-xs">
               <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
                 <tr>
                   <th className="w-10 px-4 py-3">

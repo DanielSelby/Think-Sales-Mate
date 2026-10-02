@@ -161,7 +161,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
               <button
                 onClick={copyUrl}
                 type="button"
-                className="flex items-center justify-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-medium text-ledger-700 shadow-sm border border-ledger-200 hover:bg-ledger-50 dark:bg-ink-800 dark:border-ledger-600 dark:text-ledger-200"
+                className="customer-ordering-copy-link flex items-center justify-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-medium text-ledger-700 shadow-sm border border-ledger-200 hover:bg-ledger-50 dark:bg-ink-800 dark:border-ledger-600 dark:text-ledger-200"
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-signal" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? "Copied Link" : "Copy Link"}
@@ -302,7 +302,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
                 id="portal-color-theme"
                 value={settings.portalColorTheme}
                 onChange={(event) => patch("portalColorTheme", event.target.value as PortalSettings["portalColorTheme"])}
-                className="mt-2 h-10 w-full max-w-md rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                className="customer-ordering-theme-select mt-2 h-10 w-full max-w-md rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
               >
                 <option value="fintech">Fintech Blue</option>
                 <option value="green">Forest Green</option>
@@ -381,14 +381,14 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
               onChange={(v) => patch("scheduleEnabled", v)}
             />
             {settings.scheduleEnabled && (
-              <div className="grid grid-cols-1 gap-3 rounded-lg border border-ledger-100 bg-ledger-50/50 p-3 dark:border-ledger-700 dark:bg-white/[0.02] sm:grid-cols-3">
+              <div className="customer-ordering-active-hours grid grid-cols-1 gap-3 rounded-lg border border-ledger-100 bg-ledger-50/50 p-3 dark:border-ledger-700 dark:bg-white/[0.02] sm:grid-cols-3">
                 <label className="text-xs font-medium text-ledger-600 dark:text-ledger-300">
                   Opens at
                   <input
                     type="time"
                     value={settings.activeFrom}
                     onChange={(event) => patch("activeFrom", event.target.value)}
-                    className="mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                    className="customer-ordering-active-hours-input mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
                   />
                 </label>
                 <label className="text-xs font-medium text-ledger-600 dark:text-ledger-300">
@@ -397,7 +397,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
                     type="time"
                     value={settings.activeUntil}
                     onChange={(event) => patch("activeUntil", event.target.value)}
-                    className="mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                    className="customer-ordering-active-hours-input mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
                   />
                 </label>
                 <label className="text-xs font-medium text-ledger-600 dark:text-ledger-300">
@@ -407,7 +407,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
                     value={settings.scheduleTimezone}
                     onChange={(event) => patch("scheduleTimezone", event.target.value)}
                     placeholder="Africa/Accra"
-                    className="mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                    className="customer-ordering-active-hours-input mt-1 block w-full rounded-md border border-ledger-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
                   />
                 </label>
                 <p className="text-xs text-ledger-500 dark:text-ledger-400 sm:col-span-3">

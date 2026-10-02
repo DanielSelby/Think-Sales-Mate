@@ -525,12 +525,14 @@ export function AddPurchaseForm({
                 <div className="grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-3">
                   <Field label="Supplier" required>
                     <div className="flex items-center gap-2">
-                      <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="flex-1">
-                        <option value="" disabled>Select supplier</option>
-                        {suppliers.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </Select>
+                      <div className="min-w-0 flex-1">
+                        <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                          <option value="" disabled>Select supplier</option>
+                          {suppliers.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </Select>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setAddSupplierOpen(true)}

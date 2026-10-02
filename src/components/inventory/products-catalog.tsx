@@ -661,7 +661,7 @@ export function ProductsCatalog({
       </div>
 
       {/* Toolbar */}
-      <div className="space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="products-filter-panel space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
@@ -672,7 +672,7 @@ export function ProductsCatalog({
               setPage(1);
             }}
             placeholder="Search by product name, SKU, or barcode…"
-            className="h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="products-filter-control h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           />
         </div>
         <CrossBranchStockButton query={search} enabled={canCheckCrossBranchStock && Boolean(search.trim()) && filtered.length === 0} />
@@ -685,7 +685,7 @@ export function ProductsCatalog({
               setCategory(e.target.value);
               setPage(1);
             }}
-            className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="products-filter-control h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           >
             <option value="all">All categories</option>
             {categories.map((c) => (
@@ -700,7 +700,7 @@ export function ProductsCatalog({
               setBrand(e.target.value);
               setPage(1);
             }}
-            className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="products-filter-control h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           >
             <option value="all">All brands</option>
             {brands.map((b) => (
@@ -715,7 +715,7 @@ export function ProductsCatalog({
               setSupplier(e.target.value);
               setPage(1);
             }}
-            className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="products-filter-control h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           >
             <option value="all">All suppliers</option>
             {suppliers.map((s) => (
@@ -730,7 +730,7 @@ export function ProductsCatalog({
               setWarehouse(e.target.value);
               setPage(1);
             }}
-            className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="products-filter-control h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           >
             <option value="all">All warehouses</option>
             {locations.map((l) => (
@@ -745,7 +745,7 @@ export function ProductsCatalog({
               setStockStatus(e.target.value as "all" | StockStatus);
               setPage(1);
             }}
-            className="h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="products-filter-control h-9 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
           >
             <option value="all">All statuses</option>
             <option value="in">In stock</option>
@@ -782,7 +782,7 @@ export function ProductsCatalog({
                 setPage(1);
               }}
               placeholder="Min"
-              className="h-8 w-24 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+              className="products-filter-control h-8 w-24 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
             />
             <span className="text-ledger-400">–</span>
             <input
@@ -794,7 +794,7 @@ export function ProductsCatalog({
                 setPage(1);
               }}
               placeholder="Max"
-              className="h-8 w-24 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+              className="products-filter-control h-8 w-24 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
             />
           </div>
         )}
@@ -914,7 +914,7 @@ export function ProductsCatalog({
         </div>
       ) : view === "table" ? (
         <div className="overflow-x-auto rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <table className="w-full text-left text-xs">
+          <table className="products-history-table w-full text-left text-xs">
             <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
               <tr>
                 <th className="w-8 px-4 py-3">

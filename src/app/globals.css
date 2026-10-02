@@ -293,6 +293,32 @@ html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
     border-color: transparent !important;
   }
 
+  .sales-history-page .sales-filter-panel,
+  .procurement-page:not(.procurement-grid-lines) .purchase-filter-panel {
+    border: 1px solid #cbd5e1 !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .sales-history-page .sales-filter-fields input,
+  .sales-history-page .sales-filter-fields select,
+  .procurement-page .purchase-filter-fields input,
+  .procurement-page .purchase-filter-fields select {
+    border: 1px solid #cbd5e1 !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  html.dark .sales-history-page .sales-filter-panel,
+  html.dark .procurement-page:not(.procurement-grid-lines) .purchase-filter-panel {
+    border-color: #475569 !important;
+  }
+
+  html.dark .sales-history-page .sales-filter-fields input,
+  html.dark .sales-history-page .sales-filter-fields select,
+  html.dark .procurement-page .purchase-filter-fields input,
+  html.dark .procurement-page .purchase-filter-fields select {
+    border-color: #52657c !important;
+  }
+
   /* Keep dashboard cards open against the page canvas across every module.
      Inputs and other controls retain their own surfaces and focus states. */
   .page-canvas .rounded-card,
@@ -931,6 +957,82 @@ html.dark .price-management-page .price-management-grid input {
   color: #fff !important;
 }
 
+html.dark .product-page .products-history-table thead,
+html.dark .product-categories-page .product-category-grid thead,
+html.dark .price-management-page table thead {
+  background-color: #26384d !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .product-page .products-history-table tbody tr,
+html.dark .product-categories-page .product-category-grid tbody tr,
+html.dark .price-management-page table tbody tr {
+  background-color: #0f1d2d;
+}
+
+html.dark .product-page .products-history-table tbody tr:hover,
+html.dark .product-categories-page .product-category-grid tbody tr:hover,
+html.dark .price-management-page table tbody tr:hover {
+  background-color: #172a40 !important;
+}
+
+.product-page .products-filter-panel {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.product-page .products-filter-control {
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.dark .product-page .products-filter-panel,
+html.dark .product-page .products-filter-control {
+  border-color: #52657c !important;
+}
+
+.product-categories-page .product-category-filters {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.product-categories-page .product-category-filters select {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.product-categories-page .product-category-search {
+  background-color: var(--theme-primary-pale) !important;
+  border-color: color-mix(in srgb, var(--theme-primary) 24%, white) !important;
+}
+
+html.dark .product-categories-page .product-category-filters {
+  border-color: #52657c !important;
+}
+
+html.dark .product-categories-page .product-category-filters select {
+  border-color: #52657c !important;
+}
+
+html.dark .product-categories-page .product-category-search {
+  background-color: #000 !important;
+  border-color: #52657c !important;
+  color: #fff !important;
+}
+
+html.dark .product-categories-page .product-category-grid tbody td {
+  color: #cbd5e1;
+}
+
+.price-management-page .price-filter-panel {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.price-management-page .price-filter-control {
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.dark .price-management-page .price-filter-panel,
+html.dark .price-management-page .price-filter-control {
+  border-color: #52657c !important;
+}
+
 .pos-product-grid > button,
 .pos-product-grid > button > div {
   border: 0 !important;
@@ -1011,6 +1113,99 @@ html.dark .sales-history-page .sales-filter-fields select {
 html.dark .sales-history-page .sales-search-input {
   background-color: #000 !important;
   border-color: #475569 !important;
+}
+
+html.dark .sales-history-page .sales-history-table tbody tr {
+  background-color: #0f1d2d;
+}
+
+html.dark .sales-history-page .sales-history-table tbody tr:hover {
+  background-color: #172a40 !important;
+}
+
+html.dark .orders-page .orders-table thead tr {
+  background-color: #26384d !important;
+}
+
+html.dark .orders-page .orders-table tbody tr {
+  background-color: #0f1d2d;
+}
+
+html.dark .orders-page .orders-table tbody tr.orders-table-row-selected {
+  background-color: #1b2b3e !important;
+}
+
+html.dark .orders-page .orders-table tbody tr.orders-table-row:hover {
+  background-color: #172a40 !important;
+}
+
+html.dark .orders-page .orders-kanban-overview {
+  background-color: #0f1d2d !important;
+  border: 1px solid #334155 !important;
+}
+
+html.dark .orders-page .orders-kanban-card {
+  background-color: #172a40 !important;
+  border-color: #3b4d63 !important;
+}
+
+.orders-page .orders-filter-panel {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.orders-page .orders-filter-control {
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.dark .orders-page .orders-filter-panel {
+  border-color: #475569 !important;
+}
+
+html.dark .orders-page .orders-filter-control {
+  border-color: #52657c !important;
+}
+
+html.dark .customer-ordering-copy-link {
+  background-color: #172a40 !important;
+}
+
+html.dark .customer-ordering-theme-select,
+html.dark .customer-ordering-active-hours-input {
+  background-color: #0b1726 !important;
+}
+
+html.dark .customer-ordering-active-hours {
+  background-color: #132337 !important;
+}
+
+.procurement-page:not(.procurement-grid-lines) .purchase-filter-panel {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.procurement-page .purchase-filter-fields input,
+.procurement-page .purchase-filter-fields select {
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.dark .procurement-page:not(.procurement-grid-lines) .purchase-filter-panel {
+  border-color: #475569 !important;
+}
+
+html.dark .procurement-page .purchase-filter-fields input,
+html.dark .procurement-page .purchase-filter-fields select {
+  border-color: #52657c !important;
+}
+
+html.dark .procurement-page .purchase-history-table thead {
+  background-color: #26384d !important;
+}
+
+html.dark .procurement-page .purchase-history-table tbody tr {
+  background-color: #0f1d2d;
+}
+
+html.dark .procurement-page .purchase-history-table tbody tr:hover {
+  background-color: #172a40 !important;
 }
 
 .pos-cart-grid,

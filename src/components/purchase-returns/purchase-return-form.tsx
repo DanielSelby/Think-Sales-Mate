@@ -268,7 +268,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
             <CardHeader className="pb-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">Returned Items</CardTitle>
-                <div className="relative min-w-[240px] flex-1 md:max-w-md">
+                <div className="relative min-w-[300px] flex-1 md:max-w-xl">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
                   <Input value={itemSearch} onChange={(event) => setItemSearch(event.target.value)} placeholder="Search product, SKU or barcode..." className="h-8 pl-8 text-xs" />
                 </div>
