@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
+  LayoutDashboard, ShoppingCart, Boxes, Users, Contact, Banknote,
   Wallet, Landmark, Receipt, Package, FolderKanban,
   BarChart3, Settings, Sparkles, TrendingUp,
   ChevronLeft, ChevronRight, ChevronDown,
@@ -26,7 +26,14 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "live" },
   { label: "Approval Center", href: "/approvals", icon: ClipboardCheck, status: "live" },
-  { label: "POS", href: "/pos", icon: ShoppingCart, status: "live" },
+  {
+    label: "POS", href: "/pos", icon: ShoppingCart, status: "live",
+    children: [
+      { label: "Point of Sale", href: "/pos", icon: ShoppingCart },
+      { label: "Cash Drawer", href: "/pos/cash-drawer", icon: Banknote },
+      { label: "Register History", href: "/pos/register-history", icon: FileText },
+    ],
+  },
   {
     label: "Sales", href: "/sales", icon: Receipt, status: "live",
     children: [

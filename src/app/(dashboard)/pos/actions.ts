@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
-import { canUseLocation } from "@/lib/organizations/location-access";
+import { canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 import type { HeldSaleKind } from "@/types/database";
 
@@ -223,9 +223,7 @@ export interface ActivePosRegisterSession {
 }
 
 export async function openPosRegister(input: {
-  locationId: string;
   openingCash: number;
-  registerName: string;
   shift: string;
   notes?: string;
 }): Promise<SimpleResult> {
@@ -234,21 +232,31 @@ export async function openPosRegister(input: {
   }
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  if (!canUseLocation(context, input.locationId)) {
-    return { ok: false, error: "You do not have access to this branch." };
-  }
   const openingCash = Number(input.openingCash);
   if (!Number.isFinite(openingCash) || openingCash < 0) {
     return { ok: false, error: "Enter a valid opening cash amount." };
   }
-  const registerName = input.registerName.trim();
-  if (!registerName || registerName.length > 80) return { ok: false, error: "Enter a register name (80 characters maximum)." };
   if (!["morning", "afternoon", "night", "full_day"].includes(input.shift)) return { ok: false, error: "Select a valid register shift." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
   const db = supabase as any;
+  const { data: locations, error: locationsError } = await db
+    .from("business_locations")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .eq("is_active", true)
+    .order("name");
+  if (locationsError) return { ok: false, error: "Could not verify your assigned register branch." };
+  const authorizedLocations = context.isBranchScoped
+    ? (locations ?? []).filter((location: { id: string }) => context.allowedLocationIds.includes(location.id))
+    : locations ?? [];
+  const registerLocation = getPosRegisterLocation(context, authorizedLocations);
+  if (!registerLocation || !canUseLocation(context, registerLocation.id)) {
+    return { ok: false, error: "No active primary branch is assigned to your account." };
+  }
+
   const { data: active, error: activeError } = await db
     .from("pos_register_sessions")
     .select("id")
@@ -259,20 +267,12 @@ export async function openPosRegister(input: {
   if (activeError) return { ok: false, error: "Could not verify your register status. Please try again." };
   if (active) return { ok: false, error: "You already have an open register session. Close it before opening another." };
 
-  const { data: location, error: locationError } = await db
-    .from("business_locations")
-    .select("id")
-    .eq("id", input.locationId)
-    .eq("org_id", context.orgId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (locationError || !location) return { ok: false, error: "This branch is unavailable or inactive." };
-
+  const registerName = "POS-01";
   const { data: session, error } = await db
     .from("pos_register_sessions")
     .insert({
       org_id: context.orgId,
-      location_id: input.locationId,
+      location_id: registerLocation.id,
       cashier_id: user.id,
       cashier_name: user.user_metadata?.full_name ?? context.userEmail,
       register_name: registerName,
@@ -299,7 +299,7 @@ export async function openPosRegister(input: {
     entityId: session.id,
     module: "POS",
     description: "Register session opened.",
-    branchId: input.locationId,
+    branchId: registerLocation.id,
     newValues: { register_name: registerName, shift: input.shift, opening_cash: openingCash },
   });
   if (audit.error) {

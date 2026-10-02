@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import { OpenRegisterForm } from "@/components/pos/open-register-form";
+import { getPosRegisterLocation } from "@/lib/organizations/location-access";
 
 export const metadata = { title: "Open Register · ThinkSales Pro" };
 
@@ -33,15 +34,14 @@ export default async function OpenRegisterPage({ searchParams }: { searchParams:
   if (locationsError) throw new Error("Could not load your available branches.");
   const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle();
 
-  const authorizedLocations = context.masterLocationId
-    ? (locations ?? []).filter((location) => location.id === context.masterLocationId)
-    : context.isBranchScoped
-      ? (locations ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
-      : locations ?? [];
+  const authorizedLocations = context.isBranchScoped
+    ? (locations ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
+    : locations ?? [];
+  const registerLocation = getPosRegisterLocation(context, authorizedLocations);
 
   return (
     <OpenRegisterForm
-      locations={authorizedLocations}
+      locationName={registerLocation?.name ?? null}
       currency={context.currency}
       cashierName={profile?.full_name || context.userEmail}
       canOpen={await canPermission("pos", "create")}

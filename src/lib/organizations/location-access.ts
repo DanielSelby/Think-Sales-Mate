@@ -10,3 +10,17 @@ export function canAccessLocation(context: CurrentOrgContext, locationId: string
 export function canUseLocation(context: CurrentOrgContext, locationId: string | null | undefined): boolean {
   return canAccessLocation(context, locationId);
 }
+
+export function getPosRegisterLocation<T extends { id: string }>(
+  context: CurrentOrgContext,
+  locations: T[]
+): T | null {
+  if (context.isBranchScoped) {
+    return locations.find((location) => location.id === context.locationId) ?? null;
+  }
+
+  const selectedLocation = context.masterLocationId
+    ? locations.find((location) => location.id === context.masterLocationId)
+    : null;
+  return selectedLocation ?? locations[0] ?? null;
+}
