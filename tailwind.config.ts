@@ -7,15 +7,15 @@ const config: Config = {
     extend: {
       colors: {
         // SalesMate design system: an ink-navy ledger, not a SaaS-blue
-        // dashboard. Parchment (warm, not gray) in light mode; true ink in
-        // dark mode. Signal green stays reserved strictly for
+        // dashboard. Pure white in light mode; true ink in dark mode.
+        // Signal green stays reserved strictly for
         // revenue-positive states — never decorative.
         parchment: {
-          50: "#faf8f4",
+          50: "#ffffff",
           100: "#f3efe6"
         },
         ledger: {
-          50: "#faf8f4", // parchment surface, light mode base
+          50: "#ffffff", // pure-white light-mode canvas and subtle surfaces
           100: "#efeadf",
           200: "#d8d2c2",
           300: "#b3ab97",
