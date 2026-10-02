@@ -343,20 +343,20 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Filter bar */}
-      <Card accent="neutral" className="rounded-2xl border border-ledger-100 shadow-card dark:border-ledger-700">
+      <Card accent="neutral" className="sales-filter-panel rounded-2xl border border-ledger-100 shadow-card dark:border-ledger-700">
         <CardContent className="pt-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
             <button type="button" onClick={resetFilters} className="text-xs font-medium text-signal hover:underline">Clear filters</button>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="sales-filter-fields flex flex-wrap items-end gap-3">
             <div className="relative min-w-[240px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
               <Input
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                 placeholder="Search by number, customer or reference..."
-                className="pl-9"
+                className="sales-search-input pl-9"
                 style={{
                   backgroundColor: darkMode ? "#000000" : theme.colors.primaryPale,
                   borderColor: darkMode ? "#334155" : `${theme.colors.primary}35`,
@@ -416,7 +416,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
           </div>
 
           {showMoreFilters && (
-            <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+            <div className="sales-filter-fields mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
               <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Date From</label>
                 <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateFilter("custom"); setPage(1); }} />

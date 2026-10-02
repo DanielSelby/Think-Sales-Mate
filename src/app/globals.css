@@ -985,6 +985,34 @@ html.dark .order-tracker-page table thead th {
   z-index: 10;
 }
 
+.sales-history-page .sales-filter-panel {
+  border: 1px solid #dbe3ed !important;
+}
+
+.sales-history-page .sales-filter-fields input,
+.sales-history-page .sales-filter-fields select {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.sales-history-page .sales-search-input {
+  background-color: var(--theme-primary-pale) !important;
+  border-color: color-mix(in srgb, var(--theme-primary) 24%, white) !important;
+}
+
+html.dark .sales-history-page .sales-filter-panel {
+  border-color: #334155 !important;
+}
+
+html.dark .sales-history-page .sales-filter-fields input,
+html.dark .sales-history-page .sales-filter-fields select {
+  border-color: #475569 !important;
+}
+
+html.dark .sales-history-page .sales-search-input {
+  background-color: #000 !important;
+  border-color: #475569 !important;
+}
+
 .pos-cart-grid,
 .product-category-grid,
 .order-tracker-items-grid,
