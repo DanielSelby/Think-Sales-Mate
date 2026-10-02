@@ -83,6 +83,7 @@ export interface UpdateSaleStatusInput {
   saleId: string;
   status: SaleStatus;
   refundedAmount?: number;
+  refundPaymentMethod?: string | null;
   note?: string;
   /** Only used when status === "returned": quantity being returned per line, > 0 only. */
   returnLines?: { saleItemId: string; productId: string; quantity: number }[];
@@ -97,6 +98,7 @@ export async function updateSaleStatus({
   saleId,
   status,
   refundedAmount,
+  refundPaymentMethod,
   note,
   returnLines,
 }: UpdateSaleStatusInput): Promise<UpdateSaleStatusResult> {
@@ -116,7 +118,7 @@ export async function updateSaleStatus({
 
   const { data: sale, error: fetchError } = await supabase
     .from("sales")
-    .select("id, org_id, total, status, location_id")
+    .select("id, org_id, sale_number, total, status, location_id")
     .eq("id", saleId)
     .single();
   if (fetchError || !sale) return { ok: false, error: "Sale not found." };
@@ -129,15 +131,45 @@ export async function updateSaleStatus({
   if (!restockLocationId) {
     return { ok: false, error: "This sale has no location and the org has no active location to restock to." };
   }
+  if (!canAccessLocation(context, restockLocationId)) {
+    return { ok: false, error: "You do not have access to the branch required to process this return." };
+  }
 
   const nextRefundedAmount = status === "returned" ? Math.max(0, refundedAmount ?? 0) : 0;
+  if (status === "returned" && (!Number.isFinite(nextRefundedAmount) || nextRefundedAmount < 0)) {
+    return { ok: false, error: "Enter a valid refund amount." };
+  }
   if (nextRefundedAmount > sale.total) {
     return { ok: false, error: "Refund amount can't exceed the sale total." };
   }
+  const refundTender = status === "returned" ? refundPaymentMethod?.trim() || null : null;
+  const allowedRefundTenders = ["Cash", "Card", "Mobile Money", "Bank Transfer", "Cheque", "Other"];
+  if (status === "returned" && nextRefundedAmount > 0 && !refundTender) {
+    return { ok: false, error: "Select how the refund is being paid." };
+  }
+  if (refundTender && !allowedRefundTenders.includes(refundTender)) {
+    return { ok: false, error: "Select a valid refund payment method." };
+  }
+  let refundSessionId: string | null = null;
+  if (status === "returned" && nextRefundedAmount > 0 && refundTender === "Cash") {
+    const { data: session, error: sessionError } = await (supabase as any)
+      .from("pos_register_sessions")
+      .select("id")
+      .eq("org_id", sale.org_id)
+      .eq("cashier_id", user.id)
+      .eq("location_id", restockLocationId)
+      .eq("status", "open")
+      .maybeSingle();
+    if (sessionError) return { ok: false, error: "Could not verify an open register for this cash refund." };
+    if (!session) return { ok: false, error: "Open a register at this sale's branch before issuing a cash refund." };
+    refundSessionId = session.id;
+  }
+  let refundAuditWarning: string | null = null;
 
   try {
     if (status === "returned") {
       const lines = (returnLines ?? []).filter((l) => l.quantity > 0);
+      if (!lines.length) return { ok: false, error: "Select at least one item to return." };
       const { data: saleItems } = await supabase
         .from("sale_items")
         .select("id, product_id, quantity, product:products(cost_price)")
@@ -152,29 +184,14 @@ export async function updateSaleStatus({
       }
       const saleItemById = new Map((saleItems ?? []).map((item) => [item.id, item]));
       for (const line of lines) {
+        if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
+          return { ok: false, error: "Return quantities must be positive whole numbers." };
+        }
         const saleItem = saleItemById.get(line.saleItemId);
         const alreadyReturned = returnedByItem.get(line.saleItemId) ?? 0;
         if (!saleItem || saleItem.product_id !== line.productId || line.quantity > Number(saleItem.quantity) - alreadyReturned) {
           return { ok: false, error: "One or more return quantities exceed the remaining quantity for that sale line." };
         }
-        const { error: insertError } = await admin.from("sale_return_items").insert({
-          org_id: sale.org_id,
-          sale_id: saleId,
-          sale_item_id: line.saleItemId,
-          product_id: line.productId,
-          quantity: line.quantity,
-          location_id: restockLocationId,
-          created_by: user.id,
-        });
-        if (insertError) throw new Error(insertError.message);
-
-        const { error: rpcError } = await supabase.rpc("adjust_product_stock_at_location", {
-          p_product_id: line.productId,
-          p_location_id: restockLocationId,
-          p_org_id: sale.org_id,
-          p_delta: line.quantity,
-        });
-        if (rpcError) throw new Error(rpcError.message);
       }
     }
 
@@ -223,18 +240,47 @@ export async function updateSaleStatus({
       if (deleteError) throw new Error(deleteError.message);
     }
 
-    const { error: updateError, count: updatedCount } = await admin
-      .from("sales")
-      .update({
-        status,
-        refunded_amount: nextRefundedAmount,
-        status_note: note?.trim() || null,
-        status_changed_by: user.id,
-      }, { count: "exact" })
-      .eq("id", saleId);
-    if (updateError) throw new Error(updateError.message);
-    if ((updatedCount ?? 0) === 0) {
-      throw new Error("The status update didn't apply to any row — check the sales table's UPDATE policy.");
+    if (status === "returned") {
+      const { data: movementId, error: refundError } = await (admin as any).rpc("record_pos_sale_refund", {
+        p_sale_id: saleId,
+        p_org_id: sale.org_id,
+        p_actor_id: user.id,
+        p_amount: nextRefundedAmount,
+        p_payment_method: refundTender,
+        p_session_id: refundSessionId,
+        p_location_id: restockLocationId,
+        p_return_lines: returnLines ?? [],
+        p_note: note?.trim() || null,
+      });
+      if (refundError) throw new Error(refundError.message);
+      const refundAudit = await recordAuditEvent(supabase, {
+        orgId: sale.org_id,
+        actorId: user.id,
+        action: "sales.refund_recorded",
+        entityType: "sales",
+        entityId: sale.id,
+        module: "Sales",
+        description: "Sale return and refund method recorded.",
+        branchId: sale.location_id,
+        newValues: { refunded_amount: nextRefundedAmount, refund_payment_method: refundTender, cash_movement_id: movementId },
+      });
+      if (refundAudit.error) refundAuditWarning = "Return saved, but its audit event could not be recorded. Notify an administrator.";
+    } else {
+      const { error: updateError, count: updatedCount } = await admin
+        .from("sales")
+        .update({
+          status,
+          refunded_amount: nextRefundedAmount,
+          refund_payment_method: null,
+          refund_register_session_id: null,
+          status_note: note?.trim() || null,
+          status_changed_by: user.id,
+        }, { count: "exact" })
+        .eq("id", saleId);
+      if (updateError) throw new Error(updateError.message);
+      if ((updatedCount ?? 0) === 0) {
+        throw new Error("The status update didn't apply to any row — check the sales table's UPDATE policy.");
+      }
     }
 
     if (status === "returned" || status === "cancelled") {
@@ -268,7 +314,8 @@ export async function updateSaleStatus({
 
   revalidatePath("/sales");
   revalidatePath("/inventory");
-  return { ok: true };
+  if (refundSessionId) revalidatePath("/pos/cash-drawer");
+  return { ok: true, ...(refundAuditWarning ? { error: refundAuditWarning } : {}) };
 }
 // ---------------------------------------------------------------------------
 // Record a new sale
@@ -280,6 +327,7 @@ export interface RecordSaleInput {
   customerName?:   string | null;
   customerPhone?:  string | null;
   locationId?:     string | null;
+  posRegisterSessionId?: string | null;
   reference?:      string | null;
   note?:           string | null;
   notes?:          string | null;
@@ -336,6 +384,20 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
   if (input.locationId && !canUseLocation(context, input.locationId)) {
     return { ok: false, error: "You are not assigned to this branch." };
   }
+  if (input.posRegisterSessionId) {
+    const { data: session, error: sessionError } = await (supabase as any)
+      .from("pos_register_sessions")
+      .select("id")
+      .eq("id", input.posRegisterSessionId)
+      .eq("org_id", context.orgId)
+      .eq("cashier_id", user.id)
+      .eq("location_id", input.locationId)
+      .eq("status", "open")
+      .maybeSingle();
+    if (sessionError || !session) {
+      return { ok: false, error: "The POS register session is closed or unavailable. Reopen the register and retry sync." };
+    }
+  }
 
   try {
     const { data: sale, error: saleError } = await supabase
@@ -345,6 +407,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         customer_name:   input.customerName ?? null,
         customer_id:     input.customerId ?? null,
         location_id:     input.locationId ?? null,
+        register_session_id: input.posRegisterSessionId ?? null,
         reference:       input.reference ?? null,
         sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
         document_status: input.documentStatus ?? "final",

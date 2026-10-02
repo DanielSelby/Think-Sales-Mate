@@ -16,6 +16,7 @@ export async function POST(request: Request) {
 
   const normalized = {
     orgId: String(payload.orgId ?? context.orgId),
+    posRegisterSessionId: String(payload.posRegisterSessionId ?? ""),
     documentStatus: "final",
     customerId: payload.customerId ?? null,
     customerName: payload.customerName ?? null,
@@ -52,6 +53,9 @@ export async function POST(request: Request) {
 
   if (!normalized.items.length) {
     return NextResponse.json({ ok: false, error: "Offline sale has no items to sync." }, { status: 422 });
+  }
+  if (!normalized.posRegisterSessionId) {
+    return NextResponse.json({ ok: false, error: "Offline POS sale has no register session and cannot be synced." }, { status: 422 });
   }
 
   const result = await recordSale(normalized as Parameters<typeof recordSale>[0]);

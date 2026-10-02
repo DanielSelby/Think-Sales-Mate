@@ -899,6 +899,7 @@ export interface Database {
           customer_name: string | null;
           customer_id: string | null;
           location_id: string | null;
+          register_session_id: string | null;
           reference: string | null;
           sale_date: string;
           subtotal: number;
@@ -911,6 +912,8 @@ export interface Database {
           sold_by: string;
           status: SaleStatus;
           refunded_amount: number;
+          refund_payment_method: string | null;
+          refund_register_session_id: string | null;
           status_note: string | null;
           status_changed_by: string | null;
           status_changed_at: string;
@@ -925,6 +928,7 @@ export interface Database {
           customer_name?: string | null;
           customer_id?: string | null;
           location_id?: string | null;
+          register_session_id?: string | null;
           reference?: string | null;
           sale_date?: string;
           subtotal?: number;
@@ -937,6 +941,8 @@ export interface Database {
           sold_by: string;
           status?: SaleStatus;
           refunded_amount?: number;
+          refund_payment_method?: string | null;
+          refund_register_session_id?: string | null;
           status_note?: string | null;
           status_changed_by?: string | null;
           status_changed_at?: string;
@@ -2096,6 +2102,7 @@ export interface Database {
           id: string;
           org_id: string;
           location_id: string | null;
+          register_session_id: string | null;
           scope: "all" | "individual";
           cashier_id: string | null;
           cashier_name: string | null;
@@ -2104,6 +2111,8 @@ export interface Database {
           sales_count: number;
           sales_total: number;
           cash_total: number;
+          cash_in: number;
+          cash_out: number;
           card_total: number;
           momo_total: number;
           other_total: number;
@@ -2123,6 +2132,7 @@ export interface Database {
           id?: string;
           org_id: string;
           location_id?: string | null;
+          register_session_id?: string | null;
           scope?: "all" | "individual";
           cashier_id?: string | null;
           cashier_name?: string | null;
@@ -2131,6 +2141,8 @@ export interface Database {
           sales_count?: number;
           sales_total?: number;
           cash_total?: number;
+          cash_in?: number;
+          cash_out?: number;
           card_total?: number;
           momo_total?: number;
           other_total?: number;
@@ -2147,6 +2159,68 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["register_closures"]["Row"]>;
+        Relationships: [];
+      };
+      pos_register_sessions: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          cashier_id: string;
+          cashier_name: string | null;
+          register_name: string;
+          shift: string | null;
+          opening_cash: number;
+          notes: string | null;
+          status: "open" | "closed";
+          opened_at: string;
+          closed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          cashier_id: string;
+          cashier_name?: string | null;
+          register_name?: string;
+          shift?: string | null;
+          opening_cash?: number;
+          notes?: string | null;
+          status?: "open" | "closed";
+          opened_at?: string;
+          closed_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pos_register_sessions"]["Row"]>;
+        Relationships: [];
+      };
+      pos_cash_movements: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          register_session_id: string;
+          movement_type: "cash_in" | "cash_out" | "paid_out";
+          amount: number;
+          reason: string;
+          reference: string | null;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          register_session_id: string;
+          movement_type: "cash_in" | "cash_out" | "paid_out";
+          amount: number;
+          reason: string;
+          reference?: string | null;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pos_cash_movements"]["Row"]>;
         Relationships: [];
       };
       customer_portal_settings: {

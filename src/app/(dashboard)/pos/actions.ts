@@ -207,16 +207,166 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
 }
 
 // ---------------------------------------------------------------------------
-// Close Register (Z-report) — snapshots today's sales/expenses for a branch,
-// either across every cashier or one specific cashier, and records it as a
-// permanent register_closures row. This is a close-out report, not a hard
-// gate on future sales — this app has no "register must be open to sell"
-// concept, and building one is a much bigger feature than this.
+// POS register sessions gate sales and are closed with an immutable cash
+// snapshot in register_closures.
 // ---------------------------------------------------------------------------
 
-export interface CashierOption {
+export interface ActivePosRegisterSession {
   id: string;
-  name: string;
+  locationId: string;
+  cashierId: string;
+  registerName: string;
+  cashierName: string | null;
+  openingCash: number;
+  openedAt: string;
+  shift: string | null;
+}
+
+export async function openPosRegister(input: {
+  locationId: string;
+  openingCash: number;
+  registerName: string;
+  shift: string;
+  notes?: string;
+}): Promise<SimpleResult> {
+  if (!await canPermission("pos", "create")) {
+    return { ok: false, error: "You do not have permission to open a register." };
+  }
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+  if (!canUseLocation(context, input.locationId)) {
+    return { ok: false, error: "You do not have access to this branch." };
+  }
+  const openingCash = Number(input.openingCash);
+  if (!Number.isFinite(openingCash) || openingCash < 0) {
+    return { ok: false, error: "Enter a valid opening cash amount." };
+  }
+  const registerName = input.registerName.trim();
+  if (!registerName || registerName.length > 80) return { ok: false, error: "Enter a register name (80 characters maximum)." };
+  if (!["morning", "afternoon", "night", "full_day"].includes(input.shift)) return { ok: false, error: "Select a valid register shift." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const db = supabase as any;
+  const { data: active, error: activeError } = await db
+    .from("pos_register_sessions")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .eq("cashier_id", user.id)
+    .eq("status", "open")
+    .maybeSingle();
+  if (activeError) return { ok: false, error: "Could not verify your register status. Please try again." };
+  if (active) return { ok: false, error: "You already have an open register session. Close it before opening another." };
+
+  const { data: location, error: locationError } = await db
+    .from("business_locations")
+    .select("id")
+    .eq("id", input.locationId)
+    .eq("org_id", context.orgId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (locationError || !location) return { ok: false, error: "This branch is unavailable or inactive." };
+
+  const { data: session, error } = await db
+    .from("pos_register_sessions")
+    .insert({
+      org_id: context.orgId,
+      location_id: input.locationId,
+      cashier_id: user.id,
+      cashier_name: user.user_metadata?.full_name ?? context.userEmail,
+      register_name: registerName,
+      shift: input.shift,
+      opening_cash: openingCash,
+      notes: input.notes?.trim() || null,
+    })
+    .select("id")
+    .single();
+  if (error || !session) {
+    return {
+      ok: false,
+      error: error?.code === "23505"
+        ? "You already have an open register session. Close it before opening another."
+        : "Could not open the register. Please try again.",
+    };
+  }
+
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
+    action: "pos.register_opened",
+    entityType: "pos_register_session",
+    entityId: session.id,
+    module: "POS",
+    description: "Register session opened.",
+    branchId: input.locationId,
+    newValues: { register_name: registerName, shift: input.shift, opening_cash: openingCash },
+  });
+  if (audit.error) {
+    return { ok: true, error: "Register opened, but the audit event could not be recorded. Notify an administrator." };
+  }
+  revalidatePath("/pos");
+  revalidatePath("/pos/open-register");
+  return { ok: true };
+}
+
+export async function recordPosCashMovement(input: {
+  registerSessionId: string;
+  type: "cash_in" | "cash_out" | "paid_out";
+  amount: number;
+  reason: string;
+  reference?: string;
+}): Promise<SimpleResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+  if (!await canPermission("pos", "edit")) {
+    return { ok: false, error: "You do not have permission to record cash movements." };
+  }
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0 || !input.reason.trim()) {
+    return { ok: false, error: "Enter a positive amount and a reason." };
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const db = supabase as any;
+  const { data: session, error: sessionError } = await db
+    .from("pos_register_sessions")
+    .select("location_id")
+    .eq("id", input.registerSessionId)
+    .eq("org_id", context.orgId)
+    .eq("cashier_id", user.id)
+    .eq("status", "open")
+    .maybeSingle();
+  if (sessionError || !session) return { ok: false, error: "The register session is not open or is unavailable." };
+  if (!canUseLocation(context, session.location_id)) return { ok: false, error: "You do not have access to this branch." };
+
+  const { data: movement, error } = await db.from("pos_cash_movements").insert({
+    org_id: context.orgId,
+    location_id: session.location_id,
+    register_session_id: input.registerSessionId,
+    movement_type: input.type,
+    amount,
+    reason: input.reason.trim(),
+    reference: input.reference?.trim() || null,
+    created_by: user.id,
+  }).select("id").single();
+  if (error || !movement) return { ok: false, error: "Could not record the cash movement. Please try again." };
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
+    action: `pos.${input.type}`,
+    entityType: "pos_cash_movement",
+    entityId: movement.id,
+    module: "POS",
+    description: `Cash drawer ${input.type.replaceAll("_", " ")} recorded.`,
+    branchId: session.location_id,
+    newValues: { amount, reason: input.reason.trim(), reference: input.reference?.trim() || null },
+  });
+  revalidatePath("/pos/cash-drawer");
+  if (audit.error) return { ok: true, error: "Movement recorded, but its audit event could not be saved. Notify an administrator." };
+  return { ok: true };
 }
 
 function startEndOfToday() {
@@ -227,48 +377,16 @@ function startEndOfToday() {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-export async function getCashiersToday(locationId: string | null): Promise<CashierOption[]> {
-  const context = await getCurrentOrgContext();
-  if (!context) return [];
-  const supabase = await createClient();
-  const { start, end } = startEndOfToday();
-
-  let q = supabase
-    .from("sales")
-    .select("sold_by")
-    .eq("org_id", context.orgId)
-    .gte("created_at", start)
-    .lt("created_at", end);
-
-  if (context.isBranchScoped && context.allowedLocationIds.length > 0) {
-    if (locationId && context.allowedLocationIds.includes(locationId)) {
-      q = q.eq("location_id", locationId);
-    } else {
-      q = q.in("location_id", context.allowedLocationIds);
-    }
-  } else if (locationId) {
-    q = q.eq("location_id", locationId);
-  }
-
-  if (!context.canViewOtherTransactions) {
-    q = q.eq("sold_by", context.userId);
-  }
-
-  const { data: soldByRows } = await q;
-  const ids = Array.from(new Set((soldByRows ?? []).map((r) => r.sold_by).filter(Boolean))) as string[];
-  if (ids.length === 0) return [];
-
-  const { data: profileRows } = await supabase.from("profiles").select("id, full_name").in("id", ids);
-  const nameById = new Map((profileRows ?? []).map((p) => [p.id, p.full_name]));
-  return ids.map((id) => ({ id, name: nameById.get(id) || "Unknown user" }));
-}
-
 export interface RegisterSummary {
   periodStart: string;
   periodEnd: string;
+  registerSessionId: string | null;
+  openingCash: number;
   salesCount: number;
   salesTotal: number;
   cashTotal: number;
+  cashIn: number;
+  cashOut: number;
   cardTotal: number;
   momoTotal: number;
   otherTotal: number;
@@ -301,15 +419,32 @@ function splitPaymentTotals(method: string | null) {
   return totals;
 }
 
-export async function getRegisterSummary(locationId: string | null, cashierId: string | null): Promise<RegisterSummary> {
+export async function getRegisterSummary(locationId: string | null, cashierId: string | null, sessionOnly = false): Promise<RegisterSummary> {
   const context = await getCurrentOrgContext();
-  const { start, end } = startEndOfToday();
+  let { start, end } = startEndOfToday();
   const empty: RegisterSummary = {
-    periodStart: start, periodEnd: end, salesCount: 0, salesTotal: 0,
-    cashTotal: 0, cardTotal: 0, momoTotal: 0, otherTotal: 0, expensesTotal: 0, netTotal: 0
+    periodStart: start, periodEnd: end, registerSessionId: null, openingCash: 0, salesCount: 0, salesTotal: 0,
+    cashTotal: 0, cashIn: 0, cashOut: 0, cardTotal: 0, momoTotal: 0, otherTotal: 0, expensesTotal: 0, netTotal: 0
   };
   if (!context) return empty;
   const supabase = await createClient();
+  let activeSession: { id: string; location_id: string; opening_cash: number; opened_at: string } | null = null;
+  if (sessionOnly) {
+    const { data, error } = await (supabase as any)
+      .from("pos_register_sessions")
+      .select("id, location_id, opening_cash, opened_at")
+      .eq("org_id", context.orgId)
+      .eq("cashier_id", cashierId ?? context.userId)
+      .eq("location_id", locationId)
+      .eq("status", "open")
+      .maybeSingle();
+    if (error) throw new Error("Could not load the open register summary.");
+    activeSession = data;
+    if (activeSession) {
+      start = activeSession.opened_at;
+      end = new Date().toISOString();
+    }
+  }
 
   let salesQuery = supabase
     .from("sales")
@@ -327,6 +462,7 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
   } else if (locationId) {
     salesQuery = salesQuery.eq("location_id", locationId);
   }
+  if (activeSession) salesQuery = salesQuery.eq("register_session_id", activeSession.id);
 
   if (!context.canViewOtherTransactions) {
     salesQuery = salesQuery.eq("sold_by", context.userId);
@@ -336,7 +472,7 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
 
   let expensesQuery = supabase
     .from("expenses")
-    .select("amount")
+    .select("amount, payment_method, created_at")
     .eq("org_id", context.orgId)
     .gte("expense_date", start.slice(0, 10))
     .lte("expense_date", end.slice(0, 10));
@@ -355,8 +491,21 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
   if (cashierId) {
     expensesQuery = expensesQuery.eq("recorded_by", cashierId);
   }
+  if (activeSession) {
+    expensesQuery = expensesQuery.gte("created_at", activeSession.opened_at).lt("created_at", end);
+  }
 
-  const [{ data: salesRows }, { data: expenseRows }] = await Promise.all([salesQuery, expensesQuery]);
+  const movementsQuery = activeSession
+    ? (supabase as any).from("pos_cash_movements")
+      .select("movement_type, amount")
+      .eq("org_id", context.orgId)
+      .eq("register_session_id", activeSession.id)
+    : null;
+  const [{ data: salesRows }, { data: expenseRows }, movementsResult] = await Promise.all([
+    salesQuery,
+    expensesQuery,
+    movementsQuery ?? Promise.resolve({ data: [] }),
+  ]);
 
   const totals = { cash: 0, card: 0, momo: 0, other: 0 };
   let salesTotal = 0;
@@ -372,14 +521,29 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
       totals[bucketPaymentMethod(s.payment_method)] += s.total;
     }
   }
-  const expensesTotal = (expenseRows ?? []).reduce((sum, e) => sum + e.amount, 0);
+  const expensesTotal = (expenseRows ?? []).reduce(
+    (sum, expense) => sum + (/^cash\b/i.test(expense.payment_method ?? "") ? Number(expense.amount) : 0),
+    0,
+  );
+  const cashIn = (movementsResult.data ?? []).reduce(
+    (sum: number, movement: { movement_type: string; amount: number }) => sum + (movement.movement_type === "cash_in" ? Number(movement.amount) : 0),
+    0,
+  );
+  const cashOut = (movementsResult.data ?? []).reduce(
+    (sum: number, movement: { movement_type: string; amount: number }) => sum + (movement.movement_type !== "cash_in" ? Number(movement.amount) : 0),
+    0,
+  );
 
   return {
     periodStart: start,
     periodEnd: end,
+    registerSessionId: activeSession?.id ?? null,
+    openingCash: Number(activeSession?.opening_cash ?? 0),
     salesCount: (salesRows ?? []).length,
     salesTotal,
     cashTotal: totals.cash,
+    cashIn,
+    cashOut,
     cardTotal: totals.card,
     momoTotal: totals.momo,
     otherTotal: totals.other,
@@ -390,9 +554,6 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
 
 export interface CloseRegisterInput {
   locationId: string | null;
-  scope: "all" | "individual";
-  cashierId: string | null;
-  cashierName: string | null;
   actualCash: number;
   varianceReason: string | null;
   denominations: Array<{ denomination: number; quantity: number }>;
@@ -410,40 +571,32 @@ export async function closeRegister(input: CloseRegisterInput): Promise<SimpleRe
   const supabase = await createClient() as any;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
-  const { start, end } = startEndOfToday();
-  const { data: activeClosures } = await supabase
-    .from("register_closures")
-    .select("id, location_id, scope, cashier_id, status")
+  const { data: activeSession, error: sessionError } = await supabase
+    .from("pos_register_sessions")
+    .select("id, location_id, opening_cash, opened_at")
     .eq("org_id", context.orgId)
-    .eq("period_start", startEndOfToday().start)
-    .eq("period_end", startEndOfToday().end)
-    .in("status", ["approved", "pending_approval"]);
-  if ((activeClosures ?? []).some((closure: { location_id: string | null; scope: "all" | "individual"; cashier_id: string | null }) =>
-    (closure.location_id === null || closure.location_id === input.locationId) &&
-    (closure.scope === "all" || closure.cashier_id === input.cashierId)
-  )) {
-    return { ok: false, error: "This register or cashier has already been closed for today." };
-  }
-
-  const summary = await getRegisterSummary(input.locationId, input.scope === "individual" ? input.cashierId : null);
-
-  if (input.scope === "individual" && !input.cashierId) {
-    return { ok: false, error: "A cashier is required for an individual closure." };
-  }
+    .eq("cashier_id", user.id)
+    .eq("location_id", input.locationId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (sessionError) return { ok: false, error: "Could not verify that your register is open." };
+  if (!activeSession) return { ok: false, error: "There is no open register session to close." };
+  const summary = await getRegisterSummary(input.locationId, user.id, true);
 
   // Reject an already-covered period before inserting. The database trigger
   // below repeats this check so concurrent requests cannot create overlaps.
   const { data: overlappingClosures, error: overlapError } = await supabase
     .from("register_closures")
-    .select("id, location_id, scope, cashier_id")
+    .select("id, location_id, scope, cashier_id, register_session_id")
     .eq("org_id", context.orgId)
     .lt("period_start", summary.periodEnd)
     .gt("period_end", summary.periodStart);
   if (overlapError) return { ok: false, error: overlapError.message };
 
-  const overlaps = (overlappingClosures ?? []).some((closure: { location_id: string | null; scope: "all" | "individual"; cashier_id: string | null }) => {
+  const overlaps = (overlappingClosures ?? []).some((closure: { location_id: string | null; scope: "all" | "individual"; cashier_id: string | null; register_session_id: string | null }) => {
+    if (!closure.register_session_id) return false;
     const sameLocation = closure.location_id === null || input.locationId === null || closure.location_id === input.locationId;
-    const sameCashier = closure.scope === "all" || input.scope === "all" || closure.cashier_id === input.cashierId;
+    const sameCashier = closure.scope === "all" || closure.cashier_id === user.id;
     return sameLocation && sameCashier;
   });
   if (overlaps) {
@@ -451,18 +604,26 @@ export async function closeRegister(input: CloseRegisterInput): Promise<SimpleRe
   }
   const actualCash = Number(input.actualCash);
   if (!Number.isFinite(actualCash) || actualCash < 0) return { ok: false, error: "Enter a valid physical cash amount." };
-  const expectedCash = Math.max(0, summary.cashTotal - summary.expensesTotal);
+  const denominations = input.denominations
+    .filter((line) => Number.isFinite(line.denomination) && line.denomination > 0 && Number.isInteger(line.quantity) && line.quantity > 0);
+  if (denominations.length) {
+    const denominationTotal = denominations.reduce((sum, line) => sum + line.denomination * line.quantity, 0);
+    if (Math.abs(denominationTotal - actualCash) > 0.01) {
+      return { ok: false, error: "Denomination total must match the physical cash counted." };
+    }
+  }
+  const openingCash = Number(activeSession.opening_cash ?? 0);
+  const expectedCash = Math.max(0, openingCash + summary.cashTotal + summary.cashIn - summary.cashOut - summary.expensesTotal);
   const variance = Number((actualCash - expectedCash).toFixed(2));
   if (Math.abs(variance) > 0.005 && !input.varianceReason?.trim()) {
     return { ok: false, error: "A variance reason is required when counted cash differs from expected cash." };
   }
 
-  const { data: closure, error } = await supabase.from("register_closures").insert({
+  const closurePayload = {
     org_id: context.orgId,
     location_id: input.locationId,
-    scope: input.scope,
-    cashier_id: input.scope === "individual" ? input.cashierId : null,
-    cashier_name: input.scope === "individual" ? input.cashierName : null,
+    register_session_id: activeSession.id,
+    closed_by: user.id,
     period_start: summary.periodStart,
     period_end: summary.periodEnd,
     sales_count: summary.salesCount,
@@ -472,25 +633,40 @@ export async function closeRegister(input: CloseRegisterInput): Promise<SimpleRe
     momo_total: summary.momoTotal,
     other_total: summary.otherTotal,
     expenses_total: summary.expensesTotal,
+    cash_in: summary.cashIn,
+    cash_out: summary.cashOut,
     net_total: summary.netTotal,
     actual_cash: actualCash,
-    opening_cash: 0,
+    opening_cash: openingCash,
     variance,
     variance_reason: input.varianceReason?.trim() || null,
     status: Math.abs(variance) > 0.005 ? "pending_approval" : "approved",
     approved_by: Math.abs(variance) > 0.005 ? null : user.id,
     approved_at: Math.abs(variance) > 0.005 ? null : new Date().toISOString(),
-    closed_by: user.id,
-  }).select("id").single();
-  if (error) return { ok: false, error: error.message };
-  if (input.denominations.length && closure) {
-    const lines = input.denominations
-      .filter((line) => Number.isFinite(line.denomination) && line.denomination > 0 && Number.isInteger(line.quantity) && line.quantity > 0)
-      .map((line) => ({ closure_id: closure.id, org_id: context.orgId, denomination: line.denomination, quantity: line.quantity }));
-    if (lines.length) {
-      const { error: lineError } = await supabase.from("register_closure_lines").insert(lines);
-      if (lineError) return { ok: false, error: lineError.message };
-    }
+  };
+  const admin = createAdminClient();
+  const { data: closureId, error } = await (admin as any).rpc("close_pos_register_session", {
+    p_session_id: activeSession.id,
+    p_org_id: context.orgId,
+    p_cashier_id: user.id,
+    p_closure: closurePayload,
+    p_denominations: denominations,
+  });
+  if (error || !closureId) return { ok: false, error: error?.message ?? "Could not close the register session." };
+  const audit = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: user.id,
+    action: "pos.register_closed",
+    entityType: "pos_register_session",
+    entityId: activeSession.id,
+    module: "POS",
+    description: "Register session closed.",
+    branchId: input.locationId,
+    newValues: { closure_id: closureId, actual_cash: actualCash, variance },
+  });
+  if (audit.error) {
+    revalidatePath("/pos");
+    return { ok: true, error: "Register closed, but the audit event could not be recorded. Notify an administrator." };
   }
   revalidatePath("/pos");
   return { ok: true };
@@ -516,7 +692,7 @@ export async function listRegisterClosures(locationId: string | null, limit: num
 
   let q = supabase
     .from("register_closures")
-    .select("id, scope, cashier_name, period_start, period_end, sales_count, sales_total, cash_total, card_total, momo_total, other_total, expenses_total, net_total, actual_cash, variance, status, created_at, business_locations(name)")
+    .select("id, scope, cashier_name, period_start, period_end, sales_count, sales_total, cash_total, cash_in, cash_out, card_total, momo_total, other_total, expenses_total, net_total, opening_cash, register_session_id, actual_cash, variance, status, created_at, business_locations(name)")
     .eq("org_id", context.orgId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -552,9 +728,13 @@ export async function listRegisterClosures(locationId: string | null, limit: num
       locationName: location?.name ?? null,
       periodStart: r.period_start,
       periodEnd: r.period_end,
+      registerSessionId: r.register_session_id,
+      openingCash: Number(r.opening_cash ?? 0),
       salesCount: r.sales_count,
       salesTotal: r.sales_total,
       cashTotal: r.cash_total,
+      cashIn: Number(r.cash_in ?? 0),
+      cashOut: Number(r.cash_out ?? 0),
       cardTotal: r.card_total,
       momoTotal: r.momo_total,
       otherTotal: r.other_total,
@@ -891,6 +1071,16 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  const { data: activeSession, error: sessionError } = await (supabase as any)
+    .from("pos_register_sessions")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .eq("cashier_id", user.id)
+    .eq("location_id", input.locationId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (sessionError) return { ok: false, error: "Could not verify that your register is open." };
+  if (!activeSession) return { ok: false, error: "Open a register before processing a sale." };
   const { start, end } = startEndOfToday();
   const { data: activeClosures } = await supabase
     .from("register_closures")
@@ -980,6 +1170,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       payment_method: input.paymentMethod,
       amount_paid: total, // POS sales are paid in full at the point of sale
       sold_by: user.id,
+      register_session_id: activeSession.id,
       status: "completed",
       sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
     })
@@ -1153,9 +1344,22 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  const { data: activeSession, error: sessionError } = await supabase
+    .from("pos_register_sessions")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .eq("cashier_id", user.id)
+    .eq("location_id", input.locationId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (sessionError) return { ok: false, error: "Could not verify that your register is open." };
+  if (!activeSession) return { ok: false, error: "Open a register before editing a POS sale." };
 
-  const { data: oldSale } = await supabase.from("sales").select("location_id, total").eq("id", saleId).single();
+  const { data: oldSale } = await supabase.from("sales").select("location_id, total, register_session_id").eq("id", saleId).single();
   if (!oldSale) return { ok: false, error: "Sale not found." };
+  if (oldSale.register_session_id && (oldSale.register_session_id !== activeSession.id || oldSale.location_id !== input.locationId)) {
+    return { ok: false, error: "This sale belongs to a different register session or branch and cannot be edited here." };
+  }
   if (!canUseLocation(context, oldSale.location_id) || !canUseLocation(context, input.locationId)) {
     return { ok: false, error: "You are not assigned to this branch." };
   }
@@ -1225,6 +1429,7 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
       customer_name: input.customerName,
       customer_id: input.customerId,
       location_id: input.locationId,
+      register_session_id: activeSession.id,
       subtotal,
       discount_amount: totalDiscount,
       tax_amount: tax,

@@ -9,7 +9,7 @@ import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
 
-export type CashSummary = { opening: number; sales: number; discounts: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; expected: number };
+export type CashSummary = { opening: number; sales: number; discounts: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; posCashIn: number; posCashOut: number; posRegisterSessionCount: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
 function splitAmount(method: unknown, bucket: "cash" | "momo" | "card") {
   const value = String(method ?? "");
@@ -110,9 +110,10 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     return q;
   };
   const dayStart = `${date}T00:00:00.000Z`;
-  const dayEnd = `${date}T23:59:59.999Z`;
-  const salesDayFilter = `or(and(created_at.gte.${dayStart},created_at.lte.${dayEnd}),and(status_changed_at.gte.${dayStart},status_changed_at.lte.${dayEnd}))`;
-  let salesQuery = scoped(db.from("sales").select("total, discount_amount, amount_paid, refunded_amount, payment_method, status, created_at, status_changed_at, sold_by").eq("org_id", ctx.orgId).in("status", ["completed", "returned"]).or(salesDayFilter));
+  const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const dayEndInclusive = new Date(new Date(dayEnd).getTime() - 1).toISOString();
+  const salesDayFilter = `or(and(created_at.gte.${dayStart},created_at.lte.${dayEndInclusive}),and(status_changed_at.gte.${dayStart},status_changed_at.lte.${dayEndInclusive}))`;
+  let salesQuery = scoped(db.from("sales").select("total, discount_amount, amount_paid, refunded_amount, payment_method, refund_payment_method, refund_register_session_id, status, created_at, status_changed_at, sold_by").eq("org_id", ctx.orgId).in("status", ["completed", "returned"]).or(salesDayFilter));
   let expenseQuery = scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on, expense_date, recorded_by").eq("org_id", ctx.orgId).eq("payment_status", "paid").or(`expense_date.eq.${date},paid_on.eq.${date}`));
   let customerPaymentQuery = scoped(db.from("customer_credit_payments").select("amount, payment_method, recorded_by").eq("org_id", ctx.orgId).eq("payment_date", date));
   if (userId) {
@@ -121,13 +122,33 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     customerPaymentQuery = customerPaymentQuery.eq("recorded_by", userId);
   }
   let txQ = db.from("bank_transactions").select("amount, type, recorded_by").eq("org_id", ctx.orgId).eq("transaction_date", date);
+  let posMovementQuery = db.from("pos_cash_movements")
+    .select("movement_type, amount")
+    .eq("org_id", ctx.orgId)
+    .gte("created_at", dayStart)
+    .lt("created_at", dayEnd);
+  let posSessionQuery = db.from("pos_register_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", ctx.orgId)
+    .gte("opened_at", dayStart)
+    .lt("opened_at", dayEnd);
+  posMovementQuery = scoped(posMovementQuery);
+  posSessionQuery = scoped(posSessionQuery);
+  if (userId) {
+    posMovementQuery = posMovementQuery.eq("created_by", userId);
+    posSessionQuery = posSessionQuery.eq("cashier_id", userId);
+  }
   const [salesQ, expQ, acctQ] = [
     salesQuery,
     expenseQuery,
     db.from("bank_accounts").select("opening_balance").eq("org_id", ctx.orgId).eq("account_type", "cash"),
   ];
   if (userId) txQ = txQ.eq("recorded_by", userId);
-  const [{ data: sales }, expenseResult, { data: transactions }, { data: accounts }, { data: customerPayments }] = await Promise.all([salesQ, expQ, txQ, acctQ, customerPaymentQuery]);
+  const [{ data: sales }, expenseResult, { data: transactions }, { data: accounts }, { data: customerPayments }, { data: posMovements, error: posMovementError }, { count: posSessionCount, error: posSessionError }] = await Promise.all([
+    salesQ, expQ, txQ, acctQ, customerPaymentQuery, posMovementQuery, posSessionQuery,
+  ]);
+  if (posMovementError) throw new Error(`Could not load POS drawer movements: ${posMovementError.message}`);
+  if (posSessionError) throw new Error(`Could not load POS register sessions: ${posSessionError.message}`);
   const expenses = expenseResult.error
     ? (await (() => {
         let query = scoped(db.from("expenses").select("amount, payment_method, expense_date, recorded_by").eq("org_id", ctx.orgId).eq("expense_date", date));
@@ -159,7 +180,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
     .reduce((a: number, s: Record<string, unknown>) => a + (splitAmount(s.payment_method, "momo") ?? n(s.amount_paid ?? s.total)), 0);
   const refunds = (sales ?? [])
-    .filter((s: Record<string, unknown>) => s.status === "returned" && String(s.payment_method ?? "").toLowerCase().includes("cash"))
+    .filter((s: Record<string, unknown>) => s.status === "returned" && !s.refund_register_session_id && String(s.refund_payment_method ?? s.payment_method ?? "").toLowerCase().includes("cash"))
     .filter((s: Record<string, unknown>) => String(s.status_changed_at ?? "").slice(0, 10) === date)
     .reduce((a: number, s: Record<string, unknown>) => a + n(s.refunded_amount), 0);
   const cashExpenses = (expenses ?? [])
@@ -178,7 +199,24 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
   const opening = (accounts ?? []).reduce((a: number, x: Record<string, unknown>) => a + n(x.opening_balance), 0);
   const totalElectronic = electronic + customerElectronicPayments;
-  return { opening, sales: cashSales, discounts, debt: customerDebt, customerPayments: customerCashPayments, electronic: totalElectronic, refunds, expenses: cashExpenses, deposits, withdrawals, expected: opening + cashSales - customerDebt + customerCashPayments - refunds - cashExpenses - deposits - withdrawals };
+  const posCashIn = (posMovements ?? []).reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type === "cash_in" ? n(movement.amount) : 0), 0);
+  const posCashOut = (posMovements ?? []).reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type !== "cash_in" ? n(movement.amount) : 0), 0);
+  return {
+    opening,
+    sales: cashSales,
+    discounts,
+    debt: customerDebt,
+    customerPayments: customerCashPayments,
+    electronic: totalElectronic,
+    refunds,
+    expenses: cashExpenses,
+    deposits,
+    withdrawals,
+    posCashIn,
+    posCashOut,
+    posRegisterSessionCount: posSessionCount ?? 0,
+    expected: opening + cashSales - customerDebt + customerCashPayments - refunds - cashExpenses - deposits - withdrawals + posCashIn - posCashOut,
+  };
 }
 
 export async function createCashClosing(formData: FormData) {
@@ -211,7 +249,8 @@ export async function createCashClosing(formData: FormData) {
   const { data: closing, error } = await db.from("cash_closings").insert({
     org_id: ctx.orgId, location_id: locationId, closing_date: date, period_start: `${date}T00:00:00Z`, period_end: `${date}T23:59:59Z`,
     opening_cash: summary.opening, cash_sales: summary.sales, cash_receipts: summary.debt, cash_customer_payments: summary.customerPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
-    deposits: summary.deposits, withdrawals: summary.withdrawals, expected_cash: summary.expected, actual_cash: actual, variance, classification,
+    deposits: summary.deposits, withdrawals: summary.withdrawals, pos_cash_in: summary.posCashIn, pos_cash_out: summary.posCashOut,
+    pos_register_session_count: summary.posRegisterSessionCount, expected_cash: summary.expected, actual_cash: actual, variance, classification,
     variance_reason: varianceReason || null, notes: notes || null, comments: notes || null, shift,
     coin_breakdown: { notes: notesCount, coins: coinCount }, created_by: ctx.userId, staff_id: ctx.userId,
     approval_threshold: threshold, approval_required: approvalRequired,

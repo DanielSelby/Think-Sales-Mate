@@ -30,7 +30,7 @@ const DIALOG_COPY: Record<SaleStatus, { title: string; description: string }> = 
   },
   returned: {
     title: "Mark as Returned",
-    description: "Choose how many units of each line are coming back. Stock is restocked automatically.",
+    description: "Choose the returned items, refund amount and refund method. Cash refunds are recorded against your open register.",
   },
   cancelled: {
     title: "Mark as Cancelled",
@@ -46,8 +46,10 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
   const [lines, setLines] = React.useState<ReturnableLine[] | null>(null);
   const [returnQty, setReturnQty] = React.useState<Record<string, string>>({});
   const [refundInput, setRefundInput] = React.useState(String(total));
+  const [refundPaymentMethod, setRefundPaymentMethod] = React.useState("");
   const [note, setNote] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
   const [loadingLines, setLoadingLines] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
 
@@ -64,8 +66,10 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
     setMenuOpen(false);
     setTarget(nextStatus);
     setRefundInput(String(total));
+    setRefundPaymentMethod("");
     setNote("");
     setError(null);
+    setNotice(null);
     setLines(null);
     setReturnQty({});
 
@@ -129,15 +133,20 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
         setError("Refund amount can't exceed the sale total.");
         return;
       }
+      if (refundedAmount > 0 && !refundPaymentMethod) {
+        setError("Select how the refund is being paid.");
+        return;
+      }
     }
 
     startTransition(async () => {
-      const result = await updateSaleStatus({ saleId, status: target, refundedAmount, note, returnLines });
+      const result = await updateSaleStatus({ saleId, status: target, refundedAmount, refundPaymentMethod: refundPaymentMethod || null, note, returnLines });
       if (!result.ok) {
         setError(result.error ?? "Something went wrong. Try again.");
         return;
       }
       setTarget(null);
+      if (result.error) setNotice(result.error);
       router.refresh();
     });
   }
@@ -176,6 +185,7 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
           </div>
         )}
       </div>
+      {notice && <p role="status" className="mt-1 max-w-64 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">{notice}</p>}
 
       <Dialog
         open={target !== null}
@@ -224,19 +234,36 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
           )}
 
           {target === "returned" && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-ledger-500">
+            <div className="space-y-3">
+              <label className="block text-xs font-medium text-ledger-500">
                 Refund amount ({formatCurrency(total, currency)} total)
+                <input
+                  type="number"
+                  min={0}
+                  max={total}
+                  step="0.01"
+                  value={refundInput}
+                  onChange={(e) => setRefundInput(e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                />
               </label>
-              <input
-                type="number"
-                min={0}
-                max={total}
-                step="0.01"
-                value={refundInput}
-                onChange={(e) => setRefundInput(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-              />
+              <label className="block text-xs font-medium text-ledger-500">
+                Refund paid by {Number(refundInput) > 0 && <span className="text-alert">*</span>}
+                <select
+                  value={refundPaymentMethod}
+                  onChange={(e) => setRefundPaymentMethod(e.target.value)}
+                  required={Number(refundInput) > 0}
+                  className="mt-1 h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                >
+                  <option value="">Select refund method</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="Mobile Money">Mobile Money</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
             </div>
           )}
 

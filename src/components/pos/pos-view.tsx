@@ -8,7 +8,7 @@ import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
   X, Trash2, Inbox, ChevronsLeft, XCircle, Briefcase, Calculator as CalculatorIcon,
  RotateCcw, Keyboard, PlusCircle, Plus, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar, ChevronsRight,
-  Lock, Download, Users, User,
+  Lock, Download,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,9 @@ import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
   getRecentPosSales, getSaleForEdit, updateSale, getInvoiceData,
-  getCashiersToday, getRegisterSummary, closeRegister, listRegisterClosures, approveRegisterClosure,
-  type CartItemInput, type CustomerOption, type HeldSaleSummary, type RecentSale, type NewContactInput,
-  type CashierOption, type RegisterSummary, type RegisterClosureRecord,
+  getRegisterSummary, closeRegister, listRegisterClosures, approveRegisterClosure,
+  type ActivePosRegisterSession, type CartItemInput, type CustomerOption, type HeldSaleSummary, type RecentSale, type NewContactInput,
+  type RegisterSummary, type RegisterClosureRecord,
 } from "@/app/(dashboard)/pos/actions";
 import type { HeldSaleKind } from "@/types/database";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
@@ -67,6 +67,7 @@ interface PosViewProps {
   useSystemPrices: boolean;
   mobileMoneyAccounts: MobileMoneyAccount[];
   canApproveRegisterClosures: boolean;
+  registerSession: ActivePosRegisterSession;
 }
 
 interface CartLine extends CartItemInput {
@@ -89,7 +90,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures }: PosViewProps) {
+export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, registerSession }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -156,9 +157,6 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
   const [registerOpen, setRegisterOpen] = React.useState(false);
   const [registerTab, setRegisterTab] = React.useState<"close" | "history">("close");
-  const [registerScope, setRegisterScope] = React.useState<"all" | "individual">("all");
-  const [registerCashierId, setRegisterCashierId] = React.useState<string | null>(null);
-  const [cashiersToday, setCashiersToday] = React.useState<CashierOption[]>([]);
   const [registerSummary, setRegisterSummary] = React.useState<RegisterSummary | null>(null);
   const [registerLoading, setRegisterLoading] = React.useState(false);
   const [registerClosing, setRegisterClosing] = React.useState(false);
@@ -412,6 +410,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
     if (!navigator.onLine) {
       const cartItems = buildCartInput();
       const offlinePayload = {
+        posRegisterSessionId: registerSession.id,
         locationId,
         customerId: customer?.id ?? null,
         customerName: customer?.name ?? null,
@@ -592,57 +591,35 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
   function openRegisterDialog() {
     setRegisterOpen(true);
     setRegisterTab("close");
-    setRegisterScope("all");
-    setRegisterCashierId(null);
     setRegisterSummary(null);
     setRegisterActualCash("");
     setRegisterDenominations({});
     setRegisterVarianceReason("");
-    reloadRegisterSummary("all", null);
-    getCashiersToday(locationId).then(setCashiersToday);
+    reloadRegisterSummary();
   }
 
-  function reloadRegisterSummary(scope: "all" | "individual", cashierId: string | null) {
+  function reloadRegisterSummary() {
     setRegisterLoading(true);
-    getRegisterSummary(locationId, scope === "individual" ? cashierId : null).then((s) => {
-      setRegisterSummary(s);
-      setRegisterLoading(false);
-    });
-  }
-
-  function handleRegisterScopeChange(scope: "all" | "individual") {
-    setRegisterScope(scope);
-    if (scope === "all") {
-      setRegisterCashierId(null);
-      reloadRegisterSummary("all", null);
-    } else if (registerCashierId) {
-      reloadRegisterSummary("individual", registerCashierId);
-    } else {
-      setRegisterSummary(null);
-    }
-  }
-
-  function handleRegisterCashierChange(cashierId: string) {
-    setRegisterCashierId(cashierId);
-    reloadRegisterSummary("individual", cashierId);
+    getRegisterSummary(locationId, registerSession.cashierId, true)
+      .then(setRegisterSummary)
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : "Could not load the register summary.");
+      })
+      .finally(() => setRegisterLoading(false));
   }
 
   function handleCloseRegister() {
-    if (registerScope === "individual" && !registerCashierId) {
-      setError("Select which cashier to close.");
+    if (registerActualCash.trim() === "") {
+      setError("Enter the physical cash counted before closing the register.");
       return;
     }
     setRegisterClosing(true);
-    const cashierName = cashiersToday.find((c) => c.id === registerCashierId)?.name ?? null;
     startTransition(async () => {
       const denominationLines = Object.entries(registerDenominations)
         .map(([denomination, quantity]) => ({ denomination: Number(denomination), quantity: Math.max(0, Math.floor(quantity)) }))
         .filter((line) => line.denomination > 0 && line.quantity > 0);
       const result = await closeRegister({
         locationId,
-        scope: registerScope,
-        cashierId: registerCashierId,
-        cashierName,
         actualCash: Number(registerActualCash) || 0,
         varianceReason: registerVarianceReason.trim() || null,
         denominations: denominationLines,
@@ -652,9 +629,8 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         setError(result.error ?? "Couldn't close the register.");
         return;
       }
-      showNotice("Register closed — recorded in history.");
-      loadRegisterHistory();
-      setRegisterTab("history");
+      router.replace(result.error ? "/pos/open-register?closed=1&auditWarning=1" : "/pos/open-register?closed=1");
+      router.refresh();
     });
   }
 
@@ -782,6 +758,10 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         />
       )}
       {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+        <span className="font-semibold">{registerSession.registerName} · Register Open · {registerSession.cashierName ?? cashierName} · {locations.find((location) => location.id === registerSession.locationId)?.name ?? "Assigned branch"}</span>
+        <Link href="/pos/cash-drawer" className="font-semibold underline underline-offset-2">Cash Drawer</Link>
+      </div>
 
       {/* Toolbar */}
       <div className="pos-toolbar flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
@@ -1405,45 +1385,20 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
           {registerTab === "close" && (
             <div className="space-y-3">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleRegisterScopeChange("all")}
-                  className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold", registerScope === "all" ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700 dark:text-ledger-300")}
-                >
-                  <Users className="h-3.5 w-3.5" /> All cashiers
-                </button>
-                <button
-                  onClick={() => handleRegisterScopeChange("individual")}
-                  className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold", registerScope === "individual" ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700 dark:text-ledger-300")}
-                >
-                  <User className="h-3.5 w-3.5" /> Individual
-                </button>
-              </div>
-
-              {registerScope === "individual" && (
-                cashiersToday.length === 0 ? (
-                  <p className="rounded-md border border-dashed border-ledger-200 py-4 text-center text-xs text-ledger-400 dark:border-ledger-700">No one has sold anything at this branch today yet.</p>
-                ) : (
-                  <select
-                    value={registerCashierId ?? ""}
-                    onChange={(e) => handleRegisterCashierChange(e.target.value)}
-                    className="h-10 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm text-ink-900"
-                  >
-                    <option value="" disabled>Select a cashier...</option>
-                    {cashiersToday.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                )
-              )}
+              <p className="rounded-md border border-ledger-200 bg-slate-50/50 px-3 py-2 text-sm text-ledger-600 dark:border-ledger-700 dark:bg-slate-800/60 dark:text-ledger-300">
+                Closing {registerSession.registerName} for {registerSession.cashierName ?? cashierName}
+              </p>
 
               {registerLoading && <p className="py-6 text-center text-sm text-ledger-400">Loading summary...</p>}
 
-              {!registerLoading && registerSummary && (registerScope === "all" || registerCashierId) && (
+              {!registerLoading && registerSummary && (
                 <>
                   <div className="rounded-md border border-ledger-200 bg-slate-50/50 dark:border-ledger-700 dark:bg-slate-800/60">
                     <div className="flex items-center justify-between border-b border-ledger-100 px-3 py-2 text-sm dark:border-ledger-700">
                       <span className="text-ledger-500 dark:text-ledger-400">Sales ({registerSummary.salesCount})</span>
                       <span className="font-bold text-ink-900 dark:text-white">{formatCurrency(registerSummary.salesTotal, currency)}</span>
                     </div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500 dark:text-ledger-400"><span>Opening cash</span><span>{formatCurrency(registerSummary.openingCash, currency)}</span></div>
 
                     <div className="space-y-2 rounded-md border border-ledger-200 bg-slate-50/50 p-3 dark:border-ledger-700 dark:bg-slate-800/60">
                       <label className="block text-xs font-semibold text-ledger-600 dark:text-ledger-300">Physical cash counted</label>
@@ -1457,22 +1412,25 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                         ))}
                       </div>
                       <p className="text-xs text-ledger-500 dark:text-ledger-400">Denomination total: {formatCurrency(Object.entries(registerDenominations).reduce((sum, [denomination, quantity]) => sum + Number(denomination) * (Number(quantity) || 0), 0), currency)}</p>
-                      {Number(registerActualCash) > 0 && <p className={cn("text-xs font-semibold", Number(registerActualCash) - ((registerSummary?.cashTotal ?? 0) - (registerSummary?.expensesTotal ?? 0)) < 0 ? "text-alert" : "text-signal")}>Cash variance: {formatCurrency(Number(registerActualCash) - ((registerSummary?.cashTotal ?? 0) - (registerSummary?.expensesTotal ?? 0)), currency)}</p>}
+                      {Number(registerActualCash) > 0 && <p className={cn("text-xs font-semibold", Number(registerActualCash) - ((registerSummary?.openingCash ?? 0) + (registerSummary?.cashTotal ?? 0) + (registerSummary?.cashIn ?? 0) - (registerSummary?.cashOut ?? 0) - (registerSummary?.expensesTotal ?? 0)) < 0 ? "text-alert" : "text-signal")}>Cash variance: {formatCurrency(Number(registerActualCash) - ((registerSummary?.openingCash ?? 0) + (registerSummary?.cashTotal ?? 0) + (registerSummary?.cashIn ?? 0) - (registerSummary?.cashOut ?? 0) - (registerSummary?.expensesTotal ?? 0)), currency)}</p>}
                       <input value={registerVarianceReason} onChange={(e) => setRegisterVarianceReason(e.target.value)} className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs text-ink-900 placeholder:text-ledger-400 dark:border-ledger-700" placeholder="Reason for variance (if any)" />
                     </div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500 dark:text-ledger-400"><span>Cash</span><span>{formatCurrency(registerSummary.cashTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500 dark:text-ledger-400"><span>Card</span><span>{formatCurrency(registerSummary.cardTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500 dark:text-ledger-400"><span>MoMo</span><span>{formatCurrency(registerSummary.momoTotal, currency)}</span></div>
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500 dark:text-ledger-400"><span>Other (credit/split)</span><span>{formatCurrency(registerSummary.otherTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500 dark:text-ledger-400"><span>Cash In</span><span>{formatCurrency(registerSummary.cashIn, currency)}</span></div>
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-ledger-500 dark:text-ledger-400"><span>Cash Out / Paid Out</span><span>−{formatCurrency(registerSummary.cashOut, currency)}</span></div>
                     <div className="flex items-center justify-between border-t border-ledger-100 px-3 py-2 text-xs text-alert dark:border-ledger-700"><span>Expenses</span><span>−{formatCurrency(registerSummary.expensesTotal, currency)}</span></div>
                     <div className="flex items-center justify-between border-t border-ledger-100 bg-signal-soft px-3 py-2 text-sm font-bold text-signal dark:border-ledger-700 dark:bg-signal/10"><span>Net</span><span>{formatCurrency(registerSummary.netTotal, currency)}</span></div>
+                    <div className="flex items-center justify-between border-t border-ledger-100 px-3 py-2 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:text-white"><span>Expected cash</span><span>{formatCurrency(Math.max(0, registerSummary.openingCash + registerSummary.cashTotal + registerSummary.cashIn - registerSummary.cashOut - registerSummary.expensesTotal), currency)}</span></div>
                   </div>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => exportSummaryCsv(registerSummary, registerScope === "all" ? "All cashiers" : (cashiersToday.find((c) => c.id === registerCashierId)?.name ?? ""))}>
+                    <Button variant="outline" size="sm" onClick={() => exportSummaryCsv(registerSummary, registerSession.cashierName ?? cashierName)}>
                       <Download className="h-3.5 w-3.5" /> Export CSV
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => printSummary(registerSummary, registerScope === "all" ? "All cashiers" : (cashiersToday.find((c) => c.id === registerCashierId)?.name ?? ""))}>
+                    <Button variant="outline" size="sm" onClick={() => printSummary(registerSummary, registerSession.cashierName ?? cashierName)}>
                       <Printer className="h-3.5 w-3.5" /> Print / Save as PDF
                     </Button>
                   </div>
@@ -1480,7 +1438,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
                   <Button variant="primary" className="w-full bg-amber hover:bg-amber/90" onClick={handleCloseRegister} disabled={registerClosing}>
                     {registerClosing && <Loader2 className="h-4 w-4 animate-spin" />} Close Register
                   </Button>
-                  <p className="text-center text-[11px] text-ledger-400">This records today's totals as a close-out — it doesn't stop new sales from being made.</p>
+                  <p className="text-center text-[11px] text-ledger-400">This closes your active register session. Open a new session before processing more POS transactions.</p>
                 </>
               )}
             </div>
