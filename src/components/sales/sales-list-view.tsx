@@ -343,14 +343,14 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Filter bar */}
-      <Card accent="neutral" className="rounded-2xl border-0 shadow-card">
+      <Card accent="neutral" className="rounded-2xl border border-ledger-100 shadow-card dark:border-ledger-700">
         <CardContent className="pt-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
             <button type="button" onClick={resetFilters} className="text-xs font-medium text-signal hover:underline">Clear filters</button>
           </div>
-          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-8">
-            <div className="relative min-w-0 sm:col-span-2 xl:col-span-2">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="relative min-w-[240px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
               <Input
                 value={query}
@@ -358,13 +358,13 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                 placeholder="Search by number, customer or reference..."
                 className="pl-9"
                 style={{
-                  background: darkMode ? "#0a0c11" : theme.colors.primaryPale,
+                  backgroundColor: darkMode ? "#000000" : theme.colors.primaryPale,
                   borderColor: darkMode ? "#334155" : `${theme.colors.primary}35`,
                 }}
               />
             </div>
 
-            <div className="min-w-0">
+            <div className="w-40">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Date Range</label>
               <Select value={dateFilter} onChange={(e) => applyDateFilter(e.target.value as SalesDateFilter)}>
                 <option value="all">All Dates</option>
@@ -376,7 +376,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <div className="min-w-0">
+            <div className="w-40">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Branch</label>
               <Select value={location} onChange={(e) => { setLocation(e.target.value); setBranch(e.target.value); setPage(1); }}>
                 <option value="all">All Branches</option>
@@ -386,7 +386,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <div className="min-w-0">
+            <div className="w-40">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Sales Rep</label>
               <Select value={salesRep} onChange={(e) => { setSalesRep(e.target.value); setPage(1); }}>
                 <option value="all">All Sales Reps</option>
@@ -396,7 +396,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <div className="min-w-0">
+            <div className="w-40">
               <label className="mb-1 block text-xs font-medium text-ledger-500">Payment Status</label>
               <Select value={paymentStatus} onChange={(e) => { setPaymentStatus(e.target.value as "all" | PaymentStatus); setPage(1); }}>
                 <option value="all">All</option>
@@ -406,26 +406,26 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
               </Select>
             </div>
 
-            <Button className="w-full" variant="outline" size="md" onClick={() => setShowMoreFilters((s) => !s)}>
+            <Button variant="outline" size="md" onClick={() => setShowMoreFilters((s) => !s)}>
               <Filter className="h-4 w-4" />
               More Filters
             </Button>
-            <Button className="w-full" variant="ghost" size="md" onClick={resetFilters}>
+            <Button variant="ghost" size="md" onClick={resetFilters}>
               Clear
             </Button>
           </div>
 
           {showMoreFilters && (
-            <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-ledger-100 pt-3 sm:grid-cols-2 xl:grid-cols-4 dark:border-ledger-700">
-              <div className="min-w-0">
+            <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-ledger-100 pt-3 dark:border-ledger-700">
+              <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Date From</label>
                 <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDateFilter("custom"); setPage(1); }} />
               </div>
-              <div className="min-w-0">
+              <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Date To</label>
                 <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDateFilter("custom"); setPage(1); }} />
               </div>
-              <div className="min-w-0">
+              <div className="w-44">
                 <label className="mb-1 block text-xs font-medium text-ledger-500">Payment Type</label>
                 <Select value={paymentMethodFilter} onChange={(e) => { setPaymentMethodFilter(e.target.value); setPage(1); }}>
                   <option value="all">All Payment Types</option>
