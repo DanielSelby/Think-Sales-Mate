@@ -15,16 +15,14 @@ export default async function OpenRegisterPage({ searchParams }: { searchParams:
 
   const supabase = await createClient();
   const db = supabase as any;
-  const { data: activeSession, error: sessionError } = await db
+  const { data: activeSessions, error: sessionError } = await db
     .from("pos_register_sessions")
-    .select("id")
+    .select("id, location_id")
     .eq("org_id", context.orgId)
     .eq("cashier_id", context.userId)
     .eq("status", "open")
-    .maybeSingle();
+    .order("opened_at");
   if (sessionError) throw new Error("Could not verify the register session.");
-  if (activeSession) redirect("/pos");
-
   const { data: locations, error: locationsError } = await supabase
     .from("business_locations")
     .select("id, name")
@@ -37,11 +35,24 @@ export default async function OpenRegisterPage({ searchParams }: { searchParams:
   const authorizedLocations = context.isBranchScoped
     ? (locations ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
     : locations ?? [];
+  const hasMultipleAssignedBranches = context.isBranchScoped && authorizedLocations.length > 1;
   const registerLocation = getPosRegisterLocation(context, authorizedLocations);
+  const registerLocations = hasMultipleAssignedBranches
+    ? authorizedLocations
+    : registerLocation ? [registerLocation] : [];
+  const openLocationIds = new Set((activeSessions ?? []).map((session: { location_id: string }) => session.location_id));
+  const locationsWithStatus = registerLocations.map((location) => ({
+    ...location,
+    hasOpenSession: openLocationIds.has(location.id),
+  }));
+  if (!hasMultipleAssignedBranches && activeSessions?.length) redirect("/pos");
+  if (hasMultipleAssignedBranches && locationsWithStatus.every((location) => location.hasOpenSession)) redirect("/pos");
 
   return (
     <OpenRegisterForm
-      locationName={registerLocation?.name ?? null}
+      locations={locationsWithStatus}
+      hasMultipleAssignedBranches={hasMultipleAssignedBranches}
+      primaryLocationId={context.locationId}
       currency={context.currency}
       cashierName={profile?.full_name || context.userEmail}
       canOpen={await canPermission("pos", "create")}

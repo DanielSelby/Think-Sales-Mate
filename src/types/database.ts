@@ -2844,6 +2844,17 @@ export interface Database {
       };
     };
     Functions: {
+      open_pos_register_sessions: {
+        Args: {
+          p_org_id: string;
+          p_cashier_id: string;
+          p_cashier_name: string;
+          p_shift: string;
+          p_notes: string | null;
+          p_sessions: { location_id: string; opening_cash: number }[];
+        };
+        Returns: { id: string; location_id: string }[];
+      };
       adjust_product_stock_at_location: {
         Args: { p_product_id: string; p_location_id: string; p_org_id: string; p_delta: number };
         Returns: void;

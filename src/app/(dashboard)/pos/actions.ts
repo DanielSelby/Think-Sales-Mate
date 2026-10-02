@@ -223,7 +223,9 @@ export interface ActivePosRegisterSession {
 }
 
 export async function openPosRegister(input: {
-  openingCash: number;
+  mode: "all" | "selected";
+  selectedLocationId?: string;
+  openingCashByLocation: Record<string, number>;
   shift: string;
   notes?: string;
 }): Promise<SimpleResult> {
@@ -232,17 +234,13 @@ export async function openPosRegister(input: {
   }
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
-  const openingCash = Number(input.openingCash);
-  if (!Number.isFinite(openingCash) || openingCash < 0) {
-    return { ok: false, error: "Enter a valid opening cash amount." };
-  }
   if (!["morning", "afternoon", "night", "full_day"].includes(input.shift)) return { ok: false, error: "Select a valid register shift." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
   const db = supabase as any;
-  const { data: locations, error: locationsError } = await db
+  const { data: locations, error: locationsError } = await supabase
     .from("business_locations")
     .select("id")
     .eq("org_id", context.orgId)
@@ -252,61 +250,94 @@ export async function openPosRegister(input: {
   const authorizedLocations = context.isBranchScoped
     ? (locations ?? []).filter((location: { id: string }) => context.allowedLocationIds.includes(location.id))
     : locations ?? [];
-  const registerLocation = getPosRegisterLocation(context, authorizedLocations);
-  if (!registerLocation || !canUseLocation(context, registerLocation.id)) {
+  const isMultiBranch = context.isBranchScoped && authorizedLocations.length > 1;
+  const { data: activeSessions, error: activeError } = await db
+    .from("pos_register_sessions")
+    .select("id, location_id")
+    .eq("org_id", context.orgId)
+    .eq("cashier_id", user.id)
+    .eq("status", "open");
+  if (activeError) return { ok: false, error: "Could not verify your register status. Please try again." };
+
+  const assignedLocations = authorizedLocations.filter((location: { id: string }) =>
+    canUseLocation(context, location.id) &&
+    (!context.masterLocationId || isMultiBranch || location.id === context.masterLocationId)
+  );
+  const existingLocationIds = new Set((activeSessions ?? []).map((session: { location_id: string }) => session.location_id));
+  let targetLocations: typeof assignedLocations;
+  if (isMultiBranch && input.mode === "all") {
+    targetLocations = assignedLocations.filter((location: { id: string }) => !existingLocationIds.has(location.id));
+  } else {
+    const selectedLocationId = isMultiBranch
+      ? input.selectedLocationId
+      : getPosRegisterLocation(context, assignedLocations)?.id;
+    if (!selectedLocationId || !assignedLocations.some((location: { id: string }) => location.id === selectedLocationId)) {
+      return { ok: false, error: "Choose a branch assigned to your account." };
+    }
+    if (existingLocationIds.has(selectedLocationId)) {
+      return { ok: false, error: "Your register is already open at this branch." };
+    }
+    targetLocations = assignedLocations.filter((location: { id: string }) => location.id === selectedLocationId);
+  }
+  if (!targetLocations.length) {
+    return { ok: false, error: "All assigned branch registers are already open." };
+  }
+
+  const sessionsToOpen = [];
+  for (const location of targetLocations as Array<{ id: string }>) {
+    const openingCash = Number(input.openingCashByLocation?.[location.id]);
+    if (!Number.isFinite(openingCash) || openingCash < 0) {
+      return { ok: false, error: "Enter a valid opening float for every selected branch." };
+    }
+    sessionsToOpen.push({ location_id: location.id, opening_cash: openingCash });
+  }
+  if (Object.keys(input.openingCashByLocation ?? {}).some((locationId) =>
+    !targetLocations.some((location: { id: string }) => location.id === locationId)
+  )) {
+    return { ok: false, error: "The opening cash data does not match the branch selection." };
+  }
+
+  if (!assignedLocations.length) {
     return { ok: false, error: "No active primary branch is assigned to your account." };
   }
 
-  const { data: active, error: activeError } = await db
-    .from("pos_register_sessions")
-    .select("id")
-    .eq("org_id", context.orgId)
-    .eq("cashier_id", user.id)
-    .eq("status", "open")
-    .maybeSingle();
-  if (activeError) return { ok: false, error: "Could not verify your register status. Please try again." };
-  if (active) return { ok: false, error: "You already have an open register session. Close it before opening another." };
-
-  const registerName = "POS-01";
-  const { data: session, error } = await db
-    .from("pos_register_sessions")
-    .insert({
-      org_id: context.orgId,
-      location_id: registerLocation.id,
-      cashier_id: user.id,
-      cashier_name: user.user_metadata?.full_name ?? context.userEmail,
-      register_name: registerName,
-      shift: input.shift,
-      opening_cash: openingCash,
-      notes: input.notes?.trim() || null,
-    })
-    .select("id")
-    .single();
-  if (error || !session) {
-    return {
-      ok: false,
-      error: error?.code === "23505"
-        ? "You already have an open register session. Close it before opening another."
-        : "Could not open the register. Please try again.",
-    };
+  const admin = createAdminClient();
+  const { data: sessions, error } = await (admin as any).rpc("open_pos_register_sessions", {
+    p_org_id: context.orgId,
+    p_cashier_id: user.id,
+    p_cashier_name: user.user_metadata?.full_name ?? context.userEmail,
+    p_shift: input.shift,
+    p_notes: input.notes?.trim() || null,
+    p_sessions: sessionsToOpen,
+  });
+  if (error || !sessions) {
+    return { ok: false, error: error?.message ?? "Could not open the register. Please try again." };
   }
 
-  const audit = await recordAuditEvent(supabase, {
-    orgId: context.orgId,
-    actorId: user.id,
-    action: "pos.register_opened",
-    entityType: "pos_register_session",
-    entityId: session.id,
-    module: "POS",
-    description: "Register session opened.",
-    branchId: registerLocation.id,
-    newValues: { register_name: registerName, shift: input.shift, opening_cash: openingCash },
-  });
-  if (audit.error) {
-    return { ok: true, error: "Register opened, but the audit event could not be recorded. Notify an administrator." };
+  let auditFailed = false;
+  for (const session of sessions as Array<{ id: string; location_id: string }>) {
+    const audit = await recordAuditEvent(supabase, {
+      orgId: context.orgId,
+      actorId: user.id,
+      action: "pos.register_opened",
+      entityType: "pos_register_session",
+      entityId: session.id,
+      module: "POS",
+      description: "Register session opened.",
+      branchId: session.location_id,
+      newValues: {
+        register_name: "POS-01",
+        shift: input.shift,
+        opening_cash: sessionsToOpen.find((item) => item.location_id === session.location_id)?.opening_cash,
+      },
+    });
+    auditFailed ||= Boolean(audit.error);
   }
   revalidatePath("/pos");
   revalidatePath("/pos/open-register");
+  if (auditFailed) {
+    return { ok: true, error: "Register opened, but one or more audit events could not be recorded. Notify an administrator." };
+  }
   return { ok: true };
 }
 

@@ -7,23 +7,31 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { requirePermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { formatMoney } from "@/lib/currency";
+import { canUseLocation } from "@/lib/organizations/location-access";
 
 export const metadata = { title: "Cash Drawer · ThinkSales Pro" };
 
-export default async function CashDrawerPage() {
+export default async function CashDrawerPage({ searchParams }: { searchParams: Promise<{ location?: string }> }) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
   await requirePermission("pos", "view");
+  const params = await searchParams;
   const supabase = await createClient();
   const db = supabase as any;
-  const { data: session, error: sessionError } = await db
+  const { data: sessions, error: sessionError } = await db
     .from("pos_register_sessions")
     .select("id, location_id, register_name, cashier_name, opening_cash, opened_at, shift")
     .eq("org_id", context.orgId)
     .eq("cashier_id", context.userId)
     .eq("status", "open")
-    .maybeSingle();
+    .order("opened_at");
   if (sessionError) throw new Error("Could not verify the register session.");
+  const accessibleSessions = (sessions ?? []).filter((item: { location_id: string }) => canUseLocation(context, item.location_id));
+  const session = params.location
+    ? accessibleSessions.find((item: { location_id: string }) => item.location_id === params.location)
+    : accessibleSessions.find((item: { location_id: string }) => item.location_id === context.locationId)
+      ?? accessibleSessions.find((item: { location_id: string }) => item.location_id === context.masterLocationId)
+      ?? accessibleSessions[0];
   if (!session) redirect("/pos/open-register");
 
   const [summary, movementResult, locationResult] = await Promise.all([

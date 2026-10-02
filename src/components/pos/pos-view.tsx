@@ -67,7 +67,7 @@ interface PosViewProps {
   useSystemPrices: boolean;
   mobileMoneyAccounts: MobileMoneyAccount[];
   canApproveRegisterClosures: boolean;
-  registerSession: ActivePosRegisterSession;
+  registerSessions: ActivePosRegisterSession[];
 }
 
 interface CartLine extends CartItemInput {
@@ -90,7 +90,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, registerSession }: PosViewProps) {
+export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, registerSessions }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -119,6 +119,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
   const cartListRef = React.useRef<HTMLDivElement>(null);
   const [locationId, setLocationId] = React.useState(locations[0]?.id ?? "");
+  const registerSession = registerSessions.find((session) => session.locationId === locationId) ?? registerSessions[0];
   const [selectResetKey, setSelectResetKey] = React.useState(0);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [customer, setCustomer] = React.useState<CustomerOption | null>(null);
@@ -374,6 +375,10 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
     const t = setTimeout(() => { searchCustomers(customerQuery).then(setCustomerResults); }, 200);
     return () => clearTimeout(t);
   }, [customerQuery, customerOpen]);
+
+  if (!registerSession) {
+    return <div role="alert" className="p-6 text-sm text-alert">No open register session is available for this branch. Reopen the register before continuing.</div>;
+  }
 
   function buildCartInput(): CartItemInput[] {
    return cart.map((l) => ({ productId: l.productId, name: l.name, sku: l.sku, unitPrice: l.unitPrice, quantity: l.quantity, discountPercent: l.discountPercent, taxPercent: l.taxPercent, description: l.description, priceTier }));  }
@@ -760,7 +765,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
         <span className="font-semibold">{registerSession.registerName} · Register Open · {registerSession.cashierName ?? cashierName} · {locations.find((location) => location.id === registerSession.locationId)?.name ?? "Assigned branch"}</span>
-        <Link href="/pos/cash-drawer" className="font-semibold underline underline-offset-2">Cash Drawer</Link>
+        <Link href={`/pos/cash-drawer?location=${encodeURIComponent(locationId)}`} className="font-semibold underline underline-offset-2">Cash Drawer</Link>
       </div>
 
       {/* Toolbar */}

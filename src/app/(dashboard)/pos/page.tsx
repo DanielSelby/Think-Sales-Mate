@@ -14,15 +14,20 @@ export default async function PosPage() {
   const orgId = context.orgId;
   const supabase = await createClient();
   const db = supabase as any;
-  const { data: registerSession, error: sessionError } = await db
+  const { data: allRegisterSessions, error: sessionError } = await db
     .from("pos_register_sessions")
     .select("id, location_id, register_name, cashier_name, opening_cash, opened_at, shift")
     .eq("org_id", orgId)
     .eq("cashier_id", context.userId)
     .eq("status", "open")
-    .maybeSingle();
+    .order("opened_at");
   if (sessionError) throw new Error("Could not verify the register session.");
-  if (!registerSession) redirect("/pos/open-register");
+  const authorizedRegisterSessions = (allRegisterSessions ?? []).filter((session: { location_id: string }) =>
+    (!context.isBranchScoped || context.allowedLocationIds.includes(session.location_id)) &&
+    (!context.masterLocationId || context.isBranchScoped || session.location_id === context.masterLocationId)
+  );
+  if (authorizedRegisterSessions.length === 0) redirect("/pos/open-register");
+  const registerLocationIds = authorizedRegisterSessions.map((session: { location_id: string }) => session.location_id);
 
   const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }, { data: mobileMoneyAccounts }] = await Promise.all([
     supabase
@@ -31,35 +36,18 @@ export default async function PosPage() {
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
-    (() => {
-      return supabase
-        .from("business_locations")
-        .select("id, name")
-        .eq("org_id", orgId)
-        .eq("id", registerSession.location_id)
-        .eq("is_active", true);
-    })(),
-    // Per-branch stock — the product grid needs this to only show/allow
-    // what's actually at the selected branch, not the org-wide total.
-    (() => {
-      let query = supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId);
-      return query.eq("location_id", registerSession.location_id);
-    })(),
+    supabase.from("business_locations").select("id, name").eq("org_id", orgId).in("id", registerLocationIds).eq("is_active", true),
+    supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId).in("location_id", registerLocationIds),
     supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle(),
     supabase.from("bank_accounts").select("id, name, current_balance").eq("org_id", orgId).eq("account_type", "mobile_money").order("name")
   ]);
 
-  const rawLocations = context.masterLocationId
-    ? (locations ?? []).filter((location) => location.id === context.masterLocationId)
-    : (locations ?? []);
   const quantityByProduct = new Map<string, number>();
   for (const stock of stockLevels ?? []) {
     quantityByProduct.set(stock.product_id, (quantityByProduct.get(stock.product_id) ?? 0) + Number(stock.quantity ?? 0));
   }
   const rawProducts = products ?? [];
-  const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
-    ? rawLocations.filter((l) => context.allowedLocationIds.includes(l.id))
-    : rawLocations;
+  const scopedLocations = locations ?? [];
 
   return (
     <PosView
@@ -96,7 +84,15 @@ export default async function PosPage() {
         await canPermission("cash_closing", "approve") ||
         await canPermission("banking", "approve")
       }
-      registerSession={{
+      registerSessions={authorizedRegisterSessions.map((registerSession: {
+        id: string;
+        location_id: string;
+        register_name: string;
+        cashier_name: string | null;
+        opening_cash: number;
+        opened_at: string;
+        shift: string | null;
+      }) => ({
         id: registerSession.id,
         locationId: registerSession.location_id,
         cashierId: context.userId,
@@ -105,7 +101,7 @@ export default async function PosPage() {
         openingCash: Number(registerSession.opening_cash ?? 0),
         openedAt: registerSession.opened_at,
         shift: registerSession.shift,
-      }}
+      }))}
       mobileMoneyAccounts={(mobileMoneyAccounts ?? []).map((account) => ({ id: account.id, name: account.name, balance: account.current_balance }))}
     />
   );
