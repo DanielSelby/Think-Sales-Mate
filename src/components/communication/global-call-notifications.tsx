@@ -7,10 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 type Call = { id: string; type: "voice" | "video"; channelId: string; callerName: string; ringingStartedAt: string };
 type Metadata = { status?: string; accepted_by?: string; declined_by?: string; offer?: RTCSessionDescriptionInit; answer?: RTCSessionDescriptionInit; callerCandidates?: RTCIceCandidateInit[]; calleeCandidates?: RTCIceCandidateInit[] };
 
-export function GlobalCallNotifications() {
+export function GlobalCallNotifications({ userId, orgId }: { userId: string; orgId: string }) {
   const supabase = useMemo(() => createClient(), []);
-  const [userId, setUserId] = useState("");
-  const [orgId, setOrgId] = useState("");
   const [incoming, setIncoming] = useState<Call | null>(null);
   const [active, setActive] = useState<(Call & { stream: MediaStream; remote?: MediaStream; startedAt: number }) | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -94,17 +92,6 @@ export function GlobalCallNotifications() {
   };
 
   useEffect(() => {
-    let cancelled = false;
-    void supabase.auth.getUser().then(async ({ data }) => {
-      if (cancelled || !data.user) return;
-      setUserId(data.user.id);
-      const { data: membership } = await supabase.from("organization_members").select("org_id").eq("user_id", data.user.id).eq("status", "active").limit(1).maybeSingle();
-      if (!cancelled && membership?.org_id) setOrgId(membership.org_id);
-    });
-    return () => { cancelled = true; };
-  }, [supabase]);
-
-  useEffect(() => {
     if (!orgId || !userId || active) return;
     let disposed = false;
     const find = async () => {
@@ -124,7 +111,9 @@ export function GlobalCallNotifications() {
       setIncoming((current) => current?.id === candidate.id ? current : { id: candidate.id, type: candidate.call_type, channelId: channel.id, callerName: caller?.full_name || "A team member", ringingStartedAt: candidate.started_at });
     };
     void find();
-    const timer = window.setInterval(() => void find(), 2000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void find();
+    }, 15000);
     const channel = supabase.channel(`global-call-notifications:${orgId}:${userId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "communication_calls", filter: `org_id=eq.${orgId}` }, () => void find()).subscribe();
     return () => { disposed = true; window.clearInterval(timer); void supabase.removeChannel(channel); };

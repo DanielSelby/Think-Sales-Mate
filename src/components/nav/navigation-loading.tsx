@@ -1,21 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { AppLoading } from "@/components/ui/app-loading";
 
 export function NavigationLoading() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const routeKey = `${pathname}?${searchParams.toString()}`;
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!loading) return;
     const timer = window.setTimeout(() => setLoading(false), 10000);
     return () => window.clearTimeout(timer);
-  }, [loading, pathname]);
+  }, [loading, routeKey]);
 
   useEffect(() => {
     setLoading(false);
-  }, [pathname]);
+  }, [routeKey]);
 
   useEffect(() => {
     const beginNavigation = (event: Event) => {
@@ -25,8 +28,8 @@ export function NavigationLoading() {
       if (!target) return;
       const href = target.getAttribute("href");
       if (!href || !href.startsWith("/") || href.startsWith("//")) return;
-      const destination = href.split("#")[0].split("?")[0];
-      if (destination === pathname) return;
+      const destination = new URL(href, window.location.origin);
+      if (`${destination.pathname}?${destination.searchParams.toString()}` === routeKey) return;
       setLoading(true);
     };
 
@@ -35,7 +38,8 @@ export function NavigationLoading() {
     };
 
     const handlePopState = () => {
-      if (window.location.pathname !== pathname) {
+      const currentRouteKey = `${window.location.pathname}?${new URLSearchParams(window.location.search).toString()}`;
+      if (currentRouteKey !== routeKey) {
         setLoading(true);
       }
     };
@@ -48,7 +52,7 @@ export function NavigationLoading() {
       document.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [pathname]);
+  }, [pathname, routeKey]);
 
-  return loading ? <div role="status" aria-label="Loading page" className="fixed inset-x-0 top-0 z-[9999] h-1 overflow-hidden bg-transparent"><span className="block h-full w-1/3 animate-pulse rounded-r-full bg-[var(--theme-primary,#1675d1)]" /></div> : null;
+  return loading ? <AppLoading /> : null;
 }

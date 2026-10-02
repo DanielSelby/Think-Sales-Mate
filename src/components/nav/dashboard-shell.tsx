@@ -13,6 +13,11 @@ import { GlobalCallNotifications } from "@/components/communication/global-call-
 
 interface Props {
   children: React.ReactNode;
+  userId: string;
+  userEmail: string;
+  orgId: string;
+  currency: string;
+  avatarUrl?: string | null;
   orgName:  string;
   logoUrl?: string | null;
   systemLogoUrl?: string | null;
@@ -26,7 +31,7 @@ interface Props {
   enabledModules?: string[];
 }
 
-export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   React.useEffect(() => {
     if (roleTheme) setTheme(roleTheme);
@@ -37,7 +42,7 @@ export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, syst
   return (
     <SessionTimeout>
       <NavigationLoading />
-      <GlobalCallNotifications />
+      <GlobalCallNotifications userId={userId} orgId={orgId} />
       <div
         className="flex h-screen overflow-hidden"
         style={{
@@ -48,7 +53,7 @@ export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, syst
       >
         <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <TopNav orgName={orgName} logoUrl={logoUrl} userName={userName} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
+          <TopNav orgId={orgId} currency={currency} orgName={orgName} logoUrl={logoUrl} userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
           <main className="page-canvas flex-1 overflow-y-auto p-4 sm:p-5">
             {children}
           </main>

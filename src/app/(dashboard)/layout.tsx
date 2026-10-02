@@ -45,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const [enabledModules, systemLogoUrl, systemName] = platformSettings;
 
   return (
-    <DashboardShell enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
+    <DashboardShell userId={context.userId} userEmail={context.userEmail} orgId={context.orgId} currency={context.currency} avatarUrl={profile?.avatar_url ?? null} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
       {children}
     </DashboardShell>
   );

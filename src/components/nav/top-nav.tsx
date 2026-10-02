@@ -32,7 +32,7 @@ interface NotificationItem {
   created_at: string;
 }
 
-export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { orgName: string; logoUrl?: string | null; userName?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
+export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -43,8 +43,8 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
   const [showUser,          setShowUser]          = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [userName,         setUserName]         = useState(initialUserName ?? "");
-  const [avatarUrl,        setAvatarUrl]        = useState<string | null>(null);
-  const [userEmail,         setUserEmail]         = useState("");
+  const [avatarUrl,        setAvatarUrl]        = useState<string | null>(initialAvatarUrl ?? null);
+  const [userEmail] = useState(initialUserEmail);
   const [notifications,     setNotifications]     = useState<NotificationItem[]>([]);
   const [unreadCount,       setUnreadCount]       = useState(0);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -93,28 +93,15 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
     };
     const loadInitialData = async () => {
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        if (!user) return;
-        const [{ data: profile, error: profileError }, { data: membership, error: membershipError }] = await Promise.all([
-          supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).maybeSingle(),
-          supabase.from("organization_members").select("org_id, organizations(currency)").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle(),
-        ]);
-        if (profileError) throw profileError;
-        if (membershipError) throw membershipError;
-        if (cancelled) return;
-        setUserEmail(user.email ?? "");
-        setAvatarUrl(profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null);
-        setUserName(initialUserName || profile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "User");
-        const organization = Array.isArray(membership?.organizations) ? membership.organizations[0] : membership?.organizations;
-        const orgId = membership?.org_id;
         const [locationResult, notificationResult] = await Promise.all([
-          orgId ? supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true).order("name") : Promise.resolve({ data: [], error: null }),
+          supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true).order("name"),
           supabase.from("notifications").select("id, title, message, type, is_read, entity_id, created_at").order("created_at", { ascending: false }).limit(10),
         ]);
         if (locationResult.error) throw locationResult.error;
         if (notificationResult.error) throw notificationResult.error;
         if (cancelled) return;
+        setUserName(initialUserName ?? "");
+        setAvatarUrl(initialAvatarUrl ?? null);
         const options = canViewAllBranches
           ? (locationResult.data ?? [])
           : (locationResult.data ?? []).filter((location) => allowedLocationIds.includes(location.id));
@@ -129,9 +116,9 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
         } else if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
           useAccountingStore.getState().setBranch(options[0].name);
         }
-        if (organization?.currency) {
-          setCurrencyOptions([{ code: organization.currency, label: organization.currency }]);
-          useAccountingStore.getState().setCurrency(organization.currency);
+        if (currency) {
+          setCurrencyOptions([{ code: currency, label: currency }]);
+          useAccountingStore.getState().setCurrency(currency);
         }
         applyNotifications((notificationResult.data ?? []) as NotificationItem[]);
       } catch (error) {
@@ -146,7 +133,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
       cancelled = true;
       window.clearInterval(refreshTimer);
     };
-  }, [initialUserName, allowedLocationKey, canViewAllBranches]);
+  }, [initialUserName, initialAvatarUrl, orgId, currency, allowedLocationKey, canViewAllBranches]);
 
   const initials = userName
     ? userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)

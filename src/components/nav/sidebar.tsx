@@ -18,6 +18,16 @@ import { useAppStore, THEMES } from "@/store/useAppStore";
 import { NAV_ITEMS as SHARED_NAV_ITEMS, SETTINGS_CHILDREN as SHARED_SETTINGS_CHILDREN } from "./navigation";
 export { NAV_ITEMS } from "./navigation";
 
+const PREFETCH_ROUTES = new Set([
+  "/dashboard",
+  "/pos",
+  "/sales",
+  "/sales/new",
+  "/inventory",
+  "/purchases",
+  "/expenses",
+]);
+
 export interface NavChild {
   label: string;
   href:  string;
@@ -220,6 +230,7 @@ function ChildLinks({ items, sidebar }: {
           <Link
             key={child.href}
             href={child.href}
+            prefetch={PREFETCH_ROUTES.has(childUrl.pathname)}
             aria-current={childActive ? "page" : undefined}
             className="flex items-center gap-2 rounded-lg py-1.5 px-2 text-[13px] transition-all duration-150"
             style={{
@@ -389,6 +400,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
             <Link
               key={item.href}
               href={isSoon ? "#" : item.href}
+              prefetch={PREFETCH_ROUTES.has(item.href.split("?")[0])}
               onClick={e => isSoon && e.preventDefault()}
               title={collapsed ? item.label : undefined}
               className={cn(

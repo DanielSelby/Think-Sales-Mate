@@ -250,7 +250,8 @@ export async function getFinancialSummary(
     { data: stockLevels, error: stockLevelsError },
     { data: expenseRows },
     { data: expenseRowsPrev },
-    { data: invoiceRows },
+    { data: paidInvoiceRows },
+    { data: outstandingInvoiceRows },
     { data: locationRows }
   ] = await Promise.all([
     salesQuery,
@@ -265,7 +266,8 @@ export async function getFinancialSummary(
     locationId ? stockLevelsQuery : Promise.resolve({ data: [], error: null }),
     expenseQuery,
     expensePrevQuery,
-    supabase.from("invoices").select("amount, status, paid_at").eq("org_id", orgId),
+    supabase.from("invoices").select("amount, paid_at").eq("org_id", orgId).eq("status", "paid").gte("paid_at", periodStart).lt("paid_at", periodEndExclusive),
+    supabase.from("invoices").select("amount").eq("org_id", orgId).in("status", ["sent", "overdue"]),
     supabase.from("business_locations").select("id, name, is_primary").eq("org_id", orgId).eq("is_active", true)
   ]);
 
@@ -350,16 +352,12 @@ export async function getFinancialSummary(
 
   // invoices has no location_id or category column, so receivables figures
   // stay org-wide even when a branch/category filter is active.
-  const paidInvoicesPeriod = (invoiceRows ?? []).filter(
-    (i) => i.status === "paid" && i.paid_at && i.paid_at >= periodStart && i.paid_at < periodEndExclusive
-  );
-  const invoicePayments30d = paidInvoicesPeriod.reduce((sum, i) => sum + Number(i.amount), 0);
+  const invoicePayments30d = (paidInvoiceRows ?? []).reduce((sum, i) => sum + Number(i.amount), 0);
   const cashIn30d = revenue30d + invoicePayments30d;
   const cashOut30d = expenses30d;
   const cashFlow30d = cashIn30d - cashOut30d;
 
-  const outstanding = (invoiceRows ?? []).filter((i) => i.status === "sent" || i.status === "overdue");
-  const outstandingInvoicesTotal = outstanding.reduce((sum, i) => sum + Number(i.amount), 0);
+  const outstandingInvoicesTotal = (outstandingInvoiceRows ?? []).reduce((sum, i) => sum + Number(i.amount), 0);
 
   const activeProducts = (products ?? []).filter((product) => product.is_active).map((product) => ({
     ...product,
@@ -506,7 +504,7 @@ export async function getFinancialSummary(
     cashIn30d,
     cashOut30d,
     outstandingInvoicesTotal,
-    outstandingInvoicesCount: outstanding.length,
+    outstandingInvoicesCount: outstandingInvoiceRows?.length ?? 0,
     inventoryValue,
     totalActiveProducts: activeProducts.length,
     lowStockCount,
