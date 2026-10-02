@@ -262,7 +262,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   const theme     = THEMES[activeTheme];
   const sidebar   = {
     ...theme.sidebar,
-    background: `${theme.colors.primary}16`,
+    background: darkMode ? theme.colors.primaryLight : theme.sidebar.background,
     text: darkMode ? "#f8fafc" : theme.colors.text,
     textMuted: darkMode ? "rgba(226,232,240,0.72)" : theme.colors.textMuted,
     activeBackground: theme.colors.primary,
