@@ -1080,7 +1080,7 @@ export function ProductsCatalog({
       ) : (
         <div
           className="grid grid-cols-1 gap-4 rounded-2xl p-2 sm:grid-cols-2 lg:grid-cols-4"
-          style={{ backgroundColor: darkMode ? `${theme.colors.primary}16` : theme.colors.primaryPale }}
+          style={darkMode ? { backgroundColor: `${theme.colors.primary}16` } : undefined}
         >
           {pageItems.map((p) => {
             const currentStock = getProductStockForWarehouse(p, warehouse);
@@ -1089,7 +1089,7 @@ export function ProductsCatalog({
               <div
                 key={p.id}
                 className="group rounded-card border border-slate-200/90 p-4 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_4px_8px_rgba(15,23,42,0.08),0_16px_30px_rgba(15,23,42,0.14)] dark:border-slate-700/90 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_2px_5px_rgba(0,0,0,0.25),0_10px_24px_rgba(0,0,0,0.28)] dark:hover:border-blue-400/50 dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_4px_8px_rgba(0,0,0,0.3),0_16px_30px_rgba(0,0,0,0.4)]"
-                style={{ backgroundColor: darkMode ? `${theme.colors.primary}2b` : theme.colors.primaryPale }}
+                style={darkMode ? { backgroundColor: `${theme.colors.primary}2b` } : undefined}
               >
                 <div className="flex items-start justify-between">
                   <Link
