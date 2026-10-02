@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { Sidebar } from "./sidebar";
 import { NAV_ITEMS } from "./sidebar";
@@ -55,10 +56,10 @@ export function DashboardShell({ children, orgName, logoUrl, systemLogoUrl, syst
             {mobileNav.map((item) => {
               const Icon = item.icon;
               return (
-                <a key={item.href} href={item.href} className="flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-blue-600 dark:text-slate-300">
+                <Link key={item.href} href={item.href} prefetch className="flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-blue-600 dark:text-slate-300">
                   <Icon className="h-4 w-4" />
                   {item.label}
-                </a>
+                </Link>
               );
             })}
           </nav>

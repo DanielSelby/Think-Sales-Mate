@@ -4,21 +4,24 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/api/system-logo"];
 
 export async function middleware(request: NextRequest) {
-  console.log("MW_START", request.nextUrl.pathname, Date.now());
-
   let response = NextResponse.next({ request: { headers: request.headers } });
+  const pathname = request.nextUrl.pathname;
 
   if (
-    request.nextUrl.pathname.startsWith("/platform-admin")
-    || request.nextUrl.pathname === "/api/platform-admin/upload-theme-artwork"
+    pathname.startsWith("/platform-admin")
+    || pathname === "/api/platform-admin/upload-theme-artwork"
   ) {
-    if (request.nextUrl.pathname === "/platform-admin/login") {
+    if (pathname === "/platform-admin/login") {
       const requestHeaders = new Headers(request.headers);
       requestHeaders.set("x-platform-public", "true");
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
     return response;
   }
+
+  const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+  const checksSignedInDestination = pathname === "/login" || pathname === "/signup";
+  if (isPublicPath && !checksSignedInDestination) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,19 +40,7 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  let user = null;
-  try {
-    const result = await Promise.race([
-      supabase.auth.getUser(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("auth_check_timeout")), 5000))
-    ]);
-    user = result.data.user;
-  } catch (e) {
-    console.log("MW_AUTH_FAILED_OR_TIMED_OUT", request.nextUrl.pathname, String(e));
-    user = null;
-  }
-
-  const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user && !isPublicPath) {
     const redirectUrl = new URL("/login", request.url);
@@ -57,11 +48,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup")) {
+  if (user && checksSignedInDestination) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  console.log("MW_END", request.nextUrl.pathname, Date.now());
   return response;
 }
 

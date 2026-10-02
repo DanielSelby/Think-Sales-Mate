@@ -52,6 +52,7 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
   const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
   const [popupNotification, setPopupNotification] = useState<NotificationItem | null>(null);
   const previousNotificationIds = useRef<Set<string>>(new Set());
+  const allowedLocationKey = allowedLocationIds.join(",");
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -59,97 +60,93 @@ export function TopNav({ orgName, logoUrl, userName: initialUserName, userRole, 
   }, [darkMode]);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setUserEmail(user.email ?? "");
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, avatar_url")
-            .eq("id", user.id)
-            .maybeSingle();
-          setAvatarUrl(profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null);
-          const name = initialUserName
-            || profile?.full_name
-            || user.user_metadata?.full_name
-            || user.user_metadata?.name
-            || user.email?.split("@")[0]
-            || "User";
-          setUserName(name);
-
-          const { data: membership } = await supabase
-            .from("organization_members")
-            .select("org_id, organizations(currency)")
-            .eq("user_id", user.id)
-            .eq("status", "active")
-            .limit(1)
-            .maybeSingle();
-
-          const organization = Array.isArray(membership?.organizations)
-            ? membership.organizations[0]
-            : membership?.organizations;
-          const orgId = membership?.org_id;
-          if (orgId) {
-            const { data: locations } = await supabase
-              .from("business_locations")
-              .select("id, name")
-              .eq("org_id", orgId)
-              .eq("is_active", true)
-              .order("name");
-            const options = canViewAllBranches
-              ? (locations ?? [])
-              : (locations ?? []).filter((location) => allowedLocationIds.includes(location.id));
-            setBranchOptions(options);
-            const selectedBranch = useAccountingStore.getState().currentBranch;
-            const masterLocationId = document.cookie.split("; ").find((item) => item.startsWith("master_location_id="))?.split("=")[1];
-            const masterLocation = options.find((location) => location.id === decodeURIComponent(masterLocationId ?? ""));
-            if (masterLocation) {
-              useAccountingStore.getState().setBranch(masterLocation.name);
-            } else if (!canViewAllBranches && selectedBranch === "all" && options.length > 0) {
-              useAccountingStore.getState().setBranch(options[0].name);
-            } else if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
-              useAccountingStore.getState().setBranch(options[0].name);
-            }
-          }
-          if (organization?.currency) {
-            const code = organization.currency;
-            setCurrencyOptions([{ code, label: code }]);
-            useAccountingStore.getState().setCurrency(code);
-          }
-
-          // Fetch recent notifications
-          const { data: notifs } = await supabase
-            .from("notifications")
-            .select("id, title, message, type, is_read, entity_id, created_at")
-            .order("created_at", { ascending: false })
-            .limit(10);
-
-          if (notifs) {
-            const fresh = notifs.filter((notification) => !previousNotificationIds.current.has(notification.id));
-            if (previousNotificationIds.current.size > 0 && fresh.length > 0) {
-              const latest = fresh[0] as NotificationItem;
-              setPopupNotification(latest);
-              playNotificationBeep(latest.type);
-              window.setTimeout(() => setPopupNotification(null), 5000);
-            }
-            previousNotificationIds.current = new Set(notifs.map((notification) => notification.id));
-            setNotifications(notifs as NotificationItem[]);
-            setUnreadCount(notifs.filter((n) => !n.is_read).length);
-            setUnreadMessageCount(
-              notifs.filter((notification) =>
-                !notification.is_read && /message|chat|communication/i.test(notification.type)
-              ).length
-            );
-          }
-        }
-      } catch { /* silent */ }
+    const supabase = createClient();
+    let cancelled = false;
+    const applyNotifications = (notifs: NotificationItem[]) => {
+      if (cancelled) return;
+      const fresh = notifs.filter((notification) => !previousNotificationIds.current.has(notification.id));
+      if (previousNotificationIds.current.size > 0 && fresh.length > 0) {
+        const latest = fresh[0];
+        setPopupNotification(latest);
+        playNotificationBeep(latest.type);
+        window.setTimeout(() => setPopupNotification(null), 5000);
+      }
+      previousNotificationIds.current = new Set(notifs.map((notification) => notification.id));
+      setNotifications(notifs);
+      setUnreadCount(notifs.filter((notification) => !notification.is_read).length);
+      setUnreadMessageCount(notifs.filter((notification) =>
+        !notification.is_read && /message|chat|communication/i.test(notification.type)
+      ).length);
     };
-    load();
-    const refreshTimer = window.setInterval(load, 5000);
-    return () => window.clearInterval(refreshTimer);
-  }, [initialUserName, allowedLocationIds, canViewAllBranches]);
+    const loadNotifications = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("id, title, message, type, is_read, entity_id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(10);
+        if (error) throw error;
+        applyNotifications((data ?? []) as NotificationItem[]);
+      } catch (error) {
+        if (!cancelled) console.error("Notifications could not be refreshed:", error);
+      }
+    };
+    const loadInitialData = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        if (!user) return;
+        const [{ data: profile, error: profileError }, { data: membership, error: membershipError }] = await Promise.all([
+          supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).maybeSingle(),
+          supabase.from("organization_members").select("org_id, organizations(currency)").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle(),
+        ]);
+        if (profileError) throw profileError;
+        if (membershipError) throw membershipError;
+        if (cancelled) return;
+        setUserEmail(user.email ?? "");
+        setAvatarUrl(profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null);
+        setUserName(initialUserName || profile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "User");
+        const organization = Array.isArray(membership?.organizations) ? membership.organizations[0] : membership?.organizations;
+        const orgId = membership?.org_id;
+        const [locationResult, notificationResult] = await Promise.all([
+          orgId ? supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true).order("name") : Promise.resolve({ data: [], error: null }),
+          supabase.from("notifications").select("id, title, message, type, is_read, entity_id, created_at").order("created_at", { ascending: false }).limit(10),
+        ]);
+        if (locationResult.error) throw locationResult.error;
+        if (notificationResult.error) throw notificationResult.error;
+        if (cancelled) return;
+        const options = canViewAllBranches
+          ? (locationResult.data ?? [])
+          : (locationResult.data ?? []).filter((location) => allowedLocationIds.includes(location.id));
+        setBranchOptions(options);
+        const selectedBranch = useAccountingStore.getState().currentBranch;
+        const masterLocationId = document.cookie.split("; ").find((item) => item.startsWith("master_location_id="))?.split("=")[1];
+        const masterLocation = options.find((location) => location.id === decodeURIComponent(masterLocationId ?? ""));
+        if (masterLocation) {
+          useAccountingStore.getState().setBranch(masterLocation.name);
+        } else if (!canViewAllBranches && selectedBranch === "all" && options.length > 0) {
+          useAccountingStore.getState().setBranch(options[0].name);
+        } else if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
+          useAccountingStore.getState().setBranch(options[0].name);
+        }
+        if (organization?.currency) {
+          setCurrencyOptions([{ code: organization.currency, label: organization.currency }]);
+          useAccountingStore.getState().setCurrency(organization.currency);
+        }
+        applyNotifications((notificationResult.data ?? []) as NotificationItem[]);
+      } catch (error) {
+        if (!cancelled) console.error("Navigation user data could not be loaded:", error);
+      }
+    };
+    void loadInitialData();
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadNotifications();
+    }, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
+  }, [initialUserName, allowedLocationKey, canViewAllBranches]);
 
   const initials = userName
     ? userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)

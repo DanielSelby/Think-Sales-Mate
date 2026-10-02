@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { AppLoading } from "@/components/ui/app-loading";
 
 export function NavigationLoading() {
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
-  const [startedAt, setStartedAt] = useState(0);
 
   useEffect(() => {
     if (!loading) return;
-    const elapsed = Date.now() - startedAt;
-    const timer = window.setTimeout(() => setLoading(false), Math.max(0, 600 - elapsed));
+    const timer = window.setTimeout(() => setLoading(false), 10000);
     return () => window.clearTimeout(timer);
-  }, [loading, pathname, startedAt]);
+  }, [loading, pathname]);
+
+  useEffect(() => {
+    setLoading(false);
+  }, [pathname]);
 
   useEffect(() => {
     const beginNavigation = (event: Event) => {
@@ -26,7 +27,6 @@ export function NavigationLoading() {
       if (!href || !href.startsWith("/") || href.startsWith("//")) return;
       const destination = href.split("#")[0].split("?")[0];
       if (destination === pathname) return;
-      setStartedAt(Date.now());
       setLoading(true);
     };
 
@@ -36,7 +36,6 @@ export function NavigationLoading() {
 
     const handlePopState = () => {
       if (window.location.pathname !== pathname) {
-        setStartedAt(Date.now());
         setLoading(true);
       }
     };
@@ -51,5 +50,5 @@ export function NavigationLoading() {
     };
   }, [pathname]);
 
-  return loading ? <AppLoading /> : null;
+  return loading ? <div role="status" aria-label="Loading page" className="fixed inset-x-0 top-0 z-[9999] h-1 overflow-hidden bg-transparent"><span className="block h-full w-1/3 animate-pulse rounded-r-full bg-[var(--theme-primary,#1675d1)]" /></div> : null;
 }

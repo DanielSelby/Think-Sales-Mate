@@ -13,27 +13,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const context     = await getCurrentOrgContext(activeOrgId);
   if (!context) redirect("/onboarding");
   const supabase = await createClient();
-  const { data: companyProfile } = await supabase
-    .from("company_profile")
-    .select("logo_url")
-    .eq("org_id", context.orgId)
-    .maybeSingle();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", context.userId)
-    .maybeSingle();
-  const { data: roleTheme, error: roleThemeError } = await supabase
-    .from("organization_role_themes")
-    .select("theme_key")
-    .eq("org_id", context.orgId)
-    .eq(
-      "role_key",
-      typeof context.accessPermissions.role_key === "string"
-        ? context.accessPermissions.role_key
-        : context.role
-    )
-    .maybeSingle();
+  const roleKey = typeof context.accessPermissions.role_key === "string"
+    ? context.accessPermissions.role_key
+    : context.role;
+  const [{ data: companyProfile }, { data: profile }, roleThemeResult, platformSettings] = await Promise.all([
+    supabase.from("company_profile").select("logo_url").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("profiles").select("full_name, avatar_url").eq("id", context.userId).maybeSingle(),
+    supabase.from("organization_role_themes").select("theme_key").eq("org_id", context.orgId).eq("role_key", roleKey).maybeSingle(),
+    Promise.all([
+      getEnabledOrganizationModules(context.orgId),
+      getPlatformSystemLogo(),
+      getPlatformSystemName(),
+    ]).catch((error: unknown) => {
+      console.error("Platform navigation settings could not be loaded:", error);
+      return [undefined, null, "ThinkSales ERP Pro"] as const;
+    }),
+  ]);
+  const { data: roleTheme, error: roleThemeError } = roleThemeResult;
   let selectedTheme = roleTheme?.theme_key as ThemeKey | null;
   if (roleThemeError && /organization_role_themes|schema cache|relation .* does not exist/i.test(roleThemeError.message)) {
     const { data: member } = await supabase
@@ -46,16 +42,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const fallbackTheme = (member?.access_permissions as Record<string, unknown> | null)?.role_theme;
     selectedTheme = typeof fallbackTheme === "string" ? fallbackTheme as ThemeKey : null;
   }
-  let enabledModules: string[] | undefined;
-  let systemLogoUrl: string | null = null;
-  let systemName = "ThinkSales ERP Pro";
-  try {
-    enabledModules = await getEnabledOrganizationModules(context.orgId);
-    systemLogoUrl = await getPlatformSystemLogo();
-    systemName = await getPlatformSystemName();
-  } catch (error) {
-    console.error("Platform feature access could not be loaded:", error);
-  }
+  const [enabledModules, systemLogoUrl, systemName] = platformSettings;
 
   return (
     <DashboardShell enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>

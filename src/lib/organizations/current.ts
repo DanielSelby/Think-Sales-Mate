@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import type { MemberRole } from "@/lib/rbac";
 
 export interface CurrentOrgContext {
@@ -28,10 +29,11 @@ export interface CurrentOrgContext {
  * The "active" org is whichever the user last selected (cookie-based,
  * see components/nav/org-switcher.tsx); falls back to the first membership.
  */
-export async function getCurrentOrgContext(activeOrgId?: string): Promise<CurrentOrgContext | null> {
+const resolveCurrentOrgContext = cache(async (
+  activeOrgId: string | null,
+  requestedMasterLocationId: string | null
+): Promise<CurrentOrgContext | null> => {
   const supabase = await createClient();
-  const requestCookies = await cookies();
-  const requestedMasterLocationId = requestCookies.get("master_location_id")?.value ?? null;
 
   const {
     data: { user }
@@ -125,4 +127,11 @@ export async function getCurrentOrgContext(activeOrgId?: string): Promise<Curren
     masterLocationId,
     memberships: memberships.map(({ orgId, orgName, role }) => ({ orgId, orgName, role }))
   };
+});
+
+export async function getCurrentOrgContext(activeOrgId?: string): Promise<CurrentOrgContext | null> {
+  const requestCookies = await cookies();
+  const selectedOrgId = activeOrgId ?? requestCookies.get("active_org_id")?.value ?? null;
+  const masterLocationId = requestCookies.get("master_location_id")?.value ?? null;
+  return resolveCurrentOrgContext(selectedOrgId, masterLocationId);
 }
