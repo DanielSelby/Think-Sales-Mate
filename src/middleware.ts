@@ -52,6 +52,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
+  if (
+    user?.app_metadata?.must_change_password === true
+    && pathname !== "/reset-password"
+    && !pathname.startsWith("/auth/callback")
+  ) {
+    return NextResponse.redirect(new URL("/reset-password", request.url));
+  }
+
   return response;
 }
 

@@ -10,7 +10,7 @@ interface ResetPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: ManagedUser | null;
-  onConfirmReset: (userId: string, mode: "email" | "temporary", tempPassword?: string) => void;
+  onConfirmReset: (userId: string, mode: "email" | "temporary", tempPassword?: string) => Promise<{ error?: string }>;
 }
 
 export function ResetPasswordModal({
@@ -20,10 +20,11 @@ export function ResetPasswordModal({
   onConfirmReset
 }: ResetPasswordModalProps) {
   const [resetMode, setResetMode] = useState<"email" | "temporary">("email");
-  const [tempPassword, setTempPassword] = useState("ThinkSales@2025!");
+  const [tempPassword, setTempPassword] = useState("");
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen || !user) return null;
 
@@ -33,17 +34,25 @@ export function ResetPasswordModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    setError(null);
     setIsSubmitting(true);
-    setTimeout(() => {
-      onConfirmReset(user.id, resetMode, resetMode === "temporary" ? tempPassword : undefined);
-      setIsSubmitting(false);
+    try {
+      const result = await onConfirmReset(user.id, resetMode, resetMode === "temporary" ? tempPassword : undefined);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
       setSuccess(true);
-      setTimeout(() => {
+      window.setTimeout(() => {
         setSuccess(false);
         onClose();
       }, 1200);
-    }, 400);
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : "Could not reset this password.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -77,12 +86,13 @@ export function ResetPasswordModal({
               <p className="text-sm font-bold text-ink-900 dark:text-white">Password Reset Successful</p>
               <p className="text-xs text-ledger-400">
                 {resetMode === "email"
-                  ? `A secure password reset link has been dispatched to ${user.email}.`
-                  : "Temporary credentials configured. User will be forced to change password upon next login."}
+                  ? `A secure password reset email was sent to ${user.email}.`
+                  : "Temporary password set. The user must choose a new password before accessing the application."}
               </p>
             </div>
           ) : (
             <>
+              {error && <p role="alert" className="rounded-lg border border-alert/20 bg-alert-soft px-3 py-2 text-xs text-alert">{error}</p>}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -113,7 +123,7 @@ export function ResetPasswordModal({
 
               {resetMode === "email" ? (
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs text-ledger-500 dark:text-ledger-400 border border-ledger-100 dark:border-ledger-800">
-                  Sends an encrypted 24-hour verification link to <span className="font-semibold text-ink-900 dark:text-white font-mono">{user.email}</span>.
+                  Sends a one-time recovery link to <span className="font-semibold text-ink-900 dark:text-white font-mono">{user.email}</span>.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -124,6 +134,8 @@ export function ResetPasswordModal({
                     <Input
                       value={tempPassword}
                       onChange={(e) => setTempPassword(e.target.value)}
+                      autoComplete="new-password"
+                      minLength={8}
                       className="h-9 text-xs font-mono font-semibold"
                     />
                     <Button type="button" size="sm" variant="outline" onClick={handleCopy} className="h-9 shrink-0">
@@ -147,7 +159,7 @@ export function ResetPasswordModal({
             </Button>
             <Button
               size="sm"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (resetMode === "temporary" && tempPassword.length < 8)}
               onClick={handleReset}
               className="bg-amber-600 hover:bg-amber-700 text-white"
             >

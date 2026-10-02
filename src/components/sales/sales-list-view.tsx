@@ -108,7 +108,7 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
 export function SalesListView({ sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, documentKpis }: SalesListViewProps) {
-  const { activeTheme } = useAppStore();
+  const { activeTheme, darkMode } = useAppStore();
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -269,7 +269,17 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   return (
     <div className="sales-page space-y-4 text-xs">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div
+        className="flex flex-wrap items-start justify-between gap-4 rounded-xl border px-4 py-4 sm:px-5"
+        style={{
+          background: darkMode
+            ? `color-mix(in srgb, ${theme.colors.primary} 22%, #0f172a)`
+            : theme.colors.primaryPale,
+          borderColor: darkMode
+            ? `color-mix(in srgb, ${theme.colors.primary} 45%, #334155)`
+            : `${theme.colors.primary}24`,
+        }}
+      >
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Sales Transactions History</h1>
           <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">Manage your sales drafts, quotations and invoices</p>
@@ -327,7 +337,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
       </div>
 
       {/* Filter bar */}
-      <Card accent="neutral" className="sticky top-2 z-20 rounded-2xl border-0 shadow-card">
+      <Card accent="neutral" className="rounded-2xl border-0 shadow-card">
         <CardContent className="pt-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Filter className="h-4 w-4 text-signal" /> Filters</div>
@@ -341,6 +351,10 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
                 onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                 placeholder="Search by number, customer or reference..."
                 className="pl-9"
+                style={{
+                  background: darkMode ? "#0a0c11" : theme.colors.primaryPale,
+                  borderColor: darkMode ? "#334155" : `${theme.colors.primary}35`,
+                }}
               />
             </div>
 
@@ -453,19 +467,19 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
 
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
+            <thead className="border-b border-ledger-100 bg-white text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-ink-900">
               <tr>
-                <th className="px-4 py-3 min-w-[150px]">DOCUMENT</th>
-                <th className="px-4 py-3 min-w-[170px]">CUSTOMER</th>
-                <th className="px-4 py-3 min-w-[130px]">BRANCH</th>
-                <th className="px-4 py-3 min-w-[130px]">DATE &amp; TIME</th>
-                <th className="px-4 py-3 min-w-[160px]">PRODUCT</th>
-                <th className="px-4 py-3 min-w-[130px] text-right">AMOUNT</th>
-                <th className="px-4 py-3 min-w-[120px]">STATUS</th>
-                <th className="px-4 py-3 min-w-[130px]">CREATED BY</th>
-                <th className="px-4 py-3 pr-4 min-w-[150px] text-center">ACTIONS</th>
+                <th className="sticky top-0 z-10 min-w-[150px] bg-white px-4 py-3 dark:bg-ink-900">DOCUMENT</th>
+                <th className="sticky top-0 z-10 min-w-[170px] bg-white px-4 py-3 dark:bg-ink-900">CUSTOMER</th>
+                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 dark:bg-ink-900">BRANCH</th>
+                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 dark:bg-ink-900">DATE &amp; TIME</th>
+                <th className="sticky top-0 z-10 min-w-[160px] bg-white px-4 py-3 dark:bg-ink-900">PRODUCT</th>
+                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 text-right dark:bg-ink-900">AMOUNT</th>
+                <th className="sticky top-0 z-10 min-w-[120px] bg-white px-4 py-3 dark:bg-ink-900">STATUS</th>
+                <th className="sticky top-0 z-10 min-w-[130px] bg-white px-4 py-3 dark:bg-ink-900">CREATED BY</th>
+                <th className="sticky top-0 z-10 min-w-[150px] bg-white px-4 py-3 pr-4 text-center dark:bg-ink-900">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">

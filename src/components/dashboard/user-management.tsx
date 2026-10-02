@@ -1510,39 +1510,32 @@ export function UserManagement({
           setSelectedUserForReset(null);
         }}
         user={selectedUserForReset}
-        onConfirmReset={(userId, mode, tempPassword) => {
-  const resetUser = users.find((u) => u.id === userId);
+        onConfirmReset={async (userId, mode, tempPassword) => {
+          const resetUser = users.find((u) => u.id === userId);
+          if (!resetUser) return { error: "The selected user could not be found." };
 
-  if (!resetUser) return;
+          const result = await resetMemberPassword(userId, mode, tempPassword);
+          if (result?.error) return { error: result.error };
 
-  startTransition(async () => {
-    const result = await resetMemberPassword(userId, mode, tempPassword);
-    if (result?.error) {
-      showToast(result.error);
-      return;
-    }
-  });
+          recordAudit(
+            mode === "email" ? "Password Reset Email Sent" : "Temporary Password Set",
+            "User Management",
+            mode === "email"
+              ? `Sent password reset email to ${resetUser.email}`
+              : `Set a temporary password for ${resetUser.email}`,
+            {
+              recordId: userId,
+              newValue: mode === "email" ? "Password reset email" : "Temporary password",
+            }
+          );
 
-  recordAudit(
-    "Password Reset Dispatched",
-    "User Management",
-    mode === "email"
-      ? `Dispatched password reset email to ${resetUser.email}`
-      : `Reset password using temporary password for ${resetUser.email}`,
-    {
-      recordId: userId,
-      newValue: mode === "email"
-        ? "Password reset email"
-        : "Temporary password"
-    }
-  );
-
-  showToast(
-    mode === "email"
-      ? `Reset email dispatched to ${resetUser.email}`
-      : `Temporary password generated for ${resetUser.email}`
-  );
-}}
+          showToast(
+            mode === "email"
+              ? `Password reset email sent to ${resetUser.email}`
+              : `Temporary password set for ${resetUser.email}`
+          );
+          return {};
+        }}
       />
 
       <BulkRoleModal

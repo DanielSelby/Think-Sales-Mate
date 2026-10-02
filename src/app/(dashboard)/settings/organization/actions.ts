@@ -9,6 +9,7 @@ import type { MemberRole } from "@/lib/rbac";
 import { getCurrencyConfig } from "@/lib/currency";
 import { defaultPermissionMatrixForRole, normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { deliverMessage } from "@/lib/communication/providers";
 
 function databaseRole(role: string): MemberRole {
   const key = role.toLowerCase();
@@ -207,8 +208,9 @@ export async function createStaffAccount(formData: FormData) {
       username,
       employee_id: employeeId || null,
       staff_account: true,
-      must_change_password: true
-    }
+      must_change_password: false
+    },
+    app_metadata: { must_change_password: true }
   });
   if (authError || !authData.user) return { error: authError?.message ?? "Unable to create the authentication account." };
 
@@ -427,21 +429,43 @@ export async function resetMemberPassword(memberId: string, mode: "email" | "tem
   const admin = createAdminClient();
   if (mode === "temporary") {
     if (!temporaryPassword || temporaryPassword.length < 8) return { error: "Temporary password must be at least 8 characters." };
+    const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(member.user_id);
+    if (authUserError || !authUserData.user) return { error: "Could not verify the user's authentication account." };
     const { error } = await admin.auth.admin.updateUserById(member.user_id, {
       password: temporaryPassword,
-      user_metadata: { must_change_password: true }
+      app_metadata: { ...authUserData.user.app_metadata, must_change_password: true },
+      user_metadata: { ...authUserData.user.user_metadata, must_change_password: false },
     });
     if (error) return { error: error.message };
     return { success: true };
   }
 
-  if (!member.invited_email) return { error: "No email on file for this user." };
-  const { error } = await admin.auth.admin.generateLink({
+  const email = member.invited_email;
+  if (!email) return { error: "No email on file for this user." };
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
+  if (!siteUrl) return { error: "The application URL is not configured. Set NEXT_PUBLIC_SITE_URL in production." };
+  const { data, error } = await admin.auth.admin.generateLink({
     type: "recovery",
-    email: member.invited_email,
-    options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password` }
+    email,
+    options: { redirectTo: `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/reset-password` }
   });
-  if (error) return { error: error.message };
+  if (error) return { error: `Could not generate a password reset link: ${error.message}` };
+  const actionLink = data.properties?.action_link;
+  if (!actionLink) return { error: "Supabase did not return a password reset link." };
+  const delivery = await deliverMessage({
+    channel: "Email",
+    recipient: email,
+    subject: "Reset your ThinkSales password",
+    content: [
+      "A password reset was requested for your ThinkSales account.",
+      "",
+      "Use the secure link below to choose a new password. This link can only be used once and expires according to your authentication settings.",
+      actionLink,
+      "",
+      "If you did not request this change, you can ignore this email.",
+    ].join("\n"),
+  });
+  if (!delivery.sent) return { error: `Password reset email could not be sent: ${delivery.reason ?? "Email delivery failed."}` };
   return { success: true };
 }
 

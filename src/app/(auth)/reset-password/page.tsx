@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { completeRequiredPasswordChange } from "./actions";
 
 function LogoMark() {
   return (
@@ -94,10 +95,26 @@ export default function ResetPasswordPage() {
 
     try {
       const supabase = await createClient();
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+        data: { must_change_password: false },
+      });
 
       if (updateError) {
         setError(updateError.message);
+        setLoading(false);
+        return;
+      }
+
+      const completion = await completeRequiredPasswordChange();
+      if (completion.error) {
+        setError(completion.error);
+        setLoading(false);
+        return;
+      }
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        setError("Your password was updated. Please sign in again with the new password.");
         setLoading(false);
         return;
       }
