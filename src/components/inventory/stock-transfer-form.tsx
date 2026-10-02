@@ -623,7 +623,7 @@ export function StockTransferForm({
                     type="date"
                     value={transferDate}
                     onChange={(e) => setTransferDate(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    className="stock-transfer-config-control h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
                   />
                 </div>
 
@@ -635,7 +635,7 @@ export function StockTransferForm({
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value as any)}
-                      className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                      className="stock-transfer-config-control h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
                     >
                       <option value="Normal">🟢 Normal</option>
                       <option value="Low">🔵 Low</option>
@@ -654,7 +654,7 @@ export function StockTransferForm({
                     type="date"
                     value={expectedDate}
                     onChange={(e) => setExpectedDate(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    className="stock-transfer-config-control h-10 w-full rounded-xl border border-ledger-200 bg-white px-3 text-xs font-medium text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
                   />
                 </div>
               </div>

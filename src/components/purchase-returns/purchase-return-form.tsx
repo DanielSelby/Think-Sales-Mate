@@ -229,7 +229,7 @@ export function PurchaseReturnForm({ locations, bankAccounts, currency }: Purcha
               </div>
               <div className="space-y-3">
                 <Field label="Supplier">
-                  <Input value={purchase?.supplierName ?? ""} disabled className="opacity-70" />
+                  <Input value={purchase?.supplierName ?? ""} readOnly />
                 </Field>
                 <Field label="Related Purchase Invoice" required>
                   <OrderPicker onSelect={loadPurchase} selectedLabel={purchase ? formatReturnNumber(purchase.purchaseNumber).replace("PR-", "PO-") : null} />

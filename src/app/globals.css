@@ -930,6 +930,10 @@ html.dark .route-sales-page :is(div, section, article, form, a)[class*="rounded"
   background-color: #0f1d2d !important;
 }
 
+.fraud-detection-page .recharts-cartesian-grid {
+  display: none;
+}
+
 html.dark .end-of-day-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
 html.dark .asset-pages :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
 html.dark .asset-management-page :is(div, section, article, form, a)[class*="rounded"][class~="bg-white"],
@@ -1073,11 +1077,6 @@ html.dark .order-tracker-page table thead th {
 }
 
 .page-canvas:has(.sales-history-page) {
-  overflow: hidden;
-}
-
-.page-canvas:has(.purchase-history-page),
-.page-canvas:has(.products-catalog-page) {
   overflow: hidden;
 }
 
@@ -1324,6 +1323,35 @@ html.dark .audit-center .recharts-cartesian-axis-tick-value {
   position: absolute;
   inset: 0;
   transform: rotateY(180deg);
+}
+
+.stock-transfer-config-control,
+.transfer-history-filter-control,
+.transfer-history-date-range,
+.stock-request-filter-control,
+.stock-request-product-search,
+.stock-request-history-search {
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.dark .stock-transfer-config-control,
+html.dark .transfer-history-filter-control,
+html.dark .transfer-history-date-range,
+html.dark .stock-request-filter-control,
+html.dark .stock-request-product-search,
+html.dark .stock-request-history-search {
+  border-color: #475569 !important;
+}
+
+html.dark .stock-request-product-search,
+html.dark .stock-request-history-search {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+html.dark .stock-request-product-search::placeholder,
+html.dark .stock-request-history-search input::placeholder {
+  color: #94a3b8 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

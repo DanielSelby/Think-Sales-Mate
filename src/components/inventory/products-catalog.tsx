@@ -582,7 +582,7 @@ export function ProductsCatalog({
   }
 
   return (
-    <div className="product-page products-catalog-page flex h-full min-h-0 flex-col gap-4 overflow-hidden text-xs">
+    <div className="product-page products-catalog-page space-y-4 text-xs">
       <input
         ref={fileInputRef}
         type="file"
@@ -596,7 +596,7 @@ export function ProductsCatalog({
       />
 
       {/* Header */}
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Products</h1>
           <p className="text-sm text-ledger-500 dark:text-ledger-400">
@@ -635,7 +635,7 @@ export function ProductsCatalog({
       </div>
 
       {error && (
-        <p className="flex shrink-0 items-center justify-between rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">
+        <p className="flex items-center justify-between rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">
           {error}
           <button onClick={() => setError(null)} aria-label="Dismiss">
             <X className="h-3.5 w-3.5" />
@@ -643,7 +643,7 @@ export function ProductsCatalog({
         </p>
       )}
       {importMessage && (
-        <p className="flex shrink-0 items-center justify-between rounded-md bg-signal-soft px-3 py-2 text-sm text-signal">
+        <p className="flex items-center justify-between rounded-md bg-signal-soft px-3 py-2 text-sm text-signal">
           {importMessage}
           <button onClick={() => setImportMessage(null)} aria-label="Dismiss">
             <X className="h-3.5 w-3.5" />
@@ -652,7 +652,7 @@ export function ProductsCatalog({
       )}
 
       {/* KPI cards */}
-      <div className="grid shrink-0 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <KpiFlipCard color="blue" label="Total products" value={totalProducts.toLocaleString()} icon={<Boxes className="h-full w-full" />} detail="Number of products matching the current search/filters." />
         <KpiFlipCard color="amber" label="Low stock" value={lowStockCount.toLocaleString()} icon={<AlertTriangle className="h-full w-full" />} detail="Active, filtered products at or below their low-stock threshold." />
         <KpiFlipCard color="red" label="Out of stock" value={outOfStockCount.toLocaleString()} icon={<PackageX className="h-full w-full" />} detail="Active, filtered products with zero units on hand." />
@@ -661,7 +661,7 @@ export function ProductsCatalog({
       </div>
 
       {/* Toolbar */}
-      <div className="products-filter-panel shrink-0 space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="products-filter-panel space-y-3 rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
@@ -801,7 +801,7 @@ export function ProductsCatalog({
       </div>
 
       {/* Bulk Action Toolbar + View Toggle */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-ledger-100 bg-white p-3.5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ledger-100 bg-white p-3.5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex flex-wrap items-center gap-2.5">
           <label className="flex items-center gap-2 rounded-xl border border-ledger-200 bg-ledger-50/70 px-3 py-2 text-xs font-semibold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white cursor-pointer select-none transition hover:border-ledger-300">
             <input
@@ -909,11 +909,11 @@ export function ProductsCatalog({
 
       {/* Table / Grid */}
       {pageItems.length === 0 ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
+        <div className="rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
           <p className="text-sm text-ledger-500 dark:text-ledger-400">No products match these filters.</p>
         </div>
       ) : view === "table" ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex h-[65vh] max-h-[760px] min-h-[420px] flex-col overflow-hidden rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
           <div className="min-h-0 flex-1 overflow-auto">
           <table className="products-history-table w-full min-w-[1250px] text-left text-xs">
             <thead className="sticky top-0 z-10 border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.03]">
@@ -1081,7 +1081,7 @@ export function ProductsCatalog({
         </div>
       ) : (
         <div
-          className="min-h-0 flex-1 overflow-auto grid grid-cols-1 gap-4 rounded-2xl p-2 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid grid-cols-1 gap-4 rounded-2xl p-2 sm:grid-cols-2 lg:grid-cols-4"
         >
           {pageItems.map((p) => {
             const currentStock = getProductStockForWarehouse(p, warehouse);

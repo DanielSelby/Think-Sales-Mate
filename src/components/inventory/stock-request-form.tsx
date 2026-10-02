@@ -85,7 +85,7 @@ export function StockRequestForm({
           <section className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-display text-sm font-bold">Requested Items</h2>
-              <div className="relative w-80 sm:w-96">
+              <div className="relative w-full max-w-2xl">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
                   style={{ color: theme.colors.primary }}
@@ -100,7 +100,7 @@ export function StockRequestForm({
                   onFocus={() => setSearchDropdownOpen(true)}
                   onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
                   placeholder="Enter Product name / SKU / Scan bar code"
-                  className="h-10 w-full rounded-md border pl-9 pr-3 text-xs font-medium outline-none"
+                  className="stock-request-product-search h-10 w-full rounded-md border pl-9 pr-3 text-xs font-medium outline-none"
                   style={{
                     background: theme.colors.primaryPale,
                     borderColor: `${theme.colors.primary}4D`,

@@ -107,7 +107,7 @@ const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 500];
 export function PurchaseListView({
   purchases, kpis, currency, suppliers, locations, initialLocation = "all", overview, topSuppliers, categories, recentActivity,
 }: PurchaseListViewProps) {
-  const { activeTheme } = useAppStore();
+  const { activeTheme, darkMode } = useAppStore();
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
   const searchParams = useSearchParams();
@@ -226,9 +226,9 @@ export function PurchaseListView({
   const maxCategoryTotal = Math.max(1, ...categories.map((c) => c.total));
 
   return (
-    <div className="procurement-page purchase-history-page flex h-full min-h-0 flex-col gap-4 overflow-hidden text-xs">
+    <div className="procurement-page purchase-history-page space-y-4 text-xs">
       {/* Header */}
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">All Purchases</h1>
           <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">
@@ -277,9 +277,9 @@ export function PurchaseListView({
       {/* ------------------------------------------------------------- */}
       {/* Main column — KPIs, filters, table now run full width         */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <div className="space-y-5">
         {/* KPI cards */}
-        <div className="grid shrink-0 grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
           <KpiFlipCard color="blue" label="Total Purchases" value={`${filteredKpis.totalPurchases}`} icon={<ShoppingBag className="h-full w-full" />} detail="Number of purchase orders matching the current filters." />
           <KpiFlipCard color="green" label="Total Value" value={formatCurrency(filteredKpis.totalValue, currency)} icon={<Banknote className="h-full w-full" />} detail="Combined total across every purchase order matching the current filters." featured />
           <KpiFlipCard color="amber" label="Pending Orders" value={`${filteredKpis.pendingOrders}`} icon={<Clock3 className="h-full w-full" />} detail="Orders still in Draft, Ordered, or Partially Received status." />
@@ -289,7 +289,7 @@ export function PurchaseListView({
         </div>
 
         {/* Filters */}
-        <Card accent="neutral" className="purchase-filter-panel shrink-0">
+        <Card accent="neutral" className="purchase-filter-panel">
           <CardContent className="pt-5">
             <div className="purchase-filter-fields flex flex-wrap items-end gap-3">
               <div className="relative min-w-[240px] flex-1">
@@ -299,7 +299,7 @@ export function PurchaseListView({
                   onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                   placeholder="Search by PO No., supplier, product, or invoice..."
                   className="purchase-search-input pl-9"
-                  style={{ backgroundColor: theme.colors.primaryPale }}
+                  style={{ backgroundColor: darkMode ? "#000" : theme.colors.primaryPale }}
                 />
               </div>
               <div className="w-44">
@@ -340,7 +340,7 @@ export function PurchaseListView({
         </Card>
 
         {/* Tabs + bulk actions + rows-per-page */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             {STATUS_TABS.map((tab) => (
               <button
@@ -373,8 +373,7 @@ export function PurchaseListView({
         </div>
 
         {/* Table */}
-        <div className="purchase-results-region flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
-        <div className="flex h-[55vh] max-h-[600px] min-h-[280px] shrink-0 flex-col overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex h-[65vh] max-h-[760px] min-h-[420px] flex-col overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="purchase-history-table w-full text-left text-xs">
               <thead className="purchase-history-table-head border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
@@ -466,7 +465,7 @@ export function PurchaseListView({
             </table>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-ledger-100 px-4 py-3 dark:border-ledger-700">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ledger-100 px-4 py-3 dark:border-ledger-700">
             <p className="text-sm text-ledger-500">
               Showing {pageRows.length === 0 ? 0 : (clampedPage - 1) * rowsPerPage + 1}–
               {rowsPerPage === 0 ? filtered.length : (clampedPage - 1) * rowsPerPage + pageRows.length} of {filtered.length} purchases
@@ -478,12 +477,10 @@ export function PurchaseListView({
             </div>
           </div>
         </div>
-      </div>
-
       {/* ------------------------------------------------------------- */}
       {/* Analytics panel — moved below the table, laid out as a row    */}
       {/* ------------------------------------------------------------- */}
-      <div className="grid shrink-0 grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         <Card accent="neutral">
           <CardHeader className="pb-2">
             <CardTitle className="normal-case tracking-normal text-[13px] font-semibold text-ink-900 dark:text-white">
@@ -587,7 +584,7 @@ export function PurchaseListView({
           </CardContent>
         </Card>
       </div>
-      </div>
+    </div>
     </div>
   );
 }

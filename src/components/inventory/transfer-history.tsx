@@ -622,7 +622,7 @@ export function TransferHistory({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-10 w-full rounded-xl border border-ledger-200 bg-white pl-10 pr-4 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              className="transfer-history-filter-control h-10 w-full rounded-xl border border-ledger-200 bg-white pl-10 pr-4 text-xs text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
             />
           </div>
 
@@ -634,7 +634,7 @@ export function TransferHistory({
                 setSelectedStatus(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              className="transfer-history-filter-control h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
             >
               <option value="all">All Status</option>
               <option value="completed">Completed</option>
@@ -653,7 +653,7 @@ export function TransferHistory({
                 setSelectedLocation(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              className="transfer-history-filter-control h-10 w-full appearance-none rounded-xl border border-ledger-200 bg-white px-3 pr-8 text-xs font-semibold text-ink-900 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
             >
               <option value="all">All Locations</option>
               {locations.map((loc) => (
@@ -666,7 +666,7 @@ export function TransferHistory({
           </div>
 
           {/* 4. Date Range */}
-          <div className="lg:col-span-2 flex items-center gap-1 rounded-xl border border-ledger-200 bg-white px-2 py-1 shadow-xs dark:border-ledger-700 dark:bg-ink-950">
+          <div className="transfer-history-date-range lg:col-span-2 flex items-center gap-1 rounded-xl border border-ledger-200 bg-white px-2 py-1 shadow-xs dark:border-ledger-700 dark:bg-ink-950">
             <Calendar className="h-3.5 w-3.5 text-ledger-400 shrink-0" />
             <input
               type="date"
@@ -698,7 +698,7 @@ export function TransferHistory({
                 setCurrentPage(1);
               }}
               title="Reset Filters"
-              className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-ledger-200 bg-white px-3 text-xs font-semibold text-ink-900 shadow-xs hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+              className="transfer-history-filter-control flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-ledger-200 bg-white px-3 text-xs font-semibold text-ink-900 shadow-xs hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
             >
               <RotateCcw className="h-3.5 w-3.5 text-ledger-400" />
               <span className="hidden sm:inline">Reset</span>

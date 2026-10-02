@@ -11,7 +11,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
 } from "recharts";
 
 import type { RevenueSlice } from "@/lib/accounting/metrics";
@@ -402,12 +401,6 @@ export function RevenueByProductChart({
               bottom: 0,
             }}
           >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#f1f5f9"
-              horizontal={false}
-            />
-
             <XAxis
               type="number"
               tick={{
