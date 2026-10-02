@@ -1076,6 +1076,38 @@ html.dark .order-tracker-page table thead th {
   overflow: hidden;
 }
 
+.page-canvas:has(.purchase-history-page),
+.page-canvas:has(.products-catalog-page) {
+  overflow: hidden;
+}
+
+.purchase-history-page .purchase-search-input {
+  background-color: var(--theme-primary-pale) !important;
+}
+
+html.dark .purchase-history-page .purchase-search-input {
+  background-color: #000 !important;
+  border-color: #475569 !important;
+  color: #fff !important;
+}
+
+.purchase-history-page .purchase-history-table-head th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: inherit;
+}
+
+html.dark .purchase-history-page .purchase-history-table-head {
+  background-color: #26384d !important;
+}
+
+.product-page .products-history-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
 .sales-history-page .sales-history-table thead,
 .sales-history-page .sales-history-table thead th {
   background-color: var(--sales-history-table-header) !important;
