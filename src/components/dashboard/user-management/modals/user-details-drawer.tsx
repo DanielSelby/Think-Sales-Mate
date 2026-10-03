@@ -191,7 +191,7 @@ export function UserDetailsDrawer({
 
                   <div className="rounded-xl border border-ledger-100 bg-slate-50/50 p-3 dark:border-ledger-800 dark:bg-slate-800/40">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Primary Branch</span>
-                    <p className="mt-1 text-xs font-bold text-ink-900 dark:text-white truncate">{user.locationName || "Head Office"}</p>
+                    <p className="mt-1 text-xs font-bold text-ink-900 dark:text-white truncate">{user.branchScope === "all" ? "All branches" : user.locationName || "Unassigned"}</p>
                   </div>
 
                   <div className="rounded-xl border border-ledger-100 bg-slate-50/50 p-3 dark:border-ledger-800 dark:bg-slate-800/40">
@@ -362,8 +362,8 @@ export function UserDetailsDrawer({
                     <div className="flex items-center gap-3">
                       <Building2 className="h-5 w-5 text-blue-600" />
                       <div>
-                        <p className="text-xs font-bold text-ink-900 dark:text-white">{user.locationName || "Head Office"}</p>
-                        <p className="text-[11px] text-ledger-400">Default POS terminal, sales register & inventory view</p>
+                        <p className="text-xs font-bold text-ink-900 dark:text-white">{user.branchScope === "all" ? "All branches" : user.locationName || "Unassigned"}</p>
+                        <p className="text-[11px] text-ledger-400">{user.branchScope === "all" ? "Can access every organization branch" : "Default POS terminal, sales register & inventory view"}</p>
                       </div>
                     </div>
                     <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">Default</span>
@@ -372,10 +372,12 @@ export function UserDetailsDrawer({
 
                 <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-3">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">
-                    Assigned Secondary Branches ({user.secondaryBranchNames?.length || 0})
+                    {user.branchScope === "all" ? "Branch Access" : `Assigned Secondary Branches (${user.secondaryBranchNames?.length || 0})`}
                   </span>
 
-                  {user.secondaryBranchNames && user.secondaryBranchNames.length > 0 ? (
+                  {user.branchScope === "all" ? (
+                    <p className="text-xs text-ledger-500 dark:text-ledger-300">This user has access to all organization branches.</p>
+                  ) : user.secondaryBranchNames && user.secondaryBranchNames.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {user.secondaryBranchNames.map((branchName, idx) => (
                         <div key={idx} className="flex items-center gap-2.5 p-2.5 rounded-lg border border-ledger-100 dark:border-ledger-800 bg-slate-50/50 dark:bg-slate-800/40 text-xs">

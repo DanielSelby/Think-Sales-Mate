@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { BranchAccessRule, UserBranch, ManagedUser } from "../types";
+import { isSuperAdminRole } from "@/lib/organizations/member-access";
 
 interface BranchAccessTabProps {
   branches: UserBranch[];
@@ -33,7 +34,7 @@ export function BranchAccessTab({ branches, users, canManage, onSaveAccess }: Br
     userEmail: user.email,
     role: user.roleLabel || String(user.role),
     primaryBranchId: user.locationId || "",
-    primaryBranchName: user.locationName || "Unassigned",
+    primaryBranchName: user.branchScope === "all" ? "All branches" : user.locationName || "Unassigned",
     additionalBranchIds: user.secondaryBranches || [],
     additionalBranchNames: user.secondaryBranchNames || [],
     viewAllBranches: user.branchScope === "all",
@@ -228,7 +229,7 @@ export function BranchAccessTab({ branches, users, canManage, onSaveAccess }: Br
                   <td className="px-3 py-3 text-center">
                     <input
                       type="checkbox"
-                      disabled={!canManage}
+                      disabled={!canManage || isSuperAdminRole(rule.role)}
                       checked={rule.viewAllBranches}
                       onChange={() => handleToggleViewAll(rule.userId)}
                       className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500 cursor-pointer"

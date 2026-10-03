@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DEPARTMENTS } from "../constants";
 import type { ManagedUser, RoleDefinition, UserBranch, UserStatus } from "../types";
+import { isSuperAdminRole } from "@/lib/organizations/member-access";
 
 interface EditUserModalProps {
   isOpen: boolean;
@@ -52,6 +53,7 @@ export function EditUserModal({
 
   const [activeTab, setActiveTab] = useState<"details" | "branches" | "approvals">("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSuperAdmin = isSuperAdminRole(formData.role);
 
   useEffect(() => {
     if (user) {
@@ -65,9 +67,9 @@ export function EditUserModal({
         role: String(user.role),
         status: (user.status as UserStatus) || "active",
         department: user.department || "Sales & Marketing",
-        locationId: user.locationId || branches[0]?.id || "b-head",
-        secondaryBranches: user.secondaryBranches || [],
-        branchScope: user.branchScope || (user.secondaryBranches?.length ? "assigned" : "single"),
+        locationId: isSuperAdminRole(String(user.role)) ? "" : user.locationId || branches[0]?.id || "",
+        secondaryBranches: isSuperAdminRole(String(user.role)) ? [] : user.secondaryBranches || [],
+        branchScope: isSuperAdminRole(String(user.role)) ? "all" : user.branchScope || (user.secondaryBranches?.length ? "assigned" : "single"),
         canViewOtherTransactions: user.canViewOtherTransactions !== false,
         canCheckCrossBranchStock: user.canCheckCrossBranchStock === true,
         twoFactorEnabled: Boolean(user.twoFactorEnabled),
@@ -126,13 +128,13 @@ export function EditUserModal({
       roleLabel: selectedRole?.name ?? "Sales Associate",
       status: formData.status,
       department: formData.department,
-      locationId: formData.locationId,
-      locationName: selectedBranch?.name ?? "Head Office",
-      secondaryBranches: formData.secondaryBranches,
-      secondaryBranchNames: secondaryNames,
-      branchScope: formData.branchScope,
-      canViewOtherTransactions: formData.canViewOtherTransactions,
-      canCheckCrossBranchStock: formData.canCheckCrossBranchStock,
+      locationId: isSuperAdmin ? null : formData.locationId || null,
+      locationName: isSuperAdmin ? "All branches" : selectedBranch?.name ?? null,
+      secondaryBranches: isSuperAdmin ? [] : formData.secondaryBranches,
+      secondaryBranchNames: isSuperAdmin ? [] : secondaryNames,
+      branchScope: isSuperAdmin ? "all" : formData.branchScope,
+      canViewOtherTransactions: isSuperAdmin || formData.canViewOtherTransactions,
+      canCheckCrossBranchStock: isSuperAdmin || formData.canCheckCrossBranchStock,
       twoFactorEnabled: formData.twoFactorEnabled,
       approvalPermissions: {
         stockTransfers: formData.approvalStockTransfers,
@@ -311,7 +313,17 @@ export function EditUserModal({
                     </label>
                     <select
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      onChange={(e) => {
+                        const role = e.target.value;
+                        const nextIsSuperAdmin = isSuperAdminRole(role);
+                        setFormData((current) => ({
+                          ...current,
+                          role,
+                          branchScope: nextIsSuperAdmin ? "all" : isSuperAdminRole(current.role) ? "single" : current.branchScope,
+                          locationId: nextIsSuperAdmin ? "" : current.locationId || branches[0]?.id || "",
+                          secondaryBranches: nextIsSuperAdmin ? [] : current.secondaryBranches,
+                        }));
+                      }}
                       className="h-9 w-full rounded-md border border-ledger-200 bg-white px-3 text-xs dark:border-ledger-700 dark:bg-slate-900 dark:text-white"
                     >
                       {roles.map((r) => (
@@ -362,17 +374,23 @@ export function EditUserModal({
                   <label className="block text-xs font-semibold text-ink-900 dark:text-white mb-1">
                     Primary Home Branch
                   </label>
-                  <select
-                    value={formData.locationId}
-                    onChange={(e) => setFormData({ ...formData, locationId: e.target.value })}
-                    className="h-9 w-full rounded-md border border-ledger-200 bg-white px-3 text-xs font-medium dark:border-ledger-700 dark:bg-slate-900 dark:text-white"
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} {b.isMain ? "(Head Office)" : ""}
-                      </option>
-                    ))}
-                  </select>
+                  {isSuperAdmin ? (
+                    <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
+                      Super admins automatically have access to all branches.
+                    </p>
+                  ) : (
+                    <select
+                      value={formData.locationId}
+                      onChange={(e) => setFormData({ ...formData, locationId: e.target.value })}
+                      className="h-9 w-full rounded-md border border-ledger-200 bg-white px-3 text-xs font-medium dark:border-ledger-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -388,12 +406,21 @@ export function EditUserModal({
                       <button
                         key={opt.id}
                         type="button"
-                        onClick={() => setFormData({ ...formData, branchScope: opt.id as any })}
+                        disabled={isSuperAdmin && opt.id !== "all"}
+                        onClick={() => {
+                          if (isSuperAdmin && opt.id !== "all") return;
+                          setFormData((current) => ({
+                            ...current,
+                            branchScope: opt.id as "all" | "assigned" | "single",
+                            ...(opt.id !== "all" && !current.locationId ? { locationId: branches[0]?.id || "" } : {}),
+                            ...(opt.id === "all" ? { secondaryBranches: [] } : {}),
+                          }));
+                        }}
                         className={`rounded-xl border p-2.5 text-left transition-all ${
                           formData.branchScope === opt.id
                             ? "border-blue-600 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/40"
                             : "border-ledger-200 hover:border-ledger-300 dark:border-ledger-700"
-                        }`}
+                        } ${isSuperAdmin && opt.id !== "all" ? "cursor-not-allowed opacity-50" : ""}`}
                       >
                         <p className="text-xs font-semibold text-ink-900 dark:text-white">{opt.title}</p>
                         <p className="text-[10px] text-ledger-400">{opt.desc}</p>

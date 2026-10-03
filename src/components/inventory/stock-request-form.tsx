@@ -83,9 +83,9 @@ export function StockRequestForm({
             </div>
           </section>
           <section className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3">
               <h2 className="font-display text-sm font-bold">Requested Items</h2>
-              <div className="relative w-full max-w-2xl">
+              <div className="relative mt-3 w-full">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
                   style={{ color: theme.colors.primary }}

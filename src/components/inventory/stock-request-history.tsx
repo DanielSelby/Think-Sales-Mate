@@ -188,10 +188,12 @@ export function StockRequestHistory({
           <label className="text-[10px] font-bold uppercase tracking-wide text-ledger-400">Status<select value={status} onChange={(event) => { setStatus(event.target.value as "all" | RequestStatus); setPage(1); }} className="stock-request-filter-control mt-1 h-9 w-full rounded-lg border border-ledger-200 bg-white px-3 text-xs text-ink-900 outline-none focus:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"><option value="all">All statuses</option>{Object.entries(STATUS_META).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}</select></label>
           <label className="text-[10px] font-bold uppercase tracking-wide text-ledger-400">Request type<select value={requestType} onChange={(event) => { setRequestType(event.target.value); setPage(1); }} className="stock-request-filter-control mt-1 h-9 w-full rounded-lg border border-ledger-200 bg-white px-3 text-xs text-ink-900 outline-none focus:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"><option value="all">All types</option>{requestTypes.map((item) => <option key={item}>{item}</option>)}</select></label>
         </div>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <label className="stock-request-history-search flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-ledger-200 bg-white px-3 text-ledger-400 dark:border-slate-800 dark:bg-slate-900"><Search className="h-4 w-4 shrink-0" /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search request ID, branch, user or request type..." className="w-full min-w-0 bg-transparent text-xs outline-none" /></label>
-          <Button variant="outline" onClick={() => setShowFilters((value) => !value)}><ChevronDown className={`mr-2 h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />More filters</Button>
-          <Button className="stock-request-filter-control" variant="outline" onClick={clearFilters}>Clear filters</Button>
+        <div className="mt-3 space-y-2">
+          <label className="stock-request-history-search flex h-10 w-full min-w-0 items-center gap-2 rounded-lg border border-ledger-200 bg-white px-3 text-ledger-400 dark:border-slate-800 dark:bg-slate-900"><Search className="h-4 w-4 shrink-0" /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search request ID, branch, user or request type..." className="w-full min-w-0 bg-transparent text-xs outline-none" /></label>
+          <div className="flex justify-end gap-2">
+            <Button className="stock-request-filter-control" variant="outline" onClick={() => setShowFilters((value) => !value)}><ChevronDown className={`mr-2 h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />More filters</Button>
+            <Button className="stock-request-filter-control" variant="outline" onClick={clearFilters}>Clear filters</Button>
+          </div>
         </div>
         {showFilters && <p className="mt-3 text-xs text-ledger-500">Filters apply immediately to the request history and summary cards.</p>}
       </section>

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import type { MemberRole } from "@/lib/rbac";
+import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 
 export interface CurrentOrgContext {
   userId: string;
@@ -56,7 +57,12 @@ const resolveCurrentOrgContext = cache(async (
     // update wrote an administrative role into the membership row.
     const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
     const org = organization;
-    const isOwner = row.role === "owner" || organization?.created_by === user.id;
+    const isOwner = isOrganizationSuperAdminMember({
+      role: row.role,
+      userId: user.id,
+      createdBy: organization?.created_by,
+      accessPermissions: row.access_permissions,
+    });
     const canViewOther = isOwner || row.can_view_other_users_transactions !== false;
     const canCheckCrossBranchStock = isOwner || row.can_check_cross_branch_stock === true;
     const configuredPriceGroups = row.access_permissions?.price_groups;

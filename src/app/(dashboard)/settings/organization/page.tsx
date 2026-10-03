@@ -7,6 +7,7 @@ import { UserManagement, type ManagedUser, type UserBranch } from "@/components/
 import type { ApprovalPermission, AuditLogEntry, LoginSession } from "@/components/dashboard/user-management/types";
 import { DEFAULT_ROLES } from "@/components/dashboard/user-management/constants";
 import { normalizePermissionMatrix } from "@/lib/rbac/permissions";
+import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 
 export default async function OrganizationSettingsPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -120,7 +121,12 @@ export default async function OrganizationSettingsPage() {
 
     const fallbackName = nameFromAuth || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
     const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-    const isOwner = row.role === "owner" || organization?.created_by === row.user_id;
+    const isOwner = isOrganizationSuperAdminMember({
+      role: row.role,
+      userId: row.user_id,
+      createdBy: organization?.created_by,
+      accessPermissions: row.access_permissions,
+    });
     const accessRole = isOwner
       ? "owner"
       : typeof row.access_permissions?.role_key === "string"
@@ -141,7 +147,7 @@ export default async function OrganizationSettingsPage() {
       status: isOwner ? "active" : row.status as any,
       department: row.department ?? "Sales & Marketing",
       locationId: row.location_id,
-      locationName: row.location_id ? branchById.get(row.location_id) ?? null : null,
+      locationName: isOwner ? "All branches" : row.location_id ? branchById.get(row.location_id) ?? null : null,
       lastSignInAt,
       joinedAt: row.created_at,
       isSelf: row.user_id === context.userId,

@@ -10,6 +10,7 @@ import { getCurrencyConfig } from "@/lib/currency";
 import { defaultPermissionMatrixForRole, normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
+import { isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
 
 function databaseRole(role: string): MemberRole {
   const key = role.toLowerCase();
@@ -36,13 +37,18 @@ async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> 
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("organization_members")
-    .select("role, user_id, organizations(created_by)")
+    .select("role, user_id, access_permissions, organizations(created_by)")
     .eq("id", memberId)
     .eq("org_id", orgId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   const organization = Array.isArray(data?.organizations) ? data.organizations[0] : data?.organizations;
-  return data?.role === "owner" || Boolean(data?.user_id && organization?.created_by === data.user_id);
+  return isOrganizationSuperAdminMember({
+    role: data?.role,
+    userId: data?.user_id,
+    createdBy: organization?.created_by,
+    accessPermissions: data?.access_permissions,
+  });
 }
 
 async function sendOrganizationInvite(email: string, name: string, orgName: string) {
@@ -61,13 +67,14 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
 export async function inviteMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const requestedRole = String(formData.get("role") ?? "staff").toLowerCase();
+  const isSuperAdmin = isSuperAdminRole(requestedRole);
   const role = databaseRole(requestedRole);
   const avatar = formData.get("avatar");
   const locationId = String(formData.get("location_id") ?? "").trim();
   const branchScope = String(formData.get("branch_scope") ?? "assigned");
   const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
-  const canViewOther = formData.get("can_view_other_users_transactions") !== "false";
-  const canCheckCrossBranchStock = formData.get("can_check_cross_branch_stock") === "true";
+  const canViewOther = isSuperAdmin || formData.get("can_view_other_users_transactions") !== "false";
+  const canCheckCrossBranchStock = isSuperAdmin || formData.get("can_check_cross_branch_stock") === "true";
 
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
@@ -86,9 +93,9 @@ export async function inviteMember(formData: FormData) {
     invited_email: email,
     role,
     status: "invited",
-    location_id: locationId || null,
-    branch_scope: branchScope as "all" | "assigned" | "single",
-    secondary_location_ids: secondaryLocationIds,
+    location_id: isSuperAdmin ? null : locationId || null,
+    branch_scope: isSuperAdmin ? "all" : branchScope as "all" | "assigned" | "single",
+    secondary_location_ids: isSuperAdmin ? [] : secondaryLocationIds,
     can_view_other_users_transactions: canViewOther,
     can_check_cross_branch_stock: canCheckCrossBranchStock,
     access_permissions: {
@@ -124,6 +131,7 @@ export async function createStaffAccount(formData: FormData) {
   const avatar = formData.get("avatar");
   const department = String(formData.get("department") ?? "").trim();
   const requestedRole = String(formData.get("role") ?? "staff").trim().toLowerCase();
+  const requestedSuperAdmin = isSuperAdminRole(requestedRole);
   const locationId = String(formData.get("location_id") ?? "").trim() || null;
   const branchScope = String(formData.get("branch_scope") ?? "assigned");
   const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "")
@@ -164,7 +172,9 @@ export async function createStaffAccount(formData: FormData) {
   // The UI has richer role templates than the database's tenant roles. Keep
   // the selected template in access_permissions while enforcing the tenant
   // role enum used by the rest of the application.
-  const role = requestedRole === "administrator" || requestedRole === "admin"
+  const role = requestedSuperAdmin
+    ? "owner"
+    : requestedRole === "administrator" || requestedRole === "admin"
     ? "admin"
     : requestedRole === "manager" || requestedRole === "branch_manager"
       ? "manager"
@@ -217,16 +227,27 @@ export async function createStaffAccount(formData: FormData) {
   const accessPermissions = {
     role_key: requestedRole,
     permissions: submittedPermissions(formData, requestedRole),
-    approvals: {
-      stockTransfers: formData.get("approval_stock_transfers") === "true",
-      purchases: formData.get("approval_purchases") === "true",
-      expenses: formData.get("approval_expenses") === "true",
-      priceUpdates: formData.get("approval_price_updates") === "true",
-      stockAdjustments: formData.get("approval_stock_adjustments") === "true"
-    }
+    approvals: requestedSuperAdmin
+      ? {
+          stockTransfers: true,
+          purchases: true,
+          expenses: true,
+          priceUpdates: true,
+          stockAdjustments: true,
+          customerOrders: true,
+          maxExpenseAmount: Number.MAX_SAFE_INTEGER,
+          maxPurchaseAmount: Number.MAX_SAFE_INTEGER
+        }
+      : {
+          stockTransfers: formData.get("approval_stock_transfers") === "true",
+          purchases: formData.get("approval_purchases") === "true",
+          expenses: formData.get("approval_expenses") === "true",
+          priceUpdates: formData.get("approval_price_updates") === "true",
+          stockAdjustments: formData.get("approval_stock_adjustments") === "true"
+        }
   };
-  const canViewOther = formData.get("can_view_other_users_transactions") !== "false";
-  const canCheckCrossBranchStock = formData.get("can_check_cross_branch_stock") === "true";
+  const canViewOther = requestedSuperAdmin || formData.get("can_view_other_users_transactions") !== "false";
+  const canCheckCrossBranchStock = requestedSuperAdmin || formData.get("can_check_cross_branch_stock") === "true";
 
   const { data: member, error: memberError } = await admin
     .from("organization_members")
@@ -241,9 +262,9 @@ export async function createStaffAccount(formData: FormData) {
       department: department || null,
       role,
       status: "active",
-      location_id: locationId,
-      branch_scope: branchScope as "all" | "assigned" | "single",
-      secondary_location_ids: secondaryLocationIds,
+      location_id: requestedSuperAdmin ? null : locationId,
+      branch_scope: requestedSuperAdmin ? "all" : branchScope as "all" | "assigned" | "single",
+      secondary_location_ids: requestedSuperAdmin ? [] : secondaryLocationIds,
       access_permissions: accessPermissions,
       can_view_other_users_transactions: canViewOther,
       can_check_cross_branch_stock: canCheckCrossBranchStock,
@@ -308,6 +329,7 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
 
   const admin = createAdminClient();
   const targetOwner = await targetIsOwner(input.memberId, context.orgId);
+  const grantsSuperAdminAccess = targetOwner || isSuperAdminRole(input.role);
   const { data: member } = await admin
     .from("organization_members")
     .select("user_id")
@@ -341,7 +363,7 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
   }
 
   const updatePayload: Record<string, any> = {};
-  if (targetOwner) {
+  if (grantsSuperAdminAccess) {
     updatePayload.role = "owner";
     updatePayload.location_id = null;
     updatePayload.branch_scope = "all";
@@ -350,9 +372,15 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     updatePayload.can_check_cross_branch_stock = true;
     updatePayload.status = "active";
   } else {
-    if (input.locationId !== undefined) updatePayload.location_id = input.locationId || null;
-    if (input.branchScope !== undefined) updatePayload.branch_scope = input.branchScope;
-    if (input.secondaryLocationIds !== undefined) updatePayload.secondary_location_ids = input.secondaryLocationIds;
+    if (input.branchScope === "all") {
+      updatePayload.location_id = null;
+      updatePayload.branch_scope = "all";
+      updatePayload.secondary_location_ids = [];
+    } else {
+      if (input.locationId !== undefined) updatePayload.location_id = input.locationId || null;
+      if (input.branchScope !== undefined) updatePayload.branch_scope = input.branchScope;
+      if (input.secondaryLocationIds !== undefined) updatePayload.secondary_location_ids = input.secondaryLocationIds;
+    }
     if (input.canViewOtherTransactions !== undefined) updatePayload.can_view_other_users_transactions = input.canViewOtherTransactions;
     if (input.canCheckCrossBranchStock !== undefined) updatePayload.can_check_cross_branch_stock = input.canCheckCrossBranchStock;
   }
@@ -375,14 +403,14 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     updatePayload.role = mappedRole;
   }
 
-  if (targetOwner || input.role || input.permissions || input.approvalPermissions || input.priceGroups) {
+  if (grantsSuperAdminAccess || input.role || input.permissions || input.approvalPermissions || input.priceGroups) {
     const existing = await admin.from("organization_members").select("access_permissions").eq("id", input.memberId).maybeSingle();
     const existingPermissions = existing.data?.access_permissions ?? {};
     updatePayload.access_permissions = {
       ...existingPermissions,
-      role_key: targetOwner ? "owner" : input.role || "staff",
+      role_key: grantsSuperAdminAccess ? "owner" : input.role || "staff",
       ...(input.permissions ? { permissions: normalizePermissionMatrix(input.permissions) } : {}),
-      approvals: targetOwner
+      approvals: grantsSuperAdminAccess
         ? {
             stockTransfers: true,
             purchases: true,
@@ -394,7 +422,7 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
             maxPurchaseAmount: Number.MAX_SAFE_INTEGER
           }
         : input.approvalPermissions ?? existingPermissions.approvals,
-      price_groups: targetOwner ? ["retail", "wholesale", "vip", "special"] : (input.priceGroups ?? existingPermissions.price_groups ?? ["retail"])
+      price_groups: grantsSuperAdminAccess ? ["retail", "wholesale", "vip", "special"] : (input.priceGroups ?? existingPermissions.price_groups ?? ["retail"])
     };
   }
 

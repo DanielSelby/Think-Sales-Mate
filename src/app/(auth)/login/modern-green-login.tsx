@@ -61,10 +61,10 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
   }
 
   return (
-    <div className="flex min-h-[inherit] items-center justify-center px-5 py-10 sm:px-10 lg:px-12 xl:px-14">
-      <div className="login-card-enter w-full max-w-[540px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-11 sm:py-12">
+    <div className="modern-login-form-shell flex min-h-[inherit] items-center justify-center px-3 py-3 sm:px-6 lg:px-8">
+      <div className="modern-login-card login-card-enter w-full max-w-[540px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-11 sm:py-12">
         <div className="flex flex-col items-center text-center">
-          <div className="login-logo-enter flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
+          <div className="modern-login-logo login-logo-enter flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
             {systemLogoUrl ? (
               <img src={systemLogoUrl} alt="ThinkSales system logo" className="h-full w-full rounded-xl object-contain" />
             ) : (
@@ -75,13 +75,13 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
               </svg>
             )}
           </div>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">Welcome back!</h1>
-          <p className="mt-2 text-sm text-slate-500">
+          <h1 className="modern-login-title mt-4 text-3xl font-bold tracking-tight text-slate-900">Welcome back!</h1>
+          <p className="modern-login-subtitle mt-2 text-sm text-slate-500">
             Sign in to your {organizationName ? `${organizationName} ` : ""}ThinkSales Pro account.
           </p>
         </div>
 
-        <form className="login-fields-stagger mt-9 space-y-5" onSubmit={submit} aria-busy={loading}>
+        <form className="modern-login-fields login-fields-stagger mt-9 space-y-5" onSubmit={submit} aria-busy={loading}>
           <div>
             <label htmlFor="modern-login-email" className="mb-2 block text-sm font-semibold text-slate-800">Email address or username</label>
             <div className="relative">
@@ -94,7 +94,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 disabled={preview || loading}
                 aria-invalid={Boolean(error)}
                 placeholder="you@company.com"
-                className="login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
+                className="modern-login-input login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
               />
             </div>
           </div>
@@ -111,7 +111,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 disabled={preview || loading}
                 aria-invalid={Boolean(error)}
                 placeholder="Enter your password"
-                className="login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
+                className="modern-login-input login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
               />
               <button
                 type="button"
@@ -143,19 +143,19 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
           <button
             type="submit"
             disabled={preview || loading}
-            className="login-submit flex h-[52px] w-full items-center justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 hover:from-emerald-800 hover:to-emerald-700 disabled:cursor-default disabled:opacity-75"
+            className="modern-login-submit login-submit flex h-[52px] w-full items-center justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 hover:from-emerald-800 hover:to-emerald-700 disabled:cursor-default disabled:opacity-75"
           >
             <span>{preview ? "Sign in" : loading ? "Signing in..." : "Sign in"}</span>
             {loading ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-5 w-5" />}
           </button>
         </form>
 
-        <div className="my-6 flex items-center gap-4 text-xs text-slate-400">
+        <div className="modern-login-divider my-6 flex items-center gap-4 text-xs text-slate-400">
           <span className="h-px flex-1 bg-slate-200" />
           or continue with
           <span className="h-px flex-1 bg-slate-200" />
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="modern-login-oauth grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button type="button" disabled={preview || loading} onClick={() => void oauth("google")} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-default">
             <GoogleMark /> Continue with Google
           </button>
@@ -163,7 +163,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
             <MicrosoftMark /> Continue with Microsoft
           </button>
         </div>
-        <p className="mt-7 text-center text-xs text-slate-500">
+        <p className="modern-login-signup mt-7 text-center text-xs text-slate-500">
           Don&apos;t have an account?{" "}
           <Link href="/signup" onClick={(event) => { if (preview) event.preventDefault(); }} className="font-semibold text-emerald-800 hover:text-emerald-900">Create account <ArrowRight className="inline h-3.5 w-3.5" /></Link>
         </p>
@@ -183,7 +183,7 @@ function MicrosoftMark() {
 
 export function ModernGreenLogin({ organizationName = null, preview = false, device = "desktop", artworkUrl = null }: { organizationName?: string | null; preview?: boolean; device?: "desktop" | "tablet" | "mobile"; artworkUrl?: string | null }) {
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
-  const pageHeight = preview ? "min-h-[680px]" : "min-h-screen";
+  const pageHeight = preview ? "min-h-[680px]" : "min-h-[100dvh]";
   const previewWidth = preview ? device === "mobile" ? "mx-auto max-w-[390px]" : device === "tablet" ? "mx-auto max-w-[900px]" : "w-full" : "w-full";
   const splitLayout = !preview || device !== "mobile";
 
@@ -201,24 +201,30 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
   }, []);
 
   return (
-    <main className={`login-page-enter ${pageHeight} ${previewWidth} overflow-hidden bg-[#f5f8f6] text-slate-900`}>
-      <div className={`grid min-h-[inherit] min-w-0 ${splitLayout ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"}`}>
+    <main className={`modern-login-page login-page-enter ${pageHeight} ${previewWidth} bg-[#f5f8f6] text-slate-900`}>
+      <div className={`modern-login-layout grid min-h-[inherit] min-w-0 ${splitLayout ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"}`}>
         <section className={`relative min-h-[inherit] min-w-0 overflow-hidden bg-[#e9f4ed] p-3 sm:p-4 lg:p-5 ${splitLayout ? "hidden lg:block" : "hidden"}`}>
           <div className="relative h-full min-h-[inherit] min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.08)]">
             <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
           </div>
         </section>
-        <section className="relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.16),transparent_38%),linear-gradient(135deg,#e8f5ec_0%,#dcefe2_100%)] lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
+        <section className="modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.16),transparent_38%),linear-gradient(135deg,#e8f5ec_0%,#dcefe2_100%)] lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
+          <div className="modern-login-bubbles" aria-hidden="true">
+            <span className="modern-login-bubble modern-login-bubble-one" />
+            <span className="modern-login-bubble modern-login-bubble-two" />
+            <span className="modern-login-bubble modern-login-bubble-three" />
+            <span className="modern-login-bubble modern-login-bubble-four" />
+          </div>
           <div className="login-background-glow" aria-hidden="true" />
-          <div className="flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">
+          <div className="modern-login-language relative z-10 flex items-center justify-end gap-3 px-5 pt-5 sm:px-8 lg:px-10">
             <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">◎ &nbsp; English &nbsp;⌄</span>
           </div>
-          <div className="modern-login-form-enter flex flex-1 items-center justify-center">
+          <div className="modern-login-form-enter relative z-10 flex min-h-0 flex-1 items-center justify-center">
             <Suspense fallback={<div className="h-96" />}>
               <ModernGreenForm organizationName={organizationName} preview={preview} systemLogoUrl={systemLogoUrl} />
             </Suspense>
           </div>
-          <p className="pb-4 text-center text-[11px] text-slate-400">© {new Date().getFullYear()} ThinkSales Pro. All rights reserved.</p>
+          <p className="modern-login-copyright relative z-10 pb-4 text-center text-[11px] text-slate-400">© {new Date().getFullYear()} ThinkSales Pro. All rights reserved.</p>
         </section>
       </div>
     </main>

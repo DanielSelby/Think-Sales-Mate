@@ -371,7 +371,7 @@ export function UsersTab({
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5">
                           <span className="font-semibold text-ink-900 dark:text-white truncate">
-                            {u.locationName || "Head Office"}
+                            {u.branchScope === "all" ? "All branches" : u.locationName || "Unassigned"}
                           </span>
                           {u.secondaryBranches && u.secondaryBranches.length > 0 && (
                             <span
