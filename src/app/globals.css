@@ -10,19 +10,44 @@
 
 html:not(.dark) .border-ledger-50,
 html:not(.dark) .border-ledger-100,
-html:not(.dark) .border-ledger-200 {
-  border-color: #cbd5cf !important;
-}
-
+html:not(.dark) .border-ledger-200,
+html:not(.dark) .border-ledger-300,
 html:not(.dark) .border-slate-100,
-html:not(.dark) .border-slate-200 {
-  border-color: #cbd5cf !important;
+html:not(.dark) .border-slate-200,
+html:not(.dark) .border-slate-300 {
+  border-color: #b8c6bd !important;
 }
 
 html:not(.dark) .divide-ledger-50 > :not([hidden]) ~ :not([hidden]),
 html:not(.dark) .divide-ledger-100 > :not([hidden]) ~ :not([hidden]),
 html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #d5ddd8 !important;
+  border-color: #cbd5cf !important;
+}
+
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] {
+  background-color: #f2f5f2;
+}
+
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] :is(
+  .bg-white,
+  .bg-ledger-50,
+  .bg-slate-50,
+  .bg-gray-50,
+  .bg-zinc-50,
+  .bg-neutral-50
+),
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] [class~="bg-white/50"],
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] [class~="bg-white/70"],
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] [class~="bg-white/80"],
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] [class~="bg-slate-50/50"],
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] [class~="bg-slate-50/70"],
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] [class~="bg-ledger-50/70"] {
+  background-color: #fff !important;
+}
+
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] table,
+html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
+  background-color: #fff;
 }
 
 @keyframes smart-product-pulse {
@@ -172,14 +197,17 @@ html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
 .modern-login-bubble {
   position: absolute;
   display: block;
-  border: 2px solid rgb(5 150 105 / 0.48);
+  border: 2px solid var(--login-bubble-border);
   border-radius: 9999px;
-  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.92), rgb(16 185 129 / 0.26) 62%, rgb(5 150 105 / 0.12));
-  box-shadow: inset 0 0 24px rgb(255 255 255 / 0.48), 0 12px 40px rgb(5 150 105 / 0.12);
-  animation: login-bubble-float 12s ease-in-out infinite;
+  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.96), var(--login-bubble-fill) 62%, var(--login-bubble-shadow));
+  box-shadow: inset 0 0 24px rgb(255 255 255 / 0.58), 0 12px 40px var(--login-bubble-shadow);
+  animation: login-bubble-float 14s ease-in-out infinite;
 }
 
 .modern-login-bubble-one {
+  --login-bubble-border: rgb(37 99 235 / 0.7);
+  --login-bubble-fill: rgb(96 165 250 / 0.42);
+  --login-bubble-shadow: rgb(37 99 235 / 0.2);
   width: clamp(6rem, 11vw, 10rem);
   aspect-ratio: 1;
   right: 12%;
@@ -187,6 +215,9 @@ html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
 }
 
 .modern-login-bubble-two {
+  --login-bubble-border: rgb(234 88 12 / 0.68);
+  --login-bubble-fill: rgb(251 146 60 / 0.42);
+  --login-bubble-shadow: rgb(234 88 12 / 0.18);
   width: clamp(4rem, 7vw, 6rem);
   aspect-ratio: 1;
   left: 8%;
@@ -195,6 +226,9 @@ html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
 }
 
 .modern-login-bubble-three {
+  --login-bubble-border: rgb(234 88 12 / 0.68);
+  --login-bubble-fill: rgb(251 146 60 / 0.42);
+  --login-bubble-shadow: rgb(234 88 12 / 0.18);
   width: clamp(8rem, 15vw, 13rem);
   aspect-ratio: 1;
   right: 6%;
@@ -203,6 +237,9 @@ html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
 }
 
 .modern-login-bubble-four {
+  --login-bubble-border: rgb(37 99 235 / 0.7);
+  --login-bubble-fill: rgb(96 165 250 / 0.42);
+  --login-bubble-shadow: rgb(37 99 235 / 0.2);
   width: clamp(3rem, 5vw, 4.5rem);
   aspect-ratio: 1;
   left: 18%;
@@ -212,9 +249,9 @@ html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
 
 @keyframes login-bubble-float {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  25% { transform: translate3d(26px, -34px, 0) scale(1.04); }
-  50% { transform: translate3d(-12px, -58px, 0) scale(0.98); }
-  75% { transform: translate3d(-30px, -20px, 0) scale(1.03); }
+  25% { transform: translate3d(68px, -52px, 0) scale(1.06); }
+  50% { transform: translate3d(-24px, -104px, 0) scale(0.96); }
+  75% { transform: translate3d(-82px, -36px, 0) scale(1.04); }
 }
 
 @media (min-width: 1024px) {

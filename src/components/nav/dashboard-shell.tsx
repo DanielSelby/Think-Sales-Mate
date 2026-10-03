@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { Sidebar } from "./sidebar";
 import { NAV_ITEMS } from "./sidebar";
@@ -33,6 +34,11 @@ interface Props {
 
 export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
+  const pathname = usePathname();
+  const useStandardLightSurfaces = pathname !== "/dashboard" &&
+    !pathname.startsWith("/dashboard/") &&
+    pathname !== "/pos" &&
+    !pathname.startsWith("/pos/");
   React.useEffect(() => {
     if (roleTheme) setTheme(roleTheme);
   }, [roleTheme, setTheme]);
@@ -54,7 +60,10 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
         <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
           <TopNav orgId={orgId} currency={currency} orgName={orgName} logoUrl={logoUrl} userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
-          <main className="page-canvas flex-1 overflow-y-auto p-4 sm:p-5">
+          <main
+            className="page-canvas flex-1 overflow-y-auto p-4 sm:p-5"
+            data-light-surfaces={useStandardLightSurfaces ? "standard" : undefined}
+          >
             {children}
           </main>
           <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden dark:border-slate-700 dark:bg-ink-950/95">
