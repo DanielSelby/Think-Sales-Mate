@@ -299,7 +299,10 @@ export function PurchaseListView({
                   onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                   placeholder="Search by PO No., supplier, product, or invoice..."
                   className="purchase-search-input pl-9"
-                  style={{ backgroundColor: darkMode ? "#000" : theme.colors.primaryPale }}
+                  style={{
+                    backgroundColor: darkMode ? "#000000" : theme.colors.primaryPale,
+                    borderColor: darkMode ? "#334155" : `${theme.colors.primary}35`,
+                  }}
                 />
               </div>
               <div className="w-44">

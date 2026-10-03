@@ -35,9 +35,7 @@ interface Props {
 export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
-  const useStandardLightSurfaces = pathname !== "/dashboard" &&
-    !pathname.startsWith("/dashboard/") &&
-    pathname !== "/pos" &&
+  const useStandardLightSurfaces = pathname !== "/pos" &&
     !pathname.startsWith("/pos/");
   React.useEffect(() => {
     if (roleTheme) setTheme(roleTheme);

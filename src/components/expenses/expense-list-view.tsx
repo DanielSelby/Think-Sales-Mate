@@ -371,7 +371,7 @@ export function ExpenseListView({
                       <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(e.id)} onChange={() => toggleRow(e.id)} className="h-4 w-4 rounded border-ledger-300 accent-signal" /></td>
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{new Date(e.date).toLocaleDateString("en-GH", { day: "2-digit", month: "short", year: "numeric" })}</td>
                       <td className="px-4 py-3 font-mono text-[13px] text-signal">{formatExpenseNumber(e.expenseNumber)}</td>
-                      <td className="px-4 py-3"><Badge tone="neutral">{e.category}</Badge></td>
+                      <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.category}</td>
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.description ?? "—"}</td>
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.vendor ?? "—"}</td>
                       <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{e.paymentMethod ?? "—"}</td>

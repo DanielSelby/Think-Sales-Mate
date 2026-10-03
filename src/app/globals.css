@@ -226,9 +226,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-three {
-  --login-bubble-border: rgb(234 88 12 / 0.68);
-  --login-bubble-fill: rgb(251 146 60 / 0.42);
-  --login-bubble-shadow: rgb(234 88 12 / 0.18);
+  --login-bubble-border: rgb(22 163 74 / 0.68);
+  --login-bubble-fill: rgb(74 222 128 / 0.42);
+  --login-bubble-shadow: rgb(22 163 74 / 0.18);
   width: clamp(8rem, 15vw, 13rem);
   aspect-ratio: 1;
   right: 6%;
