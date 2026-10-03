@@ -10,7 +10,8 @@ import { openPosRegister } from "@/app/(dashboard)/pos/actions";
 
 export function OpenRegisterForm({
   locations,
-  hasMultipleAssignedBranches,
+  hasMultipleAvailableBranches,
+  hasAllBranchAccess,
   primaryLocationId,
   currency,
   cashierName,
@@ -19,7 +20,8 @@ export function OpenRegisterForm({
   auditWarning,
 }: {
   locations: Array<{ id: string; name: string; hasOpenSession: boolean }>;
-  hasMultipleAssignedBranches: boolean;
+  hasMultipleAvailableBranches: boolean;
+  hasAllBranchAccess: boolean;
   primaryLocationId: string | null;
   currency: string;
   cashierName: string;
@@ -53,12 +55,12 @@ export function OpenRegisterForm({
     setWarning(null);
     startTransition(async () => {
       const result = await openPosRegister({
-        mode: hasMultipleAssignedBranches ? mode : "selected",
-        selectedLocationId: hasMultipleAssignedBranches ? selectedLocationId : unopenedLocations[0]?.id,
+        mode: hasMultipleAvailableBranches ? mode : "selected",
+        selectedLocationId: hasMultipleAvailableBranches ? selectedLocationId : unopenedLocations[0]?.id,
         openingCashByLocation: Object.fromEntries(
-          (hasMultipleAssignedBranches && mode === "all"
+          (hasMultipleAvailableBranches && mode === "all"
             ? unopenedLocations
-            : unopenedLocations.filter((location) => location.id === (hasMultipleAssignedBranches ? selectedLocationId : unopenedLocations[0]?.id))
+            : unopenedLocations.filter((location) => location.id === (hasMultipleAvailableBranches ? selectedLocationId : unopenedLocations[0]?.id))
           ).map((location) => [location.id, Number(openingCashByLocation[location.id])])
         ),
         shift,
@@ -82,9 +84,9 @@ export function OpenRegisterForm({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date());
-  const locationsToOpen = hasMultipleAssignedBranches && mode === "all"
+  const locationsToOpen = hasMultipleAvailableBranches && mode === "all"
     ? unopenedLocations
-    : unopenedLocations.filter((location) => location.id === (hasMultipleAssignedBranches ? selectedLocationId : unopenedLocations[0]?.id));
+    : unopenedLocations.filter((location) => location.id === (hasMultipleAvailableBranches ? selectedLocationId : unopenedLocations[0]?.id));
   const canSubmit = locationsToOpen.length > 0 &&
     locationsToOpen.every((location) => Number.isFinite(Number(openingCashByLocation[location.id])) && Number(openingCashByLocation[location.id]) >= 0);
 
@@ -116,7 +118,7 @@ export function OpenRegisterForm({
           </div>
         ) : (
           <div className="space-y-5">
-            {hasMultipleAssignedBranches && (
+            {hasMultipleAvailableBranches && (
               <div>
                 <p className="mb-2 text-sm font-semibold text-ink-900 dark:text-white">Register access</p>
                 <div className="grid grid-cols-2 gap-2 rounded-xl bg-ledger-50 p-1 dark:bg-white/[0.04]">
@@ -135,12 +137,14 @@ export function OpenRegisterForm({
                     </button>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-ledger-500 dark:text-ledger-400">Only branches assigned to you in User Management are available.</p>
+                <p className="mt-2 text-xs text-ledger-500 dark:text-ledger-400">
+                  {hasAllBranchAccess ? "All active branches in your organization are available." : "Only branches assigned to you in User Management are available."}
+                </p>
               </div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {hasMultipleAssignedBranches && mode === "selected" ? (
+              {hasMultipleAvailableBranches && mode === "selected" ? (
                 <label className="block space-y-1.5">
                   <span className="text-sm font-semibold text-ink-900 dark:text-white">Branch</span>
                   <span className="relative block">
@@ -152,8 +156,8 @@ export function OpenRegisterForm({
                 </label>
               ) : (
                 <div className="rounded-xl border border-ledger-100 bg-ledger-50/70 p-3 dark:border-ledger-700 dark:bg-white/[0.03]">
-                  <p className="text-xs text-ledger-500 dark:text-ledger-400">{hasMultipleAssignedBranches ? "Assigned branches" : "Assigned branch"}</p>
-                  <p className="mt-1 flex items-center gap-2 truncate font-semibold text-ink-900 dark:text-white"><Building2 className="h-4 w-4 shrink-0 text-ledger-400" />{hasMultipleAssignedBranches ? `${unopenedLocations.length} branches available` : locations[0].name}</p>
+                  <p className="text-xs text-ledger-500 dark:text-ledger-400">{hasAllBranchAccess ? "Available branches" : hasMultipleAvailableBranches ? "Assigned branches" : "Assigned branch"}</p>
+                  <p className="mt-1 flex items-center gap-2 truncate font-semibold text-ink-900 dark:text-white"><Building2 className="h-4 w-4 shrink-0 text-ledger-400" />{hasMultipleAvailableBranches ? `${unopenedLocations.length} branches available` : locations[0].name}</p>
                 </div>
               )}
               <label className="block space-y-1.5">
@@ -175,7 +179,7 @@ export function OpenRegisterForm({
               </div>
             </div>
 
-            {locations.filter((location) => location.hasOpenSession).length > 0 && hasMultipleAssignedBranches && (
+            {locations.filter((location) => location.hasOpenSession).length > 0 && hasMultipleAvailableBranches && (
               <div className="rounded-lg border border-signal/20 bg-signal-soft p-3 text-sm text-signal">
                 Already open: {locations.filter((location) => location.hasOpenSession).map((location) => location.name).join(", ")}.
               </div>
@@ -183,7 +187,7 @@ export function OpenRegisterForm({
 
             {locationsToOpen.length === 0 ? (
               <div className="rounded-xl border border-dashed border-ledger-200 px-4 py-8 text-center text-sm text-ledger-500 dark:border-ledger-700 dark:text-ledger-400">
-                No unopened assigned branch is available. Continue to POS to use your active register.
+                No unopened branch is available. Continue to POS to use your active register.
               </div>
             ) : locationsToOpen.map((location) => (
               <label key={location.id} className="block space-y-1.5">
@@ -230,7 +234,7 @@ export function OpenRegisterForm({
         <div className="rounded-2xl border border-ledger-100 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
           <h2 className="font-semibold text-ink-900 dark:text-white">Before opening</h2>
           <ul className="mt-3 space-y-2 text-sm text-ledger-600 dark:text-ledger-300">
-            <li>• Use only a branch assigned to your account.</li>
+            <li>• Use only a branch available to your account.</li>
             <li>• Count and enter the opening float accurately.</li>
             <li>• Your POS session stays active until the register is closed.</li>
           </ul>

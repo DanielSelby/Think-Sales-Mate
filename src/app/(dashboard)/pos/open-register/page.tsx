@@ -35,9 +35,9 @@ export default async function OpenRegisterPage({ searchParams }: { searchParams:
   const authorizedLocations = context.isBranchScoped
     ? (locations ?? []).filter((location) => context.allowedLocationIds.includes(location.id))
     : locations ?? [];
-  const hasMultipleAssignedBranches = context.isBranchScoped && authorizedLocations.length > 1;
+  const hasMultipleAvailableBranches = authorizedLocations.length > 1;
   const registerLocation = getPosRegisterLocation(context, authorizedLocations);
-  const registerLocations = hasMultipleAssignedBranches
+  const registerLocations = hasMultipleAvailableBranches
     ? authorizedLocations
     : registerLocation ? [registerLocation] : [];
   const openLocationIds = new Set((activeSessions ?? []).map((session: { location_id: string }) => session.location_id));
@@ -45,13 +45,14 @@ export default async function OpenRegisterPage({ searchParams }: { searchParams:
     ...location,
     hasOpenSession: openLocationIds.has(location.id),
   }));
-  if (!hasMultipleAssignedBranches && activeSessions?.length) redirect("/pos");
-  if (hasMultipleAssignedBranches && locationsWithStatus.every((location) => location.hasOpenSession)) redirect("/pos");
+  if (!hasMultipleAvailableBranches && activeSessions?.length) redirect("/pos");
+  if (hasMultipleAvailableBranches && locationsWithStatus.every((location) => location.hasOpenSession)) redirect("/pos");
 
   return (
     <OpenRegisterForm
       locations={locationsWithStatus}
-      hasMultipleAssignedBranches={hasMultipleAssignedBranches}
+      hasMultipleAvailableBranches={hasMultipleAvailableBranches}
+      hasAllBranchAccess={context.branchScope === "all"}
       primaryLocationId={context.locationId}
       currency={context.currency}
       cashierName={profile?.full_name || context.userEmail}

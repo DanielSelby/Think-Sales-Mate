@@ -208,7 +208,7 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
             <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
           </div>
         </section>
-        <section className="modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 bg-[radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.16),transparent_38%),linear-gradient(135deg,#e8f5ec_0%,#dcefe2_100%)] lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
+        <section className="modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 bg-[#f7f8f5] lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
           <div className="modern-login-bubbles" aria-hidden="true">
             <span className="modern-login-bubble modern-login-bubble-one" />
             <span className="modern-login-bubble modern-login-bubble-two" />

@@ -250,7 +250,7 @@ export async function openPosRegister(input: {
   const authorizedLocations = context.isBranchScoped
     ? (locations ?? []).filter((location: { id: string }) => context.allowedLocationIds.includes(location.id))
     : locations ?? [];
-  const isMultiBranch = context.isBranchScoped && authorizedLocations.length > 1;
+  const isMultiBranch = authorizedLocations.length > 1;
   const { data: activeSessions, error: activeError } = await db
     .from("pos_register_sessions")
     .select("id, location_id")

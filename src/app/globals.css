@@ -8,6 +8,23 @@
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+html:not(.dark) .border-ledger-50,
+html:not(.dark) .border-ledger-100,
+html:not(.dark) .border-ledger-200 {
+  border-color: #cbd5cf !important;
+}
+
+html:not(.dark) .border-slate-100,
+html:not(.dark) .border-slate-200 {
+  border-color: #cbd5cf !important;
+}
+
+html:not(.dark) .divide-ledger-50 > :not([hidden]) ~ :not([hidden]),
+html:not(.dark) .divide-ledger-100 > :not([hidden]) ~ :not([hidden]),
+html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #d5ddd8 !important;
+}
+
 @keyframes smart-product-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); background-color: transparent; }
   35%, 70% { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.22); background-color: #ffc300; }
@@ -155,60 +172,62 @@
 .modern-login-bubble {
   position: absolute;
   display: block;
-  border: 1px solid rgb(5 150 105 / 0.15);
+  border: 2px solid rgb(5 150 105 / 0.48);
   border-radius: 9999px;
-  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.68), rgb(16 185 129 / 0.10) 62%, rgb(16 185 129 / 0.025));
-  box-shadow: inset 0 0 24px rgb(255 255 255 / 0.2), 0 12px 40px rgb(5 150 105 / 0.045);
-  animation: login-bubble-float 17s ease-in-out infinite;
+  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.92), rgb(16 185 129 / 0.26) 62%, rgb(5 150 105 / 0.12));
+  box-shadow: inset 0 0 24px rgb(255 255 255 / 0.48), 0 12px 40px rgb(5 150 105 / 0.12);
+  animation: login-bubble-float 12s ease-in-out infinite;
 }
 
 .modern-login-bubble-one {
-  width: clamp(5rem, 10vw, 9rem);
+  width: clamp(6rem, 11vw, 10rem);
   aspect-ratio: 1;
-  right: 10%;
-  top: 13%;
+  right: 12%;
+  top: 10%;
 }
 
 .modern-login-bubble-two {
-  width: clamp(3rem, 6vw, 5.5rem);
+  width: clamp(4rem, 7vw, 6rem);
   aspect-ratio: 1;
-  left: 9%;
-  top: 24%;
-  animation-delay: -5s;
+  left: 8%;
+  top: 27%;
+  animation-delay: -3s;
 }
 
 .modern-login-bubble-three {
-  width: clamp(7rem, 14vw, 12rem);
+  width: clamp(8rem, 15vw, 13rem);
   aspect-ratio: 1;
-  right: 4%;
-  bottom: 14%;
-  animation-delay: -9s;
+  right: 6%;
+  bottom: 12%;
+  animation-delay: -6s;
 }
 
 .modern-login-bubble-four {
-  width: clamp(2.5rem, 4vw, 4rem);
+  width: clamp(3rem, 5vw, 4.5rem);
   aspect-ratio: 1;
-  left: 17%;
-  bottom: 12%;
-  animation-delay: -12s;
+  left: 18%;
+  bottom: 11%;
+  animation-delay: -9s;
 }
 
 @keyframes login-bubble-float {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(10px, -18px, 0) scale(1.04); }
+  25% { transform: translate3d(26px, -34px, 0) scale(1.04); }
+  50% { transform: translate3d(-12px, -58px, 0) scale(0.98); }
+  75% { transform: translate3d(-30px, -20px, 0) scale(1.03); }
 }
 
 @media (min-width: 1024px) {
   .modern-login-form-panel {
-    border-left-width: 3px;
-    border-left-color: rgb(5 150 105 / 0.62);
+    border-left-width: 7px;
+    border-left-color: #059669;
   }
 }
 
 @media (max-width: 1023px) {
   .modern-login-form-panel {
-    border-top-width: 3px;
-    border-top-color: rgb(5 150 105 / 0.62);
+    border-top-width: 7px;
+    border-top-color: #059669;
   }
 }
 
