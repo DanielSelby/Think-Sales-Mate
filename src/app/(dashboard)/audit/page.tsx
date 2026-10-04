@@ -1,12 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { AuditCenter, type AuditRecord } from "@/components/audit/audit-center";
+import { can } from "@/lib/rbac";
+import { redirect } from "next/navigation";
 
 export const metadata = { title: "Audit Center · SalesMate ERP" };
 
 export default async function AuditPage() {
   const context = await getCurrentOrgContext();
   if (!context) return null;
+  if (!can(context.role, "reports.view")) redirect("/dashboard");
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -18,12 +21,22 @@ export default async function AuditPage() {
 
   if (error) throw new Error(`Unable to load audit records: ${error.message}`);
 
-  const actorIds = [...new Set((data ?? []).map((record) => record.actor_id).filter(Boolean))] as string[];
+  const scopedData = context.isBranchScoped
+    ? (data ?? []).filter((record) => {
+        const metadata = (record.metadata ?? {}) as Record<string, unknown>;
+        const locationId = typeof metadata.branch_id === "string"
+          ? metadata.branch_id
+          : typeof metadata.location_id === "string" ? metadata.location_id : null;
+        return locationId !== null && context.allowedLocationIds.includes(locationId);
+      })
+    : data ?? [];
+
+  const actorIds = [...new Set(scopedData.map((record) => record.actor_id).filter(Boolean))] as string[];
   const { data: profiles } = actorIds.length
     ? await supabase.from("profiles").select("id, full_name").in("id", actorIds)
     : { data: [] };
   const names = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name || "Unknown user"]));
-  const locationIds = [...new Set((data ?? []).flatMap((record) => {
+  const locationIds = [...new Set(scopedData.flatMap((record) => {
     const metadata = (record.metadata ?? {}) as Record<string, unknown>;
     return [metadata.branch_id, metadata.location_id].filter((value): value is string => typeof value === "string");
   }))];
@@ -32,7 +45,7 @@ export default async function AuditPage() {
     : { data: [] };
   const locationNames = new Map((locations ?? []).map((location) => [location.id, location.name]));
 
-  const records: AuditRecord[] = (data ?? []).map((record) => ({
+  const records: AuditRecord[] = scopedData.map((record) => ({
     ...record,
     actor_name: record.actor_id ? names.get(record.actor_id) ?? "Unknown user" : "System",
     metadata: (() => {

@@ -158,8 +158,6 @@ export const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Locations", href: "/settings/locations" },
   { label: "Currencies", href: "/settings/currencies" },
   { label: "Customer Ordering", href: "/settings/customer-ordering" },
-  { label: "Billing", href: "/settings/billing" },
-  { label: "Integrations", href: "/settings/integrations" },
 ];
 
 // Feature Access keeps some business-facing names that differ from the

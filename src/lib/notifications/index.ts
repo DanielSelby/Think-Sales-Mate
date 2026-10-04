@@ -6,7 +6,7 @@ export interface CreateNotificationParams {
   locationId?: string | null;
   title: string;
   message: string;
-  type: "order_received" | "order_assigned" | "order_approved" | "order_rejected" | "out_for_delivery" | "delivered" | "general";
+  type: "order_received" | "order_assigned" | "order_approved" | "order_rejected" | "out_for_delivery" | "delivered" | "stock_transfer_received" | "general";
   channel?: "in_app" | "email" | "whatsapp";
   entityType?: string;
   entityId?: string | null;

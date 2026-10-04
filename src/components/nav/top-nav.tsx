@@ -30,9 +30,10 @@ interface NotificationItem {
   is_read: boolean;
   entity_id: string | null;
   created_at: string;
+  location_id: string | null;
 }
 
-export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -52,7 +53,13 @@ export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUse
   const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
   const [popupNotification, setPopupNotification] = useState<NotificationItem | null>(null);
   const previousNotificationIds = useRef<Set<string>>(new Set());
+  const popupTimeout = useRef<number | null>(null);
+  const popupQueue = useRef<NotificationItem[]>([]);
   const allowedLocationKey = allowedLocationIds.join(",");
+
+  useEffect(() => () => {
+    if (popupTimeout.current !== null) window.clearTimeout(popupTimeout.current);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -66,10 +73,19 @@ export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUse
       if (cancelled) return;
       const fresh = notifs.filter((notification) => !previousNotificationIds.current.has(notification.id));
       if (previousNotificationIds.current.size > 0 && fresh.length > 0) {
-        const latest = fresh[0];
-        setPopupNotification(latest);
-        playNotificationBeep(latest.type);
-        window.setTimeout(() => setPopupNotification(null), 5000);
+        popupQueue.current.push(...fresh.reverse());
+        const showNextNotification = () => {
+          const next = popupQueue.current.shift();
+          if (!next) {
+            setPopupNotification(null);
+            popupTimeout.current = null;
+            return;
+          }
+          setPopupNotification(next);
+          playNotificationBeep(next.type);
+          popupTimeout.current = window.setTimeout(showNextNotification, 10000);
+        };
+        if (popupTimeout.current === null) showNextNotification();
       }
       previousNotificationIds.current = new Set(notifs.map((notification) => notification.id));
       setNotifications(notifs);
@@ -80,11 +96,19 @@ export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUse
     };
     const loadNotifications = async () => {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from("notifications")
-          .select("id, title, message, type, is_read, entity_id, created_at")
+          .select("id, title, message, type, is_read, entity_id, created_at, location_id")
+          .eq("org_id", orgId)
           .order("created_at", { ascending: false })
-          .limit(10);
+          .limit(20);
+        if (!canViewAllBranches) {
+          const visibleLocations = allowedLocationIds.length
+            ? `,location_id.in.(${allowedLocationIds.join(",")})`
+            : "";
+          query = query.or(`user_id.eq.${userId}${visibleLocations}`);
+        }
+        const { data, error } = await query;
         if (error) throw error;
         applyNotifications((data ?? []) as NotificationItem[]);
       } catch (error) {
@@ -93,9 +117,21 @@ export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUse
     };
     const loadInitialData = async () => {
       try {
+        let notificationQuery = supabase
+          .from("notifications")
+          .select("id, title, message, type, is_read, entity_id, created_at, location_id")
+          .eq("org_id", orgId)
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (!canViewAllBranches) {
+          const visibleLocations = allowedLocationIds.length
+            ? `,location_id.in.(${allowedLocationIds.join(",")})`
+            : "";
+          notificationQuery = notificationQuery.or(`user_id.eq.${userId}${visibleLocations}`);
+        }
         const [locationResult, notificationResult] = await Promise.all([
           supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true).order("name"),
-          supabase.from("notifications").select("id, title, message, type, is_read, entity_id, created_at").order("created_at", { ascending: false }).limit(10),
+          notificationQuery,
         ]);
         if (locationResult.error) throw locationResult.error;
         if (notificationResult.error) throw notificationResult.error;
@@ -133,7 +169,7 @@ export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUse
       cancelled = true;
       window.clearInterval(refreshTimer);
     };
-  }, [initialUserName, initialAvatarUrl, orgId, currency, allowedLocationKey, canViewAllBranches]);
+  }, [initialUserName, initialAvatarUrl, userId, orgId, currency, allowedLocationKey, allowedLocationIds, canViewAllBranches]);
 
   const initials = userName
     ? userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
@@ -482,7 +518,25 @@ export function TopNav({ orgId, currency, orgName, logoUrl, userName: initialUse
         )}
       </div>
     </header>
-    {popupNotification && <div className="fixed right-5 top-20 z-[60] w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900"><div className="flex items-start gap-3"><span className="rounded-full bg-blue-100 p-2 text-blue-600"><Bell className="h-4 w-4" /></span><div className="min-w-0"><p className="text-sm font-semibold text-slate-900 dark:text-white">{popupNotification.title}</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{popupNotification.message}</p></div><button onClick={() => setPopupNotification(null)} className="text-xs text-slate-400">×</button></div></div>}
+    {popupNotification && (
+      <div role="alert" className="fixed right-5 top-20 z-[60] w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-start gap-3">
+          <span className="rounded-full bg-blue-100 p-2 text-blue-600"><Bell className="h-4 w-4" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">{popupNotification.title}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{popupNotification.message}</p>
+            {popupNotification.type === "stock_transfer_received" && (
+              <Link
+                href="/inventory/transfers"
+                className="mt-2 inline-block text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300"
+              >
+                Open stock transfers
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

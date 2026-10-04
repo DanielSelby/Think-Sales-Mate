@@ -124,7 +124,7 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
     
       created_by: context.userId
     })
-    .select("id")
+    .select("id, transfer_number")
     .single();
 
   if (transferError || !transfer) {
@@ -153,6 +153,16 @@ export async function createStockTransfer(payload: CreateTransferPayload): Promi
         : itemsError.message;
     return { error: message };
   }
+
+  await createNotification({
+    orgId: context.orgId,
+    locationId: payload.toLocationId,
+    title: "Stock transfer awaiting receipt",
+    message: `Transfer #${String(transfer.transfer_number).padStart(4, "0")} is on its way. Review and receive it from Stock Transfer History.`,
+    type: "stock_transfer_received",
+    entityType: "stock_transfers",
+    entityId: transfer.id,
+  });
 
   revalidatePath("/inventory/transfers");
   revalidatePath("/inventory");

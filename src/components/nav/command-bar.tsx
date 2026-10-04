@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Search, X, ChevronRight, Zap,
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
-  Wallet, Landmark, Receipt, Package, FolderKanban,
+  Landmark, Receipt, Package, FolderKanban,
   BarChart3, Settings, Sparkles, Plus, ArrowLeftRight,
   FileText, Tag, TrendingUp, TrendingDown, Clock, MapPin, Truck,
 } from "lucide-react";
@@ -75,8 +75,6 @@ function flattenNavItems(items: typeof NAV_ITEMS): { id: string; label: string; 
   result.push(
     { id: "settings-org",          label: "Organization Settings", path: "/settings/organization", icon: Settings, group: "Pages" },
     { id: "settings-team",         label: "Team Members",          path: "/settings/team",          icon: Users,    group: "Pages" },
-    { id: "settings-billing",      label: "Billing",               path: "/settings/billing",       icon: Wallet,   group: "Pages" },
-    { id: "settings-integrations", label: "Integrations",          path: "/settings/integrations",  icon: Settings, group: "Pages" },
     { id: "settings-locations",    label: "Locations",             path: "/settings/locations",     icon: MapPin,   group: "Pages" },
   );
   return result;

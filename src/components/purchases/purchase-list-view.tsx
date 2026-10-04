@@ -300,8 +300,10 @@ export function PurchaseListView({
                   placeholder="Search by PO No., supplier, product, or invoice..."
                   className="purchase-search-input pl-9"
                   style={{
-                    backgroundColor: darkMode ? "#000000" : theme.colors.primaryPale,
-                    borderColor: darkMode ? "#334155" : `${theme.colors.primary}35`,
+                    backgroundColor: darkMode ? "#000000" : "#ffffff",
+                    borderColor: darkMode ? "#475569" : "#d1d5db",
+                    borderWidth: 1,
+                    boxShadow: darkMode ? "inset 0 0 0 1px rgba(148, 163, 184, 0.08)" : "inset 0 0 0 1px rgba(15, 23, 42, 0.04)",
                   }}
                 />
               </div>

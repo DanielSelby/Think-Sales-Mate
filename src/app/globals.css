@@ -1355,12 +1355,14 @@ html.dark .order-tracker-page table thead th {
 }
 
 .purchase-history-page .purchase-search-input {
-  background-color: var(--theme-primary-pale) !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  color: #0f172a !important;
 }
 
 html.dark .purchase-history-page .purchase-search-input {
   background-color: #000 !important;
-  border-color: #475569 !important;
+  border: 1px solid #475569 !important;
   color: #fff !important;
 }
 
@@ -1626,6 +1628,24 @@ html.dark .stock-request-history-search {
 html.dark .stock-request-product-search::placeholder,
 html.dark .stock-request-history-search input::placeholder {
   color: #94a3b8 !important;
+}
+
+html:not(.dark) body [class*="text-ledger-"],
+html:not(.dark) body [class*="text-gray-"],
+html:not(.dark) body [class*="text-slate-"],
+html:not(.dark) body [class*="text-zinc-"],
+html:not(.dark) body [class*="text-neutral-"],
+html:not(.dark) body [class*="text-stone-"] {
+  color: #000 !important;
+}
+
+html.dark body [class*="text-ledger-"],
+html.dark body [class*="text-gray-"],
+html.dark body [class*="text-slate-"],
+html.dark body [class*="text-zinc-"],
+html.dark body [class*="text-neutral-"],
+html.dark body [class*="text-stone-"] {
+  color: #fff !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

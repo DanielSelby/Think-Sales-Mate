@@ -57,7 +57,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
       >
         <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <TopNav orgId={orgId} currency={currency} orgName={orgName} logoUrl={logoUrl} userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
+          <TopNav userId={userId} orgId={orgId} currency={currency} orgName={orgName} logoUrl={logoUrl} userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
           <main
             className="page-canvas flex-1 overflow-y-auto p-4 sm:p-5"
             data-light-surfaces={useStandardLightSurfaces ? "standard" : undefined}

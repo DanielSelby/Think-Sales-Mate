@@ -40,6 +40,10 @@ export default async function FraudDetectionPage({ searchParams }: { searchParam
     const result = evaluateTransaction({ amount: sale.total, discountRate });
     if (result.detected) alerts.push({ id: `sale-${sale.id}`, type: "Sales", document: `INV-${String(sale.sale_number).padStart(6, "0")}`, description: `${result.reason} Risk ${result.severity.toLowerCase()} (${result.riskScore}/100).`, entity: sale.customer_name ?? "Walk-in customer", date: sale.sale_date, amount: sale.total, risk: result.severity === "Critical" || result.severity === "High" ? "High" : result.severity, status: "Pending Review", href: `/sales/${sale.id}` });
   }
+  for (const purchase of purchases ?? []) {
+    const result = evaluateTransaction({ amount: purchase.total });
+    if (result.detected) alerts.push({ id: `purchase-${purchase.id}`, type: "Purchase", document: `PO-${String(purchase.purchase_number).padStart(6, "0")}`, description: `${result.reason} Risk ${result.severity.toLowerCase()} (${result.riskScore}/100).`, entity: supplierById.get(purchase.supplier_id) ?? "Unknown supplier", date: purchase.purchase_date, amount: purchase.total, risk: result.severity === "Critical" || result.severity === "High" ? "High" : result.severity, status: "Pending Review", href: `/purchases/${purchase.id}` });
+  }
   for (const event of auditEvents ?? []) {
     const overrides = (event.metadata as Record<string, unknown>).new_values as { price_overrides?: Array<{ product_name?: string; system_price?: number; transaction_price?: number }> } | undefined;
     for (const override of overrides?.price_overrides ?? []) {
