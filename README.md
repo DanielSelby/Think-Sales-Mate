@@ -1,74 +1,121 @@
-# SalesMate ERP — Core Scaffold
+# SalesMate ERP
 
-This is the **foundation layer** for SalesMate: multi-tenant auth, organizations,
-role-based access control, and the dashboard shell that every module (POS,
-Sales, Inventory, CRM, HRM, Accounting, Banking, ...) will plug into.
+SalesMate ERP is a multi-tenant business application built with Next.js 16,
+React, TypeScript, Tailwind CSS, and Supabase. Organizations can manage sales,
+inventory, point of sale, purchasing, expenses, accounting, staff, and related
+business workflows from one application.
 
-It does **not** include those business modules yet — building a full ERP is a
-multi-month effort. What's here is meant to be a correct, working base you
-extend module by module, not a demo.
+## Main features
 
-## Stack
+- **Organization and access management:** organization membership, role-based
+  permissions, branch assignments, and organization settings.
+- **Sales and POS:** sales entry and history, quotations, register sessions,
+  cash drawer workflows, and customer orders.
+- **Inventory and purchasing:** product catalog, categories, pricing, stock
+  adjustments, transfers, branch requests, suppliers, purchases, and returns.
+- **Finance:** expenses, accounting overview, journal entries, invoices, bank
+  accounts, cash closing, and assets.
+- **People and operations:** CRM, HRM, payroll, projects, approvals, internal
+  communication, customer messaging, reports, audit, and fraud monitoring.
 
-- **Next.js 14** (App Router) + **TypeScript**
-- **Tailwind CSS**, hand-rolled UI primitives (button/card/input) in the
-  shadcn style — no compiler dependency
-- **Supabase**: Postgres + Auth + Row-Level Security for multi-tenancy
-- **Zustand** for client UI state (sidebar collapse, active org)
-- Deploy target: **Vercel**
+The available pages are not all equivalent in maturity. External integrations,
+organization settings, and some provider-backed functionality may require
+additional configuration. Use the application and its role/permission
+configuration to determine which features are enabled for an organization.
 
-## What's included
+## Technology
 
-- Email/password sign-up and sign-in, with email confirmation
-- Organization ("workspace") creation on first login
-- Multi-tenant Postgres schema with RLS: `organizations`, `organization_members`,
-  `profiles`, `audit_logs` — see `supabase/migrations/0001_core_schema.sql`
-- Role hierarchy: `owner > admin > manager > staff > viewer`, enforced both in
-  Postgres RLS policies and in the app layer (`src/lib/rbac`)
-- Org switcher (for users who belong to more than one workspace)
-- Team management page: invite by email, change roles, remove members
-- Dashboard shell with sidebar navigation for every planned module — modules
-  not yet built are shown locked rather than broken links
-- Executive dashboard page in an honest zero-state (no fake demo numbers) so
-  it's obvious what's real once you're live
+- Next.js 16 App Router and React 18
+- TypeScript
+- Tailwind CSS
+- Supabase Auth and Postgres with row-level security (RLS)
+- Zustand for client-side application state
+- Vitest for unit tests and ESLint with the Next.js core web vitals rules
 
-## Setup
+## Requirements
 
-1. Create a Supabase project.
-2. In the SQL editor, run `supabase/migrations/0001_core_schema.sql`.
-3. Copy `.env.example` to `.env.local` and fill in your project's URL, anon
-   key, and service role key (Project Settings → API).
-4. `npm install`
-5. `npm run dev` — visit `http://localhost:3000`, sign up, confirm your email,
-   and create your first workspace.
+- Node.js 20 or newer
+- npm
+- A Supabase project for authenticated application use
 
-## Deploying
+## Local setup
 
-Push to GitHub, import into Vercel, and set the same three environment
-variables in the Vercel project settings. Add your Vercel domain to
-Supabase's **Auth → URL Configuration → Redirect URLs** as
-`https://your-domain.vercel.app/auth/callback`.
+1. Create a Supabase project and configure its Auth redirect URLs for your
+   local and deployed application addresses.
+2. Copy `.env.example` to `.env.local`.
+3. Set at least these values in `.env.local`:
 
-## Extending with a new module
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   NEXT_PUBLIC_SITE_URL=http://localhost:3000
+   SITE_URL=http://localhost:3000
+   ```
 
-Each module should follow the same pattern as `settings/organization`:
+   Keep secret keys private. Do not commit `.env.local` or service-role keys.
+   Other environment variables in `.env.example` are for optional integrations.
+4. Install packages and start the development server:
 
-1. A route under `src/app/(dashboard)/<module>/page.tsx`, gated by the
-   `(dashboard)` layout (already requires an active org).
-2. A migration adding that module's tables, always with an `org_id` column
-   and RLS policies using `public.is_org_member(org_id)` /
-   `public.has_org_role(org_id, 'role')` from the core migration.
-3. Capabilities added to `CAPABILITIES` in `src/lib/rbac/index.ts` so access
-   is checked the same way everywhere.
-4. Flip that module's `status` from `"soon"` to `"live"` in
-   `src/components/nav/sidebar.tsx`.
-5. Writes that matter for audit go into `audit_logs` via a small helper —
-   worth adding once the second module lands.
+   ```sh
+   npm ci
+   npm run dev
+   ```
 
-## Suggested build order
+5. Open `http://localhost:3000`. Sign up and follow the application flow to
+   create or join an organization.
 
-Sales/Inventory (they share the same tenant data and unlock POS) →
-Accounting (needs Sales as its transaction source) → CRM → HRM/Payroll →
-Banking/Assets/Projects → Reports (reads across everything above) →
-AI Assistant (needs real data in the other modules to be useful) →
-Super Admin Portal.
+Database migrations are in `supabase/migrations/`. Apply them to the target
+Supabase project in the intended order using the Supabase CLI or your normal
+database deployment process. Do not assume that copying only the original core
+migration creates the full schema required by the current application.
+
+## Validation
+
+Run these checks before submitting changes:
+
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+The GitHub Actions workflow at `.github/workflows/ci.yml` runs those checks on
+pull requests and pushes to `main`. CI uses placeholder Supabase values to
+compile the application; it does not connect to a live organization or
+database.
+
+Unit tests are located alongside the code they cover as `*.test.ts` files and
+run with Vitest. Current tests cover organization super-admin detection and
+branch/location access helpers. They are a foundation, not end-to-end coverage
+of all screens or Supabase policies. Expand coverage for server actions,
+database/RLS behavior, and user-facing flows as those areas are changed.
+
+## Project structure
+
+- `src/app/` — App Router pages, layouts, route handlers, and server actions.
+- `src/components/` — reusable UI and feature components.
+- `src/lib/` — access control, organization context, Supabase clients, and
+  shared business logic.
+- `src/types/` — application and database types.
+- `supabase/migrations/` — schema and policy changes.
+
+## Database types
+
+The `db:types` script generates Supabase types from a linked project:
+
+```sh
+npm run db:types
+```
+
+It requires the Supabase CLI and a project link. Review the generated changes
+before committing them.
+
+## Deployment
+
+Deploy using the hosting platform configured for the project (currently
+Vercel-compatible). Configure the required environment variables in the
+deployment environment and ensure Supabase Auth redirect URLs include the
+production domain. Apply database migrations before enabling features that
+depend on their schema.

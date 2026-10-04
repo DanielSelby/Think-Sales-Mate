@@ -159,7 +159,6 @@ export const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Currencies", href: "/settings/currencies" },
   { label: "Customer Ordering", href: "/settings/customer-ordering" },
   { label: "Billing", href: "/settings/billing" },
-  { label: "Members", href: "/settings/members" },
   { label: "Integrations", href: "/settings/integrations" },
 ];
 
