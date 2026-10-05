@@ -119,7 +119,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
   const cartListRef = React.useRef<HTMLDivElement>(null);
   const [locationId, setLocationId] = React.useState(locations[0]?.id ?? "");
-  const registerSession = registerSessions.find((session) => session.locationId === locationId) ?? registerSessions[0];
+  const registerSession = registerSessions.find((session) => session.locationId === locationId);
   const [selectResetKey, setSelectResetKey] = React.useState(0);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [customer, setCustomer] = React.useState<CustomerOption | null>(null);
@@ -409,6 +409,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
     setError(null);
     if (cart.length === 0) return setError("Cart is empty.");
     if (!locationId) return setError("Select a branch/location.");
+    if (!registerSession) return setError("Open a register for the selected branch before processing a sale.");
     const method = methodOverride ?? paymentMethod;
     setPaymentMethod(method);
 
@@ -441,6 +442,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
 
     startTransition(async () => {
       const result = await completeSale({
+        registerSessionId: registerSession.id,
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
         orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method, priceTier, paymentAllocations,
         saleDate,
@@ -604,6 +606,10 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
   }
 
   function reloadRegisterSummary() {
+    if (!registerSession) {
+      setError("No open register session is available for the selected branch.");
+      return;
+    }
     setRegisterLoading(true);
     getRegisterSummary(locationId, registerSession.cashierId, true)
       .then(setRegisterSummary)

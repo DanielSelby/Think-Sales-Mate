@@ -282,24 +282,21 @@ export function StockTransferForm({
     );
   };
 
-  // Autocomplete products filter
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase();
-    return products.filter(
-      (p) => getStockQty(p.id, fromLocationId) > 0
-    ).filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        (p.barcode && p.barcode.toLowerCase().includes(q))
-    );
-  }, [products, searchQuery, fromLocationId, stockLevels]);
-
   const sourceProducts = useMemo(
     () => products.filter((product) => getStockQty(product.id, fromLocationId) > 0),
     [products, fromLocationId, stockLevels]
   );
+
+  // Show source-branch stock on focus, then narrow it as the user types.
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return sourceProducts;
+    return sourceProducts.filter((product) =>
+      product.name.toLowerCase().includes(query)
+      || product.sku.toLowerCase().includes(query)
+      || Boolean(product.barcode?.toLowerCase().includes(query))
+    );
+  }, [sourceProducts, searchQuery]);
 
   // Add real product to transfer list
   const handleAddProduct = (product: TransferableProduct) => {
@@ -392,7 +389,7 @@ export function StockTransferForm({
   };
 
   // ── Real Server Action Execution ────────────────────────────────────────
-  const handleExecuteTransfer = (asDraft = false) => {
+  const handleExecuteTransfer = () => {
     setErrorMessage(null);
 
     if (fromLocationId === toLocationId) {
@@ -433,7 +430,10 @@ export function StockTransferForm({
         setShowApprovalModal(false);
         setItems([]);
 
-        setTransactionFeedback({ kind: "success", message: `Stock Transfer #${transferNumber} was created and dispatched successfully.` });
+        setTransactionFeedback({
+          kind: "success",
+          message: `Stock Transfer #${transferNumber} was created and dispatched successfully. Awaiting Branch Receive Confirmation.`,
+        });
       }
     });
   };
@@ -900,7 +900,7 @@ export function StockTransferForm({
                       setShowProductDropdown(true);
                     }}
                     onFocus={() => setShowProductDropdown(true)}
-                    className="stock-transfer-search-input h-11 w-full rounded-xl border border-ledger-200 bg-white pl-10 pr-4 text-xs font-medium text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
+                    className="stock-transfer-search-input h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-xs font-medium text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-slate-600 dark:bg-[#0b0f19] dark:text-white"
                   />
                 </div>
 
@@ -915,9 +915,15 @@ export function StockTransferForm({
               </div>
 
               {/* Autocomplete Results Dropdown */}
-              {showProductDropdown && searchResults.length > 0 && (
+              {showProductDropdown && (searchResults.length > 0 || sourceProducts.length === 0 || Boolean(searchQuery.trim())) && (
                 <div className="stock-transfer-surface absolute left-0 right-0 top-12 z-30 max-h-72 overflow-y-auto rounded-2xl border border-ledger-100 bg-white p-2 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
-                  {searchResults.map((product) => {
+                  {searchResults.length === 0 ? (
+                    <p className="px-3 py-5 text-center text-xs text-ledger-500 dark:text-ledger-300">
+                      {sourceProducts.length === 0
+                        ? "No products have available stock at the selected source branch."
+                        : "No source-branch products match your search."}
+                    </p>
+                  ) : searchResults.map((product) => {
                     const srcStock = getStockQty(product.id, fromLocationId);
                     const destStock = getStockQty(product.id, toLocationId);
                     return (
@@ -1306,12 +1312,12 @@ export function StockTransferForm({
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleExecuteTransfer(true)}
+              onClick={handleExecuteTransfer}
               disabled={isPending || items.length === 0}
               className="h-10 gap-1.5 rounded-xl border-ledger-200 text-xs font-semibold text-ink-900 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white"
             >
               <FileSpreadsheet className="h-4 w-4 text-amber-600" />
-              Save as Draft
+              Transfer Stock
             </Button>
 
             <Button
@@ -1438,7 +1444,7 @@ export function StockTransferForm({
                   type="button"
                   size="sm"
                   disabled={isPending}
-                  onClick={() => handleExecuteTransfer(false)}
+                  onClick={handleExecuteTransfer}
                   className="gap-1.5 rounded-xl bg-emerald-700 text-xs text-white hover:bg-emerald-800"
                 >
                   <Send className="h-3.5 w-3.5" />

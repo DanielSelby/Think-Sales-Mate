@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import {
   TransferHistory,
   type TransferRow,
@@ -146,6 +146,10 @@ export default async function StockTransferHistoryPage() {
     .filter((location) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
     .map((l) => ({ id: l.id, name: l.name, type: l.location_type }));
   const products: TransferFilterProduct[] = (productRows ?? []).map((p) => ({ id: p.id, name: p.name, sku: p.sku }));
+  const [canManage, canDelete] = await Promise.all([
+    canPermission("transfers", "edit"),
+    canPermission("transfers", "delete"),
+  ]);
 
   return (
     <TransferHistory
@@ -153,7 +157,8 @@ export default async function StockTransferHistoryPage() {
       kpis={kpis}
       locations={locations}
       products={products}
-      canManage={can(context.role, "inventory.manage")}
+      canManage={canManage}
+      canDelete={canDelete}
       currency={context.currency || "GHS"}
     />
   );

@@ -5,7 +5,7 @@ import { ArrowLeft, CheckCircle2, Circle } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { can } from "@/lib/rbac";
+import { canPermission } from "@/lib/rbac/permissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { TransferStatusBadge } from "@/components/inventory/transfer-status-badge";
 import { TransferStatusActions } from "@/components/inventory/transfer-status-actions";
@@ -34,6 +34,14 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
       !context.allowedLocationIds.includes(transfer.to_location_id)) {
     notFound();
   }
+  const canEditTransfers = await canPermission("transfers", "edit");
+  const canManageTransfer = canEditTransfers && (
+    !context.isBranchScoped
+    || context.allowedLocationIds.includes(transfer.from_location_id)
+    || context.allowedLocationIds.includes(transfer.to_location_id)
+  );
+  const canReceiveTransfer = !context.isBranchScoped
+    || context.allowedLocationIds.includes(transfer.to_location_id);
 
   const from = Array.isArray(transfer.from) ? transfer.from[0] : transfer.from;
   const to = Array.isArray(transfer.to) ? transfer.to[0] : transfer.to;
@@ -89,8 +97,14 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
         <p className="text-xs text-ledger-400">Requested by {requestedByEmail}</p>
       </div>
 
-      {(can(context.role, "inventory.manage") || (transfer.status === "in_transit" && context.allowedLocationIds.includes(transfer.to_location_id))) && (
-        <TransferStatusActions transferId={transfer.id} status={transfer.status} />
+      {(canManageTransfer
+        || ((transfer.status === "pending" || transfer.status === "in_transit") && canReceiveTransfer)) && (
+        <TransferStatusActions
+          transferId={transfer.id}
+          status={transfer.status}
+          canManage={canManageTransfer}
+          canReceive={canReceiveTransfer}
+        />
       )}
 
       <Card>

@@ -1071,6 +1071,7 @@ export async function deleteHeldSale(id: string): Promise<SimpleResult> {
 // ---------------------------------------------------------------------------
 
 export interface CompleteSaleInput {
+  registerSessionId?: string;
   locationId: string;
   customerId: string | null;
   customerName: string | null;
@@ -1091,8 +1092,12 @@ export interface CompleteSaleResult {
 }
 
 export async function completeSale(input: CompleteSaleInput): Promise<CompleteSaleResult> {
+  await requirePermission("pos", "create");
   if (input.items.length === 0) return { ok: false, error: "Cart is empty." };
   if (!input.locationId) return { ok: false, error: "Select a branch/location." };
+  if (!input.registerSessionId) {
+    return { ok: false, error: "Open a register for the selected branch before processing a sale." };
+  }
 
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
@@ -1106,6 +1111,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     .from("pos_register_sessions")
     .select("id")
     .eq("org_id", context.orgId)
+    .eq("id", input.registerSessionId)
     .eq("cashier_id", user.id)
     .eq("location_id", input.locationId)
     .eq("status", "open")
@@ -1185,28 +1191,22 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const shipping = Math.max(0, input.shippingAmount);
   const total = Math.max(0, subtotal - totalDiscount + tax + shipping);
 
-  const { data: sale, error: saleError } = await supabase
-    .from("sales")
-    .insert({
-      org_id: context.orgId,
-      customer_name: input.customerName,
-      customer_id: input.customerId,
-      location_id: input.locationId,
-      reference: input.orderNote,
-      subtotal,
-      discount_amount: totalDiscount,
-      tax_amount: tax,
-      shipping_amount: shipping,
-      total,
-      payment_method: input.paymentMethod,
-      amount_paid: total, // POS sales are paid in full at the point of sale
-      sold_by: user.id,
-      register_session_id: activeSession.id,
-      status: "completed",
-      sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
-    })
-    .select("id, sale_number")
-    .single();
+  const { data: saleRows, error: saleError } = await (supabase as any).rpc("create_pos_sale_header", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_register_session_id: activeSession.id,
+    p_customer_id: input.customerId,
+    p_customer_name: input.customerName,
+    p_reference: input.orderNote,
+    p_subtotal: subtotal,
+    p_discount_amount: totalDiscount,
+    p_tax_amount: tax,
+    p_shipping_amount: shipping,
+    p_total: total,
+    p_payment_method: input.paymentMethod,
+    p_sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
+  });
+  const sale = Array.isArray(saleRows) ? saleRows[0] : null;
 
   if (saleError || !sale) return { ok: false, error: saleError?.message ?? "Couldn't create the sale." };
   const allocations = input.paymentAllocations?.filter((allocation) => Number.isFinite(allocation.amount) && allocation.amount > 0) ?? [];

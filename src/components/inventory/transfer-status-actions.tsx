@@ -5,7 +5,17 @@ import { Button } from "@/components/ui/button";
 import { updateTransferStatus } from "@/app/(dashboard)/inventory/transfers/actions";
 import type { TransferStatus } from "@/types/database";
 
-export function TransferStatusActions({ transferId, status }: { transferId: string; status: TransferStatus }) {
+export function TransferStatusActions({
+  transferId,
+  status,
+  canManage,
+  canReceive,
+}: {
+  transferId: string;
+  status: TransferStatus;
+  canManage: boolean;
+  canReceive: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [notice, setNotice] = useState<{ kind: "success" | "warning" | "error"; text: string } | null>(null);
 
@@ -15,7 +25,9 @@ export function TransferStatusActions({ transferId, status }: { transferId: stri
       updateTransferStatus(transferId, next).then((result) => {
         if (result?.error) setNotice({ kind: "error", text: result.error });
         else {
-          setNotice({ kind: "success", text: `Transfer ${next.replace("_", " ")} successfully.` });
+          setNotice(result.warning
+            ? { kind: "warning", text: result.warning }
+            : { kind: "success", text: `Transfer ${next.replace("_", " ")} successfully.` });
           window.setTimeout(() => window.location.reload(), 700);
         }
       }).catch(() => setNotice({ kind: "error", text: "Unable to update the transfer. Please try again." }));
@@ -34,19 +46,21 @@ export function TransferStatusActions({ transferId, status }: { transferId: stri
     <div className="space-y-3">
       {notice && <div role="status" className={`rounded-xl border px-4 py-3 text-sm font-semibold shadow-sm ${noticeStyle}`}>{notice.text}</div>}
       <div className="flex gap-2">
-      {status === "pending" && (
+      {canManage && status === "pending" && (
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleUpdate("in_transit")}>
           Mark in transit
         </Button>
       )}
-      {(status === "pending" || status === "in_transit") && (
-        <Button size="sm" disabled={isPending} onClick={() => handleUpdate("received")}>
-          Mark received
+      {(status === "pending" || status === "in_transit") && canReceive && (
+        <Button size="sm" disabled={isPending} onClick={() => handleUpdate("completed")}>
+          Receive Stock (Complete)
         </Button>
       )}
-      <Button size="sm" variant="destructive" disabled={isPending} onClick={() => handleUpdate("cancelled")}>
-        Cancel transfer
-      </Button>
+      {canManage && (
+        <Button size="sm" variant="destructive" disabled={isPending} onClick={() => handleUpdate("cancelled")}>
+          Cancel transfer
+        </Button>
+      )}
       </div>
     </div>
   );

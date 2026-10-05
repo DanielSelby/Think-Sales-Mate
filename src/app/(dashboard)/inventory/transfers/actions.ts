@@ -177,31 +177,37 @@ export async function updateTransferStatus(transferId: string, status: TransferS
 
   const supabase = await createClient();
   const isInventoryManager = await canPermission("transfers", "edit");
-  let receivingBranchCanComplete = false;
-  if (!isInventoryManager) {
-    const { data: destination } = await supabase
-      .from("stock_transfers")
-      .select("to_location_id")
-      .eq("id", transferId)
-      .eq("org_id", context.orgId)
-      .maybeSingle();
-    receivingBranchCanComplete = Boolean(destination && context.allowedLocationIds.includes(destination.to_location_id));
-    if (!receivingBranchCanComplete) {
-      return { error: "Only the receiving branch can accept this transfer." };
-    }
+  const { data: transfer } = await supabase
+    .from("stock_transfers")
+    .select("from_location_id, to_location_id")
+    .eq("id", transferId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (!transfer) return { error: "Transfer was not found or is not available to your account." };
+
+  const nextStatus = status === "received" ? "completed" : status;
+  const canAccessTransfer = !context.isBranchScoped
+    || context.allowedLocationIds.includes(transfer.from_location_id)
+    || context.allowedLocationIds.includes(transfer.to_location_id);
+  if (!canAccessTransfer) {
+    return { error: "You can only update transfers involving your assigned branches." };
   }
-  if (!isInventoryManager && status !== "completed" && status !== "received") {
+  const canReceiveAtDestination = context.allowedLocationIds.includes(transfer.to_location_id);
+  if (nextStatus === "completed" && context.isBranchScoped && !canReceiveAtDestination) {
+    return { error: "Only the receiving branch can complete this transfer." };
+  }
+  if (!isInventoryManager && (nextStatus !== "completed" || !canReceiveAtDestination)) {
     return { error: "You don't have permission to update transfers." };
   }
-  const updates: Database["public"]["Tables"]["stock_transfers"]["Update"] = { status };
-  if (status === "received") {
+  const updates: Database["public"]["Tables"]["stock_transfers"]["Update"] = { status: nextStatus };
+  if (nextStatus === "completed") {
     updates.received_at = new Date().toISOString();
     updates.received_by = context.userId;
+    updates.completed_at = new Date().toISOString();
   }
-  // The base RLS policy only allows managers to update transfer headers. A
-  // receiving branch is explicitly authorized above, so use the admin client
-  // for that narrowly scoped completion update.
-  const updateClient = isInventoryManager ? supabase : createAdminClient();
+  // Authorization and branch scope are checked above. Use the admin client
+  // for this narrowly scoped update because table RLS only knows org roles.
+  const updateClient = createAdminClient();
   const { data: updatedTransfer, error } = await updateClient
     .from("stock_transfers")
     .update(updates)
@@ -212,17 +218,21 @@ export async function updateTransferStatus(transferId: string, status: TransferS
 
   if (error) return { error: `Could not update transfer status: ${error.message}` };
   if (!updatedTransfer) return { error: "Transfer was not found or could not be updated." };
-  if (updatedTransfer.status !== status) {
+  if (updatedTransfer.status !== nextStatus) {
     return { error: `Transfer status was not updated. Current status: ${updatedTransfer.status}.` };
   }
 
-  if (status === "completed") {
+  let warning: string | undefined;
+  if (nextStatus === "completed") {
     const { error: requestUpdateError } = await updateClient
       .from("stock_requests")
       .update({ status: "completed", completed_at: new Date().toISOString() })
       .eq("transfer_id", transferId)
       .eq("org_id", context.orgId);
-    if (requestUpdateError) return { error: requestUpdateError.message };
+    if (requestUpdateError) {
+      warning = `Transfer was received, but its linked stock request could not be updated: ${requestUpdateError.message}`;
+      console.error("[transfers] Failed to complete linked stock request:", requestUpdateError);
+    }
     const { data: request } = await updateClient
       .from("stock_requests")
       .select("id, request_number, requested_by, requesting_location_id")
@@ -259,7 +269,7 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   revalidatePath("/inventory/transfers");
   revalidatePath(`/inventory/transfers/${transferId}`);
   revalidatePath("/inventory");
-  return { success: true };
+  return { success: true, warning };
 }
 
 export interface TransferItemDetail {

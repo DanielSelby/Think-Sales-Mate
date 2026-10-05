@@ -541,12 +541,12 @@ html.dark .stock-transfer-modal-surface {
 }
 
 .stock-transfer-modal-surface .stock-transfer-search-input {
-  border: 1px solid #9ca3af !important;
+  border: 1px solid #cbd5e1 !important;
 }
 
 html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
-  border-color: #64748b !important;
-  background-color: #0f172a !important;
+  border-color: #475569 !important;
+  background-color: #0b0f19 !important;
   color: #f8fafc !important;
 }
 
@@ -615,6 +615,7 @@ html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
 
   html.dark .page-canvas .stock-transfer-search-input {
     border-color: #475569 !important;
+    background-color: #0b0f19 !important;
   }
 
   .page-canvas .new-sale-page .rounded-card,
@@ -1617,6 +1618,11 @@ html.dark .stock-request-filter-control,
 html.dark .stock-request-product-search,
 html.dark .stock-request-history-search {
   border-color: #64748b !important;
+}
+
+html.dark .transfer-history-filter-control {
+  background-color: #0b0f19 !important;
+  color: #f8fafc !important;
 }
 
 html.dark .stock-request-product-search,

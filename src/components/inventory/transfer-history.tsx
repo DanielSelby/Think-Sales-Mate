@@ -115,6 +115,7 @@ export function TransferHistory({
   locations = [],
   products = [],
   canManage = true,
+  canDelete = false,
   currency = "GHS",
 }: {
   transfers?: TransferRow[];
@@ -122,6 +123,7 @@ export function TransferHistory({
   locations?: TransferFilterLocation[];
   products?: TransferFilterProduct[];
   canManage?: boolean;
+  canDelete?: boolean;
   currency?: string;
 }) {
   const router = useRouter();
@@ -164,7 +166,10 @@ export function TransferHistory({
       if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
       }
-      if (actionMenuTransferId) {
+      const target = e.target;
+      const clickedTransferAction = target instanceof Element
+        && Boolean(target.closest("[data-transfer-action-menu], [data-transfer-action-trigger]"));
+      if (actionMenuTransferId && !clickedTransferAction) {
         setActionMenuTransferId(null);
       }
     };
@@ -265,7 +270,9 @@ export function TransferHistory({
           alert(res.error);
           return;
         }
-        setToastMessage(`Transfer status updated to ${newStatus.replace("_", " ")}.`);
+        setToastMessage(
+          res.warning ?? `Transfer status updated to ${newStatus.replace("_", " ")}.`
+        );
         window.setTimeout(() => window.location.reload(), 300);
       } catch (error) {
         alert(error instanceof Error ? error.message : "Could not update transfer status.");
@@ -877,6 +884,7 @@ export function TransferHistory({
                       <td className="px-4 py-3.5 text-center relative">
                         <button
                           type="button"
+                          data-transfer-action-trigger
                           onClick={() => setActionMenuTransferId(isMenuOpen ? null : row.id)}
                           className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
                         >
@@ -885,7 +893,7 @@ export function TransferHistory({
 
                         {/* Action Popover Menu */}
                         {isMenuOpen && (
-                          <div className="absolute right-4 top-10 z-30 w-48 rounded-2xl border border-ledger-100 bg-white p-1.5 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 animate-in fade-in duration-100 text-left">
+                          <div data-transfer-action-menu className="absolute right-4 top-10 z-30 w-48 rounded-2xl border border-ledger-100 bg-white p-1.5 shadow-2xl dark:border-ledger-700 dark:bg-ink-900 animate-in fade-in duration-100 text-left">
                             <button
                               type="button"
                               onClick={() => {
@@ -898,36 +906,41 @@ export function TransferHistory({
                               View Items Breakdown
                             </button>
 
-                            {isPendingStatus && (
+                            {isPendingStatus && locations.some((location) => location.id === row.toLocationId) && (
                               <button
                                 type="button"
+                                disabled={isPending}
                                 onClick={() => handleUpdateStatus(row.id, "completed")}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                               >
                                 <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
                                 Receive Stock (Complete)
                               </button>
                             )}
 
-                            {isPendingStatus && (
+                            {canManage && isPendingStatus && (
                               <button
                                 type="button"
+                                disabled={isPending}
                                 onClick={() => handleUpdateStatus(row.id, "cancelled")}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
                               >
                                 <PackageX className="h-3.5 w-3.5 text-red-500" />
                                 Cancel Transfer
                               </button>
                             )}
 
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTransfer(row.id)}
-                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 border-t border-ledger-100 dark:border-ledger-700 mt-1 pt-1.5"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                              Delete Record
-                            </button>
+                            {canDelete && (
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleDeleteTransfer(row.id)}
+                                className="flex w-full items-center gap-2 rounded-xl border-t border-ledger-100 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-ledger-700 dark:text-red-400 dark:hover:bg-red-950/40"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                Delete Record
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -1155,18 +1168,19 @@ export function TransferHistory({
               </Button>
 
               <div className="flex items-center gap-2">
-                {(selectedTransferForDetail.status === "pending" || selectedTransferForDetail.status === "in_transit") && (
+                {(selectedTransferForDetail.status === "pending" || selectedTransferForDetail.status === "in_transit")
+                  && locations.some((location) => location.id === selectedTransferForDetail.toLocationId) && (
                   <Button
                     type="button"
                     size="sm"
+                    disabled={isPending}
                     onClick={() => {
                       handleUpdateStatus(selectedTransferForDetail.id, "completed");
-                      setSelectedTransferForDetail(null);
                     }}
                     className="gap-1.5 rounded-xl bg-emerald-700 text-xs text-white hover:bg-emerald-800"
                   >
                     <CheckCircle className="h-3.5 w-3.5" />
-                    Receive &amp; Complete
+                    Receive Stock (Complete)
                   </Button>
                 )}
 
