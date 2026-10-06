@@ -5,13 +5,18 @@ import { DashboardShell } from "@/components/nav/dashboard-shell";
 import { createClient } from "@/lib/supabase/server";
 import type { ThemeKey } from "@/store/useAppStore";
 import { getEnabledOrganizationModules, getPlatformSystemLogo, getPlatformSystemName } from "@/lib/supabase/platform-admin";
+import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context     = await getCurrentOrgContext(activeOrgId);
-  if (!context) redirect("/onboarding");
+  if (!context) {
+    const { applications } = await getUserRegistrationApplications();
+    if (applications.length) redirect("/registration-status");
+    redirect("/onboarding");
+  }
   const supabase = await createClient();
   const roleKey = typeof context.accessPermissions.role_key === "string"
     ? context.accessPermissions.role_key

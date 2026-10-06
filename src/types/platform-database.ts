@@ -49,7 +49,7 @@ export interface PlatformDatabase {
           organization_id: string;
           name: string;
           plan_id: string | null;
-          status: "active" | "trial" | "suspended" | "expired";
+          status: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
           expires_at: string | null;
           created_at: string;
           updated_at: string;
@@ -58,13 +58,20 @@ export interface PlatformDatabase {
            suspension_reason: string | null;
            use_global_login_theme: boolean;
            login_theme_id: string | null;
+           owner_user_id: string | null;
+           owner_email: string | null;
+           registration_state: "pending" | "information_requested" | "approved" | "rejected";
+           registration_notes: string | null;
+           info_requested_at: string | null;
+           reviewed_by: string | null;
+           reviewed_at: string | null;
         };
         Insert: {
           id?: string;
           organization_id: string;
           name: string;
           plan_id?: string | null;
-          status?: "active" | "trial" | "suspended" | "expired";
+          status?: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
           expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -73,6 +80,13 @@ export interface PlatformDatabase {
            suspension_reason?: string | null;
            use_global_login_theme?: boolean;
            login_theme_id?: string | null;
+           owner_user_id?: string | null;
+           owner_email?: string | null;
+           registration_state?: "pending" | "information_requested" | "approved" | "rejected";
+           registration_notes?: string | null;
+           info_requested_at?: string | null;
+           reviewed_by?: string | null;
+           reviewed_at?: string | null;
         };
         Update: Partial<PlatformDatabase["public"]["Tables"]["platform_organizations"]["Row"]>;
         Relationships: [];
@@ -316,6 +330,33 @@ export interface PlatformDatabase {
         updated_by?: string | null;
         updated_at?: string;
       }>;
+      platform_registration_deliveries: PlatformTable<{
+        id: string;
+        dedupe_key: string;
+        organization_id: string | null;
+        recipient: string;
+        subject: string;
+        content: string;
+        status: "pending" | "sending" | "sent" | "failed";
+        provider: string | null;
+        error: string | null;
+        attempts: number;
+        updated_at: string;
+        created_at: string;
+      }, {
+        id?: string;
+        dedupe_key: string;
+        organization_id?: string | null;
+        recipient: string;
+        subject: string;
+        content: string;
+        status?: "pending" | "sending" | "sent" | "failed";
+        provider?: string | null;
+        error?: string | null;
+        attempts?: number;
+        updated_at?: string;
+        created_at?: string;
+      }>;
       login_themes: PlatformTable<{
         id: string;
         name: string;
@@ -347,7 +388,18 @@ export interface PlatformDatabase {
       }>;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      claim_platform_registration_delivery: {
+        Args: {
+          p_dedupe_key: string;
+          p_organization_id: string | null;
+          p_recipient: string;
+          p_subject: string;
+          p_content: string;
+        };
+        Returns: string | null;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

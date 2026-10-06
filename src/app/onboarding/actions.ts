@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncOrganizationToPlatform } from "@/lib/supabase/platform-admin";
+import { notifyRegistrationApplication } from "@/lib/organizations/registration-email";
 
 function slugify(name: string) {
   return name
@@ -39,13 +40,24 @@ export async function createOrganization(formData: FormData): Promise<void> {
   // service-role client — safe here because `user` above is already
   // verified server-side, not something the browser can forge.
   const admin = createAdminClient();
+  const { count: recentAttempts, error: attemptsError } = await admin
+    .from("organization_registration_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  if (attemptsError) throw new Error(`Could not verify registration rate limit: ${attemptsError.message}`);
+  if ((recentAttempts ?? 0) >= 3) {
+    redirectWithError("You have reached the workspace registration limit. Please try again later.");
+  }
+  const { error: attemptError } = await admin.from("organization_registration_attempts").insert({ user_id: user.id });
+  if (attemptError) throw new Error(`Could not record registration attempt: ${attemptError.message}`);
 
   const baseSlug = slugify(name) || "workspace";
   const slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
 
   const { data: org, error: orgError } = await admin
     .from("organizations")
-    .insert({ name, slug, created_by: user.id })
+    .insert({ name, slug, created_by: user.id, registration_status: "pending" })
     .select("id")
     .single();
 
@@ -57,7 +69,7 @@ export async function createOrganization(formData: FormData): Promise<void> {
     org_id: org.id,
     user_id: user.id,
     role: "owner",
-    status: "active"
+    status: "invited"
   });
 
   if (memberError) {
@@ -65,10 +77,21 @@ export async function createOrganization(formData: FormData): Promise<void> {
   }
 
   try {
-    await syncOrganizationToPlatform({ id: org.id, name });
+    await syncOrganizationToPlatform({
+      id: org.id,
+      name,
+      status: "pending",
+      ownerUserId: user.id,
+      ownerEmail: user.email ?? "",
+    });
   } catch (syncError) {
     console.error("Platform organization synchronization failed:", syncError);
   }
+  try {
+    await notifyRegistrationApplication({ id: org.id, name, ownerEmail: user.email ?? "" });
+  } catch (notificationError) {
+    console.error("Platform registration notification failed:", notificationError);
+  }
 
-  redirect("/dashboard");
+  redirect("/registration-status");
 }

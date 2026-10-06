@@ -49,6 +49,7 @@ export interface Database {
           plan: OrgPlan;
           currency: string;
           use_system_prices: boolean;
+          registration_status: "pending" | "approved" | "rejected" | "suspended";
           created_by: string;
           created_at: string;
         };
@@ -59,6 +60,7 @@ export interface Database {
           plan?: OrgPlan;
           currency?: string;
           use_system_prices?: boolean;
+          registration_status?: "pending" | "approved" | "rejected" | "suspended";
           created_by: string;
           created_at?: string;
         };
@@ -137,6 +139,32 @@ export interface Database {
         ];
       };
 
+      organization_registration_attempts: {
+        Row: { id: string; user_id: string; created_at: string };
+        Insert: { id?: string; user_id: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["organization_registration_attempts"]["Row"]>;
+        Relationships: [];
+      };
+      organization_registration_messages: {
+        Row: {
+          id: string;
+          organization_id: string;
+          author_user_id: string | null;
+          author_type: "owner" | "platform_admin" | "system";
+          message: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          author_user_id?: string | null;
+          author_type: "owner" | "platform_admin" | "system";
+          message: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_registration_messages"]["Row"]>;
+        Relationships: [];
+      };
       business_locations: {
         Row: {
           id: string;

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createOrganization } from "./actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 
 export default async function OnboardingPage({
   searchParams
@@ -11,6 +12,8 @@ export default async function OnboardingPage({
 }) {
   const existing = await getCurrentOrgContext();
   if (existing) redirect("/dashboard");
+  const { applications } = await getUserRegistrationApplications();
+  if (applications.length) redirect("/registration-status");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-ledger-50 px-4 dark:bg-ink-950">

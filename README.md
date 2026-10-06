@@ -70,6 +70,19 @@ Supabase project in the intended order using the Supabase CLI or your normal
 database deployment process. Do not assume that copying only the original core
 migration creates the full schema required by the current application.
 
+### Organization registration approval
+
+New workspaces remain unavailable until approved in Platform Admin. Apply
+`supabase/migrations/20261006100000_organization_registration_approval.sql` to
+the application database and
+`supabase/platform-migrations/0004_organization_registration_approval.sql` to
+the separate Platform Admin database. Platform Admins with platform-management
+permission can review applications at `/platform-admin/registrations`, request
+more information, and configure notification recipients. Email delivery uses
+the configured Resend provider (`RESEND_API_KEY` and `RESEND_FROM_EMAIL`); a
+comma-separated `PLATFORM_ADMIN_NOTIFICATION_EMAILS` environment variable can
+be used as a fallback recipient list.
+
 ## Validation
 
 Run these checks before submitting changes:

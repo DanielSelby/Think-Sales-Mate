@@ -38,12 +38,24 @@ export async function getPlatformSystemName() {
     : "ThinkSales ERP Pro";
 }
 
-export async function syncOrganizationToPlatform(organization: { id: string; name: string }) {
+export async function syncOrganizationToPlatform(organization: {
+  id: string;
+  name: string;
+  status?: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
+  ownerUserId?: string;
+  ownerEmail?: string;
+}) {
   const platform = createPlatformAdminClient();
   const { error } = await platform.from("platform_organizations").upsert(
     {
       organization_id: organization.id,
       name: organization.name,
+      ...(organization.status ? {
+        status: organization.status,
+        registration_state: organization.status === "pending" ? "pending" : "approved",
+      } : {}),
+      ...(organization.ownerUserId ? { owner_user_id: organization.ownerUserId } : {}),
+      ...(organization.ownerEmail ? { owner_email: organization.ownerEmail } : {}),
     },
     { onConflict: "organization_id", ignoreDuplicates: false },
   );
@@ -58,13 +70,39 @@ export async function syncOrganizationToPlatform(organization: { id: string; nam
 export async function syncAllOrganizationsToPlatform() {
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const organizationClient = createAdminClient();
-  const { data, error } = await organizationClient.from("organizations").select("id, name");
+  const { data, error } = await organizationClient.from("organizations").select("id, name, created_by, registration_status");
   if (error) throw new Error(`Could not read organizations for Platform Admin synchronization: ${error.message}`);
   if (!data?.length) return;
 
   const platform = createPlatformAdminClient();
+  const { data: existingOrganizations, error: existingError } = await platform
+    .from("platform_organizations")
+    .select("organization_id, status")
+    .in("organization_id", data.map((organization) => organization.id));
+  if (existingError) throw new Error(`Could not check Platform Admin organization synchronization state: ${existingError.message}`);
+  const existingById = new Map((existingOrganizations ?? []).map((organization) => [organization.organization_id, organization]));
   const { error: syncError } = await platform.from("platform_organizations").upsert(
-    data.map((organization) => ({ organization_id: organization.id, name: organization.name })),
+    data.map((organization) => {
+      const existing = existingById.get(organization.id);
+      const status = organization.registration_status;
+      const organizationValues = {
+        organization_id: organization.id,
+        name: organization.name,
+        owner_user_id: organization.created_by,
+      };
+      if (status !== "approved" && (!existing || existing.status !== status)) {
+        return {
+          ...organizationValues,
+          status,
+          registration_state: status === "pending"
+            ? "pending" as const
+            : status === "rejected" ? "rejected" as const : "approved" as const,
+        };
+      }
+      return {
+        ...organizationValues,
+      };
+    }),
     { onConflict: "organization_id", ignoreDuplicates: false },
   );
   if (syncError) throw new Error(`Could not synchronize organizations with Platform Admin: ${syncError.message}`);

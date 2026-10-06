@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import type { MemberRole } from "@/lib/rbac";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface CurrentOrgContext {
   userId: string;
@@ -44,19 +45,28 @@ const resolveCurrentOrgContext = cache(async (
 
   const { data: memberRows, error } = await supabase
     .from("organization_members")
-    .select("org_id, user_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, access_permissions, organizations(name, currency, created_by, use_system_prices)")
+    .select("org_id, user_id, role, branch_scope, location_id, secondary_location_ids, can_view_other_users_transactions, can_check_cross_branch_stock, access_permissions")
     .eq("user_id", user.id)
     .eq("status", "active");
 
   if (error || !memberRows || memberRows.length === 0) return null;
 
-  const memberships = memberRows.map((row: any) => {
-    // organizations relation may resolve as an object or array depending on
-    // schema introspection — normalize defensively.
+  const organizationClient = createAdminClient();
+  const { data: organizations, error: organizationsError } = await organizationClient
+    .from("organizations")
+    .select("id, name, currency, created_by, use_system_prices, registration_status")
+    .in("id", memberRows.map((row) => row.org_id));
+  if (organizationsError) throw new Error(`Could not resolve organization access status: ${organizationsError.message}`);
+  const accessibleOrganizations = new Map((organizations ?? [])
+    .filter((organization) => organization.registration_status === "approved")
+    .map((organization) => [organization.id, organization]));
+  const accessibleMembers = memberRows.filter((row) => accessibleOrganizations.has(row.org_id));
+  if (accessibleMembers.length === 0) return null;
+
+  const memberships = accessibleMembers.map((row: any) => {
     // The workspace creator is the owner even if an older access-management
     // update wrote an administrative role into the membership row.
-    const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-    const org = organization;
+    const organization = accessibleOrganizations.get(row.org_id);
     const isOwner = isOrganizationSuperAdminMember({
       role: row.role,
       userId: user.id,
@@ -84,8 +94,8 @@ const resolveCurrentOrgContext = cache(async (
 
     return {
       orgId: row.org_id,
-      orgName: org?.name ?? "Untitled organization",
-      currency: org?.currency ?? "USD",
+      orgName: organization?.name ?? "Untitled organization",
+      currency: organization?.currency ?? "USD",
       role: isOwner ? "owner" : row.role as MemberRole,
       branchScope,
       locationId,

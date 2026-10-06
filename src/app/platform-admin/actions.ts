@@ -25,7 +25,7 @@ async function requirePlatformPermission(permission: "manage_platform" | "manage
 export async function createPlatformOrganization(input: {
   organizationId: string;
   name: string;
-  status: "active" | "trial" | "suspended" | "expired";
+  status: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
   expiresAt?: string;
   planId?: string;
 }) {
@@ -55,23 +55,52 @@ export async function createPlatformOrganization(input: {
 
 export async function updatePlatformOrganization(
   id: string,
-  update: { status?: "active" | "trial" | "suspended" | "expired"; planId?: string | null; expiresAt?: string | null },
+  update: { status?: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired"; planId?: string | null; expiresAt?: string | null },
 ) {
   const { admin, supabase } = await requirePlatformManagement();
   const { data: organization, error: organizationError } = await supabase
     .from("platform_organizations")
-    .select("organization_id")
+    .select("organization_id, status, registration_state")
     .eq("id", id)
     .single();
   if (organizationError) throw new Error(organizationError.message);
-  const values: { status?: typeof update.status; plan_id?: string | null; expires_at?: string | null; updated_at: string } = {
+  if ((organization.status === "pending" || organization.registration_state === "rejected")
+    && update.status !== undefined && update.status !== organization.status) {
+    throw new Error("Use the registration review workflow to change a pending or rejected application.");
+  }
+  if (update.status === "pending" && organization.status !== "pending") {
+    throw new Error("Pending registration status can only be set by the registration workflow.");
+  }
+  if (update.status === "rejected" && organization.status !== "rejected") {
+    throw new Error("Use the registration review action to reject an organization and record the required reason.");
+  }
+  const values: {
+    status?: typeof update.status;
+    plan_id?: string | null;
+    expires_at?: string | null;
+    registration_state?: "pending" | "information_requested" | "approved" | "rejected";
+    updated_at: string;
+  } = {
     updated_at: new Date().toISOString(),
   };
   if (update.status !== undefined) values.status = update.status;
+  if (update.status !== undefined && update.status !== organization.status) {
+    values.registration_state = update.status === "pending" ? "pending" : update.status === "rejected" ? "rejected" : "approved";
+  }
   if (update.planId !== undefined) values.plan_id = update.planId;
   if (update.expiresAt !== undefined) values.expires_at = update.expiresAt;
   const { data, error } = await supabase.from("platform_organizations").update(values).eq("id", id).select("id, status, plan_id, expires_at").single();
   if (error) throw new Error(error.message);
+  if (update.status !== undefined) {
+    const appStatus = update.status === "pending" ? "pending" : update.status === "suspended" ? "suspended" : update.status === "rejected" ? "rejected" : "approved";
+    const app = (await import("@/lib/supabase/admin")).createAdminClient();
+    const { error: appError } = await app.from("organizations").update({ registration_status: appStatus }).eq("id", organization.organization_id);
+    if (appError) {
+      const { error: rollbackError } = await supabase.from("platform_organizations").update({ status: organization.status }).eq("id", id);
+      if (rollbackError) console.error(`[platform-admin] Failed to restore prior organization status: ${rollbackError.message}`);
+      throw new Error(`Platform status was saved but application access could not be synchronized: ${appError.message}`);
+    }
+  }
   await supabase.from("platform_audit_logs").insert({
     admin_id: admin.id,
     organization_id: organization.organization_id,
@@ -80,6 +109,7 @@ export async function updatePlatformOrganization(
     metadata: update,
   });
   revalidatePath("/platform-admin");
+  revalidatePath("/platform-admin/registrations");
   return data;
 }
 
