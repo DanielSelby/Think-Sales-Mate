@@ -140,8 +140,8 @@ export interface Database {
       };
 
       organization_registration_attempts: {
-        Row: { id: string; user_id: string; created_at: string };
-        Insert: { id?: string; user_id: string; created_at?: string };
+        Row: { id: string; user_id: string; ip_hash: string | null; created_at: string };
+        Insert: { id?: string; user_id: string; ip_hash?: string | null; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["organization_registration_attempts"]["Row"]>;
         Relationships: [];
       };
@@ -2872,6 +2872,15 @@ export interface Database {
       };
     };
     Functions: {
+      create_organization_registration: {
+        Args: {
+          p_user_id: string;
+          p_name: string;
+          p_slug: string;
+          p_ip_hash?: string | null;
+        };
+        Returns: { organization_id: string; created: boolean }[];
+      };
       open_pos_register_sessions: {
         Args: {
           p_org_id: string;

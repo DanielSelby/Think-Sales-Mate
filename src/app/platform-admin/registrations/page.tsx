@@ -4,7 +4,7 @@ import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import {
-  reviewOrganizationRegistration,
+  reviewOrganizationRegistrationForm,
   retryRegistrationEmail,
   saveRegistrationNotificationSettings,
   sendRegistrationTestEmail,
@@ -90,7 +90,7 @@ export default async function OrganizationRegistrationsPage() {
                 <p className="mt-1 whitespace-pre-wrap text-sm">{message.message}</p>
               </div>
             ))}
-            <form action={reviewOrganizationRegistration} className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
+            <form action={reviewOrganizationRegistrationForm} className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
               <input type="hidden" name="id" value={application.id} />
               <textarea name="reason" rows={2} placeholder="Decision reason or requested information" className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-4" />
               <button name="decision" value="approve" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Approve</button>

@@ -24,6 +24,7 @@ import { FeatureAccessManager } from "./feature-access-manager";
 import SupportCenter from "./support-center";
 import { formatMoney } from "@/lib/currency";
 import { LoginExperienceManager } from "./login-experience-manager";
+import OrganizationManagement, { type ManagedOrganization } from "./organization-management";
 
 type Organization = {
   id: string;
@@ -190,6 +191,8 @@ function exportAuditLogs(logs: AuditLog[], format: "csv" | "excel" | "pdf") {
 export default function PlatformAdminConsole({
   logoUrl,
   organizations,
+  managedOrganizations,
+  canManageOrganizations,
   plans,
   features,
   auditLogs,
@@ -208,6 +211,8 @@ export default function PlatformAdminConsole({
 }: {
   logoUrl: string;
   organizations: Organization[];
+  managedOrganizations: ManagedOrganization[];
+  canManageOrganizations: boolean;
   plans: Plan[];
   features: { organization_id: string; module: string; enabled: boolean; access_mode: "enabled" | "disabled" | "read_only"; permission_options?: Record<string, boolean>; updated_at?: string }[];
   auditLogs: AuditLog[];
@@ -523,7 +528,7 @@ export default function PlatformAdminConsole({
 
       <main className="min-w-0 flex-1 p-4 md:p-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-          {tab !== "Feature Access" && tab !== "Overview" && tab !== "Complaints & Support" && tab !== "Login Experience" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button><button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
+          {tab !== "Feature Access" && tab !== "Overview" && tab !== "Complaints & Support" && tab !== "Login Experience" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div><div className="flex flex-wrap gap-2">{canManageOrganizations && <><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button></>}<button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
         </div>
         {message && <button type="button" onClick={() => setMessage(null)} className="mb-4 w-full rounded-lg bg-blue-50 p-3 text-left text-sm text-blue-800">{message} ×</button>}
 
@@ -546,7 +551,23 @@ export default function PlatformAdminConsole({
             </div>
             <div className="mt-5 grid gap-5 xl:grid-cols-3"><Card title="Top Organizations by Revenue"><div className="mt-3 space-y-3">{topOrganizations.map((org, index) => <div key={org.organization_id} className="flex items-center gap-3 text-xs"><span className="w-5 font-bold text-slate-400">#{index + 1}</span><span className="flex-1 font-semibold">{org.name}</span><strong>{formatPlatformMoney(Number(org.sales_volume || 0))}</strong></div>)}</div></Card><Card title="Recent Platform Activity"><div className="mt-3 space-y-3">{recentPlatformActivity.map((log) => <div key={log.id} className="flex items-center justify-between border-b pb-2 text-xs last:border-0"><span><strong>{log.action}</strong><span className="ml-2 text-slate-500">{log.module}</span></span><span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span></div>)}{!recentPlatformActivity.length && <p className="py-6 text-center text-xs text-slate-500">No platform activity recorded.</p>}</div></Card><Card title="Recent Support Tickets"><div className="mt-3 space-y-2">{approvals.slice(0, 5).map((approval) => <button type="button" key={approval.id}             onClick={() => setTab("Complaints & Support")} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{approval.approval_type}</strong><span className="text-slate-500">Platform request</span></span><span className="text-slate-500">{approval.status}</span></button>)}{!approvals.length && <p className="py-6 text-center text-xs text-slate-500">No support requests recorded.</p>}</div></Card></div>
           </>
-        ) : tab === "Complaints & Support" ? <SupportCenter complaints={complaints} contacts={contacts} /> : tab === "Organizations" ? (
+        ) : tab === "Complaints & Support" ? <SupportCenter complaints={complaints} contacts={contacts} /> : tab === "Organizations" ? <OrganizationManagement
+          organizations={managedOrganizations}
+          plans={plans}
+          canManage={canManageOrganizations}
+          onEdit={(organizationId) => {
+            const organization = organizations.find((item) => item.id === organizationId);
+            if (organization) openOrganizationEditor(organization);
+          }}
+          onOpenTab={(nextTab, organizationId) => {
+            const organization = organizations.find((item) => item.organization_id === organizationId);
+            if (organization) setSelectedId(organization.id);
+            if (nextTab === "Activity Logs" && organizationId) {
+              setActivityOrganizationFilter(organizationId);
+            }
+            setTab(nextTab);
+          }}
+        /> : false ? (
           <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {[["Total Organizations", counts.total, "bg-blue-50"], ["Active Organizations", counts.active, "bg-emerald-50"], ["Trial Organizations", counts.trial, "bg-violet-50"], ["Suspended", counts.suspended, "bg-amber-50"], ["Expiring Subscriptions", expiringSubscriptions, "bg-rose-50"]].map(([label, value, color]) => <div key={String(label)} className={`rounded-xl border border-slate-200 ${color} p-4 shadow-sm`}><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{value}</p></div>)}
@@ -558,7 +579,7 @@ export default function PlatformAdminConsole({
                 <p className="mt-3 text-[11px] text-slate-400">Showing {filteredOrganizations.length} of {organizations.length} organizations</p>
               </Card>
               <div className="space-y-5">
-                <Card title="Organization Details">{selected ? <><div className="mt-4 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 font-bold text-white">{selected.name.slice(0, 2).toUpperCase()}</div><div><p className="font-semibold">{selected.name}</p><p className="text-xs text-emerald-600">● {selected.status}</p></div></div><dl className="mt-4 space-y-3 text-xs"><div className="flex justify-between gap-3"><dt className="text-slate-500">Organization ID</dt><dd className="max-w-[150px] truncate font-medium" title={selected.organization_id}>{selected.organization_id}</dd></div>                <div className="flex items-center justify-between gap-2"><dt className="text-slate-500">Plan</dt><dd><select value={selected.plan_id ?? ""} onChange={(event) => void run(() => updatePlatformOrganization(selected.id, { planId: event.target.value || null }), "Subscription plan assigned.")} className="max-w-[150px] rounded border px-2 py-1 text-xs"><option value="">Not assigned</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></dd></div><div className="flex justify-between"><dt className="text-slate-500">Expiry</dt><dd>{selected.expires_at ? new Date(selected.expires_at).toLocaleDateString() : "Not set"}</dd></div></dl><div className="mt-5 grid grid-cols-2 gap-2">                <button type="button" onClick={() => openOrganizationEditor(selected)} className="rounded-lg border px-2 py-2 text-xs">Edit organization</button><button type="button" onClick={() => setTab("Activity Logs")} className="rounded-lg border px-2 py-2 text-xs">View activity</button><button type="button" onClick={() => setTab("Billing & Subscriptions")} className="rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white">Manage subscription</button></div></> : <p className="mt-4 text-sm text-slate-500">Select an organization to view details.</p>}</Card>
+                <Card title="Organization Details">{selected ? <><div className="mt-4 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 font-bold text-white">{selected.name.slice(0, 2).toUpperCase()}</div><div><p className="font-semibold">{selected.name}</p><p className="text-xs text-emerald-600">● {selected.status}</p></div></div><dl className="mt-4 space-y-3 text-xs"><div className="flex justify-between gap-3"><dt className="text-slate-500">Organization ID</dt><dd className="max-w-[150px] truncate font-medium" title={selected.organization_id}>{selected.organization_id}</dd></div>                <div className="flex items-center justify-between gap-2"><dt className="text-slate-500">Plan</dt><dd><select value={selected.plan_id ?? ""} onChange={(event) => void run(() => updatePlatformOrganization(selected.id, { planId: event.target.value || null }), "Subscription plan assigned.")} className="max-w-[150px] rounded border px-2 py-1 text-xs"><option value="">Not assigned</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></dd></div><div className="flex justify-between"><dt className="text-slate-500">Expiry</dt>                <dd>{selected.expires_at ? new Date(selected.expires_at ?? "").toLocaleDateString() : "Not set"}</dd></div></dl><div className="mt-5 grid grid-cols-2 gap-2">                <button type="button" onClick={() => openOrganizationEditor(selected)} className="rounded-lg border px-2 py-2 text-xs">Edit organization</button><button type="button" onClick={() => setTab("Activity Logs")} className="rounded-lg border px-2 py-2 text-xs">View activity</button><button type="button" onClick={() => setTab("Billing & Subscriptions")} className="rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white">Manage subscription</button></div></> : <p className="mt-4 text-sm text-slate-500">Select an organization to view details.</p>}</Card>
                 <Card title="Quick Actions">{[["Impersonate Organization", "Impersonation"], ["View Organization Details", "Organizations"], ["Manage Users", "Usage & Analytics"], ["Manage Branches", "Organizations"]].map(([item, target]) => <button type="button" key={item} onClick={() => setTab(target as Tab)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-slate-100 p-3 text-left text-xs font-semibold hover:bg-slate-50">{item}<span>›</span></button>)}</Card>
               </div>
             </div>

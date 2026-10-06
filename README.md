@@ -75,13 +75,21 @@ migration creates the full schema required by the current application.
 New workspaces remain unavailable until approved in Platform Admin. Apply
 `supabase/migrations/20261006100000_organization_registration_approval.sql` to
 the application database and
+`supabase/migrations/20261006150000_registration_submission_idempotency.sql`
+to the application database and
 `supabase/platform-migrations/0004_organization_registration_approval.sql` to
 the separate Platform Admin database. Platform Admins with platform-management
 permission can review applications at `/platform-admin/registrations`, request
 more information, and configure notification recipients. Email delivery uses
 the configured Resend provider (`RESEND_API_KEY` and `RESEND_FROM_EMAIL`); a
 comma-separated `PLATFORM_ADMIN_NOTIFICATION_EMAILS` environment variable can
-be used as a fallback recipient list.
+be used as a fallback recipient list. Registration creation is serialized and
+idempotent per owner: a repeated form submission reuses the existing pending
+application rather than creating a duplicate organization. The form reports
+submission progress, then confirms that the organization is pending review.
+Registration attempts are atomically limited to three per account and ten per
+trusted proxy IP in a rolling 24-hour window. IPs are HMAC-hashed before being
+stored; set `REGISTRATION_RATE_LIMIT_SECRET` to use a dedicated hashing secret.
 
 ## Validation
 

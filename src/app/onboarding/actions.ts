@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncOrganizationToPlatform } from "@/lib/supabase/platform-admin";
 import { notifyRegistrationApplication } from "@/lib/organizations/registration-email";
+import { headers } from "next/headers";
+import { getRegistrationIpHash } from "@/lib/organizations/registration-rate-limit";
 
 function slugify(name: string) {
   return name
@@ -40,45 +42,32 @@ export async function createOrganization(formData: FormData): Promise<void> {
   // service-role client — safe here because `user` above is already
   // verified server-side, not something the browser can forge.
   const admin = createAdminClient();
-  const { count: recentAttempts, error: attemptsError } = await admin
-    .from("organization_registration_attempts")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  if (attemptsError) throw new Error(`Could not verify registration rate limit: ${attemptsError.message}`);
-  if ((recentAttempts ?? 0) >= 3) {
-    redirectWithError("You have reached the workspace registration limit. Please try again later.");
-  }
-  const { error: attemptError } = await admin.from("organization_registration_attempts").insert({ user_id: user.id });
-  if (attemptError) throw new Error(`Could not record registration attempt: ${attemptError.message}`);
-
   const baseSlug = slugify(name) || "workspace";
   const slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
+  const requestHeaders = await headers();
+  const clientIp = requestHeaders.get("x-real-ip") ?? requestHeaders.get("cf-connecting-ip");
+  const ipHash = clientIp ? getRegistrationIpHash(clientIp) : null;
 
-  const { data: org, error: orgError } = await admin
-    .from("organizations")
-    .insert({ name, slug, created_by: user.id, registration_status: "pending" })
-    .select("id")
-    .single();
-
-  if (orgError || !org) {
-    redirectWithError(orgError?.message ?? "Could not create the workspace.");
-  }
-
-  const { error: memberError } = await admin.from("organization_members").insert({
-    org_id: org.id,
-    user_id: user.id,
-    role: "owner",
-    status: "invited"
+  const { data: registrations, error: registrationError } = await admin.rpc("create_organization_registration", {
+    p_user_id: user.id,
+    p_name: name,
+    p_slug: slug,
+    p_ip_hash: ipHash,
   });
-
-  if (memberError) {
-    redirectWithError(memberError.message);
+  if (registrationError) {
+    if (registrationError.message.includes("registration limit") || registrationError.message.includes("Too many workspace registrations")) {
+      redirectWithError(registrationError.message);
+    }
+    console.error(`[registration] Could not submit organization registration: ${registrationError.message}`);
+    redirectWithError("We could not submit your registration. Please try again in a moment.");
   }
+  const registration = registrations?.[0];
+  if (!registration) throw new Error("Registration was not created. Please try again.");
+  if (!registration.created) redirect("/registration-status?alreadySubmitted=1");
 
   try {
     await syncOrganizationToPlatform({
-      id: org.id,
+      id: registration.organization_id,
       name,
       status: "pending",
       ownerUserId: user.id,
@@ -88,10 +77,10 @@ export async function createOrganization(formData: FormData): Promise<void> {
     console.error("Platform organization synchronization failed:", syncError);
   }
   try {
-    await notifyRegistrationApplication({ id: org.id, name, ownerEmail: user.email ?? "" });
+    await notifyRegistrationApplication({ id: registration.organization_id, name, ownerEmail: user.email ?? "" });
   } catch (notificationError) {
     console.error("Platform registration notification failed:", notificationError);
   }
 
-  redirect("/registration-status");
+  redirect("/registration-status?submitted=1");
 }

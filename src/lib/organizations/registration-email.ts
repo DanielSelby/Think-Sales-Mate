@@ -2,6 +2,7 @@ import "server-only";
 
 import { deliverMessage } from "@/lib/communication/providers";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
+import { registrationEmailKey } from "@/lib/organizations/registration-email-key";
 
 export async function getRegistrationNotificationRecipients() {
   const platform = createPlatformAdminClient();
@@ -86,7 +87,7 @@ export async function notifyRegistrationApplication(organization: {
   const content = `A new organization registration is awaiting review.\n\nOrganization: ${organization.name}\nOwner email: ${organization.ownerEmail || "Not available"}\nOrganization ID: ${organization.id}`;
   for (const recipient of recipients) {
     const result = await deliverRegistrationEmail({
-      dedupeKey: `registration-created:${organization.id}:${recipient}`,
+      dedupeKey: registrationEmailKey("registration-created", organization.id, recipient),
       organizationId: organization.id,
       recipient,
       subject,

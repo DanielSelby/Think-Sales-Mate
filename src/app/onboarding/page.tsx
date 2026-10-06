@@ -1,15 +1,15 @@
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { redirect } from "next/navigation";
 import { createOrganization } from "./actions";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { OrganizationRegistrationForm } from "./organization-registration-form";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 
 export default async function OnboardingPage({
   searchParams
 }: {
-  searchParams: { error?: string };
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const params = await searchParams;
   const existing = await getCurrentOrgContext();
   if (existing) redirect("/dashboard");
   const { applications } = await getUserRegistrationApplications();
@@ -25,21 +25,7 @@ export default async function OnboardingPage({
           </p>
         </div>
 
-        <form action={createOrganization} className="space-y-4 rounded-card border border-ledger-100 bg-white p-6 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          {searchParams.error && (
-            <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{searchParams.error}</p>
-          )}
-
-          <div className="space-y-1.5">
-            <label htmlFor="name" className="text-sm font-medium text-ledger-700 dark:text-ledger-200">
-              Business name
-            </label>
-            <Input id="name" name="name" required placeholder="Boateng Traders Ltd." />
-          </div>
-          <Button type="submit" className="w-full">
-            Create workspace
-          </Button>
-        </form>
+        <OrganizationRegistrationForm action={createOrganization} error={params.error} />
       </div>
     </div>
   );

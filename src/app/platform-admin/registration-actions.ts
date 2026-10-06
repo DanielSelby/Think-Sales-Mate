@@ -6,6 +6,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import { deliverRegistrationEmail, getRegistrationNotificationRecipients } from "@/lib/organizations/registration-email";
+import { registrationEmailKey } from "@/lib/organizations/registration-email-key";
+
+export type RegistrationReviewResult = {
+  notification:
+    | { status: "sent" }
+    | { status: "not_sent"; message: string };
+};
 
 async function requireRegistrationManager() {
   const admin = await getPlatformAdmin();
@@ -48,26 +55,45 @@ async function loadPlatformOrganization(id: string) {
   return data;
 }
 
-async function notifyOwner(organization: Awaited<ReturnType<typeof loadPlatformOrganization>>, event: string, subject: string, content: string) {
+async function notifyOwner(
+  organization: Awaited<ReturnType<typeof loadPlatformOrganization>>,
+  event: string,
+  subject: string,
+  content: string,
+): Promise<RegistrationReviewResult["notification"]> {
   let recipient = organization.owner_email?.trim() ?? "";
   if (!recipient && organization.owner_user_id) {
     const app = createAdminClient();
     const { data, error } = await app.auth.admin.getUserById(organization.owner_user_id);
-    if (error) throw new Error(`Could not resolve organization owner's email: ${error.message}`);
+    if (error) {
+      console.error(`[registration-email] Could not resolve owner email for organization ${organization.organization_id}: ${error.message}`);
+      return { status: "not_sent", message: "The owner's email address could not be looked up." };
+    }
     recipient = data.user.email ?? "";
   }
-  if (!recipient) return;
-  const result = await deliverRegistrationEmail({
-    dedupeKey: `${event}:${organization.organization_id}:${recipient.toLowerCase()}`,
-    organizationId: organization.organization_id,
-    recipient,
-    subject,
-    content,
-  });
-  if (!result.sent) console.error(`[registration-email] ${event} delivery failed for ${recipient}: ${result.error ?? "unknown provider error"}`);
+  if (!recipient) {
+    return { status: "not_sent", message: "No owner email address is available." };
+  }
+  try {
+    const result = await deliverRegistrationEmail({
+      dedupeKey: registrationEmailKey(event, organization.organization_id, recipient),
+      organizationId: organization.organization_id,
+      recipient,
+      subject,
+      content,
+    });
+    if (result.sent) return { status: "sent" };
+    const message = result.error ?? "The email provider did not confirm delivery.";
+    console.error(`[registration-email] ${event} delivery failed for organization ${organization.organization_id}: ${message}`);
+    return { status: "not_sent", message };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown email delivery error.";
+    console.error(`[registration-email] ${event} delivery failed for organization ${organization.organization_id}: ${message}`);
+    return { status: "not_sent", message: "The email could not be delivered because of a delivery service error." };
+  }
 }
 
-export async function reviewOrganizationRegistration(formData: FormData) {
+export async function reviewOrganizationRegistration(formData: FormData): Promise<RegistrationReviewResult> {
   const admin = await requireRegistrationManager();
   const id = String(formData.get("id") ?? "");
   const decision = String(formData.get("decision") ?? "");
@@ -76,8 +102,10 @@ export async function reviewOrganizationRegistration(formData: FormData) {
   if (decision !== "approve" && !reason) throw new Error("A message is required for rejection or information requests.");
   const organization = await loadPlatformOrganization(id);
   const platform = createPlatformAdminClient();
+  let notification: RegistrationReviewResult["notification"];
 
   if (decision === "request_information") {
+    const requestId = crypto.randomUUID();
     const { data: updated, error } = await platform.from("platform_organizations").update({
       registration_state: "information_requested",
       registration_notes: reason,
@@ -90,8 +118,8 @@ export async function reviewOrganizationRegistration(formData: FormData) {
     if (error) throw new Error(`Could not request registration information: ${error.message}`);
     if (!updated) throw new Error("This registration is no longer awaiting review.");
     await addOwnerMessage(organization.organization_id, reason);
-    await insertAudit(admin.id, organization.organization_id, "registration_information_requested", { message: reason });
-    await notifyOwner(organization, "information-requested", "More information needed for your registration", reason);
+    await insertAudit(admin.id, organization.organization_id, "registration_information_requested", { requestId, message: reason });
+    notification = await notifyOwner(organization, `information-requested:${requestId}`, "More information needed for your registration", reason);
   } else {
     const status = decision === "approve" ? "approved" : "rejected";
     const { data: updated, error } = await platform.from("platform_organizations").update({
@@ -125,7 +153,7 @@ export async function reviewOrganizationRegistration(formData: FormData) {
     }
     if (reason) await addOwnerMessage(organization.organization_id, reason);
     await insertAudit(admin.id, organization.organization_id, status === "approved" ? "registration_approved" : "registration_rejected", { reason });
-    await notifyOwner(
+    notification = await notifyOwner(
       organization,
       status,
       status === "approved" ? "Your organization registration is approved" : "Your organization registration was not approved",
@@ -134,6 +162,11 @@ export async function reviewOrganizationRegistration(formData: FormData) {
   }
   revalidatePath("/platform-admin/registrations");
   revalidatePath("/platform-admin");
+  return { notification };
+}
+
+export async function reviewOrganizationRegistrationForm(formData: FormData): Promise<void> {
+  await reviewOrganizationRegistration(formData);
 }
 
 export async function saveRegistrationNotificationSettings(formData: FormData) {
@@ -256,7 +289,7 @@ export async function respondToRegistrationRequest(formData: FormData) {
   const recipients = await getRegistrationNotificationRecipients();
   for (const recipient of recipients) {
     const result = await deliverRegistrationEmail({
-      dedupeKey: `owner-response:${savedMessage.id}:${recipient}`,
+      dedupeKey: registrationEmailKey(`owner-response:${savedMessage.id}`, organizationId, recipient),
       organizationId,
       recipient,
       subject: `Owner response received: ${application.name}`,

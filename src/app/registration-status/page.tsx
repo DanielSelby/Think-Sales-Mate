@@ -1,21 +1,33 @@
 import { redirect } from "next/navigation";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 import { respondToRegistrationRequest } from "@/app/platform-admin/registration-actions";
+import { SubmissionConfirmationModal } from "./submission-confirmation-modal";
 
 export const dynamic = "force-dynamic";
 
-export default async function RegistrationStatusPage() {
+export default async function RegistrationStatusPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ submitted?: string; alreadySubmitted?: string }>;
+}) {
+  const params = await searchParams;
   const { user, applications } = await getUserRegistrationApplications();
   if (!user) redirect("/login");
   if (!applications.length) redirect("/onboarding");
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-12 text-slate-900">
+      <SubmissionConfirmationModal open={params.submitted === "1"} />
       <div className="mx-auto max-w-2xl space-y-6">
         <header>
           <h1 className="text-2xl font-bold">Organization registration</h1>
           <p className="mt-2 text-sm text-slate-600">Workspace access is limited while your registration is reviewed.</p>
         </header>
+        {params.alreadySubmitted === "1" && (
+          <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            Your organization registration was already received. Repeated submissions do not create another organization.
+          </p>
+        )}
         {applications.map((application) => {
           const informationRequested = application.status === "pending"
             && application.registrationState === "information_requested";
