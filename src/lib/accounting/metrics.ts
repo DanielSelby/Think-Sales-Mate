@@ -124,6 +124,7 @@ interface SaleItemRow {
     | { name: string; cost_price: number | null; category: string | null }
     | { name: string; cost_price: number | null; category: string | null }[]
     | null;
+  sales: { location_id: string | null } | { location_id: string | null }[] | null;
 }
 
 export interface DashboardFilters {
@@ -176,8 +177,7 @@ export async function getFinancialSummary(
   // that's why results are cast to SaleItemRow[] below instead of relying
   // on inference.
   const productsJoin = category ? "products!inner(name, cost_price, category)" : "products(name, cost_price, category)";
-  const salesJoin = locationId ? ", sales!inner(location_id)" : "";
-  const itemsSelect = `quantity, unit_price, line_total, created_at, product_id, sale_id, ${productsJoin}${salesJoin}`;
+  const itemsSelect = `quantity, unit_price, line_total, created_at, product_id, sale_id, ${productsJoin}, sales!inner(location_id)`;
 
   let salesQuery = supabase
     .from("sales")
@@ -414,75 +414,60 @@ export async function getFinancialSummary(
 
   // Compute Revenue By Category
   const catEntries = [...categoryRevenueMap.entries()].sort((a, b) => b[1] - a[1]);
-  const revenueByCategory30d: RevenueSlice[] = catEntries.length > 0
-    ? catEntries.map(([name, value]) => ({ name, value }))
-    : (revenue30d > 0
-        ? [
-            { name: "Smartphones", value: Math.round(revenue30d * 0.42) },
-            { name: "Laptops & Computers", value: Math.round(revenue30d * 0.28) },
-            { name: "Smart Watches", value: Math.round(revenue30d * 0.16) },
-            { name: "Accessories", value: Math.round(revenue30d * 0.10) },
-            { name: "Storage Devices", value: Math.round(revenue30d * 0.04) },
-          ].filter(s => s.value > 0)
-        : [
-            { name: "Smartphones", value: 38400 },
-            { name: "Laptops & Computers", value: 24500 },
-            { name: "Smart Watches", value: 14200 },
-            { name: "Accessories", value: 8900 },
-            { name: "Storage Devices", value: 4100 },
-          ]);
+  const revenueByCategory30d: RevenueSlice[] = catEntries.map(([name, value]) => ({ name, value }));
 
   // Compute Branch-by-Branch Performance
   const branchSalesMap = new Map<string, { revenue: number; orderCount: number }>();
-  (salesPeriod ?? []).forEach((s: { total: number; location_id?: string | null }) => {
-    const locId = s.location_id || "unassigned";
-    const current = branchSalesMap.get(locId) || { revenue: 0, orderCount: 0 };
-    current.revenue += Number(s.total || 0);
-    current.orderCount += 1;
-    branchSalesMap.set(locId, current);
-  });
-
-  const activeLocations = (locationRows ?? []).length > 0
-    ? (locationRows ?? [])
-    : [
-        { id: "loc-1", name: "Accra Main Branch", is_primary: true },
-        { id: "loc-2", name: "Kumasi Branch", is_primary: false },
-        { id: "loc-3", name: "Takoradi Branch", is_primary: false },
-        { id: "loc-4", name: "Tema Industrial Branch", is_primary: false },
-      ];
-
-  const totalBranchRevenue = revenue30d > 0 ? revenue30d : 86000;
-  const topCategoriesList = ["Smartphones", "Laptops & IT", "Smart Watches", "Accessories", "Audio Gear"];
-
-  const branchPerformance: BranchPerformanceMetric[] = activeLocations.map((loc, idx) => {
-    const stat = branchSalesMap.get(loc.id);
-    let rev = stat ? stat.revenue : 0;
-    let ord = stat ? stat.orderCount : 0;
-
-    // Distribute weights if single location recorded or demo context
-    if (rev === 0 && revenue30d > 0) {
-      const weights = [0.46, 0.28, 0.16, 0.10];
-      const weight = weights[idx % weights.length];
-      rev = Math.round(revenue30d * weight);
-      ord = Math.max(1, Math.round(saleCount30d * weight));
-    } else if (revenue30d === 0) {
-      const demoRev = [39560, 24080, 13760, 8600];
-      const demoOrd = [112, 68, 39, 24];
-      rev = demoRev[idx % demoRev.length];
-      ord = demoOrd[idx % demoOrd.length];
+  const branchCategoryRevenue = new Map<string, Map<string, number>>();
+  const branchSaleIds = new Map<string, Set<string>>();
+  if (category) {
+    for (const item of itemRows) {
+      const sale = Array.isArray(item.sales) ? item.sales[0] : item.sales;
+      if (!sale?.location_id) continue;
+      const current = branchSalesMap.get(sale.location_id) ?? { revenue: 0, orderCount: 0 };
+      current.revenue += Number(item.line_total);
+      branchSalesMap.set(sale.location_id, current);
+      const saleIds = branchSaleIds.get(sale.location_id) ?? new Set<string>();
+      saleIds.add(item.sale_id);
+      branchSaleIds.set(sale.location_id, saleIds);
     }
+    branchSaleIds.forEach((saleIds, location) => {
+      const branch = branchSalesMap.get(location);
+      if (branch) branch.orderCount = saleIds.size;
+    });
+  } else {
+    for (const sale of salesPeriod ?? []) {
+      if (!sale.location_id) continue;
+      const current = branchSalesMap.get(sale.location_id) ?? { revenue: 0, orderCount: 0 };
+      current.revenue += Number(sale.total || 0);
+      current.orderCount += 1;
+      branchSalesMap.set(sale.location_id, current);
+    }
+  }
+  for (const item of itemRows) {
+    const sale = Array.isArray(item.sales) ? item.sales[0] : item.sales;
+    if (!sale?.location_id) continue;
+    const product = Array.isArray(item.products) ? item.products[0] : item.products;
+    const categoryName = (product?.category && product.category.trim()) || "General";
+    const categoryTotals = branchCategoryRevenue.get(sale.location_id) ?? new Map<string, number>();
+    categoryTotals.set(categoryName, (categoryTotals.get(categoryName) ?? 0) + Number(item.line_total));
+    branchCategoryRevenue.set(sale.location_id, categoryTotals);
+  }
 
-    const avg = ord > 0 ? rev / ord : 0;
-    const share = totalBranchRevenue > 0 ? (rev / totalBranchRevenue) * 100 : 25;
-
+  const branchRevenueTotal = [...branchSalesMap.values()].reduce((sum, branch) => sum + branch.revenue, 0);
+  const branchPerformance: BranchPerformanceMetric[] = (locationRows ?? []).map((loc) => {
+    const stat = branchSalesMap.get(loc.id) ?? { revenue: 0, orderCount: 0 };
+    const topCategory = [...(branchCategoryRevenue.get(loc.id) ?? new Map<string, number>()).entries()]
+      .sort((left, right) => right[1] - left[1])[0]?.[0];
+    const share = branchRevenueTotal > 0 ? (stat.revenue / branchRevenueTotal) * 100 : 0;
     return {
       id: loc.id,
       name: loc.name,
-      revenue: rev,
-      orders: ord,
-      avgOrderValue: avg,
-      sharePct: Math.min(100, Math.max(0, share)),
-      topCategory: topCategoriesList[idx % topCategoriesList.length],
+      revenue: stat.revenue,
+      orders: stat.orderCount,
+      avgOrderValue: stat.orderCount > 0 ? stat.revenue / stat.orderCount : 0,
+      sharePct: share,
+      topCategory,
       isPrimary: loc.is_primary ?? false,
     };
   }).sort((a, b) => b.revenue - a.revenue);

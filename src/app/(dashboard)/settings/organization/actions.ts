@@ -11,6 +11,7 @@ import { defaultPermissionMatrixForRole, normalizePermissionMatrix, savePermissi
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
 import { isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
+import { assertOrganizationCapacity } from "@/lib/organizations/capacity";
 
 function databaseRole(role: string): MemberRole {
   const key = role.toLowerCase();
@@ -83,6 +84,11 @@ export async function inviteMember(formData: FormData) {
   }
 
   if (!email) return { error: "Email is required." };
+  try {
+    await assertOrganizationCapacity(context.orgId, "users");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not verify the organization's user limit." };
+  }
 
   const supabase = await createClient();
   const invited = await sendOrganizationInvite(email, String(formData.get("name") ?? email.split("@")[0]), context.orgName);
@@ -183,6 +189,12 @@ export async function createStaffAccount(formData: FormData) {
         : requestedRole === "viewer"
           ? "viewer"
           : "staff";
+
+  try {
+    await assertOrganizationCapacity(context.orgId, "users");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not verify the organization's user limit." };
+  }
 
   const admin = createAdminClient();
   const { data: duplicateUsername, error: duplicateError } = await admin
@@ -662,6 +674,13 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
     const email = row.email.trim().toLowerCase();
     if (!email) {
       skipped.push({ row: i + 1, reason: "Missing email" });
+      continue;
+    }
+
+    try {
+      await assertOrganizationCapacity(context.orgId, "users");
+    } catch (error) {
+      skipped.push({ row: i + 1, reason: error instanceof Error ? error.message : "Could not verify the organization's user limit." });
       continue;
     }
 

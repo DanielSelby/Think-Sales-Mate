@@ -25,11 +25,13 @@ import {
 } from "lucide-react";
 import {
   setOrganizationFeatureAccess,
+  updateOrganizationBusinessDetails,
   updatePlatformOrganization,
 } from "./actions";
 import { reviewOrganizationRegistration, type RegistrationReviewResult } from "./registration-actions";
 import type { PlatformModule } from "@/types/platform-database";
 import { PLATFORM_MODULES } from "@/lib/platform-modules";
+import { useAppStore } from "@/store/useAppStore";
 
 type RegistrationState = "pending" | "information_requested" | "approved" | "rejected";
 type OrganizationStatus = "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
@@ -41,6 +43,8 @@ export type ManagedOrganization = {
   plan_id: string | null;
   status: OrganizationStatus;
   expires_at: string | null;
+  max_users_override: number | null;
+  max_branches_override: number | null;
   created_at: string;
   updated_at: string;
   industry: string | null;
@@ -50,6 +54,7 @@ export type ManagedOrganization = {
   registration_notes: string | null;
   business_type: string | null;
   country: string | null;
+  logo_url: string | null;
   owner_name: string | null;
   owner_phone: string | null;
   branch_count: number;
@@ -59,12 +64,13 @@ export type ManagedOrganization = {
   branches: Array<{ id: string; name: string; country: string | null; is_active: boolean }>;
 };
 
-type Plan = { id: string; name: string; monthly_price: number };
+type Plan = { id: string; name: string; monthly_price: number; max_users: number | null; max_branches: number | null };
 type TabKey = "all" | "pending" | "active" | "suspended" | "rejected" | "read_only" | "trial";
 type Props = {
   organizations: ManagedOrganization[];
   plans: Plan[];
   canManage: boolean;
+  asOf: string;
   onOpenTab: (tab: "Billing & Subscriptions" | "Activity Logs" | "Impersonation", organizationId?: string) => void;
   onEdit: (organizationId: string) => void;
 };
@@ -108,6 +114,7 @@ export default function OrganizationManagement({
   organizations,
   plans,
   canManage,
+  asOf,
   onOpenTab,
   onEdit,
 }: Props) {
@@ -127,6 +134,8 @@ export default function OrganizationManagement({
   const [dialogReason, setDialogReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: "success" | "warning" | "error" } | null>(null);
+  const [editedLimits, setEditedLimits] = useState<Record<string, { users: string; branches: string }>>({});
+  const [businessEdits, setBusinessEdits] = useState<Record<string, { name: string; businessType: string; country: string }>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -149,7 +158,12 @@ export default function OrganizationManagement({
     trial: organizations.filter((org) => org.status === "trial").length,
   }), [organizations]);
   const pendingCount = tabCounts.pending;
-  const readOnlyCount = tabCounts.read_only;
+  const currentTime = Date.parse(asOf);
+  const expiringCount = organizations.filter((organization) => {
+    if (!organization.expires_at || !["active", "trial"].includes(organization.status)) return false;
+    const expiresAt = Date.parse(organization.expires_at);
+    return expiresAt >= currentTime && expiresAt <= currentTime + 30 * 24 * 60 * 60 * 1000;
+  }).length;
   const filteredOrganizations = useMemo(() => {
     let result = organizations.filter((organization) => {
       const matchesTab = tab === "all"
@@ -185,6 +199,39 @@ export default function OrganizationManagement({
   const currentPage = Math.min(page, pageCount - 1);
   const pageOrganizations = filteredOrganizations.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const selected = organizations.find((organization) => organization.id === selectedId) ?? null;
+  const selectedPlan = selected ? planById.get(selected.plan_id ?? "") : undefined;
+  const selectedBusinessEdit = selected ? businessEdits[selected.id] : undefined;
+  const businessNameInput = selectedBusinessEdit?.name ?? selected?.name ?? "";
+  const businessTypeInput = selectedBusinessEdit?.businessType ?? selected?.business_type ?? selected?.industry ?? "";
+  const countryInput = selectedBusinessEdit?.country ?? selected?.country ?? "";
+  const selectedLimitEdits = selected ? editedLimits[selected.id] : undefined;
+  const userLimitInput = selectedLimitEdits?.users ?? (selected?.max_users_override?.toString() ?? "");
+  const branchLimitInput = selectedLimitEdits?.branches ?? (selected?.max_branches_override?.toString() ?? "");
+  const saveOrganizationLimits = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected) return;
+    const parseLimit = (value: string) => value.trim() ? Number(value) : null;
+    void runAction(
+      () => updatePlatformOrganization(selected.id, {
+        maxUsersOverride: parseLimit(userLimitInput),
+        maxBranchesOverride: parseLimit(branchLimitInput),
+      }),
+      "Organization capacity limits saved.",
+    );
+  };
+  const saveBusinessDetails = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected) return;
+    void runAction(
+      () => updateOrganizationBusinessDetails({
+        platformOrganizationId: selected.id,
+        name: businessNameInput,
+        businessType: businessTypeInput,
+        country: countryInput,
+      }),
+      "Organization business details updated.",
+    );
+  };
   const clearFilters = () => {
     setSearchInput("");
     setPlanFilter("");
@@ -283,6 +330,21 @@ export default function OrganizationManagement({
         <div className="space-y-5 p-5">
           {detailTab === "overview" || detailTab === "details" ? (
             <>
+              {canManage && <form onSubmit={saveBusinessDetails} className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                <h3 className="mb-2 text-xs font-bold text-slate-800">Business Details</h3>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-semibold text-slate-600">Business name
+                    <input value={businessNameInput} maxLength={160} required onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: event.target.value, businessType: businessTypeInput, country: countryInput } }))} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-slate-600">Business type
+                    <input value={businessTypeInput} maxLength={120} onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: businessNameInput, businessType: event.target.value, country: countryInput } }))} placeholder="e.g. Retail, Wholesale, Restaurant" className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-slate-600">Country
+                    <input value={countryInput} maxLength={120} onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: businessNameInput, businessType: businessTypeInput, country: event.target.value } }))} placeholder="Country" className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
+                  </label>
+                </div>
+                <button type="submit" disabled={busy} className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{busy ? "Saving..." : "Save business details"}</button>
+              </form>}
               <div>
                 <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-700"><Building2 className="h-4 w-4 text-blue-600" />Organization Information</h3>
                 <dl className="space-y-2.5 text-xs">
@@ -361,6 +423,48 @@ export default function OrganizationManagement({
             </div>
           )}
           <div className="border-t border-slate-100 pt-4">
+            <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-700">Capacity Limits</h3>
+            <p className="mb-3 text-[11px] leading-4 text-slate-500">Set organization-specific caps. Leave a field blank to use the assigned plan limit.</p>
+            <p className="mb-3 text-[11px] text-slate-600">
+              Current usage: {selected.user_count} users · {selected.branch_count} branches
+            </p>
+            {canManage ? (
+              <form onSubmit={saveOrganizationLimits} className="space-y-2.5">
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  Maximum users
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={userLimitInput}
+                    placeholder={selectedPlan?.max_users === null || !selectedPlan ? "Unlimited (plan default)" : `Plan limit: ${selectedPlan.max_users}`}
+                    onChange={(event) => setEditedLimits((current) => ({ ...current, [selected.id]: { users: event.target.value, branches: branchLimitInput } }))}
+                    className="mt-1 h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-normal text-slate-800"
+                  />
+                </label>
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  Maximum branches
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={branchLimitInput}
+                    placeholder={selectedPlan?.max_branches === null || !selectedPlan ? "Unlimited (plan default)" : `Plan limit: ${selectedPlan.max_branches}`}
+                    onChange={(event) => setEditedLimits((current) => ({ ...current, [selected.id]: { users: userLimitInput, branches: event.target.value } }))}
+                    className="mt-1 h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-normal text-slate-800"
+                  />
+                </label>
+                <button type="submit" disabled={busy} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                  {busy ? "Saving..." : "Save capacity limits"}
+                </button>
+              </form>
+            ) : (
+              <p className="text-xs text-slate-700">
+                Users: {selected.max_users_override ?? selectedPlan?.max_users ?? "Unlimited"} · Branches: {selected.max_branches_override ?? selectedPlan?.max_branches ?? "Unlimited"}
+              </p>
+            )}
+          </div>
+          <div className="border-t border-slate-100 pt-4">
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-700">Quick Actions</h3>
             {canManage && <QuickAction label="Edit Organization" icon={<Eye className="h-4 w-4" />} onClick={() => onEdit(selected.id)} />}
             {canManage && <QuickAction label="Manage Subscription" icon={<ArrowDownUp className="h-4 w-4" />} onClick={() => onOpenTab("Billing & Subscriptions", selected.organization_id)} />}
@@ -376,10 +480,12 @@ export default function OrganizationManagement({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Kpi icon={<Clock3 className="h-5 w-5" />} color="amber" label="Pending Registrations" value={pendingCount} detail="Awaiting review" />
-        <Kpi icon={<ShieldAlert className="h-5 w-5" />} color="rose" label="Suspended Organizations" value={tabCounts.suspended} detail="Access suspended" />
-        <Kpi icon={<Eye className="h-5 w-5" />} color="violet" label="Read Only Organizations" value={readOnlyCount} detail="Limited access" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Kpi icon={<Building2 className="h-5 w-5" />} color="blue" label="Total Organization" value={organizations.length} detail="All organizations" />
+        <Kpi icon={<Check className="h-5 w-5" />} color="emerald" label="Active Organizations" value={organizations.filter((organization) => organization.status === "active").length} detail="Currently active" />
+        <Kpi icon={<Clock3 className="h-5 w-5" />} color="violet" label="Trial Organization" value={tabCounts.trial} detail="On a trial plan" />
+        <Kpi icon={<ShieldAlert className="h-5 w-5" />} color="amber" label="Suspended Organization" value={tabCounts.suspended} detail="Access suspended" />
+        <Kpi icon={<Eye className="h-5 w-5" />} color="rose" label="Expiring Organizations" value={expiringCount} detail="Expiring in the next 30 days" />
       </div>
 
       {message && <div role={message.kind === "error" ? "alert" : "status"} className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${message.kind === "error" ? "border-rose-200 bg-rose-50 text-rose-800" : message.kind === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}><span>{message.text}</span><button type="button" onClick={() => setMessage(null)} aria-label="Dismiss message"><X className="h-4 w-4" /></button></div>}
@@ -424,7 +530,7 @@ export default function OrganizationManagement({
                 <tbody className="divide-y divide-slate-100">
                   {pageOrganizations.map((organization) => (
                     <tr key={organization.id} onClick={() => setSelectedId(organization.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selectedId === organization.id ? "bg-blue-50/70" : ""}`}>
-                      <td className="px-3 py-3"><div className="flex items-center gap-2.5"><Avatar name={organization.name} /><div><p className="max-w-[170px] truncate text-xs font-bold text-slate-900">{organization.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{organization.business_type || organization.industry || "Organization"}</p></div></div></td>
+                      <td className="px-3 py-3"><div className="flex items-center gap-2.5">{organization.logo_url ? <img src={organization.logo_url} alt={`${organization.name} logo`} className="h-9 w-9 shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-0.5" /> : <Avatar name={organization.name} />}<div><p className="max-w-[170px] truncate text-xs font-bold text-slate-900">{organization.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{organization.business_type || organization.industry || "Organization"}</p></div></div></td>
                       <td className="px-3 py-3 text-xs text-slate-700">{organization.owner_name || "—"}</td>
                       <td className="px-3 py-3 text-xs text-slate-600">{organization.owner_email || "—"}</td>
                       <td className="px-3 py-3 text-xs text-slate-600">{organization.owner_phone || "—"}</td>
@@ -497,8 +603,10 @@ function Avatar({ name }: { name: string }) {
   return <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${color} text-xs font-bold text-white`}>{name.slice(0, 1).toUpperCase()}</span>;
 }
 
-function Kpi({ icon, color, label, value, detail }: { icon: React.ReactNode; color: "amber" | "rose" | "violet"; label: string; value: number; detail: string }) {
+function Kpi({ icon, color, label, value, detail }: { icon: React.ReactNode; color: "blue" | "emerald" | "amber" | "rose" | "violet"; label: string; value: number; detail: string }) {
   const styles = {
+    blue: "bg-blue-50 text-blue-700 ring-blue-100",
+    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
     amber: "bg-amber-50 text-amber-700 ring-amber-100",
     rose: "bg-rose-50 text-rose-700 ring-rose-100",
     violet: "bg-violet-50 text-violet-700 ring-violet-100",

@@ -84,6 +84,10 @@ export default async function PosPage() {
         await canPermission("cash_closing", "approve") ||
         await canPermission("banking", "approve")
       }
+      canAccessEndOfDay={
+        await canPermission("cash_closing", "view") ||
+        await canPermission("cash_closing", "create")
+      }
       registerSessions={authorizedRegisterSessions.map((registerSession: {
         id: string;
         location_id: string;

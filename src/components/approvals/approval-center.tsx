@@ -27,7 +27,7 @@ export type ApprovalRow = {
 const labels = { stock_request: "Stock Request", expense: "Expense", purchase_return: "Purchase Return", customer_order: "Customer Order", register_closure: "Register Close" };
 const icons = { stock_request: Truck, expense: FileText, purchase_return: ShoppingBag, customer_order: ShoppingBag, register_closure: ClipboardCheck };
 
-export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canManageApprovalHistory }: { rows: ApprovalRow[]; approvedRows: ApprovalRow[]; historyRows: ApprovalRow[]; currency: string; canManageApprovalHistory: boolean }) {
+export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canManageApprovalHistory, canAccessEndOfDay }: { rows: ApprovalRow[]; approvedRows: ApprovalRow[]; historyRows: ApprovalRow[]; currency: string; canManageApprovalHistory: boolean; canAccessEndOfDay: boolean }) {
   const router = useRouter();
   const [tab, setTab] = useState<"pending" | "approved" | "history">("pending");
   const [query, setQuery] = useState("");
@@ -57,8 +57,9 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
     else {
       if (row.type === "register_closure" && decision === "approved") {
         setSelected((current) => current.filter((id) => id !== row.id));
-        setRegisterApprovalPromptOpen(true);
-        router.refresh();
+        if (canAccessEndOfDay) setRegisterApprovalPromptOpen(true);
+        else setNotice(`${row.document} approved.`);
+        if (reload) router.refresh();
         return;
       }
       setNotice(`${row.document} ${decision}. Refreshing…`);
@@ -82,7 +83,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
     }
     setBusy(null);
     const includesRegisterClosure = selectedRows.some((row) => row.type === "register_closure");
-    if (includesRegisterClosure) {
+    if (includesRegisterClosure && canAccessEndOfDay) {
       setRegisterApprovalPromptOpen(true);
       router.refresh();
       return;
@@ -150,9 +151,8 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
       {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><h2 className="font-display text-lg font-bold">Reject {rejecting.document}</h2><p className="mt-1 text-sm text-ledger-500">Tell the requester why this approval was rejected.</p><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} className="mt-4 w-full rounded-xl border border-ledger-200 p-3 text-sm outline-none dark:border-ledger-700 dark:bg-ink-950" placeholder="Rejection reason" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => { setRejecting(null); setReason(""); }} className="rounded-xl border border-ledger-200 px-4 py-2 text-sm">Cancel</button><button disabled={!reason.trim() || !!busy} onClick={() => { const row = rejecting; setRejecting(null); const value = reason; setReason(""); void decide(row, "rejected", value); }} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Reject request</button></div></div></div>}
       <RegisterApprovalSuccessDialog
         open={registerApprovalPromptOpen}
-        stayLabel="Stay in Approval Center"
-        onContinue={() => router.push("/banking/cash-closing")}
-        onStay={() => {
+        onContinue={() => router.replace("/banking/cash-closing")}
+        onCancel={() => {
           setRegisterApprovalPromptOpen(false);
           router.refresh();
         }}

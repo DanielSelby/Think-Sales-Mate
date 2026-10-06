@@ -58,14 +58,12 @@ export default async function DashboardPage({
   const categories: FilterOption[] = [...new Set((categoryRows ?? []).map((p) => p.category as string))]
     .sort()
     .map((c) => ({ id: c, name: c }));
-  const generatedInsight = `Revenue is ${context.currency} ${summary.revenue30d.toFixed(2)} across ${summary.saleCount30d} sales. Net profit is ${context.currency} ${summary.netProfit30d.toFixed(2)} with ${summary.lowStockCount} low-stock item${summary.lowStockCount === 1 ? "" : "s"} requiring attention.`;
-
   return (
     <DashboardContent
       summary={summary}
       currency={context.currency}
       orgName={context.orgName}
-      latestInsight={latestInsight ?? { content: generatedInsight, created_at: new Date().toISOString() }}
+      latestInsight={latestInsight}
       recentActivity={recentActivity}
       branches={branches}
       categories={categories}

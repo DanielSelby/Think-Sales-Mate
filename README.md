@@ -91,6 +91,15 @@ Registration attempts are atomically limited to three per account and ten per
 trusted proxy IP in a rolling 24-hour window. IPs are HMAC-hashed before being
 stored; set `REGISTRATION_RATE_LIMIT_SECRET` to use a dedicated hashing secret.
 
+For organization-specific capacity limits and live Platform Admin alerts, also
+apply `supabase/platform-migrations/0009_organization_limit_overrides.sql` and
+`supabase/platform-migrations/0010_platform_notification_realtime.sql` to the
+separate Platform Admin database. Blank per-organization user or branch limits
+follow the assigned subscription plan; if the plan has no limit, the resource
+is unlimited. The Platform Admin alert bell receives new platform notifications
+through Supabase Realtime; administrators can enable its synthesized chime from
+the bell menu after a browser interaction.
+
 ## Validation
 
 Run these checks before submitting changes:

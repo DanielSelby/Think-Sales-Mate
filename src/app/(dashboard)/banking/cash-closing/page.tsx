@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { approveCashClosingFromForm, approveCashClosingReopenFromForm, calculateExpectedCash, createCashClosing, rejectCashClosingFromForm, requestCashClosingExplanationFromForm, requestCashClosingReopenFromForm } from "./actions";
 import { CashClosingReport } from "./report";
@@ -31,6 +32,10 @@ type CashClosingSearchParams = {
 export default async function CashClosingPage({ searchParams }: { searchParams?: Promise<CashClosingSearchParams> }) {
   const ctx = await getCurrentOrgContext();
   if (!ctx) return null;
+  const canAccessEndOfDay =
+    await canPermission("cash_closing", "view") ||
+    await canPermission("cash_closing", "create");
+  if (!canAccessEndOfDay) redirect("/dashboard");
   const [canCreateClosing, canApproveClosing, canEditClosing, canExportClosings, canPrintClosings] = await Promise.all([
     canPermission("cash_closing", "create"),
     canPermission("cash_closing", "approve"),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   PieChart,
   Pie,
@@ -58,35 +58,7 @@ export function RevenueByProductChart({
   const [hovered, setHovered] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
 
-  // Ensure category data is always populated and matches the sales volume
-  const effectiveCategoryData = useMemo(() => {
-    if (categoryData && categoryData.length > 0) return categoryData;
-    if (data && data.length > 0) {
-      const catMap = new Map<string, number>();
-      const sampleCats = [
-        "Smartphones",
-        "Laptops & Computers",
-        "Smart Watches",
-        "Accessories",
-        "Audio Gear",
-        "Storage Devices",
-      ];
-      data.forEach((item, i) => {
-        const cat = sampleCats[i % sampleCats.length];
-        catMap.set(cat, (catMap.get(cat) ?? 0) + item.value);
-      });
-      return [...catMap.entries()]
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-    }
-    return [
-      { name: "Smartphones", value: 38400 },
-      { name: "Laptops & Computers", value: 24500 },
-      { name: "Smart Watches", value: 14200 },
-      { name: "Accessories", value: 8900 },
-      { name: "Storage Devices", value: 4100 },
-    ];
-  }, [categoryData, data]);
+  const effectiveCategoryData = categoryData;
 
     // Merge duplicate names by summing their values
   const deduped = (raw: RevenueSlice[]) => {

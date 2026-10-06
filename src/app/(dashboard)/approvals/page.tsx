@@ -17,6 +17,9 @@ export default async function ApprovalCenterPage() {
     await canPermission("cash_closing", "approve") ||
     await canPermission("banking", "approve");
   const canManageApprovalHistory = await canPermission("approvals", "approve");
+  const canAccessEndOfDay =
+    await canPermission("cash_closing", "view") ||
+    await canPermission("cash_closing", "create");
   const canManageLegacyApprovalQueue = can(context.role, "inventory.stock_request.approve");
   if (!canManageRegisterClosures && !canManageLegacyApprovalQueue) redirect("/dashboard");
 
@@ -99,7 +102,7 @@ export default async function ApprovalCenterPage() {
   const approvedRows = visibleApprovals.filter((row) => !completedKeys.has(`${row.type}:${row.id}`));
   const historyRows = visibleApprovals.filter((row) => completedKeys.has(`${row.type}:${row.id}`));
 
-  return <ApprovalCenter rows={visibleRows} approvedRows={approvedRows} historyRows={historyRows} currency={context.currency || "GHS"} canManageApprovalHistory={canManageApprovalHistory} />;
+  return <ApprovalCenter rows={visibleRows} approvedRows={approvedRows} historyRows={historyRows} currency={context.currency || "GHS"} canManageApprovalHistory={canManageApprovalHistory} canAccessEndOfDay={canAccessEndOfDay} />;
 }
 
 async function getApprovedRows(

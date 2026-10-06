@@ -65,7 +65,9 @@ export function BranchPerformanceCard({
   const totalRevenue = displayBranches.reduce((sum, b) => sum + b.revenue, 0);
   const totalOrders = displayBranches.reduce((sum, b) => sum + b.orders, 0);
   const topBranch =
-    displayBranches.length > 0 ? [...displayBranches].sort((a, b) => b.revenue - a.revenue)[0] : null;
+    displayBranches.length > 0 && displayBranches.some((branch) => branch.revenue > 0)
+      ? [...displayBranches].sort((a, b) => b.revenue - a.revenue)[0]
+      : null;
   return (
     <Card className="col-span-1 lg:col-span-2">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 pb-3">
@@ -192,7 +194,7 @@ export function BranchPerformanceCard({
             <p className="text-[11px] font-medium text-ledger-400">Top Performing Location</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <p className="font-display text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate">
-                {topBranch?.name ?? "Main Branch"}
+                {topBranch?.name ?? "No branch data"}
               </p>
               {topBranch && (
                 <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
@@ -280,7 +282,7 @@ export function BranchPerformanceCard({
                           <div
                             className="h-full rounded-full transition-all duration-500"
                             style={{
-                              width: `${Math.min(100, Math.max(5, b.sharePct))}%`,
+                              width: `${Math.min(100, Math.max(0, b.sharePct))}%`,
                               backgroundColor: BRANCH_COLORS[idx % BRANCH_COLORS.length],
                             }}
                           />

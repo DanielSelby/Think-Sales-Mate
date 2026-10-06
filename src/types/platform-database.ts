@@ -65,6 +65,8 @@ export interface PlatformDatabase {
            info_requested_at: string | null;
            reviewed_by: string | null;
            reviewed_at: string | null;
+           max_users_override: number | null;
+           max_branches_override: number | null;
         };
         Insert: {
           id?: string;
@@ -87,6 +89,8 @@ export interface PlatformDatabase {
            info_requested_at?: string | null;
            reviewed_by?: string | null;
            reviewed_at?: string | null;
+           max_users_override?: number | null;
+           max_branches_override?: number | null;
         };
         Update: Partial<PlatformDatabase["public"]["Tables"]["platform_organizations"]["Row"]>;
         Relationships: [];

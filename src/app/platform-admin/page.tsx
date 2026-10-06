@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
 import PlatformAdminConsole from "./platform-admin-console";
+import PlatformNotificationBell from "./notification-bell";
 import type { ManagedOrganization } from "./organization-management";
 import { syncAllOrganizationsToPlatform } from "@/lib/supabase/platform-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -18,7 +19,7 @@ export default async function PlatformAdminPage() {
   }
   const supabase = await createPlatformServerClient();
   const [{ data: organizations }, { data: plans }, { data: features }, { data: auditLogs }, { data: usage }, { data: billing }, { data: flags }, { data: approvals }, { data: notifications }, { data: settings }, { data: complaints }, { data: contacts }, { data: loginThemes, error: loginThemesError }, { data: loginThemeAssignments, error: loginThemeAssignmentsError }, { data: loginThemeAudit, error: loginThemeAuditError }] = await Promise.all([
-    supabase.from("platform_organizations").select("id, organization_id, name, plan_id, status, expires_at, created_at, updated_at, industry, suspended_at, suspension_reason, owner_user_id, owner_email, registration_state, registration_notes").order("updated_at", { ascending: false }),
+    supabase.from("platform_organizations").select("id, organization_id, name, plan_id, status, expires_at, created_at, updated_at, industry, suspended_at, suspension_reason, owner_user_id, owner_email, registration_state, registration_notes, max_users_override, max_branches_override").order("updated_at", { ascending: false }),
     supabase.from("subscription_plans").select("id, name, max_users, max_branches, storage_limit_gb, monthly_price, annual_price, ai_access, api_access, included_modules, is_active, archived_at").eq("is_active", true).order("monthly_price"),
     supabase.from("platform_organization_features").select("organization_id, module, enabled, access_mode, permission_options, updated_at"),
     supabase.from("platform_audit_logs").select("id, admin_id, organization_id, action, module, metadata, ip_address, user_agent, created_at").order("created_at", { ascending: false }).limit(100),
@@ -51,7 +52,7 @@ export default async function PlatformAdminPage() {
       ? organizationClient.from("organizations").select("id, created_by").in("id", organizationRecordIds)
       : Promise.resolve({ data: [], error: null }),
     organizationRecordIds.length
-      ? organizationClient.from("company_profile").select("org_id, business_type, industry, country, contact_name, contact_email, contact_phone, business_email, business_phone").in("org_id", organizationRecordIds)
+      ? organizationClient.from("company_profile").select("org_id, business_type, industry, country, logo_url, contact_name, contact_email, contact_phone, business_email, business_phone").in("org_id", organizationRecordIds)
       : Promise.resolve({ data: [], error: null }),
     organizationRecordIds.length
       ? organizationClient.from("organization_members").select("org_id, user_id, role, status, username, phone, contact_email").in("org_id", organizationRecordIds)
@@ -112,12 +113,15 @@ export default async function PlatformAdminPage() {
       owner_email: ownerEmail,
       registration_state: organization.registration_state ?? (organization.status === "rejected" ? "rejected" : organization.status === "pending" ? "pending" : "approved"),
       registration_notes: organization.registration_notes,
+      max_users_override: organization.max_users_override,
+      max_branches_override: organization.max_branches_override,
       business_type: company?.business_type ?? company?.industry ?? organization.industry,
       country: company?.country ?? null,
+      logo_url: company?.logo_url ?? null,
       owner_name: ownerName,
       owner_phone: ownerPhone,
       branch_count: relatedLocations.length,
-      user_count: members.filter((member) => member.status === "active").length,
+      user_count: members.filter((member) => member.status === "active" || member.status === "invited").length,
       read_only: relatedFeatures.some((feature) => feature.access_mode === "read_only"),
       owner_users: members.map((member) => ({
         name: (member.user_id ? profileByUser.get(member.user_id) : null) ?? member.username ?? "Organization user",
@@ -147,5 +151,5 @@ export default async function PlatformAdminPage() {
   const globalLoginThemeId = typeof settings?.find((setting) => setting.key === "global_login_theme")?.value?.theme_id === "string"
     ? String(settings.find((setting) => setting.key === "global_login_theme")?.value?.theme_id)
     : "default-thinksales-login";
-  return <><header className="sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><Link href="/platform-admin/registrations" className="ml-auto rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Registration approvals</Link><div className="text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div></div></header><PlatformAdminConsole logoUrl={logoUrl} organizations={organizations ?? []} managedOrganizations={managedOrganizations} canManageOrganizations={platformRoleCan(admin.role, "manage_platform")} auditLogs={auditLogs ?? []} plans={plans ?? []} features={features ?? []} usage={usage ?? []} billing={billing ?? []} flags={flags ?? []} approvals={approvals ?? []} notifications={notifications ?? []} settings={settings ?? []} complaints={complaints ?? []} contacts={contacts ?? []} loginThemes={loginThemes ?? []} loginThemeAssignments={resolvedLoginOrganizations} globalLoginThemeId={globalLoginThemeId} loginThemeAudit={resolvedLoginThemeAudit} /></>;
+  return <><header className="platform-admin-header sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><PlatformNotificationBell initialNotifications={notifications ?? []} /><Link href="/platform-admin/registrations" className="ml-auto rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Registration approvals</Link><div className="text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div></div></header><PlatformAdminConsole asOf={new Date().toISOString()} logoUrl={logoUrl} organizations={organizations ?? []} managedOrganizations={managedOrganizations} canManageOrganizations={platformRoleCan(admin.role, "manage_platform")} auditLogs={auditLogs ?? []} plans={plans ?? []} features={features ?? []} usage={usage ?? []} billing={billing ?? []} flags={flags ?? []} approvals={approvals ?? []} notifications={notifications ?? []} settings={settings ?? []} complaints={complaints ?? []} contacts={contacts ?? []} loginThemes={loginThemes ?? []} loginThemeAssignments={resolvedLoginOrganizations} globalLoginThemeId={globalLoginThemeId} loginThemeAudit={resolvedLoginThemeAudit} /></>;
 }

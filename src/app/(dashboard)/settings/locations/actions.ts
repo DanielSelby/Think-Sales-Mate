@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { canPermission } from "@/lib/rbac/permissions";
+import { assertOrganizationCapacity } from "@/lib/organizations/capacity";
 import type { LocationType } from "@/types/database";
 
 export async function createLocation(formData: FormData) {
@@ -26,6 +27,11 @@ export async function createLocation(formData: FormData) {
     return { error: "You don't have permission to add locations." };
   }
   if (!name) return { error: "Location name is required." };
+  try {
+    await assertOrganizationCapacity(context.orgId, "branches");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not verify the organization's branch limit." };
+  }
 
   const supabase = await createClient();
 

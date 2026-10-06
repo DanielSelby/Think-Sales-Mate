@@ -67,6 +67,7 @@ interface PosViewProps {
   useSystemPrices: boolean;
   mobileMoneyAccounts: MobileMoneyAccount[];
   canApproveRegisterClosures: boolean;
+  canAccessEndOfDay: boolean;
   registerSessions: ActivePosRegisterSession[];
 }
 
@@ -90,7 +91,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, registerSessions }: PosViewProps) {
+export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -664,7 +665,11 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       }
       if (status === "approved") {
         setRegisterOpen(false);
-        setRegisterApprovalPromptOpen(true);
+        if (canAccessEndOfDay) {
+          setRegisterApprovalPromptOpen(true);
+        } else {
+          router.replace("/pos/open-register?closed=1");
+        }
         return;
       }
       showNotice(status === "reopened" ? "Register reopened." : "Register closure rejected.");
@@ -1498,11 +1503,11 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       )}
       <RegisterApprovalSuccessDialog
         open={registerApprovalPromptOpen}
-        stayLabel="Stay in POS"
-        onContinue={() => router.push("/banking/cash-closing")}
-        onStay={() => {
+        cancelDescription="Continue to End Of Day, or cancel to close the register and leave POS."
+        onContinue={() => router.replace("/banking/cash-closing")}
+        onCancel={() => {
           setRegisterApprovalPromptOpen(false);
-          loadRegisterHistory();
+          router.replace("/pos/open-register?closed=1");
         }}
       />
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, Database, Download, Gauge, RefreshCw, ShieldCheck, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, Database, Download, Gauge, Moon, RefreshCw, ShieldCheck, Sun, Users, WalletCards, type LucideIcon } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   createPlatformOrganization,
@@ -25,6 +25,7 @@ import SupportCenter from "./support-center";
 import { formatMoney } from "@/lib/currency";
 import { LoginExperienceManager } from "./login-experience-manager";
 import OrganizationManagement, { type ManagedOrganization } from "./organization-management";
+import { useAppStore } from "@/store/useAppStore";
 
 type Organization = {
   id: string;
@@ -193,6 +194,7 @@ export default function PlatformAdminConsole({
   organizations,
   managedOrganizations,
   canManageOrganizations,
+  asOf,
   plans,
   features,
   auditLogs,
@@ -213,6 +215,7 @@ export default function PlatformAdminConsole({
   organizations: Organization[];
   managedOrganizations: ManagedOrganization[];
   canManageOrganizations: boolean;
+  asOf: string;
   plans: Plan[];
   features: { organization_id: string; module: string; enabled: boolean; access_mode: "enabled" | "disabled" | "read_only"; permission_options?: Record<string, boolean>; updated_at?: string }[];
   auditLogs: AuditLog[];
@@ -241,6 +244,7 @@ export default function PlatformAdminConsole({
   const [message, setMessage] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [currentLogoUrl, setCurrentLogoUrl] = useState(logoUrl);
+  const { darkMode, setDarkMode } = useAppStore();
   const [featureState, setFeatureState] = useState<Record<string, boolean>>(
     Object.fromEntries(features.filter((feature) => feature.organization_id === organizations[0]?.organization_id).map((feature) => [feature.module, feature.enabled])),
   );
@@ -274,6 +278,10 @@ export default function PlatformAdminConsole({
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>(
     Object.fromEntries(settings.map((setting) => [setting.key, JSON.stringify(setting.value)])),
   );
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+    document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
+  }, [darkMode]);
   const openOrganizationEditor = (organization: Organization) => {
     setEditingOrganizationId(organization.id);
     setOrgForm({
@@ -442,7 +450,7 @@ export default function PlatformAdminConsole({
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-74px)] bg-[#f5f8fc]">
+    <div className={`platform-admin-console flex min-h-[calc(100vh-74px)] ${darkMode ? "bg-slate-950 text-slate-100" : "bg-[#f5f8fc]"}`}>
       <aside className="sticky top-0 hidden h-screen w-56 shrink-0 self-start overflow-y-auto bg-[#06294a] text-white lg:block">
         <div className="border-b border-white/10 px-4 py-5">
           <div className="flex items-center gap-2">
@@ -467,11 +475,11 @@ export default function PlatformAdminConsole({
           </label>
         </div>
         <nav className="space-y-1 p-3">
-          <button type="button" onClick={() => setTab("Overview")} className="mb-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-white/10">⌂ Dashboard</button>
-          <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-blue-300">System Administration Platform</p>
+          <button type="button" onClick={() => setTab("Overview")} className="mb-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs text-white hover:bg-white/10">⌂ Dashboard</button>
+          <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white">System Administration Platform</p>
           <Link
             href="/platform-admin/communication"
-            className="mb-2 flex w-full items-center gap-3 rounded-lg bg-blue-900/50 px-3 py-2 text-left text-xs font-semibold text-blue-100 hover:bg-blue-600"
+            className="mb-2 flex w-full items-center gap-3 rounded-lg bg-blue-900/50 px-3 py-2 text-left text-xs font-semibold text-white hover:bg-blue-600"
           >
             <span className="w-4 text-center">▣</span>
             Communication Management
@@ -481,7 +489,7 @@ export default function PlatformAdminConsole({
               key={item.label}
               onClick={() => setTab(item.label)}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold ${
-                tab === item.label ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/10"
+                tab === item.label ? "bg-blue-600 text-white" : "text-white hover:bg-white/10"
               }`}
             >
               <span className="w-4 text-center">{item.icon}</span>{item.label}
@@ -489,12 +497,12 @@ export default function PlatformAdminConsole({
           ))}
           <div className="my-3 border-t border-white/10" />
           {tabs.slice(9).map((item) => (
-            <button key={item.label} onClick={() => setTab(item.label)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold ${tab === item.label ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/10"}`}>
+            <button key={item.label} onClick={() => setTab(item.label)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold ${tab === item.label ? "bg-blue-600 text-white" : "text-white hover:bg-white/10"}`}>
               <span className="w-4 text-center">{item.icon}</span>{item.label}
             </button>
           ))}
         </nav>
-        <div className="mx-3 mt-12 rounded-lg border border-blue-400/30 bg-blue-900/40 p-3 text-center text-[11px] text-blue-100">Need Help?<br /><span className="text-blue-300">Contact support</span></div>
+        <div className="mx-3 mt-12 rounded-lg border border-blue-400/30 bg-blue-900/40 p-3 text-center text-[11px] text-white">Need Help?<br /><span className="text-white">Contact support</span></div>
       </aside>
 
       {modal === "organization" && (
@@ -527,6 +535,12 @@ export default function PlatformAdminConsole({
       )}
 
       <main className="min-w-0 flex-1 p-4 md:p-6">
+        <div className="mb-3 flex justify-end">
+          <button type="button" onClick={() => setDarkMode(!darkMode)} aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"} title={darkMode ? "Switch to light mode" : "Switch to dark mode"} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm ${darkMode ? "border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
+            {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {darkMode ? "Light mode" : "Dark mode"}
+          </button>
+        </div>
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           {tab !== "Feature Access" && tab !== "Overview" && tab !== "Complaints & Support" && tab !== "Login Experience" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div><div className="flex flex-wrap gap-2">{canManageOrganizations && <><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button></>}<button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
         </div>
@@ -555,6 +569,7 @@ export default function PlatformAdminConsole({
           organizations={managedOrganizations}
           plans={plans}
           canManage={canManageOrganizations}
+          asOf={asOf}
           onEdit={(organizationId) => {
             const organization = organizations.find((item) => item.id === organizationId);
             if (organization) openOrganizationEditor(organization);

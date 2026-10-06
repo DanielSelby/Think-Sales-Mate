@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { PlatformModule } from "@/types/platform-database";
 
 async function requirePlatformManagement() {
@@ -12,6 +13,70 @@ async function requirePlatformManagement() {
   }
 
   return { admin, supabase: await createPlatformServerClient() };
+}
+
+export async function updateOrganizationBusinessDetails(input: {
+  platformOrganizationId: string;
+  name: string;
+  businessType: string;
+  country: string;
+}) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const name = input.name.trim();
+  const businessType = input.businessType.trim();
+  const country = input.country.trim();
+  if (!input.platformOrganizationId || !name) throw new Error("Organization name is required.");
+  if (name.length > 160 || businessType.length > 120 || country.length > 120) {
+    throw new Error("Organization name, business type, and country must be within their allowed lengths.");
+  }
+
+  const { data: organization, error: loadError } = await supabase
+    .from("platform_organizations")
+    .select("organization_id, name")
+    .eq("id", input.platformOrganizationId)
+    .single();
+  if (loadError) throw new Error(`Could not load organization: ${loadError.message}`);
+
+  const app = createAdminClient();
+  const { error: organizationError } = await app
+    .from("organizations")
+    .update({ name })
+    .eq("id", organization.organization_id);
+  if (organizationError) throw new Error(`Could not update the organization name: ${organizationError.message}`);
+
+  const { error: profileError } = await app
+    .from("company_profile")
+    .upsert({
+      org_id: organization.organization_id,
+      company_name: name,
+      business_type: businessType || null,
+      country: country || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "org_id" });
+  if (profileError) throw new Error(`Organization name was updated, but business details could not be saved: ${profileError.message}`);
+
+  const { error: platformError } = await supabase
+    .from("platform_organizations")
+    .update({ name, updated_at: new Date().toISOString() })
+    .eq("id", input.platformOrganizationId);
+  if (platformError) throw new Error(`Business details were saved, but the Platform Admin organization name could not be synchronized: ${platformError.message}`);
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    organization_id: organization.organization_id,
+    action: "organization_business_details_updated",
+    module: "organizations",
+    metadata: {
+      previous_name: organization.name,
+      name,
+      business_type: businessType || null,
+      country: country || null,
+    },
+  });
+  if (auditError) throw new Error(`Business details were saved, but the audit record failed: ${auditError.message}`);
+
+  revalidatePath("/platform-admin");
+  return { success: true };
 }
 
 async function requirePlatformPermission(permission: "manage_platform" | "manage_billing" | "manage_support") {
@@ -55,9 +120,23 @@ export async function createPlatformOrganization(input: {
 
 export async function updatePlatformOrganization(
   id: string,
-  update: { status?: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired"; planId?: string | null; expiresAt?: string | null },
+  update: {
+    status?: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
+    planId?: string | null;
+    expiresAt?: string | null;
+    maxUsersOverride?: number | null;
+    maxBranchesOverride?: number | null;
+  },
 ) {
   const { admin, supabase } = await requirePlatformManagement();
+  for (const [label, value] of [
+    ["User", update.maxUsersOverride],
+    ["Branch", update.maxBranchesOverride],
+  ] as const) {
+    if (value !== undefined && value !== null && (!Number.isSafeInteger(value) || value < 1)) {
+      throw new Error(`${label} limit must be a positive whole number or left blank to use the subscription plan.`);
+    }
+  }
   const { data: organization, error: organizationError } = await supabase
     .from("platform_organizations")
     .select("organization_id, status, registration_state")
@@ -78,6 +157,8 @@ export async function updatePlatformOrganization(
     status?: typeof update.status;
     plan_id?: string | null;
     expires_at?: string | null;
+    max_users_override?: number | null;
+    max_branches_override?: number | null;
     registration_state?: "pending" | "information_requested" | "approved" | "rejected";
     updated_at: string;
   } = {
@@ -89,6 +170,8 @@ export async function updatePlatformOrganization(
   }
   if (update.planId !== undefined) values.plan_id = update.planId;
   if (update.expiresAt !== undefined) values.expires_at = update.expiresAt;
+  if (update.maxUsersOverride !== undefined) values.max_users_override = update.maxUsersOverride;
+  if (update.maxBranchesOverride !== undefined) values.max_branches_override = update.maxBranchesOverride;
   const { data, error } = await supabase.from("platform_organizations").update(values).eq("id", id).select("id, status, plan_id, expires_at").single();
   if (error) throw new Error(error.message);
   if (update.status !== undefined) {
@@ -123,6 +206,32 @@ export async function deletePlatformOrganization(id: string) {
     action: "organization_deleted",
     module: "organizations",
   });
+  revalidatePath("/platform-admin");
+}
+
+export async function markPlatformNotificationRead(id: string) {
+  const admin = await getPlatformAdmin();
+  if (!admin) throw new Error("You must be signed in as a Platform Admin.");
+  if (!id) throw new Error("Notification ID is required.");
+  const supabase = await createPlatformServerClient();
+  const { error } = await supabase
+    .from("platform_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("read_at", null);
+  if (error) throw new Error(`Could not mark notification as read: ${error.message}`);
+  revalidatePath("/platform-admin");
+}
+
+export async function markAllPlatformNotificationsRead() {
+  const admin = await getPlatformAdmin();
+  if (!admin) throw new Error("You must be signed in as a Platform Admin.");
+  const supabase = await createPlatformServerClient();
+  const { error } = await supabase
+    .from("platform_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .is("read_at", null);
+  if (error) throw new Error(`Could not mark notifications as read: ${error.message}`);
   revalidatePath("/platform-admin");
 }
 

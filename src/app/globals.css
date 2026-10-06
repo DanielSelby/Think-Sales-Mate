@@ -8,6 +8,76 @@
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+html.dark .platform-admin-header {
+  border-color: #334155;
+  background-color: #0f172a;
+}
+
+html.dark .platform-admin-header h1,
+html.dark .platform-admin-header p.text-slate-900 {
+  color: #f8fafc;
+}
+
+html.dark .platform-admin-header p.text-slate-500 {
+  color: #cbd5e1;
+}
+
+html.dark .platform-admin-header a {
+  border-color: #334155;
+  color: #bfdbfe;
+}
+
+html.dark .platform-admin-console main [class~="bg-white"] {
+  background-color: #0f172a !important;
+}
+
+html.dark .platform-admin-console main [class~="bg-slate-50"],
+html.dark .platform-admin-console main [class~="bg-[#f5f8fc]"] {
+  background-color: #111c2d !important;
+}
+
+html.dark .platform-admin-console main [class~="bg-blue-50"],
+html.dark .platform-admin-console main [class~="bg-blue-50/60"],
+html.dark .platform-admin-console main [class~="bg-blue-50/70"],
+html.dark .platform-admin-console main [class~="bg-blue-50/50"] {
+  background-color: #172b45 !important;
+}
+
+html.dark .platform-admin-console main [class~="text-slate-950"],
+html.dark .platform-admin-console main [class~="text-slate-900"],
+html.dark .platform-admin-console main [class~="text-slate-800"] {
+  color: #f1f5f9 !important;
+}
+
+html.dark .platform-admin-console main [class~="text-slate-700"],
+html.dark .platform-admin-console main [class~="text-slate-600"],
+html.dark .platform-admin-console main [class~="text-slate-500"] {
+  color: #cbd5e1 !important;
+}
+
+html.dark .platform-admin-console main [class~="border-slate-100"],
+html.dark .platform-admin-console main [class~="border-slate-200"],
+html.dark .platform-admin-console main [class~="border-slate-300"] {
+  border-color: #334155 !important;
+}
+
+html.dark .platform-admin-console main input:not([type="checkbox"]),
+html.dark .platform-admin-console main select,
+html.dark .platform-admin-console main textarea {
+  border-color: #475569;
+  background-color: #0b1220;
+  color: #f1f5f9;
+}
+
+html.dark .platform-admin-console main input::placeholder,
+html.dark .platform-admin-console main textarea::placeholder {
+  color: #94a3b8;
+}
+
+html.dark .platform-admin-console main table thead {
+  background-color: #111c2d;
+}
+
 html:not(.dark) .border-ledger-50,
 html:not(.dark) .border-ledger-100,
 html:not(.dark) .border-ledger-200,
