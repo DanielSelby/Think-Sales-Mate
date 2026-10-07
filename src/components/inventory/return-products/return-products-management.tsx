@@ -106,15 +106,15 @@ function StatCard({ title, value, description, icon: Icon, tone }: {
   tone: string;
 }) {
   return (
-    <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-700">
-      <CardContent className="flex items-start justify-between gap-3 p-4">
+    <Card className="return-kpi-card overflow-hidden rounded-2xl border-0 bg-white p-5 shadow-card dark:bg-ink-900">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{title}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
+          <p className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
           <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{description}</p>
         </div>
         <span className={`rounded-xl p-2.5 ${tone} ${tone.includes("amber") ? "dark:bg-amber-950/40 dark:text-amber-300" : tone.includes("blue") ? "dark:bg-blue-950/40 dark:text-blue-300" : tone.includes("emerald") ? "dark:bg-emerald-950/40 dark:text-emerald-300" : tone.includes("orange") ? "dark:bg-orange-950/40 dark:text-orange-300" : tone.includes("violet") ? "dark:bg-violet-950/40 dark:text-violet-300" : "dark:bg-cyan-950/40 dark:text-cyan-300"}`}><Icon className="h-4 w-4" /></span>
-      </CardContent>
+      </div>
     </Card>
   );
 }
@@ -285,7 +285,7 @@ export function ReturnProductsManagement({
     });
 
   return (
-    <main className="min-h-screen bg-[#f5f8fc] px-4 py-5 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6 lg:px-8">
+    <main className="return-products-page min-h-screen bg-[#f5f8fc] px-4 py-5 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px] space-y-5">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-slate-800 xl:flex-row xl:items-center xl:justify-between">
         <div>
@@ -323,7 +323,7 @@ export function ReturnProductsManagement({
         <StatCard title="Supplier Returns Issued" value={String(kpis.supplierReturnsIssued)} description="Connected to Purchase Returns" icon={Truck} tone="bg-cyan-50 text-cyan-700" />
       </section>
 
-      <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-700">
+      <Card className="return-management-card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card dark:border-slate-700 dark:bg-ink-900">
         <div className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-3 dark:border-slate-700">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} type="button" onClick={() => { setTab(id); setSelected([]); }}
@@ -360,7 +360,7 @@ export function ReturnProductsManagement({
           </div>
 
           {tab === "consolidated" || tab === "supplier" ? (
-            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="return-table-wrap overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full min-w-[900px] text-left text-xs">
                 <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                   <tr><th className="px-3 py-3">Consolidation</th><th className="px-3 py-3">Supplier</th><th className="px-3 py-3">Purchase source</th><th className="px-3 py-3">Branches / Products</th><th className="px-3 py-3">Qty</th><th className="px-3 py-3">Value</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Action</th></tr>
@@ -388,7 +388,7 @@ export function ReturnProductsManagement({
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="return-table-wrap overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full min-w-[1000px] text-left text-xs">
                 <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                   <tr><th className="w-9 px-3 py-3">{canManage && tab !== "history" ? <span className="sr-only">Select</span> : null}</th><th className="px-3 py-3">Return / Date</th><th className="px-3 py-3">Branch / Requested By</th><th className="px-3 py-3">Product</th><th className="px-3 py-3">Qty</th><th className="px-3 py-3">Value</th><th className="px-3 py-3">Supplier</th><th className="px-3 py-3">Condition / Reason</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Action</th></tr>

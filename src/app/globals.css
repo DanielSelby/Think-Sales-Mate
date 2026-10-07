@@ -1387,6 +1387,51 @@ html.dark .price-management-page .price-filter-control {
   border: 0 !important;
 }
 
+html.dark .pos-page .pos-product-grid > button {
+  border: 1px solid #38536d !important;
+  background: linear-gradient(145deg, #1d3348 0%, #192d42 58%, #16283b 100%) !important;
+  box-shadow:
+    inset 1px 1px 0 rgb(255 255 255 / 0.08),
+    inset -1px -1px 0 rgb(0 0 0 / 0.16),
+    0 5px 12px rgb(0 0 0 / 0.2),
+    0 12px 24px rgb(0 0 0 / 0.16) !important;
+}
+
+html.dark .pos-page .pos-product-grid > button:hover,
+html.dark .pos-page .pos-product-grid > button:focus-visible {
+  border-color: var(--theme-primary, #40916c) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--theme-primary, #40916c) 55%, transparent),
+    0 0 16px color-mix(in srgb, var(--theme-primary, #40916c) 24%, transparent),
+    0 10px 20px rgb(0 0 0 / 0.28) !important;
+  outline: none;
+}
+
+html.dark .pos-page .pos-product-grid > button:disabled,
+html.dark .pos-page .pos-product-grid > button[aria-disabled="true"] {
+  background: linear-gradient(145deg, #172638 0%, #142235 100%) !important;
+  border-color: #293d52 !important;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.18) !important;
+}
+
+html.dark .pos-page .pos-product-grid > button .pos-product-image {
+  border: 1px solid #49647e !important;
+  background: linear-gradient(145deg, #30485f 0%, #263c52 58%, #20344a 100%) !important;
+  box-shadow:
+    inset 1px 1px 0 rgb(255 255 255 / 0.1),
+    inset -1px -1px 2px rgb(0 0 0 / 0.22),
+    0 3px 8px rgb(0 0 0 / 0.2) !important;
+}
+
+html.dark .pos-page .pos-product-grid > button .pos-product-info {
+  border: 1px solid #314a63 !important;
+  background: #14273a !important;
+}
+
+html.dark .pos-page .pos-product-grid > button[aria-disabled="true"] .pos-product-image {
+  filter: saturate(0.65);
+}
+
 .sales-page table thead,
 .procurement-page table thead,
 .product-page table thead,
@@ -1459,6 +1504,16 @@ html.dark .purchase-history-page .purchase-history-table-head {
   background-color: var(--sales-history-table-header) !important;
 }
 
+.return-products-page .return-kpi-card,
+.return-products-page .return-management-card {
+  background-color: #fff !important;
+  border-color: #dbe3ed !important;
+}
+
+.return-products-page .return-table-wrap {
+  border-color: #dbe3ed !important;
+}
+
 .sales-history-page .sales-history-table thead th {
   position: sticky;
   top: 0;
@@ -1498,6 +1553,25 @@ html.dark .sales-history-page .sales-history-table tbody tr {
 }
 
 html.dark .sales-history-page .sales-history-table tbody tr:hover {
+  background-color: #172a40 !important;
+}
+
+html.dark .return-products-page .return-kpi-card,
+html.dark .return-products-page .return-management-card {
+  background-color: #0f1d2d !important;
+  border-color: transparent !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2) !important;
+}
+
+html.dark .return-products-page .return-table-wrap {
+  border-color: #26384d !important;
+}
+
+html.dark .return-products-page .return-table-wrap tbody tr {
+  background-color: #0f1d2d;
+}
+
+html.dark .return-products-page .return-table-wrap tbody tr:hover {
   background-color: #172a40 !important;
 }
 
@@ -1780,6 +1854,39 @@ html.dark body :is(
   [class~="text-stone-400"]
 ) {
   color: #cbd5e1 !important;
+}
+
+@media screen {
+  .page-canvas :is(header, div, section):has(> h1),
+  .platform-admin-console main :is(header, div, section):has(> h1) {
+    border: 1px solid var(--theme-primary, #153361) !important;
+    border-radius: 0.75rem;
+    background-color: var(--theme-primary, #153361) !important;
+    padding: 1rem 1.25rem;
+  }
+
+  .page-canvas :is(header, div, section):has(> h1) > h1,
+  .platform-admin-console main :is(header, div, section):has(> h1) > h1 {
+    color: #fff !important;
+  }
+
+  .page-canvas :is(header, div, section):has(> h1) > p,
+  .platform-admin-console main :is(header, div, section):has(> h1) > p {
+    color: rgb(255 255 255 / 0.82) !important;
+  }
+
+  html:not(.dark) body :is(.page-canvas, .platform-admin-console, main) table thead,
+  html.dark body :is(.page-canvas, .platform-admin-console, main) table thead {
+    background-color: var(--theme-primary, #153361) !important;
+    border-color: color-mix(in srgb, var(--theme-primary, #153361) 75%, #fff) !important;
+    color: #fff !important;
+  }
+
+  html:not(.dark) body :is(.page-canvas, .platform-admin-console, main) table thead th,
+  html.dark body :is(.page-canvas, .platform-admin-console, main) table thead th {
+    background-color: transparent !important;
+    color: #fff !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

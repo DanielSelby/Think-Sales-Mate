@@ -928,7 +928,7 @@ export function PosView({ userId, products, locations, stockLevels, currency, ta
                   {p.imageUrl ? (
                     <Image src={p.imageUrl} alt={p.name} fill className={cn("object-contain transition-transform duration-200 group-hover:scale-[1.025]", p.stockQuantity <= 0 && "grayscale")} unoptimized />
                   ) : (
-                    <Package className="h-6 w-6 text-ledger-400" />
+                    <Package className="h-6 w-6 text-ledger-400 dark:text-slate-200" />
                   )}
                 </div>
                 <div className="pos-product-info w-full rounded-md px-1.5 pb-1 pt-0.5">
