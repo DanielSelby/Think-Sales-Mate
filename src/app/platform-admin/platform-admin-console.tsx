@@ -245,12 +245,11 @@ export default function PlatformAdminConsole({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [currentLogoUrl, setCurrentLogoUrl] = useState(logoUrl);
   const { darkMode, setDarkMode } = useAppStore();
-  const [featureState, setFeatureState] = useState<Record<string, boolean>>(
-    Object.fromEntries(features.filter((feature) => feature.organization_id === organizations[0]?.organization_id).map((feature) => [feature.module, feature.enabled])),
-  );
-  const [featureModes, setFeatureModes] = useState<Record<string, "enabled" | "disabled" | "read_only">>(
-    Object.fromEntries(features.filter((feature) => feature.organization_id === organizations[0]?.organization_id).map((feature) => [feature.module, feature.access_mode ?? (feature.enabled ? "enabled" : "disabled")])),
-  );
+  const [featureDraft, setFeatureDraft] = useState<{
+    organizationId: string | null;
+    enabled: Record<string, boolean>;
+    modes: Record<string, "enabled" | "disabled" | "read_only">;
+  }>({ organizationId: null, enabled: {}, modes: {} });
   const [orgForm, setOrgForm] = useState({
     organizationId: "",
     name: "",
@@ -304,6 +303,31 @@ export default function PlatformAdminConsole({
     [organizations, search, planFilter, statusFilter],
   );
   const selected = organizations.find((org) => org.id === selectedId) ?? filteredOrganizations[0];
+  const selectedFeatures = features.filter((feature) => feature.organization_id === selected?.organization_id);
+  const persistedFeatureState = Object.fromEntries(selectedFeatures.map((feature) => [feature.module, feature.enabled]));
+  const persistedFeatureModes = Object.fromEntries(selectedFeatures.map((feature) => [feature.module, feature.access_mode ?? (feature.enabled ? "enabled" : "disabled")]));
+  const featureState = featureDraft.organizationId === selected?.organization_id ? featureDraft.enabled : persistedFeatureState;
+  const featureModes = featureDraft.organizationId === selected?.organization_id ? featureDraft.modes : persistedFeatureModes;
+  function setFeatureState(update: (current: Record<string, boolean>) => Record<string, boolean>) {
+    setFeatureDraft((currentDraft) => {
+      const sameOrganization = currentDraft.organizationId === selected?.organization_id;
+      return {
+        organizationId: selected?.organization_id ?? null,
+        enabled: update(sameOrganization ? currentDraft.enabled : persistedFeatureState),
+        modes: sameOrganization ? currentDraft.modes : persistedFeatureModes,
+      };
+    });
+  }
+  function setFeatureModes(update: (current: Record<string, "enabled" | "disabled" | "read_only">) => Record<string, "enabled" | "disabled" | "read_only">) {
+    setFeatureDraft((currentDraft) => {
+      const sameOrganization = currentDraft.organizationId === selected?.organization_id;
+      return {
+        organizationId: selected?.organization_id ?? null,
+        enabled: sameOrganization ? currentDraft.enabled : persistedFeatureState,
+        modes: update(sameOrganization ? currentDraft.modes : persistedFeatureModes),
+      };
+    });
+  }
   const filteredAuditLogs = useMemo(
     () => auditLogs.filter((log) => {
       const organizationMatches = !activityOrganizationFilter || log.organization_id === activityOrganizationFilter;
@@ -314,11 +338,6 @@ export default function PlatformAdminConsole({
     }),
     [auditLogs, activityOrganizationFilter, activityModuleFilter, activityActionFilter, activityDateFilter],
   );
-  useEffect(() => {
-    if (!selected) return;
-    setFeatureState(Object.fromEntries(features.filter((feature) => feature.organization_id === selected.organization_id).map((feature) => [feature.module, feature.enabled])));
-    setFeatureModes(Object.fromEntries(features.filter((feature) => feature.organization_id === selected.organization_id).map((feature) => [feature.module, feature.access_mode ?? (feature.enabled ? "enabled" : "disabled")])));
-  }, [features, selected]);
   const counts = {
     total: organizations.length,
     active: organizations.filter((org) => org.status === "active").length,
@@ -326,8 +345,9 @@ export default function PlatformAdminConsole({
     expired: organizations.filter((org) => org.status === "expired").length,
     trial: organizations.filter((org) => org.status === "trial").length,
   };
+  const now = new Date();
   const rangeDays = overviewRange === "365" ? 365 : Number(overviewRange);
-  const overviewStart = Date.now() - rangeDays * 24 * 60 * 60 * 1000;
+  const overviewStart = now.getTime() - rangeDays * 24 * 60 * 60 * 1000;
   const previousStart = overviewStart - rangeDays * 24 * 60 * 60 * 1000;
   const overviewOrganizations = organizations.filter((org) => new Date(org.created_at).getTime() >= overviewStart);
   const previousOrganizations = organizations.filter((org) => {
@@ -346,7 +366,8 @@ export default function PlatformAdminConsole({
   const totalUsers = usage.reduce((sum, metric) => sum + Number(metric.active_users || 0), 0);
   const monthlyRevenue = overviewBilling.filter((record) => record.status === "paid").reduce((sum, record) => sum + Number(record.amount || 0), 0);
   const annualRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.annual_price || 0), 0);
-  const expiringSubscriptions = organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000).length;
+  const expiringOrganizations = organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const expiringSubscriptions = expiringOrganizations.length;
   const usageTotals = {
     transactions: usage.reduce((sum, item) => sum + Number(item.orders || 0), 0),
     sales: usage.reduce((sum, item) => sum + Number(item.sales_volume || 0), 0),
@@ -358,14 +379,14 @@ export default function PlatformAdminConsole({
   const totalBranches = usage.reduce((sum, metric) => sum + Number(metric.branches || 0), 0);
   const platformHealth = notifications.some((notice) => /security|failed|critical/i.test(`${notice.severity} ${notice.title}`)) ? "98.4%" : "99.9%";
   const growthSeries = Array.from({ length: 12 }, (_, index) => {
-    const date = new Date();
-    date.setTime(Date.now() - (rangeDays * 24 * 60 * 60 * 1000) + (rangeDays * 24 * 60 * 60 * 1000 * index / 11));
+    const date = new Date(now.getTime());
+    date.setTime(now.getTime() - (rangeDays * 24 * 60 * 60 * 1000) + (rangeDays * 24 * 60 * 60 * 1000 * index / 11));
     const cutoff = date.getTime();
     return { label: date.toLocaleDateString(undefined, { month: "short" }), organizations: organizations.filter((org) => new Date(org.created_at).getTime() <= cutoff).length };
   });
   const planDistribution = plans.map((plan, index) => ({ name: plan.name, value: organizations.filter((org) => org.plan_id === plan.id).length, color: ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"][index % 5] })).filter((item) => item.value > 0);
   const revenueSeries = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date();
+    const date = new Date(now.getTime());
     date.setMonth(date.getMonth() - (5 - index), 1);
     const month = date.getMonth();
     return { label: date.toLocaleDateString(undefined, { month: "short" }), revenue: billing.filter((record) => { const issued = new Date(record.issued_at); return issued.getMonth() === month && issued.getFullYear() === date.getFullYear() && record.status === "paid"; }).reduce((sum, record) => sum + Number(record.amount || 0), 0) };
@@ -451,7 +472,7 @@ export default function PlatformAdminConsole({
 
   return (
     <div className={`platform-admin-console flex min-h-[calc(100vh-74px)] ${darkMode ? "bg-slate-950 text-slate-100" : "bg-[#f5f8fc]"}`}>
-      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 self-start overflow-y-auto bg-[#06294a] text-white lg:block">
+      <aside className="fixed left-0 top-[74px] z-30 hidden h-[calc(100vh-74px)] w-56 overflow-y-auto bg-[#06294a] text-white lg:block">
         <div className="border-b border-white/10 px-4 py-5">
           <div className="flex items-center gap-2">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
@@ -534,7 +555,7 @@ export default function PlatformAdminConsole({
         </Modal>
       )}
 
-      <main className="min-w-0 flex-1 p-4 md:p-6">
+      <main className="min-w-0 flex-1 p-4 md:p-6 lg:ml-56">
         <div className="mb-3 flex justify-end">
           <button type="button" onClick={() => setDarkMode(!darkMode)} aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"} title={darkMode ? "Switch to light mode" : "Switch to dark mode"} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm ${darkMode ? "border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
             {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -560,7 +581,7 @@ export default function PlatformAdminConsole({
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
               <Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between py-3 text-left text-xs hover:bg-slate-50"><span><span className="block font-semibold">{org.name}</span><span className="text-slate-400">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-slate-500">{org.status}<br />{new Date(org.created_at).toLocaleDateString()}</span></button>)}</div>{!organizations.length && <p className="py-6 text-center text-xs text-slate-500">No organizations registered.</p>}</Card>
               <Card title="System Alerts"><div className="mt-3 space-y-2">{notifications.slice(0, 6).map((notice) => <div key={notice.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-xs font-semibold">{notice.title}</p><p className="mt-1 text-[11px] text-slate-500">{notice.message}</p></div>)}{!notifications.length && <p className="py-6 text-center text-xs text-slate-500">No unread system alerts.</p>}</div></Card>
-              <Card title="Expiring Subscriptions"><div className="mt-3 space-y-2">{organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000).slice(0, 5).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{org.name}</strong><span className="text-slate-500">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-rose-600">{org.expires_at ? new Date(org.expires_at).toLocaleDateString() : "—"}<br /><span className="text-[10px] text-slate-400">Manage</span></span></button>)}{!organizations.some((org) => org.expires_at && new Date(org.expires_at).getTime() <= Date.now() + 30 * 24 * 60 * 60 * 1000) && <p className="py-6 text-center text-xs text-slate-500">No subscriptions expiring within 30 days.</p>}</div></Card>
+              <Card title="Expiring Subscriptions"><div className="mt-3 space-y-2">{expiringOrganizations.slice(0, 5).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{org.name}</strong><span className="text-slate-500">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-rose-600">{org.expires_at ? new Date(org.expires_at).toLocaleDateString() : "—"}<br /><span className="text-[10px] text-slate-400">Manage</span></span></button>)}{!expiringOrganizations.length && <p className="py-6 text-center text-xs text-slate-500">No subscriptions expiring within 30 days.</p>}</div></Card>
               <div className="space-y-5"><Card title="Quick Actions">{[["Create Organization", () => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }], ["Assign Subscription", () => setTab("Organizations")], ["Enable Features", () => setTab("Feature Access")], ["Suspend Organization", () => { if (selected) void run(() => updatePlatformOrganization(selected.id, { status: "suspended" }), "Organization suspended."); }], ["View Activity Logs", () => setTab("Activity Logs")],               ["Complaints & Support", () => setTab("Complaints & Support")]].map(([label, action]) => <button type="button" key={String(label)} onClick={action as () => void} className="mt-2 flex w-full items-center justify-between rounded-lg border p-3 text-left text-xs font-semibold hover:bg-slate-50">{String(label)}<ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>)}</Card><Card title="Platform Stats"><div className="space-y-3 text-xs"><p className="flex justify-between"><span className="flex items-center gap-2"><Database className="h-3.5 w-3.5 text-emerald-600" />Database Health</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>API Services</span><strong className="text-emerald-600">Healthy</strong></p><p className="flex justify-between"><span>Storage Usage</span><strong>{usageTotals.storage.toFixed(1)} GB</strong></p><p className="flex justify-between"><span>Backups</span><strong className="text-emerald-600">Completed</strong></p><p className="flex justify-between"><span>Queue Health</span><strong className="text-emerald-600">Healthy</strong></p></div></Card></div>
             </div>
             <div className="mt-5 grid gap-5 xl:grid-cols-3"><Card title="Top Organizations by Revenue"><div className="mt-3 space-y-3">{topOrganizations.map((org, index) => <div key={org.organization_id} className="flex items-center gap-3 text-xs"><span className="w-5 font-bold text-slate-400">#{index + 1}</span><span className="flex-1 font-semibold">{org.name}</span><strong>{formatPlatformMoney(Number(org.sales_volume || 0))}</strong></div>)}</div></Card><Card title="Recent Platform Activity"><div className="mt-3 space-y-3">{recentPlatformActivity.map((log) => <div key={log.id} className="flex items-center justify-between border-b pb-2 text-xs last:border-0"><span><strong>{log.action}</strong><span className="ml-2 text-slate-500">{log.module}</span></span><span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span></div>)}{!recentPlatformActivity.length && <p className="py-6 text-center text-xs text-slate-500">No platform activity recorded.</p>}</div></Card><Card title="Recent Support Tickets"><div className="mt-3 space-y-2">{approvals.slice(0, 5).map((approval) => <button type="button" key={approval.id}             onClick={() => setTab("Complaints & Support")} className="flex w-full items-center justify-between rounded-lg border p-2 text-left text-xs hover:bg-slate-50"><span><strong className="block">{approval.approval_type}</strong><span className="text-slate-500">Platform request</span></span><span className="text-slate-500">{approval.status}</span></button>)}{!approvals.length && <p className="py-6 text-center text-xs text-slate-500">No support requests recorded.</p>}</div></Card></div>

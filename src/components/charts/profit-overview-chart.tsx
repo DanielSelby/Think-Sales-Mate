@@ -18,11 +18,10 @@ function CustomTooltip({ active, payload, label, currency }: any) {
 
 export function ProfitOverviewChart({ data, currency }: { data: DailyPoint[]; currency: string }) {
   const cumulative = useMemo(() => {
-    let running = 0;
-    return data.map((d) => {
-      running += d.revenue - d.expenses;
-      return { label: d.label, cumulative: running };
-    });
+    return data.reduce<Array<{ label: string; cumulative: number }>>((result, point) => {
+      const previous = result.at(-1)?.cumulative ?? 0;
+      return [...result, { label: point.label, cumulative: previous + point.revenue - point.expenses }];
+    }, []);
   }, [data]);
 
   const finalValue = cumulative[cumulative.length - 1]?.cumulative ?? 0;

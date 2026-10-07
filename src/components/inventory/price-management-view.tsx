@@ -56,19 +56,26 @@ export function PriceManagementView({ products, currency, canManage, useSystemPr
     { id: "vip", name: "VIP", description: "Preferred customer pricing" },
     { id: "special", name: "S.P", description: "Special customer pricing" },
   ]);
+  const [groupsLoaded, setGroupsLoaded] = React.useState(false);
   React.useEffect(() => {
-    const stored = window.localStorage.getItem("salesmate:price-groups");
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored) as PriceGroup[];
-      if (Array.isArray(parsed)) setGroups(parsed);
-    } catch {
-      window.localStorage.removeItem("salesmate:price-groups");
-    }
+    const frame = window.requestAnimationFrame(() => {
+      const stored = window.localStorage.getItem("salesmate:price-groups");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as PriceGroup[];
+          if (Array.isArray(parsed)) setGroups(parsed);
+        } catch {
+          window.localStorage.removeItem("salesmate:price-groups");
+        }
+      }
+      setGroupsLoaded(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
   React.useEffect(() => {
+    if (!groupsLoaded) return;
     window.localStorage.setItem("salesmate:price-groups", JSON.stringify(groups));
-  }, [groups]);
+  }, [groups, groupsLoaded]);
   const bulkFileRef = React.useRef<HTMLInputElement>(null);
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
   const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))] as string[];

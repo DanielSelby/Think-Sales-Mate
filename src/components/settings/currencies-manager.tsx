@@ -445,7 +445,7 @@ export function CurrenciesManager({
               {localSettings.exchangeRateSource === "frankfurter" && (
                 <p className="flex items-start gap-1 text-[11px] text-ledger-400">
                   <Info className="mt-0.5 h-3 w-3 shrink-0" />
-                  Rates update daily on the European Central Bank's schedule — not real-time.
+                  Rates update daily on the European Central Bank&apos;s schedule — not real-time.
                 </p>
               )}
             </div>

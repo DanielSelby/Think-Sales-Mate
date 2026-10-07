@@ -302,7 +302,7 @@ export function AddExpenseForm({
 
       {isEdit && (
         <div className="flex items-center gap-2 rounded-md border border-signal/30 bg-signal-soft px-4 py-2.5 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">
-          Status, payment status, and approval decisions can't be changed here — use Approve / Reject / Mark as Paid from the expense list actions.
+          Status, payment status, and approval decisions can&apos;t be changed here — use Approve / Reject / Mark as Paid from the expense list actions.
         </div>
       )}
 

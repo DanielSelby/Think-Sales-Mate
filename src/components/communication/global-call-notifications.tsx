@@ -7,6 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 type Call = { id: string; type: "voice" | "video"; channelId: string; callerName: string; ringingStartedAt: string };
 type Metadata = { status?: string; accepted_by?: string; declined_by?: string; offer?: RTCSessionDescriptionInit; answer?: RTCSessionDescriptionInit; callerCandidates?: RTCIceCandidateInit[]; calleeCandidates?: RTCIceCandidateInit[] };
 
+function CallDuration({ startedAt }: { startedAt: number }) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
+
+  return <>{elapsedSeconds}s</>;
+}
+
 export function GlobalCallNotifications({ userId, orgId }: { userId: string; orgId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [incoming, setIncoming] = useState<Call | null>(null);
@@ -27,8 +40,10 @@ export function GlobalCallNotifications({ userId, orgId }: { userId: string; org
   const ringtoneContextRef = useRef<AudioContext | null>(null);
   const ringtoneTimerRef = useRef<number | null>(null);
   const activeRef = useRef<typeof active>(null);
-  activeRef.current = active;
-  screenStreamRef.current = screenStream;
+  useEffect(() => {
+    activeRef.current = active;
+    screenStreamRef.current = screenStream;
+  }, [active, screenStream]);
 
   const unlockAudio = async () => {
     const context = ringtoneContextRef.current ?? new AudioContext();
@@ -256,5 +271,44 @@ export function GlobalCallNotifications({ userId, orgId }: { userId: string; org
   };
 
   if (!incoming && !active) return null;
-  return <>{incoming && <div className="fixed right-5 top-5 z-[70] w-80 rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl"><div className="flex items-center gap-3"><div className="rounded-full bg-blue-600 p-3 text-white">{incoming.type === "video" ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}</div><div className="min-w-0"><p className="text-sm font-bold">Incoming {incoming.type} call</p><p className="truncate text-xs text-slate-500">{incoming.callerName}</p></div></div><div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => void decline()} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Decline</button><button type="button" onClick={() => void answer()} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">Answer</button></div></div>}{active && <div className={`fixed right-5 bottom-5 z-[65] overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl ${expanded ? "inset-8" : "w-72"}`}><div className="flex items-center justify-between px-3 py-2 text-xs"><span>{active.callerName} · {active.type}</span><div className="flex gap-2"><button type="button" onClick={() => setExpanded((value) => !value)} title="Expand"><Maximize2 className="h-4 w-4" /></button><button type="button" onClick={() => void end()} title="End call"><PhoneOff className="h-4 w-4 text-red-400" /></button></div></div><video ref={videoRef} autoPlay playsInline muted className={`${active.type === "video" ? "aspect-video" : "hidden"} w-full bg-black`} /><audio ref={audioRef} autoPlay /><div className="flex items-center justify-center gap-2 border-t border-white/10 px-3 py-2"><button type="button" onClick={toggleMute} title={callMuted ? "Unmute microphone" : "Mute microphone"} className={`rounded-full p-2 ${callMuted ? "bg-red-600" : "bg-white/10"}`}><Mic className="h-4 w-4" /></button>{active.type === "video" && <button type="button" onClick={toggleCamera} title={cameraEnabled ? "Turn camera off" : "Turn camera on"} className={`rounded-full p-2 ${!cameraEnabled ? "bg-red-600" : "bg-white/10"}`}><Video className="h-4 w-4" /></button>}<button type="button" onClick={() => void toggleScreenShare()} title={screenSharing ? "Stop sharing" : "Share screen"} className={`rounded-full p-2 ${screenSharing ? "bg-blue-600" : "bg-white/10"}`}><MonitorUp className="h-4 w-4" /></button></div><div className="px-3 py-2 text-[10px] text-slate-300">{Math.floor((Date.now() - active.startedAt) / 1000)}s · Call is active across the dashboard</div></div>}</>;
+  return (
+    <>
+      {incoming && (
+        <div className="fixed right-5 top-5 z-[70] w-80 rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-blue-600 p-3 text-white">
+              {incoming.type === "video" ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold">Incoming {incoming.type} call</p>
+              <p className="truncate text-xs text-slate-500">{incoming.callerName}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={() => void decline()} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Decline</button>
+            <button type="button" onClick={() => void answer()} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">Answer</button>
+          </div>
+        </div>
+      )}
+      {active && (
+        <div className={`fixed right-5 bottom-5 z-[65] overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl ${expanded ? "inset-8" : "w-72"}`}>
+          <div className="flex items-center justify-between px-3 py-2 text-xs">
+            <span>{active.callerName} · {active.type}</span>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setExpanded((value) => !value)} title="Expand"><Maximize2 className="h-4 w-4" /></button>
+              <button type="button" onClick={() => void end()} title="End call"><PhoneOff className="h-4 w-4 text-red-400" /></button>
+            </div>
+          </div>
+          <video ref={videoRef} autoPlay playsInline muted className={`${active.type === "video" ? "aspect-video" : "hidden"} w-full bg-black`} />
+          <audio ref={audioRef} autoPlay />
+          <div className="flex items-center justify-center gap-2 border-t border-white/10 px-3 py-2">
+            <button type="button" onClick={toggleMute} title={callMuted ? "Unmute microphone" : "Mute microphone"} className={`rounded-full p-2 ${callMuted ? "bg-red-600" : "bg-white/10"}`}><Mic className="h-4 w-4" /></button>
+            {active.type === "video" && <button type="button" onClick={toggleCamera} title={cameraEnabled ? "Turn camera off" : "Turn camera on"} className={`rounded-full p-2 ${!cameraEnabled ? "bg-red-600" : "bg-white/10"}`}><Video className="h-4 w-4" /></button>}
+            <button type="button" onClick={() => void toggleScreenShare()} title={screenSharing ? "Stop sharing" : "Share screen"} className={`rounded-full p-2 ${screenSharing ? "bg-blue-600" : "bg-white/10"}`}><MonitorUp className="h-4 w-4" /></button>
+          </div>
+          <div className="px-3 py-2 text-[10px] text-slate-300"><CallDuration startedAt={active.startedAt} /> · Call is active across the dashboard</div>
+        </div>
+      )}
+    </>
+  );
 }

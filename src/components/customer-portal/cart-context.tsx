@@ -28,14 +28,16 @@ export function CartProvider({ orgSlug, children }: { orgSlug: string; children:
   const [hydrated, setHydrated] = React.useState(false);
 
   React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) setItems(JSON.parse(raw));
-    } catch {
-      // ignore malformed/blocked storage
-    }
-    setHydrated(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) setItems(JSON.parse(raw));
+      } catch {
+        // ignore malformed/blocked storage
+      }
+      setHydrated(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [storageKey]);
 
   React.useEffect(() => {

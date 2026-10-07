@@ -64,7 +64,7 @@ export function ProductMergeView({
 
   // Step 3 State: Preview & Execution
   const [previewData, setPreviewData] = useState<MergePreviewData | null>(null);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(initialProducts.length >= 2);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [executionResult, setExecutionResult] = useState<MergeExecutionResult | null>(null);
@@ -87,11 +87,7 @@ export function ProductMergeView({
 
   // Debounced live search
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
+    if (!searchQuery.trim()) return;
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
@@ -112,14 +108,9 @@ export function ProductMergeView({
 
   // Update preview whenever products or master changes
   useEffect(() => {
-    if (selectedProducts.length < 2) {
-      setPreviewData(null);
-      return;
-    }
+    if (selectedProducts.length < 2) return;
 
     let isMounted = true;
-    setIsLoadingPreview(true);
-    setError(null);
 
     previewProductMerge(
       selectedProducts.map((p) => p.id),
@@ -147,16 +138,32 @@ export function ProductMergeView({
   }, [selectedProducts, effectiveMasterId]);
 
   function handleAddProduct(product: MergeProductOption) {
+    if (selectedProducts.some((item) => item.id === product.id)) return;
     setSelectedProducts((prev) => {
       if (prev.some((p) => p.id === product.id)) return prev;
       return [...prev, product];
     });
     setSearchQuery("");
+    setSearchResults([]);
+    setIsSearching(false);
     setShowSearchDropdown(false);
+    setPreviewData(null);
+    setIsLoadingPreview(selectedProducts.length >= 1);
+    setError(null);
   }
 
   function handleRemoveProduct(productId: string) {
     setSelectedProducts((prev) => prev.filter((p) => p.id !== productId));
+    setPreviewData(null);
+    setIsLoadingPreview(selectedProducts.length > 2);
+    setError(null);
+  }
+
+  function handleMergePreferenceChange(preference: "first" | "latest" | "manual") {
+    setMergePreference(preference);
+    setPreviewData(null);
+    setIsLoadingPreview(selectedProducts.length >= 2);
+    setError(null);
   }
 
   function handleExecuteMerge() {
@@ -190,6 +197,9 @@ export function ProductMergeView({
     setExecutionResult(null);
     setError(null);
     setSearchQuery("");
+    setSearchResults([]);
+    setIsSearching(false);
+    setIsLoadingPreview(false);
   }
 
   // ── Render Completion Screen ──────────────────────────────────────
@@ -332,6 +342,8 @@ export function ProductMergeView({
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
+                setSearchResults([]);
+                setIsSearching(Boolean(e.target.value.trim()));
                 setShowSearchDropdown(true);
               }}
               onFocus={() => setShowSearchDropdown(true)}
@@ -462,7 +474,7 @@ export function ProductMergeView({
                             name="masterSelector"
                             checked={isMaster}
                             onChange={() => {
-                              setMergePreference("manual");
+                              handleMergePreferenceChange("manual");
                               setManualMasterId(p.id);
                             }}
                             className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
@@ -519,7 +531,7 @@ export function ProductMergeView({
                   type="radio"
                   name="mergePref"
                   checked={mergePreference === "first"}
-                  onChange={() => setMergePreference("first")}
+                  onChange={() => handleMergePreferenceChange("first")}
                   className="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500"
                 />
                 <div>
@@ -548,7 +560,7 @@ export function ProductMergeView({
                   type="radio"
                   name="mergePref"
                   checked={mergePreference === "latest"}
-                  onChange={() => setMergePreference("latest")}
+                  onChange={() => handleMergePreferenceChange("latest")}
                   className="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500"
                 />
                 <div>
@@ -572,7 +584,7 @@ export function ProductMergeView({
                   type="radio"
                   name="mergePref"
                   checked={mergePreference === "manual"}
-                  onChange={() => setMergePreference("manual")}
+                  onChange={() => handleMergePreferenceChange("manual")}
                   className="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500"
                 />
                 <div>
@@ -801,7 +813,7 @@ export function ProductMergeView({
               </div>
               <div className="flex justify-between">
                 <span className="text-ledger-500">Status update:</span>
-                <span className="font-semibold text-amber-600">Secondary products marked 'merged'</span>
+                <span className="font-semibold text-amber-600">Secondary products marked &apos;merged&apos;</span>
               </div>
             </div>
 

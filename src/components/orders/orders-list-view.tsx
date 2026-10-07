@@ -143,7 +143,6 @@ export function OrdersListView({
 
   // Active / Selected order for Right Sidebar
   const [selectedOrderId, setSelectedOrderId] = React.useState<string>(orders[0]?.id ?? "");
-  const selectedOrder = orders.find((o) => o.id === selectedOrderId) || orders[0] || null;
 
   // Modals & Action transitions
   const [isPending, startTransition] = React.useTransition();
@@ -280,12 +279,10 @@ export function OrdersListView({
     return filteredOrders.slice(start, start + pageSize);
   }, [filteredOrders, page, pageSize]);
 
-  // Auto-select first order if none selected
-  React.useEffect(() => {
-    if (paginatedOrders.length > 0 && !paginatedOrders.some((o) => o.id === selectedOrderId)) {
-      setSelectedOrderId(paginatedOrders[0].id);
-    }
-  }, [paginatedOrders, selectedOrderId]);
+  const selectedOrderIdForPage = paginatedOrders.some((order) => order.id === selectedOrderId)
+    ? selectedOrderId
+    : paginatedOrders[0]?.id ?? "";
+  const selectedOrder = orders.find((order) => order.id === selectedOrderIdForPage) ?? null;
 
   // CSV Export Handler
   function handleExport() {
@@ -645,7 +642,7 @@ export function OrdersListView({
                     </tr>
                   ) : (
                     paginatedOrders.map((o) => {
-                      const isSelected = selectedOrder?.id === o.id;
+                      const isSelected = selectedOrderIdForPage === o.id;
                       return (
                         <tr
                           key={o.id}

@@ -91,11 +91,11 @@ export function AccessMatrixTab({
   const getModulePages = (moduleKey: string) => {
     const configured = PERMISSION_PAGE_CONFIGS[moduleKey];
     if (configured?.length) return configured;
-    const module = MODULE_CONFIGS.find((item) => item.key === moduleKey);
+    const moduleConfig = MODULE_CONFIGS.find((item) => item.key === moduleKey);
     return [{
       key: moduleKey,
-      name: module?.name ?? moduleKey,
-      tabs: [{ key: "overview", name: "Overview", supportedActions: module?.supportedActions ?? PERMISSION_ACTIONS.map((item) => item.key) }]
+      name: moduleConfig?.name ?? moduleKey,
+      tabs: [{ key: "overview", name: "Overview", supportedActions: moduleConfig?.supportedActions ?? PERMISSION_ACTIONS.map((item) => item.key) }]
     }];
   };
 

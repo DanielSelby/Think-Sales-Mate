@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Plus,
   Search,
@@ -69,10 +69,6 @@ export function JournalEntriesTab({ initialJournalEntries = [], initialAccounts 
     { id: "1", accountId: "", debit: "", credit: "", description: "" },
     { id: "2", accountId: "", debit: "", credit: "", description: "" },
   ]);
-
-  useEffect(() => {
-    setIsNewModalOpen(initialOpenNewModal);
-  }, [initialOpenNewModal]);
 
   const filteredEntries = journalEntries.filter((j) => {
     const matchesDate = (!dateFrom || j.date >= dateFrom) && (!dateTo || j.date <= dateTo);

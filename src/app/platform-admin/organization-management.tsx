@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownUp,
@@ -307,9 +308,7 @@ export default function OrganizationManagement({
       <div className={isDrawer ? "max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl" : "sticky top-5 max-h-[calc(100vh-2.5rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm"}>
         <div className="border-b border-slate-100 p-5">
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg font-bold text-white">
-              {selected.name.slice(0, 1).toUpperCase()}
-            </div>
+            <OrganizationLogo key={`${selected.id}-${selected.logo_url ?? ""}`} name={selected.name} logoUrl={selected.logo_url} size="detail" />
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-bold text-slate-900">{selected.name}</h2>
               <p className="text-xs text-slate-500">{selected.business_type || selected.industry || "Business registration"}</p>
@@ -480,8 +479,9 @@ export default function OrganizationManagement({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Kpi icon={<Building2 className="h-5 w-5" />} color="blue" label="Total Organization" value={organizations.length} detail="All organizations" />
+        <Kpi icon={<Clock3 className="h-5 w-5" />} color="amber" label="Pending Registrations" value={pendingCount} detail="Awaiting approval" />
         <Kpi icon={<Check className="h-5 w-5" />} color="emerald" label="Active Organizations" value={organizations.filter((organization) => organization.status === "active").length} detail="Currently active" />
         <Kpi icon={<Clock3 className="h-5 w-5" />} color="violet" label="Trial Organization" value={tabCounts.trial} detail="On a trial plan" />
         <Kpi icon={<ShieldAlert className="h-5 w-5" />} color="amber" label="Suspended Organization" value={tabCounts.suspended} detail="Access suspended" />
@@ -530,7 +530,7 @@ export default function OrganizationManagement({
                 <tbody className="divide-y divide-slate-100">
                   {pageOrganizations.map((organization) => (
                     <tr key={organization.id} onClick={() => setSelectedId(organization.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selectedId === organization.id ? "bg-blue-50/70" : ""}`}>
-                      <td className="px-3 py-3"><div className="flex items-center gap-2.5">{organization.logo_url ? <img src={organization.logo_url} alt={`${organization.name} logo`} className="h-9 w-9 shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-0.5" /> : <Avatar name={organization.name} />}<div><p className="max-w-[170px] truncate text-xs font-bold text-slate-900">{organization.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{organization.business_type || organization.industry || "Organization"}</p></div></div></td>
+                      <td className="px-3 py-3"><div className="flex items-center gap-2.5"><OrganizationLogo key={`${organization.id}-${organization.logo_url ?? ""}`} name={organization.name} logoUrl={organization.logo_url} size="table" /><div><p className="max-w-[170px] truncate text-xs font-bold text-slate-900">{organization.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{organization.business_type || organization.industry || "Organization"}</p></div></div></td>
                       <td className="px-3 py-3 text-xs text-slate-700">{organization.owner_name || "—"}</td>
                       <td className="px-3 py-3 text-xs text-slate-600">{organization.owner_email || "—"}</td>
                       <td className="px-3 py-3 text-xs text-slate-600">{organization.owner_phone || "—"}</td>
@@ -598,9 +598,14 @@ function Detail({ label, value }: { label: string; value: string }) {
   return <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-2"><dt className="text-slate-500">{label}</dt><dd className="break-words text-right font-medium text-slate-800">{value}</dd></div>;
 }
 
-function Avatar({ name }: { name: string }) {
+function OrganizationLogo({ name, logoUrl, size }: { name: string; logoUrl: string | null; size: "table" | "detail" }) {
+  const [failed, setFailed] = useState(false);
+  const sizeClass = size === "detail" ? "h-11 w-11 text-lg" : "h-9 w-9 text-xs";
+  if (logoUrl && !failed) {
+    return <Image src={logoUrl} alt={`${name} logo`} width={44} height={44} unoptimized onError={() => setFailed(true)} className={`${sizeClass} shrink-0 rounded-full border border-slate-200 bg-white object-contain p-1`} />;
+  }
   const color = ["bg-blue-600", "bg-emerald-600", "bg-indigo-600", "bg-teal-600", "bg-amber-500"][name.charCodeAt(0) % 5];
-  return <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${color} text-xs font-bold text-white`}>{name.slice(0, 1).toUpperCase()}</span>;
+  return <span className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-full ${color} font-bold text-white`}>{name.slice(0, 1).toUpperCase()}</span>;
 }
 
 function Kpi({ icon, color, label, value, detail }: { icon: React.ReactNode; color: "blue" | "emerald" | "amber" | "rose" | "violet"; label: string; value: number; detail: string }) {

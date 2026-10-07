@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Shield, ShieldCheck, Check, Plus, AlertCircle, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,10 @@ interface RoleModalProps {
   onSaveRole: (role: RoleDefinition) => void;
 }
 
+function createDefaultPermissions(): Record<ModuleCategory, PermissionAction[]> {
+  return Object.fromEntries(MODULE_CONFIGS.map((module) => [module.key, ["view"]])) as Record<ModuleCategory, PermissionAction[]>;
+}
+
 export function RoleModal({
   isOpen,
   onClose,
@@ -22,43 +26,19 @@ export function RoleModal({
   mode,
   onSaveRole
 }: RoleModalProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [scope, setScope] = useState<"all_branches" | "branch_specific">("branch_specific");
-  const [permissions, setPermissions] = useState<Record<ModuleCategory, PermissionAction[]>>({} as any);
-  const [approvals, setApprovals] = useState({
+  const [name, setName] = useState(roleToEdit ? mode === "clone" ? `${roleToEdit.name} (Copy)` : roleToEdit.name : "");
+  const [description, setDescription] = useState(roleToEdit?.description ?? "");
+  const [scope, setScope] = useState<"all_branches" | "branch_specific">(roleToEdit?.scope ?? "branch_specific");
+  const [permissions, setPermissions] = useState<Record<ModuleCategory, PermissionAction[]>>(() =>
+    roleToEdit ? JSON.parse(JSON.stringify(roleToEdit.permissions)) as Record<ModuleCategory, PermissionAction[]> : createDefaultPermissions()
+  );
+  const [approvals, setApprovals] = useState(roleToEdit ? { ...roleToEdit.approvalCapabilities } : {
     stockTransfers: false,
     purchases: false,
     expenses: false,
     priceUpdates: false,
     stockAdjustments: false
   });
-
-  useEffect(() => {
-    if (roleToEdit) {
-      setName(mode === "clone" ? `${roleToEdit.name} (Copy)` : roleToEdit.name);
-      setDescription(roleToEdit.description);
-      setScope(roleToEdit.scope);
-      setPermissions(JSON.parse(JSON.stringify(roleToEdit.permissions)));
-      setApprovals({ ...roleToEdit.approvalCapabilities });
-    } else {
-      setName("");
-      setDescription("");
-      setScope("branch_specific");
-      const initialPerms: Record<ModuleCategory, PermissionAction[]> = {} as any;
-      MODULE_CONFIGS.forEach((m) => {
-        initialPerms[m.key] = ["view"];
-      });
-      setPermissions(initialPerms);
-      setApprovals({
-        stockTransfers: false,
-        purchases: false,
-        expenses: false,
-        priceUpdates: false,
-        stockAdjustments: false
-      });
-    }
-  }, [roleToEdit, mode, isOpen]);
 
   if (!isOpen) return null;
 

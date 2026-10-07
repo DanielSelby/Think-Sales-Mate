@@ -124,22 +124,22 @@ export function FeatureAccessManager({ organizations, plans, features, auditLogs
     setMessage("");
     try {
       const pending = { ...draft };
-      for (const module of MODULES) {
-        const keys = featureKeys(module);
+      for (const moduleDefinition of MODULES) {
+        const keys = featureKeys(moduleDefinition);
         const changed = keys.some((key) => pending[key]);
         if (changed) {
-          const modes = keys.map((key) => pending[key]?.access_mode ?? records[key]?.access_mode ?? records[module.name]?.access_mode ?? "disabled");
+          const modes = keys.map((key) => pending[key]?.access_mode ?? records[key]?.access_mode ?? records[moduleDefinition.name]?.access_mode ?? "disabled");
           const moduleMode: AccessMode = modes.every((mode) => mode === "disabled")
             ? "disabled"
             : modes.every((mode) => mode === "read_only")
               ? "read_only"
               : "enabled";
-          pending[module.name] = {
+          pending[moduleDefinition.name] = {
             organization_id: organizationId,
-            module: module.name,
+            module: moduleDefinition.name,
             enabled: moduleMode !== "disabled",
             access_mode: moduleMode,
-            permission_options: records[module.name]?.permission_options ?? {},
+            permission_options: records[moduleDefinition.name]?.permission_options ?? {},
           };
         }
       }

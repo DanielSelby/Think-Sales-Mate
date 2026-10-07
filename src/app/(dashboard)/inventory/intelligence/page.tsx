@@ -19,7 +19,8 @@ export default async function InventoryIntelligencePage() {
   if (!context) return null;
 
   const supabase = await createClient();
-  const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+  const now = new Date();
+  const since = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
   const [{ data: products }, { data: stockLevels }, { data: locations }, { data: sales }, { data: purchases }, { data: transfers }, { data: adjustments }] =
     await Promise.all([
       supabase.from("products").select("id, sku, name, category, brand, supplier, cost_price, unit_price, stock_quantity, low_stock_threshold, is_active, location_id, created_at").eq("org_id", context.orgId).order("name").limit(2000),
@@ -150,7 +151,7 @@ export default async function InventoryIntelligencePage() {
         lastSale: salesData.lastSale,
         daysIdle: Math.max(
           0,
-          Math.floor((Date.now() - new Date(salesData.lastSale ?? product.created_at).getTime()) / 86400000)
+          Math.floor((now.getTime() - new Date(salesData.lastSale ?? product.created_at).getTime()) / 86400000)
         ),
         averageMonthlySales,
         threshold: Number(product.low_stock_threshold ?? 5),

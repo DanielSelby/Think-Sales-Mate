@@ -68,7 +68,6 @@ export default function CustomerMessagingWorkspace() {
   const [form, setForm] = useState({ name: "", content: "", category: "General", channel: "WhatsApp", audience: audiences[0], campaignType: campaignTypes[0], date: "", templateId: "" });
 
   const load = useCallback(async () => {
-    setBusy(true);
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { setBusy(false); return; }
     setUserId(auth.user.id);
@@ -92,7 +91,10 @@ export default function CustomerMessagingWorkspace() {
     setBusy(false);
   }, [supabase]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const metrics = useMemo(() => {
     const sent = history.filter((row) => ["Sent", "Delivered", "Read"].includes(row.status)).length;
@@ -183,8 +185,8 @@ function Approvals({ campaigns, onAction }: { campaigns: Campaign[]; onAction: (
 function Preferences({ customers, onSave }: { customers: Customer[]; onSave: (input: { customerId: string; whatsapp: boolean; sms: boolean; email: boolean; portalNotification: boolean; preferredChannel: "WhatsApp" | "SMS" | "Email" }) => void }) {
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
   const [values, setValues] = useState({ whatsapp: true, sms: true, email: true, portalNotification: true, preferredChannel: "WhatsApp" as "WhatsApp" | "SMS" | "Email" });
-  useEffect(() => { if (!customerId && customers[0]) setCustomerId(customers[0].id); }, [customers, customerId]);
-  return <Card><h2 className="font-semibold">Customer Communication Preferences</h2><div className="mt-3 flex flex-wrap items-center gap-3 text-xs"><select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-9 rounded-lg border border-ledger-200 px-2">{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{(["whatsapp", "sms", "email", "portalNotification"] as const).map((key) => <label key={key} className="flex items-center gap-1"><input type="checkbox" checked={values[key]} onChange={(e) => setValues({ ...values, [key]: e.target.checked })} />{key === "portalNotification" ? "Portal" : key.toUpperCase()}</label>)}<select value={values.preferredChannel} onChange={(e) => setValues({ ...values, preferredChannel: e.target.value as "WhatsApp" | "SMS" | "Email" })} className="h-9 rounded-lg border border-ledger-200 px-2"><option>WhatsApp</option><option>SMS</option><option>Email</option></select><button disabled={!customerId} onClick={() => onSave({ customerId, ...values })} className="rounded-lg bg-blue-600 px-3 py-2 font-semibold text-white">Save Preferences</button></div></Card>;
+  const selectedCustomerId = customerId || customers[0]?.id || "";
+  return <Card><h2 className="font-semibold">Customer Communication Preferences</h2><div className="mt-3 flex flex-wrap items-center gap-3 text-xs"><select value={selectedCustomerId} onChange={(e) => setCustomerId(e.target.value)} className="h-9 rounded-lg border border-ledger-200 px-2">{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{(["whatsapp", "sms", "email", "portalNotification"] as const).map((key) => <label key={key} className="flex items-center gap-1"><input type="checkbox" checked={values[key]} onChange={(e) => setValues({ ...values, [key]: e.target.checked })} />{key === "portalNotification" ? "Portal" : key.toUpperCase()}</label>)}<select value={values.preferredChannel} onChange={(e) => setValues({ ...values, preferredChannel: e.target.value as "WhatsApp" | "SMS" | "Email" })} className="h-9 rounded-lg border border-ledger-200 px-2"><option>WhatsApp</option><option>SMS</option><option>Email</option></select><button disabled={!selectedCustomerId} onClick={() => onSave({ customerId: selectedCustomerId, ...values })} className="rounded-lg bg-blue-600 px-3 py-2 font-semibold text-white">Save Preferences</button></div></Card>;
 }
 
 function Composer({ tab, form, setForm, onClose, onTemplate, onCampaign, templates = [] }: { tab: Tab; form: { name: string; content: string; category: string; channel: string; audience: string; campaignType: string; date: string; templateId: string }; setForm: (value: (current: typeof form) => typeof form) => void; onClose: () => void; onTemplate: () => void; onCampaign: () => void; templates?: Template[] }) {

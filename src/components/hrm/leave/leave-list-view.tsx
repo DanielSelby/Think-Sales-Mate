@@ -360,7 +360,15 @@ export function LeaveListView({
         </div>
       </div>
 
-      <NewLeaveRequestDialog open={dialogOpen} onClose={() => setDialogOpen(false)} employees={employees} leaveTypes={leaveTypes} onCreated={() => showNotice("Leave request submitted")} />
+      {dialogOpen && (
+        <NewLeaveRequestDialog
+          open
+          onClose={() => setDialogOpen(false)}
+          employees={employees}
+          leaveTypes={leaveTypes}
+          onCreated={() => showNotice("Leave request submitted")}
+        />
+      )}
     </div>
   );
 }

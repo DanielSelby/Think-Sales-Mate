@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAppAlert } from "@/components/ui/app-alert-provider";
 
 // Sub-components & Tabs
 import { UsersTab } from "./user-management/tabs/users-tab";
@@ -127,6 +128,7 @@ export function UserManagement({
 }: UserManagementProps) {
   const [isPending, startTransition] = useTransition();
   const { setTheme } = useAppStore();
+  const showAlert = useAppAlert();
   const [roleThemeState, setRoleThemeState] = useState<Record<string, string>>(roleThemes);
 
   // Primary Data State
@@ -1251,7 +1253,10 @@ export function UserManagement({
               setIsRoleModalOpen(true);
             }}
             onDeleteRole={(role) => {
-              if (role.isSystem) return alert("System default roles cannot be removed.");
+              if (role.isSystem) {
+                void showAlert("System default roles cannot be removed.", { title: "Action not allowed", tone: "info" });
+                return;
+              }
               if (!confirm(`Delete custom role "${role.name}"?`)) return;
               setRoles((prev) => prev.filter((r) => r.id !== role.id));
               showToast(`Deleted role ${role.name}`);
@@ -1425,17 +1430,19 @@ export function UserManagement({
         }}
       />
 
-      <EditUserModal
-        isOpen={isEditUserOpen}
-        onClose={() => {
-          setIsEditUserOpen(false);
-          setSelectedUserForEdit(null);
-        }}
-        user={selectedUserForEdit}
-        branches={branches}
-        roles={roles}
-        onUpdateUser={handleUpdateUser}
-      />
+      {isEditUserOpen && selectedUserForEdit && (
+        <EditUserModal
+          isOpen
+          onClose={() => {
+            setIsEditUserOpen(false);
+            setSelectedUserForEdit(null);
+          }}
+          user={selectedUserForEdit}
+          branches={branches}
+          roles={roles}
+          onUpdateUser={handleUpdateUser}
+        />
+      )}
 
       <UserDetailsDrawer
         isOpen={isDrawerOpen}
@@ -1461,29 +1468,31 @@ export function UserManagement({
         onToggleStatus={handleToggleStatus}
       />
 
-      <RoleModal
-        isOpen={isRoleModalOpen}
-        mode={roleModalMode}
-        onClose={() => {
-          setIsRoleModalOpen(false);
-          setSelectedRoleForModal(null);
-        }}
-        roleToEdit={selectedRoleForModal}
-        onSaveRole={(saved) => {
-          if (roleModalMode === "create" || roleModalMode === "clone") {
-            setRoles((prev) => [...prev, saved]);
-            showToast(`Role "${saved.name}" created.`);
-          } else {
-            setRoles((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
-            showToast(`Role "${saved.name}" updated.`);
-          }
-          startTransition(async () => {
-            const result = await saveRolePermissions(saved.key, saved.permissions, saved.name);
-            if ("error" in result && result.error) showToast(result.error);
-          });
-          setIsRoleModalOpen(false);
-        }}
-      />
+      {isRoleModalOpen && (
+        <RoleModal
+          isOpen
+          mode={roleModalMode}
+          onClose={() => {
+            setIsRoleModalOpen(false);
+            setSelectedRoleForModal(null);
+          }}
+          roleToEdit={selectedRoleForModal}
+          onSaveRole={(saved) => {
+            if (roleModalMode === "create" || roleModalMode === "clone") {
+              setRoles((prev) => [...prev, saved]);
+              showToast(`Role "${saved.name}" created.`);
+            } else {
+              setRoles((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+              showToast(`Role "${saved.name}" updated.`);
+            }
+            startTransition(async () => {
+              const result = await saveRolePermissions(saved.key, saved.permissions, saved.name);
+              if ("error" in result && result.error) showToast(result.error);
+            });
+            setIsRoleModalOpen(false);
+          }}
+        />
+      )}
 
       <ImportUsersModal
         isOpen={isImportModalOpen}

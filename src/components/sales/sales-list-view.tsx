@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Search, Filter, Plus, Download, Eye, Pencil, Printer, FileText, FileSpreadsheet, Receipt,
   ChevronLeft, ChevronRight, ShoppingCart, Wallet, Clock3, CheckCircle2, Undo2, Gem, XCircle,
@@ -117,7 +117,7 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | SaleStatus>("all");
   const [query, setQuery] = useState("");
-  const [location, setLocation] = useState("all");
+  const [location, setLocation] = useState(initialLocation);
   const [salesRep, setSalesRep] = useState("all");
   const [paymentStatus, setPaymentStatus] = useState<"all" | PaymentStatus>("all");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
@@ -128,11 +128,6 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(10);
-
-  useEffect(() => {
-    setLocation(initialLocation);
-    setPage(1);
-  }, [initialLocation]);
 
   const paymentMethods = useMemo(
     () => Array.from(new Set(sales.map((s) => s.paymentMethod).filter(Boolean))) as string[],

@@ -28,8 +28,8 @@ export function OrderPicker({ onSelect, selectedLabel }: OrderPickerProps) {
 
   React.useEffect(() => {
     if (!open) return;
-    setLoading(true);
     const timeout = setTimeout(() => {
+      setLoading(true);
       searchEligiblePurchases(query).then((r) => {
         setResults(r);
         setLoading(false);

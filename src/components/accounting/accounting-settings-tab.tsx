@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Settings,
   Calendar,
@@ -31,17 +31,6 @@ export function AccountingSettingsTab({ initialSettings }: { initialSettings?: A
 
   const [autoRules, setAutoRules] = useState({ ...effectiveSettings.autoJournalRules });
   const [sequences, setSequences] = useState({ ...effectiveSettings.numberSequences });
-
-  useEffect(() => {
-    if (!initialSettings) return;
-    setFyStart(initialSettings.financialYearStart);
-    setFyEnd(initialSettings.financialYearEnd);
-    setLockDate(initialSettings.periodLockDate);
-    setDefCurrency(initialSettings.defaultCurrency);
-    setApprovalThreshold(initialSettings.approvalThreshold);
-    setAutoRules({ ...initialSettings.autoJournalRules });
-    setSequences({ ...initialSettings.numberSequences });
-  }, [initialSettings]);
 
   const [periods, setPeriods] = useState(() => {
     const year = new Date().getFullYear();

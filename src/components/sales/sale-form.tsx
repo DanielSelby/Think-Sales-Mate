@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -139,6 +140,16 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function createInitialSaleLines(initialSale?: InitialSaleData): LineItem[] {
+  return initialSale?.items.map((item, index) => ({
+    key: `sale-${initialSale.id}-${index}`,
+    productId: item.productId,
+    quantity: item.quantity,
+    discountPercent: item.discountPercent,
+    taxPercent: item.taxPercent,
+  })) ?? [];
+}
+
 function StepBadge({ index, label, active }: { index: number; label: string; active: boolean }) {
   return (
     <div className="flex items-center gap-2">
@@ -215,27 +226,27 @@ export function SaleForm({
   // Customer
   const [customerList, setCustomerList] = useState<SaleCustomer[]>(customers);
   const [customerQuery, setCustomerQuery] = useState("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [walkInName, setWalkInName] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialSale?.customerId ?? null);
+  const [walkInName, setWalkInName] = useState(initialSale?.customerId ? "" : initialSale?.customerName ?? "");
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [customerSectionCollapsed, setCustomerSectionCollapsed] = useState(false);
 
   // Sale details
-  const [saleDate, setSaleDate] = useState(todayIso());
+  const [saleDate, setSaleDate] = useState(initialSale?.saleDate ?? todayIso());
   const [saleTime, setSaleTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [salesRepId, setSalesRepId] = useState(currentUserId);
-  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
-  const [reference, setReference] = useState("");
+  const [locationId, setLocationId] = useState(initialSale?.locationId ?? locations[0]?.id ?? "");
+  const [reference, setReference] = useState(initialSale?.reference ?? "");
   const [paymentTerm, setPaymentTerm] = useState(PAYMENT_METHODS[0]);
-  const [docStatus, setDocStatus] = useState<"" | "draft" | "quotation" | "proforma" | "final">("");
+  const [docStatus, setDocStatus] = useState<"" | "draft" | "quotation" | "proforma" | "final">(initialSale?.documentStatus ?? "");
   const [invoiceScheme, setInvoiceScheme] = useState("Default");
 
   // Products
   const [search, setSearch] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [stockFilter, setStockFilter] = useState<"all" | "available">("all");
-  const [lines, setLines] = useState<LineItem[]>([]);
+  const [lines, setLines] = useState<LineItem[]>(() => createInitialSaleLines(initialSale));
   const smartLocator = useSmartProductLocator(lines);
   const [autoMergeDuplicates, setAutoMergeDuplicates] = useState(false);
   const [duplicateProduct, setDuplicateProduct] = useState<{ id: string; name: string; keys: string[] } | null>(null);
@@ -245,9 +256,9 @@ export function SaleForm({
   // shows Notes, Attach Document, Shipping, Other Charges, Discount, and
   // Tax as permanent fields rather than toggled quick-actions).
   const [note, setNote] = useState("");
-  const [shippingAmount, setShippingAmount] = useState(0);
+  const [shippingAmount, setShippingAmount] = useState(initialSale?.shippingAmount ?? 0);
   const [otherChargesAmount, setOtherChargesAmount] = useState(0);
-  const [additionalDiscountAmount, setAdditionalDiscountAmount] = useState(0);
+  const [additionalDiscountAmount, setAdditionalDiscountAmount] = useState(initialSale?.discountAmount ?? 0);
   const [additionalTaxPercent, setAdditionalTaxPercent] = useState(0);
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
 
@@ -265,8 +276,8 @@ export function SaleForm({
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
-  const [amountPaid, setAmountPaid] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState(initialSale?.paymentMethod ?? PAYMENT_METHODS[0]);
+  const [amountPaid, setAmountPaid] = useState(initialSale?.amountPaid ?? 0);
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const selectedCustomer = customerList.find((c) => c.id === selectedCustomerId) ?? null;
@@ -335,36 +346,6 @@ export function SaleForm({
   const total = subtotal - discountTotal - additionalDiscountAmount + taxTotal + additionalTaxAmount + shippingAmount + otherChargesAmount;
   const changeOrDue = amountPaid - total;
   const balanceDue = Math.max(0, total - amountPaid);
-
-  // Restore a locally-saved draft on first load, if one exists.
-  useEffect(() => {
-    // Editing an existing sale takes priority over any locally-saved draft
-    // — pre-fill from the DB record instead.
-    if (initialSale) {
-      setDocStatus(initialSale.documentStatus);
-      if (initialSale.customerId) setSelectedCustomerId(initialSale.customerId);
-      else if (initialSale.customerName) setWalkInName(initialSale.customerName);
-      setSaleDate(initialSale.saleDate);
-      if (initialSale.locationId) setLocationId(initialSale.locationId);
-      setReference(initialSale.reference ?? "");
-      setPaymentMethod(initialSale.paymentMethod ?? PAYMENT_METHODS[0]);
-      setAmountPaid(initialSale.amountPaid ?? 0);
-      setShippingAmount(initialSale.shippingAmount);
-      setAdditionalDiscountAmount(initialSale.discountAmount);
-      setLines(
-        initialSale.items.map((i) => ({
-          key: crypto.randomUUID(),
-          productId: i.productId,
-          quantity: i.quantity,
-          discountPercent: i.discountPercent,
-          taxPercent: i.taxPercent,
-        }))
-      );
-      return;
-    }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function updateLine(key: string, patch: Partial<LineItem>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -814,7 +795,7 @@ export function SaleForm({
   return (
     <div className="sales-page new-sale-page w-full pb-32">
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
-      {duplicateProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><h2 className="font-semibold text-ink-900 dark:text-white">Product already exists</h2><p className="mt-2 text-sm text-ledger-500">"{duplicateProduct.name}" already exists in {duplicateProduct.keys.length} row{duplicateProduct.keys.length === 1 ? "" : "s"}.</p><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { smartLocator.locate(duplicateProduct.keys[0]); setDuplicateProduct(null); }} className="rounded-lg border border-ledger-200 px-3 py-2 text-xs font-semibold">Go To Existing Row</button><button type="button" onClick={() => { setLines((prev) => [...prev, { key: crypto.randomUUID(), productId: duplicateProduct.id, quantity: 1, discountPercent: 0, taxPercent: 0 }]); setDuplicateProduct(null); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Add Another Row</button></div></div></div>}
+      {duplicateProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><h2 className="font-semibold text-ink-900 dark:text-white">Product already exists</h2><p className="mt-2 text-sm text-ledger-500">&quot;{duplicateProduct.name}&quot; already exists in {duplicateProduct.keys.length} row{duplicateProduct.keys.length === 1 ? "" : "s"}.</p><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { smartLocator.locate(duplicateProduct.keys[0]); setDuplicateProduct(null); }} className="rounded-lg border border-ledger-200 px-3 py-2 text-xs font-semibold">Go To Existing Row</button><button type="button" onClick={() => { setLines((prev) => [...prev, { key: crypto.randomUUID(), productId: duplicateProduct.id, quantity: 1, discountPercent: 0, taxPercent: 0 }]); setDuplicateProduct(null); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Add Another Row</button></div></div></div>}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -1615,9 +1596,9 @@ export function SaleForm({
             <div className="rounded-card border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Recent items</h3>
-                <a href="/inventory" className="text-xs font-medium text-signal hover:underline">
+                <Link href="/inventory" className="text-xs font-medium text-signal hover:underline">
                   View all
-                </a>
+                </Link>
               </div>
               <ul className="mt-3 space-y-2">
                 {recentItems.map((item) => (

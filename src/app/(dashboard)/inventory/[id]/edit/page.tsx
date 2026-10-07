@@ -42,10 +42,10 @@ export default async function EditProductPage({
           Back to inventory
         </Link>
         <div className="rounded-md border border-alert/30 bg-alert-soft px-4 py-3 text-sm text-alert">
-          <p className="font-semibold">Couldn't load this product for editing.</p>
+          <p className="font-semibold">Couldn&apos;t load this product for editing.</p>
           <p className="mt-1 font-mono text-xs">{productError.message}</p>
           <p className="mt-2 text-xs text-ledger-500">
-            If this mentions a column that "does not exist", the 20260818090000 migration (product form fields) hasn't been run against this database yet.
+            If this mentions a column that &quot;does not exist&quot;, the 20260818090000 migration (product form fields) hasn&apos;t been run against this database yet.
           </p>
         </div>
       </div>

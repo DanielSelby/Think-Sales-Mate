@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -75,7 +75,9 @@ export function StockRequestHistory({
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<RequestRow | null>(null);
+  const [viewing, setViewing] = useState<RequestRow | null>(() =>
+    initialRequestId ? requests.find((request) => request.id === initialRequestId) ?? null : null
+  );
   const [query, setQuery] = useState("");
   const [branch, setBranch] = useState("all");
   const [status, setStatus] = useState<"all" | RequestStatus>("all");
@@ -86,10 +88,6 @@ export function StockRequestHistory({
   const [size, setSize] = useState(10);
   const [menu, setMenu] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-
-  useEffect(() => {
-    if (initialRequestId) setViewing(requests.find((request) => request.id === initialRequestId) ?? null);
-  }, [initialRequestId, requests]);
 
   const branches = useMemo(
     () => [...new Set(requests.flatMap((request) => [request.source, request.destination]))].sort(),

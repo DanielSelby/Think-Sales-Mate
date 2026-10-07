@@ -124,11 +124,6 @@ export function PurchaseListView({
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
   const [notice, setNotice] = React.useState<{ message: string; tone: "success" | "error" } | null>(null);
 
-  React.useEffect(() => {
-    setLocation(initialLocation);
-    setPage(1);
-  }, [initialLocation]);
-
   function showNotice(message: string, tone: "success" | "error" = "success") {
     setNotice({ message, tone });
     setTimeout(() => setNotice(null), 4000);

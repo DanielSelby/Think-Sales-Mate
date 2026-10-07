@@ -34,7 +34,6 @@ export function SessionTimeout({ children }: Props) {
 
   const resetTimer = useCallback(() => {
     clearTimers();
-    setShowWarning(false);
 
     // Show warning at 28 minutes
     warningRef.current = setTimeout(() => {
@@ -56,7 +55,10 @@ export function SessionTimeout({ children }: Props) {
   useEffect(() => {
     resetTimer();
 
-    const onActivity = () => resetTimer();
+    const onActivity = () => {
+      setShowWarning(false);
+      resetTimer();
+    };
     EVENTS.forEach(evt => window.addEventListener(evt, onActivity, { passive: true }));
 
     return () => {

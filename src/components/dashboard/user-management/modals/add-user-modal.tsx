@@ -28,7 +28,7 @@ export function AddUserModal({
     phone: "",
     avatar: null as File | null,
     avatarPreview: "",
-    employeeId: `TS-EMP-0${Math.floor(10 + Math.random() * 90)}`,
+    employeeId: "",
     role: "sales_officer",
     department: "Sales & Marketing",
     locationId: branches[0]?.id ?? "b-head",

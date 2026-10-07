@@ -26,6 +26,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
   if (!context) return null;
 
   const supabase = await createClient();
+  const now = new Date();
 
   // 1. Fetch Product
   const { data: productRow } = await supabase
@@ -427,7 +428,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     const openingQty = branchQty - branchNetMovement;
     if (openingQty <= 0) continue;
 
-    const createdDate = new Date(product.created_at || Date.now());
+    const createdDate = new Date(product.created_at || now.toISOString());
     realMovements.push({
       id: `open-${product.id}-${level.location_id}`,
       productId: product.id,
@@ -461,7 +462,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .reduce((sum, movement) => sum + (movement.inQty ?? 0) - (movement.outQty ?? 0), 0);
     const openingQty = Number(product.stock_quantity) - branchNetMovement;
     if (openingQty > 0) {
-      const createdDate = new Date(product.created_at || Date.now());
+      const createdDate = new Date(product.created_at || now.toISOString());
       realMovements.push({
         id: `open-${product.id}-default`,
         productId: product.id,

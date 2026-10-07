@@ -16,6 +16,10 @@ type Channel = {
   latest?: Message;
 };
 
+function getEventTimestamp() {
+  return Date.now();
+}
+
 type Branch = { id: string; name: string };
 type Member = { id: string; name: string; locationId: string | null; branchScope: "all" | "assigned" | "single"; secondaryLocationIds: string[] };
 
@@ -110,11 +114,12 @@ export default function CommunicationPage() {
   const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
   const [managingMembers, setManagingMembers] = useState(false);
   const [managedMemberIds, setManagedMemberIds] = useState<string[]>([]);
-  callStateRef.current = call;
-  screenStreamStateRef.current = screenStream;
+  useEffect(() => {
+    callStateRef.current = call;
+    screenStreamStateRef.current = screenStream;
+  }, [call, screenStream]);
 
   const loadWorkspace = useCallback(async (silent = false) => {
-    if (!silent) setBusy(true);
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) {
       if (!silent) setBusy(false);
@@ -296,11 +301,14 @@ export default function CommunicationPage() {
   }, [supabase]);
 
   useEffect(() => {
-    void loadWorkspace();
+    const initialLoad = window.setTimeout(() => void loadWorkspace(), 0);
     const refreshTimer = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadWorkspace(true);
     }, 5000);
-    return () => window.clearInterval(refreshTimer);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(refreshTimer);
+    };
   }, [loadWorkspace]);
 
   useEffect(() => {
@@ -368,7 +376,6 @@ export default function CommunicationPage() {
     return () => { cancelled = true; };
   }, [attachmentUrls, messages, supabase]);
 
-  const active = channels.find((item) => item.id === activeId) ?? channels[0];
   const activeMessages = messages.filter((item) => item.channel_id === active?.id);
   const memberInBranchScope = (member: Member) => {
     if (member.id === userId) return false;
@@ -386,23 +393,15 @@ export default function CommunicationPage() {
     return matchesSearch && matchesFilter && matchesBranch && (filter === "Archived" || !item.archived);
   });
 
-  useEffect(() => {
-    if (visibleChannels.length && !visibleChannels.some((channel) => channel.id === activeId)) {
-      setActiveId(visibleChannels[0].id);
-    }
-  }, [activeId, visibleChannels]);
+  const active = visibleChannels.find((item) => item.id === activeId) ?? visibleChannels[0];
 
-  useEffect(() => {
-    if (active?.id) markRead(active.id);
-  }, [active?.id]);
-
-  const markRead = (channelId: string) => {
+  function markRead(channelId: string) {
     const timestamp = new Date().toISOString();
     const next = { ...readAt, [channelId]: timestamp };
     setReadAt(next);
     setUnreadCount(messages.filter((item) => item.user_id !== userId && item.channel_id !== channelId && (!next[item.channel_id] || item.created_at > next[item.channel_id])).length);
     if (orgId && userId) window.localStorage.setItem(`communication-read-${orgId}-${userId}`, JSON.stringify(next));
-  };
+  }
 
   const sendMessage = async () => {
     const body = message.trim();
@@ -417,7 +416,7 @@ export default function CommunicationPage() {
 
   const sendVoiceNote = async (blob: Blob) => {
     if (!active || !userId || !orgId) return;
-    const path = `${orgId}/${active.id}/${userId}/${Date.now()}-voice.webm`;
+    const path = `${orgId}/${active.id}/${userId}/${getEventTimestamp()}-voice.webm`;
     const file = new File([blob], "voice-note.webm", { type: blob.type || "audio/webm" });
     const { error: uploadError } = await supabase.storage.from("communication-files").upload(path, file, { contentType: file.type, upsert: false });
     if (uploadError) { setNotice(uploadError.message); return; }
@@ -453,7 +452,7 @@ export default function CommunicationPage() {
     if (!active || !orgId || !userId) return;
     if (file.size > 25 * 1024 * 1024) { setNotice("Files must be 25 MB or smaller."); return; }
     setNotice(`Uploading ${file.name}...`);
-    const path = `${orgId}/${active.id}/${userId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const path = `${orgId}/${active.id}/${userId}/${getEventTimestamp()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const { error: uploadError } = await supabase.storage.from("communication-files").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
     if (uploadError) { setNotice(uploadError.message); return; }
     const { data, error } = await supabase.from("communication_messages").insert({ channel_id: active.id, user_id: userId, body: message.trim() || null, attachment_name: file.name, attachment_path: path, attachment_type: file.type || "application/octet-stream", attachment_size: file.size }).select("id, channel_id, user_id, body, pinned, created_at, attachment_name, attachment_path, attachment_type, attachment_size").single();
@@ -668,7 +667,7 @@ export default function CommunicationPage() {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     await updateCallMetadata(data.id, { offer: { type: offer.type, sdp: offer.sdp ?? undefined } });
-    setCall({ id: data.id, type, startedAt: Date.now(), stream });
+    setCall({ id: data.id, type, startedAt: getEventTimestamp(), stream });
   };
 
   const endCall = async () => {

@@ -360,7 +360,14 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
         </div>
       </div>
 
-      <CategoryDialog open={dialogOpen} onClose={() => setDialogOpen(false)} editing={editing} onSaved={(name) => showNotice(editing ? `${name} updated` : `${name} added`)} />
+      {dialogOpen && (
+        <CategoryDialog
+          open
+          onClose={() => setDialogOpen(false)}
+          editing={editing}
+          onSaved={(name) => showNotice(editing ? `${name} updated` : `${name} added`)}
+        />
+      )}
     </div>
   );
 }

@@ -125,11 +125,26 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
 
   const actions = useMemo(() => buildActions(router, close), [router, close]);
 
+  function navigate(path: string) {
+    try {
+      const stored = JSON.parse(localStorage.getItem("sm-recent-nav") || "[]") as string[];
+      const updated = [path, ...stored.filter(p => p !== path)].slice(0, 8);
+      localStorage.setItem("sm-recent-nav", JSON.stringify(updated));
+    } catch { /* silent */ }
+    router.push(path);
+  }
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setResults([]);
+    setActiveIdx(0);
+    setSearching(Boolean(value.trim()));
+  };
+
   // Focus on open
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 40);
-      setQuery(""); setResults([]); setActiveIdx(0);
     }
   }, [open]);
 
@@ -152,6 +167,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
   // Load recent items from localStorage
   useEffect(() => {
     if (!open) return;
+    let frame = 0;
     try {
       const stored = JSON.parse(localStorage.getItem("sm-recent-nav") || "[]") as string[];
       const items  = stored
@@ -166,23 +182,14 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
           group:  "Recent",
           action: () => { navigate(p!.path); close(); },
         }));
-      setRecentItems(items);
+      frame = window.requestAnimationFrame(() => setRecentItems(items));
     } catch { /* silent */ }
+    return () => window.cancelAnimationFrame(frame);
   }, [open]);
-
-  const navigate = (path: string) => {
-    // Save to recent
-    try {
-      const stored = JSON.parse(localStorage.getItem("sm-recent-nav") || "[]") as string[];
-      const updated = [path, ...stored.filter(p => p !== path)].slice(0, 8);
-      localStorage.setItem("sm-recent-nav", JSON.stringify(updated));
-    } catch { /* silent */ }
-    router.push(path);
-  };
 
   // Search across pages + Supabase
   useEffect(() => {
-    if (!query.trim()) { setResults([]); return; }
+    if (!query.trim()) return;
     clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
       setSearching(true);
@@ -338,8 +345,6 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
     el?.scrollIntoView({ block: "nearest" });
   }, [activeIdx]);
 
-  useEffect(() => { setActiveIdx(0); }, [query]);
-
   if (!open) return null;
 
   // Group items
@@ -367,14 +372,14 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
             <input
               ref={inputRef}
               value={query}
-              onChange={e => setQuery(e.target.value)}
+              onChange={e => handleQueryChange(e.target.value)}
               placeholder="Search pages, actions, customers, products, transactions…"
               className="flex-1 text-sm bg-white outline-none placeholder:text-slate-400 text-slate-800"
             />
             <div className="flex items-center gap-2 shrink-0">
               {searching && <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />}
               {query && (
-                <button onClick={() => setQuery("")} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <button onClick={() => handleQueryChange("")} className="text-slate-400 hover:text-slate-600 transition-colors">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}

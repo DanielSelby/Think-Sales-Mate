@@ -327,12 +327,13 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, description } : l)));
     setPriceEditLine((prev) => (prev && prev.key === key ? { ...prev, description } : prev));
   }
-  React.useEffect(() => {
+  function changePriceTier(tier: "retail" | "wholesale" | "vip" | "special") {
+    setPriceTier(tier);
     setCart((current) => current.map((line) => {
       const product = products.find((item) => item.id === line.productId);
-      return product ? { ...line, unitPrice: getTierPrice(product, priceTier), priceTier } : line;
+      return product ? { ...line, unitPrice: getTierPrice(product, tier), priceTier: tier } : line;
     }));
-  }, [priceTier, products]);
+  }
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
@@ -803,7 +804,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
         </div>
         <span className="flex h-10 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:w-auto" style={{ background: theme.colors.primary }}>{dateLabel}</span>
         <div className="flex items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700">
-          {(["retail", "wholesale", "vip", "special"] as const).filter((tier) => allowedPriceGroups.includes(tier)).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => setPriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier !== tier && "text-ledger-500")} style={priceTier === tier ? { background: theme.colors.primary, color: "#fff" } : undefined}>{tier === "special" ? "S.P" : tier}</button>)}
+          {(["retail", "wholesale", "vip", "special"] as const).filter((tier) => allowedPriceGroups.includes(tier)).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => changePriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier !== tier && "text-ledger-500")} style={priceTier === tier ? { background: theme.colors.primary, color: "#fff" } : undefined}>{tier === "special" ? "S.P" : tier}</button>)}
         </div>
 
         <div className="grid min-w-0 grid-cols-4 items-center justify-items-center gap-2 px-1 sm:ml-auto sm:flex sm:flex-1 sm:justify-around sm:gap-4 sm:px-3">
@@ -1607,7 +1608,7 @@ function AddContactDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
           {more ? "Fewer information" : "More Information"} {more ? "▲" : "▼"}
         </button>
         <p className="text-xs text-ledger-400">
-          Customer Group and Assigned-To aren't available yet — those need their own setup (a customer-group list, a staff picker) that this catalog doesn't have.
+          Customer Group and Assigned-To aren&apos;t available yet — those need their own setup (a customer-group list, a staff picker) that this catalog doesn&apos;t have.
         </p>
 
         <div className="flex justify-end gap-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">

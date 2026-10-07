@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   Laptop,
   Smartphone,
@@ -97,18 +97,13 @@ export function LoginSessionsTab({ canManage, initialSessions = [] }: LoginSessi
     sessions.reduce((acc, s) => acc + s.durationMinutes, 0) / (sessions.length || 1)
   );
 
-  const filteredSessions = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return sessions.filter((s) => {
-      if (q && !s.userName.toLowerCase().includes(q) && !s.userEmail.toLowerCase().includes(q) && !s.ipAddress.toLowerCase().includes(q) && !s.device.toLowerCase().includes(q)) {
-        return false;
-      }
-      if (statusFilter !== "all" && s.status !== statusFilter) {
-        return false;
-      }
-      return true;
-    });
-  }, [sessions, search, statusFilter]);
+  const q = search.trim().toLowerCase();
+  const filteredSessions = sessions.filter((session) => {
+    if (q && !session.userName.toLowerCase().includes(q) && !session.userEmail.toLowerCase().includes(q) && !session.ipAddress.toLowerCase().includes(q) && !session.device.toLowerCase().includes(q)) {
+      return false;
+    }
+    return statusFilter === "all" || session.status === statusFilter;
+  });
 
   return (
     <div className="space-y-4">

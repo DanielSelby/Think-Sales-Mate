@@ -170,14 +170,17 @@ export function AuditCenter({ records }: { records: AuditRecord[] }) {
   const [viewName, setViewName] = useState("");
   const pageSize = 25;
   useEffect(() => {
-    const stored = window.localStorage.getItem("thinksales-audit-views");
-    if (!stored) return;
-    try {
-      const parsed: unknown = JSON.parse(stored);
-      if (Array.isArray(parsed)) setSavedViews(parsed as typeof savedViews);
-    } catch (error) {
-      console.error("Saved audit views could not be loaded:", error);
-    }
+    const frame = window.requestAnimationFrame(() => {
+      const stored = window.localStorage.getItem("thinksales-audit-views");
+      if (!stored) return;
+      try {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed)) setSavedViews(parsed as typeof savedViews);
+      } catch (error) {
+        console.error("Saved audit views could not be loaded:", error);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
   const modules = useMemo(() => [...new Set(records.map(recordModule))].sort(), [records]);
   const actions = useMemo(() => [...new Set(records.map((record) => record.action))].sort(), [records]);

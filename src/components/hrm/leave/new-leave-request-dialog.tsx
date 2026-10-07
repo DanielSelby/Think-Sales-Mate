@@ -30,16 +30,6 @@ export function NewLeaveRequestDialog({ open, onClose, employees, leaveTypes, on
   const [endDate, setEndDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [reason, setReason] = React.useState("");
 
-  React.useEffect(() => {
-    if (!open) return;
-    setEmployeeId(employees[0]?.id ?? "");
-    setLeaveTypeId(leaveTypes[0]?.id ?? "");
-    setStartDate(new Date().toISOString().slice(0, 10));
-    setEndDate(new Date().toISOString().slice(0, 10));
-    setReason("");
-    setError(null);
-  }, [open, employees, leaveTypes]);
-
   const duration = countBusinessDays(startDate, endDate);
 
   function submit() {

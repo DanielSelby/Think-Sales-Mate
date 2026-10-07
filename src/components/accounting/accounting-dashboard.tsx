@@ -39,6 +39,19 @@ import type { LiveFinancialSnapshot } from "./financial-reports-tab";
 import type { AccountingAccount, AccountingSettings, FixedAsset, JournalEntry, TaxFilingSummary, TaxRateConfig } from "@/types/accounting";
 import type { CurrencyConfig } from "@/lib/currency";
 
+const TABS = [
+  { key: "overview", label: "Overview", icon: LayoutDashboard },
+  { key: "coa", label: "Chart of Accounts", icon: FolderTree },
+  { key: "journal", label: "Journal Entries", icon: FileEdit },
+  { key: "reconciliation", label: "Bank Reconciliation", icon: Landmark },
+  { key: "receivables", label: "Accounts Receivable", icon: Receipt },
+  { key: "payables", label: "Accounts Payable", icon: ShoppingBag },
+  { key: "fixed_assets", label: "Fixed Assets", icon: Package },
+  { key: "reports", label: "Financial Reports", icon: FileSpreadsheet },
+  { key: "tax", label: "Tax Management", icon: Percent },
+  { key: "settings", label: "Settings", icon: Settings },
+];
+
 export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig }: { orgName: string; visibleTabKeys?: string[]; initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -85,18 +98,6 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
     router.replace(`/accounting?tab=${tabKey}`, { scroll: false });
   };
 
-  const TABS = [
-    { key: "overview", label: "Overview", icon: LayoutDashboard },
-    { key: "coa", label: "Chart of Accounts", icon: FolderTree },
-    { key: "journal", label: "Journal Entries", icon: FileEdit },
-    { key: "reconciliation", label: "Bank Reconciliation", icon: Landmark },
-    { key: "receivables", label: "Accounts Receivable", icon: Receipt },
-    { key: "payables", label: "Accounts Payable", icon: ShoppingBag },
-    { key: "fixed_assets", label: "Fixed Assets", icon: Package },
-    { key: "reports", label: "Financial Reports", icon: FileSpreadsheet },
-    { key: "tax", label: "Tax Management", icon: Percent },
-    { key: "settings", label: "Settings", icon: Settings },
-  ];
   const visibleTabs = TABS.filter((tab) => !visibleTabKeys || visibleTabKeys.includes(tab.key));
   const effectiveActiveTab = visibleTabs.some((tab) => tab.key === activeTab) ? activeTab : (visibleTabs[0]?.key ?? "overview");
 

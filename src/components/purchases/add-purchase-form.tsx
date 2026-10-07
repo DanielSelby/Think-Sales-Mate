@@ -221,16 +221,8 @@ export function AddPurchaseForm({
   const [editingLineId, setEditingLineId] = React.useState<string | null>(null);
   const [pendingRemoveKey, setPendingRemoveKey] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (!pendingSupplierName) return;
-    const match = suppliers.find((s) => s.name === pendingSupplierName);
-    if (match) {
-      setSupplierId(match.id);
-      setPendingSupplierName(null);
-    }
-  }, [suppliers, pendingSupplierName]);
-
-  const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
+  const selectedSupplierId = supplierId || suppliers.find((supplier) => supplier.name === pendingSupplierName)?.id || suppliers[0]?.id || "";
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null;
 
   function onLocationChange(id: string) {
     setLocationId(id);
@@ -360,7 +352,7 @@ export function AddPurchaseForm({
     }));
 
     return {
-      supplierId,
+      supplierId: selectedSupplierId,
       purchaseDate,
       expectedDeliveryDate: expectedDeliveryDate || null,
       reference: reference || null,
@@ -384,7 +376,7 @@ export function AddPurchaseForm({
 
   function buildUpdateInput() {
     return {
-      supplierId,
+      supplierId: selectedSupplierId,
       purchaseDate,
       expectedDeliveryDate: expectedDeliveryDate || null,
       reference: reference || null,
@@ -416,7 +408,7 @@ export function AddPurchaseForm({
 
   function submit(action: "draft" | "ordered" | "received") {
     setFormError(null);
-    if (!supplierId) return setFormError("Select a supplier.");
+    if (!selectedSupplierId) return setFormError("Select a supplier.");
     if (!locationId) return setFormError("Select where this purchase will be received.");
     if (items.length === 0) return setFormError("Add at least one product.");
 
@@ -434,7 +426,7 @@ export function AddPurchaseForm({
 
   function submitEdit() {
     setFormError(null);
-    if (!supplierId) return setFormError("Select a supplier.");
+    if (!selectedSupplierId) return setFormError("Select a supplier.");
     if (!locationId) return setFormError("Select where this purchase will be received.");
     if (items.length === 0) return setFormError("Add at least one product.");
 
@@ -526,7 +518,7 @@ export function AddPurchaseForm({
                   <Field label="Supplier" required>
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
-                        <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                        <Select value={selectedSupplierId} onChange={(e) => setSupplierId(e.target.value)}>
                           <option value="" disabled>Select supplier</option>
                           {suppliers.map((s) => (
                             <option key={s.id} value={s.id}>{s.name}</option>

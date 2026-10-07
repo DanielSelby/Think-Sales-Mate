@@ -37,28 +37,12 @@ export function CategoryDialog({ open, onClose, editing, onSaved }: CategoryDial
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
 
-  const [name, setName] = React.useState("");
-  const [icon, setIcon] = React.useState<CategoryIconKey>("Tag");
-  const [color, setColor] = React.useState<CategoryColorKey>("blue");
-  const [description, setDescription] = React.useState("");
-  const [department, setDepartment] = React.useState<string>(DEPARTMENTS[0]);
-  const [budgetLimit, setBudgetLimit] = React.useState("");
-
-  React.useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      setName(editing.name);
-      setIcon(editing.icon);
-      setColor(editing.color);
-      setDescription(editing.description ?? "");
-      setDepartment(editing.department ?? DEPARTMENTS[0]);
-      setBudgetLimit(editing.budgetLimit ? String(editing.budgetLimit) : "");
-    } else {
-      setName(""); setIcon("Tag"); setColor("blue"); setDescription("");
-      setDepartment(DEPARTMENTS[0]); setBudgetLimit("");
-    }
-    setError(null);
-  }, [open, editing]);
+  const [name, setName] = React.useState(editing?.name ?? "");
+  const [icon, setIcon] = React.useState<CategoryIconKey>(editing?.icon ?? "Tag");
+  const [color, setColor] = React.useState<CategoryColorKey>(editing?.color ?? "blue");
+  const [description, setDescription] = React.useState(editing?.description ?? "");
+  const [department, setDepartment] = React.useState<string>(editing?.department ?? DEPARTMENTS[0]);
+  const [budgetLimit, setBudgetLimit] = React.useState(editing?.budgetLimit ? String(editing.budgetLimit) : "");
 
   function submit() {
     if (!name.trim()) {

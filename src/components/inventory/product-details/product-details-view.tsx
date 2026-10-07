@@ -38,6 +38,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAppAlert } from "@/components/ui/app-alert-provider";
 import {
   ProductDetailsData,
   StockMovement,
@@ -76,6 +77,7 @@ const TABS = [
 
 export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
   const router = useRouter();
+  const showAlert = useAppAlert();
   const [product, setProduct] = useState<ProductDetailsData>(initialData);
   const [activeTab, setActiveTab] = useState<string>("Transactions");
 
@@ -186,11 +188,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
 
   useEffect(() => {
     const query = productSearch.trim();
-    if (!query) {
-      setProductSearchResults([]);
-      setIsSearchingProducts(false);
-      return;
-    }
+    if (!query) return;
 
     let cancelled = false;
     const timer = window.setTimeout(async () => {
@@ -287,7 +285,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
     startTransition(async () => {
       const res = await duplicateProduct(product.id);
       if (res?.error) {
-        alert(res.error);
+        void showAlert(res.error);
       } else {
         router.push("/inventory");
       }
@@ -300,7 +298,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
       const newActive = !product.isActive;
       const res = await toggleProductActive(product.id, newActive);
       if (res?.error) {
-        alert(res.error);
+        void showAlert(res.error);
       } else {
         setProduct((prev) => ({ ...prev, isActive: newActive }));
       }
@@ -313,7 +311,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
     startTransition(async () => {
       const res = await deleteProduct(product.id);
       if (res?.error) {
-        alert(res.error);
+        void showAlert(res.error);
       } else {
         router.push("/inventory");
       }
@@ -392,6 +390,10 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                 onChange={(event) => {
                   setProductSearch(event.target.value);
                   setShowProductSearch(true);
+                  if (!event.target.value.trim()) {
+                    setProductSearchResults([]);
+                    setIsSearchingProducts(false);
+                  }
                 }}
                 onFocus={() => setShowProductSearch(true)}
                 placeholder="Search another product by name, SKU, or barcode"
@@ -404,6 +406,8 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                   onClick={() => {
                     setProductSearch("");
                     setShowProductSearch(false);
+                    setProductSearchResults([]);
+                    setIsSearchingProducts(false);
                   }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-ledger-400 hover:text-ink-900 dark:hover:text-white"
                   aria-label="Clear product search"
@@ -426,6 +430,8 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                         onClick={() => {
                           setShowProductSearch(false);
                           setProductSearch("");
+                          setProductSearchResults([]);
+                          setIsSearchingProducts(false);
                           router.push(`/inventory/${result.id}`);
                         }}
                         className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-ledger-50 dark:hover:bg-white/[0.06]"

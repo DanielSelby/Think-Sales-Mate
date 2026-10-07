@@ -35,18 +35,6 @@ export function PayrollFilters({
   const isInitialRender = useRef(true);
 
   useEffect(() => {
-    setValues({
-      month: filters.month,
-      year: filters.year,
-      branch: filters.branch,
-      department: filters.department,
-      status: filters.status,
-      payroll_type: filters.payroll_type,
-      employee: filters.employee,
-    });
-  }, [filters.month, filters.year, filters.branch, filters.department, filters.status, filters.payroll_type, filters.employee]);
-
-  useEffect(() => {
     if (isInitialRender.current) {
       isInitialRender.current = false;
       return;

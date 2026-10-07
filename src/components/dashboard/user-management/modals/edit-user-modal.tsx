@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Pencil, Shield, Building2, Lock, UserCheck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,39 @@ interface EditUserModalProps {
   onUpdateUser: (userId: string, updates: Partial<ManagedUser>) => void;
 }
 
+function createInitialFormData(user: ManagedUser | null, branches: UserBranch[]) {
+  const role = String(user?.role ?? "sales_officer");
+  const isSuperAdmin = isSuperAdminRole(role);
+  const branchScope: "all" | "assigned" | "single" = isSuperAdmin
+    ? "all"
+    : user?.branchScope || (user?.secondaryBranches?.length ? "assigned" : "single");
+  return {
+    fullName: user?.fullName || user?.name || "",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    avatar: null as File | null,
+    avatarPreview: user?.avatarUrl || "",
+    employeeId: user?.employeeId || "",
+    role,
+    status: (user?.status as UserStatus) || "active",
+    department: user?.department || "Sales & Marketing",
+    locationId: isSuperAdmin ? "" : user?.locationId || branches[0]?.id || "",
+    secondaryBranches: isSuperAdmin ? [] : user?.secondaryBranches || [],
+    branchScope,
+    canViewOtherTransactions: user?.canViewOtherTransactions !== false,
+    canCheckCrossBranchStock: user?.canCheckCrossBranchStock === true,
+    twoFactorEnabled: Boolean(user?.twoFactorEnabled),
+    approvalStockTransfers: Boolean(user?.approvalPermissions?.stockTransfers),
+    approvalPurchases: Boolean(user?.approvalPermissions?.purchases),
+    approvalExpenses: Boolean(user?.approvalPermissions?.expenses),
+    approvalPriceUpdates: Boolean(user?.approvalPermissions?.priceUpdates),
+    approvalStockAdjustments: Boolean(user?.approvalPermissions?.stockAdjustments),
+    maxExpenseLimit: String(user?.approvalPermissions?.maxExpenseAmount || 10000),
+    maxPurchaseLimit: String(user?.approvalPermissions?.maxPurchaseAmount || 25000),
+    priceGroups: user?.priceGroups ?? ["retail", "wholesale", "vip", "special"],
+  };
+}
+
 export function EditUserModal({
   isOpen,
   onClose,
@@ -25,65 +58,11 @@ export function EditUserModal({
   branches,
   onUpdateUser
 }: EditUserModalProps) {
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    avatar: null as File | null,
-    avatarPreview: "",
-    employeeId: "",
-    role: "sales_officer",
-    status: "active" as UserStatus,
-    department: "Sales & Marketing",
-    locationId: "b-head",
-    secondaryBranches: [] as string[],
-    branchScope: "single" as "all" | "assigned" | "single",
-    canViewOtherTransactions: true,
-    canCheckCrossBranchStock: false,
-    twoFactorEnabled: false,
-    approvalStockTransfers: false,
-    approvalPurchases: false,
-    approvalExpenses: false,
-    approvalPriceUpdates: false,
-    approvalStockAdjustments: false,
-    maxExpenseLimit: "10000",
-    maxPurchaseLimit: "25000"
-    , priceGroups: ["retail", "wholesale", "vip", "special"] as string[]
-  });
+  const [formData, setFormData] = useState(() => createInitialFormData(user, branches));
 
   const [activeTab, setActiveTab] = useState<"details" | "branches" | "approvals">("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSuperAdmin = isSuperAdminRole(formData.role);
-
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        fullName: user.fullName || user.name || "",
-        email: user.email || "",
-        phone: user.phone || "",
-        avatar: null,
-        avatarPreview: user.avatarUrl || "",
-        employeeId: user.employeeId || "",
-        role: String(user.role),
-        status: (user.status as UserStatus) || "active",
-        department: user.department || "Sales & Marketing",
-        locationId: isSuperAdminRole(String(user.role)) ? "" : user.locationId || branches[0]?.id || "",
-        secondaryBranches: isSuperAdminRole(String(user.role)) ? [] : user.secondaryBranches || [],
-        branchScope: isSuperAdminRole(String(user.role)) ? "all" : user.branchScope || (user.secondaryBranches?.length ? "assigned" : "single"),
-        canViewOtherTransactions: user.canViewOtherTransactions !== false,
-        canCheckCrossBranchStock: user.canCheckCrossBranchStock === true,
-        twoFactorEnabled: Boolean(user.twoFactorEnabled),
-        approvalStockTransfers: Boolean(user.approvalPermissions?.stockTransfers),
-        approvalPurchases: Boolean(user.approvalPermissions?.purchases),
-        approvalExpenses: Boolean(user.approvalPermissions?.expenses),
-        approvalPriceUpdates: Boolean(user.approvalPermissions?.priceUpdates),
-        approvalStockAdjustments: Boolean(user.approvalPermissions?.stockAdjustments),
-        maxExpenseLimit: String(user.approvalPermissions?.maxExpenseAmount || 10000),
-        maxPurchaseLimit: String(user.approvalPermissions?.maxPurchaseAmount || 25000)
-        , priceGroups: user.priceGroups ?? ["retail", "wholesale", "vip", "special"]
-      });
-    }
-  }, [user, branches]);
 
   if (!isOpen || !user) return null;
 
@@ -536,7 +515,7 @@ export function EditUserModal({
                         ["retail", "Retail"], ["wholesale", "Wholesale"], ["vip", "VIP"], ["special", "S.P"]
                       ].map(([key, label]) => (
                         <label key={key} className="flex items-center gap-1.5 rounded border border-ledger-200 px-2 py-1 text-xs dark:border-ledger-700">
-                          <input type="checkbox" checked={formData.priceGroups.includes(key)} onChange={() => togglePriceGroup(key as "retail" | "wholesale" | "vip" | "special")} />
+                          <input type="checkbox" checked={formData.priceGroups.includes(key as "retail" | "wholesale" | "vip" | "special")} onChange={() => togglePriceGroup(key as "retail" | "wholesale" | "vip" | "special")} />
                           {label}
                         </label>
                       ))}

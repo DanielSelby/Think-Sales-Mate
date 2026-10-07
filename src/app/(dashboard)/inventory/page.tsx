@@ -17,7 +17,7 @@ export default async function InventoryPage({ searchParams }: { searchParams?: {
 
   const supabase = await createClient();
 
-  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const since30d = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const requestedLocationId = context.masterLocationId ?? (searchParams?.location && searchParams.location !== "all" ? searchParams.location : null);
   let productsQuery = supabase

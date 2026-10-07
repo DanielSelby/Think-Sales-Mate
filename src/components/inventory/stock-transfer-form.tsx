@@ -117,6 +117,34 @@ export interface StockTransferFormProps {
   };
 }
 
+function getStockQuantity(stockLevels: StockLevel[], productId: string, locationId: string): number {
+  return stockLevels.find((level) => level.productId === productId && level.locationId === locationId)?.quantity ?? 0;
+}
+
+function getInitialTransferItems(
+  initialTransfer: NonNullable<StockTransferFormProps["initialTransfer"]>,
+  products: TransferableProduct[],
+  stockLevels: StockLevel[],
+): TransferItemRow[] {
+  return initialTransfer.items.map((item) => {
+    const product = products.find((candidate) => candidate.id === item.productId);
+    return {
+      id: `request-${item.productId}`,
+      productId: item.productId,
+      name: product?.name ?? "Product",
+      sku: product?.sku ?? "",
+      barcode: product?.barcode,
+      category: product?.category,
+      imageUrl: product?.imageUrl,
+      sourceQtyOnHand: getStockQuantity(stockLevels, item.productId, initialTransfer.fromLocationId),
+      destinationQtyOnHand: getStockQuantity(stockLevels, item.productId, initialTransfer.toLocationId),
+      transferQty: item.quantity,
+      unitCost: product?.unitCost ?? 0,
+      unit: "PCS",
+    };
+  });
+}
+
 export function StockTransferForm({
   locations = [],
   products = [],
@@ -138,27 +166,25 @@ export function StockTransferForm({
   const [showConfigSection, setShowConfigSection] = useState(true);
 
   // ── Form State ──────────────────────────────────────────────────────────
-  const [transferNumber, setTransferNumber] = useState(
-    `STF-${new Date().toISOString().slice(2, 4)}${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(
-      Math.floor(Math.random() * 9000) + 1000
-    )}`
-  );
-  const [transferDate, setTransferDate] = useState(new Date().toISOString().slice(0, 10));
+  const [transferNumber, setTransferNumber] = useState(initialTransfer?.referenceNo ?? "");
+  const [transferDate, setTransferDate] = useState(initialTransfer?.transferDate ?? new Date().toISOString().slice(0, 10));
   const [expectedDate, setExpectedDate] = useState(
-    new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    new Date(new Date().getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   );
   const [priority, setPriority] = useState<"Normal" | "Low" | "High" | "Urgent">("Normal");
-  const [referenceNotes, setReferenceNotes] = useState("");
-  const [transferReason, setTransferReason] = useState("Routine stock replenishment");
+  const [referenceNotes, setReferenceNotes] = useState(initialTransfer?.notes ?? "");
+  const [transferReason, setTransferReason] = useState(initialTransfer?.reason ?? "Routine stock replenishment");
 
   // Source & Destination locations
-  const [fromLocationId, setFromLocationId] = useState(locations[0]?.id ?? "");
-  const [toLocationId, setToLocationId] = useState(locations[1]?.id ?? locations[0]?.id ?? "");
+  const [fromLocationId, setFromLocationId] = useState(initialTransfer?.fromLocationId ?? locations[0]?.id ?? "");
+  const [toLocationId, setToLocationId] = useState(initialTransfer?.toLocationId ?? locations[1]?.id ?? locations[0]?.id ?? "");
   const [fromSubLocation, setFromSubLocation] = useState("Main Storage");
   const [toSubLocation, setToSubLocation] = useState("Receiving Bay");
 
   // REAL Items State — starts empty!
-  const [items, setItems] = useState<TransferItemRow[]>([]);
+  const [items, setItems] = useState<TransferItemRow[]>(() =>
+    initialTransfer ? getInitialTransferItems(initialTransfer, products, stockLevels) : []
+  );
   const [pendingRemoveRowId, setPendingRemoveRowId] = useState<string | null>(null);
   const smartLocator = useSmartProductLocator(items.map((item) => ({ key: item.id, productId: item.productId, quantity: item.transferQty })));
   const [searchQuery, setSearchQuery] = useState("");
@@ -181,34 +207,7 @@ export function StockTransferForm({
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!initialTransfer) return;
-    setFromLocationId(initialTransfer.fromLocationId);
-    setToLocationId(initialTransfer.toLocationId);
-    if (initialTransfer.referenceNo) setTransferNumber(initialTransfer.referenceNo);
-    if (initialTransfer.transferDate) setTransferDate(initialTransfer.transferDate);
-    if (initialTransfer.reason) setTransferReason(initialTransfer.reason);
-    setReferenceNotes(initialTransfer.notes ?? "");
-    setItems(initialTransfer.items.map((item) => {
-      const product = products.find((candidate) => candidate.id === item.productId);
-      return {
-        id: `request-${item.productId}`,
-        productId: item.productId,
-        name: product?.name ?? "Product",
-        sku: product?.sku ?? "",
-        barcode: product?.barcode,
-        category: product?.category,
-        imageUrl: product?.imageUrl,
-        sourceQtyOnHand: getStockQty(item.productId, initialTransfer.fromLocationId),
-        destinationQtyOnHand: getStockQty(item.productId, initialTransfer.toLocationId),
-        transferQty: item.quantity,
-        unitCost: product?.unitCost ?? 0,
-        unit: "PCS",
-      };
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTransfer]);
+  const rowIdRef = useRef(0);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -225,10 +224,9 @@ export function StockTransferForm({
   }, []);
 
   // ── REAL Stock Level Lookup directly from database props ─────────────────
-  const getStockQty = (productId: string, locationId: string): number => {
-    const match = stockLevels.find((s) => s.productId === productId && s.locationId === locationId);
-    return match?.quantity ?? 0;
-  };
+  function getStockQty(productId: string, locationId: string): number {
+    return getStockQuantity(stockLevels, productId, locationId);
+  }
 
   // Swap Source and Destination
   const handleSwapLocations = () => {
@@ -283,7 +281,7 @@ export function StockTransferForm({
   };
 
   const sourceProducts = useMemo(
-    () => products.filter((product) => getStockQty(product.id, fromLocationId) > 0),
+    () => products.filter((product) => getStockQuantity(stockLevels, product.id, fromLocationId) > 0),
     [products, fromLocationId, stockLevels]
   );
 
@@ -316,7 +314,7 @@ export function StockTransferForm({
       const srcQty = getStockQty(product.id, fromLocationId);
       const destQty = getStockQty(product.id, toLocationId);
       const newItem: TransferItemRow = {
-        id: `row-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: `row-${++rowIdRef.current}`,
         productId: product.id,
         name: product.name,
         sku: product.sku,
@@ -407,11 +405,16 @@ export function StockTransferForm({
       return;
     }
 
+    const referenceNo = transferNumber || `STF-${new Date().toISOString().slice(2, 4)}${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(
+      Math.floor(Math.random() * 9000) + 1000
+    )}`;
+    setTransferNumber(referenceNo);
+
     startTransition(async () => {
       const payload = {
         fromLocationId,
         toLocationId,
-        referenceNo: transferNumber,
+        referenceNo,
         reason: transferReason || referenceNotes || "Stock Transfer",
         transferDate,
         notes: referenceNotes,
@@ -432,7 +435,7 @@ export function StockTransferForm({
 
         setTransactionFeedback({
           kind: "success",
-          message: `Stock Transfer #${transferNumber} was created and dispatched successfully. Awaiting Branch Receive Confirmation.`,
+          message: `Stock Transfer #${referenceNo} was created and dispatched successfully. Awaiting Branch Receive Confirmation.`,
         });
       }
     });
@@ -612,7 +615,9 @@ export function StockTransferForm({
                     onChange={(e) => setTransferNumber(e.target.value)}
                     className="h-10 w-full rounded-xl border border-ledger-200 bg-ledger-50/60 px-3 font-mono font-bold text-xs text-ink-900 dark:border-ledger-700 dark:bg-ink-950 dark:text-white"
                   />
-                  <span className="mt-1 block text-[10px] text-ledger-400">Auto generated reference</span>
+                  <span className="mt-1 block text-[10px] text-ledger-400">
+                    {transferNumber ? "Auto generated reference" : "Assigned automatically when dispatched"}
+                  </span>
                 </div>
 
                 <div>

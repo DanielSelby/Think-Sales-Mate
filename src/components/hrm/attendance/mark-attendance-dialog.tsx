@@ -52,17 +52,6 @@ export function MarkAttendanceDialog({ open, onClose, employees, selectedDate, e
   const [workType, setWorkType] = React.useState<string>(editing?.workType ?? WORK_TYPES[0]);
   const [notes, setNotes] = React.useState(editing?.notes ?? "");
 
-  React.useEffect(() => {
-    if (!open) return;
-    setEmployeeId(editing?.employeeId ?? employees[0]?.id ?? "");
-    setStatus(editing?.status ?? "present");
-    setCheckInTime(toTimeInput(editing?.checkIn ?? null));
-    setCheckOutTime(toTimeInput(editing?.checkOut ?? null));
-    setWorkType(editing?.workType ?? WORK_TYPES[0]);
-    setNotes(editing?.notes ?? "");
-    setError(null);
-  }, [open, editing, employees]);
-
   function submit() {
     if (!employeeId) {
       setError("Select an employee.");

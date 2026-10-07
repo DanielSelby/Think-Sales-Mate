@@ -8,17 +8,14 @@ export function NavigationLoading() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const routeKey = `${pathname}?${searchParams.toString()}`;
-  const [loading, setLoading] = useState(false);
+  const [loadingRoute, setLoadingRoute] = useState<string | null>(null);
+  const loading = loadingRoute !== null && loadingRoute !== routeKey;
 
   useEffect(() => {
     if (!loading) return;
-    const timer = window.setTimeout(() => setLoading(false), 10000);
+    const timer = window.setTimeout(() => setLoadingRoute(null), 10000);
     return () => window.clearTimeout(timer);
   }, [loading, routeKey]);
-
-  useEffect(() => {
-    setLoading(false);
-  }, [routeKey]);
 
   useEffect(() => {
     const beginNavigation = (event: Event) => {
@@ -30,7 +27,7 @@ export function NavigationLoading() {
       if (!href || !href.startsWith("/") || href.startsWith("//")) return;
       const destination = new URL(href, window.location.origin);
       if (`${destination.pathname}?${destination.searchParams.toString()}` === routeKey) return;
-      setLoading(true);
+      setLoadingRoute(`${destination.pathname}?${destination.searchParams.toString()}`);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -40,7 +37,7 @@ export function NavigationLoading() {
     const handlePopState = () => {
       const currentRouteKey = `${window.location.pathname}?${new URLSearchParams(window.location.search).toString()}`;
       if (currentRouteKey !== routeKey) {
-        setLoading(true);
+        setLoadingRoute(currentRouteKey);
       }
     };
 

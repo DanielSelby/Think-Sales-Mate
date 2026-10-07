@@ -134,6 +134,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
         </div>
 
         <PayrollFilters
+          key={JSON.stringify(filters)}
           filters={filters}
           monthOptions={monthOptions}
           yearOptions={yearOptions}

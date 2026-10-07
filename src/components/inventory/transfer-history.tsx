@@ -48,6 +48,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAppAlert } from "@/components/ui/app-alert-provider";
 import { formatCurrency } from "@/lib/sales/format";
 import {
   updateTransferStatus,
@@ -127,6 +128,7 @@ export function TransferHistory({
   currency?: string;
 }) {
   const router = useRouter();
+  const showAlert = useAppAlert();
   const [isPending, startTransition] = useTransition();
 
   // Tab filter: "all" | "completed" | "pending" | "cancelled"
@@ -177,18 +179,36 @@ export function TransferHistory({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [actionMenuTransferId]);
 
-  // Fetch real line items when a transfer detail drawer is opened
+  function openTransferDetails(transfer: TransferRow) {
+    setSelectedTransferForDetail(transfer);
+    setDetailItems(null);
+    setIsLoadingItems(true);
+  }
+
+  function closeTransferDetails() {
+    setSelectedTransferForDetail(null);
+    setDetailItems(null);
+    setIsLoadingItems(false);
+  }
+
   useEffect(() => {
-    if (selectedTransferForDetail) {
-      setIsLoadingItems(true);
-      getTransferItems(selectedTransferForDetail.id)
-        .then((items) => {
-          setDetailItems(items || []);
-        })
-        .finally(() => setIsLoadingItems(false));
-    } else {
-      setDetailItems(null);
-    }
+    if (!selectedTransferForDetail) return;
+    let cancelled = false;
+    getTransferItems(selectedTransferForDetail.id)
+      .then((items) => {
+        if (cancelled) return;
+        setDetailItems(items || []);
+        setIsLoadingItems(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to load transfer line items:", error);
+        setDetailItems([]);
+        setIsLoadingItems(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedTransferForDetail]);
 
   // ── Real KPI Calculations directly from database records ─────────────────
@@ -267,7 +287,7 @@ export function TransferHistory({
       try {
         const res = await updateTransferStatus(transferId, newStatus);
         if (res?.error) {
-          alert(res.error);
+          void showAlert(res.error);
           return;
         }
         setToastMessage(
@@ -275,7 +295,7 @@ export function TransferHistory({
         );
         window.setTimeout(() => window.location.reload(), 300);
       } catch (error) {
-        alert(error instanceof Error ? error.message : "Could not update transfer status.");
+        void showAlert(error instanceof Error ? error.message : "Could not update transfer status.");
       }
     });
   };
@@ -286,7 +306,7 @@ export function TransferHistory({
     startTransition(async () => {
       const res = await deleteTransfer(transferId);
       if (res?.error) {
-        alert(res.error);
+        void showAlert(res.error);
       } else {
         setToastMessage("Transfer successfully deleted and inventory restored.");
         setTimeout(() => setToastMessage(null), 3000);
@@ -406,7 +426,7 @@ export function TransferHistory({
                       <div
                         key={t.id}
                         onClick={() => {
-                          setSelectedTransferForDetail(t);
+                          openTransferDetails(t);
                           setShowNotifications(false);
                         }}
                         className="cursor-pointer rounded-xl bg-emerald-50/50 p-2.5 text-xs transition-colors hover:bg-emerald-100/60 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/60"
@@ -795,7 +815,7 @@ export function TransferHistory({
                           <div>
                             <button
                               type="button"
-                              onClick={() => setSelectedTransferForDetail(row)}
+                              onClick={() => openTransferDetails(row)}
                               className="font-bold text-xs font-mono text-ink-900 hover:text-emerald-700 dark:text-white dark:hover:text-emerald-400 text-left"
                             >
                               {row.label}
@@ -897,7 +917,7 @@ export function TransferHistory({
                             <button
                               type="button"
                               onClick={() => {
-                                setSelectedTransferForDetail(row);
+                                openTransferDetails(row);
                                 setActionMenuTransferId(null);
                               }}
                               className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.04]"
@@ -1063,7 +1083,7 @@ export function TransferHistory({
 
               <button
                 type="button"
-                onClick={() => setSelectedTransferForDetail(null)}
+                onClick={closeTransferDetails}
                 className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-50 dark:hover:bg-white/[0.06]"
               >
                 <X className="h-5 w-5" />
@@ -1188,7 +1208,7 @@ export function TransferHistory({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedTransferForDetail(null)}
+                  onClick={closeTransferDetails}
                   className="rounded-xl text-xs"
                 >
                   Close

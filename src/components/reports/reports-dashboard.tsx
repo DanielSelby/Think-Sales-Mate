@@ -678,7 +678,7 @@ export function ReportsDashboard({
             {recentReports.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-8 text-center text-ledger-400">
-                  No reports exported yet — use "Export Report" above to generate one.
+                  No reports exported yet — use &quot;Export Report&quot; above to generate one.
                 </td>
               </tr>
             )}

@@ -382,7 +382,16 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
         </div>
       </div>
 
-      <MarkAttendanceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} employees={employeeOptions} selectedDate={date} editing={editing} onSaved={() => showNotice("Attendance saved")} />
+      {dialogOpen && (
+        <MarkAttendanceDialog
+          open
+          onClose={() => setDialogOpen(false)}
+          employees={employeeOptions}
+          selectedDate={date}
+          editing={editing}
+          onSaved={() => showNotice("Attendance saved")}
+        />
+      )}
     </div>
   );
 }

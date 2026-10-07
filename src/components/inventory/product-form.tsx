@@ -233,10 +233,7 @@ export function ProductForm({
   }
 
   React.useEffect(() => {
-    if (isEdit || productName.trim().length < 3) {
-      setDuplicateMatches([]);
-      return;
-    }
+    if (isEdit || productName.trim().length < 3) return;
     const timer = window.setTimeout(async () => {
       setDuplicateChecking(true);
       const result = await findProductDuplicates(productName);
@@ -270,7 +267,14 @@ export function ProductForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5 sm:col-span-2">
                 <FieldLabel htmlFor="name">Product Name *</FieldLabel>
-                <Input id="name" name="name" required value={productName} onChange={(event) => { setProductName(event.target.value); setDuplicateOverride(false); }} placeholder="Enter product name" />
+                <Input id="name" name="name" required value={productName} onChange={(event) => {
+                  setProductName(event.target.value);
+                  setDuplicateOverride(false);
+                  if (isEdit || event.target.value.trim().length < 3) {
+                    setDuplicateMatches([]);
+                    setDuplicateChecking(false);
+                  }
+                }} placeholder="Enter product name" />
                 {!isEdit && (duplicateChecking || duplicateMatches.length > 0) && <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900 dark:bg-amber-950/30">
                   <div className="flex items-center justify-between"><p className="text-xs font-bold text-amber-800 dark:text-amber-300">{duplicateChecking ? "Checking for similar products…" : "Possible matches found"}</p>{duplicateMatches.length > 0 && <span className="text-[10px] text-amber-700">{duplicateMatches.length} result{duplicateMatches.length === 1 ? "" : "s"}</span>}</div>
                   <div className="mt-2 space-y-2">{duplicateMatches.slice(0, 3).map((match) => <div key={match.id} className="flex items-center justify-between gap-2 rounded-lg bg-white p-2 text-xs shadow-sm dark:bg-ink-900"><div className="min-w-0"><p className="truncate font-semibold text-ink-900 dark:text-white">{match.name}</p><p className="text-ledger-400">{match.sku} · {match.locations.join(", ") || "No location"}</p></div><span className={`shrink-0 rounded-full px-2 py-1 font-bold ${match.exact ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{match.score}%</span></div>)}</div>

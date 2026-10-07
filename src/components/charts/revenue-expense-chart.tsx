@@ -14,6 +14,29 @@ const shortFmt = (v: number) =>
   : Math.abs(v) >= 1_000   ? `${(v / 1_000).toFixed(0)}K`
   : String(Math.round(v));
 
+function CustomTooltip({ active, payload, label, currency }: {
+  active?: boolean;
+  payload?: Array<{ dataKey: string; color?: string; value?: number | string }>;
+  label?: string;
+  currency: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-slate-100 rounded-xl shadow-xl p-3 text-xs min-w-[160px]" style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>
+      <p className="font-semibold tracking-tight text-ink-900 mb-2">{label}</p>
+      {payload.map((item) => (
+        <div key={item.dataKey} className="flex items-center justify-between gap-4 mb-1">
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <span className="w-2 h-2 rounded-full" style={{ background: item.color }} />
+            <span className="capitalize">{item.dataKey}</span>
+          </span>
+          <span className="font-semibold tracking-tight tabular-nums" style={{ color: item.color }}>{formatMoney(Number(item.value ?? 0), currency)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoint[]; currency?: string }) {
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
@@ -22,24 +45,6 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
 
   // Compute net for compare mode
   const enriched = useMemo(() => data.map(d => ({ ...d, net: d.revenue - d.expenses })), [data]);
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div className="bg-white border border-slate-100 rounded-xl shadow-xl p-3 text-xs min-w-[160px]" style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>
-        <p className="font-semibold tracking-tight text-ink-900 mb-2">{label}</p>
-        {payload.map((p: any) => (
-          <div key={p.dataKey} className="flex items-center justify-between gap-4 mb-1">
-            <span className="flex items-center gap-1.5 text-slate-500">
-              <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-              <span className="capitalize">{p.dataKey}</span>
-            </span>
-            <span className="font-semibold tracking-tight tabular-nums" style={{ color: p.color }}>{formatMoney(Number(p.value ?? 0), currency)}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-4">
@@ -89,7 +94,7 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={4} />
             <YAxis tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip currency={currency} />} />
             {series !== "expenses" && <Area type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} fill="url(#revG)" dot={false} animationDuration={900} animationEasing="ease-out" />}
             {series !== "revenue" && <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#expG)" dot={false} animationDuration={1050} animationEasing="ease-out" />}
           </AreaChart>
@@ -100,7 +105,7 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormat
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={4} />
             <YAxis tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip currency={currency} />} />
             {series !== "expenses" && <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={700} animationEasing="ease-out" />}
             {series !== "revenue" && <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={850} animationEasing="ease-out" />}
           </BarChart>
@@ -118,7 +123,7 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axis
             <YAxis tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormatter={shortFmt} axisLine={false} tickLine={false} />
             <ReferenceLine y={0} stroke="#e2e8f0" strokeWidth={1.5} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip currency={currency} />} />
             <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={16} opacity={0.7} />
             <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={16} opacity={0.7} />
             <Line type="monotone" dataKey="net" stroke={theme.colors.primary} strokeWidth={2.5}

@@ -11,13 +11,17 @@ interface OrgOption {
   role: string;
 }
 
+function persistActiveOrganization(orgId: string) {
+  document.cookie = `active_org_id=${orgId}; path=/; max-age=${60 * 60 * 24 * 365}`;
+}
+
 export function OrgSwitcher({ activeOrgId, options }: { activeOrgId: string; options: OrgOption[] }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const active = options.find((o) => o.orgId === activeOrgId) ?? options[0];
 
   function selectOrg(orgId: string) {
-    document.cookie = `active_org_id=${orgId}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    persistActiveOrganization(orgId);
     setOpen(false);
     router.refresh();
   }

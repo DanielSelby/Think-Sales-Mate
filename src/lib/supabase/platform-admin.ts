@@ -137,21 +137,21 @@ export async function getEnabledOrganizationModules(organizationId: string) {
   // Load disabled child rows as well: their presence tells the sidebar that
   // the module has explicit child permissions and should not inherit access.
   (data ?? []).forEach((item) => {
-    const module = getCanonicalFeatureModule(item.module);
-    const priority = module === item.module ? 1 : 2;
-    const previous = normalizedRecords.get(module);
+    const canonicalModule = getCanonicalFeatureModule(item.module);
+    const priority = canonicalModule === item.module ? 1 : 2;
+    const previous = normalizedRecords.get(canonicalModule);
     if (!previous || priority >= previous.priority) {
-      normalizedRecords.set(module, { enabled: item.enabled, permission_options: item.permission_options, priority });
+      normalizedRecords.set(canonicalModule, { enabled: item.enabled, permission_options: item.permission_options, priority });
     }
   });
-  normalizedRecords.forEach((item, module) => {
-    if (!module.includes(":")) {
-      if (item.enabled) enabledModules.add(module);
+  normalizedRecords.forEach((item, canonicalModule) => {
+    if (!canonicalModule.includes(":")) {
+      if (item.enabled) enabledModules.add(canonicalModule);
       return;
     }
-    const [parent] = module.split(":");
+    const [parent] = canonicalModule.split(":");
     configuredChildren.add(parent);
-    if (item.enabled && !item.permission_options?.hiddenFromMenu) enabledChildren.add(module);
+    if (item.enabled && !item.permission_options?.hiddenFromMenu) enabledChildren.add(canonicalModule);
   });
   configuredChildren.forEach((module) => enabledModules.add(`__children:${module}`));
   return [...enabledModules, ...enabledChildren];

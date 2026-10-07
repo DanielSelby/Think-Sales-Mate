@@ -45,6 +45,7 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>(initialType);
   const [dateRange, setDateRange] = useState("all");
+  const [dateCutoff, setDateCutoff] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -54,14 +55,18 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    const cutoff = dateRange === "all" ? null : Date.now() - Number(dateRange) * 86400000;
     return rows.filter((row) => {
       if (type !== "all" && row.documentStatus !== type) return false;
-      if (cutoff && new Date(row.createdAt).getTime() < cutoff) return false;
+      if (dateCutoff && new Date(row.createdAt).getTime() < dateCutoff) return false;
       if (normalized && !`${formatInvoiceNumber(row.saleNumber)} ${row.customerName}`.toLowerCase().includes(normalized)) return false;
       return true;
     });
-  }, [dateRange, query, rows, type]);
+  }, [dateCutoff, query, rows, type]);
+
+  const handleDateRangeChange = (value: string) => {
+    setDateRange(value);
+    setDateCutoff(value === "all" ? null : Date.now() - Number(value) * 86400000);
+  };
 
   const totals = useMemo(() => ({
     draft: rows.filter((row) => row.documentStatus === "draft").reduce((sum, row) => sum + row.total, 0),
@@ -73,6 +78,7 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
     setQuery("");
     setType("all");
     setDateRange("all");
+    setDateCutoff(null);
   }
 
   function handleDelete(id: string) {
@@ -186,7 +192,7 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
           {showFilters && <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div className="relative md:col-span-2"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by number, customer or reference..." className="pl-9" /></div>
             <div><label className="mb-1 block text-xs font-medium text-ledger-500">Document Type</label><Select value={type} onChange={(event) => setType(event.target.value as typeof type)}><option value="all">All Types</option><option value="draft">Draft</option><option value="quotation">Quotation</option><option value="proforma">Proforma</option></Select></div>
-            <div><label className="mb-1 block text-xs font-medium text-ledger-500">Date Range</label><Select value={dateRange} onChange={(event) => setDateRange(event.target.value)}><option value="all">All Dates</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></Select></div>
+            <div><label className="mb-1 block text-xs font-medium text-ledger-500">Date Range</label><Select value={dateRange} onChange={(event) => handleDateRangeChange(event.target.value)}><option value="all">All Dates</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></Select></div>
           </div>}
         </CardContent>
       </Card>
