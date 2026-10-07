@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAppAlert } from "@/components/ui/app-alert-provider";
 import { formatCurrency } from "@/lib/sales/format";
+import { THEMES, useAppStore } from "@/store/useAppStore";
 import {
   consolidateBranchProductReturns,
   createPurchaseReturnFromBranchConsolidation,
@@ -87,10 +88,10 @@ function statusLabel(status: string) {
 }
 
 function statusTone(status: string) {
-  if (["completed", "accepted", "identified"].includes(status)) return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-  if (["rejected", "cancelled"].includes(status)) return "bg-rose-50 text-rose-700 ring-rose-200";
-  if (["supplier_return_created", "consolidated"].includes(status)) return "bg-violet-50 text-violet-700 ring-violet-200";
-  return "bg-amber-50 text-amber-800 ring-amber-200";
+  if (["completed", "accepted", "identified"].includes(status)) return "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800";
+  if (["rejected", "cancelled"].includes(status)) return "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800";
+  if (["supplier_return_created", "consolidated"].includes(status)) return "bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-800";
+  return "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800";
 }
 
 function ReturnStatus({ status }: { status: string }) {
@@ -105,14 +106,14 @@ function StatCard({ title, value, description, icon: Icon, tone }: {
   tone: string;
 }) {
   return (
-    <Card className="overflow-hidden border-slate-200 shadow-sm">
+    <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-700">
       <CardContent className="flex items-start justify-between gap-3 p-4">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-slate-500">{title}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
-          <p className="mt-1 text-[11px] text-slate-500">{description}</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{title}</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{description}</p>
         </div>
-        <span className={`rounded-xl p-2.5 ${tone}`}><Icon className="h-4 w-4" /></span>
+        <span className={`rounded-xl p-2.5 ${tone} ${tone.includes("amber") ? "dark:bg-amber-950/40 dark:text-amber-300" : tone.includes("blue") ? "dark:bg-blue-950/40 dark:text-blue-300" : tone.includes("emerald") ? "dark:bg-emerald-950/40 dark:text-emerald-300" : tone.includes("orange") ? "dark:bg-orange-950/40 dark:text-orange-300" : tone.includes("violet") ? "dark:bg-violet-950/40 dark:text-violet-300" : "dark:bg-cyan-950/40 dark:text-cyan-300"}`}><Icon className="h-4 w-4" /></span>
       </CardContent>
     </Card>
   );
@@ -146,6 +147,11 @@ export function ReturnProductsManagement({
 }) {
   const router = useRouter();
   const showAlert = useAppAlert();
+  const { activeTheme, darkMode } = useAppStore();
+  const theme = THEMES[activeTheme];
+  const primaryButtonStyle = { backgroundColor: theme.colors.primary, color: "#fff" };
+  const outlineButtonStyle = { borderColor: `${theme.colors.primary}66`, color: darkMode ? theme.colors.primaryLight : theme.colors.primary };
+  const themeTextColor = darkMode ? theme.colors.primaryLight : theme.colors.primary;
   const [tab, setTab] = React.useState<ManagementTab>("branch");
   const [query, setQuery] = React.useState("");
   const [branch, setBranch] = React.useState("all");
@@ -279,48 +285,50 @@ export function ReturnProductsManagement({
     });
 
   return (
-    <div className="space-y-5 px-3 py-5 sm:px-5 lg:px-7">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <main className="min-h-screen bg-[#f5f8fc] px-4 py-5 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px] space-y-5">
+      <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-slate-800 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-500"><span>Inventory</span><span>/</span><span className="text-slate-700">Return Products Management</span></div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Return Products Management</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">Review branch inventory returns, identify original suppliers, and prepare supplier returns without affecting sales.</p>
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400"><Boxes className="h-3.5 w-3.5" style={{ color: theme.colors.primary }} /><span>Inventory</span><span className="text-slate-400">/</span><span className="text-slate-700 dark:text-slate-200">Return Products Management</span></div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Return Products Management</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">Review branch inventory returns, identify original suppliers, and prepare supplier returns without affecting sales.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/inventory/return-products/reports"><Button variant="outline" className="gap-2"><FileText className="h-4 w-4" />Reports</Button></Link>
-          {canCreate && <Link href="/inventory/return-products/new"><Button className="gap-2"><Plus className="h-4 w-4" />New Branch Return</Button></Link>}
-          {canManage && <Button variant="outline" disabled={!selected.length || busy} onClick={handleConsolidate} className="gap-2"><Boxes className="h-4 w-4" />Consolidate{selected.length ? ` (${selected.length})` : ""}</Button>}
+          <Link href="/inventory/return-products/reports"><Button variant="outline" style={outlineButtonStyle} className="gap-2 hover:brightness-110 dark:hover:brightness-125"><FileText className="h-4 w-4" />Reports</Button></Link>
+          {canCreate && <Link href="/inventory/return-products/new"><Button style={primaryButtonStyle} className="gap-2 hover:brightness-110"><Plus className="h-4 w-4" />New Branch Return</Button></Link>}
+          {canManage && <Button variant="outline" style={outlineButtonStyle} disabled={!selected.length || busy} onClick={handleConsolidate} className="gap-2 hover:brightness-110 dark:hover:brightness-125"><Boxes className="h-4 w-4" />Consolidate{selected.length ? ` (${selected.length})` : ""}</Button>}
         </div>
         {outcomeGroup && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOutcomeGroup(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="supplier-outcome-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl">
-            <div className="mb-4"><h2 id="supplier-outcome-title" className="text-lg font-bold text-slate-900">Record Supplier Outcome</h2><p className="mt-1 text-xs text-slate-500">Enter accepted and rejected quantities per item. Each line must add up to the branch return quantity.</p></div>
+          <section role="dialog" aria-modal="true" aria-labelledby="supplier-outcome-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl dark:bg-slate-900">
+            <div className="mb-4"><h2 id="supplier-outcome-title" className="text-lg font-bold text-slate-900 dark:text-white">Record Supplier Outcome</h2><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Enter accepted and rejected quantities per item. Each line must add up to the branch return quantity.</p></div>
             <div className="space-y-3">
-              {outcomeGroup.outcomeItems.map((item) => <div key={item.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[minmax(0,1fr)_120px_120px] sm:items-center">
-                <div><p className="text-xs font-semibold text-slate-800">{item.productName}</p><p className="text-[10px] text-slate-500">Returned: {item.quantity}</p></div>
-                <label className="space-y-1 text-[10px] font-medium text-slate-600">Accepted<Input type="number" min={0} max={item.quantity} step={1} value={outcomeValues[item.id]?.accepted ?? ""} onChange={(event) => setOutcomeValues((current) => ({ ...current, [item.id]: { ...current[item.id], accepted: event.target.value } }))} /></label>
-                <label className="space-y-1 text-[10px] font-medium text-slate-600">Rejected<Input type="number" min={0} max={item.quantity} step={1} value={outcomeValues[item.id]?.rejected ?? ""} onChange={(event) => setOutcomeValues((current) => ({ ...current, [item.id]: { ...current[item.id], rejected: event.target.value } }))} /></label>
+              {outcomeGroup.outcomeItems.map((item) => <div key={item.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 sm:grid-cols-[minmax(0,1fr)_120px_120px] sm:items-center">
+                <div><p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{item.productName}</p><p className="text-[10px] text-slate-500 dark:text-slate-400">Returned: {item.quantity}</p></div>
+                <label className="space-y-1 text-[10px] font-medium text-slate-600 dark:text-slate-300">Accepted<Input type="number" min={0} max={item.quantity} step={1} value={outcomeValues[item.id]?.accepted ?? ""} onChange={(event) => setOutcomeValues((current) => ({ ...current, [item.id]: { ...current[item.id], accepted: event.target.value } }))} /></label>
+                <label className="space-y-1 text-[10px] font-medium text-slate-600 dark:text-slate-300">Rejected<Input type="number" min={0} max={item.quantity} step={1} value={outcomeValues[item.id]?.rejected ?? ""} onChange={(event) => setOutcomeValues((current) => ({ ...current, [item.id]: { ...current[item.id], rejected: event.target.value } }))} /></label>
               </div>)}
             </div>
-            <label className="mt-3 block space-y-1 text-xs font-medium text-slate-600">Supplier response notes<textarea value={outcomeNotes} onChange={(event) => setOutcomeNotes(event.target.value)} rows={3} className="w-full rounded-md border border-slate-200 p-2 text-xs" /></label>
-            <div className="mt-4 flex justify-end gap-2"><Button variant="outline" onClick={() => setOutcomeGroup(null)}>Cancel</Button><Button disabled={busy} onClick={saveSupplierOutcome}>{busy ? "Saving…" : "Save Outcome"}</Button></div>
+            <label className="mt-3 block space-y-1 text-xs font-medium text-slate-600 dark:text-slate-300">Supplier response notes<textarea value={outcomeNotes} onChange={(event) => setOutcomeNotes(event.target.value)} rows={3} className="w-full rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
+            <div className="mt-4 flex justify-end gap-2"><Button variant="outline" style={outlineButtonStyle} onClick={() => setOutcomeGroup(null)}>Cancel</Button><Button style={primaryButtonStyle} className="hover:brightness-110" disabled={busy} onClick={saveSupplierOutcome}>{busy ? "Saving…" : "Save Outcome"}</Button></div>
           </section>
         </div>}
-      </div>
+      </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard title="Pending Branch Returns" value={String(kpis.pendingBranchReturns)} description="Awaiting returns-office review" icon={Clock3} tone="bg-amber-50 text-amber-700" />
         <StatCard title="Total Units Returned" value={kpis.totalUnitsReturned.toLocaleString()} description="Units moved into return inventory" icon={Package} tone="bg-blue-50 text-blue-700" />
         <StatCard title="Total Return Value" value={formatCurrency(kpis.totalReturnValue, currency)} description="Recorded at existing product cost" icon={Boxes} tone="bg-emerald-50 text-emerald-700" />
         <StatCard title="Pending Identification" value={String(kpis.pendingIdentification)} description="Supplier or purchase source unknown" icon={Search} tone="bg-orange-50 text-orange-700" />
         <StatCard title="Consolidated Returns" value={String(kpis.consolidatedReturns)} description="Supplier- and purchase-matched groups" icon={ClipboardCheck} tone="bg-violet-50 text-violet-700" />
         <StatCard title="Supplier Returns Issued" value={String(kpis.supplierReturnsIssued)} description="Connected to Purchase Returns" icon={Truck} tone="bg-cyan-50 text-cyan-700" />
-      </div>
+      </section>
 
-      <Card className="overflow-hidden border-slate-200 shadow-sm">
-        <div className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-3">
+      <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-700">
+        <div className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-3 dark:border-slate-700">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} type="button" onClick={() => { setTab(id); setSelected([]); }}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-t-lg px-3 py-2.5 text-xs font-semibold transition ${tab === id ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}>
+              style={tab === id ? { borderBottomColor: theme.colors.primary, color: themeTextColor } : undefined}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-t-lg px-3 py-2.5 text-xs font-semibold transition ${tab === id ? "border-b-2" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}>
               <Icon className="h-3.5 w-3.5" />{label}
             </button>
           ))}
@@ -331,109 +339,110 @@ export function ReturnProductsManagement({
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search return, product, SKU…" className="pl-9" />
             </label>
-            <select aria-label="Filter by branch" value={branch} onChange={(event) => setBranch(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs">
+            <select aria-label="Filter by branch" value={branch} onChange={(event) => setBranch(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
               <option value="all">All branches</option>{branches.map((name) => <option key={name}>{name}</option>)}
             </select>
-            <select aria-label="Filter by supplier" value={supplier} onChange={(event) => setSupplier(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs">
+            <select aria-label="Filter by supplier" value={supplier} onChange={(event) => setSupplier(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
               <option value="all">All suppliers</option>{suppliers.map((name) => <option key={name}>{name}</option>)}
             </select>
-            <select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs">
+            <select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
               <option value="all">All statuses</option>{[...new Set([...rows.map((row) => row.status), ...consolidations.map((group) => group.status)])].sort().map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
             </select>
-            <select aria-label="Filter by condition" value={condition} onChange={(event) => setCondition(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs">
+            <select aria-label="Filter by condition" value={condition} onChange={(event) => setCondition(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
               <option value="all">All conditions</option>{conditions.map((value) => <option key={value}>{value}</option>)}
             </select>
-            <select aria-label="Filter by return reason" value={reason} onChange={(event) => setReason(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs">
+            <select aria-label="Filter by return reason" value={reason} onChange={(event) => setReason(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
               <option value="all">All reasons</option>{reasons.map((value) => <option key={value}>{value}</option>)}
             </select>
             <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /><Input aria-label="Start date" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="pl-9" /></label>
             <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /><Input aria-label="End date" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="pl-9" /></label>
-            <Button variant="ghost" className="justify-start gap-2 text-slate-500" onClick={clearFilters}><RotateCcw className="h-3.5 w-3.5" />Reset filters</Button>
+            <Button variant="ghost" className="justify-start gap-2 text-slate-500 dark:text-slate-400" onClick={clearFilters}><RotateCcw className="h-3.5 w-3.5" />Reset filters</Button>
           </div>
 
           {tab === "consolidated" || tab === "supplier" ? (
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full min-w-[900px] text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                   <tr><th className="px-3 py-3">Consolidation</th><th className="px-3 py-3">Supplier</th><th className="px-3 py-3">Purchase source</th><th className="px-3 py-3">Branches / Products</th><th className="px-3 py-3">Qty</th><th className="px-3 py-3">Value</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Action</th></tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {tabConsolidations.map((group) => (
-                    <tr key={group.id} className="hover:bg-slate-50/70">
-                      <td className="px-3 py-3 font-semibold text-blue-700">CON-{String(group.number).padStart(6, "0")}</td>
-                      <td className="px-3 py-3"><div className="font-medium text-slate-800">{group.supplierName}</div><div className="text-[10px] text-slate-500">{group.supplierEmail ?? group.supplierPhone ?? ""}</div></td>
-                      <td className="px-3 py-3 text-slate-600">{group.purchaseReference}</td>
-                      <td className="max-w-[240px] px-3 py-3"><div className="text-slate-700">{group.branches.join(", ")}</div><div className="truncate text-[10px] text-slate-500">{group.productSummary}</div></td>
+                    <tr key={group.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60">
+                      <td className="px-3 py-3 font-semibold" style={{ color: themeTextColor }}>CON-{String(group.number).padStart(6, "0")}</td>
+                      <td className="px-3 py-3"><div className="font-medium text-slate-800 dark:text-slate-100">{group.supplierName}</div><div className="text-[10px] text-slate-500 dark:text-slate-400">{group.supplierEmail ?? group.supplierPhone ?? ""}</div></td>
+                      <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{group.purchaseReference}</td>
+                      <td className="max-w-[240px] px-3 py-3"><div className="text-slate-700 dark:text-slate-200">{group.branches.join(", ")}</div><div className="truncate text-[10px] text-slate-500 dark:text-slate-400">{group.productSummary}</div></td>
                       <td className="px-3 py-3 tabular-nums">{group.totalQuantity}</td>
                       <td className="px-3 py-3 tabular-nums">{formatCurrency(group.totalValue, currency)}</td>
                       <td className="px-3 py-3"><ReturnStatus status={group.status} /></td>
                       <td className="px-3 py-3 text-right">
-                        {canCreateSupplierReturn && group.status === "ready" && <Button size="sm" disabled={busy} onClick={() => handleCreateSupplierReturn(group.id)} className="gap-1.5"><Send className="h-3.5 w-3.5" />Create Supplier Return</Button>}
-                        {canRecordSupplierOutcome && group.status === "supplier_return_created" && group.purchaseReturnStatus === "approved" && <Button size="sm" variant="outline" disabled={busy} onClick={() => openSupplierOutcome(group)}>Record Supplier Outcome</Button>}
-                        {canRecordSupplierOutcome && group.status === "supplier_return_created" && group.purchaseReturnStatus !== "approved" && <span className="text-[10px] text-amber-700">Approve Purchase Return first</span>}
-                        {group.purchaseReturnId && <Link className="inline-flex items-center gap-1 text-blue-700 hover:underline" href={`/purchases/returns/${group.purchaseReturnId}`}>Open Purchase Return <ArrowRight className="h-3.5 w-3.5" /></Link>}
+                        {canCreateSupplierReturn && group.status === "ready" && <Button size="sm" style={primaryButtonStyle} className="gap-1.5 hover:brightness-110" disabled={busy} onClick={() => handleCreateSupplierReturn(group.id)}><Send className="h-3.5 w-3.5" />Create Supplier Return</Button>}
+                        {canRecordSupplierOutcome && group.status === "supplier_return_created" && group.purchaseReturnStatus === "approved" && <Button size="sm" variant="outline" style={outlineButtonStyle} disabled={busy} onClick={() => openSupplierOutcome(group)}>Record Supplier Outcome</Button>}
+                        {canRecordSupplierOutcome && group.status === "supplier_return_created" && group.purchaseReturnStatus !== "approved" && <span className="text-[10px] text-amber-700 dark:text-amber-300">Approve Purchase Return first</span>}
+                        {group.purchaseReturnId && <Link className="inline-flex items-center gap-1 hover:underline" style={{ color: themeTextColor }} href={`/purchases/returns/${group.purchaseReturnId}`}>Open Purchase Return <ArrowRight className="h-3.5 w-3.5" /></Link>}
                       </td>
                     </tr>
                   ))}
-                  {!tabConsolidations.length && <tr><td colSpan={8} className="px-4 py-12 text-center text-slate-500">No consolidated returns match this view.</td></tr>}
+                  {!tabConsolidations.length && <tr><td colSpan={8} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">No consolidated returns match this view.</td></tr>}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full min-w-[1000px] text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                   <tr><th className="w-9 px-3 py-3">{canManage && tab !== "history" ? <span className="sr-only">Select</span> : null}</th><th className="px-3 py-3">Return / Date</th><th className="px-3 py-3">Branch / Requested By</th><th className="px-3 py-3">Product</th><th className="px-3 py-3">Qty</th><th className="px-3 py-3">Value</th><th className="px-3 py-3">Supplier</th><th className="px-3 py-3">Condition / Reason</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Action</th></tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {pageRows.map((row) => {
                     const canSelect = row.status === "identified" && !row.isConsolidated && Boolean(row.supplierId && row.purchaseId) && canManage;
                     const displayStatus = row.isConsolidated && row.status === "identified" ? "consolidated" : row.status;
                     return (
-                      <tr key={row.id} className="hover:bg-slate-50/70">
+                      <tr key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60">
                         <td className="px-3 py-3">
-                          {canSelect && <input aria-label={`Select ${row.productName} for consolidation`} type="checkbox" checked={selected.includes(row.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, row.id] : current.filter((id) => id !== row.id))} className="rounded border-slate-300 text-blue-600" />}
+                          {canSelect && <input aria-label={`Select ${row.productName} for consolidation`} type="checkbox" checked={selected.includes(row.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, row.id] : current.filter((id) => id !== row.id))} className="rounded border-slate-300" style={{ accentColor: theme.colors.primary }} />}
                         </td>
-                        <td className="px-3 py-3"><Link href={`/inventory/return-products/${row.returnId}`} className="font-semibold text-blue-700 hover:underline">RET-{String(row.returnNumber).padStart(6, "0")}</Link><div className="mt-1 text-[10px] text-slate-500">{row.returnDate}</div></td>
-                        <td className="px-3 py-3"><div className="inline-flex items-center gap-1.5 text-slate-700"><Building2 className="h-3.5 w-3.5 text-slate-400" />{row.branchName}</div><div className="mt-1 text-[10px] text-slate-500">{row.requestedBy}</div></td>
-                        <td className="px-3 py-3"><div className="font-medium text-slate-800">{row.productName}</div><div className="text-[10px] text-slate-500">{row.sku}</div></td>
+                        <td className="px-3 py-3"><Link href={`/inventory/return-products/${row.returnId}`} className="font-semibold hover:underline" style={{ color: themeTextColor }}>RET-{String(row.returnNumber).padStart(6, "0")}</Link><div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{row.returnDate}</div></td>
+                        <td className="px-3 py-3"><div className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-200"><Building2 className="h-3.5 w-3.5 text-slate-400" />{row.branchName}</div><div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{row.requestedBy}</div></td>
+                        <td className="px-3 py-3"><div className="font-medium text-slate-800 dark:text-slate-100">{row.productName}</div><div className="text-[10px] text-slate-500 dark:text-slate-400">{row.sku}</div></td>
                         <td className="px-3 py-3 tabular-nums">{row.quantity}</td>
                         <td className="px-3 py-3 tabular-nums">{formatCurrency(row.returnValue, currency)}</td>
-                        <td className="px-3 py-3 text-slate-700">{row.supplierName ?? <span className="text-slate-400">Unknown</span>}<div className="text-[10px] text-slate-500">{row.purchaseReference ?? ""}</div></td>
-                        <td className="px-3 py-3"><div className="text-slate-700">{row.condition}</div><div className="text-[10px] text-slate-500">{row.reason}</div></td>
+                        <td className="px-3 py-3 text-slate-700 dark:text-slate-200">{row.supplierName ?? <span className="text-slate-400">Unknown</span>}<div className="text-[10px] text-slate-500 dark:text-slate-400">{row.purchaseReference ?? ""}</div></td>
+                        <td className="px-3 py-3"><div className="text-slate-700 dark:text-slate-200">{row.condition}</div><div className="text-[10px] text-slate-500 dark:text-slate-400">{row.reason}</div></td>
                         <td className="px-3 py-3"><ReturnStatus status={displayStatus} /></td>
                         <td className="px-3 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {canManage && row.status === "pending_review" && <Button size="sm" variant="outline" disabled={busy} onClick={() => handleReview(row.returnId)} className="gap-1.5"><Check className="h-3.5 w-3.5" />Review</Button>}
-                            <Link href={`/inventory/return-products/${row.returnId}`} className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-blue-700 hover:underline">View <ArrowRight className="h-3.5 w-3.5" /></Link>
+                            {canManage && row.status === "pending_review" && <Button size="sm" variant="outline" style={outlineButtonStyle} disabled={busy} onClick={() => handleReview(row.returnId)} className="gap-1.5"><Check className="h-3.5 w-3.5" />Review</Button>}
+                            <Link href={`/inventory/return-products/${row.returnId}`} className="inline-flex items-center gap-1 whitespace-nowrap font-medium hover:underline" style={{ color: themeTextColor }}>View <ArrowRight className="h-3.5 w-3.5" /></Link>
                           </div>
                         </td>
                       </tr>
                     );
                   })}
-                  {!pageRows.length && <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-500">No branch returns match the selected filters.</td></tr>}
+                  {!pageRows.length && <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">No branch returns match the selected filters.</td></tr>}
                 </tbody>
               </table>
             </div>
           )}
-          <div className="flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 text-xs text-slate-500 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
             <p>Showing {tab === "consolidated" || tab === "supplier" ? tabConsolidations.length : visibleRows.length} {tab === "consolidated" || tab === "supplier" ? "consolidations" : "return items"}</p>
             {tab !== "consolidated" && tab !== "supplier" && <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setPage((current) => Math.max(1, currentPage - 1))}>Previous</Button>
+              <Button size="sm" variant="outline" style={outlineButtonStyle} disabled={currentPage <= 1} onClick={() => setPage((current) => Math.max(1, currentPage - 1))}>Previous</Button>
               <span>Page {currentPage} of {pageCount}</span>
-              <Button size="sm" variant="outline" disabled={currentPage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, currentPage + 1))}>Next</Button>
+              <Button size="sm" variant="outline" style={outlineButtonStyle} disabled={currentPage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, currentPage + 1))}>Next</Button>
             </div>}
           </div>
-          {canManage && selectedRows.length > 0 && <div className="flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+          {canManage && selectedRows.length > 0 && <div className="flex flex-col gap-2 rounded-lg border p-3 text-xs sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: `${theme.colors.primary}44`, backgroundColor: darkMode ? `${theme.colors.primary}22` : theme.colors.primaryPale, color: darkMode ? "#e2e8f0" : theme.colors.text }}>
             <span>{selectedRows.length} identified item(s) selected. Consolidation is restricted to one supplier, purchase source, and destination.</span>
             <span className="inline-flex items-center gap-1 font-semibold"><ShieldAlert className="h-3.5 w-3.5" />System validates compatibility before saving.</span>
           </div>}
         </CardContent>
       </Card>
-      <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-600">
-        <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+      <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+        <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: theme.colors.primary }} />
         Branch returns are separate inventory movements. They do not create sales, customer transactions, or sales-return records.
       </div>
-    </div>
+      </div>
+    </main>
   );
 }
