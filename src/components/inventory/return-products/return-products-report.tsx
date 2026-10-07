@@ -82,7 +82,7 @@ export function ReturnProductsReport({ rows, currency, acceptedQty, rejectedQty 
   }
 
   return (
-    <div className="space-y-5 px-3 py-5 sm:px-5 lg:px-7">
+    <div className="return-products-report space-y-5 px-3 py-5 sm:px-5 lg:px-7">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div><Link href="/inventory/return-products" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-blue-700"><ArrowLeft className="h-3.5 w-3.5" />Return Products</Link><h1 className="text-2xl font-bold tracking-tight text-slate-900">Return Products Report</h1><p className="mt-1 text-sm text-slate-500">Inventory return volumes, conditions, supplier matching, and value.</p></div>
         <div className="flex gap-2"><Button variant="outline" onClick={exportCsv} className="gap-2"><Download className="h-4 w-4" />Export CSV</Button><Button variant="outline" onClick={() => window.print()} className="gap-2"><Printer className="h-4 w-4" />Print</Button></div>

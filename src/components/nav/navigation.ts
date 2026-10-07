@@ -59,6 +59,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Product Categories", href: "/inventory/categories", icon: LayoutGrid },
       { label: "Inventory Intelligence", href: "/inventory/intelligence", icon: BarChart3 },
       { label: "Return Products Management", href: "/inventory/return-products", icon: PackageCheck },
+      { label: "New Branch Return", href: "/inventory/return-products/new", icon: PlusCircle },
       { label: "Add Product", href: "/inventory/new", icon: PlusCircle },
       { label: "Import Products", href: "/inventory/import", icon: Upload },
       { label: "Price Management", href: "/inventory/prices", icon: DollarSign },

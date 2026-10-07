@@ -172,7 +172,7 @@ export function NewBranchReturnForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5 px-3 py-5 sm:px-5 lg:px-7">
+    <form onSubmit={submit} className="return-products-new-form space-y-5 px-3 py-5 sm:px-5 lg:px-7">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Link href="/inventory/return-products" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-blue-700"><ArrowLeft className="h-3.5 w-3.5" />Return Products Management</Link>

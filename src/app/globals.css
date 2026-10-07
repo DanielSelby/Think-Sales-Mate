@@ -1582,6 +1582,112 @@ html.dark .return-products-page .return-table-wrap tbody tr:hover {
   background-color: #172a40 !important;
 }
 
+html.dark .return-products-new-form,
+html.dark .return-products-report {
+  color: #e2e8f0;
+}
+
+html.dark .return-products-new-form :is(.rounded-card, .rounded-lg.border),
+html.dark .return-products-report .rounded-card {
+  border-color: #334155 !important;
+  background-color: #0f1d2d !important;
+  color: #e2e8f0;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2) !important;
+}
+
+html.dark .return-products-new-form .grid.rounded-lg {
+  border-color: #334155 !important;
+  background-color: #111c2d !important;
+}
+
+html.dark .return-products-new-form :is(input, select, textarea) {
+  border-color: #475569 !important;
+  background-color: #0b1220 !important;
+  color: #f1f5f9 !important;
+  color-scheme: dark;
+}
+
+html.dark .return-products-new-form :is(input, select, textarea)::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark .return-products-new-form :is(input, select, textarea):disabled {
+  background-color: #1b2b3e !important;
+  color: #94a3b8 !important;
+}
+
+html.dark .return-products-new-form .bg-slate-50 {
+  background-color: #1b2b3e !important;
+}
+
+html.dark .return-products-new-form .bg-blue-50 {
+  background-color: #172b45 !important;
+}
+
+html.dark .return-products-new-form .bg-amber-50 {
+  background-color: #422006 !important;
+}
+
+html.dark .return-products-new-form .border-slate-100,
+html.dark .return-products-report .border-slate-100 {
+  border-color: #334155 !important;
+}
+
+html.dark .return-products-new-form .border-slate-200,
+html.dark .return-products-report .border-slate-200 {
+  border-color: #334155 !important;
+}
+
+html.dark .return-products-new-form .text-slate-900,
+html.dark .return-products-report .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+html.dark .return-products-new-form .text-slate-800,
+html.dark .return-products-report .text-slate-800 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .return-products-new-form .text-slate-700,
+html.dark .return-products-report .text-slate-700,
+html.dark .return-products-new-form .text-slate-600,
+html.dark .return-products-report .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .return-products-new-form .text-slate-500,
+html.dark .return-products-report .text-slate-500,
+html.dark .return-products-new-form .text-slate-400,
+html.dark .return-products-report .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+html.dark .return-products-new-form .text-blue-800 {
+  color: #bfdbfe !important;
+}
+
+html.dark .return-products-report .bg-slate-100 {
+  background-color: #26384d !important;
+}
+
+html.dark .return-products-report table tbody tr {
+  background-color: #0f1d2d;
+}
+
+html.dark .return-products-report table tbody tr:hover {
+  background-color: #172a40 !important;
+}
+
+html.dark .return-products-report table thead {
+  background-color: var(--theme-header-dark, #14273a) !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .return-products-report table thead th {
+  background-color: transparent !important;
+  color: #f1f5f9 !important;
+}
+
 html.dark .orders-page .orders-table thead tr {
   background-color: #26384d !important;
 }
@@ -1916,6 +2022,19 @@ html.dark body :is(
     color: var(--theme-primary, #153361) !important;
   }
 
+  html:not(.dark) .page-canvas .purchase-history-page .purchase-history-table thead,
+  html:not(.dark) .page-canvas .products-catalog-page .products-history-table thead {
+    background-color: var(--theme-header-light, #eef2fa) !important;
+    border-color: var(--theme-header-border-light, #dbeafe) !important;
+    color: var(--theme-primary, #153361) !important;
+  }
+
+  html:not(.dark) .page-canvas .purchase-history-page .purchase-history-table thead th,
+  html:not(.dark) .page-canvas .products-catalog-page .products-history-table thead th {
+    background-color: transparent !important;
+    color: var(--theme-primary, #153361) !important;
+  }
+
   html.dark .page-canvas :is(header, div, section):has(> h1),
   html.dark .platform-admin-console main :is(header, div, section):has(> h1) {
     border-color: var(--theme-header-border-dark, #334155) !important;
@@ -1949,6 +2068,19 @@ html.dark body :is(
   }
 
   html.dark body :is(.page-canvas, .platform-admin-console, main) table thead th {
+    background-color: transparent !important;
+    color: #f1f5f9 !important;
+  }
+
+  html.dark .page-canvas .purchase-history-page .purchase-history-table thead,
+  html.dark .page-canvas .products-catalog-page .products-history-table thead {
+    background-color: var(--theme-header-dark, #14273a) !important;
+    border-color: var(--theme-header-border-dark, #334155) !important;
+    color: #f1f5f9 !important;
+  }
+
+  html.dark .page-canvas .purchase-history-page .purchase-history-table thead th,
+  html.dark .page-canvas .products-catalog-page .products-history-table thead th {
     background-color: transparent !important;
     color: #f1f5f9 !important;
   }
