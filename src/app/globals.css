@@ -1859,33 +1859,91 @@ html.dark body :is(
 @media screen {
   .page-canvas :is(header, div, section):has(> h1),
   .platform-admin-console main :is(header, div, section):has(> h1) {
-    border: 1px solid var(--theme-primary, #153361) !important;
+    border: 1px solid var(--theme-header-border-light, #dbeafe) !important;
     border-radius: 0.75rem;
-    background-color: var(--theme-primary, #153361) !important;
+    background-color: var(--theme-header-light, #eef2fa) !important;
     padding: 1rem 1.25rem;
   }
 
   .page-canvas :is(header, div, section):has(> h1) > h1,
   .platform-admin-console main :is(header, div, section):has(> h1) > h1 {
-    color: #fff !important;
+    color: var(--theme-primary, #153361) !important;
   }
 
   .page-canvas :is(header, div, section):has(> h1) > p,
   .platform-admin-console main :is(header, div, section):has(> h1) > p {
-    color: rgb(255 255 255 / 0.82) !important;
+    color: color-mix(in srgb, var(--theme-primary, #153361) 64%, #475569) !important;
   }
 
-  html:not(.dark) body :is(.page-canvas, .platform-admin-console, main) table thead,
-  html.dark body :is(.page-canvas, .platform-admin-console, main) table thead {
-    background-color: var(--theme-primary, #153361) !important;
-    border-color: color-mix(in srgb, var(--theme-primary, #153361) 75%, #fff) !important;
+  .page-canvas .sales-page-header,
+  .platform-admin-console main .sales-page-header {
+    border-color: var(--theme-header-border-light, #dbeafe) !important;
+    background-color: var(--theme-header-light, #eef2fa) !important;
+  }
+
+  .page-canvas .sales-page-header > div:has(> h1),
+  .platform-admin-console main .sales-page-header > div:has(> h1) {
+    border: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  .page-canvas .sales-page-header > div > h1,
+  .platform-admin-console main .sales-page-header > div > h1 {
+    color: var(--theme-primary, #153361) !important;
+  }
+
+  .page-canvas .sales-page-header > div > p,
+  .platform-admin-console main .sales-page-header > div > p {
+    color: color-mix(in srgb, var(--theme-primary, #153361) 64%, #475569) !important;
+  }
+
+  html:not(.dark) body :is(.page-canvas, .platform-admin-console, main) table thead {
+    background-color: var(--theme-header-light, #eef2fa) !important;
+    border-color: var(--theme-header-border-light, #dbeafe) !important;
+    color: var(--theme-primary, #153361) !important;
+  }
+
+  html:not(.dark) body :is(.page-canvas, .platform-admin-console, main) table thead th {
+    background-color: transparent !important;
+    color: var(--theme-primary, #153361) !important;
+  }
+
+  html.dark .page-canvas :is(header, div, section):has(> h1),
+  html.dark .platform-admin-console main :is(header, div, section):has(> h1) {
+    border-color: var(--theme-header-border-dark, #334155) !important;
+    background-color: var(--theme-header-dark, #14273a) !important;
+  }
+
+  html.dark .page-canvas :is(header, div, section):has(> h1) > h1,
+  html.dark .platform-admin-console main :is(header, div, section):has(> h1) > h1,
+  html.dark .page-canvas .sales-page-header > div > h1,
+  html.dark .platform-admin-console main .sales-page-header > div > h1 {
     color: #fff !important;
   }
 
-  html:not(.dark) body :is(.page-canvas, .platform-admin-console, main) table thead th,
+  html.dark .page-canvas :is(header, div, section):has(> h1) > p,
+  html.dark .platform-admin-console main :is(header, div, section):has(> h1) > p,
+  html.dark .page-canvas .sales-page-header > div > p,
+  html.dark .platform-admin-console main .sales-page-header > div > p {
+    color: #cbd5e1 !important;
+  }
+
+  html.dark .page-canvas .sales-page-header,
+  html.dark .platform-admin-console main .sales-page-header {
+    border-color: var(--theme-header-border-dark, #334155) !important;
+    background-color: var(--theme-header-dark, #14273a) !important;
+  }
+
+  html.dark body :is(.page-canvas, .platform-admin-console, main) table thead {
+    background-color: var(--theme-header-dark, #14273a) !important;
+    border-color: var(--theme-header-border-dark, #334155) !important;
+    color: #f1f5f9 !important;
+  }
+
   html.dark body :is(.page-canvas, .platform-admin-console, main) table thead th {
     background-color: transparent !important;
-    color: #fff !important;
+    color: #f1f5f9 !important;
   }
 }
 

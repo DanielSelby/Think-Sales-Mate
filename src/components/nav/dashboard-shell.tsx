@@ -53,6 +53,10 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
           background: darkMode ? "#08111f" : theme.colors.background,
           "--theme-primary": theme.colors.primary,
           "--theme-primary-pale": theme.colors.primaryPale,
+          "--theme-header-light": theme.colors.primaryPale,
+          "--theme-header-dark": `color-mix(in srgb, ${theme.colors.primary} 18%, #08111f)`,
+          "--theme-header-border-light": `color-mix(in srgb, ${theme.colors.primary} 24%, white)`,
+          "--theme-header-border-dark": `color-mix(in srgb, ${theme.colors.primary} 36%, #334155)`,
         } as React.CSSProperties}
       >
         <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} />

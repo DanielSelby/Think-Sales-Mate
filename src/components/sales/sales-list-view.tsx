@@ -121,7 +121,9 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
-  const salesHeaderBackground = theme.colors.primary;
+  const salesHeaderBackground = darkMode
+    ? `color-mix(in srgb, ${theme.colors.primary} 18%, #08111f)`
+    : theme.colors.primaryPale;
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | SaleStatus>("all");
   const [query, setQuery] = useState("");
@@ -286,15 +288,17 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
     >
       {/* Header */}
       <div
-        className="flex flex-wrap items-start justify-between gap-4 rounded-xl border px-4 py-4 sm:px-5"
+        className="sales-page-header flex flex-wrap items-start justify-between gap-4 rounded-xl border px-4 py-4 sm:px-5"
         style={{
-          background: theme.colors.primary,
-          borderColor: theme.colors.primary,
+          background: salesHeaderBackground,
+          borderColor: darkMode
+            ? `color-mix(in srgb, ${theme.colors.primary} 36%, #334155)`
+            : `color-mix(in srgb, ${theme.colors.primary} 24%, white)`,
         }}
       >
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Sales Transactions History</h1>
-          <p className="mt-0.5 text-sm text-white/80">Manage your sales drafts, quotations and invoices</p>
+          <p className="mt-0.5 text-sm text-ledger-600 dark:text-ledger-300">Manage your sales drafts, quotations and invoices</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />

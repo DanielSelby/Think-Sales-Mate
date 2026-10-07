@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, Database, Download, Gauge, Moon, RefreshCw, ShieldCheck, Sun, Users, WalletCards, type LucideIcon } from "lucide-react";
@@ -25,7 +25,7 @@ import SupportCenter from "./support-center";
 import { formatMoney } from "@/lib/currency";
 import { LoginExperienceManager } from "./login-experience-manager";
 import OrganizationManagement, { type ManagedOrganization } from "./organization-management";
-import { useAppStore } from "@/store/useAppStore";
+import { THEMES, useAppStore } from "@/store/useAppStore";
 
 type Organization = {
   id: string;
@@ -244,7 +244,8 @@ export default function PlatformAdminConsole({
   const [message, setMessage] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [currentLogoUrl, setCurrentLogoUrl] = useState(logoUrl);
-  const { darkMode, setDarkMode } = useAppStore();
+  const { activeTheme, darkMode, setDarkMode } = useAppStore();
+  const theme = THEMES[activeTheme];
   const [featureDraft, setFeatureDraft] = useState<{
     organizationId: string | null;
     enabled: Record<string, boolean>;
@@ -471,7 +472,17 @@ export default function PlatformAdminConsole({
   };
 
   return (
-    <div className={`platform-admin-console flex min-h-[calc(100vh-74px)] ${darkMode ? "bg-slate-950 text-slate-100" : "bg-[#f5f8fc]"}`}>
+    <div
+      className={`platform-admin-console flex min-h-[calc(100vh-74px)] ${darkMode ? "bg-slate-950 text-slate-100" : "bg-[#f5f8fc]"}`}
+      style={{
+        "--theme-primary": theme.colors.primary,
+        "--theme-primary-pale": theme.colors.primaryPale,
+        "--theme-header-light": theme.colors.primaryPale,
+        "--theme-header-dark": `color-mix(in srgb, ${theme.colors.primary} 18%, #08111f)`,
+        "--theme-header-border-light": `color-mix(in srgb, ${theme.colors.primary} 24%, white)`,
+        "--theme-header-border-dark": `color-mix(in srgb, ${theme.colors.primary} 36%, #334155)`,
+      } as CSSProperties}
+    >
       <aside className="fixed left-0 top-[74px] z-30 hidden h-[calc(100vh-74px)] w-56 overflow-y-auto bg-[#06294a] text-white lg:block">
         <div className="border-b border-white/10 px-4 py-5">
           <div className="flex items-center gap-2">
