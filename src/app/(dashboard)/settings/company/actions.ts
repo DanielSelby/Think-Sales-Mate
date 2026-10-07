@@ -38,6 +38,7 @@ export interface CompanyProfileFields {
   contactPhone?: string;
   defaultSalesTaxPercent?: number;
   showLogoOnInvoices?: boolean;
+  showContactOnInvoices?: boolean;
   showInfoOnReceipts?: boolean;
   enableBarcodeOnDocuments?: boolean;
   facebookUrl?: string;
@@ -80,6 +81,7 @@ export async function saveCompanyProfile(fields: CompanyProfileFields) {
       contact_phone: fields.contactPhone || null,
       default_sales_tax_percent: fields.defaultSalesTaxPercent ?? 0,
       show_logo_on_invoices: fields.showLogoOnInvoices ?? true,
+      show_contact_on_invoices: fields.showContactOnInvoices ?? true,
       show_info_on_receipts: fields.showInfoOnReceipts ?? true,
       enable_barcode_on_documents: fields.enableBarcodeOnDocuments ?? false,
       facebook_url: fields.facebookUrl || null,

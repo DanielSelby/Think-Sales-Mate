@@ -17,6 +17,8 @@ import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
 import { buildBrandedInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
+import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
+import { useInvoiceFormat } from "@/lib/sales/invoice-format";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
@@ -55,6 +57,7 @@ export interface MobileMoneyAccount { id: string; name: string; balance: number;
 export interface StockLevel { productId: string; locationId: string; quantity: number; }
 
 interface PosViewProps {
+  userId: string;
   products: PosProduct[];
   locations: LocationOption[];
   stockLevels: StockLevel[];
@@ -91,9 +94,10 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
+export function PosView({ userId, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
+  const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
   const theme = THEMES[activeTheme];
 
   // The POS screen needs the full width — collapse the nav sidebar on
@@ -394,7 +398,7 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
       setError("Couldn't load the invoice for that sale.");
       return;
     }
-    const html = buildBrandedInvoiceHtml(data);
+    const html = buildBrandedInvoiceHtml({ ...data, printFormat: invoiceFormat });
     const win = window.open("", "_blank", "width=850,height=950");
     if (!win) {
       setError("Your browser blocked the receipt window — allow pop-ups for this site to print receipts.");
@@ -1201,7 +1205,8 @@ export function PosView({ products, locations, stockLevels, currency, taxRatePer
           <p className="font-display text-xl font-bold" style={{ color: theme.colors.primary }}>{formatCurrency(total, currency)}</p>
         </div>
 
-        <div className="ml-auto w-full sm:w-auto">
+        <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
           <Button variant="outline" size="sm" onClick={openRecentTransactions}><History className="h-3.5 w-3.5" /> Recent Transactions</Button>
         </div>
       </div>

@@ -93,6 +93,7 @@ export function AttachmentsDropzone({ files, onChange }: AttachmentsDropzoneProp
                 <img src={URL.createObjectURL(f.file)} alt={f.file.name} className="h-full w-full object-cover" />
               ) : <div className="flex h-full flex-col items-center justify-center gap-1 text-ledger-400"><FileText className="h-6 w-6" /><span className="max-w-[68px] truncate text-[9px]">{f.file.name}</span></div>}
               <button
+                type="button"
                 onClick={() => remove(f.id)}
                 className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-ledger-500 shadow-sm hover:text-alert"
               >

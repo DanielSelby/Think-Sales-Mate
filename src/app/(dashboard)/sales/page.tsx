@@ -23,7 +23,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       .select(`
         id, sale_number, customer_name, sale_date, created_at, total, amount_paid,
         payment_method, sold_by, status, refunded_amount, location_id,
-        location:business_locations ( name ),
+        location:business_locations ( name, phone, email ),
         items:sale_items ( quantity, products ( name ) ),
         customer:customers ( phone )
       `)
@@ -48,7 +48,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
   const [{ data: sales }, { data: locations }, { data: companyProfile }, drafts] = await Promise.all([
     salesQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
-    supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", orgId).maybeSingle(),
+    supabase.from("company_profile").select("logo_url, show_logo_on_invoices, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", orgId).maybeSingle(),
     getDraftSales(orgId),
   ]);
 
@@ -78,6 +78,8 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
     // otherwise render midnight. created_at has the real timestamp.
     saleDate: s.created_at,
     locationName: (s.location as { name: string } | null)?.name ?? null,
+    locationPhone: (s.location as { phone: string | null } | null)?.phone ?? null,
+    locationEmail: (s.location as { email: string | null } | null)?.email ?? null,
     soldByName: staffNameById.get(s.sold_by) ?? "—",
     itemCount: (s.items as { quantity: number }[] | null)?.reduce((sum, i) => sum + i.quantity, 0) ?? 0,
     primaryProductName: (() => {
@@ -110,6 +112,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
 
   return (
     <SalesListView
+      userId={context.userId}
       sales={rows}
       kpis={kpis}
       currency={currency}
@@ -120,6 +123,10 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       systemName={systemName}
       logoUrl={companyProfile?.logo_url ?? null}
       showLogoOnInvoices={companyProfile?.show_logo_on_invoices ?? true}
+      organizationPhone={companyProfile?.contact_phone || companyProfile?.business_phone || null}
+      organizationEmail={companyProfile?.contact_email || companyProfile?.business_email || null}
+      organizationWebsite={companyProfile?.website ?? null}
+      showOrganizationContact={companyProfile?.show_contact_on_invoices ?? true}
         documentKpis={{
           drafts: drafts.filter((draft) => draft.documentStatus === "draft").length,
           quotations: drafts.filter((draft) => draft.documentStatus === "quotation").length,

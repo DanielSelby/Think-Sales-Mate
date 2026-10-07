@@ -124,6 +124,7 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
 
   const [description, setDescription] = useState(profile?.description ?? "");
   const [showLogo, setShowLogo] = useState(profile?.show_logo_on_invoices ?? true);
+  const [showContactOnInvoices, setShowContactOnInvoices] = useState(profile?.show_contact_on_invoices ?? true);
   const [showInfo, setShowInfo] = useState(profile?.show_info_on_receipts ?? true);
   const [enableBarcode, setEnableBarcode] = useState(profile?.enable_barcode_on_documents ?? false);
 
@@ -219,6 +220,7 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
         contactPhone: String(formData.get("contact_phone") ?? ""),
         defaultSalesTaxPercent: Number(formData.get("default_sales_tax") ?? 0),
         showLogoOnInvoices: showLogo,
+        showContactOnInvoices,
         showInfoOnReceipts: showInfo,
         enableBarcodeOnDocuments: enableBarcode,
         facebookUrl: String(formData.get("facebook_url") ?? ""),
@@ -415,6 +417,13 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
                 description="Display company logo on all invoices"
                 checked={showLogo}
                 onChange={setShowLogo}
+                disabled={!canManage}
+              />
+              <ToggleRow
+                label="Show organization contacts on invoices"
+                description="Print the organization phone, email, and website at the bottom of invoices"
+                checked={showContactOnInvoices}
+                onChange={setShowContactOnInvoices}
                 disabled={!canManage}
               />
               <ToggleRow

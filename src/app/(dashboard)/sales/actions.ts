@@ -828,6 +828,10 @@ export interface DraftSaleRow {
   id: string;
   saleNumber: number;
   documentStatus: "draft" | "quotation" | "proforma";
+  locationId: string | null;
+  locationName: string | null;
+  locationPhone: string | null;
+  locationEmail: string | null;
   customerName: string;
   saleDate: string;
   total: number;
@@ -864,6 +868,10 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
     id: s.id,
     saleNumber: s.sale_number,
     documentStatus: s.document_status as "draft" | "quotation" | "proforma",
+    locationId: s.location_id,
+    locationName: null,
+    locationPhone: null,
+    locationEmail: null,
     customerName: s.customer_name ?? "Walk-in Customer",
     saleDate: s.sale_date,
     total: s.total,

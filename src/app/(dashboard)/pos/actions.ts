@@ -117,6 +117,10 @@ export interface PosInvoiceData {
   locationAddress: string | null;
   locationPhone: string | null;
   locationEmail: string | null;
+  organizationPhone: string | null;
+  organizationEmail: string | null;
+  organizationWebsite: string | null;
+  showOrganizationContact: boolean;
   saleNumber: number;
   saleDate: string;
   cashierName: string;
@@ -152,7 +156,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     sale.sold_by
       ? supabase.from("profiles").select("full_name").eq("id", sale.sold_by).single()
       : Promise.resolve({ data: null }),
-    supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("company_profile").select("logo_url, show_logo_on_invoices, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle(),
     getPlatformSystemName().catch(() => "ThinkSales ERP Pro"),
   ]);
   const location = locationResult.data;
@@ -176,6 +180,10 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     locationAddress: locationAddress || null,
     locationPhone: location?.phone ?? null,
     locationEmail: location?.email ?? null,
+    organizationPhone: companyResult.data?.contact_phone || companyResult.data?.business_phone || null,
+    organizationEmail: companyResult.data?.contact_email || companyResult.data?.business_email || null,
+    organizationWebsite: companyResult.data?.website ?? null,
+    showOrganizationContact: companyResult.data?.show_contact_on_invoices ?? true,
     saleNumber: sale.sale_number,
     saleDate: combined,
     cashierName: cashierProfile?.full_name || "—",

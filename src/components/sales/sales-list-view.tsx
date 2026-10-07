@@ -22,6 +22,8 @@ import {
   formatCurrency, formatDateTime, formatInvoiceNumber,
   PAYMENT_STATUS_LABEL, SALE_STATUS_LABEL, type PaymentStatus, type SaleStatus,
 } from "@/lib/sales/format";
+import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
+import { useInvoiceFormat } from "@/lib/sales/invoice-format";
 
 export interface SaleListRow {
   id: string;
@@ -30,6 +32,8 @@ export interface SaleListRow {
   customerPhone: string | null;
   saleDate: string; // ISO
   locationName: string | null;
+  locationPhone: string | null;
+  locationEmail: string | null;
   soldByName: string;
   primaryProductName: string | null;
   productLineCount: number;
@@ -73,6 +77,7 @@ export interface SalesDocumentKpis {
 }
 
 interface SalesListViewProps {
+  userId: string;
   sales: SaleListRow[];
   kpis: SalesKpis;
   currency: string;
@@ -83,6 +88,10 @@ interface SalesListViewProps {
   systemName: string;
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
+  organizationPhone?: string | null;
+  organizationEmail?: string | null;
+  organizationWebsite?: string | null;
+  showOrganizationContact?: boolean;
   documentKpis: SalesDocumentKpis;
 }
 
@@ -107,8 +116,9 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
-export function SalesListView({ sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, documentKpis }: SalesListViewProps) {
+export function SalesListView({ userId, sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, documentKpis }: SalesListViewProps) {
   const { activeTheme, darkMode } = useAppStore();
+  const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
   const salesHeaderBackground = darkMode
@@ -205,13 +215,20 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
         customerName: sale.customerName,
         soldByName: sale.soldByName,
         locationName: sale.locationName,
+        locationPhone: sale.locationPhone,
+        locationEmail: sale.locationEmail,
+        organizationPhone,
+        organizationEmail,
+        organizationWebsite,
+        showOrganizationContact,
         paymentMethod: sale.paymentMethod,
         paymentStatus: sale.paymentStatus,
         subtotal: sale.total,
         total: sale.total,
         amountPaid: sale.amountPaid,
         currency,
-        items
+        items,
+        printFormat: invoiceFormat
       });
       const win = window.open("", "_blank", "width=800,height=900");
       if (!win) return;
@@ -285,7 +302,8 @@ export function SalesListView({ sales, kpis, currency, locations, initialLocatio
           <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Sales Transactions History</h1>
           <p className="mt-0.5 text-sm text-ledger-500 dark:text-ledger-400">Manage your sales drafts, quotations and invoices</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
           <Link
             href="/sales/drafts"
             className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-ledger-200 px-4 text-sm font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"

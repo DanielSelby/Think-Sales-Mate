@@ -24,6 +24,8 @@ export interface TrackedOrder {
   paymentStatus: string;
   deliveryStatus: string;
   branchName: string | null;
+  branchPhone: string | null;
+  branchEmail: string | null;
   guestName: string;
   guestPhone: string;
   deliveryAddress: string;
@@ -41,6 +43,10 @@ export interface TrackedOrder {
   allowInvoiceDownload: boolean;
   companyName: string | null;
   companyLogoUrl: string | null;
+  organizationPhone: string | null;
+  organizationEmail: string | null;
+  organizationWebsite: string | null;
+  showOrganizationContact: boolean;
 }
 
 export async function trackOrder(token: string): Promise<TrackedOrder | null> {
@@ -57,9 +63,9 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     supabase.from("customer_order_items").select("product_name, quantity, unit_price, line_total").eq("order_id", order.id),
     supabase.from("customer_portal_settings").select("show_prices_to_customers, allow_view_order_status, allow_customer_invoice_download").eq("org_id", order.org_id).maybeSingle(),
     supabase.from("organizations").select("currency").eq("id", order.org_id).single(),
-    order.location_id ? supabase.from("business_locations").select("name").eq("id", order.location_id).maybeSingle() : Promise.resolve({ data: null }),
+    order.location_id ? supabase.from("business_locations").select("name, phone, email").eq("id", order.location_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("customer_order_timeline").select("title, actor_name, status, notes, created_at").eq("order_id", order.id).order("created_at", { ascending: true }),
-    supabase.from("company_profile").select("company_name, logo_url").eq("org_id", order.org_id).maybeSingle(),
+    supabase.from("company_profile").select("company_name, logo_url, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", order.org_id).maybeSingle(),
   ]);
 
   if (settings && !settings.allow_view_order_status) return null;
@@ -71,6 +77,8 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     paymentStatus: order.payment_status ?? "unpaid",
     deliveryStatus: order.delivery_status ?? "not_shipped",
     branchName: loc?.name ?? null,
+    branchPhone: loc?.phone ?? null,
+    branchEmail: loc?.email ?? null,
     guestName: order.guest_name,
     guestPhone: order.guest_phone,
     deliveryAddress: order.delivery_address,
@@ -94,6 +102,10 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     allowInvoiceDownload: settings?.allow_customer_invoice_download ?? true,
     companyName: company?.company_name ?? null,
     companyLogoUrl: company?.logo_url ?? null,
+    organizationPhone: company?.contact_phone || company?.business_phone || null,
+    organizationEmail: company?.contact_email || company?.business_email || null,
+    organizationWebsite: company?.website ?? null,
+    showOrganizationContact: company?.show_contact_on_invoices ?? true,
   };
 }
 

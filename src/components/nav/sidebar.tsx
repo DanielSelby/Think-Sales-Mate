@@ -111,6 +111,7 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
     children: [
       { label: "All Products",           href: "/inventory",                icon: List         },
       { label: "Product Categories",     href: "/inventory/categories",     icon: LayoutGrid   },
+      { label: "Return Products Management", href: "/inventory/return-products", icon: PackageCheck },
       { label: "Add Product",            href: "/inventory/new",             icon: PlusCircle   },
       { label: "Import Products",        href: "/inventory/import",          icon: Upload       },
       { label: "Price Management",       href: "/inventory/prices",           icon: DollarSign   },

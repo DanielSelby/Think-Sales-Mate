@@ -41,6 +41,8 @@ import { SaleProductRowCell } from "@/components/sales/sale-product-row-cell";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
+import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
+import { useInvoiceFormat } from "@/lib/sales/invoice-format";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
@@ -83,6 +85,8 @@ function getTierPrice(product: SellableProduct, tier: PriceTier) {
 export interface SaleLocation {
   id: string;
   name: string;
+  phone: string | null;
+  email: string | null;
 }
 
 export interface SalesRep {
@@ -185,6 +189,10 @@ export function SaleForm({
   currency,
   logoUrl,
   showLogoOnInvoices,
+  organizationPhone,
+  organizationEmail,
+  organizationWebsite,
+  showOrganizationContact,
   canCheckCrossBranchStock,
   canChoosePriceTier,
   allowedPriceGroups,
@@ -204,12 +212,17 @@ export function SaleForm({
   currentUserEmail: string;
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
+  organizationPhone?: string | null;
+  organizationEmail?: string | null;
+  organizationWebsite?: string | null;
+  showOrganizationContact?: boolean;
   canCheckCrossBranchStock: boolean;
   canChoosePriceTier: boolean;
   allowedPriceGroups: PriceTier[];
 }) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
+  const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(currentUserId);
   const theme = THEMES[activeTheme];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -611,6 +624,12 @@ export function SaleForm({
         customerName: selectedCustomer?.name || walkInName || "Walk-in Customer",
         soldByName: reps.find((r) => r.id === salesRepId)?.name ?? currentUserEmail,
         locationName: locations.find((l) => l.id === locationId)?.name ?? null,
+        locationPhone: locations.find((l) => l.id === locationId)?.phone ?? null,
+        locationEmail: locations.find((l) => l.id === locationId)?.email ?? null,
+        organizationPhone,
+        organizationEmail,
+        organizationWebsite,
+        showOrganizationContact,
         paymentMethod,
         paymentStatus: derivePaymentStatus(total, amountPaid),
         subtotal,
@@ -618,6 +637,7 @@ export function SaleForm({
         amountPaid,
         currency,
         items,
+        printFormat: invoiceFormat,
       });
       const win = window.open("", "_blank", "width=800,height=900");
       if (!win) return;
@@ -1445,6 +1465,7 @@ export function SaleForm({
               <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Additional Options</h2>
             </div>
             <div className="mt-3 space-y-2 text-sm">
+              <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={printReceipt} onChange={(e) => setPrintReceipt(e.target.checked)} className="h-4 w-4 rounded accent-signal" />
                 Print sale receipt after saving

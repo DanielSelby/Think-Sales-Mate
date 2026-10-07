@@ -28,7 +28,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
 
   let locationsQuery = supabase
     .from("business_locations")
-    .select("id, name")
+    .select("id, name, phone, email")
     .eq("org_id", context.orgId)
     .eq("is_active", true)
     .order("is_primary", { ascending: false })
@@ -78,7 +78,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       .order("created_at", { ascending: false })
       .limit(20),
     stockLevelsQuery,
-    supabase.from("company_profile").select("logo_url, show_logo_on_invoices").eq("org_id", context.orgId).maybeSingle()
+    supabase.from("company_profile").select("logo_url, show_logo_on_invoices, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle()
   ]);;
 
   const outstandingByName = new Map<string, number>();
@@ -134,7 +134,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     p.allowNegativeStock
   );
 
-  const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name }));
+  const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name, phone: l.phone, email: l.email }));
 
   const memberUserIds = (memberRows ?? []).map((m) => m.user_id).filter(Boolean) as string[];
   const { data: memberProfiles } = memberUserIds.length
@@ -187,6 +187,10 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       currency={context.currency}
       logoUrl={companyprofile?.logo_url ?? null}
       showLogoOnInvoices={companyprofile?.show_logo_on_invoices ?? true}
+      organizationPhone={companyprofile?.contact_phone || companyprofile?.business_phone || null}
+      organizationEmail={companyprofile?.contact_email || companyprofile?.business_email || null}
+      organizationWebsite={companyprofile?.website ?? null}
+      showOrganizationContact={companyprofile?.show_contact_on_invoices ?? true}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}

@@ -94,6 +94,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     { data: adjustmentItems },
     { data: saleReturnItems },
     { data: purchaseReturnItems },
+    { data: branchReturnItems },
   ] = await Promise.all([
     supabase
       .from("sale_items")
@@ -164,7 +165,24 @@ export default async function ProductDetailPage({ params }: PageProps) {
       .eq("org_id", context.orgId)
       .order("created_at", { ascending: false })
       .limit(100),
+
+    supabase
+      .from("branch_product_return_items")
+      .select("id, return_id, return_qty, unit_cost, return_value, created_at")
+      .eq("product_id", product.id)
+      .eq("org_id", context.orgId)
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
+
+  const branchReturnIds = [...new Set((branchReturnItems ?? []).map((item) => item.return_id))];
+  const { data: branchReturnHeaders, error: branchReturnHeadersError } = branchReturnIds.length
+    ? await supabase.from("branch_product_returns")
+      .select("id, return_number, return_date, created_by, source_location_id, destination_location_id, return_reason, notes")
+      .in("id", branchReturnIds)
+      .eq("org_id", context.orgId)
+    : { data: [], error: null };
+  if (branchReturnHeadersError) throw new Error(`Could not load branch return ledger entries: ${branchReturnHeadersError.message}`);
 
   // Build Real DB Movements
   const realMovements: StockMovement[] = [];
@@ -384,6 +402,65 @@ export default async function ProductDetailPage({ params }: PageProps) {
       userName: "Inventory Manager",
       sourceDocId: pret.id,
     });
+  }
+
+  const branchReturnById = new Map((branchReturnHeaders ?? []).map((row) => [row.id, row]));
+  for (const item of branchReturnItems ?? []) {
+    const branchReturn = branchReturnById.get(item.return_id);
+    if (!branchReturn) continue;
+    const dateObj = new Date(item.created_at || branchReturn.return_date);
+    const dateFormatted = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const timeFormatted = dateObj.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    const referenceNo = `RET-${String(branchReturn.return_number).padStart(6, "0")}`;
+    const unitCost = Number(item.unit_cost || product.cost_price || 0);
+    const officerName = profileMap.get(branchReturn.created_by) || "Branch Staff";
+    const sourceName = (locationRows ?? []).find((location) => location.id === branchReturn.source_location_id)?.name ?? "Assigned Branch";
+    const returnValue = Number(item.return_value || item.return_qty * unitCost);
+
+    realMovements.push({
+      id: `branch-return-out-${item.id}`,
+      productId: product.id,
+      dateTime: dateObj.toISOString(),
+      dateFormatted,
+      timeFormatted,
+      type: "Branch Return",
+      subTypeNote: "Moved to Returns / Quarantine",
+      referenceNo,
+      referenceType: "Branch Return",
+      branchName: sourceName,
+      branchId: branchReturn.source_location_id,
+      inQty: null,
+      outQty: item.return_qty,
+      runningBalance: 0,
+      unitCost,
+      totalValue: returnValue,
+      userName: officerName,
+      sourceDocId: branchReturn.id,
+      notes: branchReturn.return_reason,
+    });
+    if (canAccessLocation(context, branchReturn.destination_location_id)) {
+      realMovements.push({
+        id: `branch-return-in-${item.id}`,
+        productId: product.id,
+        dateTime: dateObj.toISOString(),
+        dateFormatted,
+        timeFormatted,
+        type: "Branch Return",
+        subTypeNote: "Received into Returns / Quarantine",
+        referenceNo,
+        referenceType: "Branch Return",
+        branchName: "Returns / Quarantine",
+        branchId: branchReturn.destination_location_id,
+        inQty: item.return_qty,
+        outQty: null,
+        runningBalance: 0,
+        unitCost,
+        totalValue: returnValue,
+        userName: officerName,
+        sourceDocId: branchReturn.id,
+        notes: branchReturn.notes || branchReturn.return_reason,
+      });
+    }
   }
 
   // Build Real Branches list from locationRows and stockLevelRows

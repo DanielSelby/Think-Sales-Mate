@@ -18,6 +18,18 @@ export default async function CustomerInvoicePage({ params }: { params: Promise<
       <div className="mt-6 grid grid-cols-2 gap-6 text-sm"><div><p className="font-semibold">Customer</p><p>{order.guestName}</p><p>{order.guestPhone}</p></div><div><p className="font-semibold">Delivery</p><p>{order.deliveryAddress}</p></div></div>
       <table className="mt-8 w-full text-sm"><thead><tr className="border-b text-left"><th className="py-2">Item</th><th className="py-2">Qty</th><th className="py-2 text-right">Amount</th></tr></thead><tbody>{order.items.map((item) => <tr key={item.productName} className="border-b"><td className="py-3">{item.productName}</td><td className="py-3">{item.quantity}</td><td className="py-3 text-right">{order.currency} {item.lineTotal.toFixed(2)}</td></tr>)}</tbody></table>
       <p className="mt-6 text-right text-lg font-bold">Total: {order.currency} {order.total.toFixed(2)}</p>
+      {(order.branchPhone || order.branchEmail || (order.showOrganizationContact && (order.organizationPhone || order.organizationEmail || order.organizationWebsite))) && (
+        <footer className="mt-8 grid gap-4 border-t pt-4 text-xs text-slate-600 sm:grid-cols-2 print:break-inside-avoid">
+          {(order.branchPhone || order.branchEmail) && <div>
+            <p className="mb-1 font-semibold uppercase tracking-wide text-slate-800">{order.branchName || "Branch"} contact</p>
+            <p>{[order.branchPhone, order.branchEmail].filter(Boolean).join(" · ")}</p>
+          </div>}
+          {order.showOrganizationContact && (order.organizationPhone || order.organizationEmail || order.organizationWebsite) && <div>
+            <p className="mb-1 font-semibold uppercase tracking-wide text-slate-800">Organization contact</p>
+            <p>{[order.organizationPhone, order.organizationEmail, order.organizationWebsite].filter(Boolean).join(" · ")}</p>
+          </div>}
+        </footer>
+      )}
     </main>
   );
 }

@@ -643,6 +643,7 @@ export interface Database {
           contact_phone: string | null;
           default_sales_tax_percent: number;
           show_logo_on_invoices: boolean;
+          show_contact_on_invoices: boolean;
           show_info_on_receipts: boolean;
           enable_barcode_on_documents: boolean;
           facebook_url: string | null;
@@ -680,6 +681,7 @@ export interface Database {
           contact_phone?: string | null;
           default_sales_tax_percent?: number;
           show_logo_on_invoices?: boolean;
+          show_contact_on_invoices?: boolean;
           show_info_on_receipts?: boolean;
           enable_barcode_on_documents?: boolean;
           facebook_url?: string | null;
@@ -1267,6 +1269,164 @@ export interface Database {
             referencedColumns: ["id"];
           }
         ];
+      };
+      branch_product_returns: {
+        Row: {
+          id: string;
+          org_id: string;
+          return_number: number;
+          source_location_id: string;
+          destination_location_id: string;
+          return_date: string;
+          requested_by: string;
+          created_by: string;
+          status: string;
+          return_reason: string;
+          priority: string;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          return_number?: number;
+          source_location_id: string;
+          destination_location_id: string;
+          return_date?: string;
+          requested_by: string;
+          created_by: string;
+          status?: string;
+          return_reason: string;
+          priority?: string;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_product_returns"]["Row"]>;
+        Relationships: [];
+      };
+      branch_product_return_items: {
+        Row: {
+          id: string;
+          org_id: string;
+          return_id: string;
+          product_id: string;
+          return_qty: number;
+          unit_cost: number;
+          return_value: number;
+          condition: string;
+          return_reason: string;
+          inspection_notes: string | null;
+          original_transfer_id: string | null;
+          supplier_id: string | null;
+          purchase_id: string | null;
+          purchase_item_id: string | null;
+          supplier_accepted_qty: number | null;
+          supplier_rejected_qty: number | null;
+          supplier_response_notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          return_id: string;
+          product_id: string;
+          return_qty: number;
+          unit_cost: number;
+          return_value: number;
+          condition: string;
+          return_reason: string;
+          inspection_notes?: string | null;
+          original_transfer_id?: string | null;
+          supplier_id?: string | null;
+          purchase_id?: string | null;
+          purchase_item_id?: string | null;
+          supplier_accepted_qty?: number | null;
+          supplier_rejected_qty?: number | null;
+          supplier_response_notes?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_product_return_items"]["Row"]>;
+        Relationships: [];
+      };
+      branch_product_return_consolidations: {
+        Row: {
+          id: string;
+          org_id: string;
+          consolidation_number: number;
+          supplier_id: string;
+          purchase_id: string;
+          status: string;
+          purchase_return_id: string | null;
+          supplier_accepted_qty: number | null;
+          supplier_rejected_qty: number | null;
+          supplier_response_notes: string | null;
+          supplier_responded_by: string | null;
+          supplier_responded_at: string | null;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          consolidation_number?: number;
+          supplier_id: string;
+          purchase_id: string;
+          status?: string;
+          purchase_return_id?: string | null;
+          supplier_accepted_qty?: number | null;
+          supplier_rejected_qty?: number | null;
+          supplier_response_notes?: string | null;
+          supplier_responded_by?: string | null;
+          supplier_responded_at?: string | null;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_product_return_consolidations"]["Row"]>;
+        Relationships: [];
+      };
+      branch_product_return_consolidation_items: {
+        Row: {
+          consolidation_id: string;
+          return_item_id: string;
+          org_id: string;
+          created_at: string;
+        };
+        Insert: {
+          consolidation_id: string;
+          return_item_id: string;
+          org_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_product_return_consolidation_items"]["Row"]>;
+        Relationships: [];
+      };
+      branch_product_return_attachments: {
+        Row: {
+          id: string;
+          org_id: string;
+          return_id: string;
+          storage_path: string;
+          file_name: string;
+          content_type: string;
+          file_size: number;
+          uploaded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          return_id: string;
+          storage_path: string;
+          file_name: string;
+          content_type: string;
+          file_size: number;
+          uploaded_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["branch_product_return_attachments"]["Row"]>;
+        Relationships: [];
       };
       purchase_returns: {
         Row: {
@@ -2872,6 +3032,38 @@ export interface Database {
       };
     };
     Functions: {
+      submit_branch_product_return: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_source_location_id: string;
+          p_destination_location_id: string;
+          p_return_date: string;
+          p_return_reason: string;
+          p_priority: string;
+          p_notes: string | null;
+          p_items: { product_id: string; quantity: number; condition: string; reason: string; inspection_notes?: string | null; transfer_id?: string | null }[];
+        };
+        Returns: { return_id: string; return_number: number }[];
+      };
+      consolidate_branch_product_returns: {
+        Args: { p_org_id: string; p_actor_id: string; p_return_item_ids: string[] };
+        Returns: { consolidation_id: string; consolidation_number: number }[];
+      };
+      create_branch_return_purchase_return: {
+        Args: { p_org_id: string; p_actor_id: string; p_consolidation_id: string };
+        Returns: { purchase_return_id: string; purchase_return_number: number }[];
+      };
+      record_branch_product_supplier_response: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_consolidation_id: string;
+          p_responses: { return_item_id: string; accepted_quantity: number; rejected_quantity: number }[];
+          p_notes: string | null;
+        };
+        Returns: undefined;
+      };
       create_organization_registration: {
         Args: {
           p_user_id: string;

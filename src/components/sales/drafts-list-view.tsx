@@ -16,6 +16,8 @@ import { deleteDraftSale, getSaleInvoiceItems, type DraftSaleRow } from "@/app/(
 import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
+import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
+import { useInvoiceFormat } from "@/lib/sales/invoice-format";
 
 export interface BranchRequestRow {
   id: string;
@@ -40,7 +42,20 @@ const DOC_STATUS_TONE: Record<DraftSaleRow["documentStatus"], "neutral" | "amber
   proforma: "signal",
 };
 
-export function DraftsListView({ drafts, currency, orgName, systemName, branchRequests = [], initialType = "all" }: { drafts: DraftSaleRow[]; currency: string; orgName: string; systemName: string; branchRequests?: BranchRequestRow[]; initialType?: "all" | DraftSaleRow["documentStatus"] }) {
+export function DraftsListView({ userId, drafts, currency, orgName, systemName, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, branchRequests = [], initialType = "all" }: {
+  userId: string;
+  drafts: DraftSaleRow[];
+  currency: string;
+  orgName: string;
+  systemName: string;
+  organizationPhone?: string | null;
+  organizationEmail?: string | null;
+  organizationWebsite?: string | null;
+  showOrganizationContact?: boolean;
+  branchRequests?: BranchRequestRow[];
+  initialType?: "all" | DraftSaleRow["documentStatus"];
+}) {
+  const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
   const [rows, setRows] = useState(drafts);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>(initialType);
@@ -109,7 +124,13 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
         saleDate: document.createdAt,
         customerName: document.customerName,
         soldByName: document.createdByName,
-        locationName: null,
+        locationName: document.locationName,
+        locationPhone: document.locationPhone,
+        locationEmail: document.locationEmail,
+        organizationPhone,
+        organizationEmail,
+        organizationWebsite,
+        showOrganizationContact,
         paymentMethod: null,
         paymentStatus: "pending",
         subtotal: document.total,
@@ -117,6 +138,7 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
         amountPaid: 0,
         currency,
         items,
+        printFormat: invoiceFormat,
       });
       const win = window.open("", "_blank", "width=800,height=900");
       if (!win) return;
@@ -138,7 +160,8 @@ export function DraftsListView({ drafts, currency, orgName, systemName, branchRe
           <h1 className="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-white">Sales Documents</h1>
           <p className="text-sm text-ledger-500 dark:text-ledger-400">Manage your sales drafts, quotations and proformas</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
           <Button variant="outline" size="md"><Download className="h-4 w-4" /> Export</Button>
           <Link href="/sales/new" className="inline-flex h-9 items-center gap-2 rounded-md bg-ink-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-ink-950 dark:bg-white dark:text-ink-900">
             <Plus className="h-4 w-4" /> New Document

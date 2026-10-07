@@ -10,6 +10,7 @@ export type TransactionType =
   | "Stock Adjustment"
   | "Purchase Return"
   | "Sales Return"
+  | "Branch Return"
   | "Return"
   | "Opening Stock"
   | "Import";
@@ -21,6 +22,7 @@ export type ReferenceType =
   | "Stock Adjustment"
   | "Sales Return"
   | "Purchase Return"
+  | "Branch Return"
   | "Opening Balance"
   | "Manual Entry"
   | "Product Import";
