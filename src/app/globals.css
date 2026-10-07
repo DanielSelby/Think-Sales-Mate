@@ -95,7 +95,14 @@ html:not(.dark) .divide-ledger-200 > :not([hidden]) ~ :not([hidden]) {
 }
 
 html:not(.dark) .page-canvas[data-light-surfaces="standard"] {
-  background-color: #f2f5f2;
+  background-color: #f7f8fa !important;
+}
+
+html:not(.dark) .page-canvas,
+html:not(.dark) .platform-admin-console,
+html:not(.dark) .page-canvas .inventory-intelligence-page,
+html:not(.dark) .page-canvas .return-products-page {
+  background-color: #f7f8fa !important;
 }
 
 html:not(.dark) .page-canvas[data-light-surfaces="standard"] :is(

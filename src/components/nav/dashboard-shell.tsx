@@ -50,7 +50,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
       <div
         className="flex h-screen overflow-hidden"
         style={{
-          background: darkMode ? "#08111f" : theme.colors.background,
+          background: darkMode ? "#08111f" : "#f7f8fa",
           "--theme-primary": theme.colors.primary,
           "--theme-primary-pale": theme.colors.primaryPale,
           "--theme-header-light": theme.colors.primaryPale,
