@@ -1863,23 +1863,18 @@ html.dark .transfer-history-page .text-ink-900.dark\:text-white {
 }
 
 @media screen {
-  body .page-canvas div.overflow-x-auto:has(> table),
-  body .page-canvas div.overflow-auto:has(> table),
-  body .page-canvas div.overflow-y-auto:has(> table),
-  body .platform-admin-console main div.overflow-x-auto:has(> table),
-  body .platform-admin-console main div.overflow-auto:has(> table),
-  body .platform-admin-console main div.overflow-y-auto:has(> table) {
-    max-height: 65vh;
-    overflow-y: auto;
+  body .page-canvas :is(div, section, article):has(> table):not(.min-h-0):not([class*="max-h-"]),
+  body .platform-admin-console main :is(div, section, article):has(> table):not(.min-h-0):not([class*="max-h-"]) {
+    height: 65vh;
+    min-height: 420px;
+    max-height: 760px;
+    overflow-x: auto;
+    overflow-y: auto !important;
     overscroll-behavior: contain;
   }
 
-  body .page-canvas div.overflow-x-auto:has(> table) thead,
-  body .page-canvas div.overflow-auto:has(> table) thead,
-  body .page-canvas div.overflow-y-auto:has(> table) thead,
-  body .platform-admin-console main div.overflow-x-auto:has(> table) thead,
-  body .platform-admin-console main div.overflow-auto:has(> table) thead,
-  body .platform-admin-console main div.overflow-y-auto:has(> table) thead {
+  body .page-canvas :is(div, section, article):has(> table) thead,
+  body .platform-admin-console main :is(div, section, article):has(> table) thead {
     position: sticky;
     top: 0;
     z-index: 10;
