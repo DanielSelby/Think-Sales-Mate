@@ -51,6 +51,7 @@ export default async function PosPage() {
 
   return (
     <PosView
+      orgId={orgId}
       userId={context.userId}
       products={rawProducts.map((p) => ({
         id: p.id,

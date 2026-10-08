@@ -195,6 +195,9 @@ export function GeneralSettingsForm({
       setOfflineSyncMode("automatic");
       setOfflineDataLoadMode("automatic");
       setBlockCreditLimitExceeded(false);
+      window.localStorage.setItem("thinksales-offline-enabled", "true");
+      window.localStorage.setItem("thinksales-offline-sync-mode", "automatic");
+      window.localStorage.setItem("thinksales-offline-data-load-mode", "automatic");
       setSaved(true);
     });
   }
@@ -394,7 +397,7 @@ export function GeneralSettingsForm({
             />
             <ToggleRow
               label="Enable offline transactions"
-              description="Allow Sales/POS transactions to be saved on the device while offline"
+              description="Save new sales from a Sales/POS screen that was opened while online; queued sales sync after reconnecting."
               checked={offlineEnabled}
               onChange={setOfflineEnabled}
               disabled={!canManage}
@@ -408,12 +411,13 @@ export function GeneralSettingsForm({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Offline data loading</label>
+              <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Reference-data snapshot</label>
               <select value={offlineDataLoadMode} onChange={(e) => setOfflineDataLoadMode(e.target.value as typeof offlineDataLoadMode)} disabled={!canManage || !offlineEnabled} className={selectClass}>
-                <option value="automatic">Load cached data automatically</option>
-                <option value="approval">Ask before loading data</option>
-                <option value="manual">Load manually from Offline Center</option>
+                <option value="automatic">Refresh snapshot automatically</option>
+                <option value="approval">Ask before refreshing snapshot</option>
+                <option value="manual">Refresh manually from Offline Center</option>
               </select>
+              <p className="text-xs text-ledger-500">This stores a reference-data snapshot on this device. It does not open Sales/POS screens that have not already been loaded online.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-2">
               <div className="space-y-1.5">

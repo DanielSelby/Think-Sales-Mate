@@ -1,8 +1,9 @@
-const CACHE_NAME = "thinksales-shell-v2";
+const CACHE_NAME = "thinksales-shell-v3";
 const APP_SHELL = [
   "/",
   "/dashboard",
   "/offline",
+  "/offline-portal.html",
   "/pos",
   "/sales",
   "/sales/new",
@@ -52,8 +53,33 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => {
-        const fallback = caches.match(event.request).then((cached) => cached ?? caches.match("/dashboard"));
-        return fallback;
+        const isPlatformAdminOrPortal =
+          request.pathname.startsWith("/platform-admin")
+          || request.pathname === "/order"
+          || request.pathname.startsWith("/order/");
+        if (isPlatformAdminOrPortal) {
+          if (event.request.mode === "navigate") {
+            return caches.match("/offline-portal.html").then((cached) => cached ?? new Response(
+              "<!doctype html><title>You are offline</title><h1>You are offline</h1><p>Reconnect to continue.</p>",
+              { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } }
+            ));
+          }
+          return new Response("This page is unavailable offline.", {
+            status: 503,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          });
+        }
+        const fallback = caches.match(event.request);
+        return fallback.then((cached) => {
+          if (cached) return cached;
+          if (event.request.mode === "navigate") {
+            return caches.match("/offline-portal.html").then((offlinePage) => offlinePage ?? new Response(
+              "<!doctype html><title>ThinkSales is offline</title><h1>You’re offline</h1><p>Reconnect to load this page.</p>",
+              { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } }
+            ));
+          }
+          return new Response("This resource is unavailable offline.", { status: 503 });
+        });
       })
   );
 });

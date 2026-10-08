@@ -323,6 +323,8 @@ export async function updateSaleStatus({
 // ---------------------------------------------------------------------------
 export interface RecordSaleInput {
   orgId:           string;
+  offlineOperationId?: string;
+  offlineSync?: boolean;
   documentStatus?: "draft" | "quotation" | "proforma" | "final";
   customerId?:     string | null;
   customerName?:   string | null;
@@ -335,6 +337,7 @@ export interface RecordSaleInput {
   saleDate?:       string | null;
   paymentMethod?:  string | null;
   amountPaid?:     number | null;
+  paymentAllocations?: { paymentMethod: string; accountId?: string | null; amount: number }[];
   shippingAmount?: number | null;
   discountAmount?: number | null;
   taxAmount?:      number | null;
@@ -371,7 +374,9 @@ export interface RecordSaleResult {
 }
 
 export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
-  if (!await canPermission("sales", "create")) throw new Error("You do not have permission to create sales.");
+  const canCreateSales = await canPermission("sales", "create");
+  const canCreatePosSales = input.offlineSync && await canPermission("pos", "create");
+  if (!canCreateSales && !canCreatePosSales) throw new Error("You do not have permission to create sales.");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
@@ -385,6 +390,34 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
   if (input.locationId && !canUseLocation(context, input.locationId)) {
     return { ok: false, error: "You are not assigned to this branch." };
   }
+  if (input.offlineSync) {
+    const { data: offlineSettings, error: offlineSettingsError } = await supabase
+      .from("org_general_settings")
+      .select("offline_enabled")
+      .eq("org_id", context.orgId)
+      .maybeSingle();
+    if (offlineSettingsError) {
+      return { ok: false, error: `Could not verify offline transaction settings: ${offlineSettingsError.message}` };
+    }
+    if (offlineSettings?.offline_enabled === false) {
+      return { ok: false, error: "Offline transactions are disabled for this organization." };
+    }
+  }
+  if (input.offlineOperationId) {
+    const { data: existingSale, error: existingSaleError } = await supabase
+      .from("sales")
+      .select("id, sale_number, offline_sync_completed_at")
+      .eq("org_id", input.orgId)
+      .eq("offline_operation_id", input.offlineOperationId)
+      .maybeSingle();
+    if (existingSaleError) return { ok: false, error: `Could not verify whether this offline sale was already synced: ${existingSaleError.message}` };
+    if (existingSale) {
+      if (!existingSale.offline_sync_completed_at) {
+        return { ok: false, error: "This offline sale was only partially processed. It needs administrator review before it can be retried." };
+      }
+      return { ok: true, saleId: existingSale.id, saleNumber: existingSale.sale_number };
+    }
+  }
   if ((input.documentStatus ?? "final") === "final") {
     const creditCheck = await checkCustomerCreditLimit(
       supabase,
@@ -396,17 +429,22 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
     if (!creditCheck.allowed) return { ok: false, error: creditCheck.error };
   }
   if (input.posRegisterSessionId) {
-    const { data: session, error: sessionError } = await (supabase as any)
-      .from("pos_register_sessions")
-      .select("id")
+    if (!input.locationId) {
+      return { ok: false, error: "Select a branch/location before processing the POS sale." };
+    }
+    const sessionQuery = input.offlineSync
+      ? supabase.from("pos_register_sessions").select("id")
+      : supabase.from("pos_register_sessions").select("id").eq("status", "open");
+    const { data: session, error: sessionError } = await sessionQuery
       .eq("id", input.posRegisterSessionId)
       .eq("org_id", context.orgId)
       .eq("cashier_id", user.id)
       .eq("location_id", input.locationId)
-      .eq("status", "open")
       .maybeSingle();
     if (sessionError || !session) {
-      return { ok: false, error: "The POS register session is closed or unavailable. Reopen the register and retry sync." };
+      return { ok: false, error: input.offlineSync
+        ? "The original POS register session could not be verified for this offline sale."
+        : "The POS register session is closed or unavailable. Reopen the register and retry sync." };
     }
   }
 
@@ -419,6 +457,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         customer_id:     input.customerId ?? null,
         location_id:     input.locationId ?? null,
         register_session_id: input.posRegisterSessionId ?? null,
+        offline_operation_id: input.offlineOperationId ?? null,
         reference:       input.reference ?? null,
         sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
         document_status: input.documentStatus ?? "final",
@@ -435,7 +474,37 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
       .select("id, sale_number")
       .single();
 
-    if (saleError || !sale) throw new Error(saleError?.message ?? "Failed to create sale.");
+    if (saleError || !sale) {
+      if (input.offlineOperationId && saleError?.code === "23505") {
+        const { data: existingSale, error: existingSaleError } = await supabase
+          .from("sales")
+          .select("id, sale_number, offline_sync_completed_at")
+          .eq("org_id", input.orgId)
+          .eq("offline_operation_id", input.offlineOperationId)
+          .maybeSingle();
+        if (existingSaleError) throw new Error(existingSaleError.message);
+        if (existingSale) {
+          if (!existingSale.offline_sync_completed_at) {
+            return { ok: false, error: "This offline sale was only partially processed. It needs administrator review before it can be retried." };
+          }
+          return { ok: true, saleId: existingSale.id, saleNumber: existingSale.sale_number };
+        }
+      }
+      throw new Error(saleError?.message ?? "Failed to create sale.");
+    }
+
+    if (input.paymentAllocations?.length) {
+      const { error: allocationsError } = await supabase.from("sale_payment_allocations").insert(
+        input.paymentAllocations.map((allocation) => ({
+          org_id: input.orgId,
+          sale_id: sale.id,
+          payment_method: allocation.paymentMethod,
+          account_id: allocation.accountId ?? null,
+          amount: allocation.amount,
+        }))
+      );
+      if (allocationsError) throw new Error(allocationsError.message);
+    }
 
     const allLines = [
       ...(input.lines ?? []).map(l => ({
@@ -538,12 +607,13 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
       }
       if (targetLocationId) {
         for (const l of [...(input.lines ?? []), ...(input.items ?? [])]) {
-          await supabase.rpc("adjust_product_stock_at_location", {
+          const { error: stockError } = await supabase.rpc("adjust_product_stock_at_location", {
             p_product_id: l.productId,
             p_location_id: targetLocationId,
             p_org_id: input.orgId,
             p_delta: -l.quantity,
           });
+          if (stockError) throw new Error(`Could not update product stock: ${stockError.message}`);
         }
       }
 
@@ -585,13 +655,28 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
               { account_id: accounts.creditAccountId, description: "Sales revenue", debit: 0, credit: Number(input.total) },
             ],
           });
-          if (journal.error) console.error("Automatic sales journal was not posted:", journal.error);
+          if (journal.error) {
+            console.error("Automatic sales journal was not posted:", journal.error);
+            if (input.offlineSync) throw new Error(`Could not post the sales journal: ${journal.error}`);
+          }
         }
       }
     }
 
     revalidatePath("/sales");
     revalidatePath("/inventory");
+    if (input.offlineOperationId) {
+      const admin = createAdminClient();
+      const { error: completionError } = await admin
+        .from("sales")
+        .update({ offline_sync_completed_at: new Date().toISOString() })
+        .eq("id", sale.id)
+        .eq("org_id", input.orgId)
+        .eq("offline_operation_id", input.offlineOperationId);
+      if (completionError) {
+        throw new Error(`Sale was created but its offline sync completion could not be recorded: ${completionError.message}`);
+      }
+    }
     return { ok: true, saleId: sale.id, saleNumber: sale.sale_number };
 
   } catch (err) {

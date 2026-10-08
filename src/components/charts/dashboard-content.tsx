@@ -27,6 +27,7 @@ import { BranchPerformanceCard } from "@/components/charts/branch-performance-ca
 import { DateRangeFilter } from "@/components/charts/date-range-filter";
 import { DashboardFilters, type FilterOption } from "@/components/charts/dashboard-filters";
 import { formatMoney } from "@/lib/currency";
+import { DashboardMotionItem } from "@/components/charts/dashboard-motion-item";
 
 interface Kpi {
   label: string;
@@ -138,7 +139,7 @@ export function DashboardContent({
 
   return (
    <div className="dashboard-motion space-y-6 [&_.rounded-card]:!border-0 [&_.flip-face]:!border-0">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <DashboardMotionItem className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">{orgName}</h1>
           <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">
@@ -149,28 +150,29 @@ export function DashboardContent({
           <DateRangeFilter from={currentRange.from} to={currentRange.to} />
           <DashboardFilters branches={branches} categories={categories} />
         </div>
-      </div>
+      </DashboardMotionItem>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {kpis.map((kpi, index) => (
-          <KpiFlipCard
-            key={kpi.label}
-            animationIndex={index}
-            color={kpi.color}
-            label={kpi.label}
-            value={kpi.value}
-            icon={kpi.icon}
-            trend={kpi.trend}
-            trendSuffix={kpi.trend ? `vs prior period` : undefined}
-            detail={kpi.detail}
-            featured={kpi.featured}
-            borderClassName="border-white dark:border-white"
-          />
+          <DashboardMotionItem key={kpi.label} delay={0.06 + index * 0.055} hover>
+            <KpiFlipCard
+              color={kpi.color}
+              label={kpi.label}
+              value={kpi.value}
+              icon={kpi.icon}
+              trend={kpi.trend}
+              trendSuffix={kpi.trend ? `vs prior period` : undefined}
+              detail={kpi.detail}
+              featured={kpi.featured}
+              borderClassName="border-white dark:border-white"
+            />
+          </DashboardMotionItem>
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="lg:col-span-1">
+        <DashboardMotionItem className="h-full lg:col-span-1" delay={0.12} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Sales overview</CardTitle>
           </CardHeader>
@@ -187,8 +189,10 @@ export function DashboardContent({
             />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
 
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.18} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Sales by product &amp; category</CardTitle>
           </CardHeader>
@@ -206,14 +210,18 @@ export function DashboardContent({
             )}
           </CardContent>
         </Card>
+        </DashboardMotionItem>
 
         {/* Branch by Branch Performance Comparison */}
+        <DashboardMotionItem className="h-full" delay={0.24} hover>
         <BranchPerformanceCard
           branches={summary.branchPerformance}
           currency={currency}
         />
+        </DashboardMotionItem>
 
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.3} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Business health</CardTitle>
           </CardHeader>
@@ -221,8 +229,10 @@ export function DashboardContent({
             <BusinessHealthCard summary={summary} />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
 
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.36} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Inventory summary</CardTitle>
           </CardHeader>
@@ -236,10 +246,12 @@ export function DashboardContent({
             />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.12} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Cash flow</CardTitle>
           </CardHeader>
@@ -253,8 +265,10 @@ export function DashboardContent({
             />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
 
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.18} hover>
+        <Card className="h-full">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Top selling products</CardTitle>
@@ -267,11 +281,13 @@ export function DashboardContent({
             <TopSellingTable products={summary.bestSellers30d} currency={currency} />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
 
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.12} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Sales vs expenses vs profit</CardTitle>
           </CardHeader>
@@ -279,8 +295,10 @@ export function DashboardContent({
             <RevenueExpenseChart data={summary.dailySeries30d} currency={currency} />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
 
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.18} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Profit overview (cumulative)</CardTitle>
           </CardHeader>
@@ -288,10 +306,12 @@ export function DashboardContent({
             <ProfitOverviewChart data={summary.dailySeries30d} currency={currency} />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
+        <DashboardMotionItem className="h-full" delay={0.12} hover>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Recent activity</CardTitle>
           </CardHeader>
@@ -299,8 +319,10 @@ export function DashboardContent({
             <RecentActivityFeed items={recentActivity} currency={currency} />
           </CardContent>
         </Card>
+        </DashboardMotionItem>
 
-        <Card accent="signal">
+        <DashboardMotionItem className="h-full" delay={0.18} hover>
+        <Card accent="signal" className="h-full">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>AI insights</CardTitle>
@@ -334,6 +356,7 @@ export function DashboardContent({
             )}
           </CardContent>
         </Card>
+        </DashboardMotionItem>
       </div>
     </div>
   );

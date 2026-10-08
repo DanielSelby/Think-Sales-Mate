@@ -927,6 +927,8 @@ export interface Database {
           id: string;
           org_id: string;
           sale_number: number;
+          offline_operation_id: string | null;
+          offline_sync_completed_at: string | null;
           document_status?:"draft" | "quotation" | "proforma" | "final";
           customer_name: string | null;
           customer_id: string | null;
@@ -956,6 +958,8 @@ export interface Database {
           id?: string;
           org_id: string;
           sale_number?: number;
+          offline_operation_id?: string | null;
+          offline_sync_completed_at?: string | null;
           document_status?:"draft" | "quotation" | "proforma" | "final";
           customer_name?: string | null;
           customer_id?: string | null;

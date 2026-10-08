@@ -30,6 +30,7 @@ import {
 import type { HeldSaleKind } from "@/types/database";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
+import { isOfflineTransactionsEnabled } from "@/lib/offline/cache";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
 import { CustomerBalancePop } from "@/components/sales/customer-balance-pop";
@@ -58,6 +59,7 @@ export interface MobileMoneyAccount { id: string; name: string; balance: number;
 export interface StockLevel { productId: string; locationId: string; quantity: number; }
 
 interface PosViewProps {
+  orgId: string;
   userId: string;
   products: PosProduct[];
   locations: LocationOption[];
@@ -95,7 +97,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ userId, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
+export function PosView({ orgId, userId, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
@@ -444,8 +446,13 @@ export function PosView({ userId, products, locations, stockLevels, currency, ta
     setPaymentMethod(method);
 
     if (!navigator.onLine) {
+      if (!isOfflineTransactionsEnabled()) {
+        setError("Offline transactions are disabled in General Settings. Reconnect before completing this sale.");
+        return;
+      }
       const cartItems = buildCartInput();
       const offlinePayload = {
+        orgId,
         posRegisterSessionId: registerSession.id,
         locationId,
         customerId: customer?.id ?? null,
@@ -459,11 +466,19 @@ export function PosView({ userId, products, locations, stockLevels, currency, ta
         shippingAmount,
         paymentMethod: method,
         paymentAllocations,
+        amountPaid: paymentAllocations?.length
+          ? paymentAllocations.reduce((sum, allocation) => sum + Math.max(0, allocation.amount), 0)
+          : /^credit$/i.test(method.trim()) ? 0 : total,
         saleDate,
         priceTier,
         total,
       };
-      enqueueOfflineOperation("sale", offlinePayload);
+      try {
+        enqueueOfflineOperation("sale", offlinePayload);
+      } catch (error) {
+        setError(error instanceof Error ? `Could not save this sale offline: ${error.message}` : "Could not save this sale offline.");
+        return;
+      }
       showNotice("Offline sale queued — it will sync automatically when you reconnect.");
       clearCart();
       router.refresh();

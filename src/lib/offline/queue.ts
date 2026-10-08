@@ -33,6 +33,10 @@ export function getOfflineQueue() {
   return readQueue();
 }
 
+export function removeOfflineOperation(id: string) {
+  writeQueue(readQueue().filter((operation) => operation.id !== id));
+}
+
 export function enqueueOfflineOperation(type: OfflineOperationType, payload: unknown) {
   const operation: OfflineOperation = {
     id: crypto.randomUUID(),
@@ -55,25 +59,36 @@ export function subscribeOfflineQueue(listener: () => void) {
 }
 
 export async function syncOfflineQueue() {
+  if (syncInProgress) return { synced: 0, failed: 0 };
+  syncInProgress = true;
   const queue = readQueue();
   const remaining: OfflineOperation[] = [];
 
-  for (const operation of queue) {
-    try {
-      const response = await fetch("/api/offline/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(operation),
-      });
-      const result = await response.json() as { ok?: boolean; error?: string };
-      if (!response.ok || !result.ok) {
-        remaining.push({ ...operation, status: "failed", error: result.error ?? "Sync failed." });
+  try {
+    for (const operation of queue) {
+      try {
+        const response = await fetch("/api/offline/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(operation),
+        });
+        const result = await response.json() as { ok?: boolean; error?: string };
+        if (!response.ok || !result.ok) {
+          remaining.push({ ...operation, status: "failed", error: result.error ?? "Sync failed." });
+        }
+      } catch {
+        remaining.push({ ...operation, status: "failed", error: "Connection lost while syncing." });
       }
-    } catch {
-      remaining.push({ ...operation, status: "failed", error: "Connection lost while syncing." });
     }
-  }
 
-  writeQueue(remaining);
-  return { synced: queue.length - remaining.length, failed: remaining.length };
+    const processedIds = new Set(queue.map((operation) => operation.id));
+    const latestQueue = readQueue();
+    const untouched = latestQueue.filter((operation) => !processedIds.has(operation.id));
+    writeQueue([...remaining, ...untouched]);
+    return { synced: queue.length - remaining.length, failed: remaining.length };
+  } finally {
+    syncInProgress = false;
+  }
 }
+
+let syncInProgress = false;

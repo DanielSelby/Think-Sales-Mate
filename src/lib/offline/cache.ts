@@ -42,6 +42,17 @@ export function getOfflineDataLoadMode(): OfflineDataLoadMode {
   return value === "approval" || value === "manual" ? value : "automatic";
 }
 
+export function getOfflineSyncMode(): "automatic" | "approval" | "manual" {
+  if (typeof window === "undefined") return "automatic";
+  const value = window.localStorage.getItem("thinksales-offline-sync-mode");
+  return value === "approval" || value === "manual" ? value : "automatic";
+}
+
+export function isOfflineTransactionsEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.localStorage.getItem("thinksales-offline-enabled") === "true";
+}
+
 export function setOfflineDataLoadMode(mode: OfflineDataLoadMode) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem("thinksales-offline-data-load-mode", mode);

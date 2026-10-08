@@ -50,7 +50,6 @@ interface KpiFlipCardProps {
   trendSuffix?: string;
   detail: string;
   featured?: boolean;
-  animationIndex?: number;
   borderClassName?: string;
 }
 
@@ -63,7 +62,6 @@ export function KpiFlipCard({
   trendSuffix,
   detail,
   featured = false,
-  animationIndex = 0,
   borderClassName,
 }: KpiFlipCardProps) {
   const { activeTheme } = useAppStore();
@@ -72,7 +70,7 @@ export function KpiFlipCard({
   const style = STYLES[color] ?? STYLES.blue;
 
   return (
-    <div className="flip-scene dashboard-kpi h-[132px]" style={{ "--motion-index": animationIndex } as React.CSSProperties}>
+    <div className="flip-scene h-[132px]">
       <div className="flip-card h-full">
         {/* FRONT */}
         <div
