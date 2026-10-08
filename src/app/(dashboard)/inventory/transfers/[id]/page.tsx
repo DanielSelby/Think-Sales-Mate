@@ -12,8 +12,17 @@ import { TransferStatusActions } from "@/components/inventory/transfer-status-ac
 import { formatCurrency } from "@/lib/sales/format";
 import { PrintTransferButton } from "@/components/inventory/print-transfer-button";
 
-export default async function StockTransferDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function StockTransferDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ print?: string }>;
+}) {
+  const [{ id }, query] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve<{ print?: string }>({}),
+  ]);
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -74,11 +83,11 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
   ];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="stock-transfer-print-page mx-auto max-w-2xl space-y-6">
       <div>
         <Link
           href="/inventory/transfers"
-          className="inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white"
+          className="print:hidden inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to stock transfer history
@@ -88,7 +97,7 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
             {transfer.reference_no || `Transfer #${String(transfer.transfer_number).padStart(4, "0")}`}
           </h1>
           <TransferStatusBadge status={transfer.status} />
-          <PrintTransferButton />
+          <PrintTransferButton autoPrint={query.print === "1"} />
         </div>
         <p className="text-sm text-ledger-500 dark:text-ledger-400">
           {from?.name ?? "Unknown"} → {to?.name ?? "Unknown"} · {new Date(transfer.created_at).toLocaleString()}
@@ -99,15 +108,17 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
 
       {(canManageTransfer
         || ((transfer.status === "pending" || transfer.status === "in_transit") && canReceiveTransfer)) && (
-        <TransferStatusActions
-          transferId={transfer.id}
-          status={transfer.status}
-          canManage={canManageTransfer}
-          canReceive={canReceiveTransfer}
-        />
+        <div className="print:hidden">
+          <TransferStatusActions
+            transferId={transfer.id}
+            status={transfer.status}
+            canManage={canManageTransfer}
+            canReceive={canReceiveTransfer}
+          />
+        </div>
       )}
 
-      <Card>
+      <Card className="print:break-inside-avoid print:border-0 print:shadow-none">
         <CardContent className="pt-5">
           <table className="w-full text-sm">
             <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-ledger-700">
@@ -152,7 +163,7 @@ export default async function StockTransferDetailPage({ params }: { params: Prom
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="print:hidden">
         <CardContent className="pt-5">
           <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Timeline</h2>
           <ul className="mt-3 space-y-3">

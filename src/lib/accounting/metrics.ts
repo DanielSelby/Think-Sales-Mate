@@ -44,6 +44,7 @@ export interface DailyPoint {
   label: string;
   revenue: number;
   expenses: number;
+  profit: number;
 }
 
 export interface RevenueSlice {
@@ -291,6 +292,7 @@ export async function getFinancialSummary(
   const bestSellersMap = new Map<string, BestSeller>();
   const categoryRevenueMap = new Map<string, number>();
   const itemRevenueByDay = new Map<string, number>();
+  const itemCogsByDay = new Map<string, number>();
   const itemSaleIdsPeriod = new Set<string>();
   let itemRevenue30d = 0;
   let itemRevenueToday = 0;
@@ -311,7 +313,10 @@ export async function getFinancialSummary(
 
     if (product?.cost_price != null) {
       hasCostData = true;
-      cogs30d += Number(product.cost_price) * item.quantity;
+      const itemCost = Number(product.cost_price) * item.quantity;
+      cogs30d += itemCost;
+      const dayKey = item.created_at.slice(0, 10);
+      itemCogsByDay.set(dayKey, (itemCogsByDay.get(dayKey) ?? 0) + itemCost);
     }
 
     if (category) {
@@ -375,7 +380,8 @@ export async function getFinancialSummary(
       date: key,
       label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
       revenue: 0,
-      expenses: 0
+      expenses: 0,
+      profit: 0
     });
   }
   if (category) {
@@ -394,6 +400,9 @@ export async function getFinancialSummary(
     const key = e.expense_date.slice(0, 10);
     const bucket = dayBuckets.get(key);
     if (bucket) bucket.expenses += Number(e.amount);
+  }
+  for (const bucket of dayBuckets.values()) {
+    bucket.profit = bucket.revenue - bucket.expenses - (itemCogsByDay.get(bucket.date) ?? 0);
   }
   const dailySeries30d = [...dayBuckets.values()];
 

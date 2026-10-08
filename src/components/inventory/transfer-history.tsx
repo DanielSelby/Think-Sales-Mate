@@ -749,7 +749,7 @@ export function TransferHistory({
                 <th className="px-4 py-3 text-center min-w-[90px]">QUANTITY</th>
                 <th className="px-4 py-3 min-w-[110px]">STATUS</th>
                 <th className="px-4 py-3 min-w-[160px]">REQUESTED BY</th>
-                <th className="px-4 py-3 text-center w-16">ACTIONS</th>
+                <th className="px-4 py-3 text-center min-w-[90px]">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
@@ -902,6 +902,21 @@ export function TransferHistory({
 
                       {/* ACTIONS */}
                       <td className="px-4 py-3.5 text-center relative">
+                        <button
+                          type="button"
+                          aria-label={`Print transfer ${row.label}`}
+                          title="Print transfer slip"
+                          onClick={() => {
+                            window.open(
+                              `/inventory/transfers/${encodeURIComponent(row.id)}?print=1`,
+                              "_blank",
+                              "noopener,noreferrer"
+                            );
+                          }}
+                          className="rounded-lg p-1.5 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </button>
                         <button
                           type="button"
                           data-transfer-action-trigger

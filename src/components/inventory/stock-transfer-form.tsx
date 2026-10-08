@@ -41,7 +41,6 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { formatCurrency } from "@/lib/sales/format";
 import { createStockTransfer, updateTransferStatus, deleteTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
 import type { TransferStatus, LocationType } from "@/types/database";
@@ -203,7 +202,6 @@ export function StockTransferForm({
   const [showNotifications, setShowNotifications] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [transactionFeedback, setTransactionFeedback] = useState<{ kind: "success"; message: string } | null>(null);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -429,14 +427,13 @@ export function StockTransferForm({
       if (result?.error) {
         setErrorMessage(result.error);
         setShowApprovalModal(false);
+      } else if (!result?.transferId) {
+        setErrorMessage("The transfer was created, but its print details could not be opened. Find it in Transfer History.");
+        setShowApprovalModal(false);
       } else {
         setShowApprovalModal(false);
         setItems([]);
-
-        setTransactionFeedback({
-          kind: "success",
-          message: `Stock Transfer #${referenceNo} was created and dispatched successfully. Awaiting Branch Receive Confirmation.`,
-        });
+        router.push(`/inventory/transfers/${encodeURIComponent(result.transferId)}?print=1`);
       }
     });
   };
@@ -446,7 +443,6 @@ export function StockTransferForm({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150 pb-20">
-      {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => { setTransactionFeedback(null); router.push("/inventory/transfers"); router.refresh(); }} />}
       {/* Toast Notification */}
       {successMessage && (
         <div className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-2xl bg-emerald-700 px-5 py-3.5 text-white shadow-2xl animate-in slide-in-from-top-4">

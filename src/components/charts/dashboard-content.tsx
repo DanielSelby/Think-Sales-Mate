@@ -212,40 +212,43 @@ export function DashboardContent({
         </Card>
         </DashboardMotionItem>
 
-        {/* Branch by Branch Performance Comparison */}
-        <DashboardMotionItem className="h-full" delay={0.24} hover>
+      </div>
+
+      <DashboardMotionItem delay={0.12} hover>
+        {/* Branch comparison is intentionally full-width and stands alone. */}
         <BranchPerformanceCard
           branches={summary.branchPerformance}
           currency={currency}
         />
+      </DashboardMotionItem>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <DashboardMotionItem className="h-full" delay={0.12} hover>
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>Business health</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BusinessHealthCard summary={summary} />
+            </CardContent>
+          </Card>
         </DashboardMotionItem>
 
-        <DashboardMotionItem className="h-full" delay={0.3} hover>
-        <Card className="h-full">
-          <CardHeader>
-            <CardTitle>Business health</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BusinessHealthCard summary={summary} />
-          </CardContent>
-        </Card>
-        </DashboardMotionItem>
-
-        <DashboardMotionItem className="h-full" delay={0.36} hover>
-        <Card className="h-full">
-          <CardHeader>
-            <CardTitle>Inventory summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <InventorySummaryCard
-              totalProducts={summary.totalActiveProducts}
-              lowStockCount={summary.lowStockCount}
-              outOfStockCount={summary.outOfStockCount}
-              inventoryValue={summary.inventoryValue}
-              currency={currency}
-            />
-          </CardContent>
-        </Card>
+        <DashboardMotionItem className="h-full" delay={0.18} hover>
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>Inventory summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InventorySummaryCard
+                totalProducts={summary.totalActiveProducts}
+                lowStockCount={summary.lowStockCount}
+                outOfStockCount={summary.outOfStockCount}
+                inventoryValue={summary.inventoryValue}
+                currency={currency}
+              />
+            </CardContent>
+          </Card>
         </DashboardMotionItem>
       </div>
 
@@ -282,7 +285,6 @@ export function DashboardContent({
           </CardContent>
         </Card>
         </DashboardMotionItem>
-
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, BarChart, Bar, ComposedChart, Line, ReferenceLine,
 } from "recharts";
 import type { DailyPoint } from "@/lib/accounting/metrics";
@@ -16,7 +16,7 @@ const shortFmt = (v: number) =>
 
 function CustomTooltip({ active, payload, label, currency }: {
   active?: boolean;
-  payload?: Array<{ dataKey: string; color?: string; value?: number | string }>;
+  payload?: Array<{ dataKey: string; name?: string; color?: string; value?: number | string }>;
   label?: string;
   currency: string;
 }) {
@@ -28,7 +28,7 @@ function CustomTooltip({ active, payload, label, currency }: {
         <div key={item.dataKey} className="flex items-center justify-between gap-4 mb-1">
           <span className="flex items-center gap-1.5 text-slate-500">
             <span className="w-2 h-2 rounded-full" style={{ background: item.color }} />
-            <span className="capitalize">{item.dataKey}</span>
+            <span>{item.name ?? (item.dataKey === "profit" ? "Profit" : item.dataKey)}</span>
           </span>
           <span className="font-semibold tracking-tight tabular-nums" style={{ color: item.color }}>{formatMoney(Number(item.value ?? 0), currency)}</span>
         </div>
@@ -40,11 +40,8 @@ function CustomTooltip({ active, payload, label, currency }: {
 export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoint[]; currency?: string }) {
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
-  const [chartType, setChartType] = useState<"area" | "bar" | "compare">("area");
+  const [chartType, setChartType] = useState<"area" | "bar" | "compare">("compare");
   const [series, setSeries] = useState<"both" | "revenue" | "expenses">("both");
-
-  // Compute net for compare mode
-  const enriched = useMemo(() => data.map(d => ({ ...d, net: d.revenue - d.expenses })), [data]);
 
   return (
     <div className="space-y-4">
@@ -78,7 +75,7 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
 
       <ResponsiveContainer width="100%" height={240}>
         {chartType === "area" ? (
-          <AreaChart data={enriched} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="revG" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
@@ -89,7 +86,6 @@ export function RevenueExpenseChart({ data, currency = "USD" }: { data: DailyPoi
                 <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={4} />
             <YAxis tick={{ fontSize: 11,
@@ -99,8 +95,7 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormat
             {series !== "revenue" && <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#expG)" dot={false} animationDuration={1050} animationEasing="ease-out" />}
           </AreaChart>
         ) : chartType === "bar" ? (
-          <BarChart data={enriched} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <XAxis dataKey="label" tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={4} />
             <YAxis tick={{ fontSize: 11,
@@ -110,14 +105,7 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormat
             {series !== "revenue" && <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={850} animationEasing="ease-out" />}
           </BarChart>
         ) : (
-          <ComposedChart data={enriched} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="netG" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={theme.colors.primary} stopOpacity={0.25} />
-                <stop offset="100%" stopColor={theme.colors.primary} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <XAxis dataKey="label" tick={{ fontSize: 11,
 fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} tickLine={false} axisLine={false} interval={4} />
             <YAxis tick={{ fontSize: 11,
@@ -126,9 +114,10 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormat
             <Tooltip content={<CustomTooltip currency={currency} />} />
             <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={16} opacity={0.7} />
             <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={16} opacity={0.7} />
-            <Line type="monotone" dataKey="net" stroke={theme.colors.primary} strokeWidth={2.5}
-              dot={{ r: 3, fill: theme.colors.primary, stroke: "#fff", strokeWidth: 2 }}
-              activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="profit" name="Profit" stroke={theme.colors.primary} strokeWidth={3}
+              dot={{ r: 3.5, fill: theme.colors.primary, stroke: "#fff", strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: theme.colors.primary, stroke: "#fff", strokeWidth: 2 }}
+              animationDuration={900} animationEasing="ease-out" />
           </ComposedChart>
         )}
       </ResponsiveContainer>
@@ -144,7 +133,7 @@ fontWeight: 600, fill: "#64748b", fontFamily: "inherit" }} width={44} tickFormat
         {chartType === "compare" && <>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-green-500 inline-block opacity-70" />Revenue</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-red-500 inline-block opacity-70" />Expenses</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 rounded-full inline-block" style={{ background: theme.colors.primary }} />Net</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 rounded-full inline-block" style={{ background: theme.colors.primary }} />Profit</span>
         </>}
       </div>
     </div>
