@@ -604,7 +604,17 @@ html.dark .dashboard-motion .rounded-card:hover {
 }
 
 html.dark .stock-transfer-surface [class~="dark:text-white"] {
-  color: #111827 !important;
+  color: #f8fafc !important;
+}
+
+html.dark .stock-transfer-surface {
+  background-color: #0f1d2d !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .stock-transfer-surface [class*="bg-white"] {
+  background-color: #0f1d2d !important;
 }
 
 .stock-transfer-modal-surface {
@@ -1582,6 +1592,110 @@ html.dark .return-products-page .return-table-wrap tbody tr:hover {
   background-color: #172a40 !important;
 }
 
+:root {
+  --action-view: #2563eb;
+  --action-view-hover: #eff6ff;
+  --action-approve: #059669;
+  --action-approve-hover: #ecfdf5;
+  --action-reject: #ef4444;
+  --action-reject-hover: #fef2f2;
+}
+
+html.dark {
+  --action-view: #60a5fa;
+  --action-view-hover: rgb(30 58 138 / 0.3);
+  --action-approve: #34d399;
+  --action-approve-hover: rgb(6 78 59 / 0.35);
+  --action-reject: #f87171;
+  --action-reject-hover: rgb(127 29 29 / 0.3);
+}
+
+:where(button, a):is(
+  [data-action="view"],
+  [title*="view" i],
+  [aria-label*="view" i],
+  [data-action="edit"],
+  [title*="edit" i],
+  [aria-label*="edit" i]
+):has(svg) {
+  color: var(--action-view) !important;
+}
+
+:where(button, a):is(
+  [data-action="approve"],
+  [title*="approve" i],
+  [aria-label*="approve" i]
+):has(svg) {
+  color: var(--action-approve) !important;
+}
+
+:where(button, a):is(
+  [data-action="reject"],
+  [title*="reject" i],
+  [aria-label*="reject" i],
+  [data-action="delete"],
+  [title*="delete" i],
+  [aria-label*="delete" i],
+  [data-action="remove"],
+  [title*="remove" i],
+  [aria-label*="remove" i]
+):has(svg) {
+  color: var(--action-reject) !important;
+}
+
+:where(button, a):is(
+  [data-action="view"],
+  [title*="view" i],
+  [aria-label*="view" i]
+):has(svg):hover {
+  background-color: var(--action-view-hover) !important;
+}
+
+:where(button, a):is(
+  [data-action="approve"],
+  [title*="approve" i],
+  [aria-label*="approve" i]
+):has(svg):hover {
+  background-color: var(--action-approve-hover) !important;
+}
+
+:where(button, a):is(
+  [data-action="reject"],
+  [title*="reject" i],
+  [aria-label*="reject" i],
+  [data-action="delete"],
+  [title*="delete" i],
+  [aria-label*="delete" i],
+  [data-action="remove"],
+  [title*="remove" i],
+  [aria-label*="remove" i]
+):has(svg):hover {
+  background-color: var(--action-reject-hover) !important;
+}
+
+:where(button, a):is(
+  [data-action="view"],
+  [title*="view" i],
+  [aria-label*="view" i],
+  [data-action="edit"],
+  [title*="edit" i],
+  [aria-label*="edit" i],
+  [data-action="approve"],
+  [title*="approve" i],
+  [aria-label*="approve" i],
+  [data-action="reject"],
+  [title*="reject" i],
+  [aria-label*="reject" i],
+  [data-action="delete"],
+  [title*="delete" i],
+  [aria-label*="delete" i],
+  [data-action="remove"],
+  [title*="remove" i],
+  [aria-label*="remove" i]
+):has(svg) > svg {
+  color: inherit !important;
+}
+
 html.dark .return-products-new-form,
 html.dark .return-products-report {
   color: #e2e8f0;
@@ -1686,6 +1800,90 @@ html.dark .return-products-report table thead {
 html.dark .return-products-report table thead th {
   background-color: transparent !important;
   color: #f1f5f9 !important;
+}
+
+html.dark .procurement-page:not(.procurement-grid-lines) .kpi-summary-card.rounded-2xl,
+html.dark .product-page .kpi-summary-card.rounded-2xl {
+  border-color: rgb(255 255 255 / 0.1) !important;
+  background-color: #0f1d2d !important;
+}
+
+.procurement-page:not(.procurement-grid-lines) .kpi-summary-card.rounded-2xl,
+.product-page .kpi-summary-card.rounded-2xl {
+  border-color: #fff !important;
+  background-color: #fff !important;
+}
+
+.transfer-history-page,
+.stock-request-history-page {
+  color: #1e293b;
+}
+
+html.dark .transfer-history-page,
+html.dark .stock-request-history-page {
+  color: #e2e8f0;
+}
+
+html.dark .transfer-history-page :is(.rounded-2xl.border, .rounded-xl.border),
+html.dark .stock-request-history-page :is(.rounded-2xl.border, .rounded-xl.border) {
+  border-color: #334155 !important;
+}
+
+html.dark .transfer-history-page :is(input, select, textarea),
+html.dark .stock-request-history-page :is(input, select, textarea) {
+  border-color: #475569 !important;
+  background-color: #0b1726 !important;
+  color: #f1f5f9 !important;
+  color-scheme: dark;
+}
+
+html.dark .transfer-history-page input::placeholder,
+html.dark .stock-request-history-page input::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark .stock-request-history-page .bg-white,
+html.dark .transfer-history-page .bg-white {
+  background-color: #0f1d2d !important;
+}
+
+html.dark .stock-request-history-page .bg-ledger-50,
+html.dark .transfer-history-page .bg-ledger-50 {
+  background-color: #132337 !important;
+}
+
+html.dark .stock-request-history-page :is(.text-ink-900, .text-ledger-600, .text-ledger-500),
+html.dark .transfer-history-page :is(.text-ink-900, .text-ledger-600, .text-ledger-500) {
+  color: #cbd5e1 !important;
+}
+
+html.dark .stock-request-history-page .text-ink-900.dark\:text-white,
+html.dark .transfer-history-page .text-ink-900.dark\:text-white {
+  color: #f8fafc !important;
+}
+
+@media screen {
+  body .page-canvas div.overflow-x-auto:has(> table),
+  body .page-canvas div.overflow-auto:has(> table),
+  body .page-canvas div.overflow-y-auto:has(> table),
+  body .platform-admin-console main div.overflow-x-auto:has(> table),
+  body .platform-admin-console main div.overflow-auto:has(> table),
+  body .platform-admin-console main div.overflow-y-auto:has(> table) {
+    max-height: 65vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  body .page-canvas div.overflow-x-auto:has(> table) thead,
+  body .page-canvas div.overflow-auto:has(> table) thead,
+  body .page-canvas div.overflow-y-auto:has(> table) thead,
+  body .platform-admin-console main div.overflow-x-auto:has(> table) thead,
+  body .platform-admin-console main div.overflow-auto:has(> table) thead,
+  body .platform-admin-console main div.overflow-y-auto:has(> table) thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
 }
 
 html.dark .orders-page .orders-table thead tr {

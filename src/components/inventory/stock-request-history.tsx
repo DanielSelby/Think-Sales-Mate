@@ -158,7 +158,7 @@ export function StockRequestHistory({
   ]);
 
   return (
-    <div className="space-y-5 pb-8 text-sm">
+    <div className="stock-request-history-page space-y-5 pb-8 text-sm">
       <header className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
           <p className="flex items-center gap-1 text-xs font-medium text-ledger-500">

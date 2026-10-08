@@ -78,14 +78,29 @@ export const useAppStore = create<AppState>()(
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       activeOrgId:       null,
       setActiveOrgId:    (orgId) => set({ activeOrgId: orgId }),
-      activeTheme:       "fintech",
+      activeTheme:       "green",
       setTheme:          (theme) => set({ activeTheme: theme }),
       darkMode:          false,
-      setDarkMode:       (enabled) => set({ darkMode: enabled }),
-      toggleDarkMode:    () => set((state) => ({ darkMode: !state.darkMode })),
+      setDarkMode:       (enabled) => set((state) => state.darkMode === enabled
+        ? state
+        : { darkMode: enabled, activeTheme: enabled ? "royal" : "green" }),
+      toggleDarkMode:    () => set((state) => {
+        const darkMode = !state.darkMode;
+        return { darkMode, activeTheme: darkMode ? "royal" : "green" };
+      }),
       commandBarOpen:    false,
       setCommandBarOpen: (open) => set({ commandBarOpen: open }),
     }),
-    { name: "salesmate-ui" }
+    {
+      name: "salesmate-ui",
+      version: 1,
+      migrate: (persistedState, version) => {
+        const state = persistedState as Partial<AppState>;
+        if (version === 0 && state.activeTheme === "fintech") {
+          return { ...state, activeTheme: state.darkMode ? "royal" : "green" } as AppState;
+        }
+        return state as AppState;
+      },
+    }
   )
 );

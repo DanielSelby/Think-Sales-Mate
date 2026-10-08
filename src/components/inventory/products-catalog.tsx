@@ -35,8 +35,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { KpiSummaryCard } from "@/components/charts/kpi-summary-card";
 import { useAppStore, THEMES } from "@/store/useAppStore";
-import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { formatMoney } from "@/lib/currency";
 import {
   deleteProduct,
@@ -653,11 +653,11 @@ export function ProductsCatalog({
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiFlipCard color="blue" label="Total products" value={totalProducts.toLocaleString()} icon={<Boxes className="h-full w-full" />} detail="Number of products matching the current search/filters." />
-        <KpiFlipCard color="amber" label="Low stock" value={lowStockCount.toLocaleString()} icon={<AlertTriangle className="h-full w-full" />} detail="Active, filtered products at or below their low-stock threshold." />
-        <KpiFlipCard color="red" label="Out of stock" value={outOfStockCount.toLocaleString()} icon={<PackageX className="h-full w-full" />} detail="Active, filtered products with zero units on hand." />
-        <KpiFlipCard color="green" label="Inventory value" value={formatMoney(inventoryValue, currency)} icon={<Wallet className="h-full w-full" />} detail="Selling price × stock, summed across active filtered products." featured />
-        <KpiFlipCard color="purple" label="Active products" value={activeProducts.toLocaleString()} icon={<Sparkles className="h-full w-full" />} detail={`${activePct}% of the filtered set is currently active.`} />
+        <KpiSummaryCard icon={<Boxes className="h-5 w-5" />} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400" label="Total products" value={totalProducts.toLocaleString()} detail="Number of products matching the current search/filters." />
+        <KpiSummaryCard icon={<AlertTriangle className="h-5 w-5" />} iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400" label="Low stock" value={lowStockCount.toLocaleString()} detail="Active, filtered products at or below their low-stock threshold." />
+        <KpiSummaryCard icon={<PackageX className="h-5 w-5" />} iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400" label="Out of stock" value={outOfStockCount.toLocaleString()} detail="Active, filtered products with zero units on hand." />
+        <KpiSummaryCard icon={<Wallet className="h-5 w-5" />} iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400" label="Inventory value" value={formatMoney(inventoryValue, currency)} detail="Selling price × stock, summed across active filtered products." />
+        <KpiSummaryCard icon={<Sparkles className="h-5 w-5" />} iconClass="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400" label="Active products" value={activeProducts.toLocaleString()} detail={`${activePct}% of the filtered set is currently active.`} />
       </div>
 
       {/* Toolbar */}

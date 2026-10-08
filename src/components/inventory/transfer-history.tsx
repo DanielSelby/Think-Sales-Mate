@@ -365,7 +365,7 @@ export function TransferHistory({
   }, [transfers]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150 pb-16">
+    <div className="transfer-history-page space-y-6 animate-in fade-in duration-150 pb-16">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-2xl bg-emerald-700 px-5 py-3.5 text-white shadow-2xl animate-in slide-in-from-top-4">

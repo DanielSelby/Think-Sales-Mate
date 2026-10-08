@@ -9,6 +9,7 @@ import {
   CalendarClock, Clock3, AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiSummaryCard } from "@/components/charts/kpi-summary-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -74,35 +75,6 @@ const STATUS_TABS: { key: "all" | DisplayStatus; label: string }[] = [
 
 const DONUT_COLORS = ["#1d8f5e", "#a8781f", "#68655c", "#b8402f", "#b3ab97", "#8b8677"];
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
-
-function ExpenseKpiCard({
-  icon,
-  iconClass,
-  label,
-  value,
-  detail,
-}: {
-  icon: React.ReactNode;
-  iconClass: string;
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white bg-white p-4 shadow-card dark:border-white/10 dark:bg-ink-900">
-      <div className="flex items-center gap-3.5">
-        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass)}>
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium text-ledger-400">{label}</p>
-          <span className="mt-0.5 block truncate font-display text-xl font-bold text-ink-900 dark:text-white">{value}</span>
-        </div>
-      </div>
-      <p className="mt-2 text-[10px] text-ledger-400">{detail}</p>
-    </div>
-  );
-}
 
 export function ExpenseListView({
   expenses, kpis, currency, initialCategory = "all", categories, paymentMethods, departments, categoryBreakdown, recentActivity,
@@ -258,11 +230,11 @@ export function ExpenseListView({
       <div className="space-y-5">
           {/* KPIs */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <ExpenseKpiCard icon={<Wallet className="h-5 w-5" />} iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400" label="Total Expenses" value={formatCurrency(filteredKpis.totalExpenses, currency)} detail="Sum of every expense matching the current filters." />
-            <ExpenseKpiCard icon={<CalendarDays className="h-5 w-5" />} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400" label="This Month" value={formatCurrency(filteredKpis.thisMonth, currency)} detail="Filtered expenses dated from the 1st of this month onward." />
-            <ExpenseKpiCard icon={<CalendarClock className="h-5 w-5" />} iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400" label="This Week" value={formatCurrency(filteredKpis.thisWeek, currency)} detail="Filtered expenses dated within the last 7 days." />
-            <ExpenseKpiCard icon={<Clock3 className="h-5 w-5" />} iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400" label="Pending Approval" value={formatCurrency(filteredKpis.pendingApproval, currency)} detail="Filtered expenses still awaiting approval." />
-            <ExpenseKpiCard icon={<AlertTriangle className="h-5 w-5" />} iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400" label="Overdue" value={formatCurrency(filteredKpis.overdue, currency)} detail="Filtered expenses past their due date and still unpaid." />
+            <KpiSummaryCard icon={<Wallet className="h-5 w-5" />} iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400" label="Total Expenses" value={formatCurrency(filteredKpis.totalExpenses, currency)} detail="Sum of every expense matching the current filters." />
+            <KpiSummaryCard icon={<CalendarDays className="h-5 w-5" />} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400" label="This Month" value={formatCurrency(filteredKpis.thisMonth, currency)} detail="Filtered expenses dated from the 1st of this month onward." />
+            <KpiSummaryCard icon={<CalendarClock className="h-5 w-5" />} iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400" label="This Week" value={formatCurrency(filteredKpis.thisWeek, currency)} detail="Filtered expenses dated within the last 7 days." />
+            <KpiSummaryCard icon={<Clock3 className="h-5 w-5" />} iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400" label="Pending Approval" value={formatCurrency(filteredKpis.pendingApproval, currency)} detail="Filtered expenses still awaiting approval." />
+            <KpiSummaryCard icon={<AlertTriangle className="h-5 w-5" />} iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400" label="Overdue" value={formatCurrency(filteredKpis.overdue, currency)} detail="Filtered expenses past their due date and still unpaid." />
           </div>
 
           {/* Filters */}

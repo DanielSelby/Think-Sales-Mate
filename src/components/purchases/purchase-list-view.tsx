@@ -9,6 +9,7 @@ import {
   AlertTriangle, Wallet, Banknote, X, RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiSummaryCard } from "@/components/charts/kpi-summary-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -17,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, formatDateTime, PAYMENT_STATUS_LABEL, type PaymentStatus } from "@/lib/sales/format";
 import { PURCHASE_STATUS_LABEL, PURCHASE_STATUS_TONE, formatPurchaseNumber } from "@/lib/purchases/format";
 import { PurchaseRowMenu } from "@/components/purchases/purchase-row-menu";
-import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import type { PurchaseStatus } from "@/types/database";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
@@ -275,12 +275,12 @@ export function PurchaseListView({
       <div className="space-y-5">
         {/* KPI cards */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-          <KpiFlipCard color="blue" label="Total Purchases" value={`${filteredKpis.totalPurchases}`} icon={<ShoppingBag className="h-full w-full" />} detail="Number of purchase orders matching the current filters." />
-          <KpiFlipCard color="green" label="Total Value" value={formatCurrency(filteredKpis.totalValue, currency)} icon={<Banknote className="h-full w-full" />} detail="Combined total across every purchase order matching the current filters." featured />
-          <KpiFlipCard color="amber" label="Pending Orders" value={`${filteredKpis.pendingOrders}`} icon={<Clock3 className="h-full w-full" />} detail="Orders still in Draft, Ordered, or Partially Received status." />
-          <KpiFlipCard color="green" label="Received Orders" value={`${filteredKpis.receivedOrders}`} icon={<PackageCheck className="h-full w-full" />} detail="Orders fully marked as Received." />
-          <KpiFlipCard color="red" label="Overdue Deliveries" value={`${filteredKpis.overdueDeliveries}`} icon={<AlertTriangle className="h-full w-full" />} detail="Orders past their expected delivery date that haven't been received or cancelled." />
-          <KpiFlipCard color="purple" label="Outstanding Payments" value={formatCurrency(filteredKpis.outstandingPayments, currency)} icon={<Wallet className="h-full w-full" />} detail="Total still owed across these purchase orders." />
+          <KpiSummaryCard icon={<ShoppingBag className="h-5 w-5" />} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400" label="Total Purchases" value={`${filteredKpis.totalPurchases}`} detail="Number of purchase orders matching the current filters." />
+          <KpiSummaryCard icon={<Banknote className="h-5 w-5" />} iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400" label="Total Value" value={formatCurrency(filteredKpis.totalValue, currency)} detail="Combined total across every purchase order matching the current filters." />
+          <KpiSummaryCard icon={<Clock3 className="h-5 w-5" />} iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400" label="Pending Orders" value={`${filteredKpis.pendingOrders}`} detail="Orders still in Draft, Ordered, or Partially Received status." />
+          <KpiSummaryCard icon={<PackageCheck className="h-5 w-5" />} iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400" label="Received Orders" value={`${filteredKpis.receivedOrders}`} detail="Orders fully marked as Received." />
+          <KpiSummaryCard icon={<AlertTriangle className="h-5 w-5" />} iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400" label="Overdue Deliveries" value={`${filteredKpis.overdueDeliveries}`} detail="Orders past their expected delivery date that haven't been received or cancelled." />
+          <KpiSummaryCard icon={<Wallet className="h-5 w-5" />} iconClass="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400" label="Outstanding Payments" value={formatCurrency(filteredKpis.outstandingPayments, currency)} detail="Total still owed across these purchase orders." />
         </div>
 
         {/* Filters */}
