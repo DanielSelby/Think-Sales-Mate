@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -49,6 +49,7 @@ import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
+import { CustomerBalancePop } from "@/components/sales/customer-balance-pop";
 
 
 export interface SellableProduct {
@@ -241,6 +242,7 @@ export function SaleForm({
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialSale?.customerId ?? null);
   const [walkInName, setWalkInName] = useState(initialSale?.customerId ? "" : initialSale?.customerName ?? "");
+  const [customerBalanceNotice, setCustomerBalanceNotice] = useState<{ name: string; balance: number } | null>(null);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [customerSectionCollapsed, setCustomerSectionCollapsed] = useState(false);
@@ -294,6 +296,7 @@ export function SaleForm({
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const selectedCustomer = customerList.find((c) => c.id === selectedCustomerId) ?? null;
+  const dismissCustomerBalanceNotice = useCallback(() => setCustomerBalanceNotice(null), []);
 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
@@ -423,6 +426,9 @@ export function SaleForm({
     setWalkInName("");
     setShowCustomerPicker(false);
     setCustomerQuery("");
+    setCustomerBalanceNotice(customer.outstanding > 0
+      ? { name: customer.name, balance: customer.outstanding }
+      : null);
   }
 
   async function handleSaveContact(contact: {
@@ -433,6 +439,7 @@ export function SaleForm({
     alternatePhone: string | null;
     landline: string | null;
     email: string | null;
+    creditLimit: number | null;
   }): Promise<{ ok: boolean; error?: string }> {
     const result = await addCustomer(orgId, contact);
     if (!result.ok || !result.customer) {
@@ -481,6 +488,7 @@ export function SaleForm({
   function clearSale() {
     setSelectedCustomerId(null);
     setWalkInName("");
+    setCustomerBalanceNotice(null);
     setCustomerQuery("");
     setSaleDate(todayIso());
     setSaleTime(new Date().toTimeString().slice(0, 5));
@@ -814,6 +822,14 @@ export function SaleForm({
 
   return (
     <div className="sales-page new-sale-page w-full pb-32">
+      {customerBalanceNotice && (
+        <CustomerBalancePop
+          customerName={customerBalanceNotice.name}
+          balance={customerBalanceNotice.balance}
+          currency={currency}
+          onClose={dismissCustomerBalanceNotice}
+        />
+      )}
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {duplicateProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-ink-900"><h2 className="font-semibold text-ink-900 dark:text-white">Product already exists</h2><p className="mt-2 text-sm text-ledger-500">&quot;{duplicateProduct.name}&quot; already exists in {duplicateProduct.keys.length} row{duplicateProduct.keys.length === 1 ? "" : "s"}.</p><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { smartLocator.locate(duplicateProduct.keys[0]); setDuplicateProduct(null); }} className="rounded-lg border border-ledger-200 px-3 py-2 text-xs font-semibold">Go To Existing Row</button><button type="button" onClick={() => { setLines((prev) => [...prev, { key: crypto.randomUUID(), productId: duplicateProduct.id, quantity: 1, discountPercent: 0, taxPercent: 0 }]); setDuplicateProduct(null); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Add Another Row</button></div></div></div>}
       {/* Header */}
@@ -944,8 +960,15 @@ export function SaleForm({
                           <Input
                             value={walkInName}
                             onChange={(e) => {
-                              setWalkInName(e.target.value);
+                              const name = e.target.value;
+                              setWalkInName(name);
                               setSelectedCustomerId(null);
+                              const matchingCustomer = customerList.find((customer) =>
+                                customer.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()
+                              );
+                              setCustomerBalanceNotice(matchingCustomer && matchingCustomer.outstanding > 0
+                                ? { name: matchingCustomer.name, balance: matchingCustomer.outstanding }
+                                : null);
                             }}
                             placeholder="Walk-in customer"
                             className="mt-1"
@@ -1189,7 +1212,7 @@ export function SaleForm({
                   <button type="button" onClick={() => setAutoMergeDuplicates((value) => !value)} className={cn("rounded-full px-3 py-1 text-[10px] font-semibold", autoMergeDuplicates ? "bg-blue-600 text-white" : "bg-white text-ledger-500")}>{autoMergeDuplicates ? "ON" : "OFF"}</button>
                 </div>
                 <SmartProductSummary products={locationProducts} rows={lines} onLocate={smartLocator.locate} className="mt-3" />
-                <div className="mt-4 overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
+                <div className="sale-items-table-scroll mt-4 overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                   <table className="w-full text-sm">
                     <thead>
                       <tr

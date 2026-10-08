@@ -9,6 +9,7 @@ export interface CustomerFormValues {
   phone?: string | null;
   company?: string | null;
   notes?: string | null;
+  credit_limit?: number | null;
 }
 
 export function CustomerForm({
@@ -60,6 +61,13 @@ export function CustomerForm({
           Notes <span className="font-normal text-ledger-400">(optional)</span>
         </label>
         <Input id="notes" name="notes" defaultValue={initialValues?.notes ?? ""} placeholder="Anything worth remembering" />
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="credit_limit" className="text-sm font-medium text-ledger-700 dark:text-ledger-200">
+          Credit limit <span className="font-normal text-ledger-400">(optional; blank means no limit)</span>
+        </label>
+        <Input id="credit_limit" name="credit_limit" type="number" min="0" step="0.01" defaultValue={initialValues?.credit_limit ?? ""} placeholder="No limit" />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

@@ -33,6 +33,7 @@ export interface GeneralSettingsRow {
   offline_enabled: boolean;
   offline_sync_mode: "automatic" | "approval" | "manual";
   offline_data_load_mode: "automatic" | "approval" | "manual";
+  block_credit_limit_exceeded: boolean;
 }
 
 export async function getGeneralSettings(orgId: string): Promise<GeneralSettingsRow | null> {
@@ -40,7 +41,7 @@ export async function getGeneralSettings(orgId: string): Promise<GeneralSettings
   const { data } = await supabase
     .from("org_general_settings")
     .select(
-      "business_short_name, default_language, timezone, date_format, time_format, financial_year_start, default_tax_rate, enable_barcode_scanning, enable_notifications, enable_email_alerts, session_timeout_minutes, auto_logout_minutes, default_landing_page, offline_enabled, offline_sync_mode, offline_data_load_mode"
+      "business_short_name, default_language, timezone, date_format, time_format, financial_year_start, default_tax_rate, enable_barcode_scanning, enable_notifications, enable_email_alerts, session_timeout_minutes, auto_logout_minutes, default_landing_page, offline_enabled, offline_sync_mode, offline_data_load_mode, block_credit_limit_exceeded"
     )
     .eq("org_id", orgId)
     .maybeSingle();
@@ -67,6 +68,7 @@ export interface GeneralSettingsFields {
   offlineEnabled: boolean;
   offlineSyncMode: "automatic" | "approval" | "manual";
   offlineDataLoadMode: "automatic" | "approval" | "manual";
+  blockCreditLimitExceeded: boolean;
 }
 
 export async function saveGeneralSettings(fields: GeneralSettingsFields) {
@@ -127,6 +129,7 @@ export async function saveGeneralSettings(fields: GeneralSettingsFields) {
       offline_enabled: fields.offlineEnabled,
       offline_sync_mode: fields.offlineSyncMode,
       offline_data_load_mode: fields.offlineDataLoadMode,
+      block_credit_limit_exceeded: fields.blockCreditLimitExceeded,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "org_id" }
@@ -154,6 +157,7 @@ const DEFAULTS: GeneralSettingsRow = {
   offline_enabled: true,
   offline_sync_mode: "automatic",
   offline_data_load_mode: "automatic",
+  block_credit_limit_exceeded: false,
 };
 
 export async function resetGeneralSettings() {

@@ -48,6 +48,7 @@ export function AddContactDialog({
     alternatePhone: string | null;
     landline: string | null;
     email: string | null;
+    creditLimit: number | null;
   }) => Promise<{ ok: boolean; error?: string }>;
 }) {
 
@@ -148,6 +149,12 @@ export function AddContactDialog({
 
     setErr(null);
     setSaving(true);
+    const parsedCreditLimit = creditLimit.trim() ? Number(creditLimit) : null;
+    if (parsedCreditLimit !== null && (!Number.isFinite(parsedCreditLimit) || parsedCreditLimit < 0)) {
+      setSaving(false);
+      setErr("Credit limit must be a non-negative amount.");
+      return;
+    }
     const result = await onSave({
       name,
       contactType,
@@ -156,6 +163,7 @@ export function AddContactDialog({
       alternatePhone: alternatePhone || null,
       landline: landline || null,
       email: email || null,
+      creditLimit: parsedCreditLimit,
     });
     setSaving(false);
     if (!result.ok) {

@@ -30,6 +30,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   let initialBranches: string[] = [];
   let initialBranchOptions: { id: string; name: string }[] = [];
   let initialReceivables: AccountsReceivableItem[] = [];
+  let customerCreditLimits: { customerName: string; creditLimit: number | null }[] = [];
   let initialAuditLogs: { userName: string; action: string; module: string; createdAt: string; branchId?: string }[] = [];
   let initialPayments: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] = [];
   let liveFinancialSnapshot: LiveFinancialSnapshot | undefined;
@@ -206,6 +207,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     initialBranches = (locations ?? []).map((location) => location.name);
     const auditQuery = db.from("audit_logs").select("actor_id, action, entity_type, created_at, metadata").eq("org_id", context.orgId).order("created_at", { ascending: false }).limit(100);
     const paymentsQuery = db.from("customer_credit_payments").select("id, invoice_id, amount, payment_method, payment_date, recorded_by, location_id").eq("org_id", context.orgId).order("payment_date", { ascending: false });
+    const customerCreditLimitsQuery = db.from("customers").select("name, credit_limit").eq("org_id", context.orgId);
     const salesQuery = db
       .from("sales")
       .select("id, sale_number, customer_id, customer_name, sale_date, total, amount_paid, location_id, location:business_locations(name)")
@@ -223,12 +225,17 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       salesQuery.in("location_id", context.allowedLocationIds);
       purchasesQuery.in("location_id", context.allowedLocationIds);
     }
-    const [{ data: auditLogs }, { data: payments }, { data: sales }, { data: purchases }] = await Promise.all([
+    const [{ data: auditLogs }, { data: payments }, { data: sales }, { data: purchases }, { data: customers }] = await Promise.all([
       auditQuery,
       paymentsQuery,
       salesQuery,
       purchasesQuery,
+      customerCreditLimitsQuery,
     ]);
+    customerCreditLimits = (customers ?? []).map((customer) => ({
+      customerName: customer.name,
+      creditLimit: customer.credit_limit == null ? null : Number(customer.credit_limit),
+    }));
     initialAuditLogs = (auditLogs ?? [])
       .filter((log: any) => !context.isBranchScoped || context.allowedLocationIds.includes(log.metadata?.branch_id))
       .map((log: any) => ({
@@ -331,7 +338,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
+      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
     </Suspense>
   );
 }

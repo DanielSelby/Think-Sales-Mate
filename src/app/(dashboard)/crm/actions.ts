@@ -16,13 +16,19 @@ function parseCustomerForm(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const company = String(formData.get("company") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
+  const rawCreditLimit = String(formData.get("credit_limit") ?? "").trim();
+  const creditLimit = rawCreditLimit ? Number(rawCreditLimit) : null;
 
   return {
     name,
     email: email || null,
     phone: phone || null,
     company: company || null,
-    notes: notes || null
+    notes: notes || null,
+    creditLimit,
+    creditLimitError: rawCreditLimit && (!Number.isFinite(creditLimit) || (creditLimit ?? -1) < 0)
+      ? "Credit limit must be a non-negative amount."
+      : null,
   };
 }
 
@@ -35,12 +41,18 @@ export async function createCustomer(formData: FormData): Promise<void> {
 
   const fields = parseCustomerForm(formData);
   if (!fields.name) redirectWithError("/crm/new", "Name is required.");
+  if (fields.creditLimitError) redirectWithError("/crm/new", fields.creditLimitError);
 
   const supabase = await createClient();
   const { error } = await supabase.from("customers").insert({
     org_id: context.orgId,
     created_by: context.userId,
-    ...fields
+    name: fields.name,
+    email: fields.email,
+    phone: fields.phone,
+    company: fields.company,
+    notes: fields.notes,
+    credit_limit: fields.creditLimit,
   });
 
   if (error) redirectWithError("/crm/new", error.message);
@@ -58,11 +70,20 @@ export async function updateCustomer(customerId: string, formData: FormData): Pr
 
   const fields = parseCustomerForm(formData);
   if (!fields.name) redirectWithError(`/crm/${customerId}/edit`, "Name is required.");
+  if (fields.creditLimitError) redirectWithError(`/crm/${customerId}/edit`, fields.creditLimitError);
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("customers")
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .update({
+      name: fields.name,
+      email: fields.email,
+      phone: fields.phone,
+      company: fields.company,
+      notes: fields.notes,
+      credit_limit: fields.creditLimit,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", customerId)
     .eq("org_id", context.orgId);
 

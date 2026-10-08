@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { checkCustomerCreditLimit, getCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import { canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
@@ -875,6 +876,7 @@ export interface CustomerOption {
   name: string;
   phone: string | null;
   email: string | null;
+  outstanding?: number;
 }
 
 export async function searchCustomers(query: string): Promise<CustomerOption[]> {
@@ -882,17 +884,29 @@ export async function searchCustomers(query: string): Promise<CustomerOption[]> 
   if (!context) return [];
   const supabase = await createClient();
   const q = query.trim();
+  let customerQuery = supabase.from("customers").select("id, name, phone, email").eq("org_id", context.orgId);
   if (!q) {
-    const { data } = await supabase.from("customers").select("id, name, phone, email").eq("org_id", context.orgId).order("name").limit(8);
-    return data ?? [];
+    customerQuery = customerQuery.order("name").limit(8);
+  } else {
+    customerQuery = customerQuery
+      .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
+      .limit(8);
   }
-  const { data } = await supabase
-    .from("customers")
-    .select("id, name, phone, email")
-    .eq("org_id", context.orgId)
-    .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
-    .limit(8);
-  return data ?? [];
+  const { data: customers, error: customerError } = await customerQuery;
+  if (customerError) throw new Error(`Could not search customers: ${customerError.message}`);
+  if (!customers?.length) return [];
+
+  const balances = await getCustomerOutstandingBalances(
+    supabase,
+    context.orgId,
+    context.isBranchScoped ? context.allowedLocationIds : undefined
+  );
+
+  return customers.map((customer) => ({
+    ...customer,
+    outstanding: (balances.byCustomerId.get(customer.id) ?? 0) +
+      (balances.byCustomerName.get(customer.name.trim().toLocaleLowerCase()) ?? 0),
+  }));
 }
 
 export interface NewContactInput {
@@ -903,12 +917,16 @@ export interface NewContactInput {
   alternatePhone: string | null;
   landline: string | null;
   email: string | null;
+  creditLimit: number | null;
 }
 
 export async function addCustomer(input: NewContactInput): Promise<{ ok: boolean; error?: string; customer?: CustomerOption }> {
   await requirePermission("pos", "create");
   if (!input.name.trim()) return { ok: false, error: "Name is required." };
   if (!input.phone.trim()) return { ok: false, error: "Mobile number is required." };
+  if (input.creditLimit !== null && (!Number.isFinite(input.creditLimit) || input.creditLimit < 0)) {
+    return { ok: false, error: "Credit limit must be a non-negative amount." };
+  }
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
@@ -922,6 +940,7 @@ export async function addCustomer(input: NewContactInput): Promise<{ ok: boolean
       name: input.name.trim(),
       phone: input.phone.trim(),
       email: input.email,
+      credit_limit: input.creditLimit,
       contact_type: input.contactType,
       contact_id: input.contactId,
       alternate_phone: input.alternatePhone,
@@ -1198,6 +1217,24 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const totalDiscount = itemsDiscount + Math.max(0, input.discountAmount);
   const shipping = Math.max(0, input.shippingAmount);
   const total = Math.max(0, subtotal - totalDiscount + tax + shipping);
+  const allocations = input.paymentAllocations?.filter((allocation) => Number.isFinite(allocation.amount) && allocation.amount > 0) ?? [];
+  const amountPaid = allocations.length
+    ? allocations.reduce((sum, allocation) => sum + allocation.amount, 0)
+    : /^credit$/i.test(input.paymentMethod.trim()) ? 0 : total;
+  if (allocations.length) {
+    const allocationTotal = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+    if (Math.abs(allocationTotal - total) > 0.01) {
+      return { ok: false, error: "Payment allocations must equal the sale total." };
+    }
+  }
+  const creditCheck = await checkCustomerCreditLimit(
+    supabase,
+    context.orgId,
+    input.customerId,
+    input.customerName,
+    Math.max(0, total - amountPaid)
+  );
+  if (!creditCheck.allowed) return { ok: false, error: creditCheck.error };
 
   const { data: saleRows, error: saleError } = await (supabase as any).rpc("create_pos_sale_header", {
     p_org_id: context.orgId,
@@ -1217,13 +1254,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const sale = Array.isArray(saleRows) ? saleRows[0] : null;
 
   if (saleError || !sale) return { ok: false, error: saleError?.message ?? "Couldn't create the sale." };
-  const allocations = input.paymentAllocations?.filter((allocation) => Number.isFinite(allocation.amount) && allocation.amount > 0) ?? [];
   if (allocations.length) {
-    const allocationTotal = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
-    if (Math.abs(allocationTotal - total) > 0.01) {
-      await supabase.from("sales").delete().eq("id", sale.id);
-      return { ok: false, error: "Payment allocations must equal the sale total." };
-    }
     const { error: allocationError } = await supabase.from("sale_payment_allocations").insert(
       allocations.map((allocation) => ({
         org_id: context.orgId,
@@ -1394,7 +1425,7 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
   if (sessionError) return { ok: false, error: "Could not verify that your register is open." };
   if (!activeSession) return { ok: false, error: "Open a register before editing a POS sale." };
 
-  const { data: oldSale } = await supabase.from("sales").select("location_id, total, register_session_id").eq("id", saleId).single();
+  const { data: oldSale } = await supabase.from("sales").select("location_id, total, amount_paid, customer_id, customer_name, register_session_id").eq("id", saleId).single();
   if (!oldSale) return { ok: false, error: "Sale not found." };
   if (oldSale.register_session_id && (oldSale.register_session_id !== activeSession.id || oldSale.location_id !== input.locationId)) {
     return { ok: false, error: "This sale belongs to a different register session or branch and cannot be edited here." };
@@ -1436,18 +1467,6 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
     }
   }
 
-  // Reverse the original deduction at wherever it was originally sold from.
-  if (oldSale.location_id) {
-    for (const oldItem of oldItems ?? []) {
-      await supabase.rpc("adjust_product_stock_at_location", {
-        p_product_id: oldItem.product_id,
-        p_location_id: oldSale.location_id,
-        p_org_id: context.orgId,
-        p_delta: oldItem.quantity,
-      });
-    }
-  }
-
   const lines = input.items.map((item) => {
     const gross = item.quantity * item.unitPrice;
     const lineDiscount = gross * (item.discountPercent / 100);
@@ -1461,6 +1480,31 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
   const totalDiscount = itemsDiscount + Math.max(0, input.discountAmount);
   const shipping = Math.max(0, input.shippingAmount);
   const total = Math.max(0, subtotal - totalDiscount + tax + shipping);
+  const allocations = input.paymentAllocations?.filter((allocation) => Number.isFinite(allocation.amount) && allocation.amount > 0) ?? [];
+  const amountPaid = allocations.length
+    ? allocations.reduce((sum, allocation) => sum + allocation.amount, 0)
+    : /^credit$/i.test(input.paymentMethod.trim()) ? 0 : total;
+  const creditCheck = await checkCustomerCreditLimit(
+    supabase,
+    context.orgId,
+    input.customerId,
+    input.customerName,
+    Math.max(0, total - amountPaid),
+    saleId
+  );
+  if (!creditCheck.allowed) return { ok: false, error: creditCheck.error };
+
+  // Reverse stock only after validation so a rejected edit cannot change inventory.
+  if (oldSale.location_id) {
+    for (const item of oldItems ?? []) {
+      await supabase.rpc("adjust_product_stock_at_location", {
+        p_product_id: item.product_id,
+        p_location_id: oldSale.location_id,
+        p_org_id: context.orgId,
+        p_delta: item.quantity,
+      });
+    }
+  }
 
   const { error: updateError } = await supabase
     .from("sales")
@@ -1475,7 +1519,7 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
       shipping_amount: shipping,
       total,
       payment_method: input.paymentMethod,
-      amount_paid: total,
+      amount_paid: amountPaid,
       sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
     })
     .eq("id", saleId);

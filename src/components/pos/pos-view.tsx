@@ -32,6 +32,7 @@ import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stoc
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
+import { CustomerBalancePop } from "@/components/sales/customer-balance-pop";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 import { RegisterApprovalSuccessDialog } from "@/components/pos/register-approval-success-dialog";
 
@@ -131,6 +132,7 @@ export function PosView({ userId, products, locations, stockLevels, currency, ta
   const [customerQuery, setCustomerQuery] = React.useState("");
   const [customerResults, setCustomerResults] = React.useState<CustomerOption[]>([]);
   const [customerOpen, setCustomerOpen] = React.useState(false);
+  const [customerBalanceNotice, setCustomerBalanceNotice] = React.useState<{ name: string; balance: number } | null>(null);
   const [addContactOpen, setAddContactOpen] = React.useState(false);
   const [saleDate, setSaleDate] = React.useState(() => isoToLocalDate(new Date().toISOString()));
   const [discountAmount, setDiscountAmount] = React.useState(0);
@@ -378,9 +380,31 @@ export function PosView({ userId, products, locations, stockLevels, currency, ta
 
   React.useEffect(() => {
     if (!customerOpen) return;
-    const t = setTimeout(() => { searchCustomers(customerQuery).then(setCustomerResults); }, 200);
-    return () => clearTimeout(t);
+    let active = true;
+    const t = setTimeout(() => {
+      searchCustomers(customerQuery)
+        .then((results) => {
+          if (!active) return;
+          setCustomerResults(results);
+          const normalizedQuery = customerQuery.trim().toLocaleLowerCase();
+          const exactMatch = normalizedQuery
+            ? results.find((result) => result.name.trim().toLocaleLowerCase() === normalizedQuery)
+            : undefined;
+          setCustomerBalanceNotice(exactMatch && (exactMatch.outstanding ?? 0) > 0
+            ? { name: exactMatch.name, balance: exactMatch.outstanding ?? 0 }
+            : null);
+        })
+        .catch((searchError: unknown) => {
+          if (active) setError(searchError instanceof Error ? searchError.message : "Could not load customer information.");
+        });
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
   }, [customerQuery, customerOpen]);
+
+  const dismissCustomerBalanceNotice = React.useCallback(() => setCustomerBalanceNotice(null), []);
 
   if (!registerSession) {
     return <div role="alert" className="p-6 text-sm text-alert">No open register session is available for this branch. Reopen the register before continuing.</div>;
@@ -767,6 +791,14 @@ export function PosView({ userId, products, locations, stockLevels, currency, ta
 
   return (
     <div className="pos-page flex min-h-0 h-full flex-col gap-3 overflow-x-hidden pb-16 lg:pb-0">
+      {customerBalanceNotice && (
+        <CustomerBalancePop
+          customerName={customerBalanceNotice.name}
+          balance={customerBalanceNotice.balance}
+          currency={currency}
+          onClose={dismissCustomerBalanceNotice}
+        />
+      )}
       {notice && <div className="rounded-md border border-signal/30 bg-signal-soft px-3 py-2 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">{notice}</div>}
       {error && <div className="rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">{error}</div>}
       {transactionFeedback && <TransactionFeedback {...transactionFeedback} onClose={() => { setTransactionFeedback(null); router.refresh(); }} />}
@@ -1000,7 +1032,7 @@ export function PosView({ userId, products, locations, stockLevels, currency, ta
                 {customerOpen && !customer && customerResults.length > 0 && (
                   <div className="absolute left-0 right-0 top-11 z-30 max-h-40 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                     {customerResults.map((c) => (
-                      <button key={c.id} onClick={() => { setCustomer(c); setCustomerOpen(false); setCustomerQuery(""); }} className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.06]">
+                      <button key={c.id} onClick={() => { setCustomer(c); setCustomerOpen(false); setCustomerQuery(""); setCustomerBalanceNotice((c.outstanding ?? 0) > 0 ? { name: c.name, balance: c.outstanding ?? 0 } : null); }} className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.06]">
                         {c.name}{c.phone ? ` · ${c.phone}` : ""}
                       </button>
                     ))}
@@ -1536,22 +1568,30 @@ function AddContactDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
   const [alternatePhone, setAlternatePhone] = React.useState("");
   const [landline, setLandline] = React.useState("");
   const [email, setEmail] = React.useState("");
+  const [creditLimit, setCreditLimit] = React.useState("");
   const [more, setMore] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
   function reset() {
     setContactType("individual"); setName(""); setContactId(""); setMobile("");
-    setAlternatePhone(""); setLandline(""); setEmail(""); setMore(false); setErr(null);
+    setAlternatePhone(""); setLandline(""); setEmail(""); setCreditLimit(""); setMore(false); setErr(null);
   }
 
   async function handleSave() {
     setErr(null);
     if (!name.trim()) return setErr("Name is required.");
     setSaving(true);
+    const parsedCreditLimit = creditLimit.trim() ? Number(creditLimit) : null;
+    if (parsedCreditLimit !== null && (!Number.isFinite(parsedCreditLimit) || parsedCreditLimit < 0)) {
+      setSaving(false);
+      setErr("Credit limit must be a non-negative amount.");
+      return;
+    }
     const input: NewContactInput = {
       name, contactType, contactId: contactId || null, phone: mobile,
       alternatePhone: alternatePhone || null, landline: landline || null, email: email || null,
+      creditLimit: parsedCreditLimit,
     };
     const result = await addCustomer(input);
     setSaving(false);
@@ -1605,6 +1645,10 @@ function AddContactDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
             <div>
               <label className="mb-1 block text-xs font-semibold text-ledger-500">Email</label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ledger-500">Credit limit (blank means no limit)</label>
+              <Input type="number" min={0} step="0.01" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="No limit" />
             </div>
           </div>
         )}

@@ -40,16 +40,36 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const redirectWithAuthCookies = (url: URL) => {
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
+  };
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (
+    authError
+    && (
+      authError.status === undefined
+      || authError.status === 0
+      || authError.status === 408
+      || authError.status === 429
+      || authError.status >= 500
+    )
+  ) {
+    console.error("Supabase session verification failed:", authError.message);
+    return new NextResponse("Unable to verify your session. Please try again.", { status: 503 });
+  }
 
   if (!user && !isPublicPath) {
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("next", request.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithAuthCookies(redirectUrl);
   }
 
   if (user && checksSignedInDestination) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return redirectWithAuthCookies(new URL("/dashboard", request.url));
   }
 
   if (
@@ -57,7 +77,7 @@ export async function middleware(request: NextRequest) {
     && pathname !== "/reset-password"
     && !pathname.startsWith("/auth/callback")
   ) {
-    return NextResponse.redirect(new URL("/reset-password", request.url));
+    return redirectWithAuthCookies(new URL("/reset-password", request.url));
   }
 
   return response;

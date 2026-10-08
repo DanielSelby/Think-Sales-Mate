@@ -4,6 +4,7 @@ import { createClient} from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { can } from "@/lib/rbac";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
+import { getCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 import {
   SaleForm,
   type SellableProduct,
@@ -42,7 +43,6 @@ export default async function NewSalePage() {
     { data: customerRows },
     { data: locationRows },
     { data: memberRows },
-    { data: openInvoices },
     { data: pastSaleRows },
     { data: recentItemRows },
     { data: stockLevelRows },
@@ -61,7 +61,6 @@ export default async function NewSalePage() {
       .select("user_id, invited_email, status")
       .eq("org_id", context.orgId)
       .eq("status", "active"),
-    supabase.from("invoices").select("customer_name, amount").eq("org_id", context.orgId).in("status", ["sent", "overdue"]),
     supabase.from("sales").select("customer_id").eq("org_id", context.orgId).not("customer_id", "is", null),
     supabase
       .from("sale_items")
@@ -73,14 +72,11 @@ export default async function NewSalePage() {
     supabase.from("company_profile").select("logo_url, show_logo_on_invoices, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle()
   ]);;
 
-  // Best-effort outstanding balance per customer — invoices only store a
-  // free-text customer_name (they predate the customers table), so this
-  // matches by name rather than a real foreign key.
-  const outstandingByName = new Map<string, number>();
-  for (const inv of openInvoices ?? []) {
-    if (!inv.customer_name) continue;
-    outstandingByName.set(inv.customer_name, (outstandingByName.get(inv.customer_name) ?? 0) + Number(inv.amount));
-  }
+  const balances = await getCustomerOutstandingBalances(
+    supabase,
+    context.orgId,
+    context.isBranchScoped ? context.allowedLocationIds : undefined
+  );
 
   const returningCustomerIds = new Set((pastSaleRows ?? []).map((s) => s.customer_id).filter(Boolean) as string[]);
 
@@ -89,7 +85,8 @@ export default async function NewSalePage() {
     name: c.name,
     email: c.email,
     phone: c.phone,
-    outstanding: outstandingByName.get(c.name) ?? 0,
+    outstanding: (balances.byCustomerId.get(c.id) ?? 0) +
+      (balances.byCustomerName.get(c.name.trim().toLocaleLowerCase()) ?? 0),
     isReturning: returningCustomerIds.has(c.id)
   }));
 

@@ -10,6 +10,7 @@ import { canAccessLocation, canUseLocation } from "@/lib/organizations/location-
 import type { SaleStatus } from "@/types/database";
 import { dispatchAutomatedCustomerMessage } from "@/lib/communication/automation";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { checkCustomerCreditLimit } from "@/lib/sales/customer-outstanding";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -384,6 +385,16 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
   if (input.locationId && !canUseLocation(context, input.locationId)) {
     return { ok: false, error: "You are not assigned to this branch." };
   }
+  if ((input.documentStatus ?? "final") === "final") {
+    const creditCheck = await checkCustomerCreditLimit(
+      supabase,
+      context.orgId,
+      input.customerId ?? null,
+      input.customerName ?? null,
+      Math.max(0, input.total - (input.amountPaid ?? 0))
+    );
+    if (!creditCheck.allowed) return { ok: false, error: creditCheck.error };
+  }
   if (input.posRegisterSessionId) {
     const { data: session, error: sessionError } = await (supabase as any)
       .from("pos_register_sessions")
@@ -685,7 +696,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   const admin = createAdminClient();
 
   try {
-    const { data: existingSale } = await supabase.from("sales").select("org_id, location_id, document_status, status").eq("id", input.saleId).single();
+    const { data: existingSale } = await supabase.from("sales").select("org_id, location_id, document_status, status, customer_id, customer_name, total, amount_paid").eq("id", input.saleId).single();
     if (!existingSale) throw new Error("Sale not found.");
     if (existingSale.org_id !== context.orgId || !canAccessLocation(context, existingSale.location_id)) {
       return { ok: false, error: "You are not authorized to edit this sale." };
@@ -704,6 +715,17 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
     const wasFinal = existingSale.document_status === "final";
     const nextDocumentStatus = input.documentStatus ?? existingSale.document_status;
     const willBeFinal = nextDocumentStatus === "final";
+    if (willBeFinal) {
+      const creditCheck = await checkCustomerCreditLimit(
+        supabase,
+        context.orgId,
+        input.customerId ?? existingSale.customer_id,
+        input.customerName ?? existingSale.customer_name,
+        Math.max(0, input.total - (input.amountPaid ?? 0)),
+        input.saleId
+      );
+      if (!creditCheck.allowed) return { ok: false, error: creditCheck.error };
+    }
 
     const { data: existingItems } = await supabase.from("sale_items").select("product_id, quantity").eq("sale_id", input.saleId);
     // Only reverse stock if this sale had actually deducted it before —
@@ -913,6 +935,7 @@ export interface AddCustomerInput {
   alternatePhone: string | null;
   landline: string | null;
   email: string | null;
+  creditLimit: number | null;
 }
 
 export interface AddCustomerResult {
@@ -922,6 +945,9 @@ export interface AddCustomerResult {
 }
 
 export async function addCustomer(orgId: string, input: AddCustomerInput): Promise<AddCustomerResult> {
+  if (input.creditLimit !== null && (!Number.isFinite(input.creditLimit) || input.creditLimit < 0)) {
+    return { ok: false, error: "Credit limit must be a non-negative amount." };
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
@@ -938,6 +964,7 @@ export async function addCustomer(orgId: string, input: AddCustomerInput): Promi
         email: input.email || null,
         contact_type: input.contactType,
         contact_id: input.contactId || null,
+        credit_limit: input.creditLimit,
         created_by: user.id,
       })
       .select("id, name, email, phone")

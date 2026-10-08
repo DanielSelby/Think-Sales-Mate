@@ -132,6 +132,7 @@ export function GeneralSettingsForm({
   const [offlineEnabled, setOfflineEnabled] = useState(settings?.offline_enabled ?? true);
   const [offlineSyncMode, setOfflineSyncMode] = useState<"automatic" | "approval" | "manual">(settings?.offline_sync_mode ?? "automatic");
   const [offlineDataLoadMode, setOfflineDataLoadMode] = useState<"automatic" | "approval" | "manual">(settings?.offline_data_load_mode ?? "automatic");
+  const [blockCreditLimitExceeded, setBlockCreditLimitExceeded] = useState(settings?.block_credit_limit_exceeded ?? false);
 
   function handleSave() {
     setError(null);
@@ -157,6 +158,7 @@ export function GeneralSettingsForm({
         offlineEnabled,
         offlineSyncMode,
         offlineDataLoadMode,
+        blockCreditLimitExceeded,
       });
       if (result?.error) setError(result.error);
       else {
@@ -192,6 +194,7 @@ export function GeneralSettingsForm({
       setOfflineEnabled(true);
       setOfflineSyncMode("automatic");
       setOfflineDataLoadMode("automatic");
+      setBlockCreditLimitExceeded(false);
       setSaved(true);
     });
   }
@@ -420,6 +423,19 @@ export function GeneralSettingsForm({
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Auto logout duration (minutes)</label>
                 <Input type="number" min={1} value={autoLogout} onChange={(e) => setAutoLogout(e.target.value)} disabled={!canManage} />
+              </div>
+            </div>
+
+            <div className={cardClass}>
+              <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Customer credit</h2>
+              <div className="mt-4">
+                <ToggleRow
+                  label="Block sales above customer credit limit"
+                  description="When enabled, credit sales that exceed a customer's saved limit are rejected. When disabled, the sale is allowed."
+                  checked={blockCreditLimitExceeded}
+                  onChange={setBlockCreditLimitExceeded}
+                  disabled={!canManage}
+                />
               </div>
             </div>
           </div>

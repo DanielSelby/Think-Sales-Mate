@@ -719,6 +719,7 @@ export interface Database {
            offline_enabled: boolean;
            offline_sync_mode: "automatic" | "approval" | "manual";
            offline_data_load_mode: "automatic" | "approval" | "manual";
+           block_credit_limit_exceeded: boolean;
            updated_at: string;
         };
         Insert: {
@@ -739,6 +740,7 @@ export interface Database {
           offline_enabled?: boolean;
           offline_sync_mode?: "automatic" | "approval" | "manual";
           offline_data_load_mode?: "automatic" | "approval" | "manual";
+          block_credit_limit_exceeded?: boolean;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["org_general_settings"]["Row"]>;
@@ -1796,6 +1798,7 @@ export interface Database {
           phone: string | null;
           company: string | null;
           notes: string | null;
+          credit_limit: number | null;
           contact_type: string;
           alternate_phone: string | null;
           landline: string | null;
@@ -1812,6 +1815,7 @@ export interface Database {
           phone?: string | null;
           company?: string | null;
           notes?: string | null;
+          credit_limit?: number | null;
           contact_type?: string;
           alternate_phone?: string | null;
           landline?: string | null;

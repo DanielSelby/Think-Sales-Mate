@@ -47,7 +47,7 @@ const TABS: { key: WorkspaceTab; label: string; icon: typeof LayoutDashboard }[]
 
 const money = (currency: string, value: number) => formatMoney(value, currency);
 
-export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditLogs = [], initialPayments = [] }: { initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] }) {
+export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditLogs = [], initialPayments = [], customerCreditLimits = [] }: { initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[] }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { receivables: storeReceivables, currentCurrency, currentCurrencyCode } = useAccountingStore();
@@ -59,6 +59,13 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
     .reduce((sum, item) => sum + item.outstandingAmount, 0);
   const customers = new Set(receivables.map((item) => item.customerName)).size;
   const selected = receivables.find((item) => item.id === selectedId) ?? receivables[0];
+  const creditLimitByName = useMemo(() => new Map(customerCreditLimits.map((customer) => [
+    customer.customerName.trim().toLocaleLowerCase(),
+    customer.creditLimit,
+  ])), [customerCreditLimits]);
+  const selectedCreditLimit = selected
+    ? creditLimitByName.get(selected.customerName.trim().toLocaleLowerCase()) ?? null
+    : null;
   const customerRows = useMemo(() => {
     const map = new Map<string, typeof receivables>();
     receivables.forEach((item) => map.set(item.customerName, [...(map.get(item.customerName) ?? []), item]));
@@ -66,11 +73,11 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
       name,
       branch: items[0].branch,
       balance: items.reduce((sum, item) => sum + item.outstandingAmount, 0),
-      creditLimit: items.reduce((sum, item) => sum + item.totalAmount, 0) * 1.5,
+      creditLimit: creditLimitByName.get(name.trim().toLocaleLowerCase()) ?? null,
       lastPayment: items[0].issueDate,
       items,
     }));
-  }, [receivables]);
+  }, [receivables, creditLimitByName]);
 
   return (
     <div className="space-y-5 pb-16">
@@ -92,7 +99,7 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
               <p className="text-xs text-slate-500">{selected.branch} · {selected.invoiceNumber}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-right text-xs">
-              <Metric label="Credit Limit" value={money(currentCurrencyCode, selected.totalAmount * 1.5)} />
+              <Metric label="Credit Limit" value={selectedCreditLimit == null ? "No limit" : money(currentCurrencyCode, selectedCreditLimit)} />
               <Metric label="Outstanding" value={money(currentCurrencyCode, selected.outstandingAmount)} />
               <Metric label="Risk" value={selected.daysOutstanding > 60 ? "High" : selected.daysOutstanding > 0 ? "Medium" : "Low"} />
             </div>
@@ -189,7 +196,7 @@ function WorkspaceSection({ tab, currency, receivables, auditLogs, payments, cus
   receivables: ReturnType<typeof useAccountingStore.getState>["receivables"];
   auditLogs: { userName: string; action: string; module: string; createdAt: string }[];
   payments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[];
-  customerRows: { name: string; branch: string; balance: number; creditLimit: number; lastPayment: string; items: typeof receivables }[];
+  customerRows: { name: string; branch: string; balance: number; creditLimit: number | null; lastPayment: string; items: typeof receivables }[];
   onSelect: (id: string) => void;
 }) {
   const title = TABS.find((item) => item.key === tab)?.label ?? tab;
@@ -203,7 +210,7 @@ function WorkspaceSection({ tab, currency, receivables, auditLogs, payments, cus
   if (tab === "opportunities") return <KanbanCard title={title} stages={["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"]} />;
   if (tab === "tickets") return <TableCard title={title} columns={["Ticket Number", "Customer", "Subject", "Priority", "Assigned User", "Status", "Created Date"]} rows={[]} />;
   if (tab === "documents") return <ActionCard title={title} text="Upload and manage agreements, credit applications, IDs, contracts, statements, and signed invoices." actions={["Upload", "Preview", "Download", "Share"]} />;
-  return <TableCard title={title} columns={["Customer", "Branch", "Credit Limit", "Outstanding Balance", "Available Credit", "Last Payment", "Status", "Actions"]} rows={customerRows.map((r) => [r.name, r.branch, money(currency, r.creditLimit), money(currency, r.balance), money(currency, Math.max(0, r.creditLimit - r.balance)), r.lastPayment, r.balance > r.creditLimit ? "Over Limit" : "On Credit", "View Ledger"])} onRowClick={(index) => onSelect(customerRows[index].items[0].id)} />;
+  return <TableCard title={title} columns={["Customer", "Branch", "Credit Limit", "Outstanding Balance", "Available Credit", "Last Payment", "Status", "Actions"]} rows={customerRows.map((r) => [r.name, r.branch, r.creditLimit == null ? "No limit" : money(currency, r.creditLimit), money(currency, r.balance), r.creditLimit == null ? "—" : money(currency, Math.max(0, r.creditLimit - r.balance)), r.lastPayment, r.creditLimit == null ? "No limit" : r.balance > r.creditLimit ? "Over Limit" : "Within Limit", "View Ledger"])} onRowClick={(index) => onSelect(customerRows[index].items[0].id)} />;
 }
 
 function TableCard({ title, columns, rows, onRowClick }: { title: string; columns: string[]; rows: string[][]; onRowClick?: (index: number) => void }) {
