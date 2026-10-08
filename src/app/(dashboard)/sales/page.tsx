@@ -48,7 +48,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
   const [{ data: sales }, { data: locations }, { data: companyProfile }, drafts] = await Promise.all([
     salesQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
-    supabase.from("company_profile").select("logo_url, show_logo_on_invoices, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", orgId).maybeSingle(),
+    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", orgId).maybeSingle(),
     getDraftSales(orgId),
   ]);
 
@@ -119,7 +119,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       locations={locationNames}
       initialLocation={requestedLocationId ? scopedLocations.find((l) => l.id === requestedLocationId)?.name ?? "all" : "all"}
       salesReps={salesRepNames}
-      orgName={context.orgName}
+      orgName={companyProfile?.company_name || context.orgName}
       systemName={systemName}
       logoUrl={companyProfile?.logo_url ?? null}
       showLogoOnInvoices={companyProfile?.show_logo_on_invoices ?? true}
@@ -127,6 +127,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       organizationEmail={companyProfile?.contact_email || companyProfile?.business_email || null}
       organizationWebsite={companyProfile?.website ?? null}
       showOrganizationContact={companyProfile?.show_contact_on_invoices ?? true}
+      invoiceTemplate={companyProfile?.sales_invoice_template ?? "standard"}
         documentKpis={{
           drafts: drafts.filter((draft) => draft.documentStatus === "draft").length,
           quotations: drafts.filter((draft) => draft.documentStatus === "quotation").length,

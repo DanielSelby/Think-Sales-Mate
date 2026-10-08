@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Upload, Save, Facebook, Twitter, Linkedin, Youtube, X, Stamp, PenTool, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import {
   saveCompanyProfile,
   uploadCompanyLogo,
@@ -125,6 +126,7 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
   const [description, setDescription] = useState(profile?.description ?? "");
   const [showLogo, setShowLogo] = useState(profile?.show_logo_on_invoices ?? true);
   const [showContactOnInvoices, setShowContactOnInvoices] = useState(profile?.show_contact_on_invoices ?? true);
+  const [salesInvoiceTemplate, setSalesInvoiceTemplate] = useState<SalesInvoiceTemplate>(profile?.sales_invoice_template ?? "standard");
   const [showInfo, setShowInfo] = useState(profile?.show_info_on_receipts ?? true);
   const [enableBarcode, setEnableBarcode] = useState(profile?.enable_barcode_on_documents ?? false);
 
@@ -221,6 +223,7 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
         defaultSalesTaxPercent: Number(formData.get("default_sales_tax") ?? 0),
         showLogoOnInvoices: showLogo,
         showContactOnInvoices,
+        salesInvoiceTemplate,
         showInfoOnReceipts: showInfo,
         enableBarcodeOnDocuments: enableBarcode,
         facebookUrl: String(formData.get("facebook_url") ?? ""),
@@ -394,6 +397,20 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
           <div className={cardClass}>
             <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Business settings</h2>
             <div className="mt-4 space-y-3">
+              <div>
+                <label htmlFor="sales-invoice-template" className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Sales invoice design</label>
+                <select
+                  id="sales-invoice-template"
+                  value={salesInvoiceTemplate}
+                  onChange={(event) => setSalesInvoiceTemplate(event.target.value === "think-sales" ? "think-sales" : "standard")}
+                  disabled={!canManage}
+                  className="mt-1 h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm disabled:opacity-60 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="think-sales">Modern branded</option>
+                </select>
+                <p className="mt-1 text-[11px] text-ledger-400">Choose the A4 sales invoice design used across the organization. Thermal printer output keeps its compact receipt layout.</p>
+              </div>
               <div>
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Default sales tax</label>
                 <div className="mt-1 flex items-center rounded-md border border-ledger-200 dark:border-ledger-700">

@@ -1,5 +1,5 @@
 import { formatMoney } from "@/lib/currency";
-import type { InvoiceFormat } from "@/lib/sales/invoice-format";
+import type { InvoiceFormat, SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 
 // ---------------------------------------------------------------------------
 // Branded POS receipt — black/green diagonal-header style, used by the POS
@@ -12,9 +12,11 @@ import type { InvoiceFormat } from "@/lib/sales/invoice-format";
 export interface BrandedInvoiceItem {
   productName: string;
   sku: string | null;
+  imageUrl?: string | null;
   quantity: number;
   unitPrice: number;
   discountAmount: number;
+  taxPercent?: number;
   lineTotal: number;
 }
 
@@ -31,6 +33,8 @@ export interface BrandedInvoiceData {
   organizationEmail?: string | null;
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
+  invoiceTemplate?: SalesInvoiceTemplate;
+  customerPhone?: string | null;
   saleNumber: number;
   saleDate: string;
   cashierName: string;
@@ -96,6 +100,9 @@ function formatInvoiceNumber(saleNumber: number): string {
 export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   const printFormat = data.printFormat ?? "a4";
   const thermal = printFormat !== "a4";
+  if (data.invoiceTemplate === "think-sales" && !thermal) {
+    return buildThinkSalesInvoiceHtml(data);
+  }
   const paperWidth = printFormat === "thermal-58mm" ? 58 : 80;
   const { date, time } = formatDateTime(data.saleDate);
   const invoiceNo = formatInvoiceNumber(data.saleNumber);
@@ -342,6 +349,158 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
 </html>`;
 }
 
+function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
+  const invoiceNo = formatInvoiceNumber(data.saleNumber);
+  const date = new Date(data.saleDate);
+  const invoiceDate = date.toLocaleDateString("en-GB");
+  const paymentDue = data.amountPaid >= data.total
+    ? "Paid in full"
+    : "Due on receipt";
+  const subtotal = data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const discount = data.items.reduce((sum, item) => sum + item.discountAmount, 0);
+  const tax = data.items.reduce((sum, item) => {
+    const taxable = Math.max(0, item.unitPrice * item.quantity - item.discountAmount);
+    return sum + taxable * ((item.taxPercent ?? 0) / 100);
+  }, 0);
+  const rows = data.items.map((item, index) => {
+    const taxable = Math.max(0, item.unitPrice * item.quantity - item.discountAmount);
+    const taxAmount = taxable * ((item.taxPercent ?? 0) / 100);
+    const itemTotal = item.lineTotal + taxAmount;
+    return `<tr>
+      <td class="index">${index + 1}</td>
+      <td><div class="product-cell">
+        ${item.imageUrl
+          ? `<img class="product-image" src="${esc(item.imageUrl)}" alt="" />`
+          : `<div class="product-placeholder">${esc(initials(item.productName))}</div>`}
+        <div><strong>${esc(item.productName)}</strong>${item.sku ? `<small>${esc(item.sku)}</small>` : ""}</div>
+      </div></td>
+      <td>${esc(item.sku || "—")}</td>
+      <td class="num">${esc(formatCurrency(item.unitPrice, data.currency))}</td>
+      <td class="num">${item.quantity}</td>
+      <td class="num">${esc(formatCurrency(item.discountAmount, data.currency))}</td>
+      <td class="num">${esc(formatCurrency(taxAmount, data.currency))}${item.taxPercent ? `<small class="tax-rate">${item.taxPercent}%</small>` : ""}</td>
+      <td class="num total">${esc(formatCurrency(itemTotal, data.currency))}</td>
+    </tr>`;
+  }).join("");
+  const contactItems = [
+    data.organizationPhone,
+    data.organizationEmail,
+    data.organizationWebsite,
+  ].filter(Boolean);
+  const brandLogo = data.logoUrl && data.showLogoOnInvoices !== false
+    ? `<img class="logo" src="${esc(data.logoUrl)}" alt="${esc(data.orgName)}" />`
+    : `<div class="logo-placeholder">${esc(initials(data.orgName))}</div>`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${esc(invoiceNo)}</title>
+<style>
+  * { box-sizing: border-box; }
+  @page { size: A4 portrait; margin: 9mm; }
+  body { margin: 0; background: #fff; color: #17313b; font: 11px Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .invoice { max-width: 960px; margin: 0 auto; overflow: hidden; }
+  .masthead { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding: 18px 6px 20px; border-bottom: 1px solid #e5edf0; position: relative; }
+  .masthead:after { content: ""; position: absolute; right: -28px; top: -60px; width: 160px; height: 150px; border-radius: 0 0 0 100%; background: linear-gradient(135deg,#42c69c,#087563); opacity: .18; }
+  .brand { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+  .logo,.logo-placeholder { width: 54px; height: 48px; object-fit: contain; }
+  .logo-placeholder { display: grid; place-items: center; border-radius: 8px; background: #0b806b; color: #fff; font-size: 15px; font-weight: 800; }
+  .brand-name { color: #12313b; font-size: 22px; font-weight: 800; }
+  .brand-caption { margin-top: 5px; color: #087d69; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .organization-contact { display: grid; gap: 7px; position: relative; z-index: 1; color: #344d56; font-size: 10px; }
+  .contact-line { display: flex; gap: 8px; align-items: center; }
+  .contact-icon { width: 14px; color: #087d69; font-weight: 700; text-align: center; }
+  .title-row { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: center; padding: 20px 6px 16px; }
+  h1 { margin: 0; color: #102f3a; font-size: 31px; line-height: 1.1; letter-spacing: -.6px; }
+  .subtitle { margin: 8px 0 0; color: #70838a; font-size: 14px; }
+  .title-rule { width: 65px; height: 3px; margin-top: 12px; background: #15a780; }
+  .invoice-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-radius: 10px; background: #eef8f7; padding: 15px; }
+  .meta-item span { display: block; margin-bottom: 4px; color: #72848a; font-size: 9px; }
+  .meta-item strong { color: #17313b; font-size: 12px; }
+  .recipient-grid { display: grid; grid-template-columns: 1fr 1fr; margin: 0 6px 16px; border-top: 1px solid #e2eaed; border-bottom: 1px solid #e2eaed; }
+  .recipient { padding: 13px 8px; min-height: 88px; }
+  .recipient + .recipient { border-left: 1px solid #e2eaed; padding-left: 20px; }
+  .recipient-label { color: #087d69; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .recipient-name { margin-top: 8px; color: #19333d; font-size: 14px; font-weight: 700; }
+  .recipient-note { margin-top: 6px; color: #617780; font-size: 10px; line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: #087b68; color: white; }
+  th { padding: 10px 8px; text-align: left; font-size: 9px; }
+  th.num { text-align: right; }
+  td { padding: 10px 8px; border-bottom: 1px solid #e7edef; vertical-align: middle; font-size: 9px; }
+  tbody tr:nth-child(even) { background: #fbfcfc; }
+  .index { width: 30px; }
+  .product-cell { display: flex; align-items: center; gap: 9px; min-width: 145px; }
+  .product-image,.product-placeholder { width: 42px; height: 38px; flex: 0 0 42px; object-fit: contain; border-radius: 5px; background: #f0f5f5; }
+  .product-placeholder { display: grid; place-items: center; color: #087b68; font-weight: 700; }
+  .product-cell strong { display: block; color: #18343e; font-size: 9px; }
+  .product-cell small,.tax-rate { display: block; margin-top: 3px; color: #72848a; font-size: 8px; }
+  .num { text-align: right; white-space: nowrap; }
+  .total { color: #17313b; font-weight: 700; }
+  .lower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .details-card,.totals-card,.due-card { border-radius: 9px; background: #f1f8f7; padding: 13px 15px; }
+  .details-card h2 { margin: 0 0 12px; color: #087b68; font-size: 11px; }
+  .details-row { margin-top: 7px; color: #405a63; font-size: 9px; }
+  .totals-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; color: #405a63; }
+  .totals-row strong { color: #19333d; }
+  .totals-row.grand { margin: 5px -15px -13px; padding: 11px 15px; border-radius: 0 0 9px 9px; background: #087b68; color: #fff; font-size: 13px; font-weight: 700; }
+  .totals-row.grand strong { color: #fff; font-size: 16px; }
+  .due-card { display: flex; justify-content: space-between; align-items: center; grid-column: 2; color: #087b68; }
+  .due-card span { display: block; margin-bottom: 5px; color: #52716f; font-size: 9px; }
+  .due-card strong { color: #19333d; font-size: 11px; }
+  .footer { margin: 17px -9mm -9mm; padding: 19px 9mm 14px; background: #075d53; color: white; }
+  .footer-thanks { font-size: 19px; font-style: italic; font-weight: 700; }
+  .footer-note { margin-top: 5px; color: #c8e5df; font-size: 9px; }
+  .footer-contact { margin-top: 12px; color: #d9eeea; font-size: 9px; }
+  @media print { .invoice { max-width: none; } .footer { break-inside: avoid; } }
+  @media screen and (max-width: 650px) { .title-row { grid-template-columns: 1fr; } .recipient-grid { grid-template-columns: 1fr; } .recipient + .recipient { border-left: 0; border-top: 1px solid #e2eaed; padding-left: 8px; } .invoice { overflow-x: auto; } }
+</style>
+</head>
+<body>
+<main class="invoice">
+  <header class="masthead">
+    <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div><div class="brand-caption">Sales · Inventory · CRM · Finance</div></div></div>
+    ${data.showOrganizationContact !== false && contactItems.length ? `<div class="organization-contact">
+      ${data.organizationPhone ? `<div class="contact-line"><span class="contact-icon">☎</span>${esc(data.organizationPhone)}</div>` : ""}
+      ${data.organizationEmail ? `<div class="contact-line"><span class="contact-icon">✉</span>${esc(data.organizationEmail)}</div>` : ""}
+      ${data.organizationWebsite ? `<div class="contact-line"><span class="contact-icon">◎</span>${esc(data.organizationWebsite)}</div>` : ""}
+    </div>` : ""}
+  </header>
+  <section class="title-row">
+    <div><h1>SALES INVOICE</h1><p class="subtitle">Thank you for your business!</p><div class="title-rule"></div></div>
+    <div class="invoice-meta">
+      <div class="meta-item"><span>Invoice No.</span><strong>${esc(invoiceNo)}</strong></div>
+      <div class="meta-item"><span>Status</span><strong>${data.amountPaid >= data.total ? "Paid" : "Payment due"}</strong></div>
+      <div class="meta-item"><span>Invoice Date</span><strong>${esc(invoiceDate)}</strong></div>
+      <div class="meta-item"><span>Due Date</span><strong>${esc(paymentDue)}</strong></div>
+    </div>
+  </section>
+  <section class="recipient-grid">
+    <div class="recipient"><div class="recipient-label">Bill To</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">${data.customerPhone ? esc(data.customerPhone) : ""}</div></div>
+    <div class="recipient"><div class="recipient-label">Ship To</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">Same as billing address</div></div>
+  </section>
+  <table>
+    <thead><tr><th>#</th><th>Product</th><th>SKU</th><th class="num">Unit Price</th><th class="num">Quantity</th><th class="num">Discount</th><th class="num">Tax</th><th class="num">Total</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="8" style="text-align:center;padding:24px;color:#72848a">No line items on this sale.</td></tr>`}</tbody>
+  </table>
+  <section class="lower-grid">
+    <div class="details-card"><h2>Payment Method</h2><div class="details-row">${esc(data.paymentMethod || "Not specified")}</div><h2 style="margin-top:15px">Notes</h2><div class="details-row">Thank you for choosing ${esc(data.orgName)}. We appreciate your business.</div></div>
+    <div class="totals-card">
+      <div class="totals-row"><span>Subtotal</span><strong>${esc(formatCurrency(subtotal, data.currency))}</strong></div>
+      <div class="totals-row"><span>Discount</span><strong>${esc(formatCurrency(discount, data.currency))}</strong></div>
+      <div class="totals-row"><span>Tax</span><strong>${esc(formatCurrency(tax, data.currency))}</strong></div>
+      <div class="totals-row grand"><span>Total Amount</span><strong>${esc(formatCurrency(data.total, data.currency))}</strong></div>
+      <div class="totals-row"><span>Amount Paid</span><strong>${esc(formatCurrency(data.amountPaid, data.currency))}</strong></div>
+    </div>
+    <div class="due-card"><div><span>Payment Due</span><strong>${esc(paymentDue)}</strong></div><strong>${esc(formatCurrency(Math.max(0, data.total - data.amountPaid), data.currency))}</strong></div>
+  </section>
+  <footer class="footer"><div class="footer-thanks">Thank You!</div><div class="footer-note">Your support drives our success.</div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}</footer>
+</main>
+</body>
+</html>`;
+}
+
 // ---------------------------------------------------------------------------
 // Sales list invoice builder
 // Compatibility wrapper used by sales-list-view.tsx
@@ -351,6 +510,7 @@ export interface InvoiceItem {
   productId: string;
   productName: string;
   sku: string;
+  imageUrl?: string | null;
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -382,6 +542,8 @@ export interface InvoiceData {
   organizationEmail?: string | null;
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
+  invoiceTemplate?: SalesInvoiceTemplate;
+  customerPhone?: string | null;
 }
 
 export function buildInvoiceHtml(data: InvoiceData): string {
@@ -390,9 +552,11 @@ export function buildInvoiceHtml(data: InvoiceData): string {
   const items: BrandedInvoiceItem[] = data.items.map((item) => ({
     productName: item.productName,
     sku: item.sku || null,
+    imageUrl: item.imageUrl,
     quantity: item.quantity,
     unitPrice: item.unitPrice,
     discountAmount: item.discount ?? 0,
+    taxPercent: item.tax,
     lineTotal: item.lineTotal,
   }));
 
@@ -409,6 +573,8 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     organizationEmail: data.organizationEmail,
     organizationWebsite: data.organizationWebsite,
     showOrganizationContact: data.showOrganizationContact,
+    invoiceTemplate: data.invoiceTemplate,
+    customerPhone: data.customerPhone,
     saleNumber: data.saleNumber,
     saleDate: data.saleDate,
     cashierName: data.soldByName,

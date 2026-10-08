@@ -69,7 +69,7 @@ export default async function NewSalePage() {
       .order("created_at", { ascending: false })
       .limit(20),
     stockLevelsQuery,
-    supabase.from("company_profile").select("logo_url, show_logo_on_invoices, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle()
+    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle()
   ]);;
 
   const balances = await getCustomerOutstandingBalances(
@@ -151,7 +151,7 @@ export default async function NewSalePage() {
       stockLevels={stockLevels}
       currentUserId={context.userId}
       currentUserEmail={context.userEmail}
-      orgName={context.orgName}
+      orgName={companyprofile?.company_name || context.orgName}
       systemName={systemName}
       currency={context.currency}
       logoUrl={companyprofile?.logo_url ?? null}
@@ -160,6 +160,7 @@ export default async function NewSalePage() {
       organizationEmail={companyprofile?.contact_email || companyprofile?.business_email || null}
       organizationWebsite={companyprofile?.website ?? null}
       showOrganizationContact={companyprofile?.show_contact_on_invoices ?? true}
+      invoiceTemplate={companyprofile?.sales_invoice_template ?? "standard"}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}

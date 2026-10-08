@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
+import type { SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 
 async function requireAdmin() {
   const context = await getCurrentOrgContext();
@@ -39,6 +40,7 @@ export interface CompanyProfileFields {
   defaultSalesTaxPercent?: number;
   showLogoOnInvoices?: boolean;
   showContactOnInvoices?: boolean;
+  salesInvoiceTemplate?: SalesInvoiceTemplate;
   showInfoOnReceipts?: boolean;
   enableBarcodeOnDocuments?: boolean;
   facebookUrl?: string;
@@ -82,6 +84,7 @@ export async function saveCompanyProfile(fields: CompanyProfileFields) {
       default_sales_tax_percent: fields.defaultSalesTaxPercent ?? 0,
       show_logo_on_invoices: fields.showLogoOnInvoices ?? true,
       show_contact_on_invoices: fields.showContactOnInvoices ?? true,
+      sales_invoice_template: fields.salesInvoiceTemplate ?? "standard",
       show_info_on_receipts: fields.showInfoOnReceipts ?? true,
       enable_barcode_on_documents: fields.enableBarcodeOnDocuments ?? false,
       facebook_url: fields.facebookUrl || null,

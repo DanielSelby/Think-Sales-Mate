@@ -1070,6 +1070,7 @@ export interface SaleInvoiceLine {
   productId:   string;
   productName: string;
   sku:         string;
+  imageUrl: string | null;
   quantity:    number;
   unitPrice:   number;
   discount:    number;
@@ -1081,7 +1082,7 @@ export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLi
   const supabase = await createClient();
   const { data: items } = await supabase
     .from("sale_items")
-    .select("id, product_id, quantity, unit_price, discount_percent, tax_percent, line_total, product:products(name, sku)")
+    .select("id, product_id, quantity, unit_price, discount_percent, tax_percent, line_total, product:products(name, sku, image_urls)")
     .eq("sale_id", saleId);
 
   if (!items || items.length === 0) return [];
@@ -1091,8 +1092,9 @@ export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLi
     const discountAmount = gross * (Number(item.discount_percent) / 100);
     return {
       productId:   item.product_id,
-      productName: (item.product as { name: string; sku: string } | null)?.name ?? "Unknown product",
-      sku:         (item.product as { name: string; sku: string } | null)?.sku ?? "",
+      productName: (item.product as { name: string; sku: string; image_urls: string[] } | null)?.name ?? "Unknown product",
+      sku:         (item.product as { name: string; sku: string; image_urls: string[] } | null)?.sku ?? "",
+      imageUrl:    (item.product as { name: string; sku: string; image_urls: string[] } | null)?.image_urls?.[0] ?? null,
       quantity:    item.quantity,
       unitPrice:   item.unit_price,
       discount:    item.discount_percent,

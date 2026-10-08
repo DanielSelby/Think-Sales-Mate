@@ -644,6 +644,7 @@ export interface Database {
           default_sales_tax_percent: number;
           show_logo_on_invoices: boolean;
           show_contact_on_invoices: boolean;
+          sales_invoice_template: "standard" | "think-sales";
           show_info_on_receipts: boolean;
           enable_barcode_on_documents: boolean;
           facebook_url: string | null;
@@ -682,6 +683,7 @@ export interface Database {
           default_sales_tax_percent?: number;
           show_logo_on_invoices?: boolean;
           show_contact_on_invoices?: boolean;
+          sales_invoice_template?: "standard" | "think-sales";
           show_info_on_receipts?: boolean;
           enable_barcode_on_documents?: boolean;
           facebook_url?: string | null;

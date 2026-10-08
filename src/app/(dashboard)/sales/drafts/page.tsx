@@ -18,7 +18,7 @@ export default async function DraftsPage({ searchParams }: { searchParams?: { ty
     supabase.from("stock_requests").select("id, request_number, status, requesting_location_id, source_location_id, transfer_id, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }),
     supabase.from("stock_request_items").select("request_id, quantity").eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name, phone, email").eq("org_id", context.orgId),
-    supabase.from("company_profile").select("show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle(),
   ]);
   const locationById = new Map((locations ?? []).map((location) => [location.id, location]));
   const locationNames = new Map((locations ?? []).map((location) => [location.id, location.name]));
@@ -39,11 +39,14 @@ export default async function DraftsPage({ searchParams }: { searchParams?: { ty
     : "all";
 
   const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
-  return <DraftsListView userId={context.userId} initialType={initialType} drafts={draftsWithContacts} currency={context.currency} orgName={context.orgName} systemName={systemName}
+  return <DraftsListView userId={context.userId} initialType={initialType} drafts={draftsWithContacts} currency={context.currency} orgName={companyProfile?.company_name || context.orgName} systemName={systemName}
+    logoUrl={companyProfile?.logo_url ?? null}
+    showLogoOnInvoices={companyProfile?.show_logo_on_invoices ?? true}
     organizationPhone={companyProfile?.contact_phone || companyProfile?.business_phone || null}
     organizationEmail={companyProfile?.contact_email || companyProfile?.business_email || null}
     organizationWebsite={companyProfile?.website ?? null}
     showOrganizationContact={companyProfile?.show_contact_on_invoices ?? true}
+    invoiceTemplate={companyProfile?.sales_invoice_template ?? "standard"}
     branchRequests={(requests ?? []).map((request) => ({
     id: request.id,
     label: `REQ-${String(request.request_number).padStart(4, "0")}`,

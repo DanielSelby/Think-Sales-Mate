@@ -34,6 +34,27 @@ describe("invoice print formats", () => {
     expect(html).toContain("<th class=\"num\">Unit price</th>");
   });
 
+  it("uses the organization-branded ThinkSales layout when selected", () => {
+    const html = buildInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "think-sales",
+      logoUrl: "https://example.test/logo.png",
+      organizationPhone: "+233 20 000 0000",
+      organizationEmail: "office@example.test",
+      organizationWebsite: "https://example.test",
+      showOrganizationContact: true,
+      items: [{ ...invoice.items[0], imageUrl: "https://example.test/product.png", tax: 15 }],
+    });
+
+    expect(html).toContain("SALES INVOICE");
+    expect(html).toContain("Example Store");
+    expect(html).toContain('src="https://example.test/logo.png"');
+    expect(html).toContain("+233 20 000 0000");
+    expect(html).toContain("office@example.test");
+    expect(html).toContain('src="https://example.test/product.png"');
+    expect(html).not.toContain("ThinkSales ERP");
+  });
+
   it.each([
     ["thermal-80mm", "80mm", "76mm"],
     ["thermal-58mm", "58mm", "54mm"],

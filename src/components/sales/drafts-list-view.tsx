@@ -17,7 +17,7 @@ import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-temp
 import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
-import { useInvoiceFormat } from "@/lib/sales/invoice-format";
+import { useInvoiceFormat, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 
 export interface BranchRequestRow {
   id: string;
@@ -42,16 +42,19 @@ const DOC_STATUS_TONE: Record<DraftSaleRow["documentStatus"], "neutral" | "amber
   proforma: "signal",
 };
 
-export function DraftsListView({ userId, drafts, currency, orgName, systemName, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, branchRequests = [], initialType = "all" }: {
+export function DraftsListView({ userId, drafts, currency, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, invoiceTemplate, branchRequests = [], initialType = "all" }: {
   userId: string;
   drafts: DraftSaleRow[];
   currency: string;
   orgName: string;
   systemName: string;
+  logoUrl?: string | null;
+  showLogoOnInvoices?: boolean;
   organizationPhone?: string | null;
   organizationEmail?: string | null;
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
+  invoiceTemplate?: SalesInvoiceTemplate;
   branchRequests?: BranchRequestRow[];
   initialType?: "all" | DraftSaleRow["documentStatus"];
 }) {
@@ -120,6 +123,8 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
       const html = buildInvoiceHtml({
         orgName,
         systemName,
+        logoUrl,
+        showLogoOnInvoices,
         saleNumber: document.saleNumber,
         saleDate: document.createdAt,
         customerName: document.customerName,
@@ -131,6 +136,7 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
         organizationEmail,
         organizationWebsite,
         showOrganizationContact,
+        invoiceTemplate,
         paymentMethod: null,
         paymentStatus: "pending",
         subtotal: document.total,

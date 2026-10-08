@@ -3,6 +3,7 @@
 import * as React from "react";
 
 export type InvoiceFormat = "a4" | "thermal-80mm" | "thermal-58mm";
+export type SalesInvoiceTemplate = "standard" | "think-sales";
 
 const DEFAULT_FORMAT: InvoiceFormat = "a4";
 const values = new Map<string, InvoiceFormat>();

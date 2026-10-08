@@ -11,6 +11,7 @@ import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import { canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
+import type { SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import type { HeldSaleKind } from "@/types/database";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -103,9 +104,11 @@ export async function getRecentPosSales(locationId: string | null, limit: number
 export interface PosInvoiceItem {
   productName: string;
   sku: string | null;
+  imageUrl: string | null;
   quantity: number;
   unitPrice: number;
   discountAmount: number;
+  taxPercent: number;
   lineTotal: number;
 }
 
@@ -122,6 +125,7 @@ export interface PosInvoiceData {
   organizationEmail: string | null;
   organizationWebsite: string | null;
   showOrganizationContact: boolean;
+  invoiceTemplate: SalesInvoiceTemplate;
   saleNumber: number;
   saleDate: string;
   cashierName: string;
@@ -150,14 +154,14 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
   if (!sale) return null;
 
   const [{ data: items }, locationResult, cashierResult, companyResult, systemName] = await Promise.all([
-    supabase.from("sale_items").select("quantity, unit_price, discount_percent, line_total, products(name, sku)").eq("sale_id", saleId),
+    supabase.from("sale_items").select("quantity, unit_price, discount_percent, tax_percent, line_total, products(name, sku, image_urls)").eq("sale_id", saleId),
     sale.location_id
       ? supabase.from("business_locations").select("name, address, city, region, country, phone, email").eq("id", sale.location_id).single()
       : Promise.resolve({ data: null }),
     sale.sold_by
       ? supabase.from("profiles").select("full_name").eq("id", sale.sold_by).single()
       : Promise.resolve({ data: null }),
-    supabase.from("company_profile").select("logo_url, show_logo_on_invoices, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle(),
     getPlatformSystemName().catch(() => "ThinkSales ERP Pro"),
   ]);
   const location = locationResult.data;
@@ -173,7 +177,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
   const combined = `${dateOnly}T${timeOnly}:00`;
 
   return {
-    orgName: context.orgName,
+    orgName: companyResult.data?.company_name || context.orgName,
     systemName,
     logoUrl: companyResult.data?.logo_url ?? null,
     showLogoOnInvoices: companyResult.data?.show_logo_on_invoices ?? true,
@@ -185,6 +189,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     organizationEmail: companyResult.data?.contact_email || companyResult.data?.business_email || null,
     organizationWebsite: companyResult.data?.website ?? null,
     showOrganizationContact: companyResult.data?.show_contact_on_invoices ?? true,
+    invoiceTemplate: companyResult.data?.sales_invoice_template ?? "standard",
     saleNumber: sale.sale_number,
     saleDate: combined,
     cashierName: cashierProfile?.full_name || "—",
@@ -203,9 +208,11 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
       return {
         productName: product?.name ?? "Unknown product",
         sku: product?.sku ?? null,
+        imageUrl: product?.image_urls?.[0] ?? null,
         quantity: i.quantity,
         unitPrice: i.unit_price,
         discountAmount,
+        taxPercent: Number(i.tax_percent ?? 0),
         // The item row shows the line amount before invoice-level tax.
         // Tax remains represented separately in the totals box and included
         // in the final sale total.

@@ -42,7 +42,7 @@ import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
-import { useInvoiceFormat } from "@/lib/sales/invoice-format";
+import { useInvoiceFormat, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
@@ -195,6 +195,7 @@ export function SaleForm({
   organizationEmail,
   organizationWebsite,
   showOrganizationContact,
+  invoiceTemplate,
   canCheckCrossBranchStock,
   canChoosePriceTier,
   allowedPriceGroups,
@@ -218,6 +219,7 @@ export function SaleForm({
   organizationEmail?: string | null;
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
+  invoiceTemplate?: SalesInvoiceTemplate;
   canCheckCrossBranchStock: boolean;
   canChoosePriceTier: boolean;
   allowedPriceGroups: PriceTier[];
@@ -631,6 +633,7 @@ export function SaleForm({
         saleNumber,
         saleDate,
         customerName: selectedCustomer?.name || walkInName || "Walk-in Customer",
+        customerPhone: selectedCustomer?.phone ?? null,
         soldByName: reps.find((r) => r.id === salesRepId)?.name ?? currentUserEmail,
         locationName: locations.find((l) => l.id === locationId)?.name ?? null,
         locationPhone: locations.find((l) => l.id === locationId)?.phone ?? null,
@@ -639,6 +642,7 @@ export function SaleForm({
         organizationEmail,
         organizationWebsite,
         showOrganizationContact,
+        invoiceTemplate,
         paymentMethod,
         paymentStatus: derivePaymentStatus(total, amountPaid),
         subtotal,
