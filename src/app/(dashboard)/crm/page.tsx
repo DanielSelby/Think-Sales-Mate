@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
+import { getCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 import { CrmWorkspace, type CrmCustomer, type CrmInvoice, type CrmSale } from "@/components/crm/crm-workspace";
 
 export default async function CrmPage() {
@@ -10,10 +11,17 @@ export default async function CrmPage() {
   if (!context) return null;
 
   const supabase = await createClient();
-  const [{ data: rows }, { data: sales }, { data: invoices }] = await Promise.all([
+  const [{ data: rows }, { data: sales }, { data: invoices }, balances] = await Promise.all([
     supabase.from("customers").select("id, name, email, phone, company, created_at").eq("org_id", context.orgId).order("name"),
     (() => { let q = supabase.from("sales").select("customer_name, total, created_at, status, location_id").eq("org_id", context.orgId); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("created_at", { ascending: false }) : q.order("created_at", { ascending: false }); })(),
-    supabase.from("invoices").select("customer_name, amount, status, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false })
+    supabase.from("invoices").select("customer_name, amount, status, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }),
+    getCustomerOutstandingBalances(
+      supabase,
+      context.orgId,
+      context.isBranchScoped ? context.allowedLocationIds : undefined,
+      undefined,
+      false
+    ),
   ]);
   const rawSales = (sales ?? []) as CrmSale[];
   // Invoices currently have no location_id column, so scoped users must not
@@ -21,11 +29,12 @@ export default async function CrmPage() {
   const rawInvoices = (context.isBranchScoped ? [] : invoices ?? []) as CrmInvoice[];
   const customers: CrmCustomer[] = (rows ?? []).map((c) => {
     const customerSales = rawSales.filter((sale) => sale.customer_name?.toLowerCase() === c.name.toLowerCase());
-    const customerInvoices = rawInvoices.filter((invoice) => invoice.customer_name.toLowerCase() === c.name.toLowerCase());
+    const outstanding = (balances.byCustomerId.get(c.id) ?? 0) +
+      (balances.byCustomerName.get(c.name.trim().toLocaleLowerCase()) ?? 0);
     return {
       id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.company,
       branch: null, orders: customerSales.length, sales: customerSales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0),
-      outstanding: customerInvoices.filter((invoice) => ["sent", "overdue"].includes(invoice.status)).reduce((sum, invoice) => sum + Number(invoice.amount ?? 0), 0),
+      outstanding,
       lastActivity: customerSales[0]?.created_at ?? c.created_at
     };
   });

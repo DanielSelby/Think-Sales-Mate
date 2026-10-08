@@ -1913,9 +1913,9 @@ html.dark .platform-admin-console main :is(input, textarea)::placeholder {
 }
 
 @media screen {
-  body .page-canvas :is(div, section, article):has(> table):not(.min-h-0):not([class*="max-h-"]),
+  body .page-canvas :is(div, section, article):has(> table):not([class*="max-h-"]),
   body .page-canvas .sale-items-table-scroll,
-  body .platform-admin-console main :is(div, section, article):has(> table):not(.min-h-0):not([class*="max-h-"]) {
+  body .platform-admin-console main :is(div, section, article):has(> table):not([class*="max-h-"]) {
     height: 65vh;
     min-height: 420px;
     max-height: 760px;
@@ -1924,18 +1924,23 @@ html.dark .platform-admin-console main :is(input, textarea)::placeholder {
     overscroll-behavior: contain;
   }
 
+  body .page-canvas :is(div, section, article).min-h-0:has(> table):not([class*="max-h-"]),
+  body .platform-admin-console main :is(div, section, article).min-h-0:has(> table):not([class*="max-h-"]) {
+    min-height: 0;
+  }
+
   body .page-canvas :is(div, section, article):has(> table),
   body .platform-admin-console main :is(div, section, article):has(> table) {
     overflow-y: scroll !important;
     scrollbar-gutter: stable;
-    scrollbar-color: #64748b #e2e8f0;
-    scrollbar-width: thin;
+    scrollbar-color: #475569 #e2e8f0;
+    scrollbar-width: auto;
   }
 
   body .page-canvas :is(div, section, article):has(> table)::-webkit-scrollbar,
   body .platform-admin-console main :is(div, section, article):has(> table)::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
 
   body .page-canvas :is(div, section, article):has(> table)::-webkit-scrollbar-track,

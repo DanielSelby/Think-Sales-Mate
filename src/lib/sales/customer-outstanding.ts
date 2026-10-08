@@ -6,6 +6,53 @@ export interface CustomerOutstandingBalances {
   byCustomerName: Map<string, number>;
 }
 
+type OutstandingSale = {
+  customer_id: string | null;
+  customer_name: string | null;
+  sale_number: number;
+  total: number | null;
+  amount_paid: number | null;
+};
+
+type OutstandingPayment = { invoice_id: string; amount: number };
+type OutstandingInvoice = { customer_name: string; amount: number };
+
+export function calculateCustomerOutstandingBalances(
+  sales: OutstandingSale[],
+  payments: OutstandingPayment[],
+  invoices: OutstandingInvoice[] = []
+): CustomerOutstandingBalances {
+  const paymentsByInvoice = new Map<string, number>();
+  for (const payment of payments) {
+    paymentsByInvoice.set(payment.invoice_id, (paymentsByInvoice.get(payment.invoice_id) ?? 0) + Number(payment.amount));
+  }
+
+  const byCustomerId = new Map<string, number>();
+  const byCustomerName = new Map<string, number>();
+  function addBalance(map: Map<string, number>, key: string, amount: number) {
+    map.set(key, (map.get(key) ?? 0) + amount);
+  }
+
+  for (const sale of sales) {
+    const total = Number(sale.total ?? 0);
+    const paid = Number(sale.amount_paid ?? 0) + (paymentsByInvoice.get(`SALE-${sale.sale_number}`) ?? 0);
+    const outstanding = Math.max(0, total - Math.min(total, paid));
+    if (outstanding <= 0) continue;
+
+    if (sale.customer_id) {
+      addBalance(byCustomerId, sale.customer_id, outstanding);
+    } else if (sale.customer_name?.trim()) {
+      addBalance(byCustomerName, sale.customer_name.trim().toLocaleLowerCase(), outstanding);
+    }
+  }
+
+  for (const invoice of invoices) {
+    addBalance(byCustomerName, invoice.customer_name.trim().toLocaleLowerCase(), Number(invoice.amount));
+  }
+
+  return { byCustomerId, byCustomerName };
+}
+
 export async function checkCustomerCreditLimit(
   supabase: SupabaseClient<Database>,
   orgId: string,
@@ -62,7 +109,8 @@ export async function getCustomerOutstandingBalances(
   supabase: SupabaseClient<Database>,
   orgId: string,
   allowedLocationIds?: string[],
-  excludeSaleId?: string
+  excludeSaleId?: string,
+  includeLegacyInvoices = true
 ): Promise<CustomerOutstandingBalances> {
   let salesQuery = supabase
     .from("sales")
@@ -83,47 +131,22 @@ export async function getCustomerOutstandingBalances(
   const [salesResult, paymentsResult, invoicesResult] = await Promise.all([
     salesQuery,
     paymentsQuery,
-    allowedLocationIds
-      ? Promise.resolve({ data: [], error: null })
-      : supabase
+    includeLegacyInvoices && !allowedLocationIds
+      ? supabase
           .from("invoices")
           .select("customer_name, amount")
           .eq("org_id", orgId)
-          .in("status", ["sent", "overdue"]),
+          .in("status", ["sent", "overdue"])
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (salesResult.error) throw new Error(`Could not load customer sale balances: ${salesResult.error.message}`);
   if (paymentsResult.error) throw new Error(`Could not load customer payments: ${paymentsResult.error.message}`);
   if (invoicesResult.error) throw new Error(`Could not load customer invoice balances: ${invoicesResult.error.message}`);
 
-  const paymentsByInvoice = new Map<string, number>();
-  for (const payment of paymentsResult.data ?? []) {
-    paymentsByInvoice.set(payment.invoice_id, (paymentsByInvoice.get(payment.invoice_id) ?? 0) + Number(payment.amount));
-  }
-
-  const byCustomerId = new Map<string, number>();
-  const byCustomerName = new Map<string, number>();
-  function addBalance(map: Map<string, number>, key: string, amount: number) {
-    map.set(key, (map.get(key) ?? 0) + amount);
-  }
-
-  for (const sale of salesResult.data ?? []) {
-    const total = Number(sale.total ?? 0);
-    const paid = Number(sale.amount_paid ?? 0) + (paymentsByInvoice.get(`SALE-${sale.sale_number}`) ?? 0);
-    const outstanding = Math.max(0, total - Math.min(total, paid));
-    if (outstanding <= 0) continue;
-
-    if (sale.customer_id) {
-      addBalance(byCustomerId, sale.customer_id, outstanding);
-    } else if (sale.customer_name?.trim()) {
-      addBalance(byCustomerName, sale.customer_name.trim().toLocaleLowerCase(), outstanding);
-    }
-  }
-
-  for (const invoice of invoicesResult.data ?? []) {
-    const key = invoice.customer_name.trim().toLocaleLowerCase();
-    addBalance(byCustomerName, key, Number(invoice.amount));
-  }
-
-  return { byCustomerId, byCustomerName };
+  return calculateCustomerOutstandingBalances(
+    salesResult.data ?? [],
+    paymentsResult.data ?? [],
+    invoicesResult.data ?? []
+  );
 }

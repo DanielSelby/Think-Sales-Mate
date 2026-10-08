@@ -11,6 +11,7 @@ import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import type { CurrencyConfig } from "@/lib/currency";
 import { isTabVisible, loadPermissionMatrix } from "@/lib/rbac/permissions";
+import { calculateCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 
 export const metadata = {
   title: "Accounting & Financial Management",
@@ -31,6 +32,8 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   let initialBranchOptions: { id: string; name: string }[] = [];
   let initialReceivables: AccountsReceivableItem[] = [];
   let customerCreditLimits: { customerName: string; creditLimit: number | null }[] = [];
+  let customerOutstandingById: Record<string, number> = {};
+  let customerOutstandingByName: Record<string, number> = {};
   let initialAuditLogs: { userName: string; action: string; module: string; createdAt: string; branchId?: string }[] = [];
   let initialPayments: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] = [];
   let liveFinancialSnapshot: LiveFinancialSnapshot | undefined;
@@ -236,6 +239,9 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       customerName: customer.name,
       creditLimit: customer.credit_limit == null ? null : Number(customer.credit_limit),
     }));
+    const customerOutstanding = calculateCustomerOutstandingBalances(sales ?? [], payments ?? []);
+    customerOutstandingById = Object.fromEntries(customerOutstanding.byCustomerId);
+    customerOutstandingByName = Object.fromEntries(customerOutstanding.byCustomerName);
     initialAuditLogs = (auditLogs ?? [])
       .filter((log: any) => !context.isBranchScoped || context.allowedLocationIds.includes(log.metadata?.branch_id))
       .map((log: any) => ({
@@ -338,7 +344,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
+      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
     </Suspense>
   );
 }

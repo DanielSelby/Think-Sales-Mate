@@ -47,7 +47,7 @@ const TABS: { key: WorkspaceTab; label: string; icon: typeof LayoutDashboard }[]
 
 const money = (currency: string, value: number) => formatMoney(value, currency);
 
-export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditLogs = [], initialPayments = [], customerCreditLimits = [] }: { initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[] }) {
+export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditLogs = [], initialPayments = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {} }: { initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number> }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { receivables: storeReceivables, currentCurrency, currentCurrencyCode } = useAccountingStore();
@@ -68,16 +68,23 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
     : null;
   const customerRows = useMemo(() => {
     const map = new Map<string, typeof receivables>();
-    receivables.forEach((item) => map.set(item.customerName, [...(map.get(item.customerName) ?? []), item]));
-    return Array.from(map.entries()).map(([name, items]) => ({
-      name,
+    receivables.forEach((item) => {
+      const key = item.customerId
+        ? `customer:${item.customerId}`
+        : `name:${item.customerName.trim().toLocaleLowerCase()}`;
+      map.set(key, [...(map.get(key) ?? []), item]);
+    });
+    return Array.from(map.values()).map((items) => ({
+      name: items[0].customerName,
       branch: items[0].branch,
-      balance: items.reduce((sum, item) => sum + item.outstandingAmount, 0),
-      creditLimit: creditLimitByName.get(name.trim().toLocaleLowerCase()) ?? null,
+      balance: items[0].customerId
+        ? customerOutstandingById[items[0].customerId] ?? 0
+        : customerOutstandingByName[items[0].customerName.trim().toLocaleLowerCase()] ?? 0,
+      creditLimit: creditLimitByName.get(items[0].customerName.trim().toLocaleLowerCase()) ?? null,
       lastPayment: items[0].issueDate,
       items,
     }));
-  }, [receivables, creditLimitByName]);
+  }, [receivables, creditLimitByName, customerOutstandingById, customerOutstandingByName]);
 
   return (
     <div className="space-y-5 pb-16">
