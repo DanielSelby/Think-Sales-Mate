@@ -2424,6 +2424,10 @@ html.dark body :is(
     display: none !important;
   }
 
+  body.stock-transfer-printing .stock-transfer-print-page header {
+    display: grid !important;
+  }
+
   /* Display clean print container */
   .print-only {
     display: block !important;

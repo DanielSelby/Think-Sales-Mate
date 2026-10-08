@@ -2,11 +2,14 @@
 
 import { useEffect } from "react";
 import { Printer } from "lucide-react";
+import { waitForInvoiceImages } from "@/lib/sales/invoice-template";
 
-function printTransfer() {
+async function printTransfer() {
   const clearPrintMode = () => document.body.classList.remove("stock-transfer-printing");
   document.body.classList.add("stock-transfer-printing");
   window.addEventListener("afterprint", clearPrintMode, { once: true });
+  await waitForInvoiceImages(window);
+  await document.fonts.ready;
   window.print();
 }
 
