@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     reference: payload.reference ?? payload.orderNote ?? null,
     note: payload.note ?? payload.orderNote ?? null,
     saleDate: payload.saleDate ?? new Date().toISOString().slice(0, 10),
+    dueDate: typeof payload.dueDate === "string" ? payload.dueDate : null,
     paymentMethod,
     amountPaid,
     shippingAmount: Number(payload.shippingAmount ?? 0),

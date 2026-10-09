@@ -10,6 +10,7 @@ import { checkCustomerCreditLimit, getCustomerOutstandingBalances } from "@/lib/
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import { canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
+import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 import type { SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import type { HeldSaleKind } from "@/types/database";
@@ -130,6 +131,7 @@ export interface PosInvoiceData {
   invoiceSlogan: string | null;
   invoiceThankYouMessage: string | null;
   invoiceTermsAndConditions: string | null;
+  dueDate: string | null;
   saleNumber: number;
   saleDate: string;
   cashierName: string;
@@ -151,7 +153,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
 
   const { data: sale } = await supabase
     .from("sales")
-    .select("sale_number, customer_name, subtotal, discount_amount, tax_amount, total, amount_paid, payment_method, sale_date, created_at, location_id, sold_by")
+    .select("sale_number, customer_name, subtotal, discount_amount, tax_amount, total, amount_paid, due_date, payment_method, sale_date, created_at, location_id, sold_by")
     .eq("id", saleId)
     .eq("org_id", context.orgId)
     .single();
@@ -198,6 +200,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     invoiceSlogan: companyResult.data?.invoice_slogan ?? null,
     invoiceThankYouMessage: companyResult.data?.invoice_thank_you_message ?? null,
     invoiceTermsAndConditions: companyResult.data?.invoice_terms_and_conditions ?? null,
+    dueDate: sale.due_date,
     saleNumber: sale.sale_number,
     saleDate: combined,
     cashierName: cashierProfile?.full_name || "—",
@@ -892,6 +895,7 @@ export interface CustomerOption {
   phone: string | null;
   email: string | null;
   outstanding?: number;
+  paymentTermsDays?: number;
 }
 
 export async function searchCustomers(query: string): Promise<CustomerOption[]> {
@@ -899,7 +903,7 @@ export async function searchCustomers(query: string): Promise<CustomerOption[]> 
   if (!context) return [];
   const supabase = await createClient();
   const q = query.trim();
-  let customerQuery = supabase.from("customers").select("id, name, phone, email").eq("org_id", context.orgId);
+  let customerQuery = supabase.from("customers").select("id, name, phone, email, payment_terms_days").eq("org_id", context.orgId);
   if (!q) {
     customerQuery = customerQuery.order("name").limit(8);
   } else {
@@ -918,7 +922,11 @@ export async function searchCustomers(query: string): Promise<CustomerOption[]> 
   );
 
   return customers.map((customer) => ({
-    ...customer,
+    id: customer.id,
+    name: customer.name,
+    phone: customer.phone,
+    email: customer.email,
+    paymentTermsDays: customer.payment_terms_days,
     outstanding: (balances.byCustomerId.get(customer.id) ?? 0) +
       (balances.byCustomerName.get(customer.name.trim().toLocaleLowerCase()) ?? 0),
   }));
@@ -962,10 +970,10 @@ export async function addCustomer(input: NewContactInput): Promise<{ ok: boolean
       landline: input.landline,
       created_by: user.id,
     })
-    .select("id, name, phone, email")
+    .select("id, name, phone, email, payment_terms_days")
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? "Couldn't add customer." };
-  return { ok: true, customer: data };
+  return { ok: true, customer: { id: data.id, name: data.name, phone: data.phone, email: data.email, paymentTermsDays: data.payment_terms_days } };
 }
 
 // Kept for anywhere still using the old 3-field quick-add.
@@ -980,10 +988,10 @@ export async function quickAddCustomer(name: string, phone: string | null, email
   const { data, error } = await supabase
     .from("customers")
     .insert({ org_id: context.orgId, name: name.trim(), phone, email, created_by: user.id })
-    .select("id, name, phone, email")
+    .select("id, name, phone, email, payment_terms_days")
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? "Couldn't add customer." };
-  return { ok: true, customer: data };
+  return { ok: true, customer: { id: data.id, name: data.name, phone: data.phone, email: data.email, paymentTermsDays: data.payment_terms_days } };
 }
 
 // ---------------------------------------------------------------------------
@@ -1123,6 +1131,7 @@ export interface CompleteSaleInput {
   shippingAmount: number;
   paymentMethod: string;
   saleDate: string; // 'YYYY-MM-DD' — sales.sale_date is a DATE column, no time component
+  dueDate?: string | null;
   priceTier?: "retail" | "wholesale" | "vip" | "special";
   paymentAllocations?: Array<{ paymentMethod: string; accountId?: string | null; amount: number }>;
 }
@@ -1256,6 +1265,20 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   );
   if (!creditCheck.allowed) return { ok: false, error: creditCheck.error };
 
+  const saleDate = input.saleDate || new Date().toISOString().slice(0, 10);
+  let dueDate = input.dueDate || null;
+  if (amountPaid < total && !dueDate && input.customerId) {
+    const { data: customerTerms, error: termsError } = await supabase
+      .from("customers")
+      .select("payment_terms_days")
+      .eq("id", input.customerId)
+      .eq("org_id", context.orgId)
+      .maybeSingle();
+    if (termsError) return { ok: false, error: `Could not load customer payment terms: ${termsError.message}` };
+    dueDate = addDaysToIsoDate(saleDate, customerTerms?.payment_terms_days ?? 0);
+  }
+  if (amountPaid >= total) dueDate = null;
+
   const { data: saleRows, error: saleError } = await (supabase as any).rpc("create_pos_sale_header", {
     p_org_id: context.orgId,
     p_location_id: input.locationId,
@@ -1269,7 +1292,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     p_shipping_amount: shipping,
     p_total: total,
     p_payment_method: input.paymentMethod,
-    p_sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
+    p_sale_date: saleDate,
   });
   const sale = Array.isArray(saleRows) ? saleRows[0] : null;
 
@@ -1302,6 +1325,25 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       };
     }
     return { ok: false, error: saleError?.message ?? "Couldn't create the sale." };
+  }
+  const admin = createAdminClient();
+  const { error: dueDateError } = await admin
+    .from("sales")
+    .update({ due_date: dueDate })
+    .eq("id", sale.id)
+    .eq("org_id", context.orgId);
+  if (dueDateError) {
+    const { error: cleanupError } = await admin
+      .from("sales")
+      .delete()
+      .eq("id", sale.id)
+      .eq("org_id", context.orgId);
+    return {
+      ok: false,
+      error: cleanupError
+        ? `Could not save the sale due date (${dueDateError.message}) and the incomplete sale needs administrator review (${cleanupError.message}).`
+        : `Could not save the sale due date: ${dueDateError.message}. The sale was not completed.`,
+    };
   }
   if (allocations.length) {
     const { error: allocationError } = await supabase.from("sale_payment_allocations").insert(
@@ -1408,6 +1450,7 @@ export interface EditableSale {
   discountAmount: number;
   shippingAmount: number;
   saleDate: string;
+  dueDate: string | null;
   items: CartItemInput[];
 }
 
@@ -1415,7 +1458,7 @@ export async function getSaleForEdit(saleId: string): Promise<EditableSale | nul
   const supabase = await createClient();
   const { data: sale } = await supabase
     .from("sales")
-    .select("location_id, customer_id, customer_name, payment_method, discount_amount, shipping_amount, sale_date")
+    .select("location_id, customer_id, customer_name, payment_method, discount_amount, shipping_amount, sale_date, due_date")
     .eq("id", saleId)
     .single();
   if (!sale) return null;
@@ -1439,6 +1482,7 @@ export async function getSaleForEdit(saleId: string): Promise<EditableSale | nul
     discountAmount: Math.max(0, Number(sale.discount_amount ?? 0) - itemDiscountTotal),
     shippingAmount: sale.shipping_amount ?? 0,
     saleDate: sale.sale_date,
+    dueDate: sale.due_date,
     items: (items ?? []).map((i) => {
       const product = Array.isArray(i.products) ? i.products[0] : i.products;
       return {
@@ -1570,6 +1614,7 @@ export async function updateSale(saleId: string, input: CompleteSaleInput): Prom
       payment_method: input.paymentMethod,
       amount_paid: amountPaid,
       sale_date: input.saleDate || new Date().toISOString().slice(0, 10),
+      due_date: amountPaid >= total ? null : input.dueDate || null,
     })
     .eq("id", saleId);
   if (updateError) return { ok: false, error: updateError.message };

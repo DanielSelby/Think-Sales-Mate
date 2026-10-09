@@ -23,7 +23,7 @@ export default async function EditCustomerPage({
   const supabase = await createClient();
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, name, email, phone, company, notes, credit_limit")
+    .select("id, name, email, phone, company, notes, credit_limit, payment_terms_days")
     .eq("id", id)
     .eq("org_id", context.orgId)
     .single();

@@ -951,6 +951,7 @@ export interface Database {
           total: number;
           payment_method: string | null;
           amount_paid: number | null;
+          due_date: string | null;
           sold_by: string;
           status: SaleStatus;
           refunded_amount: number;
@@ -982,6 +983,7 @@ export interface Database {
           total?: number;
           payment_method?: string | null;
           amount_paid?: number | null;
+          due_date?: string | null;
           sold_by: string;
           status?: SaleStatus;
           refunded_amount?: number;
@@ -1811,6 +1813,7 @@ export interface Database {
           company: string | null;
           notes: string | null;
           credit_limit: number | null;
+          payment_terms_days: number;
           contact_type: string;
           alternate_phone: string | null;
           landline: string | null;
@@ -1828,6 +1831,7 @@ export interface Database {
           company?: string | null;
           notes?: string | null;
           credit_limit?: number | null;
+          payment_terms_days?: number;
           contact_type?: string;
           alternate_phone?: string | null;
           landline?: string | null;

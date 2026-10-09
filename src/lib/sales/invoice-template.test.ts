@@ -68,11 +68,53 @@ describe("invoice print formats", () => {
 
     expect(html).toContain("Fresh goods, fair prices");
     expect(html).toContain("We hope to see you again.");
+    expect(html).toContain(".footer-note { margin-top: 5px; color: #c8e5df; font-size: 12px; font-style: italic; font-weight: 700;");
     expect(html).toContain("Returns accepted within 7 days.");
     expect(html).toContain('<span class="served-by-label">Served By</span><span class="served-by-name">Cashier</span>');
     expect(html).toContain(".served-by-label { display: block; font-size: 13px; font-weight: 700;");
+    expect(html).toContain(".footer-bottom { display: grid; grid-template-columns: 1fr 1fr;");
+    expect(html).toContain(".served-by { grid-column: 2; justify-self: center;");
     expect(html).toContain(".totals-row.grand { margin: 5px -15px 0;");
     expect(html).not.toContain("margin: 5px -15px -13px");
+  });
+
+  it("places highlighted branch details under the organization name and shows payment due status", () => {
+    const paidHtml = buildInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "think-sales",
+      locationName: "East Legon Branch",
+      locationCode: "BR-004",
+      locationPhone: "0245555555",
+      organizationPhone: "+233 30 000 0000",
+    });
+    const orgName = paidHtml.indexOf("Example Store");
+    const branchDetails = paidHtml.indexOf('<div class="branch-details">');
+    const branchName = paidHtml.indexOf("East Legon Branch");
+    const branchPhone = paidHtml.indexOf("0245555555");
+    const dueDate = paidHtml.indexOf("<span>Due Date</span>");
+
+    expect(branchDetails).toBeGreaterThan(orgName);
+    expect(branchName).toBeGreaterThan(branchDetails);
+    expect(branchPhone).toBeGreaterThan(branchName);
+    expect(branchPhone).toBeLessThan(paidHtml.indexOf("<div class=\"organization-contact\">"));
+    expect(paidHtml.slice(dueDate, dueDate + 100)).toContain("Paid in full");
+
+    const unpaidHtml = buildInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "think-sales",
+      amountPaid: 0,
+    });
+    expect(unpaidHtml.slice(unpaidHtml.indexOf("<span>Due Date</span>"), unpaidHtml.indexOf("<span>Due Date</span>") + 100))
+      .toContain("Due on receipt");
+
+    const creditHtml = buildInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "think-sales",
+      amountPaid: 0,
+      dueDate: "2026-10-17",
+    });
+    expect(creditHtml.slice(creditHtml.indexOf("<span>Due Date</span>"), creditHtml.indexOf("<span>Due Date</span>") + 100))
+      .toContain("17/10/2026");
   });
 
   it.each([

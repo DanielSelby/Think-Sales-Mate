@@ -21,7 +21,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
   let salesQuery = supabase
       .from("sales")
       .select(`
-        id, sale_number, customer_name, sale_date, created_at, total, amount_paid,
+        id, sale_number, customer_name, sale_date, due_date, created_at, total, amount_paid,
         payment_method, sold_by, status, refunded_amount, location_id,
         location:business_locations ( name, code, phone, email ),
         items:sale_items ( quantity, products ( name ) ),
@@ -77,6 +77,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
     // sale_date is a DATE column with no time component — every row would
     // otherwise render midnight. created_at has the real timestamp.
     saleDate: s.created_at,
+    dueDate: s.due_date,
     locationName: (s.location as { name: string } | null)?.name ?? null,
     locationCode: (s.location as { code: string | null } | null)?.code ?? null,
     locationPhone: (s.location as { phone: string | null } | null)?.phone ?? null,

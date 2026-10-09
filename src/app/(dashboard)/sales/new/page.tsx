@@ -54,7 +54,7 @@ export default async function NewSalePage() {
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
-    supabase.from("customers").select("id, name, email, phone").eq("org_id", context.orgId).order("name"),
+    supabase.from("customers").select("id, name, email, phone, payment_terms_days").eq("org_id", context.orgId).order("name"),
     locationsQuery,
     supabase
       .from("organization_members")
@@ -87,7 +87,8 @@ export default async function NewSalePage() {
     phone: c.phone,
     outstanding: (balances.byCustomerId.get(c.id) ?? 0) +
       (balances.byCustomerName.get(c.name.trim().toLocaleLowerCase()) ?? 0),
-    isReturning: returningCustomerIds.has(c.id)
+    isReturning: returningCustomerIds.has(c.id),
+    paymentTermsDays: c.payment_terms_days,
   }));
 
   const products: SellableProduct[] = (productRows ?? []).map((p) => ({

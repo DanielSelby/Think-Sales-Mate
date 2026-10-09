@@ -1,5 +1,6 @@
 import { formatMoney } from "@/lib/currency";
 import type { InvoiceFormat, SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
+import { formatInvoiceDate } from "@/lib/sales/payment-terms";
 
 // ---------------------------------------------------------------------------
 // Branded POS receipt — black/green diagonal-header style, used by the POS
@@ -39,6 +40,7 @@ export interface BrandedInvoiceData {
   invoiceThankYouMessage?: string | null;
   invoiceTermsAndConditions?: string | null;
   customerPhone?: string | null;
+  dueDate?: string | null;
   saleNumber: number;
   saleDate: string;
   cashierName: string;
@@ -110,6 +112,9 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   const paperWidth = printFormat === "thermal-58mm" ? 58 : 80;
   const { date, time } = formatDateTime(data.saleDate);
   const invoiceNo = formatInvoiceNumber(data.saleNumber);
+  const paymentDue = data.amountPaid >= data.total
+    ? "Paid in full"
+    : data.dueDate ? formatInvoiceDate(data.dueDate) : "Due on receipt";
   const change = Math.max(0, data.amountPaid - data.total);
   const addressLine = [data.locationAddress].filter(Boolean).join(", ");
 
@@ -169,7 +174,7 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
     content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px;
     background: #1e7d34; opacity: 0.35; transform: rotate(20deg);
   }
-  .brand { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+  .brand { display: flex; align-items: flex-start; gap: 12px; position: relative; z-index: 1; }
   .brand-mark {
     width: 46px; height: 46px; border-radius: 50%; background: #2fae4e; color: #fff;
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0;
@@ -288,6 +293,7 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
           <div><b>DATE</b>${esc(date)}</div>
           <div><b>TIME</b>${esc(time)}</div>
           <div><b>CASHIER</b>${esc(data.cashierName)}</div>
+          <div><b>DUE</b>${esc(paymentDue)}</div>
         </div>
       </div>
     </div>
@@ -359,7 +365,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   const invoiceDate = date.toLocaleDateString("en-GB");
   const paymentDue = data.amountPaid >= data.total
     ? "Paid in full"
-    : "Due on receipt";
+    : data.dueDate ? formatInvoiceDate(data.dueDate) : "Due on receipt";
   const subtotal = data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const discount = data.items.reduce((sum, item) => sum + item.discountAmount, 0);
   const tax = data.items.reduce((sum, item) => {
@@ -411,6 +417,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .logo-placeholder { display: grid; place-items: center; border-radius: 8px; background: #0b806b; color: #fff; font-size: 15px; font-weight: 800; }
   .brand-name { color: #12313b; font-size: 22px; font-weight: 800; }
   .brand-caption { margin-top: 5px; color: #087d69; font-size: 9px; font-weight: 600; }
+  .branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 7px; padding: 5px 8px; border-left: 3px solid #087d69; border-radius: 4px; background: #e8f6f2; color: #075d53; font-size: 9px; font-weight: 700; }
   .organization-contact { display: grid; gap: 7px; position: relative; z-index: 1; color: #344d56; font-size: 10px; }
   .contact-line { display: flex; gap: 8px; align-items: center; }
   .contact-icon { width: 14px; color: #087d69; font-weight: 700; text-align: center; }
@@ -452,17 +459,16 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .totals-row.grand strong { color: #fff; font-size: 16px; }
   .terms { margin-top: 9px; white-space: pre-line; line-height: 1.45; }
   .terms strong { display: block; margin-bottom: 4px; color: #087b68; }
-  .footer-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 16px; }
-  .served-by { grid-column: 2; color: #fff; text-align: center; }
+  .footer-bottom { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 16px; }
+  .served-by { grid-column: 2; justify-self: center; color: #fff; text-align: center; }
   .served-by-label { display: block; font-size: 13px; font-weight: 700; }
   .served-by-name { display: block; margin-top: 4px; color: #d9eeea; font-size: 11px; font-weight: 600; }
-  .branch-contact { font-weight: 700; }
   .due-card { display: flex; justify-content: space-between; align-items: center; grid-column: 2; color: #087b68; }
   .due-card span { display: block; margin-bottom: 5px; color: #52716f; font-size: 9px; }
   .due-card strong { color: #19333d; font-size: 11px; }
   .footer { margin: 17px -9mm -9mm; padding: 19px 9mm 14px; background: #075d53; color: white; }
   .footer-thanks { font-size: 19px; font-style: italic; font-weight: 700; }
-  .footer-note { margin-top: 5px; color: #c8e5df; font-size: 9px; }
+  .footer-note { margin-top: 5px; color: #c8e5df; font-size: 12px; font-style: italic; font-weight: 700; }
   .footer-contact { margin-top: 12px; color: #d9eeea; font-size: 9px; }
   @media print { .invoice { max-width: none; } .footer { break-inside: avoid; } }
   @media screen and (max-width: 650px) { .title-row { grid-template-columns: 1fr; } .recipient-grid { grid-template-columns: 1fr; } .recipient + .recipient { border-left: 0; border-top: 1px solid #e2eaed; padding-left: 8px; } .invoice { overflow-x: auto; } }
@@ -471,10 +477,8 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
 <body>
 <main class="invoice">
   <header class="masthead">
-    <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-caption">${esc(data.invoiceSlogan)}</div>` : ""}</div></div>
-    ${((data.locationCode || data.locationPhone) || (data.showOrganizationContact !== false && contactItems.length)) ? `<div class="organization-contact">
-      ${data.locationCode ? `<div class="contact-line branch-contact"><span class="contact-icon">⌖</span>Branch No. ${esc(data.locationCode)}</div>` : ""}
-      ${data.locationPhone ? `<div class="contact-line branch-contact"><span class="contact-icon">☎</span>${esc(data.locationName || "Branch")}: ${esc(data.locationPhone)}</div>` : ""}
+    <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-caption">${esc(data.invoiceSlogan)}</div>` : ""}${data.locationName || data.locationCode || data.locationPhone ? `<div class="branch-details">${data.locationName ? `<span>${esc(data.locationName)}</span>` : ""}${data.locationCode ? `<span>Branch No. ${esc(data.locationCode)}</span>` : ""}${data.locationPhone ? `<span>${esc(data.locationPhone)}</span>` : ""}</div>` : ""}</div></div>
+    ${data.showOrganizationContact !== false && contactItems.length ? `<div class="organization-contact">
       ${data.organizationPhone ? `<div class="contact-line"><span class="contact-icon">☎</span>${esc(data.organizationPhone)}</div>` : ""}
       ${data.organizationEmail ? `<div class="contact-line"><span class="contact-icon">✉</span>${esc(data.organizationEmail)}</div>` : ""}
       ${data.organizationWebsite ? `<div class="contact-line"><span class="contact-icon">◎</span>${esc(data.organizationWebsite)}</div>` : ""}
@@ -561,6 +565,7 @@ export interface InvoiceData {
   invoiceThankYouMessage?: string | null;
   invoiceTermsAndConditions?: string | null;
   customerPhone?: string | null;
+  dueDate?: string | null;
 }
 
 export function buildInvoiceHtml(data: InvoiceData): string {
@@ -596,6 +601,7 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     invoiceThankYouMessage: data.invoiceThankYouMessage,
     invoiceTermsAndConditions: data.invoiceTermsAndConditions,
     customerPhone: data.customerPhone,
+    dueDate: data.dueDate,
     saleNumber: data.saleNumber,
     saleDate: data.saleDate,
     cashierName: data.soldByName,

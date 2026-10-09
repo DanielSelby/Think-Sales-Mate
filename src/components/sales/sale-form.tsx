@@ -44,6 +44,7 @@ import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-temp
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
 import { useInvoiceFormat, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
+import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
 import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { isOfflineTransactionsEnabled } from "@/lib/offline/cache";
@@ -74,6 +75,7 @@ export interface SaleCustomer {
   phone: string | null;
   outstanding: number;
   isReturning: boolean;
+  paymentTermsDays: number;
 }
 
 type PriceTier = "retail" | "wholesale" | "vip" | "special";
@@ -113,6 +115,7 @@ export interface InitialSaleData {
   locationId: string | null;
   reference: string | null;
   saleDate: string;
+  dueDate: string | null;
   paymentMethod: string | null;
   amountPaid: number | null;
   shippingAmount: number;
@@ -259,6 +262,10 @@ export function SaleForm({
 
   // Sale details
   const [saleDate, setSaleDate] = useState(initialSale?.saleDate ?? todayIso());
+  const [dueDate, setDueDate] = useState(initialSale?.dueDate ?? addDaysToIsoDate(
+    initialSale?.saleDate ?? todayIso(),
+    customers.find((customer) => customer.id === initialSale?.customerId)?.paymentTermsDays ?? 0,
+  ));
   const [saleTime, setSaleTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [salesRepId, setSalesRepId] = useState(currentUserId);
   const [locationId, setLocationId] = useState(initialSale?.locationId ?? locations[0]?.id ?? "");
@@ -433,6 +440,7 @@ export function SaleForm({
 
   function selectCustomer(customer: SaleCustomer) {
     setSelectedCustomerId(customer.id);
+    setDueDate(addDaysToIsoDate(saleDate, customer.paymentTermsDays));
     setWalkInName("");
     setShowCustomerPicker(false);
     setCustomerQuery("");
@@ -455,7 +463,7 @@ export function SaleForm({
     if (!result.ok || !result.customer) {
       return { ok: false, error: result.error ?? "Couldn't save contact." };
     }
-    const newCustomer: SaleCustomer = { ...result.customer, outstanding: 0, isReturning: false };
+    const newCustomer: SaleCustomer = { ...result.customer, outstanding: 0, isReturning: false, paymentTermsDays: 0 };
     setCustomerList((prev) => [newCustomer, ...prev]);
     selectCustomer(newCustomer);
     setAddContactOpen(false);
@@ -547,6 +555,7 @@ export function SaleForm({
           locationId: locationId || null,
           reference,
           saleDate,
+          dueDate: dueDate || null,
           paymentMethod,
           amountPaid,
           priceTier,
@@ -587,6 +596,7 @@ export function SaleForm({
         locationId: locationId || null,
         reference,
         saleDate,
+        dueDate: dueDate || null,
         paymentMethod,
         amountPaid,
         shippingAmount,
@@ -639,6 +649,7 @@ export function SaleForm({
         showLogoOnInvoices,
         saleNumber,
         saleDate,
+        dueDate: dueDate || null,
         customerName: selectedCustomer?.name || walkInName || "Walk-in Customer",
         customerPhone: selectedCustomer?.phone ?? null,
         soldByName: reps.find((r) => r.id === salesRepId)?.name ?? currentUserEmail,
@@ -717,6 +728,7 @@ export function SaleForm({
           locationId: locationId || null,
           reference,
           saleDate,
+          dueDate: dueDate || null,
           paymentMethod,
           amountPaid: paidAmount,
           shippingAmount,
@@ -760,6 +772,7 @@ export function SaleForm({
           locationId: locationId || null,
           reference,
           saleDate,
+          dueDate: dueDate || null,
           paymentMethod,
           amountPaid: paidAmount,
           priceTier,
@@ -806,6 +819,7 @@ export function SaleForm({
         locationId: locationId || null,
         reference,
         saleDate,
+        dueDate: dueDate || null,
         paymentMethod,
         amountPaid: paidAmount,
         shippingAmount,
@@ -1037,7 +1051,15 @@ export function SaleForm({
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
                   Sale Date <span className="text-alert">*</span>
                 </label>
-                <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={saleDate}
+                  onChange={(e) => {
+                    const nextDate = e.target.value;
+                    setSaleDate(nextDate);
+                    setDueDate(addDaysToIsoDate(nextDate, selectedCustomer?.paymentTermsDays ?? 0));
+                  }}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Sale Time</label>
@@ -1055,6 +1077,12 @@ export function SaleForm({
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
+                  Payment due date <span className="font-normal text-ledger-400">(customer default: Net {selectedCustomer?.paymentTermsDays ?? 0})</span>
+                </label>
+                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Salesperson</label>

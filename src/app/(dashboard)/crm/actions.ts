@@ -18,6 +18,8 @@ function parseCustomerForm(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim();
   const rawCreditLimit = String(formData.get("credit_limit") ?? "").trim();
   const creditLimit = rawCreditLimit ? Number(rawCreditLimit) : null;
+  const rawPaymentTermsDays = String(formData.get("payment_terms_days") ?? "0").trim();
+  const paymentTermsDays = Number(rawPaymentTermsDays);
 
   return {
     name,
@@ -26,8 +28,12 @@ function parseCustomerForm(formData: FormData) {
     company: company || null,
     notes: notes || null,
     creditLimit,
+    paymentTermsDays,
     creditLimitError: rawCreditLimit && (!Number.isFinite(creditLimit) || (creditLimit ?? -1) < 0)
       ? "Credit limit must be a non-negative amount."
+      : null,
+    paymentTermsDaysError: !Number.isInteger(paymentTermsDays) || paymentTermsDays < 0
+      ? "Credit payment terms must be a non-negative whole number of days."
       : null,
   };
 }
@@ -42,6 +48,7 @@ export async function createCustomer(formData: FormData): Promise<void> {
   const fields = parseCustomerForm(formData);
   if (!fields.name) redirectWithError("/crm/new", "Name is required.");
   if (fields.creditLimitError) redirectWithError("/crm/new", fields.creditLimitError);
+  if (fields.paymentTermsDaysError) redirectWithError("/crm/new", fields.paymentTermsDaysError);
 
   const supabase = await createClient();
   const { error } = await supabase.from("customers").insert({
@@ -53,6 +60,7 @@ export async function createCustomer(formData: FormData): Promise<void> {
     company: fields.company,
     notes: fields.notes,
     credit_limit: fields.creditLimit,
+    payment_terms_days: fields.paymentTermsDays,
   });
 
   if (error) redirectWithError("/crm/new", error.message);
@@ -71,6 +79,7 @@ export async function updateCustomer(customerId: string, formData: FormData): Pr
   const fields = parseCustomerForm(formData);
   if (!fields.name) redirectWithError(`/crm/${customerId}/edit`, "Name is required.");
   if (fields.creditLimitError) redirectWithError(`/crm/${customerId}/edit`, fields.creditLimitError);
+  if (fields.paymentTermsDaysError) redirectWithError(`/crm/${customerId}/edit`, fields.paymentTermsDaysError);
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -82,6 +91,7 @@ export async function updateCustomer(customerId: string, formData: FormData): Pr
       company: fields.company,
       notes: fields.notes,
       credit_limit: fields.creditLimit,
+      payment_terms_days: fields.paymentTermsDays,
       updated_at: new Date().toISOString(),
     })
     .eq("id", customerId)

@@ -10,6 +10,7 @@ export interface CustomerFormValues {
   company?: string | null;
   notes?: string | null;
   credit_limit?: number | null;
+  payment_terms_days?: number;
 }
 
 export function CustomerForm({
@@ -68,6 +69,13 @@ export function CustomerForm({
           Credit limit <span className="font-normal text-ledger-400">(optional; blank means no limit)</span>
         </label>
         <Input id="credit_limit" name="credit_limit" type="number" min="0" step="0.01" defaultValue={initialValues?.credit_limit ?? ""} placeholder="No limit" />
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="payment_terms_days" className="text-sm font-medium text-ledger-700 dark:text-ledger-200">
+          Credit payment terms <span className="font-normal text-ledger-400">(days after sale; 0 means due on receipt)</span>
+        </label>
+        <Input id="payment_terms_days" name="payment_terms_days" type="number" min="0" step="1" defaultValue={initialValues?.payment_terms_days ?? 0} />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

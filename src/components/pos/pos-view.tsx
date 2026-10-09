@@ -19,6 +19,7 @@ import { formatCurrency } from "@/lib/sales/format";
 import { buildBrandedInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
 import { useInvoiceFormat } from "@/lib/sales/invoice-format";
+import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
   completeSale, parkSale, listHeldSales, resumeHeldSale, deleteHeldSale, searchCustomers, addCustomer,
@@ -137,6 +138,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
   const [customerBalanceNotice, setCustomerBalanceNotice] = React.useState<{ name: string; balance: number } | null>(null);
   const [addContactOpen, setAddContactOpen] = React.useState(false);
   const [saleDate, setSaleDate] = React.useState(() => isoToLocalDate(new Date().toISOString()));
+  const [dueDate, setDueDate] = React.useState(() => isoToLocalDate(new Date().toISOString()));
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [shippingAmount, setShippingAmount] = React.useState(0);
   const [paymentMethod, setPaymentMethod] = React.useState("Cash");
@@ -351,6 +353,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
     setDiscountAmount(0);
     setShippingAmount(0);
     setSaleDate(isoToLocalDate(new Date().toISOString()));
+    setDueDate(isoToLocalDate(new Date().toISOString()));
     setEditingSaleId(null);
   }
   function handleVoid() {
@@ -470,6 +473,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
           ? paymentAllocations.reduce((sum, allocation) => sum + Math.max(0, allocation.amount), 0)
           : /^credit$/i.test(method.trim()) ? 0 : total,
         saleDate,
+        dueDate,
         priceTier,
         total,
       };
@@ -491,6 +495,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
         orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod: method, priceTier, paymentAllocations,
         saleDate,
+        dueDate,
       });
       if (!result.ok) {
         const message = result.error ?? "Something went wrong. Review the transaction and try again.";
@@ -523,7 +528,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
       const result = await updateSale(editingSaleId, {
         locationId, customerId: customer?.id ?? null, customerName: customer?.name ?? null,
         orderNote: null, items: buildCartInput(), discountAmount, shippingAmount, paymentMethod,
-        saleDate,
+        saleDate, dueDate,
       });
       if (!result.ok) {
         const message = result.error ?? "Something went wrong. Review the transaction and try again.";
@@ -571,6 +576,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
       setDiscountAmount(sale.discountAmount);
       setShippingAmount(sale.shippingAmount);
       setSaleDate(sale.saleDate);
+      setDueDate(sale.dueDate ?? sale.saleDate);
       setEditingSaleId(id);
       setRecentOpen(false);
       showNotice("Editing sale — update the cart, then press Update Sale.");
@@ -1028,7 +1034,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                 {customer ? (
                   <div className="flex h-10 items-center justify-between rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
                     <span className="truncate">{customer.name}</span>
-                    <button onClick={() => setCustomer(null)} className="flex h-6 w-6 items-center justify-center rounded-full text-alert hover:bg-alert-soft">
+                    <button onClick={() => { setCustomer(null); setDueDate(saleDate); }} className="flex h-6 w-6 items-center justify-center rounded-full text-alert hover:bg-alert-soft">
                       <X className="h-4 w-4" strokeWidth={3} />
                     </button>
                   </div>
@@ -1050,7 +1056,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                 {customerOpen && !customer && customerResults.length > 0 && (
                   <div className="absolute left-0 right-0 top-11 z-30 max-h-40 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                     {customerResults.map((c) => (
-                      <button key={c.id} onClick={() => { setCustomer(c); setCustomerOpen(false); setCustomerQuery(""); setCustomerBalanceNotice((c.outstanding ?? 0) > 0 ? { name: c.name, balance: c.outstanding ?? 0 } : null); }} className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.06]">
+                      <button key={c.id} onClick={() => { setCustomer(c); setDueDate(addDaysToIsoDate(saleDate, c.paymentTermsDays ?? 0)); setCustomerOpen(false); setCustomerQuery(""); setCustomerBalanceNotice((c.outstanding ?? 0) > 0 ? { name: c.name, balance: c.outstanding ?? 0 } : null); }} className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-ledger-50 dark:hover:bg-white/[0.06]">
                         {c.name}{c.phone ? ` · ${c.phone}` : ""}
                       </button>
                     ))}
@@ -1129,10 +1135,22 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                 <input
                   type="date"
                   value={saleDate}
-                  onChange={(e) => setSaleDate(e.target.value)}
+                  onChange={(e) => {
+                    setSaleDate(e.target.value);
+                    setDueDate(addDaysToIsoDate(e.target.value, customer?.paymentTermsDays ?? 0));
+                  }}
                   className="h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                 />
               </div>
+              <label className="block space-y-1 text-xs text-ledger-500 dark:text-ledger-400">
+                Payment due date {customer ? `(Net ${customer.paymentTermsDays ?? 0})` : "(due on receipt)"}
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                />
+              </label>
             </div>
 
            <SmartProductSummary products={locationProducts} rows={cart} onLocate={smartLocator.locate} className="mb-3" />
@@ -1571,7 +1589,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
      <AddContactDialog
         open={addContactOpen}
         onClose={() => setAddContactOpen(false)}
-        onSaved={(c) => { setCustomer(c); setAddContactOpen(false); }}
+        onSaved={(c) => { setCustomer(c); setDueDate(addDaysToIsoDate(saleDate, c.paymentTermsDays ?? 0)); setAddContactOpen(false); }}
       />
 
         </div>

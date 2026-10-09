@@ -335,6 +335,7 @@ export interface RecordSaleInput {
   note?:           string | null;
   notes?:          string | null;
   saleDate?:       string | null;
+  dueDate?:        string | null;
   paymentMethod?:  string | null;
   amountPaid?:     number | null;
   paymentAllocations?: { paymentMethod: string; accountId?: string | null; amount: number }[];
@@ -460,6 +461,9 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         offline_operation_id: input.offlineOperationId ?? null,
         reference:       input.reference ?? null,
         sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
+        due_date: (input.documentStatus ?? "final") === "final" && (input.amountPaid ?? 0) >= input.total
+          ? null
+          : input.dueDate || null,
         document_status: input.documentStatus ?? "final",
         subtotal:        input.subtotal,
         discount_amount: input.discountAmount ?? 0,
@@ -698,6 +702,7 @@ export interface SaleEditData {
   locationId:    string | null;
   reference:     string | null;
   saleDate:      string;
+  dueDate:       string | null;
   paymentMethod: string | null;
   amountPaid:    number | null;
   shippingAmount: number;
@@ -712,7 +717,7 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
 
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, org_id, sale_number, document_status, status, customer_id, customer_name, location_id, reference, sale_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
+    .select("id, org_id, sale_number, document_status, status, customer_id, customer_name, location_id, reference, sale_date, due_date, payment_method, amount_paid, shipping_amount, discount_amount, tax_amount")
     .eq("id", saleId)
     .single();
   if (!sale) return null;
@@ -732,6 +737,7 @@ export async function getSaleForEdit(saleId: string): Promise<SaleEditData | nul
     locationId: sale.location_id,
     reference: sale.reference,
     saleDate: sale.sale_date,
+    dueDate: sale.due_date,
     paymentMethod: sale.payment_method,
     amountPaid: sale.amount_paid,
     shippingAmount: sale.shipping_amount ?? 0,
@@ -755,6 +761,7 @@ export interface UpdateSaleInput {
   locationId?:     string | null;
   reference?:      string | null;
   saleDate?:       string | null;
+  dueDate?:        string | null;
   paymentMethod?:  string | null;
   amountPaid?:     number | null;
   shippingAmount?: number | null;
@@ -846,6 +853,9 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
         location_id:     nextLocationId ?? null,
         reference:       input.reference ?? null,
         sale_date:       input.saleDate ?? new Date().toISOString().slice(0, 10),
+        due_date: willBeFinal && (input.amountPaid ?? existingSale.amount_paid ?? 0) >= input.total
+          ? null
+          : input.dueDate || null,
         subtotal:        input.subtotal,
         discount_amount: input.discountAmount ?? 0,
         tax_amount:      input.taxAmount ?? 0,
@@ -942,6 +952,7 @@ export interface DraftSaleRow {
   locationEmail: string | null;
   customerName: string;
   saleDate: string;
+  dueDate: string | null;
   total: number;
   createdAt: string;
   createdByName: string;
@@ -952,7 +963,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
   const supabase = await createClient();
   let q = supabase
     .from("sales")
-    .select("id, sale_number, document_status, customer_name, sale_date, total, created_at, location_id, sold_by")
+    .select("id, sale_number, document_status, customer_name, sale_date, due_date, total, created_at, location_id, sold_by")
     .eq("org_id", orgId)
     .in("document_status", ["draft", "quotation", "proforma"])
     .order("created_at", { ascending: false });
@@ -983,6 +994,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
     locationEmail: null,
     customerName: s.customer_name ?? "Walk-in Customer",
     saleDate: s.sale_date,
+    dueDate: s.due_date,
     total: s.total,
     createdAt: s.created_at,
     createdByName: profileNames.get(s.sold_by) ?? "Unknown",
