@@ -502,6 +502,9 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
         } else {
           setTransactionFeedback({ kind: "error", message });
           setError(message);
+          if (/register session|register still appears open|register before retrying/i.test(message)) {
+            router.refresh();
+          }
         }
         return;
       }

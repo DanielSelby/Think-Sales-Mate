@@ -1159,7 +1159,12 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     .eq("status", "open")
     .maybeSingle();
   if (sessionError) return { ok: false, error: "Could not verify that your register is open." };
-  if (!activeSession) return { ok: false, error: "Open a register before processing a sale." };
+  if (!activeSession) {
+    return {
+      ok: false,
+      error: "The selected branch's register session is no longer open. Refresh POS and reopen the register before retrying.",
+    };
+  }
   const { start, end } = startEndOfToday();
   const { data: activeClosures } = await supabase
     .from("register_closures")
@@ -1268,7 +1273,36 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   });
   const sale = Array.isArray(saleRows) ? saleRows[0] : null;
 
-  if (saleError || !sale) return { ok: false, error: saleError?.message ?? "Couldn't create the sale." };
+  if (saleError || !sale) {
+    if (/register is not open at the selected branch/i.test(saleError?.message ?? "")) {
+      const { data: currentSession, error: sessionStatusError } = await (supabase as any)
+        .from("pos_register_sessions")
+        .select("id")
+        .eq("org_id", context.orgId)
+        .eq("id", activeSession.id)
+        .eq("cashier_id", user.id)
+        .eq("location_id", input.locationId)
+        .eq("status", "open")
+        .maybeSingle();
+      if (sessionStatusError) {
+        return {
+          ok: false,
+          error: "The database rejected the register session and its status could not be rechecked. Refresh POS and reopen the register if needed.",
+        };
+      }
+      if (!currentSession) {
+        return {
+          ok: false,
+          error: "The register session was closed or became unavailable while the sale was being submitted. No sale was created. Refresh POS and reopen the register before retrying.",
+        };
+      }
+      return {
+        ok: false,
+        error: "The register still appears open, but the database rejected it. No sale was created. Refresh POS; if this continues, ask an administrator to verify that the latest POS register migrations are applied.",
+      };
+    }
+    return { ok: false, error: saleError?.message ?? "Couldn't create the sale." };
+  }
   if (allocations.length) {
     const { error: allocationError } = await supabase.from("sale_payment_allocations").insert(
       allocations.map((allocation) => ({
