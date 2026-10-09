@@ -17,7 +17,7 @@ export default async function DraftsPage({ searchParams }: { searchParams?: { ty
   const [{ data: requests }, { data: items }, { data: locations }, { data: companyProfile }] = await Promise.all([
     supabase.from("stock_requests").select("id, request_number, status, requesting_location_id, source_location_id, transfer_id, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }),
     supabase.from("stock_request_items").select("request_id, quantity").eq("org_id", context.orgId),
-    supabase.from("business_locations").select("id, name, phone, email").eq("org_id", context.orgId),
+    supabase.from("business_locations").select("id, name, code, phone, email").eq("org_id", context.orgId),
     supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, invoice_slogan, invoice_thank_you_message, invoice_terms_and_conditions, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle(),
   ]);
   const locationById = new Map((locations ?? []).map((location) => [location.id, location]));
@@ -27,6 +27,7 @@ export default async function DraftsPage({ searchParams }: { searchParams?: { ty
     return {
       ...draft,
       locationName: location?.name ?? null,
+      locationCode: location?.code ?? null,
       locationPhone: location?.phone ?? null,
       locationEmail: location?.email ?? null,
     };

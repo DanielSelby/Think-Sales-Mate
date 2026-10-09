@@ -69,7 +69,8 @@ describe("invoice print formats", () => {
     expect(html).toContain("Fresh goods, fair prices");
     expect(html).toContain("We hope to see you again.");
     expect(html).toContain("Returns accepted within 7 days.");
-    expect(html).toContain("Served by Cashier");
+    expect(html).toContain('<span class="served-by-label">Served By</span><span class="served-by-name">Cashier</span>');
+    expect(html).toContain(".served-by-label { display: block; font-size: 13px; font-weight: 700;");
     expect(html).toContain(".totals-row.grand { margin: 5px -15px 0;");
     expect(html).not.toContain("margin: 5px -15px -13px");
   });
@@ -90,6 +91,9 @@ describe("invoice print formats", () => {
   it("prints branch and enabled organization contacts in the invoice footer", () => {
     const html = buildInvoiceHtml({
       ...invoice,
+      invoiceTemplate: "think-sales",
+      locationName: "Main Branch",
+      locationCode: "BR-001",
       locationPhone: "+233 20 000 0000",
       locationEmail: "branch@example.test",
       organizationPhone: "+233 30 000 0000",
@@ -98,11 +102,20 @@ describe("invoice print formats", () => {
       showOrganizationContact: true,
     });
     const branchContact = html.indexOf("+233 20 000 0000");
+    const branchNumber = html.indexOf("Branch No. BR-001");
     const organizationContact = html.indexOf("+233 30 000 0000");
-    const poweredBy = html.indexOf("Powered by");
-    expect(branchContact).toBeGreaterThan(html.indexOf("</table>"));
+    expect(branchContact).toBeGreaterThan(html.indexOf("<header class=\"masthead\">"));
+    expect(branchNumber).toBeGreaterThan(html.indexOf("<header class=\"masthead\">"));
     expect(organizationContact).toBeGreaterThan(branchContact);
-    expect(poweredBy).toBeGreaterThan(organizationContact);
+  });
+
+  it("prints the branch number on the standard A4 invoice", () => {
+    const html = buildInvoiceHtml({
+      ...invoice,
+      locationCode: "BR-001",
+    });
+
+    expect(html).toContain("Branch No. BR-001");
   });
 
   it("omits organization contacts when disabled but keeps branch contacts", () => {

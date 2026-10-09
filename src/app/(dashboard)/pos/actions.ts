@@ -118,6 +118,7 @@ export interface PosInvoiceData {
   logoUrl: string | null;
   showLogoOnInvoices: boolean;
   locationName: string | null;
+  locationCode: string | null;
   locationAddress: string | null;
   locationPhone: string | null;
   locationEmail: string | null;
@@ -159,7 +160,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
   const [{ data: items }, locationResult, cashierResult, companyResult, systemName] = await Promise.all([
     supabase.from("sale_items").select("quantity, unit_price, discount_percent, tax_percent, line_total, products(name, sku, image_urls)").eq("sale_id", saleId),
     sale.location_id
-      ? supabase.from("business_locations").select("name, address, city, region, country, phone, email").eq("id", sale.location_id).single()
+      ? supabase.from("business_locations").select("name, code, address, city, region, country, phone, email").eq("id", sale.location_id).single()
       : Promise.resolve({ data: null }),
     sale.sold_by
       ? supabase.from("profiles").select("full_name").eq("id", sale.sold_by).single()
@@ -185,6 +186,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     logoUrl: companyResult.data?.logo_url ?? null,
     showLogoOnInvoices: companyResult.data?.show_logo_on_invoices ?? true,
     locationName: location?.name ?? null,
+    locationCode: location?.code ?? null,
     locationAddress: locationAddress || null,
     locationPhone: location?.phone ?? null,
     locationEmail: location?.email ?? null,

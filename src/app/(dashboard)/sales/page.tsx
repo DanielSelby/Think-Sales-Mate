@@ -23,7 +23,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       .select(`
         id, sale_number, customer_name, sale_date, created_at, total, amount_paid,
         payment_method, sold_by, status, refunded_amount, location_id,
-        location:business_locations ( name, phone, email ),
+        location:business_locations ( name, code, phone, email ),
         items:sale_items ( quantity, products ( name ) ),
         customer:customers ( phone )
       `)
@@ -78,6 +78,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
     // otherwise render midnight. created_at has the real timestamp.
     saleDate: s.created_at,
     locationName: (s.location as { name: string } | null)?.name ?? null,
+    locationCode: (s.location as { code: string | null } | null)?.code ?? null,
     locationPhone: (s.location as { phone: string | null } | null)?.phone ?? null,
     locationEmail: (s.location as { email: string | null } | null)?.email ?? null,
     soldByName: staffNameById.get(s.sold_by) ?? "—",

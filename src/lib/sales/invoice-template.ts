@@ -26,6 +26,7 @@ export interface BrandedInvoiceData {
   logoUrl?: string | null;
   showLogoOnInvoices?: boolean;
   locationName: string | null;
+  locationCode?: string | null;
   locationAddress: string | null;
   locationPhone: string | null;
   locationEmail: string | null;
@@ -335,10 +336,10 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
       </div>
     </div>
 
-    ${(data.locationPhone || data.locationEmail || (data.showOrganizationContact !== false && (data.organizationPhone || data.organizationEmail || data.organizationWebsite)))
+    ${(data.locationCode || data.locationPhone || data.locationEmail || (data.showOrganizationContact !== false && (data.organizationPhone || data.organizationEmail || data.organizationWebsite)))
       ? `<div class="contact-footer">
-          ${data.locationPhone || data.locationEmail
-            ? `<div><b>${esc(data.locationName || "Branch")} contact</b>${data.locationPhone ? `<span>${esc(data.locationPhone)}</span>` : ""}${data.locationPhone && data.locationEmail ? " · " : ""}${data.locationEmail ? `<span>${esc(data.locationEmail)}</span>` : ""}</div>`
+          ${data.locationCode || data.locationPhone || data.locationEmail
+            ? `<div><b>${esc(data.locationName || "Branch")} contact</b>${data.locationCode ? `<span>Branch No. ${esc(data.locationCode)}</span>` : ""}${data.locationCode && data.locationPhone ? " · " : ""}${data.locationPhone ? `<span>${esc(data.locationPhone)}</span>` : ""}${data.locationPhone && data.locationEmail ? " · " : ""}${data.locationEmail ? `<span>${esc(data.locationEmail)}</span>` : ""}</div>`
             : ""}
           ${data.showOrganizationContact !== false && (data.organizationPhone || data.organizationEmail || data.organizationWebsite)
             ? `<div><b>Organization contact</b>${data.organizationPhone ? `<span>${esc(data.organizationPhone)}</span>` : ""}${data.organizationPhone && data.organizationEmail ? " · " : ""}${data.organizationEmail ? `<span>${esc(data.organizationEmail)}</span>` : ""}${(data.organizationPhone || data.organizationEmail) && data.organizationWebsite ? " · " : ""}${data.organizationWebsite ? `<span>${esc(data.organizationWebsite)}</span>` : ""}</div>`
@@ -451,8 +452,11 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .totals-row.grand strong { color: #fff; font-size: 16px; }
   .terms { margin-top: 9px; white-space: pre-line; line-height: 1.45; }
   .terms strong { display: block; margin-bottom: 4px; color: #087b68; }
-  .footer-bottom { display: flex; justify-content: space-between; align-items: end; gap: 16px; }
-  .served-by { color: #d9eeea; font-size: 9px; text-align: right; }
+  .footer-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 16px; }
+  .served-by { grid-column: 2; color: #fff; text-align: center; }
+  .served-by-label { display: block; font-size: 13px; font-weight: 700; }
+  .served-by-name { display: block; margin-top: 4px; color: #d9eeea; font-size: 11px; font-weight: 600; }
+  .branch-contact { font-weight: 700; }
   .due-card { display: flex; justify-content: space-between; align-items: center; grid-column: 2; color: #087b68; }
   .due-card span { display: block; margin-bottom: 5px; color: #52716f; font-size: 9px; }
   .due-card strong { color: #19333d; font-size: 11px; }
@@ -468,7 +472,9 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
 <main class="invoice">
   <header class="masthead">
     <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-caption">${esc(data.invoiceSlogan)}</div>` : ""}</div></div>
-    ${data.showOrganizationContact !== false && contactItems.length ? `<div class="organization-contact">
+    ${((data.locationCode || data.locationPhone) || (data.showOrganizationContact !== false && contactItems.length)) ? `<div class="organization-contact">
+      ${data.locationCode ? `<div class="contact-line branch-contact"><span class="contact-icon">⌖</span>Branch No. ${esc(data.locationCode)}</div>` : ""}
+      ${data.locationPhone ? `<div class="contact-line branch-contact"><span class="contact-icon">☎</span>${esc(data.locationName || "Branch")}: ${esc(data.locationPhone)}</div>` : ""}
       ${data.organizationPhone ? `<div class="contact-line"><span class="contact-icon">☎</span>${esc(data.organizationPhone)}</div>` : ""}
       ${data.organizationEmail ? `<div class="contact-line"><span class="contact-icon">✉</span>${esc(data.organizationEmail)}</div>` : ""}
       ${data.organizationWebsite ? `<div class="contact-line"><span class="contact-icon">◎</span>${esc(data.organizationWebsite)}</div>` : ""}
@@ -502,7 +508,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     </div>
     <div class="due-card"><div><span>Payment Due</span><strong>${esc(paymentDue)}</strong></div><strong>${esc(formatCurrency(Math.max(0, data.total - data.amountPaid), data.currency))}</strong></div>
   </section>
-  <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by">Served by ${esc(data.cashierName || "—")}</div></div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}</footer>
+  <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by"><span class="served-by-label">Served By</span><span class="served-by-name">${esc(data.cashierName || "—")}</span></div><div></div></div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}</footer>
 </main>
 </body>
 </html>`;
@@ -545,6 +551,7 @@ export interface InvoiceData {
   printFormat?: InvoiceFormat;
   locationPhone?: string | null;
   locationEmail?: string | null;
+  locationCode?: string | null;
   organizationPhone?: string | null;
   organizationEmail?: string | null;
   organizationWebsite?: string | null;
@@ -576,6 +583,7 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     logoUrl: data.logoUrl,
     showLogoOnInvoices: data.showLogoOnInvoices,
     locationName: data.locationName,
+    locationCode: data.locationCode,
     locationAddress: null,
     locationPhone: data.locationPhone ?? null,
     locationEmail: data.locationEmail ?? null,

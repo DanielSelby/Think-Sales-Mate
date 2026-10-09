@@ -87,6 +87,7 @@ function getTierPrice(product: SellableProduct, tier: PriceTier) {
 export interface SaleLocation {
   id: string;
   name: string;
+  code: string | null;
   phone: string | null;
   email: string | null;
 }
@@ -642,6 +643,7 @@ export function SaleForm({
         customerPhone: selectedCustomer?.phone ?? null,
         soldByName: reps.find((r) => r.id === salesRepId)?.name ?? currentUserEmail,
         locationName: locations.find((l) => l.id === locationId)?.name ?? null,
+        locationCode: locations.find((l) => l.id === locationId)?.code ?? null,
         locationPhone: locations.find((l) => l.id === locationId)?.phone ?? null,
         locationEmail: locations.find((l) => l.id === locationId)?.email ?? null,
         organizationPhone,

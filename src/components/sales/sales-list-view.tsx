@@ -32,6 +32,7 @@ export interface SaleListRow {
   customerPhone: string | null;
   saleDate: string; // ISO
   locationName: string | null;
+  locationCode: string | null;
   locationPhone: string | null;
   locationEmail: string | null;
   soldByName: string;
@@ -220,6 +221,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
         customerPhone: sale.customerPhone,
         soldByName: sale.soldByName,
         locationName: sale.locationName,
+        locationCode: sale.locationCode,
         locationPhone: sale.locationPhone,
         locationEmail: sale.locationEmail,
         organizationPhone,

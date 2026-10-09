@@ -29,7 +29,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
 
   let locationsQuery = supabase
     .from("business_locations")
-    .select("id, name, phone, email")
+    .select("id, name, code, phone, email")
     .eq("org_id", context.orgId)
     .eq("is_active", true)
     .order("is_primary", { ascending: false })
@@ -134,7 +134,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     p.allowNegativeStock
   );
 
-  const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name, phone: l.phone, email: l.email }));
+  const locations: SaleLocation[] = (locationRows ?? []).map((l) => ({ id: l.id, name: l.name, code: l.code, phone: l.phone, email: l.email }));
 
   const memberUserIds = (memberRows ?? []).map((m) => m.user_id).filter(Boolean) as string[];
   const { data: memberProfiles } = memberUserIds.length
