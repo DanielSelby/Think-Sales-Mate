@@ -460,7 +460,7 @@ function bucketPaymentMethod(method: string | null): "cash" | "card" | "momo" | 
   return "other"; // Credit, Split(...), or unset
 }
 
-function splitPaymentTotals(method: string | null) {
+function splitPaymentTotals(method: string | null, saleTotal: number) {
   const totals = { cash: 0, card: 0, momo: 0, other: 0 };
   const value = method ?? "";
   if (!/^split\s*\(/i.test(value)) return totals;
@@ -474,6 +474,7 @@ function splitPaymentTotals(method: string | null) {
     else if (key === "card") totals.card += amount;
     else totals.momo += amount;
   }
+  totals.other = Math.max(0, saleTotal - totals.cash - totals.card - totals.momo);
   return totals;
 }
 
@@ -569,7 +570,7 @@ export async function getRegisterSummary(locationId: string | null, cashierId: s
   let salesTotal = 0;
   for (const s of salesRows ?? []) {
     salesTotal += s.total;
-    const split = splitPaymentTotals(s.payment_method);
+    const split = splitPaymentTotals(s.payment_method, Number(s.total ?? 0));
     if (Object.values(split).some((value) => value > 0)) {
       totals.cash += split.cash;
       totals.card += split.card;
@@ -1246,14 +1247,25 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const totalDiscount = itemsDiscount + Math.max(0, input.discountAmount);
   const shipping = Math.max(0, input.shippingAmount);
   const total = Math.max(0, subtotal - totalDiscount + tax + shipping);
-  const allocations = input.paymentAllocations?.filter((allocation) => Number.isFinite(allocation.amount) && allocation.amount > 0) ?? [];
+  const rawAllocations = input.paymentAllocations ?? [];
+  if (rawAllocations.some((allocation) =>
+    !allocation.paymentMethod.trim() || !Number.isFinite(allocation.amount) || allocation.amount < 0
+  )) {
+    return { ok: false, error: "Enter valid payment methods and non-negative payment amounts." };
+  }
+  const allocations = rawAllocations.filter((allocation) => allocation.amount > 0);
+  if (rawAllocations.length > 0 && allocations.length === 0) {
+    return { ok: false, error: "Enter an amount received. Use Credit Sale if the customer is paying nothing now." };
+  }
   const amountPaid = allocations.length
     ? allocations.reduce((sum, allocation) => sum + allocation.amount, 0)
     : /^credit$/i.test(input.paymentMethod.trim()) ? 0 : total;
   if (allocations.length) {
-    const allocationTotal = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
-    if (Math.abs(allocationTotal - total) > 0.01) {
-      return { ok: false, error: "Payment allocations must equal the sale total." };
+    if (amountPaid > total + 0.005) {
+      return { ok: false, error: "Payment amounts cannot exceed the sale total." };
+    }
+    if (amountPaid < total - 0.005 && !input.customerId) {
+      return { ok: false, error: "Select a customer before recording a payment with a credit balance." };
     }
   }
   const creditCheck = await checkCustomerCreditLimit(
@@ -1329,7 +1341,11 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
   const admin = createAdminClient();
   const { error: dueDateError } = await admin
     .from("sales")
-    .update({ due_date: dueDate })
+    .update({
+      due_date: dueDate,
+      amount_paid: Math.min(amountPaid, total),
+      payment_method: input.paymentMethod,
+    })
     .eq("id", sale.id)
     .eq("org_id", context.orgId);
   if (dueDateError) {
@@ -1356,8 +1372,13 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       }))
     );
     if (allocationError) {
-      await supabase.from("sales").delete().eq("id", sale.id);
-      return { ok: false, error: allocationError.message };
+      const { error: cleanupError } = await admin.from("sales").delete().eq("id", sale.id).eq("org_id", context.orgId);
+      return {
+        ok: false,
+        error: cleanupError
+          ? `Could not save payment details (${allocationError.message}) and the incomplete sale needs administrator review (${cleanupError.message}).`
+          : `Could not save payment details: ${allocationError.message}. The sale was not completed.`,
+      };
     }
   }
 
@@ -1374,8 +1395,13 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     }))
   );
   if (itemsError) {
-    await supabase.from("sales").delete().eq("id", sale.id);
-    return { ok: false, error: itemsError.message };
+    const { error: cleanupError } = await admin.from("sales").delete().eq("id", sale.id).eq("org_id", context.orgId);
+    return {
+      ok: false,
+      error: cleanupError
+        ? `Could not save sale items (${itemsError.message}) and the incomplete sale needs administrator review (${cleanupError.message}).`
+        : `Could not save sale items: ${itemsError.message}. The sale was not completed.`,
+    };
   }
   if (lowMarginItems.length > 0) {
     const lowMarginAudit = await recordAuditEvent(supabase, {

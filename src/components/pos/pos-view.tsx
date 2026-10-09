@@ -794,15 +794,33 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
 
   const multiPayTotal = multiPay.cash + multiPay.card + multiPay.momo;
   function handleMultiPayConfirm() {
-    const parts: string[] = [];
-    if (multiPay.cash > 0) parts.push(`Cash ${formatCurrency(multiPay.cash, currency)}`);
-    if (multiPay.card > 0) parts.push(`Card ${formatCurrency(multiPay.card, currency)}`);
-    if (multiPay.momo > 0) parts.push(`MoMo ${formatCurrency(multiPay.momo, currency)}`);
-    setMultiPayOpen(false);
+    if (![multiPay.cash, multiPay.card, multiPay.momo].every((amount) => Number.isFinite(amount) && amount >= 0)) {
+      setError("Enter valid non-negative payment amounts.");
+      return;
+    }
+    if (multiPayTotal <= 0) {
+      setError("Enter an amount received. Use Credit Sale if the customer is paying nothing now.");
+      return;
+    }
+    if (multiPayTotal > total + 0.01) {
+      setError("Payment amounts cannot exceed the sale total.");
+      return;
+    }
+    if (multiPayTotal < total - 0.01 && !customer?.id) {
+      setError("Select a customer before saving a partial payment with a credit balance.");
+      return;
+    }
     if (multiPay.momo > 0 && !momoAccountId) {
       setError("Select the MoMo account for this split payment.");
       return;
     }
+    const creditBalance = Math.max(0, total - multiPayTotal);
+    const parts: string[] = [];
+    if (multiPay.cash > 0) parts.push(`Cash ${multiPay.cash.toFixed(2)}`);
+    if (multiPay.card > 0) parts.push(`Card ${multiPay.card.toFixed(2)}`);
+    if (multiPay.momo > 0) parts.push(`MoMo ${multiPay.momo.toFixed(2)}`);
+    if (creditBalance > 0.01) parts.push(`Credit ${creditBalance.toFixed(2)}`);
+    setMultiPayOpen(false);
     handleCompleteSale(`Split (${parts.join(", ")})`, [
       ...(multiPay.cash > 0 ? [{ paymentMethod: "Cash", amount: multiPay.cash }] : []),
       ...(multiPay.card > 0 ? [{ paymentMethod: "Card", amount: multiPay.card }] : []),
@@ -1402,7 +1420,8 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
       {/* Multiple Pay */}
       <Dialog open={multiPayOpen} onClose={() => setMultiPayOpen(false)} title="Split Payment">
         <div className="space-y-3">
-          <p className="text-sm text-ledger-500">Total due: <span className="font-semibold text-ink-900 dark:text-white">{formatCurrency(total, currency)}</span></p>
+          <p className="text-sm text-ledger-500">Sale total: <span className="font-semibold text-ink-900 dark:text-white">{formatCurrency(total, currency)}</span></p>
+          <p className="text-xs text-ledger-500">Enter what the customer pays now. Any remaining balance will be recorded as credit for the selected customer.</p>
           {([["cash", "Cash", Banknote], ["card", "Card", CreditCard], ["momo", "MoMo", Smartphone]] as const).map(([key, label, Icon]) => (
             <div key={key} className="flex items-center gap-2">
               <Icon className="h-4 w-4 shrink-0 text-ledger-400" />
@@ -1422,11 +1441,11 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
             </select>
           )}
           <div className="flex items-center justify-between border-t border-ledger-100 pt-2 text-sm dark:border-ledger-700">
-            <span className="text-ledger-500">Remaining</span>
-            <span className={cn("font-semibold", Math.abs(multiPayTotal - total) < 0.01 ? "text-signal" : "text-alert")}>{formatCurrency(total - multiPayTotal, currency)}</span>
+            <span className="text-ledger-500">Credit balance</span>
+            <span className={cn("font-semibold", multiPayTotal <= total + 0.01 ? "text-signal" : "text-alert")}>{formatCurrency(Math.max(0, total - multiPayTotal), currency)}</span>
           </div>
-          <Button variant="primary" className="w-full" disabled={Math.abs(multiPayTotal - total) >= 0.01 || isPending} onClick={handleMultiPayConfirm}>
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Confirm Split Payment
+          <Button variant="primary" className="w-full" disabled={multiPayTotal <= 0 || multiPayTotal > total + 0.01 || isPending} onClick={handleMultiPayConfirm}>
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Confirm Payment
           </Button>
         </div>
       </Dialog>

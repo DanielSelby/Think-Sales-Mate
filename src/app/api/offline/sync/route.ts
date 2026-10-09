@@ -111,6 +111,9 @@ export async function POST(request: Request) {
     if (Math.abs(allocated - amountPaid) > 0.01) {
       return NextResponse.json({ ok: false, error: "Payment allocations must equal the amount paid." }, { status: 422 });
     }
+    if (amountPaid < total - 0.01 && typeof normalized.customerId !== "string") {
+      return NextResponse.json({ ok: false, error: "Select a customer before syncing a sale with a credit balance." }, { status: 422 });
+    }
   }
 
   const result = await recordSale(normalized as Parameters<typeof recordSale>[0]);

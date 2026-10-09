@@ -164,6 +164,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
     .reduce((a: number, s: Record<string, unknown>) => a + n(s.discount_amount), 0);
   const customerDebt = (sales ?? [])
+    .filter((s: Record<string, unknown>) => !/^split\s*\(/i.test(String(s.payment_method ?? "")))
     .filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash"))
     .filter((s: Record<string, unknown>) => s.status === "completed")
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
