@@ -48,7 +48,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
   const [{ data: sales }, { data: locations }, { data: companyProfile }, drafts] = await Promise.all([
     salesQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
-    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", orgId).maybeSingle(),
+    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, invoice_slogan, invoice_thank_you_message, invoice_terms_and_conditions, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", orgId).maybeSingle(),
     getDraftSales(orgId),
   ]);
 
@@ -128,6 +128,9 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       organizationWebsite={companyProfile?.website ?? null}
       showOrganizationContact={companyProfile?.show_contact_on_invoices ?? true}
       invoiceTemplate={companyProfile?.sales_invoice_template ?? "standard"}
+      invoiceSlogan={companyProfile?.invoice_slogan ?? null}
+      invoiceThankYouMessage={companyProfile?.invoice_thank_you_message ?? null}
+      invoiceTermsAndConditions={companyProfile?.invoice_terms_and_conditions ?? null}
         documentKpis={{
           drafts: drafts.filter((draft) => draft.documentStatus === "draft").length,
           quotations: drafts.filter((draft) => draft.documentStatus === "quotation").length,

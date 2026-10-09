@@ -42,7 +42,7 @@ const DOC_STATUS_TONE: Record<DraftSaleRow["documentStatus"], "neutral" | "amber
   proforma: "signal",
 };
 
-export function DraftsListView({ userId, drafts, currency, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, invoiceTemplate, branchRequests = [], initialType = "all" }: {
+export function DraftsListView({ userId, drafts, currency, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, invoiceTemplate, invoiceSlogan, invoiceThankYouMessage, invoiceTermsAndConditions, branchRequests = [], initialType = "all" }: {
   userId: string;
   drafts: DraftSaleRow[];
   currency: string;
@@ -55,6 +55,9 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
   invoiceTemplate?: SalesInvoiceTemplate;
+  invoiceSlogan?: string | null;
+  invoiceThankYouMessage?: string | null;
+  invoiceTermsAndConditions?: string | null;
   branchRequests?: BranchRequestRow[];
   initialType?: "all" | DraftSaleRow["documentStatus"];
 }) {
@@ -137,6 +140,9 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
         organizationWebsite,
         showOrganizationContact,
         invoiceTemplate,
+        invoiceSlogan,
+        invoiceThankYouMessage,
+        invoiceTermsAndConditions,
         paymentMethod: null,
         paymentStatus: "pending",
         subtotal: document.total,

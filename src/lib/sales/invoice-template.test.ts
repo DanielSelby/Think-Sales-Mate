@@ -46,13 +46,32 @@ describe("invoice print formats", () => {
       items: [{ ...invoice.items[0], imageUrl: "https://example.test/product.png", tax: 15 }],
     });
 
-    expect(html).toContain("SALES INVOICE");
+    expect(html).toContain("<h1>Sales Invoice</h1>");
     expect(html).toContain("Example Store");
     expect(html).toContain('src="https://example.test/logo.png"');
     expect(html).toContain("+233 20 000 0000");
     expect(html).toContain("office@example.test");
     expect(html).toContain('src="https://example.test/product.png"');
+    expect(html).not.toContain("<th>SKU</th>");
+    expect(html).not.toContain("SKU-1");
     expect(html).not.toContain("ThinkSales ERP");
+  });
+
+  it("renders organization invoice copy, terms, cashier, and separated totals", () => {
+    const html = buildInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "think-sales",
+      invoiceSlogan: "Fresh goods, fair prices",
+      invoiceThankYouMessage: "We hope to see you again.",
+      invoiceTermsAndConditions: "Returns accepted within 7 days.",
+    });
+
+    expect(html).toContain("Fresh goods, fair prices");
+    expect(html).toContain("We hope to see you again.");
+    expect(html).toContain("Returns accepted within 7 days.");
+    expect(html).toContain("Served by Cashier");
+    expect(html).toContain(".totals-row.grand { margin: 5px -15px 0;");
+    expect(html).not.toContain("margin: 5px -15px -13px");
   });
 
   it.each([

@@ -41,6 +41,9 @@ export interface CompanyProfileFields {
   showLogoOnInvoices?: boolean;
   showContactOnInvoices?: boolean;
   salesInvoiceTemplate?: SalesInvoiceTemplate;
+  invoiceSlogan?: string;
+  invoiceThankYouMessage?: string;
+  invoiceTermsAndConditions?: string;
   showInfoOnReceipts?: boolean;
   enableBarcodeOnDocuments?: boolean;
   facebookUrl?: string;
@@ -85,6 +88,9 @@ export async function saveCompanyProfile(fields: CompanyProfileFields) {
       show_logo_on_invoices: fields.showLogoOnInvoices ?? true,
       show_contact_on_invoices: fields.showContactOnInvoices ?? true,
       sales_invoice_template: fields.salesInvoiceTemplate ?? "standard",
+      invoice_slogan: fields.invoiceSlogan?.trim() || null,
+      invoice_thank_you_message: fields.invoiceThankYouMessage?.trim() || null,
+      invoice_terms_and_conditions: fields.invoiceTermsAndConditions?.trim() || null,
       show_info_on_receipts: fields.showInfoOnReceipts ?? true,
       enable_barcode_on_documents: fields.enableBarcodeOnDocuments ?? false,
       facebook_url: fields.facebookUrl || null,

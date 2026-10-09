@@ -93,6 +93,9 @@ interface SalesListViewProps {
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
   invoiceTemplate?: SalesInvoiceTemplate;
+  invoiceSlogan?: string | null;
+  invoiceThankYouMessage?: string | null;
+  invoiceTermsAndConditions?: string | null;
   documentKpis: SalesDocumentKpis;
 }
 
@@ -117,7 +120,7 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
-export function SalesListView({ userId, sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, invoiceTemplate, documentKpis }: SalesListViewProps) {
+export function SalesListView({ userId, sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, invoiceTemplate, invoiceSlogan, invoiceThankYouMessage, invoiceTermsAndConditions, documentKpis }: SalesListViewProps) {
   const { activeTheme, darkMode } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
   const setBranch = useAccountingStore((state) => state.setBranch);
@@ -224,6 +227,9 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
         organizationWebsite,
         showOrganizationContact,
         invoiceTemplate,
+        invoiceSlogan,
+        invoiceThankYouMessage,
+        invoiceTermsAndConditions,
         paymentMethod: sale.paymentMethod,
         paymentStatus: sale.paymentStatus,
         subtotal: sale.total,

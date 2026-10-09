@@ -196,6 +196,9 @@ export function SaleForm({
   organizationWebsite,
   showOrganizationContact,
   invoiceTemplate,
+  invoiceSlogan,
+  invoiceThankYouMessage,
+  invoiceTermsAndConditions,
   canCheckCrossBranchStock,
   canChoosePriceTier,
   allowedPriceGroups,
@@ -220,6 +223,9 @@ export function SaleForm({
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
   invoiceTemplate?: SalesInvoiceTemplate;
+  invoiceSlogan?: string | null;
+  invoiceThankYouMessage?: string | null;
+  invoiceTermsAndConditions?: string | null;
   canCheckCrossBranchStock: boolean;
   canChoosePriceTier: boolean;
   allowedPriceGroups: PriceTier[];
@@ -643,6 +649,9 @@ export function SaleForm({
         organizationWebsite,
         showOrganizationContact,
         invoiceTemplate,
+        invoiceSlogan,
+        invoiceThankYouMessage,
+        invoiceTermsAndConditions,
         paymentMethod,
         paymentStatus: derivePaymentStatus(total, amountPaid),
         subtotal,

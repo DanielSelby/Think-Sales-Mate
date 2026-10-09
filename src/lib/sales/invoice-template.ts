@@ -34,6 +34,9 @@ export interface BrandedInvoiceData {
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
   invoiceTemplate?: SalesInvoiceTemplate;
+  invoiceSlogan?: string | null;
+  invoiceThankYouMessage?: string | null;
+  invoiceTermsAndConditions?: string | null;
   customerPhone?: string | null;
   saleNumber: number;
   saleDate: string;
@@ -372,9 +375,8 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
         ${item.imageUrl
           ? `<img class="product-image" src="${esc(item.imageUrl)}" alt="" />`
           : `<div class="product-placeholder">${esc(initials(item.productName))}</div>`}
-        <div><strong>${esc(item.productName)}</strong>${item.sku ? `<small>${esc(item.sku)}</small>` : ""}</div>
+        <div><strong>${esc(item.productName)}</strong></div>
       </div></td>
-      <td>${esc(item.sku || "—")}</td>
       <td class="num">${esc(formatCurrency(item.unitPrice, data.currency))}</td>
       <td class="num">${item.quantity}</td>
       <td class="num">${esc(formatCurrency(item.discountAmount, data.currency))}</td>
@@ -407,12 +409,12 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .logo,.logo-placeholder { width: 54px; height: 48px; object-fit: contain; }
   .logo-placeholder { display: grid; place-items: center; border-radius: 8px; background: #0b806b; color: #fff; font-size: 15px; font-weight: 800; }
   .brand-name { color: #12313b; font-size: 22px; font-weight: 800; }
-  .brand-caption { margin-top: 5px; color: #087d69; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .brand-caption { margin-top: 5px; color: #087d69; font-size: 9px; font-weight: 600; }
   .organization-contact { display: grid; gap: 7px; position: relative; z-index: 1; color: #344d56; font-size: 10px; }
   .contact-line { display: flex; gap: 8px; align-items: center; }
   .contact-icon { width: 14px; color: #087d69; font-weight: 700; text-align: center; }
   .title-row { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: center; padding: 20px 6px 16px; }
-  h1 { margin: 0; color: #102f3a; font-size: 31px; line-height: 1.1; letter-spacing: -.6px; }
+  h1 { margin: 0; color: #102f3a; font-size: 23px; line-height: 1.2; letter-spacing: -.3px; }
   .subtitle { margin: 8px 0 0; color: #70838a; font-size: 14px; }
   .title-rule { width: 65px; height: 3px; margin-top: 12px; background: #15a780; }
   .invoice-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-radius: 10px; background: #eef8f7; padding: 15px; }
@@ -442,10 +444,15 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .details-card,.totals-card,.due-card { border-radius: 9px; background: #f1f8f7; padding: 13px 15px; }
   .details-card h2 { margin: 0 0 12px; color: #087b68; font-size: 11px; }
   .details-row { margin-top: 7px; color: #405a63; font-size: 9px; }
-  .totals-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; color: #405a63; }
+  .totals-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; color: #405a63; }
+  .totals-row > :last-child { text-align: right; }
   .totals-row strong { color: #19333d; }
-  .totals-row.grand { margin: 5px -15px -13px; padding: 11px 15px; border-radius: 0 0 9px 9px; background: #087b68; color: #fff; font-size: 13px; font-weight: 700; }
+  .totals-row.grand { margin: 5px -15px 0; padding: 11px 15px; border-radius: 0; background: #087b68; color: #fff; font-size: 13px; font-weight: 700; }
   .totals-row.grand strong { color: #fff; font-size: 16px; }
+  .terms { margin-top: 9px; white-space: pre-line; line-height: 1.45; }
+  .terms strong { display: block; margin-bottom: 4px; color: #087b68; }
+  .footer-bottom { display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+  .served-by { color: #d9eeea; font-size: 9px; text-align: right; }
   .due-card { display: flex; justify-content: space-between; align-items: center; grid-column: 2; color: #087b68; }
   .due-card span { display: block; margin-bottom: 5px; color: #52716f; font-size: 9px; }
   .due-card strong { color: #19333d; font-size: 11px; }
@@ -460,7 +467,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
 <body>
 <main class="invoice">
   <header class="masthead">
-    <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div><div class="brand-caption">Sales · Inventory · CRM · Finance</div></div></div>
+    <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-caption">${esc(data.invoiceSlogan)}</div>` : ""}</div></div>
     ${data.showOrganizationContact !== false && contactItems.length ? `<div class="organization-contact">
       ${data.organizationPhone ? `<div class="contact-line"><span class="contact-icon">☎</span>${esc(data.organizationPhone)}</div>` : ""}
       ${data.organizationEmail ? `<div class="contact-line"><span class="contact-icon">✉</span>${esc(data.organizationEmail)}</div>` : ""}
@@ -468,7 +475,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     </div>` : ""}
   </header>
   <section class="title-row">
-    <div><h1>SALES INVOICE</h1><p class="subtitle">Thank you for your business!</p><div class="title-rule"></div></div>
+    <div><h1>Sales Invoice</h1><p class="subtitle">Thank you for your business!</p><div class="title-rule"></div></div>
     <div class="invoice-meta">
       <div class="meta-item"><span>Invoice No.</span><strong>${esc(invoiceNo)}</strong></div>
       <div class="meta-item"><span>Status</span><strong>${data.amountPaid >= data.total ? "Paid" : "Payment due"}</strong></div>
@@ -481,11 +488,11 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     <div class="recipient"><div class="recipient-label">Ship To</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">Same as billing address</div></div>
   </section>
   <table>
-    <thead><tr><th>#</th><th>Product</th><th>SKU</th><th class="num">Unit Price</th><th class="num">Quantity</th><th class="num">Discount</th><th class="num">Tax</th><th class="num">Total</th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="8" style="text-align:center;padding:24px;color:#72848a">No line items on this sale.</td></tr>`}</tbody>
+    <thead><tr><th>#</th><th>Product</th><th class="num">Unit Price</th><th class="num">Quantity</th><th class="num">Discount</th><th class="num">Tax</th><th class="num">Total</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="7" style="text-align:center;padding:24px;color:#72848a">No line items on this sale.</td></tr>`}</tbody>
   </table>
   <section class="lower-grid">
-    <div class="details-card"><h2>Payment Method</h2><div class="details-row">${esc(data.paymentMethod || "Not specified")}</div><h2 style="margin-top:15px">Notes</h2><div class="details-row">Thank you for choosing ${esc(data.orgName)}. We appreciate your business.</div></div>
+    <div class="details-card"><h2>Payment Method</h2><div class="details-row">${esc(data.paymentMethod || "Not specified")}</div><h2 style="margin-top:15px">Notes</h2><div class="details-row">Thank you for choosing ${esc(data.orgName)}. We appreciate your business.</div>${data.invoiceTermsAndConditions ? `<div class="details-row terms"><strong>Terms &amp; Conditions</strong>${esc(data.invoiceTermsAndConditions)}</div>` : ""}</div>
     <div class="totals-card">
       <div class="totals-row"><span>Subtotal</span><strong>${esc(formatCurrency(subtotal, data.currency))}</strong></div>
       <div class="totals-row"><span>Discount</span><strong>${esc(formatCurrency(discount, data.currency))}</strong></div>
@@ -495,7 +502,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     </div>
     <div class="due-card"><div><span>Payment Due</span><strong>${esc(paymentDue)}</strong></div><strong>${esc(formatCurrency(Math.max(0, data.total - data.amountPaid), data.currency))}</strong></div>
   </section>
-  <footer class="footer"><div class="footer-thanks">Thank You!</div><div class="footer-note">Your support drives our success.</div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}</footer>
+  <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by">Served by ${esc(data.cashierName || "—")}</div></div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}</footer>
 </main>
 </body>
 </html>`;
@@ -543,6 +550,9 @@ export interface InvoiceData {
   organizationWebsite?: string | null;
   showOrganizationContact?: boolean;
   invoiceTemplate?: SalesInvoiceTemplate;
+  invoiceSlogan?: string | null;
+  invoiceThankYouMessage?: string | null;
+  invoiceTermsAndConditions?: string | null;
   customerPhone?: string | null;
 }
 
@@ -574,6 +584,9 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     organizationWebsite: data.organizationWebsite,
     showOrganizationContact: data.showOrganizationContact,
     invoiceTemplate: data.invoiceTemplate,
+    invoiceSlogan: data.invoiceSlogan,
+    invoiceThankYouMessage: data.invoiceThankYouMessage,
+    invoiceTermsAndConditions: data.invoiceTermsAndConditions,
     customerPhone: data.customerPhone,
     saleNumber: data.saleNumber,
     saleDate: data.saleDate,

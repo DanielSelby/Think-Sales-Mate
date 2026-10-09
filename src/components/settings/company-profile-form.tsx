@@ -127,6 +127,9 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
   const [showLogo, setShowLogo] = useState(profile?.show_logo_on_invoices ?? true);
   const [showContactOnInvoices, setShowContactOnInvoices] = useState(profile?.show_contact_on_invoices ?? true);
   const [salesInvoiceTemplate, setSalesInvoiceTemplate] = useState<SalesInvoiceTemplate>(profile?.sales_invoice_template ?? "standard");
+  const [invoiceSlogan, setInvoiceSlogan] = useState(profile?.invoice_slogan ?? "");
+  const [invoiceThankYouMessage, setInvoiceThankYouMessage] = useState(profile?.invoice_thank_you_message ?? "");
+  const [invoiceTermsAndConditions, setInvoiceTermsAndConditions] = useState(profile?.invoice_terms_and_conditions ?? "");
   const [showInfo, setShowInfo] = useState(profile?.show_info_on_receipts ?? true);
   const [enableBarcode, setEnableBarcode] = useState(profile?.enable_barcode_on_documents ?? false);
 
@@ -224,6 +227,9 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
         showLogoOnInvoices: showLogo,
         showContactOnInvoices,
         salesInvoiceTemplate,
+        invoiceSlogan,
+        invoiceThankYouMessage,
+        invoiceTermsAndConditions,
         showInfoOnReceipts: showInfo,
         enableBarcodeOnDocuments: enableBarcode,
         facebookUrl: String(formData.get("facebook_url") ?? ""),
@@ -411,6 +417,30 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
                 </select>
                 <p className="mt-1 text-[11px] text-ledger-400">Choose the A4 sales invoice design used across the organization. Thermal printer output keeps its compact receipt layout.</p>
               </div>
+              <TextAreaField
+                label="Invoice slogan"
+                value={invoiceSlogan}
+                onChange={setInvoiceSlogan}
+                placeholder="Your business slogan"
+                disabled={!canManage}
+                rows={2}
+              />
+              <TextAreaField
+                label="Invoice thank-you message"
+                value={invoiceThankYouMessage}
+                onChange={setInvoiceThankYouMessage}
+                placeholder="Your support drives our success."
+                disabled={!canManage}
+                rows={2}
+              />
+              <TextAreaField
+                label="Invoice terms and conditions"
+                value={invoiceTermsAndConditions}
+                onChange={setInvoiceTermsAndConditions}
+                placeholder="Enter terms and conditions shown below invoice notes"
+                disabled={!canManage}
+                rows={4}
+              />
               <div>
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Default sales tax</label>
                 <div className="mt-1 flex items-center rounded-md border border-ledger-200 dark:border-ledger-700">
@@ -487,6 +517,36 @@ function Field({
       </label>
       <Input id={name} name={name} type={type} required={required} defaultValue={defaultValue} disabled={disabled} />
     </div>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  rows,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  rows: number;
+}) {
+  return (
+    <label className="block text-xs font-medium text-ledger-500 dark:text-ledger-400">
+      {label}
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        rows={rows}
+        className="mt-1 block w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm font-normal text-ink-900 placeholder:text-ledger-300 disabled:opacity-60 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+      />
+    </label>
   );
 }
 

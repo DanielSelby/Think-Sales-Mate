@@ -69,7 +69,7 @@ export default async function NewSalePage() {
       .order("created_at", { ascending: false })
       .limit(20),
     stockLevelsQuery,
-    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle()
+    supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, invoice_slogan, invoice_thank_you_message, invoice_terms_and_conditions, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle()
   ]);;
 
   const balances = await getCustomerOutstandingBalances(
@@ -161,6 +161,9 @@ export default async function NewSalePage() {
       organizationWebsite={companyprofile?.website ?? null}
       showOrganizationContact={companyprofile?.show_contact_on_invoices ?? true}
       invoiceTemplate={companyprofile?.sales_invoice_template ?? "standard"}
+      invoiceSlogan={companyprofile?.invoice_slogan ?? null}
+      invoiceThankYouMessage={companyprofile?.invoice_thank_you_message ?? null}
+      invoiceTermsAndConditions={companyprofile?.invoice_terms_and_conditions ?? null}
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}
