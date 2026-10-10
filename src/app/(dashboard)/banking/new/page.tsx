@@ -16,7 +16,7 @@ export default function NewAccountPage({ searchParams }: { searchParams: { error
         <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Add a bank account, cash account, or mobile money wallet.</p>
       </div>
 
-      <form action={createAccount} encType="multipart/form-data" className="space-y-5 rounded-2xl border border-ledger-100 bg-white p-6 shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <form action={createAccount} encType="multipart/form-data" className="space-y-5 rounded-2xl border border-ledger-100 bg-white p-6 shadow-card dark:border-slate-700/80 dark:bg-ink-900">
         {searchParams.error && <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{searchParams.error}</p>}
 
         <div className="space-y-1.5">
@@ -49,7 +49,7 @@ export default function NewAccountPage({ searchParams }: { searchParams: { error
             id="account_type"
             name="account_type"
             defaultValue="cash"
-            className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-900 dark:text-white"
           >
             <option value="cash">Cash</option>
             <option value="checking">Current account</option>

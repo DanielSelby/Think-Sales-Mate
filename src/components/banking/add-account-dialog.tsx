@@ -52,7 +52,7 @@ export function AddAccountDialog({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-xl border border-ledger-100 p-3 text-left hover:border-blue-200 hover:bg-blue-50/50 dark:border-ledger-700 dark:hover:border-blue-900 dark:hover:bg-blue-500/5"
+          className="rounded-xl border border-ledger-100 p-3 text-left hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-700/80 dark:hover:border-blue-900 dark:hover:bg-blue-500/5"
         >
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Plus className="h-4 w-4" /></span>
           <span className="mt-2 block text-xs font-semibold text-ink-900 dark:text-white">Add Bank Account</span>
@@ -75,7 +75,7 @@ export function AddAccountDialog({
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-account-dialog-title"
-            className="my-auto max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900"
+            className="my-auto max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-slate-700/80 dark:bg-ink-900"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -112,7 +112,7 @@ export function AddAccountDialog({
 
               <div className="space-y-1.5">
                 <label htmlFor="dialog-account-type" className="text-sm font-medium text-ledger-700 dark:text-ledger-200">Account type</label>
-                <select id="dialog-account-type" name="account_type" defaultValue="cash" className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+                <select id="dialog-account-type" name="account_type" defaultValue="cash" className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-900 dark:text-white">
                   <option value="cash">Cash</option>
                   <option value="checking">Current account</option>
                   <option value="savings">Savings account</option>

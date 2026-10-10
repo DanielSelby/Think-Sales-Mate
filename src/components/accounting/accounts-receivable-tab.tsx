@@ -40,6 +40,7 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
   const [paymentBankId, setPaymentBankId] = useState(bankAccounts[1]?.id || bankAccounts[0]?.id || "");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const [reminderTarget, setReminderTarget] = useState<AccountsReceivableItem | null>(null);
   const [reminderMessage, setReminderMessage] = useState("");
@@ -63,19 +64,25 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
     setPaymentAmount(item.outstandingAmount);
     setPaymentMethod("Bank Transfer");
     setPaymentBankId(bankAccounts[1]?.id || bankAccounts[0]?.id || "");
+    setPaymentError(null);
   };
 
   const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentTarget || paymentAmount <= 0) return;
+    setPaymentError(null);
     const result = await recordCustomerCreditPayment({
       invoiceId: paymentTarget.invoiceNumber,
       customerId: paymentTarget.customerId,
       amount: paymentAmount,
       paymentMethod,
       locationId: undefined,
+      bankAccountId: paymentBankId || null,
     });
-    if (!result.ok) return;
+    if (!result.ok) {
+      setPaymentError(result.error ?? "Could not record this customer payment.");
+      return;
+    }
     setPaymentTarget(null);
     router.refresh();
   };
@@ -305,6 +312,7 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
             </div>
 
             <form onSubmit={handleConfirmPayment} className="mt-4 space-y-3.5 text-xs">
+              {paymentError && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{paymentError}</p>}
               <div>
                 <label className="font-medium text-slate-700 dark:text-slate-300">Payment Amount ({currentCurrency}) *</label>
                 <input
@@ -342,6 +350,7 @@ export function AccountsReceivableTab({ initialReceivables = [] }: { initialRece
                   onChange={(e) => setPaymentBankId(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
                 >
+                  <option value="">No bank account (cash or other)</option>
                   {bankAccounts.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name} ({b.bankName})

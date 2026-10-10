@@ -33,7 +33,7 @@ function AccountIcon({ type, logoUrl, name }: { type: string; logoUrl: string | 
       <span
         role="img"
         aria-label={`${name} logo`}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ledger-100 bg-white bg-contain bg-center bg-no-repeat dark:border-ledger-700 dark:bg-ink-950"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ledger-100 bg-white bg-contain bg-center bg-no-repeat dark:border-slate-700/80 dark:bg-ink-950"
         style={{ backgroundImage: `url("${logoUrl}")` }}
       />
     );
@@ -84,7 +84,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
 
   if (accounts.length === 0) {
     return (
-      <div id="accounts" className="rounded-2xl border border-dashed border-ledger-200 bg-white px-6 py-12 text-center dark:border-ledger-700 dark:bg-ink-900">
+      <div id="accounts" className="rounded-2xl border border-dashed border-ledger-200 bg-white px-6 py-12 text-center dark:border-slate-700/80 dark:bg-ink-900">
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
           <Landmark className="h-6 w-6" aria-hidden="true" />
         </span>
@@ -107,14 +107,14 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
             value={accountSearch}
             onChange={(event) => setAccountSearch(event.target.value)}
             placeholder="Search accounts"
-            className="h-9 min-w-0 rounded-lg border border-ledger-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ledger-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-48 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="h-9 min-w-0 rounded-lg border border-ledger-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ledger-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-48 dark:border-slate-700/80 dark:bg-ink-900 dark:text-white"
           />
           <label className="sr-only" htmlFor="account-type-filter">Filter accounts by type</label>
           <select
             id="account-type-filter"
             value={accountTypeFilter}
             onChange={(event) => setAccountTypeFilter(event.target.value)}
-            className="h-9 rounded-lg border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+            className="h-9 rounded-lg border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700/80 dark:bg-ink-900 dark:text-white"
           >
             <option value="all">All account types</option>
             <option value="checking">Current accounts</option>
@@ -127,15 +127,15 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
         </div>
       </div>
       {filteredAccounts.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ledger-200 bg-white px-6 py-10 text-center dark:border-ledger-700 dark:bg-ink-900">
+        <div className="rounded-2xl border border-dashed border-ledger-200 bg-white px-6 py-10 text-center dark:border-slate-700/80 dark:bg-ink-900">
           <p className="text-sm text-ledger-500 dark:text-ledger-400">No accounts match these filters.</p>
         </div>
       ) : (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))" }}>
         {filteredAccounts.map((account) => (
           <article
             key={account.id}
-            className="relative min-w-0 rounded-xl border border-ledger-100 bg-white p-3.5 shadow-card dark:border-ledger-700 dark:bg-ink-900"
+            className="relative min-w-0 rounded-xl border border-ledger-100 bg-white p-3.5 shadow-card dark:border-slate-700/80 dark:bg-ink-900"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
@@ -159,9 +159,9 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
                     <Ellipsis className="h-5 w-5" />
                   </button>
                   {openMenu === account.id && (
-                    <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-ledger-100 bg-white p-1.5 shadow-lg dark:border-ledger-700 dark:bg-ink-900">
+                    <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-ledger-100 bg-white p-1.5 shadow-lg dark:border-slate-700/80 dark:bg-ink-900">
                       <Link
-                        href={`/banking/${account.id}`}
+                        href={`/banking/${account.id}?view=statement`}
                         className="block rounded-lg px-3 py-2 text-left text-sm text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.06]"
                         onClick={() => setOpenMenu(null)}
                       >
@@ -205,7 +205,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
               </p>
             </div>
 
-            <div className="mt-3 flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-ledger-700">
+            <div className="mt-3 flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-slate-700/80">
               <Link
                 href={`/banking/${account.id}`}
                 className="inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10"
@@ -229,7 +229,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
         }} onKeyDown={(event) => {
           if (event.key === "Escape" && !isPending) setEditTarget(null);
         }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="edit-account-title" className="w-full max-w-md rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-account-title" className="w-full max-w-md rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-slate-700/80 dark:bg-ink-900">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="edit-account-title" className="font-display text-lg font-semibold text-ink-900 dark:text-white">Edit account</h2>
@@ -241,11 +241,11 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
             <form action={saveAccount} encType="multipart/form-data" className="mt-5 space-y-4">
               <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
                 Account name
-                <input name="name" defaultValue={editTarget.name} required maxLength={120} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-950 dark:text-white" />
+                <input name="name" defaultValue={editTarget.name} required maxLength={120} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-950 dark:text-white" />
               </label>
               <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
                 Account or wallet number
-                <input name="account_number" defaultValue={editTarget.accountNumber ?? ""} maxLength={80} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-950 dark:text-white" />
+                <input name="account_number" defaultValue={editTarget.accountNumber ?? ""} maxLength={80} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-950 dark:text-white" />
               </label>
               <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
                 Bank or wallet logo
@@ -254,7 +254,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
               </label>
               <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
                 Account type
-                <select name="account_type" defaultValue={editTarget.accountType} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-950 dark:text-white">
+                <select name="account_type" defaultValue={editTarget.accountType} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-950 dark:text-white">
                   <option value="cash">Cash</option>
                   <option value="checking">Current account</option>
                   <option value="savings">Savings account</option>

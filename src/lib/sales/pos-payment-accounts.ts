@@ -52,6 +52,7 @@ export async function recordSalePaymentDeposits(input: {
   orgId: string;
   saleId: string;
   saleNumber: number;
+  customerName: string | null;
   transactionDate: string;
   actorId: string;
   allocations: PosPaymentAllocation[];
@@ -72,6 +73,8 @@ export async function recordSalePaymentDeposits(input: {
     type: "deposit" as const,
     amount: payment.amount,
     description: `${payment.paymentMethod} payment for sale #${input.saleNumber}`,
+    counterparty_name: input.customerName?.trim() || "Walk-in Customer",
+    transaction_category: "income",
     transaction_date: input.transactionDate,
     recorded_by: input.actorId,
   })));

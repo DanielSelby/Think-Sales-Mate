@@ -131,6 +131,7 @@ export async function recordTransaction(accountId: string, formData: FormData): 
     type,
     amount,
     description: description || null,
+    transaction_category: type === "withdrawal" ? "expense" : null,
     transaction_date: transactionDate || new Date().toISOString().slice(0, 10),
     recorded_by: context.userId
   });

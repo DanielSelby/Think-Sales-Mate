@@ -35,8 +35,8 @@ export default async function BankingPage({
   const transactionPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const pageSize = 8;
   const from = (transactionPage - 1) * pageSize;
-  const transactionType = query.type === "deposit" || query.type === "withdrawal" || query.type === "transfer"
-    ? query.type
+  const transactionType = ["income", "debt_pay", "expense", "transfer", "deposit"].includes(query.type ?? "")
+    ? query.type ?? ""
     : "";
   const dateFrom = validISODate(query.from);
   const dateToValue = validISODate(query.to);
@@ -48,7 +48,7 @@ export default async function BankingPage({
 
   if (!can(context.role, "banking.view")) {
     return (
-      <div className="mx-auto max-w-2xl rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
+      <div className="mx-auto max-w-2xl rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-slate-700/80 dark:bg-ink-900">
         <p className="text-sm text-ledger-500 dark:text-ledger-400">Banking is restricted to managers and above.</p>
       </div>
     );
@@ -74,17 +74,25 @@ export default async function BankingPage({
   const selectedAccountId = query.accountId && accountNames.has(query.accountId) ? query.accountId : "";
   let transactionsQuery = supabase
     .from("bank_transactions")
-    .select("id, account_id, type, amount, description, transaction_date", { count: "exact" })
+    .select("id, account_id, type, amount, description, counterparty_name, transaction_category, transaction_date", { count: "exact" })
     .eq("org_id", context.orgId)
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
   if (selectedAccountId) transactionsQuery = transactionsQuery.eq("account_id", selectedAccountId);
-  if (transactionType === "transfer") transactionsQuery = transactionsQuery.ilike("description", "Transfer %");
-  else if (transactionType) transactionsQuery = transactionsQuery.eq("type", transactionType);
+  if (transactionType === "income") transactionsQuery = transactionsQuery.eq("transaction_category", "income");
+  else if (transactionType === "debt_pay") transactionsQuery = transactionsQuery.eq("transaction_category", "debt_payment");
+  else if (transactionType === "expense") transactionsQuery = transactionsQuery.eq("transaction_category", "expense");
+  else if (transactionType === "transfer") transactionsQuery = transactionsQuery.ilike("description", "Transfer %");
+  else if (transactionType === "deposit") {
+    transactionsQuery = transactionsQuery.eq("type", "deposit").is("transaction_category", null);
+  }
   if (dateFrom) transactionsQuery = transactionsQuery.gte("transaction_date", dateFrom);
   if (dateTo) transactionsQuery = transactionsQuery.lte("transaction_date", dateTo);
-  if (description) transactionsQuery = transactionsQuery.ilike("description", `%${description}%`);
+  if (description) {
+    const safeSearch = description.replace(/[^a-zA-Z0-9\s-]/g, " ");
+    transactionsQuery = transactionsQuery.or(`description.ilike.%${safeSearch}%,counterparty_name.ilike.%${safeSearch}%`);
+  }
   const transactionsResult = await transactionsQuery.range(from, from + pageSize - 1);
   if (transactionsResult.error) throw new Error(`Bank transactions could not be loaded: ${transactionsResult.error.message}`);
 
@@ -96,6 +104,8 @@ export default async function BankingPage({
       amount: transaction.amount,
       formattedAmount: formatCurrency(transaction.amount, context.currency),
       description: transaction.description,
+      counterpartyName: transaction.counterparty_name,
+      category: transaction.transaction_category,
       transactionDate: transaction.transaction_date,
       accountName: accountNames.get(transaction.account_id)!,
     }));
@@ -127,7 +137,7 @@ export default async function BankingPage({
   const totalBalance = accounts.reduce((sum, account) => sum + account.currentBalance, 0);
 
   return (
-    <main className="mx-auto max-w-7xl space-y-4">
+    <main className="w-full min-w-0 space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">

@@ -2749,6 +2749,8 @@ export interface Database {
           type: BankTransactionType;
           amount: number;
           description: string | null;
+          counterparty_name: string | null;
+          transaction_category: string | null;
           transaction_date: string;
           recorded_by: string;
           created_at: string;
@@ -2760,6 +2762,8 @@ export interface Database {
           type: BankTransactionType;
           amount: number;
           description?: string | null;
+          counterparty_name?: string | null;
+          transaction_category?: string | null;
           transaction_date?: string;
           recorded_by: string;
           created_at?: string;

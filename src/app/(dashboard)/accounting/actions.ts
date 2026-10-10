@@ -8,22 +8,33 @@ import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export async function recordCustomerCreditPayment(input: {
   invoiceId: string; customerId?: string | null; amount: number; paymentMethod: string;
-  paymentDate?: string; locationId?: string | null; notes?: string | null;
+  paymentDate?: string; locationId?: string | null; notes?: string | null; bankAccountId?: string | null;
 }) {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "Your session expired." };
   if (!await canPermission("accounting", "create")) return { ok: false, error: "You do not have permission to record customer payments." };
   if (!input.invoiceId || !Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, error: "Enter a valid payment amount." };
   if (input.locationId && context.isBranchScoped && !context.allowedLocationIds.includes(input.locationId)) return { ok: false, error: "You are not assigned to this branch." };
+  if (input.bankAccountId && !await canPermission("banking", "edit")) {
+    return { ok: false, error: "You do not have permission to deposit customer payments into a bank account." };
+  }
   const db = await createClient() as any;
   const paymentMethod = /mobile money|mobile|momo/i.test(input.paymentMethod) ? "MoMo" : input.paymentMethod || "Cash";
-  const { error } = await db.from("customer_credit_payments").insert({
-    org_id: context.orgId, customer_id: input.customerId || null, invoice_id: input.invoiceId,
-    amount: input.amount, payment_method: paymentMethod, payment_date: input.paymentDate || new Date().toISOString().slice(0, 10),
-    location_id: input.locationId || (context.isBranchScoped ? context.locationId : null), recorded_by: context.userId, notes: input.notes || null,
+  const { error } = await db.rpc("record_customer_credit_payment_with_bank_transaction", {
+    p_org_id: context.orgId,
+    p_customer_id: input.customerId || null,
+    p_invoice_id: input.invoiceId,
+    p_amount: input.amount,
+    p_payment_method: paymentMethod,
+    p_payment_date: input.paymentDate || new Date().toISOString().slice(0, 10),
+    p_location_id: input.locationId || (context.isBranchScoped ? context.locationId : null),
+    p_recorded_by: context.userId,
+    p_notes: input.notes || null,
+    p_bank_account_id: input.bankAccountId || null,
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/accounting");
+  revalidatePath("/banking");
   return { ok: true };
 }
 
