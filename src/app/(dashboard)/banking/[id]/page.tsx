@@ -123,7 +123,7 @@ export default async function AccountDetailPage({
       {canManage && !isStatementView && (
         <form
           action={boundRecord}
-          className="flex flex-wrap items-end gap-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-slate-700/80 dark:bg-ink-900"
+          className="flex flex-wrap items-end gap-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-slate-500 dark:bg-ink-900"
         >
           {resolvedSearchParams.error && (
             <p className="w-full rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{resolvedSearchParams.error}</p>
@@ -133,7 +133,7 @@ export default async function AccountDetailPage({
             <select
               name="type"
               defaultValue="deposit"
-              className="h-10 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-900 dark:text-white"
+              className="h-10 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-500 dark:bg-ink-900 dark:text-white"
             >
               <option value="deposit">Deposit</option>
               <option value="withdrawal">Withdrawal</option>
@@ -158,10 +158,10 @@ export default async function AccountDetailPage({
       )}
 
       {isStatementView && (
-        <form action={`/banking/${account.id}`} method="get" className="grid gap-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card sm:grid-cols-2 lg:grid-cols-5 dark:border-slate-700/80 dark:bg-ink-900">
+        <form action={`/banking/${account.id}`} method="get" className="grid gap-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card sm:grid-cols-2 lg:grid-cols-5 dark:border-slate-500 dark:bg-ink-900">
           <input type="hidden" name="view" value="statement" />
           <label className="sr-only" htmlFor="statement-type-filter">Filter statement by transaction type</label>
-          <select id="statement-type-filter" name="type" defaultValue={transactionType} className="h-10 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-900 dark:text-white">
+          <select id="statement-type-filter" name="type" defaultValue={transactionType} className="h-10 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-500 dark:bg-ink-900 dark:text-white">
             <option value="">All transaction types</option>
             <option value="income">Income</option>
             <option value="debt_pay">Debt Pay</option>
@@ -171,14 +171,14 @@ export default async function AccountDetailPage({
           </select>
           <label className="flex items-center gap-2 text-xs text-ledger-500 dark:text-ledger-400">
             From
-            <input name="from" type="date" defaultValue={dateFrom} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-slate-700/80 dark:bg-ink-900 dark:text-white" />
+            <input name="from" type="date" defaultValue={dateFrom} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-slate-500 dark:bg-ink-900 dark:text-white" />
           </label>
           <label className="flex items-center gap-2 text-xs text-ledger-500 dark:text-ledger-400">
             To
-            <input name="to" type="date" min={dateFrom || undefined} defaultValue={dateTo} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-slate-700/80 dark:bg-ink-900 dark:text-white" />
+            <input name="to" type="date" min={dateFrom || undefined} defaultValue={dateTo} className="h-10 min-w-0 flex-1 rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-slate-500 dark:bg-ink-900 dark:text-white" />
           </label>
           <label className="sr-only" htmlFor="statement-description-filter">Search description or depositor</label>
-          <input id="statement-description-filter" name="description" type="search" maxLength={100} defaultValue={description} placeholder="Description or depositor" className="h-10 min-w-0 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-700/80 dark:bg-ink-900 dark:text-white" />
+          <input id="statement-description-filter" name="description" type="search" maxLength={100} defaultValue={description} placeholder="Description or depositor" className="h-10 min-w-0 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-500 dark:bg-ink-900 dark:text-white" />
           <div className="flex items-center justify-between gap-2">
             <Button type="submit">Filter</Button>
             <Link href={`/banking/${account.id}?view=statement`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear</Link>
@@ -187,14 +187,14 @@ export default async function AccountDetailPage({
       )}
 
       {!transactions || transactions.length === 0 ? (
-        <div className="rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-slate-700/80 dark:bg-ink-900">
+        <div className="rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-slate-500 dark:bg-ink-900">
           <p className="text-sm text-ledger-500 dark:text-ledger-400">{isStatementView && (transactionType || dateFrom || dateTo || description) ? "No transactions match these filters." : "No transactions yet."}</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-card border border-ledger-100 bg-white shadow-card dark:border-slate-700/80 dark:bg-ink-900">
+        <div className="overflow-hidden rounded-card border border-ledger-100 bg-white shadow-card dark:border-slate-500 dark:bg-ink-900">
           <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-slate-700/80">
+            <thead className="border-b border-ledger-100 text-left text-xs font-medium uppercase tracking-wide text-ledger-400 dark:border-slate-500">
               <tr>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Description / Deposited by</th>
@@ -204,7 +204,7 @@ export default async function AccountDetailPage({
             </thead>
             <tbody>
               {transactions.map((tx) => (
-                <tr key={tx.id} className="border-b border-ledger-50 last:border-0 dark:border-slate-700/70">
+                <tr key={tx.id} className="border-b border-ledger-50 last:border-0 dark:border-slate-600">
                   <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">
                     {new Date(tx.transaction_date).toLocaleDateString()}
                   </td>
@@ -252,8 +252,8 @@ export default async function AccountDetailPage({
         <nav aria-label="Statement pages" className="flex items-center justify-between">
           <span className="text-xs text-ledger-500 dark:text-ledger-400">Page {statementPage} of {statementPages}</span>
           <div className="flex gap-2">
-            <Link href={makeStatementHref(Math.max(1, statementPage - 1))} aria-disabled={statementPage <= 1} className={`rounded-lg border border-ledger-200 px-3 py-1.5 text-xs font-semibold dark:border-slate-700/80 ${statementPage <= 1 ? "pointer-events-none opacity-40" : "hover:bg-ledger-50 dark:hover:bg-white/[0.06]"}`}>Previous</Link>
-            <Link href={makeStatementHref(Math.min(statementPages, statementPage + 1))} aria-disabled={statementPage >= statementPages} className={`rounded-lg border border-ledger-200 px-3 py-1.5 text-xs font-semibold dark:border-slate-700/80 ${statementPage >= statementPages ? "pointer-events-none opacity-40" : "hover:bg-ledger-50 dark:hover:bg-white/[0.06]"}`}>Next</Link>
+            <Link href={makeStatementHref(Math.max(1, statementPage - 1))} aria-disabled={statementPage <= 1} className={`rounded-lg border border-ledger-200 px-3 py-1.5 text-xs font-semibold dark:border-slate-500 ${statementPage <= 1 ? "pointer-events-none opacity-40" : "hover:bg-ledger-50 dark:hover:bg-white/[0.06]"}`}>Previous</Link>
+            <Link href={makeStatementHref(Math.min(statementPages, statementPage + 1))} aria-disabled={statementPage >= statementPages} className={`rounded-lg border border-ledger-200 px-3 py-1.5 text-xs font-semibold dark:border-slate-500 ${statementPage >= statementPages ? "pointer-events-none opacity-40" : "hover:bg-ledger-50 dark:hover:bg-white/[0.06]"}`}>Next</Link>
           </div>
         </nav>
       )}

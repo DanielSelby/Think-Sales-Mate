@@ -10,14 +10,14 @@ export default function BankingLoading() {
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2].map((card) => (
-          <div key={card} className="h-48 rounded-2xl border border-ledger-100 bg-white dark:border-slate-700/80 dark:bg-ink-900" />
+          <div key={card} className="h-48 rounded-2xl border border-ledger-100 bg-white dark:border-slate-500 dark:bg-ink-900" />
         ))}
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <div className="h-80 rounded-2xl border border-ledger-100 bg-white dark:border-slate-700/80 dark:bg-ink-900" />
+        <div className="h-80 rounded-2xl border border-ledger-100 bg-white dark:border-slate-500 dark:bg-ink-900" />
         <div className="space-y-4">
-          <div className="h-48 rounded-2xl border border-ledger-100 bg-white dark:border-slate-700/80 dark:bg-ink-900" />
-          <div className="h-36 rounded-2xl border border-ledger-100 bg-white dark:border-slate-700/80 dark:bg-ink-900" />
+          <div className="h-48 rounded-2xl border border-ledger-100 bg-white dark:border-slate-500 dark:bg-ink-900" />
+          <div className="h-36 rounded-2xl border border-ledger-100 bg-white dark:border-slate-500 dark:bg-ink-900" />
         </div>
       </div>
     </main>

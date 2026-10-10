@@ -62,6 +62,24 @@ export default async function BankingPage({
     .order("name");
   if (accountsResult.error) throw new Error(`Bank accounts could not be loaded: ${accountsResult.error.message}`);
 
+  const trendAsOf = new Date();
+  const trendAsOfDate = trendAsOf.toISOString().slice(0, 10);
+  const monthStartDate = new Date(Date.UTC(trendAsOf.getUTCFullYear(), trendAsOf.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const yearStartDate = new Date(trendAsOf);
+  yearStartDate.setUTCFullYear(yearStartDate.getUTCFullYear() - 1);
+  const trendYearStartDate = yearStartDate.toISOString().slice(0, 10);
+  const trendsResult = await supabase.rpc("get_bank_account_trend_changes", {
+    p_org_id: context.orgId,
+    p_month_start: monthStartDate,
+    p_year_start: trendYearStartDate,
+    p_as_of: trendAsOfDate,
+  });
+  if (trendsResult.error) throw new Error(`Bank account trends could not be loaded: ${trendsResult.error.message}`);
+  const accountTrends = new Map((trendsResult.data ?? []).map((trend) => [
+    trend.account_id,
+    { monthChange: Number(trend.month_change ?? 0), yearChange: Number(trend.year_change ?? 0) },
+  ]));
+
   const accounts: AccountRow[] = (accountsResult.data ?? []).map((account) => ({
     id: account.id,
     name: account.name,
@@ -69,6 +87,8 @@ export default async function BankingPage({
     accountNumber: account.account_number ?? null,
     logoUrl: account.logo_url ?? null,
     currentBalance: Number(account.current_balance ?? 0),
+    monthChange: accountTrends.get(account.id)?.monthChange ?? 0,
+    yearChange: accountTrends.get(account.id)?.yearChange ?? 0,
   }));
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
   const selectedAccountId = query.accountId && accountNames.has(query.accountId) ? query.accountId : "";

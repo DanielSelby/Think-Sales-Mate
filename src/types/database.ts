@@ -3169,6 +3169,19 @@ export interface Database {
           records_transferred: number;
         };
       };
+      get_bank_account_trend_changes: {
+        Args: {
+          p_org_id: string;
+          p_month_start: string;
+          p_year_start: string;
+          p_as_of: string;
+        };
+        Returns: {
+          account_id: string;
+          month_change: number;
+          year_change: number;
+        }[];
+      };
     };
     Enums: {
       org_plan: OrgPlan;
