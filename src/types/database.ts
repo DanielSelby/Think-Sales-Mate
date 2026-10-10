@@ -2,7 +2,7 @@ export type MemberRole = "owner" | "admin" | "manager" | "staff" | "viewer";
 export type MemberStatus = "invited" | "active" | "suspended";
 export type OrgPlan = "trial" | "starter" | "growth" | "enterprise";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "void";
-export type BankAccountType = "cash" | "checking" | "savings" | "mobile_money" | "other";
+export type BankAccountType = "cash" | "checking" | "savings" | "mobile_money" | "card" | "other";
 export type BankTransactionType = "deposit" | "withdrawal";
 export type TransferStatus = "pending" | "in_transit" | "received" | "completed" | "cancelled";
 export type StockRequestStatus = "draft" | "pending_approval" | "approved" | "rejected" | "completed";
@@ -2719,6 +2719,8 @@ export interface Database {
           org_id: string;
           name: string;
           account_type: BankAccountType;
+          account_number: string | null;
+          logo_url: string | null;
           opening_balance: number;
           current_balance: number;
           created_by: string;
@@ -2729,6 +2731,8 @@ export interface Database {
           org_id: string;
           name: string;
           account_type?: BankAccountType;
+          account_number?: string | null;
+          logo_url?: string | null;
           opening_balance?: number;
           current_balance?: number;
           created_by: string;
@@ -3052,6 +3056,16 @@ export interface Database {
       };
     };
     Functions: {
+      record_purchase_bank_payment: {
+        Args: {
+          p_purchase_id: string;
+          p_org_id: string;
+          p_bank_account_id: string;
+          p_amount: number;
+          p_actor_id: string;
+        };
+        Returns: number;
+      };
       transfer_bank_funds: {
         Args: {
           p_org_id: string;

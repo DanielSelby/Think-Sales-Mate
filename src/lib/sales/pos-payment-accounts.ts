@@ -11,15 +11,15 @@ export async function validatePosPaymentAccounts(
   allocations: PosPaymentAllocation[],
 ): Promise<string | null> {
   const accountAllocations = allocations.filter((allocation) =>
-    /^(card|momo|mobile money)$/i.test(allocation.paymentMethod.trim())
+    /^(card|momo|mobile money|bank transfer)$/i.test(allocation.paymentMethod.trim())
   );
   if (!accountAllocations.length) return null;
 
   const missingAccount = accountAllocations.find((allocation) => !allocation.accountId);
   if (missingAccount) {
-    return /^card$/i.test(missingAccount.paymentMethod)
-      ? "Select the bank account that receives the card settlement."
-      : "Select the mobile-money account that received the payment.";
+    if (/^card$/i.test(missingAccount.paymentMethod)) return "Select the bank account that receives the card settlement.";
+    if (/^bank transfer$/i.test(missingAccount.paymentMethod)) return "Select the bank account that received the transfer.";
+    return "Select the mobile-money account that received the payment.";
   }
 
   const accountIds = [...new Set(accountAllocations.map((allocation) => allocation.accountId as string))];
@@ -35,8 +35,11 @@ export async function validatePosPaymentAccounts(
   for (const allocation of accountAllocations) {
     const accountType = accountTypes.get(allocation.accountId as string);
     if (!accountType) return "A selected payment account is unavailable in this organization.";
-    if (/^card$/i.test(allocation.paymentMethod) && !["checking", "savings", "other"].includes(accountType)) {
-      return "Card payments must be assigned to a checking, savings, or other bank account.";
+    if (/^card$/i.test(allocation.paymentMethod) && !["card", "checking", "savings", "other"].includes(accountType)) {
+      return "Card payments must be assigned to a card, checking, savings, or other bank account.";
+    }
+    if (/^bank transfer$/i.test(allocation.paymentMethod) && !["card", "checking", "savings", "other"].includes(accountType)) {
+      return "Bank transfers must be assigned to a card, checking, savings, or other bank account.";
     }
     if (/^(momo|mobile money)$/i.test(allocation.paymentMethod) && accountType !== "mobile_money") {
       return "MoMo payments must be assigned to a mobile-money account.";
@@ -45,7 +48,7 @@ export async function validatePosPaymentAccounts(
   return null;
 }
 
-export async function recordPosCardDeposits(input: {
+export async function recordSalePaymentDeposits(input: {
   orgId: string;
   saleId: string;
   saleNumber: number;
@@ -53,22 +56,22 @@ export async function recordPosCardDeposits(input: {
   actorId: string;
   allocations: PosPaymentAllocation[];
 }): Promise<string | null> {
-  const cardPayments = input.allocations.filter(
+  const depositedPayments = input.allocations.filter(
     (allocation): allocation is PosPaymentAllocation & { accountId: string } =>
-      /^card$/i.test(allocation.paymentMethod.trim())
+      /^(card|momo|mobile money|bank transfer)$/i.test(allocation.paymentMethod.trim())
       && typeof allocation.accountId === "string"
       && allocation.accountId.length > 0
       && allocation.amount > 0
   );
-  if (!cardPayments.length) return null;
+  if (!depositedPayments.length) return null;
 
   const admin = createAdminClient();
-  const { error } = await admin.from("bank_transactions").insert(cardPayments.map((payment) => ({
+  const { error } = await admin.from("bank_transactions").insert(depositedPayments.map((payment) => ({
     org_id: input.orgId,
     account_id: payment.accountId,
     type: "deposit" as const,
     amount: payment.amount,
-    description: `POS card settlement for sale #${input.saleNumber}`,
+    description: `${payment.paymentMethod} payment for sale #${input.saleNumber}`,
     transaction_date: input.transactionDate,
     recorded_by: input.actorId,
   })));

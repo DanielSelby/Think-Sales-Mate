@@ -73,7 +73,7 @@ interface PosViewProps {
   allowedPriceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
   useSystemPrices: boolean;
   mobileMoneyAccounts: MobileMoneyAccount[];
-  cardAccounts: { id: string; name: string }[];
+  cardAccounts: { id: string; name: string; accountNumber: string | null; balance: number }[];
   canApproveRegisterClosures: boolean;
   canAccessEndOfDay: boolean;
   registerSessions: ActivePosRegisterSession[];
@@ -1552,11 +1552,11 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
           {multiPay.card > 0 && (
             <select value={cardAccountId} onChange={(event) => setCardAccountId(event.target.value)} className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
               <option value="">Select card settlement account...</option>
-              {cardAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              {cardAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.accountNumber ? ` · ${account.accountNumber}` : ""} · {formatCurrency(account.balance, currency)}</option>)}
             </select>
           )}
           {multiPay.card > 0 && !cardAccounts.length && (
-            <p className="rounded-md bg-alert-soft p-3 text-xs text-alert">Create a checking, savings, or other bank account in Banking before recording card payments.</p>
+            <p className="rounded-md bg-alert-soft p-3 text-xs text-alert">Create a Card settlement, Current, Savings, or Other account in Banking before recording card payments.</p>
           )}
           <div className="flex items-center justify-between border-t border-ledger-100 pt-2 text-sm dark:border-ledger-700">
             <span className="text-ledger-500">Credit balance</span>

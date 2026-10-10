@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, ArrowUpRight, FileText, Landmark, Plus, Settings2, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, ArrowUpRight, FileText, Landmark, Settings2, Wallet, X } from "lucide-react";
 import { transferBankFunds } from "@/app/(dashboard)/banking/actions";
 import { Button } from "@/components/ui/button";
+import { AddAccountDialog } from "@/components/banking/add-account-dialog";
 import type { AccountRow } from "@/components/banking/accounts-table";
 import { formatCurrency } from "@/lib/sales/format";
 
@@ -56,7 +57,7 @@ export function BankingOverview({
   const [transferMessage, setTransferMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const firstStatementHref = accounts[0] ? `/banking/${accounts[0].id}` : "#accounts";
+  const firstStatementHref = accounts[0] ? `/banking/${accounts[0].id}?view=statement` : "#accounts";
   const bankAccountsCount = accounts.filter((account) => account.accountType !== "mobile_money").length;
   const mobileMoneyCount = accounts.filter((account) => account.accountType === "mobile_money").length;
   const pageHref = (page: number) => {
@@ -99,7 +100,7 @@ export function BankingOverview({
               </span>
               <h2 className="font-display text-base font-semibold text-ink-900 dark:text-white">Recent Transactions</h2>
             </div>
-            <Link href={accounts[0] ? `/banking/${accounts[0].id}` : "#accounts"} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">
+            <Link href={accounts[0] ? `/banking/${accounts[0].id}?view=statement` : "#accounts"} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">
               View all
             </Link>
           </div>
@@ -231,11 +232,7 @@ export function BankingOverview({
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               {canAddAccount && (
-                <Link href="/banking/new" className="rounded-xl border border-ledger-100 p-3 hover:border-blue-200 hover:bg-blue-50/50 dark:border-ledger-700 dark:hover:border-blue-900 dark:hover:bg-blue-500/5">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Plus className="h-4 w-4" /></span>
-                  <span className="mt-2 block text-xs font-semibold text-ink-900 dark:text-white">Add Bank Account</span>
-                  <span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">Add an account or wallet</span>
-                </Link>
+                <AddAccountDialog trigger="quick-action" />
               )}
               <button
                 type="button"

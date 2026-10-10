@@ -1,13 +1,12 @@
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Landmark, Plus } from "lucide-react";
+import { Landmark } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import { canPermission } from "@/lib/rbac/permissions";
 import { formatCurrency } from "@/lib/sales/format";
-import { Button } from "@/components/ui/button";
+import { AddAccountDialog } from "@/components/banking/add-account-dialog";
 import { AccountsTable, type AccountRow } from "@/components/banking/accounts-table";
 import { BankingOverview, type BankingTransactionFilters, type BankingTransactionRow } from "@/components/banking/banking-overview";
 
@@ -58,7 +57,7 @@ export default async function BankingPage({
   const supabase = await createClient();
   const accountsResult = await supabase
     .from("bank_accounts")
-    .select("id, name, account_type, current_balance")
+    .select("id, name, account_type, account_number, logo_url, current_balance")
     .eq("org_id", context.orgId)
     .order("name");
   if (accountsResult.error) throw new Error(`Bank accounts could not be loaded: ${accountsResult.error.message}`);
@@ -67,7 +66,9 @@ export default async function BankingPage({
     id: account.id,
     name: account.name,
     accountType: account.account_type,
-    currentBalance: account.current_balance,
+    accountNumber: account.account_number ?? null,
+    logoUrl: account.logo_url ?? null,
+    currentBalance: Number(account.current_balance ?? 0),
   }));
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
   const selectedAccountId = query.accountId && accountNames.has(query.accountId) ? query.accountId : "";
@@ -126,7 +127,7 @@ export default async function BankingPage({
   const totalBalance = accounts.reduce((sum, account) => sum + account.currentBalance, 0);
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6">
+    <main className="mx-auto max-w-7xl space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
@@ -141,14 +142,7 @@ export default async function BankingPage({
             </div>
           </div>
         </div>
-        {canAddAccount && (
-          <Link href="/banking/new">
-            <Button className="bg-blue-600 text-white hover:bg-blue-700">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add Bank Account
-            </Button>
-          </Link>
-        )}
+        {canAddAccount && <AddAccountDialog />}
       </header>
 
       {query.accountCreated === "1" && (

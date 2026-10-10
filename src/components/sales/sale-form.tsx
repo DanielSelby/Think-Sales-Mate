@@ -107,6 +107,13 @@ export interface SaleStockLevel {
   quantity: number;
 }
 
+export interface SalePaymentAccount {
+  id: string;
+  name: string;
+  accountType: "cash" | "checking" | "savings" | "mobile_money" | "card" | "other";
+  accountNumber: string | null;
+}
+
 export interface InitialSaleData {
   id: string;
   saleNumber: number;
@@ -184,6 +191,7 @@ export function SaleForm({
   products,
   customers,
   locations,
+  paymentAccounts = [],
   reps,
   recentItems,
   stockLevels,
@@ -211,6 +219,7 @@ export function SaleForm({
   products: SellableProduct[];
   customers: SaleCustomer[];
   locations: SaleLocation[];
+  paymentAccounts?: SalePaymentAccount[];
   reps: SalesRep[];
   recentItems: RecentItem[];
   stockLevels?: SaleStockLevel[];
@@ -315,8 +324,19 @@ export function SaleForm({
   // Payment
   const [paymentMethod, setPaymentMethod] = useState(initialSale?.paymentMethod ?? PAYMENT_METHODS[0]);
   const [amountPaid, setAmountPaid] = useState(initialSale?.amountPaid ?? 0);
+  const [paymentAccountId, setPaymentAccountId] = useState("");
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const paymentMethodAccounts = useMemo(() => {
+    if (paymentMethod === "MoMo") return paymentAccounts.filter((account) => account.accountType === "mobile_money");
+    if (paymentMethod === "Card" || paymentMethod === "Bank Transfer") {
+      return paymentAccounts.filter((account) =>
+        ["card", "checking", "savings", "other"].includes(account.accountType)
+      );
+    }
+    return [];
+  }, [paymentAccounts, paymentMethod]);
+  const requiresPaymentAccount = ["MoMo", "Card", "Bank Transfer"].includes(paymentMethod);
   const selectedCustomer = customerList.find((c) => c.id === selectedCustomerId) ?? null;
   const dismissCustomerBalanceNotice = useCallback(() => setCustomerBalanceNotice(null), []);
 
@@ -679,6 +699,13 @@ export function SaleForm({
     return null;
   }
 
+  function buildPaymentAllocations(paidAmount: number) {
+    const previousAmountPaid = editingSaleId ? Number(initialSale?.amountPaid ?? 0) : 0;
+    const newReceiptAmount = Math.max(0, Number((paidAmount - previousAmountPaid).toFixed(2)));
+    if (newReceiptAmount <= 0 || !requiresPaymentAccount) return [];
+    return [{ paymentMethod, accountId: paymentAccountId, amount: newReceiptAmount }];
+  }
+
   async function printSaleReceipt(saleId: string, saleNumber: number, paidAmount: number) {
     try {
       const items = await getSaleInvoiceItems(saleId);
@@ -740,6 +767,18 @@ export function SaleForm({
       setError(validationError);
       return;
     }
+    const previousAmountPaid = editingSaleId ? Number(initialSale?.amountPaid ?? 0) : 0;
+    const newReceiptAmount = Math.max(0, paidAmount - previousAmountPaid);
+    if (
+      newReceiptAmount > 0 &&
+      requiresPaymentAccount &&
+      !paymentMethodAccounts.some((account) => account.id === paymentAccountId)
+    ) {
+      setError(paymentMethodAccounts.length
+        ? `Select the account that received this ${paymentMethod} payment.`
+        : `Add an eligible ${paymentMethod} account in Banking before recording this payment.`);
+      return;
+    }
     if (paidAmount <= 0 && !confirmZeroPayment) {
       setError("No amount paid entered — this sale will be recorded as unpaid (Pending). Click Complete Sale again to confirm, or enter an amount paid.");
       setConfirmZeroPayment(true);
@@ -771,6 +810,7 @@ export function SaleForm({
           dueDate: dueDate || null,
           paymentMethod,
           amountPaid: paidAmount,
+          paymentAllocations: buildPaymentAllocations(paidAmount),
           shippingAmount,
           discountAmount: discountTotal + additionalDiscountAmount,
           taxAmount: taxTotal + additionalTaxAmount,
@@ -815,6 +855,7 @@ export function SaleForm({
           dueDate: dueDate || null,
           paymentMethod,
           amountPaid: paidAmount,
+          paymentAllocations: buildPaymentAllocations(paidAmount),
           priceTier,
           shippingAmount,
           discountAmount: discountTotal + additionalDiscountAmount,
@@ -862,6 +903,7 @@ export function SaleForm({
         dueDate: dueDate || null,
         paymentMethod,
         amountPaid: paidAmount,
+        paymentAllocations: buildPaymentAllocations(paidAmount),
         shippingAmount,
         discountAmount: discountTotal + additionalDiscountAmount,
         taxAmount: taxTotal + additionalTaxAmount,
@@ -1687,7 +1729,18 @@ export function SaleForm({
               <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Payment method</label>
               <select
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
+                onChange={(e) => {
+                  const nextMethod = e.target.value;
+                  setPaymentMethod(nextMethod);
+                  const nextAccounts = nextMethod === "MoMo"
+                    ? paymentAccounts.filter((account) => account.accountType === "mobile_money")
+                    : ["Card", "Bank Transfer"].includes(nextMethod)
+                      ? paymentAccounts.filter((account) => ["card", "checking", "savings", "other"].includes(account.accountType))
+                      : [];
+                  if (!nextAccounts.some((account) => account.id === paymentAccountId)) {
+                    setPaymentAccountId(nextAccounts[0]?.id ?? "");
+                  }
+                }}
                 className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
               >
                 {PAYMENT_METHODS.map((m) => (
@@ -1697,6 +1750,32 @@ export function SaleForm({
                 ))}
               </select>
             </div>
+
+            {requiresPaymentAccount && (
+              <div className="mt-3 space-y-1.5">
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400" htmlFor="sale-payment-account">
+                  {paymentMethod === "MoMo" ? "Received Into Mobile Money Account" : "Received Into Bank Account"}
+                </label>
+                <select
+                  id="sale-payment-account"
+                  value={paymentAccountId}
+                  onChange={(event) => setPaymentAccountId(event.target.value)}
+                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                >
+                  <option value="">Select account...</option>
+                  {paymentMethodAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}{account.accountNumber ? ` · ${account.accountNumber}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {paymentMethodAccounts.length === 0 && (
+                  <p className="text-xs text-alert">
+                    No eligible account exists. Add a {paymentMethod === "MoMo" ? "Mobile Money" : "Card settlement or bank"} account in Banking.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="mt-3 space-y-1.5">
               <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Amount paid</label>

@@ -49,8 +49,9 @@ export interface BankAccountItem {
   id: string;
   name: string;
   accountNumber?: string;
+  logoUrl?: string;
   bankName: string;
-  type: "cash" | "checking" | "savings" | "mobile_money" | "other";
+  type: "cash" | "checking" | "savings" | "mobile_money" | "card" | "other";
   bookBalance: number;
   statementBalance: number;
   difference: number;

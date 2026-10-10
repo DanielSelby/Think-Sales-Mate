@@ -13,6 +13,8 @@ export interface AccountRow {
   name: string;
   accountType: string;
   currentBalance: number;
+  accountNumber: string | null;
+  logoUrl: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -20,14 +22,25 @@ const TYPE_LABELS: Record<string, string> = {
   checking: "Current account",
   savings: "Savings account",
   mobile_money: "Mobile money",
+  card: "Card settlement account",
   other: "Other account",
 };
 
-function AccountIcon({ type }: { type: string }) {
+function AccountIcon({ type, logoUrl, name }: { type: string; logoUrl: string | null; name: string }) {
   const Icon = type === "mobile_money" ? Wallet : type === "cash" ? Banknote : Landmark;
+  if (logoUrl) {
+    return (
+      <span
+        role="img"
+        aria-label={`${name} logo`}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ledger-100 bg-white bg-contain bg-center bg-no-repeat dark:border-ledger-700 dark:bg-ink-950"
+        style={{ backgroundImage: `url("${logoUrl}")` }}
+      />
+    );
+  }
   return (
-    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
-      <Icon className="h-5 w-5" aria-hidden="true" />
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+      <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
   );
 }
@@ -107,6 +120,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
             <option value="checking">Current accounts</option>
             <option value="savings">Savings accounts</option>
             <option value="mobile_money">Mobile money</option>
+            <option value="card">Card settlement accounts</option>
             <option value="cash">Cash accounts</option>
             <option value="other">Other accounts</option>
           </select>
@@ -117,18 +131,18 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
           <p className="text-sm text-ledger-500 dark:text-ledger-400">No accounts match these filters.</p>
         </div>
       ) : (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {filteredAccounts.map((account) => (
           <article
             key={account.id}
-            className="relative min-w-0 rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900"
+            className="relative min-w-0 rounded-xl border border-ledger-100 bg-white p-3.5 shadow-card dark:border-ledger-700 dark:bg-ink-900"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <AccountIcon type={account.accountType} />
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <AccountIcon type={account.accountType} logoUrl={account.logoUrl} name={account.name} />
                 <div className="min-w-0">
-                  <h2 className="truncate font-display text-base font-semibold text-ink-900 dark:text-white">{account.name}</h2>
-                  <p className="mt-0.5 text-xs text-ledger-500 dark:text-ledger-400">
+                  <h2 className="truncate font-display text-sm font-semibold text-ink-900 dark:text-white">{account.name}</h2>
+                  <p className="mt-0.5 truncate text-[11px] text-ledger-500 dark:text-ledger-400">
                     {TYPE_LABELS[account.accountType] ?? account.accountType}
                   </p>
                 </div>
@@ -140,7 +154,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
                     aria-label={`More actions for ${account.name}`}
                     aria-expanded={openMenu === account.id}
                     onClick={() => setOpenMenu(openMenu === account.id ? null : account.id)}
-                    className="grid h-9 w-9 place-items-center rounded-lg text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
                   >
                     <Ellipsis className="h-5 w-5" />
                   </button>
@@ -180,23 +194,27 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
               )}
             </div>
 
-            <div className="mt-6">
-              <p className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Current balance</p>
-              <p className="figure mt-1 text-2xl font-semibold tracking-tight text-ink-900 dark:text-white">
+            <p className="mt-3 truncate font-mono text-[11px] text-ledger-500 dark:text-ledger-400" title={account.accountNumber ?? "No account number added"}>
+              {account.accountNumber || "No account number added"}
+            </p>
+
+            <div className="mt-3">
+              <p className="text-[11px] font-medium text-ledger-500 dark:text-ledger-400">Current balance</p>
+              <p className="figure mt-0.5 truncate text-xl font-semibold tracking-tight text-ink-900 dark:text-white">
                 {formatCurrency(account.currentBalance, currency)}
               </p>
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-t border-ledger-100 pt-3 dark:border-ledger-700">
+            <div className="mt-3 flex items-center justify-between border-t border-ledger-100 pt-2 dark:border-ledger-700">
               <Link
                 href={`/banking/${account.id}`}
-                className="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10"
+                className="inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10"
               >
                 Deposit / Withdraw
               </Link>
               <Link
-                href={`/banking/${account.id}`}
-                className="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
+                href={`/banking/${account.id}?view=statement`}
+                className="inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] font-semibold text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
               >
                 View statement
               </Link>
@@ -220,10 +238,19 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
               <button type="button" onClick={() => setEditTarget(null)} disabled={isPending} aria-label="Close edit account dialog" className="rounded-lg p-2 text-ledger-500 hover:bg-ledger-50 dark:hover:bg-white/[0.06]"><X className="h-4 w-4" /></button>
             </div>
             {error && <p role="alert" className="mt-4 rounded-xl bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
-            <form action={saveAccount} className="mt-5 space-y-4">
+            <form action={saveAccount} encType="multipart/form-data" className="mt-5 space-y-4">
               <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
                 Account name
                 <input name="name" defaultValue={editTarget.name} required maxLength={120} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-950 dark:text-white" />
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
+                Account or wallet number
+                <input name="account_number" defaultValue={editTarget.accountNumber ?? ""} maxLength={80} className="h-10 w-full rounded-lg border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-950 dark:text-white" />
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
+                Bank or wallet logo
+                <input name="logo" type="file" accept="image/png,image/jpeg,image/webp" className="block w-full text-sm text-ledger-500 file:mr-3 file:rounded-lg file:border-0 file:bg-ledger-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-ink-900 dark:text-ledger-400 dark:file:bg-white/[0.08] dark:file:text-white" />
+                <span className="block text-xs font-normal text-ledger-400">PNG, JPG, or WebP; up to 2 MB. Leave empty to keep the current logo.</span>
               </label>
               <label className="block space-y-1.5 text-sm font-medium text-ledger-700 dark:text-ledger-200">
                 Account type
@@ -232,6 +259,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
                   <option value="checking">Current account</option>
                   <option value="savings">Savings account</option>
                   <option value="mobile_money">Mobile money</option>
+                  <option value="card">Card settlement account</option>
                   <option value="other">Other</option>
                 </select>
               </label>

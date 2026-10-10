@@ -12,7 +12,7 @@ import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import { canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
 import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
-import { recordPosCardDeposits, validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
+import { recordSalePaymentDeposits, validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
 import type { SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import type { HeldSaleKind } from "@/types/database";
 
@@ -1460,7 +1460,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     }
   }
 
-  const cardDepositError = await recordPosCardDeposits({
+  const depositError = await recordSalePaymentDeposits({
     orgId: context.orgId,
     saleId: sale.id,
     saleNumber: sale.sale_number,
@@ -1468,18 +1468,20 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     actorId: user.id,
     allocations,
   });
-  if (cardDepositError) {
-    console.error("POS sale completed, but the card settlement account was not updated:", cardDepositError);
+  revalidatePath("/pos");
+  revalidatePath("/sales");
+  revalidatePath("/banking");
+  revalidatePath("/accounting");
+  revalidatePath("/inventory");
+  if (depositError) {
+    console.error("POS sale completed, but a payment account was not updated:", depositError);
     return {
       ok: true,
       saleId: sale.id,
-      warning: `Sale completed, but the card payment could not be deposited to the selected account: ${cardDepositError}`,
+      warning: `Sale completed, but the card, MoMo, or bank-transfer payment could not be deposited to the selected account: ${depositError}`,
     };
   }
 
-  revalidatePath("/pos");
-  revalidatePath("/sales");
-  revalidatePath("/inventory");
   return { ok: true, saleId: sale.id };
 }
 

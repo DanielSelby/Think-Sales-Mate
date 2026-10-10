@@ -42,7 +42,7 @@ export default async function PosPage() {
     supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId).in("location_id", registerLocationIds),
     supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle(),
     admin.from("bank_accounts").select("id, name, current_balance").eq("org_id", orgId).eq("account_type", "mobile_money").order("name"),
-    admin.from("bank_accounts").select("id, name").eq("org_id", orgId).in("account_type", ["checking", "savings", "other"]).order("name")
+    admin.from("bank_accounts").select("id, name, account_number, current_balance").eq("org_id", orgId).in("account_type", ["card", "checking", "savings", "other"]).order("name")
   ]);
 
   const quantityByProduct = new Map<string, number>();
@@ -112,7 +112,12 @@ export default async function PosPage() {
         shift: registerSession.shift,
       }))}
       mobileMoneyAccounts={(mobileMoneyAccounts ?? []).map((account) => ({ id: account.id, name: account.name, balance: account.current_balance }))}
-      cardAccounts={(cardAccounts ?? []).map((account) => ({ id: account.id, name: account.name }))}
+      cardAccounts={(cardAccounts ?? []).map((account) => ({
+        id: account.id,
+        name: account.name,
+        accountNumber: account.account_number,
+        balance: Number(account.current_balance ?? 0),
+      }))}
     />
   );
 }

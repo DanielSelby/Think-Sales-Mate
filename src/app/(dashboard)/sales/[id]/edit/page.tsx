@@ -11,6 +11,7 @@ import {
   type SalesRep,
   type RecentItem,
   type SaleStockLevel,
+  type SalePaymentAccount,
 } from "@/components/sales/sale-form";
 import { getSaleForEdit } from "@/app/(dashboard)/sales/actions";
 import { can } from "@/lib/rbac";
@@ -145,6 +146,19 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
   const nameByUserId = new Map((memberProfiles ?? []).map((p) => [p.id, p.full_name]));
 
   const admin = createAdminClient();
+  const { data: paymentAccountRows, error: paymentAccountsError } = await admin
+    .from("bank_accounts")
+    .select("id, name, account_type, account_number")
+    .eq("org_id", context.orgId)
+    .order("name");
+  if (paymentAccountsError) throw new Error(`Payment accounts could not be loaded: ${paymentAccountsError.message}`);
+  const paymentAccounts: SalePaymentAccount[] = (paymentAccountRows ?? []).map((account) => ({
+    id: account.id,
+    name: account.name,
+    accountType: account.account_type,
+    accountNumber: account.account_number ?? null,
+  }));
+
   const reps: SalesRep[] = [];
   for (const m of memberRows ?? []) {
     let email = m.invited_email ?? "";
@@ -178,6 +192,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       products={products}
       customers={customers}
       locations={locations}
+      paymentAccounts={paymentAccounts}
       reps={reps}
       recentItems={recentItems}
       stockLevels={stockLevels}

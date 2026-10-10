@@ -71,7 +71,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       accountingDb.from("journal_entries").select("id, entry_number, entry_date, location_id, reference, description, status, total_debit, total_credit, source_module, source_id, is_auto, posted_by, posted_at, journal_entry_lines(id, account_id, description, debit, credit)").eq("org_id", context.orgId).order("entry_date", { ascending: false }).limit(500),
     ]);
     const [{ data: bankRows }, { data: transactionRows }, { data: bookTransactionRows }] = await Promise.all([
-      accountingDb.from("bank_accounts").select("id, name, account_type, opening_balance, current_balance").eq("org_id", context.orgId).order("name"),
+      accountingDb.from("bank_accounts").select("id, name, account_type, account_number, logo_url, opening_balance, current_balance").eq("org_id", context.orgId).order("name"),
       accountingDb.from("bank_statement_transactions").select("id, bank_account_id, transaction_date, reference, description, amount, type, matched, matched_transaction_id").eq("org_id", context.orgId).order("transaction_date", { ascending: false }),
       accountingDb.from("bank_transactions").select("id, account_id, transaction_date, type, amount, description").eq("org_id", context.orgId).order("transaction_date", { ascending: false }),
     ]);
@@ -121,7 +121,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       };
     }
     liveBankAccounts = (bankRows ?? []).map((bank: any) => ({
-      id: bank.id, name: bank.name, bankName: bank.name, type: bank.account_type,
+      id: bank.id, name: bank.name, accountNumber: bank.account_number ?? undefined, logoUrl: bank.logo_url ?? undefined, bankName: bank.name, type: bank.account_type,
       bookBalance: Number(bank.current_balance ?? 0), statementBalance: Number(bank.current_balance ?? 0),
       difference: 0, status: "unreconciled",
     }));

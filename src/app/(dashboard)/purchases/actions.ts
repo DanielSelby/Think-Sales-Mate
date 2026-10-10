@@ -516,9 +516,10 @@ export interface RecordPurchasePaymentResult {
 export async function recordPurchasePayment(
   purchaseId: string,
   amount: number,
-  note?: string
+  note?: string,
+  bankAccountId?: string,
 ): Promise<RecordPurchasePaymentResult> {
-  if (amount <= 0) return { ok: false, error: "Enter an amount greater than zero." };
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Enter an amount greater than zero." };
 
   const supabase = await createClient();
   const {
@@ -536,16 +537,34 @@ export async function recordPurchasePayment(
   if (!context || purchase.org_id !== context.orgId || !canUseLocation(context, purchase.location_id)) {
     return { ok: false, error: "Purchase not found." };
   }
+  if (!await canPermission("purchases", "edit")) {
+    return { ok: false, error: "You do not have permission to pay supplier bills." };
+  }
 
   const nextPaid = Math.min(purchase.total, purchase.paid_amount + amount);
   const appliedAmount = nextPaid - purchase.paid_amount;
   if (appliedAmount <= 0) return { ok: false, error: "This purchase is already fully paid." };
 
-  const { error: updateError } = await supabase
-    .from("purchases")
-    .update({ paid_amount: nextPaid })
-    .eq("id", purchaseId);
-  if (updateError) return { ok: false, error: updateError.message };
+  if (bankAccountId) {
+    if (!await canPermission("banking", "edit")) {
+      return { ok: false, error: "You do not have permission to pay from a bank account." };
+    }
+    const { data: paidAmount, error: paymentError } = await supabase.rpc("record_purchase_bank_payment", {
+      p_purchase_id: purchaseId,
+      p_org_id: context.orgId,
+      p_bank_account_id: bankAccountId,
+      p_amount: appliedAmount,
+      p_actor_id: user.id,
+    });
+    if (paymentError) return { ok: false, error: paymentError.message };
+    if (paidAmount == null) return { ok: false, error: "The supplier payment was not recorded." };
+  } else {
+    const { error: updateError } = await supabase
+      .from("purchases")
+      .update({ paid_amount: nextPaid })
+      .eq("id", purchaseId);
+    if (updateError) return { ok: false, error: updateError.message };
+  }
 
   const accounts = await resolveOperationalAccounts(supabase, purchase.org_id, "purchase_payment");
   if (!accounts.error && accounts.debitAccountId && accounts.creditAccountId) {
@@ -577,11 +596,13 @@ export async function recordPurchasePayment(
     module: "Purchases",
     description: "Recorded a payment against a purchase",
     previousValues: { paid_amount: purchase.paid_amount },
-    newValues: { paid_amount: nextPaid, payment_amount: amount, note },
+    newValues: { paid_amount: nextPaid, payment_amount: amount, note, bank_account_id: bankAccountId ?? null },
   });
   if (paymentAudit.error) return { ok: false, error: paymentAudit.error };
 
   revalidatePath("/purchases");
+  revalidatePath("/banking");
+  revalidatePath("/accounting");
   return { ok: true };
 }
 

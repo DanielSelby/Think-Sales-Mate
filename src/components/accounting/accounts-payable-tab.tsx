@@ -16,20 +16,20 @@ import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { formatCurrencyAmount } from "@/lib/currency";
 import type { AccountsPayableItem } from "@/types/accounting";
+import type { BankAccountItem } from "@/types/accounting";
 import { recordPurchasePayment, schedulePurchasePayment } from "@/app/(dashboard)/purchases/actions";
 import { useRouter } from "next/navigation";
 
 interface AccountsPayableTabProps {
   initialPayables?: AccountsPayableItem[];
+  initialBankAccounts?: BankAccountItem[];
   initialBranches?: string[];
   initialOpenBillModal?: boolean;
   onModalClosed?: () => void;
 }
 
-export function AccountsPayableTab({ initialPayables, initialBranches = [], initialOpenBillModal = false, onModalClosed }: AccountsPayableTabProps) {
+export function AccountsPayableTab({ initialPayables, initialBankAccounts = [], initialBranches = [], initialOpenBillModal = false, onModalClosed }: AccountsPayableTabProps) {
   const {
-    payables: storePayables,
-    bankAccounts,
     currentCurrency,
     currencyConfig,
     currentBranch,
@@ -45,7 +45,8 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
   const [isBillModalOpen, setIsBillModalOpen] = useState(initialOpenBillModal);
   const [paymentTarget, setPaymentTarget] = useState<AccountsPayableItem | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
-  const [paymentBankId, setPaymentBankId] = useState(bankAccounts[1]?.id || bankAccounts[0]?.id || "");
+  const [paymentBankId, setPaymentBankId] = useState(initialBankAccounts[0]?.id ?? "");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const [scheduleTarget, setScheduleTarget] = useState<AccountsPayableItem | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -82,17 +83,23 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
   };
 
   const handleOpenPayment = (bill: AccountsPayableItem) => {
+    setPaymentError(null);
     setPaymentTarget(bill);
     setPaymentAmount(bill.outstandingAmount);
-    setPaymentBankId(bankAccounts[1]?.id || bankAccounts[0]?.id || "");
+    setPaymentBankId(initialBankAccounts[0]?.id ?? "");
   };
 
   const handleConfirmPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentTarget || paymentAmount <= 0) return;
-    void recordPurchasePayment(paymentTarget.id, paymentAmount, paymentBankId).then((result) => {
+    if (!paymentBankId || !initialBankAccounts.some((account) => account.id === paymentBankId)) {
+      setPaymentError("Select a bank account to pay this bill from.");
+      return;
+    }
+    setPaymentError(null);
+    void recordPurchasePayment(paymentTarget.id, paymentAmount, undefined, paymentBankId).then((result) => {
       if (!result.ok) {
-        console.error(result.error);
+        setPaymentError(result.error ?? "The payment could not be recorded.");
         return;
       }
       setPaymentTarget(null);
@@ -452,14 +459,24 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
                   value={paymentBankId}
                   onChange={(e) => setPaymentBankId(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-rose-600 dark:border-slate-700 dark:bg-slate-800"
+                  required
+                  disabled={initialBankAccounts.length === 0}
                 >
-                  {bankAccounts.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.bankName})
+                  <option value="">Select an account</option>
+                  {initialBankAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}{account.accountNumber ? ` · ${account.accountNumber}` : ""} — {money(account.bookBalance)}
                     </option>
                   ))}
                 </select>
+                {initialBankAccounts.length === 0 && (
+                  <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">
+                    Add a bank account before recording this supplier payment.
+                  </p>
+                )}
               </div>
+
+              {paymentError && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{paymentError}</p>}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
@@ -471,7 +488,8 @@ export function AccountsPayableTab({ initialPayables, initialBranches = [], init
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 shadow-sm"
+                  disabled={initialBankAccounts.length === 0 || !paymentBankId}
+                  className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Disburse Payment
                 </button>

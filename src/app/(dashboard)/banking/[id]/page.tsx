@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
@@ -15,6 +15,7 @@ const TYPE_LABELS: Record<string, string> = {
   checking: "Checking",
   savings: "Savings",
   mobile_money: "Mobile money",
+  card: "Card settlement account",
   other: "Other"
 };
 
@@ -23,10 +24,11 @@ export default async function AccountDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; view?: string }>;
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
+  const isStatementView = resolvedSearchParams.view === "statement";
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context || !can(context.role, "banking.view")) return null;
@@ -34,7 +36,7 @@ export default async function AccountDetailPage({
   const supabase = await createClient();
   const { data: account } = await supabase
     .from("bank_accounts")
-    .select("id, name, account_type, current_balance")
+    .select("id, name, account_type, account_number, current_balance")
     .eq("id", id)
     .eq("org_id", context.orgId)
     .single();
@@ -62,13 +64,24 @@ export default async function AccountDetailPage({
         <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-ledger-400">
           {TYPE_LABELS[account.account_type] ?? account.account_type}
         </p>
-        <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">{account.name}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">
+            {isStatementView ? `${account.name} Statement` : account.name}
+          </h1>
+          {isStatementView && canManage && (
+            <Link href={`/banking/${account.id}`} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              Record deposit / withdrawal
+            </Link>
+          )}
+        </div>
+        {account.account_number && <p className="mt-1 font-mono text-sm text-ledger-500 dark:text-ledger-400">{account.account_number}</p>}
         <p className="figure mt-1 text-3xl font-semibold text-ink-900 dark:text-white">
           {formatCurrency(account.current_balance, context.currency)}
         </p>
       </div>
 
-      {canManage && (
+      {canManage && !isStatementView && (
         <form
           action={boundRecord}
           className="flex flex-wrap items-end gap-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900"

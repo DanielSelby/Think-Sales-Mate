@@ -284,6 +284,7 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
         {effectiveActiveTab === "payables" && (
           <AccountsPayableTab
             initialPayables={initialPayables}
+            initialBankAccounts={liveBankAccounts}
             initialBranches={initialBranches}
           />
         )}

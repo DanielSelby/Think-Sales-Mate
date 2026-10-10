@@ -12,7 +12,7 @@ import { dispatchAutomatedCustomerMessage } from "@/lib/communication/automation
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { checkCustomerCreditLimit } from "@/lib/sales/customer-outstanding";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
-import { recordPosCardDeposits, validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
+import { recordSalePaymentDeposits, validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -688,7 +688,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
 
     let warning: string | undefined;
     if ((input.documentStatus ?? "final") === "final") {
-      const cardDepositError = await recordPosCardDeposits({
+      const depositError = await recordSalePaymentDeposits({
         orgId: context.orgId,
         saleId: sale.id,
         saleNumber: sale.sale_number,
@@ -696,13 +696,15 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         actorId: user.id,
         allocations,
       });
-      if (cardDepositError) {
-        console.error("Sale completed, but the card settlement account was not updated:", cardDepositError);
-        warning = `Sale completed, but the card payment could not be deposited to the selected account: ${cardDepositError}`;
+      if (depositError) {
+        console.error("Sale completed, but a payment account was not updated:", depositError);
+        warning = `Sale completed, but the card, MoMo, or bank-transfer payment could not be deposited to the selected account: ${depositError}`;
       }
     }
 
     revalidatePath("/sales");
+    revalidatePath("/banking");
+    revalidatePath("/accounting");
     revalidatePath("/inventory");
     if (input.offlineOperationId) {
       const admin = createAdminClient();
@@ -799,6 +801,7 @@ export interface UpdateSaleInput {
   dueDate?:        string | null;
   paymentMethod?:  string | null;
   amountPaid?:     number | null;
+  paymentAllocations?: { paymentMethod: string; accountId?: string | null; amount: number }[];
   shippingAmount?: number | null;
   discountAmount?: number | null;
   taxAmount?:      number | null;
@@ -823,7 +826,7 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
   const admin = createAdminClient();
 
   try {
-    const { data: existingSale } = await supabase.from("sales").select("org_id, location_id, document_status, status, customer_id, customer_name, total, amount_paid").eq("id", input.saleId).single();
+    const { data: existingSale } = await supabase.from("sales").select("id, org_id, sale_number, location_id, document_status, status, customer_id, customer_name, total, amount_paid").eq("id", input.saleId).single();
     if (!existingSale) throw new Error("Sale not found.");
     if (existingSale.org_id !== context.orgId || !canAccessLocation(context, existingSale.location_id)) {
       return { ok: false, error: "You are not authorized to edit this sale." };
@@ -842,6 +845,23 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
     const wasFinal = existingSale.document_status === "final";
     const nextDocumentStatus = input.documentStatus ?? existingSale.document_status;
     const willBeFinal = nextDocumentStatus === "final";
+    const allocations = input.paymentAllocations ?? [];
+    if (allocations.some((allocation) =>
+      !allocation.paymentMethod.trim() || !Number.isFinite(allocation.amount) || allocation.amount <= 0
+    )) {
+      return { ok: false, error: "Enter valid payment methods and positive payment amounts." };
+    }
+    const previousPaidAmount = Number(existingSale.amount_paid ?? 0);
+    const nextPaidAmount = Number(input.amountPaid ?? previousPaidAmount);
+    const newlyPaidAmount = Math.max(0, Number((nextPaidAmount - previousPaidAmount).toFixed(2)));
+    if (allocations.length && Math.abs(allocations.reduce((sum, allocation) => sum + allocation.amount, 0) - newlyPaidAmount) > 0.01) {
+      return { ok: false, error: "Payment allocations must match the new amount received on this sale." };
+    }
+    if (newlyPaidAmount > 0 && /^(card|momo|mobile money|bank transfer)$/i.test(input.paymentMethod?.trim() ?? "") && !allocations.length) {
+      return { ok: false, error: `Select the account that received this ${input.paymentMethod} payment.` };
+    }
+    const paymentAccountError = await validatePosPaymentAccounts(context.orgId, allocations);
+    if (paymentAccountError) return { ok: false, error: paymentAccountError };
     if (willBeFinal) {
       const creditCheck = await checkCustomerCreditLimit(
         supabase,
@@ -947,6 +967,19 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
       }
     }
 
+    if (allocations.length > 0) {
+      const { error: allocationError } = await admin.from("sale_payment_allocations").insert(
+        allocations.map((allocation) => ({
+          org_id: existingSale.org_id,
+          sale_id: input.saleId,
+          payment_method: allocation.paymentMethod,
+          account_id: allocation.accountId ?? null,
+          amount: allocation.amount,
+        }))
+      );
+      if (allocationError) throw new Error(`Sale was updated, but its payment allocation could not be saved: ${allocationError.message}`);
+    }
+
     // Only deduct stock if the sale is (or is becoming) final — this is
     // what makes finalizing a draft actually reserve inventory, exactly
     // once, at the moment it's finalized.
@@ -964,8 +997,25 @@ export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResu
       }
     }
 
+    if (willBeFinal && allocations.length > 0) {
+      const depositError = await recordSalePaymentDeposits({
+        orgId: existingSale.org_id,
+        saleId: input.saleId,
+        saleNumber: existingSale.sale_number,
+        transactionDate: input.saleDate ?? new Date().toISOString().slice(0, 10),
+        actorId: user.id,
+        allocations,
+      });
+      if (depositError) {
+        console.error("Sale updated, but payment account balance was not updated:", depositError);
+        return { ok: false, error: `Sale updated, but the card, MoMo, or bank-transfer payment could not be deposited to the selected account: ${depositError}` };
+      }
+    }
+
     revalidatePath("/sales");
     revalidatePath(`/sales/${input.saleId}`);
+    revalidatePath("/banking");
+    revalidatePath("/accounting");
     revalidatePath("/inventory");
     return { ok: true, saleId: input.saleId };
   } catch (err) {

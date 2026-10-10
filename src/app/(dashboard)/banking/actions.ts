@@ -8,42 +8,100 @@ import { canPermission } from "@/lib/rbac/permissions";
 import type { BankAccountType } from "@/types/database";
 
 function isBankAccountType(value: string): value is BankAccountType {
-  return ["cash", "checking", "savings", "mobile_money", "other"].includes(value);
+  return ["cash", "checking", "savings", "mobile_money", "card", "other"].includes(value);
 }
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
-export async function createAccount(formData: FormData): Promise<void> {
+function logoExtension(file: File): string | null {
+  const extensions: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+  };
+  return extensions[file.type] ?? null;
+}
+
+async function uploadAccountLogo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  accountId: string,
+  file: File,
+): Promise<{ path: string; url: string } | { error: string }> {
+  if (file.size > 2 * 1024 * 1024) return { error: "Bank logos must be 2 MB or smaller." };
+  const extension = logoExtension(file);
+  if (!extension) return { error: "Upload a PNG, JPG, or WebP image for the bank logo." };
+
+  const path = `${orgId}/${accountId}-${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from("bank-account-logos").upload(path, file, {
+    contentType: file.type,
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (error) return { error: `Bank logo could not be uploaded: ${error.message}` };
+  const { data } = supabase.storage.from("bank-account-logos").getPublicUrl(path);
+  return { path, url: data.publicUrl };
+}
+
+async function saveAccount(formData: FormData): Promise<{ success: true } | { error: string }> {
   const context = await getCurrentOrgContext();
-  if (!context) redirectWithError("/banking/new", "Your session expired — please sign in again.");
+  if (!context) return { error: "Your session expired — please sign in again." };
   if (!await canPermission("banking", "create")) {
-    redirectWithError("/banking/new", "You don't have permission to add accounts.");
+    return { error: "You don't have permission to add accounts." };
   }
 
   const name = String(formData.get("name") ?? "").trim();
   const accountType = String(formData.get("account_type") ?? "cash").trim();
   const openingBalance = Number(formData.get("opening_balance") ?? 0);
+  const accountNumber = String(formData.get("account_number") ?? "").trim();
+  const logoValue = formData.get("logo");
+  if (!isBankAccountType(accountType)) return { error: "Choose a valid account type." };
+  if (accountNumber.length > 80) return { error: "Account numbers must be 80 characters or fewer." };
 
-  if (!name) redirectWithError("/banking/new", "Account name is required.");
+  if (!name) return { error: "Account name is required." };
   if (Number.isNaN(openingBalance) || openingBalance < 0) {
-    redirectWithError("/banking/new", "Enter a valid opening balance.");
+    return { error: "Enter a valid opening balance." };
   }
 
   const supabase = await createClient();
+  const accountId = crypto.randomUUID();
+  let logo: { path: string; url: string } | null = null;
+  if (logoValue instanceof File && logoValue.size > 0) {
+    const uploaded = await uploadAccountLogo(supabase, context.orgId, accountId, logoValue);
+    if ("error" in uploaded) return { error: uploaded.error };
+    logo = uploaded;
+  }
+
   const { error } = await supabase.from("bank_accounts").insert({
+    id: accountId,
     org_id: context.orgId,
     name,
-    account_type: accountType as "cash" | "checking" | "savings" | "mobile_money" | "other",
+    account_type: accountType,
+    account_number: accountNumber || null,
+    logo_url: logo?.url ?? null,
     opening_balance: openingBalance,
     current_balance: openingBalance,
     created_by: context.userId
   });
 
-  if (error) redirectWithError("/banking/new", error.message);
+  if (error) {
+    if (logo) await supabase.storage.from("bank-account-logos").remove([logo.path]);
+    return { error: error.message };
+  }
 
   revalidatePath("/banking");
+  return { success: true };
+}
+
+export async function createAccountFromDialog(formData: FormData) {
+  return saveAccount(formData);
+}
+
+export async function createAccount(formData: FormData): Promise<void> {
+  const result = await saveAccount(formData);
+  if ("error" in result) redirect(`/banking/new?error=${encodeURIComponent(result.error)}`);
   redirect("/banking?accountCreated=1");
 }
 
@@ -117,16 +175,34 @@ export async function updateAccount(accountId: string, formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const accountType = String(formData.get("account_type") ?? "").trim();
+  const accountNumber = String(formData.get("account_number") ?? "").trim();
+  const logoValue = formData.get("logo");
   if (!name) return { error: "Account name is required." };
   if (!isBankAccountType(accountType)) return { error: "Choose a valid account type." };
+  if (accountNumber.length > 80) return { error: "Account numbers must be 80 characters or fewer." };
 
   const supabase = await createClient();
+  let logo: { path: string; url: string } | null = null;
+  if (logoValue instanceof File && logoValue.size > 0) {
+    const uploaded = await uploadAccountLogo(supabase, context.orgId, accountId, logoValue);
+    if ("error" in uploaded) return { error: uploaded.error };
+    logo = uploaded;
+  }
+
   const { error } = await supabase
     .from("bank_accounts")
-    .update({ name, account_type: accountType })
+    .update({
+      name,
+      account_type: accountType,
+      account_number: accountNumber || null,
+      ...(logo ? { logo_url: logo.url } : {}),
+    })
     .eq("id", accountId)
     .eq("org_id", context.orgId);
-  if (error) return { error: error.message };
+  if (error) {
+    if (logo) await supabase.storage.from("bank-account-logos").remove([logo.path]);
+    return { error: error.message };
+  }
 
   revalidatePath("/banking");
   revalidatePath(`/banking/${accountId}`);
