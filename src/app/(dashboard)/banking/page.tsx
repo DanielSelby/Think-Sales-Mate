@@ -157,7 +157,7 @@ export default async function BankingPage({
   const totalBalance = accounts.reduce((sum, account) => sum + account.currentBalance, 0);
 
   return (
-    <main className="w-full min-w-0 space-y-4">
+    <main className="banking-page w-full min-w-0 space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">

@@ -2478,3 +2478,37 @@ html.dark body :is(
     padding-top: 4px;
   }
 }
+
+/* Dashboard surface rules intentionally flatten many light cards, but their
+   important declarations also override dark modal and banking surfaces. */
+html.dark [role="dialog"].rounded-card,
+html.dark [role="dialog"][class*="rounded-2xl"],
+html.dark [role="dialog"][class*="rounded-xl"],
+html.dark [role="dialog"][class*="rounded-lg"],
+html.dark [role="dialog"] [class*="rounded-"][class~="bg-white"] {
+  background-color: #0f1d2d !important;
+  border: 1px solid #475569 !important;
+}
+
+html.dark [role="dialog"] :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea
+) {
+  border-color: #52657c !important;
+  background-color: #0b1523 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark [role="dialog"] :is(input, textarea)::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+html.dark .page-canvas .banking-page .rounded-card,
+html.dark .page-canvas .banking-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark .page-canvas .banking-page [class*="rounded-xl"][class*="bg-white"],
+html.dark .page-canvas .banking-page [class*="rounded-lg"][class*="bg-white"] {
+  background-color: #0f1d2d !important;
+  border-color: #475569 !important;
+}
