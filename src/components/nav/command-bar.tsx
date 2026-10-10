@@ -89,7 +89,7 @@ const buildActions = (router: ReturnType<typeof useRouter>, close: () => void) =
   { id: "new-expense",  label: "New Expense",      icon: TrendingDown,   action: () => { router.push("/accounting/expenses/new");   close(); } },
   { id: "new-customer", label: "New Customer",     icon: Contact,        action: () => { router.push("/crm/customers/new");         close(); } },
   { id: "new-product",  label: "New Product",      icon: Tag,            action: () => { router.push("/inventory/products/new");    close(); } },
-  { id: "new-transfer", label: "Bank Transfer",    icon: ArrowLeftRight, action: () => { router.push("/banking/transfers/new");     close(); } },
+  { id: "new-transfer", label: "Bank Transfer",    icon: ArrowLeftRight, action: () => { router.push("/banking?transfer=1");        close(); } },
 ];
 
 interface CommandItem {

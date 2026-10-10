@@ -50,7 +50,7 @@ export default async function NewSalePage() {
   ] = await Promise.all([
     supabase
       .from("products")
-      .select("id, location_id, sku, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, allow_negative_stock")
+      .select("id, location_id, sku, barcode, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, allow_negative_stock")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
@@ -95,6 +95,7 @@ export default async function NewSalePage() {
       id: p.id,
       locationId: p.location_id,
       sku: p.sku,
+      barcode: p.barcode,
       name: p.name,
       unitPrice: p.unit_price,
       wholesalePrice: p.wholesale_price,

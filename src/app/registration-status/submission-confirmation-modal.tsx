@@ -18,9 +18,11 @@ export function SubmissionConfirmationModal({ open }: { open: boolean }) {
           ✓
         </div>
         <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Submission received</p>
-        <h2 id="registration-success-title" className="mt-2 text-2xl font-extrabold text-slate-950">Business name created</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-700">
-          Your organization is <strong>pending and under review</strong>. We will enable workspace access after it is approved.
+        <h2 id="registration-success-title" className="mt-2 rounded-2xl border border-amber-300 bg-gradient-to-b from-amber-100 via-amber-50 to-white px-4 py-4 text-xl font-black leading-tight text-amber-950 shadow-[0_7px_0_0_rgb(217,119,6),0_14px_24px_-10px_rgba(180,83,9,0.65),inset_0_2px_4px_rgba(255,255,255,0.95)] sm:text-2xl">
+          Account Is Under Review - Pending Approval
+        </h2>
+        <p className="mt-4 text-sm leading-6 text-slate-700">
+          Your organization is awaiting approval. Workspace access will be enabled after the review is complete.
         </p>
         <button
           type="button"

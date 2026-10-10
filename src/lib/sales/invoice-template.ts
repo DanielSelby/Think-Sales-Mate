@@ -116,6 +116,8 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
     ? "Paid in full"
     : data.dueDate ? formatInvoiceDate(data.dueDate) : "Due on receipt";
   const change = Math.max(0, data.amountPaid - data.total);
+  const balanceDue = Math.max(0, data.total - data.amountPaid);
+  const hasBalanceDue = balanceDue > 0.005;
   const addressLine = [data.locationAddress].filter(Boolean).join(", ");
 
   const rows = data.items.map((item, index) => thermal
@@ -216,7 +218,9 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   .totals-box { border: 1px solid #e4ece5; border-radius: 12px; overflow: hidden; }
   .totals-row { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 12.5px; color: #46564a; }
   .totals-row.grand { background: #2fae4e; color: #fff; font-weight: 800; font-size: 15px; padding: 12px 16px; }
-  .totals-row.paid { background: #f3f9f3; font-weight: 700; }
+  .totals-row.paid { background: #f3f9f3; color: #15803d; font-weight: 700; }
+  .totals-row.paid > :last-child { color: #15803d; }
+  .totals-row.balance-due { color: #b91c1c; font-weight: 700; }
 
   .contact-footer { display: flex; justify-content: space-between; gap: 14px; margin-top: 18px; padding-top: 10px; border-top: 1px solid #e4ece5; font-size: 10px; color: #46564a; }
   .contact-footer div { min-width: 0; }
@@ -257,6 +261,8 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   body.thermal .bottom { display: block; margin-top: 2mm; }
   body.thermal .totals-box { border: 0; border-radius: 0; }
   body.thermal .totals-row { padding: 1mm 0; font-size: 9px; color: #111; }
+  body.thermal .totals-row.paid, body.thermal .totals-row.paid > :last-child { color: #15803d; }
+  body.thermal .totals-row.balance-due { color: #b91c1c; }
   body.thermal .totals-row.grand { padding: 1.5mm 0; background: #fff; color: #111; font-size: 12px; border-top: 1px solid #222; border-bottom: 1px solid #222; }
   body.thermal .contact-footer { display: block; margin-top: 2mm; padding-top: 1.5mm; border-top: 1px solid #222; font-size: 8px; color: #111; }
   body.thermal .contact-footer div + div { margin-top: 1.5mm; }
@@ -338,6 +344,7 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
         <div class="totals-row"><span>Tax</span><span>${esc(formatCurrency(data.taxAmount, data.currency))}</span></div>
         <div class="totals-row grand"><span>Total</span><span>${esc(formatCurrency(data.total, data.currency))}</span></div>
         <div class="totals-row paid"><span>Amount paid</span><span>${esc(formatCurrency(data.amountPaid, data.currency))}</span></div>
+        ${hasBalanceDue ? `<div class="totals-row balance-due"><span>Customer balance</span><span>${esc(formatCurrency(balanceDue, data.currency))}</span></div>` : ""}
         <div class="totals-row"><span>Change</span><span>${esc(formatCurrency(change, data.currency))}</span></div>
       </div>
     </div>
@@ -363,6 +370,8 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   const invoiceNo = formatInvoiceNumber(data.saleNumber);
   const date = new Date(data.saleDate);
   const invoiceDate = date.toLocaleDateString("en-GB");
+  const balanceDue = Math.max(0, data.total - data.amountPaid);
+  const hasBalanceDue = balanceDue > 0.005;
   const paymentDue = data.amountPaid >= data.total
     ? "Paid in full"
     : data.dueDate ? formatInvoiceDate(data.dueDate) : "Due on receipt";
@@ -416,8 +425,10 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .logo,.logo-placeholder { width: 54px; height: 48px; object-fit: contain; }
   .logo-placeholder { display: grid; place-items: center; border-radius: 8px; background: #0b806b; color: #fff; font-size: 15px; font-weight: 800; }
   .brand-name { color: #12313b; font-size: 22px; font-weight: 800; }
-  .brand-caption { margin-top: 5px; color: #087d69; font-size: 9px; font-weight: 600; }
-  .branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 7px; padding: 5px 8px; border-left: 3px solid #087d69; border-radius: 4px; background: #e8f6f2; color: #075d53; font-size: 9px; font-weight: 700; }
+  .brand-caption { margin-top: 6px; color: #087d69; font-size: 9px; font-weight: 600; }
+  .branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 19px; padding: 8px 10px; border-left: 3px solid #087d69; border-radius: 4px; background: #e8f6f2; color: #075d53; font-size: 10px; font-weight: 700; }
+  .branch-phone { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+  .branch-phone-icon { font-size: 12px; line-height: 1; }
   .organization-contact { display: grid; gap: 7px; position: relative; z-index: 1; color: #344d56; font-size: 10px; }
   .contact-line { display: flex; gap: 8px; align-items: center; }
   .contact-icon { width: 14px; color: #087d69; font-weight: 700; text-align: center; }
@@ -455,6 +466,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .totals-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; color: #405a63; }
   .totals-row > :last-child { text-align: right; }
   .totals-row strong { color: #19333d; }
+  .totals-row.paid,.totals-row.paid strong { color: #15803d; }
   .totals-row.grand { margin: 5px -15px 0; padding: 11px 15px; border-radius: 0; background: #087b68; color: #fff; font-size: 13px; font-weight: 700; }
   .totals-row.grand strong { color: #fff; font-size: 16px; }
   .terms { margin-top: 9px; white-space: pre-line; line-height: 1.45; }
@@ -464,6 +476,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .served-by-label { display: block; font-size: 13px; font-weight: 700; }
   .served-by-name { display: block; margin-top: 4px; color: #d9eeea; font-size: 11px; font-weight: 600; }
   .due-card { display: flex; justify-content: space-between; align-items: center; grid-column: 2; color: #087b68; }
+  .due-card.balance-due,.due-card.balance-due strong { color: #b91c1c; }
   .due-card span { display: block; margin-bottom: 5px; color: #52716f; font-size: 9px; }
   .due-card strong { color: #19333d; font-size: 11px; }
   .footer { margin: 17px -9mm -9mm; padding: 19px 9mm 14px; background: #075d53; color: white; }
@@ -477,7 +490,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
 <body>
 <main class="invoice">
   <header class="masthead">
-    <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-caption">${esc(data.invoiceSlogan)}</div>` : ""}${data.locationName || data.locationCode || data.locationPhone ? `<div class="branch-details">${data.locationName ? `<span>${esc(data.locationName)}</span>` : ""}${data.locationCode ? `<span>Branch No. ${esc(data.locationCode)}</span>` : ""}${data.locationPhone ? `<span>${esc(data.locationPhone)}</span>` : ""}</div>` : ""}</div></div>
+    <div class="brand">${brandLogo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-caption">${esc(data.invoiceSlogan)}</div>` : ""}${data.locationName || data.locationCode || data.locationPhone ? `<div class="branch-details">${data.locationName ? `<span>${esc(data.locationName)}</span>` : ""}${data.locationCode ? `<span>Branch No. ${esc(data.locationCode)}</span>` : ""}${data.locationPhone ? `<span class="branch-phone"><span class="branch-phone-icon" aria-hidden="true">☎</span>${esc(data.locationPhone)}</span>` : ""}</div>` : ""}</div></div>
     ${data.showOrganizationContact !== false && contactItems.length ? `<div class="organization-contact">
       ${data.organizationPhone ? `<div class="contact-line"><span class="contact-icon">☎</span>${esc(data.organizationPhone)}</div>` : ""}
       ${data.organizationEmail ? `<div class="contact-line"><span class="contact-icon">✉</span>${esc(data.organizationEmail)}</div>` : ""}
@@ -494,7 +507,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     </div>
   </section>
   <section class="recipient-grid">
-    <div class="recipient"><div class="recipient-label">Bill To</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">${data.customerPhone ? esc(data.customerPhone) : ""}</div></div>
+    <div class="recipient"><div class="recipient-label">Customer</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">${data.customerPhone ? esc(data.customerPhone) : ""}</div></div>
     <div class="recipient"><div class="recipient-label">Ship To</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">Same as billing address</div></div>
   </section>
   <table>
@@ -508,9 +521,9 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
       <div class="totals-row"><span>Discount</span><strong>${esc(formatCurrency(discount, data.currency))}</strong></div>
       <div class="totals-row"><span>Tax</span><strong>${esc(formatCurrency(tax, data.currency))}</strong></div>
       <div class="totals-row grand"><span>Total Amount</span><strong>${esc(formatCurrency(data.total, data.currency))}</strong></div>
-      <div class="totals-row"><span>Amount Paid</span><strong>${esc(formatCurrency(data.amountPaid, data.currency))}</strong></div>
+      <div class="totals-row paid"><span>Amount Paid</span><strong>${esc(formatCurrency(data.amountPaid, data.currency))}</strong></div>
     </div>
-    <div class="due-card"><div><span>Payment Due</span><strong>${esc(paymentDue)}</strong></div><strong>${esc(formatCurrency(Math.max(0, data.total - data.amountPaid), data.currency))}</strong></div>
+    <div class="due-card${hasBalanceDue ? " balance-due" : ""}"><div><span>${hasBalanceDue ? "Customer Balance" : "Payment Due"}</span><strong>${esc(paymentDue)}</strong></div><strong>${esc(formatCurrency(balanceDue, data.currency))}</strong></div>
   </section>
   <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by"><span class="served-by-label">Served By</span><span class="served-by-name">${esc(data.cashierName || "—")}</span></div><div></div></div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}</footer>
 </main>

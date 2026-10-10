@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, requirePermission } from "@/lib/rbac/permissions";
 import { PosView } from "@/components/pos/pos-view";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = { title: "POS · SalesMate ERP" };
 
@@ -29,7 +30,8 @@ export default async function PosPage() {
   if (authorizedRegisterSessions.length === 0) redirect("/pos/open-register");
   const registerLocationIds = authorizedRegisterSessions.map((session: { location_id: string }) => session.location_id);
 
-  const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }, { data: mobileMoneyAccounts }] = await Promise.all([
+  const admin = createAdminClient();
+  const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }, { data: mobileMoneyAccounts }, { data: cardAccounts }] = await Promise.all([
     supabase
       .from("products")
       .select("id, location_id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, image_urls")
@@ -39,7 +41,8 @@ export default async function PosPage() {
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).in("id", registerLocationIds).eq("is_active", true),
     supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId).in("location_id", registerLocationIds),
     supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle(),
-    supabase.from("bank_accounts").select("id, name, current_balance").eq("org_id", orgId).eq("account_type", "mobile_money").order("name")
+    admin.from("bank_accounts").select("id, name, current_balance").eq("org_id", orgId).eq("account_type", "mobile_money").order("name"),
+    admin.from("bank_accounts").select("id, name").eq("org_id", orgId).in("account_type", ["checking", "savings", "other"]).order("name")
   ]);
 
   const quantityByProduct = new Map<string, number>();
@@ -109,6 +112,7 @@ export default async function PosPage() {
         shift: registerSession.shift,
       }))}
       mobileMoneyAccounts={(mobileMoneyAccounts ?? []).map((account) => ({ id: account.id, name: account.name, balance: account.current_balance }))}
+      cardAccounts={(cardAccounts ?? []).map((account) => ({ id: account.id, name: account.name }))}
     />
   );
 }

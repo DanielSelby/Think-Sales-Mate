@@ -292,11 +292,64 @@ export async function importBankStatement(input: {
   return { ok: true, imported: input.transactions.length };
 }
 
-export async function toggleBankStatementMatch(id: string, matched: boolean): Promise<{ ok: boolean; error?: string }> {
+export async function matchBankStatementTransaction(
+  statementTransactionId: string,
+  bookTransactionId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
   if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to update reconciliation." };
   const supabase = await createClient() as any;
-  const { error } = await supabase.from("bank_statement_transactions").update({ matched, matched_transaction_id: null }).eq("id", id).eq("org_id", context.orgId);
+
+  const { data: statement, error: statementError } = await supabase
+    .from("bank_statement_transactions")
+    .select("id, bank_account_id, amount, type, matched, matched_transaction_id")
+    .eq("id", statementTransactionId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (statementError) return { ok: false, error: statementError.message };
+  if (!statement) return { ok: false, error: "Statement transaction not found." };
+
+  if (bookTransactionId === null) {
+    if (!statement.matched && !statement.matched_transaction_id) return { ok: true };
+    const { error } = await supabase
+      .from("bank_statement_transactions")
+      .update({ matched: false, matched_transaction_id: null })
+      .eq("id", statement.id)
+      .eq("org_id", context.orgId);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/accounting");
+    return { ok: true };
+  }
+
+  const { data: bookTransaction, error: bookError } = await supabase
+    .from("bank_transactions")
+    .select("id, account_id, amount, type")
+    .eq("id", bookTransactionId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (bookError) return { ok: false, error: bookError.message };
+  if (!bookTransaction || bookTransaction.account_id !== statement.bank_account_id) {
+    return { ok: false, error: "Choose a book transaction from this bank account." };
+  }
+  if (bookTransaction.type !== statement.type || Math.abs(Number(bookTransaction.amount) - Number(statement.amount)) > 0.005) {
+    return { ok: false, error: "A statement line can only match a book transaction with the same type and amount." };
+  }
+
+  const { data: existingMatch, error: existingMatchError } = await supabase
+    .from("bank_statement_transactions")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .eq("matched_transaction_id", bookTransactionId)
+    .neq("id", statement.id)
+    .maybeSingle();
+  if (existingMatchError) return { ok: false, error: existingMatchError.message };
+  if (existingMatch) return { ok: false, error: "That book transaction is already matched to another statement line." };
+
+  const { error } = await supabase
+    .from("bank_statement_transactions")
+    .update({ matched: true, matched_transaction_id: bookTransactionId })
+    .eq("id", statement.id)
+    .eq("org_id", context.orgId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/accounting");
   return { ok: true };
@@ -307,17 +360,24 @@ export async function autoMatchBankStatement(accountId: string): Promise<{ ok: b
   if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to reconcile bank statements." };
   const supabase = await createClient() as any;
   const [{ data: statements, error: statementError }, { data: bookTransactions, error: bookError }] = await Promise.all([
-    supabase.from("bank_statement_transactions").select("id, transaction_date, amount, type").eq("org_id", context.orgId).eq("bank_account_id", accountId).eq("matched", false),
+    supabase.from("bank_statement_transactions").select("id, transaction_date, amount, type, matched_transaction_id").eq("org_id", context.orgId).eq("bank_account_id", accountId),
     supabase.from("bank_transactions").select("id, transaction_date, amount, type").eq("org_id", context.orgId).eq("account_id", accountId),
   ]);
   if (statementError || bookError) return { ok: false, error: statementError?.message ?? bookError?.message };
-  const used = new Set<string>();
+  const used = new Set<string>((statements ?? [])
+    .map((statement: any) => statement.matched_transaction_id)
+    .filter((id: string | null): id is string => Boolean(id)));
   let matched = 0;
-  for (const statement of statements ?? []) {
-    const candidate = (bookTransactions ?? []).find((transaction: any) => !used.has(transaction.id) && transaction.type === statement.type && Number(transaction.amount) === Number(statement.amount) && transaction.transaction_date === statement.transaction_date);
+  for (const statement of (statements ?? []).filter((row: any) => !row.matched_transaction_id)) {
+    const candidate = (bookTransactions ?? []).find((transaction: any) =>
+      !used.has(transaction.id)
+        && transaction.type === statement.type
+        && Math.abs(Number(transaction.amount) - Number(statement.amount)) <= 0.005
+        && transaction.transaction_date === statement.transaction_date
+    );
     if (!candidate) continue;
-    const { error } = await supabase.from("bank_statement_transactions").update({ matched: true, matched_transaction_id: candidate.id }).eq("id", statement.id).eq("org_id", context.orgId);
-    if (error) return { ok: false, error: error.message };
+    const result = await matchBankStatementTransaction(statement.id, candidate.id);
+    if (!result.ok) return { ok: false, error: result.error };
     used.add(candidate.id);
     matched += 1;
   }

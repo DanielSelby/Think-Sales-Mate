@@ -58,7 +58,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     // fully allocated elsewhere and show 0 org-wide; it's reclaimed below.
     supabase
       .from("products")
-      .select("id, location_id, sku, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, allow_negative_stock")
+      .select("id, location_id, sku, barcode, name, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, allow_negative_stock")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
@@ -120,6 +120,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     id: p.id,
     locationId: p.location_id,
     sku: p.sku,
+    barcode: p.barcode,
     name: p.name,
     unitPrice: p.unit_price,
     wholesalePrice: p.wholesale_price,

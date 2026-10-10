@@ -25,15 +25,28 @@ export function ProductPicker({ products, onSelect, className, theme, onNotFound
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const uniqueProductTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearUniqueProductTimer = React.useCallback(() => {
+    if (uniqueProductTimer.current) {
+      clearTimeout(uniqueProductTimer.current);
+      uniqueProductTimer.current = null;
+    }
+  }, []);
+
+  React.useEffect(() => () => clearUniqueProductTimer(), [clearUniqueProductTimer]);
 
   React.useEffect(() => {
     if (!open) return;
     function onClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        clearUniqueProductTimer();
+        setOpen(false);
+      }
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
+  }, [clearUniqueProductTimer, open]);
 
   const results = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -49,9 +62,33 @@ export function ProductPicker({ products, onSelect, className, theme, onNotFound
   }, [products, query]);
 
   function pick(product: PickableProduct) {
+    clearUniqueProductTimer();
     onSelect(product);
     setQuery("");
     setOpen(false);
+  }
+
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    setOpen(true);
+    clearUniqueProductTimer();
+
+    const q = value.trim().toLowerCase();
+    if (q.length < 2) return;
+    const matches = products.filter((product) =>
+      product.name.toLowerCase().includes(q)
+      || product.sku.toLowerCase().includes(q)
+      || (product.barcode ?? "").toLowerCase().includes(q)
+    );
+    if (matches.length !== 1) return;
+
+    const [product] = matches;
+    uniqueProductTimer.current = setTimeout(() => {
+      uniqueProductTimer.current = null;
+      onSelect(product);
+      setQuery("");
+      setOpen(false);
+    }, 500);
   }
 
   // A barcode scanner types the code fast and terminates with Enter — if
@@ -65,11 +102,13 @@ export function ProductPicker({ products, onSelect, className, theme, onNotFound
     if (exact) {
       e.preventDefault();
       pick(exact);
-    } else if (onNotFound) {
+    } else if (results.length === 1) {
+      e.preventDefault();
+      pick(results[0]);
+    } else if (onNotFound && results.length === 0) {
       e.preventDefault();
       onNotFound(q);
     }
-
   }
 
   function revealPicker() {
@@ -91,8 +130,7 @@ export function ProductPicker({ products, onSelect, className, theme, onNotFound
       <input
         value={query}
         onChange={(e) => {
-          setQuery(e.target.value);
-          setOpen(true);
+          handleQueryChange(e.target.value);
         }}
         onFocus={revealPicker}
         onKeyDown={onKeyDown}

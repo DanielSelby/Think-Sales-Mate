@@ -73,6 +73,7 @@ interface PosViewProps {
   allowedPriceGroups: Array<"retail" | "wholesale" | "vip" | "special">;
   useSystemPrices: boolean;
   mobileMoneyAccounts: MobileMoneyAccount[];
+  cardAccounts: { id: string; name: string }[];
   canApproveRegisterClosures: boolean;
   canAccessEndOfDay: boolean;
   registerSessions: ActivePosRegisterSession[];
@@ -98,7 +99,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ orgId, userId, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
+export function PosView({ orgId, userId, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, cardAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
@@ -118,6 +119,10 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
          const [expandMenuOpen, setExpandMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
+  const uniqueProductSearchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (uniqueProductSearchTimer.current) clearTimeout(uniqueProductSearchTimer.current);
+  }, []);
   const [stockFilter, setStockFilter] = React.useState<"all" | "available">("all");
   const [activeCategory, setActiveCategory] = React.useState("all");
   const [activeBrand, setActiveBrand] = React.useState("all");
@@ -163,8 +168,10 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
 
   const [calcOpen, setCalcOpen] = React.useState(false);
   const [multiPayOpen, setMultiPayOpen] = React.useState(false);
+  const [multiPayMode, setMultiPayMode] = React.useState<"full" | "partial">("full");
   const [multiPay, setMultiPay] = React.useState({ cash: 0, card: 0, momo: 0 });
   const [momoAccountId, setMomoAccountId] = React.useState("");
+  const [cardAccountId, setCardAccountId] = React.useState("");
   const [momoPaymentOpen, setMomoPaymentOpen] = React.useState(false);
 
   const [registerOpen, setRegisterOpen] = React.useState(false);
@@ -293,6 +300,41 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
     setCartAddSignal((n) => n + 1);
   }
 
+  function clearUniqueProductSearchTimer() {
+    if (uniqueProductSearchTimer.current) {
+      clearTimeout(uniqueProductSearchTimer.current);
+      uniqueProductSearchTimer.current = null;
+    }
+  }
+
+  function handleProductSearchChange(value: string) {
+    setQuery(value);
+    setSearchDropdownOpen(true);
+    clearUniqueProductSearchTimer();
+
+    const q = value.trim().toLowerCase();
+    if (q.length < 2) return;
+    const matches = locationProducts.filter((product) =>
+      (stockFilter !== "available" || product.stockQuantity > 0)
+      && (activeCategory === "all" || product.category === activeCategory)
+      && (activeBrand === "all" || product.brand === activeBrand)
+      && (
+        product.name.toLowerCase().includes(q)
+        || product.sku.toLowerCase().includes(q)
+        || (product.barcode ?? "").toLowerCase().includes(q)
+      )
+    );
+    if (matches.length !== 1 || matches[0].stockQuantity <= 0) return;
+
+    const product = matches[0];
+    uniqueProductSearchTimer.current = setTimeout(() => {
+      uniqueProductSearchTimer.current = null;
+      addToCart(product);
+      setQuery("");
+      setSearchDropdownOpen(false);
+    }, 500);
+  }
+
   // Navigates to the real product-creation page. If there's anything in
   // the cart, it's parked as a suspended sale first so it isn't lost —
   // leaving POS unmounts this component and its state with it. Resume it
@@ -314,6 +356,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
     const exact = locationProducts.find((p) => p.sku.toLowerCase() === q || (p.barcode ?? "").toLowerCase() === q);
     if (exact) {
       e.preventDefault();
+      clearUniqueProductSearchTimer();
       addToCart(exact);
       setQuery("");
     }
@@ -513,7 +556,10 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
         }
         return;
       }
-      setTransactionFeedback({ kind: "success", message: `Sale completed successfully using ${method}.` });
+      setTransactionFeedback({
+        kind: "success",
+        message: result.warning ?? `Sale completed successfully using ${method}.`,
+      });
       if (result.saleId) printInvoice(result.saleId);
       clearCart();
     });
@@ -793,6 +839,23 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
   }
 
   const multiPayTotal = multiPay.cash + multiPay.card + multiPay.momo;
+  const multiPayAmountsValid = [multiPay.cash, multiPay.card, multiPay.momo]
+    .every((amount) => Number.isFinite(amount) && amount >= 0);
+  const multiPayIsExact = Math.abs(multiPayTotal - total) < 0.01;
+  const multiPayHasCreditBalance = multiPayTotal < total - 0.01;
+  const partialPayNeedsDueDate = multiPayMode === "partial"
+    && multiPayHasCreditBalance
+    && Boolean(saleDate)
+    && (!dueDate || dueDate <= saleDate);
+  const multiPayConfirmDisabled = isPending
+    || !multiPayAmountsValid
+    || multiPayTotal <= 0
+    || multiPayTotal > total + 0.01
+    || (multiPayMode === "full" && !multiPayIsExact)
+    || (multiPayMode === "partial" && multiPayHasCreditBalance && !customer?.id)
+    || partialPayNeedsDueDate
+    || (multiPay.card > 0 && !cardAccountId)
+    || (multiPay.momo > 0 && !momoAccountId);
   function handleMultiPayConfirm() {
     if (![multiPay.cash, multiPay.card, multiPay.momo].every((amount) => Number.isFinite(amount) && amount >= 0)) {
       setError("Enter valid non-negative payment amounts.");
@@ -806,12 +869,24 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
       setError("Payment amounts cannot exceed the sale total.");
       return;
     }
+    if (multiPayMode === "full" && !multiPayIsExact) {
+      setError("For Multiple Pay, payment amounts must equal the full sale total.");
+      return;
+    }
     if (multiPayTotal < total - 0.01 && !customer?.id) {
       setError("Select a customer before saving a partial payment with a credit balance.");
       return;
     }
+    if (multiPayMode === "partial" && multiPayTotal < total - 0.01 && (!dueDate || dueDate <= saleDate)) {
+      setError("Set a payment due date after the sale date before confirming this credit payment.");
+      return;
+    }
     if (multiPay.momo > 0 && !momoAccountId) {
       setError("Select the MoMo account for this split payment.");
+      return;
+    }
+    if (multiPay.card > 0 && !cardAccountId) {
+      setError("Select the bank account that receives the card settlement.");
       return;
     }
     const creditBalance = Math.max(0, total - multiPayTotal);
@@ -823,7 +898,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
     setMultiPayOpen(false);
     handleCompleteSale(`Split (${parts.join(", ")})`, [
       ...(multiPay.cash > 0 ? [{ paymentMethod: "Cash", amount: multiPay.cash }] : []),
-      ...(multiPay.card > 0 ? [{ paymentMethod: "Card", amount: multiPay.card }] : []),
+      ...(multiPay.card > 0 ? [{ paymentMethod: "Card", accountId: cardAccountId, amount: multiPay.card }] : []),
       ...(multiPay.momo > 0 ? [{ paymentMethod: "MoMo", accountId: momoAccountId, amount: multiPay.momo }] : []),
     ]);
     setMultiPay({ cash: 0, card: 0, momo: 0 });
@@ -1088,7 +1163,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                   <Input
                     ref={searchInputRef}
                     value={query}
-                    onChange={(e) => { setQuery(e.target.value); setSearchDropdownOpen(true); }}
+                    onChange={(e) => handleProductSearchChange(e.target.value)}
                     onFocus={() => {
                       setSearchDropdownOpen(true);
                       const bounds = searchInputRef.current?.getBoundingClientRect();
@@ -1096,7 +1171,10 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                         searchInputRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
                       }
                     }}
-                    onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
+                    onBlur={() => {
+                      clearUniqueProductSearchTimer();
+                      setTimeout(() => setSearchDropdownOpen(false), 150);
+                    }}
                     onKeyDown={onBarcodeEnter}
                     placeholder="Product name / SKU / scan barcode"
                     className="h-10 pl-9"
@@ -1110,6 +1188,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                           aria-disabled={p.stockQuantity <= 0}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
+                            clearUniqueProductSearchTimer();
                             addToCart(p);
                             if (p.stockQuantity > 0) {
                               setQuery("");
@@ -1267,12 +1346,15 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
             <button onClick={() => handleCompleteSale("Credit")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-ledger-500 hover:text-signal disabled:opacity-40">
               <FileText className="h-4 w-4" /> Credit Sale
             </button>
-            <button onClick={() => handleCompleteSale("Card")} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-40 dark:text-blue-400 dark:hover:text-blue-300">
+            <button onClick={() => { setMultiPayMode("full"); setMultiPay({ cash: 0, card: total, momo: 0 }); setMultiPayOpen(true); }} disabled={isPending || cart.length === 0} className="flex flex-col items-center gap-0.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-40 dark:text-blue-400 dark:hover:text-blue-300">
               <CreditCard className="h-4 w-4" /> Card
             </button>
 
-            <Button variant="primary" className="w-full bg-ink-900 hover:bg-ink-900/90 sm:w-auto" onClick={() => setMultiPayOpen(true)} disabled={isPending || cart.length === 0}>
+            <Button variant="primary" className="w-full bg-ink-900 hover:bg-ink-900/90 sm:w-auto" onClick={() => { setMultiPayMode("full"); setMultiPayOpen(true); }} disabled={isPending || cart.length === 0}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Multiple Pay
+            </Button>
+            <Button variant="primary" className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto" onClick={() => { setMultiPayMode("partial"); setMultiPay({ cash: 0, card: 0, momo: 0 }); setMultiPayOpen(true); }} disabled={isPending || cart.length === 0}>
+              <FileText className="h-4 w-4" /> Credit Sales - Partial Pay
             </Button>
             <Button variant="primary" className="w-full !bg-signal !text-white hover:!bg-signal/90 dark:!bg-signal dark:!text-white dark:hover:!bg-signal/90 sm:w-auto" onClick={() => handleCompleteSale("Cash")} disabled={isPending || cart.length === 0}>
               <Banknote className="h-4 w-4" /> Cash
@@ -1418,10 +1500,37 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
       </Dialog>
 
       {/* Multiple Pay */}
-      <Dialog open={multiPayOpen} onClose={() => setMultiPayOpen(false)} title="Split Payment">
+      <Dialog open={multiPayOpen} onClose={() => setMultiPayOpen(false)} title={multiPayMode === "partial" ? "Credit Sales - Partial Pay" : "Multiple Pay"}>
         <div className="space-y-3">
           <p className="text-sm text-ledger-500">Sale total: <span className="font-semibold text-ink-900 dark:text-white">{formatCurrency(total, currency)}</span></p>
-          <p className="text-xs text-ledger-500">Enter what the customer pays now. Any remaining balance will be recorded as credit for the selected customer.</p>
+          <p className="text-xs text-ledger-500">
+            {multiPayMode === "partial"
+              ? "Enter the partial amount received now. The remaining balance will be recorded as credit for the selected customer."
+              : "Enter the amounts received through each payment method. They must add up to the full sale total."}
+          </p>
+          {partialPayNeedsDueDate && (
+            <div
+              role="alert"
+              className="rounded-xl border border-amber-300 bg-gradient-to-br from-amber-50 via-white to-amber-100 p-4 text-amber-950 shadow-[0_16px_30px_-12px_rgba(120,53,15,0.35),inset_0_1px_0_rgba(255,255,255,0.95)] [perspective:900px] dark:border-amber-700 dark:from-amber-950/60 dark:via-ink-900 dark:to-amber-950/30 dark:text-amber-100"
+            >
+              <div className="[transform:rotateX(2deg)]">
+                <p className="text-sm font-bold">Set a payment due date</p>
+                <p className="mt-1 text-xs leading-relaxed">
+                  The due date currently matches the sale date. Choose a later date for the remaining credit balance.
+                </p>
+                <label className="mt-3 block text-xs font-semibold">
+                  Payment due date
+                  <input
+                    type="date"
+                    min={saleDate ? addDaysToIsoDate(saleDate, 1) : undefined}
+                    value={dueDate}
+                    onChange={(event) => setDueDate(event.target.value)}
+                    className="mt-1 h-9 w-full rounded-md border border-amber-300 bg-white px-2 text-sm text-ink-900 shadow-inner dark:border-amber-700 dark:bg-ink-950 dark:text-white"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
           {([["cash", "Cash", Banknote], ["card", "Card", CreditCard], ["momo", "MoMo", Smartphone]] as const).map(([key, label, Icon]) => (
             <div key={key} className="flex items-center gap-2">
               <Icon className="h-4 w-4 shrink-0 text-ledger-400" />
@@ -1440,12 +1549,33 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
               {mobileMoneyAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
             </select>
           )}
+          {multiPay.card > 0 && (
+            <select value={cardAccountId} onChange={(event) => setCardAccountId(event.target.value)} className="h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+              <option value="">Select card settlement account...</option>
+              {cardAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+          )}
+          {multiPay.card > 0 && !cardAccounts.length && (
+            <p className="rounded-md bg-alert-soft p-3 text-xs text-alert">Create a checking, savings, or other bank account in Banking before recording card payments.</p>
+          )}
           <div className="flex items-center justify-between border-t border-ledger-100 pt-2 text-sm dark:border-ledger-700">
             <span className="text-ledger-500">Credit balance</span>
             <span className={cn("font-semibold", multiPayTotal <= total + 0.01 ? "text-signal" : "text-alert")}>{formatCurrency(Math.max(0, total - multiPayTotal), currency)}</span>
           </div>
-          <Button variant="primary" className="w-full" disabled={multiPayTotal <= 0 || multiPayTotal > total + 0.01 || isPending} onClick={handleMultiPayConfirm}>
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />} Confirm Payment
+          <Button
+            variant="primary"
+            className={cn(
+              "w-full",
+              multiPayConfirmDisabled
+                ? "!bg-alert-soft !text-alert disabled:!opacity-100"
+                : multiPayIsExact
+                  ? "!bg-signal !text-white hover:!bg-signal/90"
+                  : "!bg-blue-600 !text-white hover:!bg-blue-700"
+            )}
+            disabled={multiPayConfirmDisabled}
+            onClick={handleMultiPayConfirm}
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />} {multiPayMode === "partial" ? "Confirm Partial Payment" : "Confirm Payment"}
           </Button>
         </div>
       </Dialog>

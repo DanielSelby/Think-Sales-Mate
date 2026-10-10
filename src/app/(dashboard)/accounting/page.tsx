@@ -12,6 +12,7 @@ import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import type { CurrencyConfig } from "@/lib/currency";
 import { isTabVisible, loadPermissionMatrix } from "@/lib/rbac/permissions";
 import { calculateCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
+import { can } from "@/lib/rbac";
 
 export const metadata = {
   title: "Accounting & Financial Management",
@@ -41,7 +42,8 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   let liveJournalEntries: JournalEntry[] = [];
   let liveTaxSummary: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number } | undefined;
   let liveBankAccounts: import("@/types/accounting").BankAccountItem[] = [];
-  let liveBankTransactions: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]> = {};
+  let liveBankTransactions: Record<string, import("@/types/accounting").BankStatementTransaction[]> = {};
+  let liveBookTransactions: Record<string, import("@/types/accounting").BankBookTransaction[]> = {};
   let liveFixedAssets: import("@/types/accounting").FixedAsset[] = [];
   let liveAccountingSettings: Parameters<typeof AccountingDashboard>[0]["liveAccountingSettings"];
   let liveTaxRates: import("@/types/accounting").TaxRateConfig[] = [];
@@ -52,6 +54,9 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     const permissionMatrix = await loadPermissionMatrix(context.orgId, context.role, context.accessPermissions);
     if (context.role !== "owner") {
       visibleAccountingTabs = visibleAccountingTabs.filter((tab) => isTabVisible(permissionMatrix, "accounting", "accounting", tab));
+    }
+    if (can(context.role, "banking.view")) {
+      visibleAccountingTabs.push("banking");
     }
     const requestedTab = (await searchParams)?.tab;
     if (requestedTab && !visibleAccountingTabs.includes(requestedTab)) {
@@ -65,9 +70,10 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       accountingDb.from("accounting_accounts").select("id, code, name, type, sub_type, parent_id, location_id, currency, current_balance, is_active, description").eq("org_id", context.orgId).order("code"),
       accountingDb.from("journal_entries").select("id, entry_number, entry_date, location_id, reference, description, status, total_debit, total_credit, source_module, source_id, is_auto, posted_by, posted_at, journal_entry_lines(id, account_id, description, debit, credit)").eq("org_id", context.orgId).order("entry_date", { ascending: false }).limit(500),
     ]);
-    const [{ data: bankRows }, { data: transactionRows }] = await Promise.all([
+    const [{ data: bankRows }, { data: transactionRows }, { data: bookTransactionRows }] = await Promise.all([
       accountingDb.from("bank_accounts").select("id, name, account_type, opening_balance, current_balance").eq("org_id", context.orgId).order("name"),
-      accountingDb.from("bank_statement_transactions").select("id, bank_account_id, transaction_date, reference, description, amount, type, matched").eq("org_id", context.orgId).order("transaction_date", { ascending: false }),
+      accountingDb.from("bank_statement_transactions").select("id, bank_account_id, transaction_date, reference, description, amount, type, matched, matched_transaction_id").eq("org_id", context.orgId).order("transaction_date", { ascending: false }),
+      accountingDb.from("bank_transactions").select("id, account_id, transaction_date, type, amount, description").eq("org_id", context.orgId).order("transaction_date", { ascending: false }),
     ]);
     const [{ data: fixedAssetRows }, { data: settingsRow }, { data: taxRateRows }, { data: taxFilingRows }] = await Promise.all([
       accountingDb.from("fixed_assets_register").select("*").eq("org_id", context.orgId).order("asset_name"),
@@ -121,8 +127,28 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     }));
     for (const transaction of transactionRows ?? []) {
       const list = liveBankTransactions[transaction.bank_account_id] ?? [];
-      list.push({ id: transaction.id, date: transaction.transaction_date, reference: transaction.reference ?? "", description: transaction.description ?? "", amount: Number(transaction.amount ?? 0), type: transaction.type, matched: Boolean(transaction.matched) });
+      list.push({
+        id: transaction.id,
+        date: transaction.transaction_date,
+        reference: transaction.reference ?? "",
+        description: transaction.description ?? "",
+        amount: Number(transaction.amount ?? 0),
+        type: transaction.type,
+        matched: Boolean(transaction.matched && transaction.matched_transaction_id),
+        matchedTransactionId: transaction.matched_transaction_id ?? undefined,
+      });
       liveBankTransactions[transaction.bank_account_id] = list;
+    }
+    for (const transaction of bookTransactionRows ?? []) {
+      const list = liveBookTransactions[transaction.account_id] ?? [];
+      list.push({
+        id: transaction.id,
+        date: transaction.transaction_date,
+        description: transaction.description ?? "",
+        amount: Number(transaction.amount ?? 0),
+        type: transaction.type,
+      });
+      liveBookTransactions[transaction.account_id] = list;
     }
     if (accountsError) console.error("Failed to load accounting accounts:", accountsError);
     if (journalsError) console.error("Failed to load accounting journal entries:", journalsError);
@@ -344,7 +370,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
+      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveBookTransactions={liveBookTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
     </Suspense>
   );
 }

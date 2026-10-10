@@ -55,6 +55,32 @@ describe("invoice print formats", () => {
     expect(html).not.toContain("<th>SKU</th>");
     expect(html).not.toContain("SKU-1");
     expect(html).not.toContain("ThinkSales ERP");
+    expect(html).toContain('<div class="recipient-label">Customer</div>');
+    expect(html).toContain('<div class="totals-row paid"><span>Amount Paid</span>');
+    expect(html).toContain(".totals-row.paid,.totals-row.paid strong { color: #15803d; }");
+    expect(html).not.toContain('class="due-card balance-due"');
+  });
+
+  it("highlights only an outstanding customer balance in red", () => {
+    const unpaid = buildInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "think-sales",
+      amountPaid: 8,
+      total: 20,
+    });
+    expect(unpaid).toContain('class="due-card balance-due"');
+    expect(unpaid).toContain("<span>Customer Balance</span>");
+    expect(unpaid).toContain("12.00");
+    expect(unpaid).toContain(".due-card.balance-due,.due-card.balance-due strong { color: #b91c1c; }");
+
+    const thermal = buildInvoiceHtml({ ...invoice, amountPaid: 8, total: 20, printFormat: "thermal-80mm" });
+    expect(thermal).toContain('<div class="totals-row balance-due"><span>Customer balance</span>');
+    expect(thermal).toContain("body.thermal .totals-row.balance-due { color: #b91c1c; }");
+    expect(thermal).toContain("body.thermal .totals-row.paid, body.thermal .totals-row.paid > :last-child { color: #15803d; }");
+
+    const paid = buildInvoiceHtml({ ...invoice, invoiceTemplate: "think-sales" });
+    expect(paid).not.toContain("Customer Balance");
+    expect(paid).toContain('<div class="due-card"><div><span>Payment Due</span>');
   });
 
   it("renders organization invoice copy, terms, cashier, and separated totals", () => {
@@ -97,6 +123,10 @@ describe("invoice print formats", () => {
     expect(branchName).toBeGreaterThan(branchDetails);
     expect(branchPhone).toBeGreaterThan(branchName);
     expect(branchPhone).toBeLessThan(paidHtml.indexOf("<div class=\"organization-contact\">"));
+    expect(paidHtml).toContain(".brand-caption { margin-top: 6px;");
+    expect(paidHtml).toContain(".branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 19px; padding: 8px 10px;");
+    expect(paidHtml).toContain('<span class="branch-phone-icon" aria-hidden="true">☎</span>');
+    expect(paidHtml).toContain(".branch-phone { display: inline-flex; align-items: center; gap: 4px; font-size: 11px;");
     expect(paidHtml.slice(dueDate, dueDate + 100)).toContain("Paid in full");
 
     const unpaidHtml = buildInvoiceHtml({

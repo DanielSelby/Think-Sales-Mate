@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useTransition } from "react";
+import { useState, useMemo, useRef, useEffect, useTransition, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -206,11 +206,20 @@ export function StockTransferForm({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
   const rowIdRef = useRef(0);
+  const uniqueProductTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearUniqueProductTimer = useCallback(() => {
+    if (uniqueProductTimerRef.current) {
+      clearTimeout(uniqueProductTimerRef.current);
+      uniqueProductTimerRef.current = null;
+    }
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        clearUniqueProductTimer();
         setShowProductDropdown(false);
       }
       if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
@@ -219,7 +228,9 @@ export function StockTransferForm({
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [clearUniqueProductTimer]);
+
+  useEffect(() => () => clearUniqueProductTimer(), [clearUniqueProductTimer]);
 
   // ── REAL Stock Level Lookup directly from database props ─────────────────
   function getStockQty(productId: string, locationId: string): number {
@@ -296,6 +307,7 @@ export function StockTransferForm({
 
   // Add real product to transfer list
   const handleAddProduct = (product: TransferableProduct) => {
+    clearUniqueProductTimer();
     const existingIndex = items.findIndex((i) => i.productId === product.id);
     if (existingIndex >= 0) {
       setItems((prev) =>
@@ -897,8 +909,25 @@ export function StockTransferForm({
                     placeholder="Search product by name, SKU or scan barcode..."
                     value={searchQuery}
                     onChange={(e) => {
-                      setSearchQuery(e.target.value);
+                      const value = e.target.value;
+                      setSearchQuery(value);
                       setShowProductDropdown(true);
+                      clearUniqueProductTimer();
+
+                      const query = value.trim().toLowerCase();
+                      if (query.length < 2) return;
+                      const matches = sourceProducts.filter((product) =>
+                        product.name.toLowerCase().includes(query)
+                        || product.sku.toLowerCase().includes(query)
+                        || Boolean(product.barcode?.toLowerCase().includes(query))
+                      );
+                      if (matches.length === 1) {
+                        const [product] = matches;
+                        uniqueProductTimerRef.current = setTimeout(() => {
+                          uniqueProductTimerRef.current = null;
+                          handleAddProduct(product);
+                        }, 500);
+                      }
                     }}
                     onFocus={() => setShowProductDropdown(true)}
                     className="stock-transfer-search-input h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-xs font-medium text-ink-900 placeholder:text-ledger-400 shadow-xs focus:border-emerald-600 focus:outline-hidden dark:border-slate-600 dark:bg-[#0b0f19] dark:text-white"

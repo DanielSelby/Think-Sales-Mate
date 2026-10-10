@@ -12,6 +12,7 @@ import { dispatchAutomatedCustomerMessage } from "@/lib/communication/automation
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { checkCustomerCreditLimit } from "@/lib/sales/customer-outstanding";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
+import { recordPosCardDeposits, validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -372,6 +373,7 @@ export interface RecordSaleResult {
   saleId?:    string;
   saleNumber?: number;
   error?:     string;
+  warning?:   string;
 }
 
 export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
@@ -429,6 +431,23 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
     );
     if (!creditCheck.allowed) return { ok: false, error: creditCheck.error };
   }
+  const allocations = input.paymentAllocations ?? [];
+  if (allocations.some((allocation) =>
+    !allocation.paymentMethod.trim() || !Number.isFinite(allocation.amount) || allocation.amount <= 0
+  )) {
+    return { ok: false, error: "Enter valid payment methods and positive payment amounts." };
+  }
+  if (allocations.length) {
+    const amountPaid = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+    if (amountPaid > input.total + 0.005 || Math.abs(amountPaid - Number(input.amountPaid ?? 0)) > 0.01) {
+      return { ok: false, error: "Payment allocations must match the amount paid and cannot exceed the sale total." };
+    }
+    if (amountPaid < input.total - 0.005 && !input.customerId) {
+      return { ok: false, error: "Select a customer before recording a payment with a credit balance." };
+    }
+  }
+  const paymentAccountError = await validatePosPaymentAccounts(context.orgId, allocations);
+  if (paymentAccountError) return { ok: false, error: paymentAccountError };
   if (input.posRegisterSessionId) {
     if (!input.locationId) {
       return { ok: false, error: "Select a branch/location before processing the POS sale." };
@@ -497,9 +516,9 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
       throw new Error(saleError?.message ?? "Failed to create sale.");
     }
 
-    if (input.paymentAllocations?.length) {
+    if (allocations.length) {
       const { error: allocationsError } = await supabase.from("sale_payment_allocations").insert(
-        input.paymentAllocations.map((allocation) => ({
+        allocations.map((allocation) => ({
           org_id: input.orgId,
           sale_id: sale.id,
           payment_method: allocation.paymentMethod,
@@ -667,6 +686,22 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
       }
     }
 
+    let warning: string | undefined;
+    if ((input.documentStatus ?? "final") === "final") {
+      const cardDepositError = await recordPosCardDeposits({
+        orgId: context.orgId,
+        saleId: sale.id,
+        saleNumber: sale.sale_number,
+        transactionDate: input.saleDate ?? new Date().toISOString().slice(0, 10),
+        actorId: user.id,
+        allocations,
+      });
+      if (cardDepositError) {
+        console.error("Sale completed, but the card settlement account was not updated:", cardDepositError);
+        warning = `Sale completed, but the card payment could not be deposited to the selected account: ${cardDepositError}`;
+      }
+    }
+
     revalidatePath("/sales");
     revalidatePath("/inventory");
     if (input.offlineOperationId) {
@@ -681,7 +716,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
         throw new Error(`Sale was created but its offline sync completion could not be recorded: ${completionError.message}`);
       }
     }
-    return { ok: true, saleId: sale.id, saleNumber: sale.sale_number };
+    return { ok: true, saleId: sale.id, saleNumber: sale.sale_number, ...(warning ? { warning } : {}) };
 
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };

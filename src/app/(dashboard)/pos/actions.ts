@@ -12,6 +12,7 @@ import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import { canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
 import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
+import { recordPosCardDeposits, validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
 import type { SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import type { HeldSaleKind } from "@/types/database";
 
@@ -1140,6 +1141,7 @@ export interface CompleteSaleInput {
 export interface CompleteSaleResult {
   ok: boolean;
   error?: string;
+  warning?: string;
   saleId?: string;
 }
 
@@ -1268,6 +1270,8 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
       return { ok: false, error: "Select a customer before recording a payment with a credit balance." };
     }
   }
+  const paymentAccountError = await validatePosPaymentAccounts(context.orgId, allocations);
+  if (paymentAccountError) return { ok: false, error: paymentAccountError };
   const creditCheck = await checkCustomerCreditLimit(
     supabase,
     context.orgId,
@@ -1454,6 +1458,23 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
         : `Sale saved, but stock update failed for one item: ${rpcError.message}`;
       return { ok: false, error: friendly, saleId: sale.id };
     }
+  }
+
+  const cardDepositError = await recordPosCardDeposits({
+    orgId: context.orgId,
+    saleId: sale.id,
+    saleNumber: sale.sale_number,
+    transactionDate: saleDate,
+    actorId: user.id,
+    allocations,
+  });
+  if (cardDepositError) {
+    console.error("POS sale completed, but the card settlement account was not updated:", cardDepositError);
+    return {
+      ok: true,
+      saleId: sale.id,
+      warning: `Sale completed, but the card payment could not be deposited to the selected account: ${cardDepositError}`,
+    };
   }
 
   revalidatePath("/pos");

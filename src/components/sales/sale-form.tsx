@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -58,6 +58,7 @@ export interface SellableProduct {
   id: string;
   locationId: string | null;
   sku: string;
+  barcode?: string | null;
   name: string;
   unitPrice: number;
   wholesalePrice: number | null;
@@ -277,6 +278,10 @@ export function SaleForm({
   // Products
   const [search, setSearch] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const uniqueProductSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (uniqueProductSearchTimer.current) clearTimeout(uniqueProductSearchTimer.current);
+  }, []);
   const [stockFilter, setStockFilter] = useState<"all" | "available">("all");
   const [lines, setLines] = useState<LineItem[]>(() => createInitialSaleLines(initialSale));
   const smartLocator = useSmartProductLocator(lines);
@@ -353,7 +358,7 @@ export function SaleForm({
     const q = search.trim().toLowerCase();
     return locationProducts.filter((p) => {
       if (stockFilter === "available" && p.stockQuantity <= 0) return false;
-      return !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+      return !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.barcode ?? "").toLowerCase().includes(q);
     });
   }, [locationProducts, search, stockFilter]);
   const hasOnlyUnavailableMatches = Boolean(search.trim())
@@ -405,6 +410,41 @@ export function SaleForm({
       return;
     }
     setLines((prev) => [...prev, { key: crypto.randomUUID(), productId, quantity: 1, discountPercent: 0, taxPercent: 0 }]);
+  }
+
+  function clearUniqueProductSearchTimer() {
+    if (uniqueProductSearchTimer.current) {
+      clearTimeout(uniqueProductSearchTimer.current);
+      uniqueProductSearchTimer.current = null;
+    }
+  }
+
+  function handleProductSearchChange(value: string) {
+    setSearch(value);
+    setSearchDropdownOpen(true);
+    clearUniqueProductSearchTimer();
+
+    const q = value.trim().toLowerCase();
+    if (q.length < 2) return;
+    const matches = locationProducts.filter((product) =>
+      (stockFilter !== "available" || product.stockQuantity > 0)
+      && (
+        product.name.toLowerCase().includes(q)
+        || product.sku.toLowerCase().includes(q)
+        || (product.barcode ?? "").toLowerCase().includes(q)
+      )
+    );
+    if (matches.length !== 1) return;
+
+    const product = matches[0];
+    if (lines.some((line) => line.productId === product.id)) return;
+    if (!product.allowNegativeStock && product.stockQuantity <= 0) return;
+    uniqueProductSearchTimer.current = setTimeout(() => {
+      uniqueProductSearchTimer.current = null;
+      addProduct(product.id);
+      setSearch("");
+      setSearchDropdownOpen(false);
+    }, 500);
   }
 
   // A blank row the user fills in via that row's own inline Product cell —
@@ -1187,7 +1227,7 @@ export function SaleForm({
                 <input
                   ref={searchRef}
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setSearchDropdownOpen(true); }}
+                  onChange={(e) => handleProductSearchChange(e.target.value)}
                   onFocus={() => {
                     setSearchDropdownOpen(true);
                     const bounds = searchRef.current?.getBoundingClientRect();
@@ -1195,7 +1235,10 @@ export function SaleForm({
                       searchRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
                     }
                   }}
-                  onBlur={() => setTimeout(() => setSearchDropdownOpen(false), 150)}
+                  onBlur={() => {
+                    clearUniqueProductSearchTimer();
+                    setTimeout(() => setSearchDropdownOpen(false), 150);
+                  }}
                   placeholder="Enter Product name / SKU / Scan bar code"
                   className="h-11 w-full rounded-md border pl-9 pr-3 text-sm font-medium outline-none"
                   style={{ background: theme.colors.primaryPale, borderColor: `${theme.colors.primary}4D`, color: theme.colors.primary }}
@@ -1214,7 +1257,7 @@ export function SaleForm({
                           type="button"
                           disabled={alreadyAdded}
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { addProduct(p.id); setSearch(""); setSearchDropdownOpen(false); }}
+                          onClick={() => { clearUniqueProductSearchTimer(); addProduct(p.id); setSearch(""); setSearchDropdownOpen(false); }}
                           className={cn(
                             "flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-white/[0.06]",
                             unavailable && "bg-red-50/60 text-ledger-400 dark:bg-red-950/20"

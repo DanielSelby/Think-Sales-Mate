@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import {
   Landmark,
   Upload,
@@ -17,10 +17,15 @@ import {
 import * as XLSX from "xlsx";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { formatCurrencyAmount } from "@/lib/currency";
-import { autoMatchBankStatement, finalizeBankReconciliation, importBankStatement, toggleBankStatementMatch } from "@/app/(dashboard)/accounting/actions";
+import { autoMatchBankStatement, finalizeBankReconciliation, importBankStatement, matchBankStatementTransaction } from "@/app/(dashboard)/accounting/actions";
 import { useRouter } from "next/navigation";
+import type { BankBookTransaction, BankStatementTransaction } from "@/types/accounting";
 
-export function BankReconciliationTab({ initialBankAccounts = [], initialBankTransactions = {} }: { initialBankAccounts?: import("@/types/accounting").BankAccountItem[]; initialBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]> }) {
+export function BankReconciliationTab({ initialBankAccounts = [], initialBankTransactions = {}, initialBookTransactions = {} }: {
+  initialBankAccounts?: import("@/types/accounting").BankAccountItem[];
+  initialBankTransactions?: Record<string, BankStatementTransaction[]>;
+  initialBookTransactions?: Record<string, BankBookTransaction[]>;
+}) {
   const {
     currentCurrency,
     currencyConfig,
@@ -29,37 +34,62 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
   const router = useRouter();
   const bankAccounts = initialBankAccounts;
   const bankTransactions = initialBankTransactions;
+  const bookTransactionsByAccount = initialBookTransactions;
 
-  const [selectedAccountId, setSelectedAccountId] = useState(bankAccounts[1]?.id || bankAccounts[0]?.id || "");
+  const [selectedAccountId, setSelectedAccountId] = useState(bankAccounts[0]?.id || "");
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [statementBalanceInput, setStatementBalanceInput] = useState<string>("");
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [isMatching, startMatching] = useTransition();
 
   const currentAccount = bankAccounts.find((b) => b.id === selectedAccountId) || bankAccounts[0];
   const transactions = (currentAccount && bankTransactions[currentAccount.id]) || [];
+  const bookTransactions = (currentAccount && bookTransactionsByAccount[currentAccount.id]) || [];
+  const matchedBookTransactionIds = new Set(transactions.map((transaction) => transaction.matchedTransactionId).filter((id): id is string => Boolean(id)));
+  const unmatchedBookTransactions = bookTransactions.filter((transaction) => !matchedBookTransactionIds.has(transaction.id));
 
   const matchedCount = transactions.filter((t) => t.matched).length;
-  const difference = currentAccount ? Math.abs(currentAccount.statementBalance - currentAccount.bookBalance) : 0;
+  const statementBalance = statementBalanceInput.trim() ? Number(statementBalanceInput) : null;
+  const difference = currentAccount && statementBalance !== null && Number.isFinite(statementBalance)
+    ? Math.abs(statementBalance - currentAccount.bookBalance)
+    : null;
+
+  const handleMatchChange = (statementTransactionId: string, bookTransactionId: string | null) => {
+    startMatching(async () => {
+      const result = await matchBankStatementTransaction(statementTransactionId, bookTransactionId);
+      if (!result.ok) {
+        setFeedbackMsg({ text: result.error ?? "Could not update the transaction match.", type: "error" });
+        return;
+      }
+      setFeedbackMsg({ text: bookTransactionId ? "Statement line matched to the book transaction." : "Statement line marked unmatched.", type: "success" });
+      router.refresh();
+    });
+  };
 
   const handleAutoReconcile = async () => {
     if (!currentAccount) return;
-    const result = await autoMatchBankStatement(currentAccount.id);
-    if (!result.ok) {
-      setFeedbackMsg({ text: result.error ?? "Auto-reconciliation failed.", type: "error" });
-      return;
-    }
-    const matches = result.matched ?? 0;
-    setFeedbackMsg({
-      text: `Auto-reconciliation complete: ${matches} transactions successfully matched against general ledger.`,
-      type: "success",
+    startMatching(async () => {
+      const result = await autoMatchBankStatement(currentAccount.id);
+      if (!result.ok) {
+        setFeedbackMsg({ text: result.error ?? "Auto-reconciliation failed.", type: "error" });
+        return;
+      }
+      const matches = result.matched ?? 0;
+      setFeedbackMsg({
+        text: `Auto-reconciliation complete: ${matches} transactions matched to book records by date, type, and amount.`,
+        type: "success",
+      });
+      router.refresh();
+      setTimeout(() => setFeedbackMsg(null), 4000);
     });
-    router.refresh();
-    setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
   const handleFinalize = async () => {
     if (!currentAccount) return;
-    const statementBalance = Number(statementBalanceInput || currentAccount.statementBalance);
+    if (statementBalance === null || !Number.isFinite(statementBalance)) {
+      setFeedbackMsg({ text: "Enter the ending balance from the bank statement before finalizing.", type: "error" });
+      return;
+    }
     const result = await finalizeBankReconciliation({ accountId: currentAccount.id, statementBalance });
     if (!result.ok) {
       setFeedbackMsg({ text: result.error ?? "Finalization failed.", type: "error" });
@@ -78,9 +108,13 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
     if (!file || !currentAccount) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
+        if (typeof bstr !== "string") {
+          setFeedbackMsg({ text: "The selected statement file could not be read.", type: "error" });
+          return;
+        }
         const wb = XLSX.read(bstr, { type: "binary" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
@@ -97,18 +131,14 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
               : "deposit") as "deposit" | "withdrawal",
           }));
 
-          void importBankStatement({ accountId: currentAccount.id, transactions: formatted }).then((result) => {
-            if (!result.ok) {
-              setFeedbackMsg({ text: result.error ?? "Statement import failed.", type: "error" });
-              return;
-            }
-            router.refresh();
-          });
+          const result = await importBankStatement({ accountId: currentAccount.id, transactions: formatted });
+          if (!result.ok) {
+            setFeedbackMsg({ text: result.error ?? "Statement import failed.", type: "error" });
+            return;
+          }
           setIsImportModalOpen(false);
-          setFeedbackMsg({
-            text: `Successfully imported ${formatted.length} statement rows into ${currentAccount.name}.`,
-            type: "success",
-          });
+          setFeedbackMsg({ text: `Successfully imported ${result.imported ?? formatted.length} statement rows into ${currentAccount.name}.`, type: "success" });
+          router.refresh();
           setTimeout(() => setFeedbackMsg(null), 4000);
         }
       } catch (err) {
@@ -126,7 +156,11 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
           <label className="text-xs font-semibold text-slate-500">Bank Account:</label>
           <select
             value={selectedAccountId}
-            onChange={(e) => setSelectedAccountId(e.target.value)}
+            onChange={(e) => {
+              setSelectedAccountId(e.target.value);
+              setStatementBalanceInput("");
+              setFeedbackMsg(null);
+            }}
             className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 outline-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
           >
             {bankAccounts.map((b) => (
@@ -138,21 +172,36 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
         </div>
 
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
+            Statement ending balance
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={statementBalanceInput}
+              onChange={(event) => setStatementBalanceInput(event.target.value)}
+              placeholder="Enter ending balance"
+              aria-label={`Statement ending balance in ${currentCurrency}`}
+              className="w-32 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </label>
           <button
+            disabled={!currentAccount}
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
             <Upload className="h-3.5 w-3.5 text-slate-500" /> Import Statement
           </button>
           <button
+            disabled={!currentAccount || isMatching}
             onClick={handleAutoReconcile}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
           >
-            <Sparkles className="h-3.5 w-3.5" /> Auto Reconciliation
+            <Sparkles className="h-3.5 w-3.5" /> {isMatching ? "Matching…" : "Auto Reconciliation"}
           </button>
           <button
             onClick={handleFinalize}
-            disabled={difference > 0}
+            disabled={!currentAccount || difference === null || difference > 0.01 || transactions.some((transaction) => !transaction.matched)}
             className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
           >
             <CheckCircle2 className="h-3.5 w-3.5" /> Finalize Reconciliation
@@ -184,7 +233,9 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
               <div>
                 <p className="text-xs text-slate-400">Bank Statement Balance</p>
                 <p className="font-display text-lg font-bold text-slate-900 dark:text-white">
-                  {formatCurrencyAmount(currentAccount.statementBalance, currencyConfig)}
+                  {statementBalance !== null && Number.isFinite(statementBalance)
+                    ? formatCurrencyAmount(statementBalance, currencyConfig)
+                    : "Enter statement balance"}
                 </p>
               </div>
             </div>
@@ -212,26 +263,26 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
             <div className="flex items-center gap-3">
               <div
                 className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                  difference === 0
+                  difference !== null && difference <= 0.01
                     ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950"
                     : "bg-rose-50 text-rose-600 dark:bg-rose-950"
                 }`}
               >
-                {difference === 0 ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+                {difference !== null && difference <= 0.01 ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
               </div>
               <div>
                 <p className="text-xs text-slate-400">Unreconciled Difference</p>
                 <p
                   className={`font-display text-lg font-bold ${
-                    difference === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600"
+                    difference === null ? "text-slate-400" : difference <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600"
                   }`}
                 >
-                  {formatCurrencyAmount(difference, currencyConfig)}
+                  {difference === null ? "—" : formatCurrencyAmount(difference, currencyConfig)}
                 </p>
               </div>
             </div>
             <p className="mt-2 text-[11px] text-slate-400">
-              {difference === 0 ? "Perfect match — zero discrepancy" : "Discrepancy requires matching"}
+              {difference === null ? "Enter the statement ending balance" : difference <= 0.01 ? "Statement and book balances agree" : "Statement and book balances differ"}
             </p>
           </div>
 
@@ -244,25 +295,25 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
               <div>
                 <p className="text-xs text-slate-400">Status & Progress</p>
                 <p className="font-display text-base font-bold text-slate-900 dark:text-white capitalize">
-                  {currentAccount.status.replace("_", " ")}
+                  {transactions.length > 0 && matchedCount === transactions.length ? "fully matched" : "in progress"}
                 </p>
               </div>
             </div>
             <p className="mt-2 text-[11px] text-slate-400">
-              {matchedCount} of {transactions.length} items verified
+              {matchedCount} of {transactions.length} statement lines matched
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Transaction Matching Grid ── */}
+      {/* Imported bank statement transactions are compared with separately recorded book transactions. */}
       <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-3 dark:border-slate-800 dark:bg-slate-800/50">
           <div>
             <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
               Bank Statement Lines vs Ledger Entries
             </h3>
-            <p className="text-xs text-slate-500">Check off matched transactions or click Auto-Reconciliation</p>
+            <p className="text-xs text-slate-500">Match each imported statement line to its corresponding Think Shika transaction.</p>
           </div>
           <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
             {matchedCount} Reconciled
@@ -273,38 +324,25 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-white text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:bg-slate-900">
-                <th className="px-4 py-3 text-center">Match</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Reference</th>
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3 text-center">Type</th>
                 <th className="px-4 py-3 text-right">Amount ({currentCurrency})</th>
-                <th className="px-4 py-3 text-center">Verification Status</th>
+                <th className="px-4 py-3">Matched book transaction</th>
+                <th className="px-4 py-3 text-center">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {transactions.map((tx) => (
-                <tr
-                  key={tx.id}
-                  onClick={() => void toggleBankStatementMatch(tx.id, !tx.matched).then((result) => {
-                    if (!result.ok) setFeedbackMsg({ text: result.error ?? "Could not update match status.", type: "error" });
-                    else router.refresh();
-                  })}
-                  className={`cursor-pointer transition-colors ${
-                    tx.matched ? "bg-emerald-50/20 hover:bg-emerald-50/40" : "hover:bg-slate-50/70"
-                  }`}
-                >
-                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={tx.matched}
-                      onChange={() => void toggleBankStatementMatch(tx.id, !tx.matched).then((result) => {
-                        if (!result.ok) setFeedbackMsg({ text: result.error ?? "Could not update match status.", type: "error" });
-                        else router.refresh();
-                      })}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                  </td>
+              {transactions.map((tx) => {
+                const linkedTransaction = bookTransactions.find((transaction) => transaction.id === tx.matchedTransactionId);
+                const availableBookTransactions = bookTransactions.filter((transaction) =>
+                  !matchedBookTransactionIds.has(transaction.id)
+                    && transaction.type === tx.type
+                    && Math.abs(transaction.amount - tx.amount) <= 0.005
+                );
+                return (
+                <tr key={tx.id} className={tx.matched ? "bg-emerald-50/20" : "hover:bg-slate-50/70"}>
                   <td className="px-4 py-3 text-slate-500">{tx.date}</td>
                   <td className="px-4 py-3 font-mono font-medium text-slate-800 dark:text-slate-200">
                     {tx.reference}
@@ -325,6 +363,43 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
                   <td className="px-4 py-3 text-right font-display font-semibold text-slate-900 dark:text-white">
                     {formatCurrencyAmount(tx.amount, currencyConfig)}
                   </td>
+                  <td className="min-w-64 px-4 py-3">
+                    {linkedTransaction ? (
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-slate-800 dark:text-slate-100">{linkedTransaction.description || (linkedTransaction.type === "deposit" ? "Deposit" : "Withdrawal")}</span>
+                          <span className="mt-0.5 block text-[10px] text-slate-500">{linkedTransaction.date} · {formatCurrencyAmount(linkedTransaction.amount, currencyConfig)}</span>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={isMatching}
+                          onClick={() => handleMatchChange(tx.id, null)}
+                          className="shrink-0 text-[10px] font-semibold text-rose-600 hover:underline disabled:opacity-50"
+                        >
+                          Unmatch
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        value=""
+                        disabled={isMatching || availableBookTransactions.length === 0}
+                        onChange={(event) => {
+                          if (event.target.value) handleMatchChange(tx.id, event.target.value);
+                        }}
+                        aria-label={`Select a book transaction matching ${tx.description || tx.reference || tx.date}`}
+                        className="w-full min-w-56 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-700 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        <option value="">
+                          {availableBookTransactions.length ? "Select matching book transaction" : "No exact amount/type match"}
+                        </option>
+                        {availableBookTransactions.map((transaction) => (
+                          <option key={transaction.id} value={transaction.id}>
+                            {transaction.date} · {transaction.description || (transaction.type === "deposit" ? "Deposit" : "Withdrawal")} · {formatCurrencyAmount(transaction.amount, currencyConfig)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     {tx.matched ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
@@ -337,11 +412,55 @@ export function BankReconciliationTab({ initialBankAccounts = [], initialBankTra
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
+              {transactions.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">No statement lines imported for this account. Import a bank statement to begin matching.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+          <div>
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">Book transactions not matched to this statement</h3>
+            <p className="mt-1 text-xs text-slate-500">These are Think Shika account records not linked to an imported statement line. They may be timing differences.</p>
+          </div>
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+            {unmatchedBookTransactions.length} unmatched
+          </span>
+        </div>
+        {unmatchedBookTransactions.length === 0 ? (
+          <p className="px-5 py-8 text-center text-xs text-slate-500">All book transactions are matched to a statement line.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] text-left text-xs">
+              <thead className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:bg-slate-800/50">
+                <tr>
+                  <th className="px-5 py-3">Date</th>
+                  <th className="px-3 py-3">Description</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-5 py-3 text-right">Book amount</th>
+                  <th className="px-5 py-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {unmatchedBookTransactions.map((transaction) => (
+                  <tr key={transaction.id}>
+                    <td className="whitespace-nowrap px-5 py-3 text-slate-500">{transaction.date}</td>
+                    <td className="max-w-80 truncate px-3 py-3 font-medium text-slate-800 dark:text-slate-100">{transaction.description || (transaction.type === "deposit" ? "Deposit" : "Withdrawal")}</td>
+                    <td className="px-3 py-3 capitalize text-slate-600 dark:text-slate-300">{transaction.type}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-slate-900 dark:text-white">{formatCurrencyAmount(transaction.amount, currencyConfig)}</td>
+                    <td className="px-5 py-3 text-right text-amber-700 dark:text-amber-300">Not on statement</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {/* ── Import Bank Statement Modal ── */}
       {isImportModalOpen && (

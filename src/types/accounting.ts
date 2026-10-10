@@ -50,7 +50,7 @@ export interface BankAccountItem {
   name: string;
   accountNumber?: string;
   bankName: string;
-  type: "cash" | "checking" | "savings" | "mobile_money";
+  type: "cash" | "checking" | "savings" | "mobile_money" | "other";
   bookBalance: number;
   statementBalance: number;
   difference: number;
@@ -66,7 +66,15 @@ export interface BankStatementTransaction {
   amount: number;
   type: "deposit" | "withdrawal";
   matched: boolean;
-  matchedJournalId?: string;
+  matchedTransactionId?: string;
+}
+
+export interface BankBookTransaction {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  type: "deposit" | "withdrawal";
 }
 
 export interface AccountsReceivableItem {

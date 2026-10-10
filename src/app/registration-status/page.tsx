@@ -35,8 +35,16 @@ export default async function RegistrationStatusPage({
             <section key={application.organizationId} className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <div>
                 <h2 className="text-lg font-semibold">{application.organizationName}</h2>
-                <p className="mt-1 text-sm font-medium capitalize text-blue-700">
-                  {application.status === "pending" ? informationRequested ? "More information requested" : "Pending review" : application.status}
+                <p className={`mt-2 inline-flex rounded-xl border px-4 py-2 text-sm font-extrabold shadow-[0_4px_0_0_rgba(15,23,42,0.14),0_8px_16px_-8px_rgba(15,23,42,0.25),inset_0_1px_2px_rgba(255,255,255,0.8)] ${
+                  application.status === "pending"
+                    ? "border-amber-300 bg-gradient-to-b from-amber-100 to-amber-50 text-amber-950"
+                    : application.status === "rejected"
+                      ? "border-rose-300 bg-gradient-to-b from-rose-100 to-rose-50 text-rose-900"
+                      : "border-slate-300 bg-gradient-to-b from-slate-100 to-white text-slate-800"
+                }`}>
+                  {application.status === "pending"
+                    ? informationRequested ? "More information requested" : "Account Is Under Review - Pending Approval"
+                    : application.status}
                 </p>
               </div>
               {application.messages.map((entry) => (

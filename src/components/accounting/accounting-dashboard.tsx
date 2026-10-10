@@ -25,6 +25,7 @@ import { OverviewTab } from "./overview-tab";
 import { ChartOfAccountsTab } from "./chart-of-accounts-tab";
 import { JournalEntriesTab } from "./journal-entries-tab";
 import { BankReconciliationTab } from "./bank-reconciliation-tab";
+import { BankAccountsTab } from "./bank-accounts-tab";
 import { CustomerCreditWorkspace } from "./customer-credit-workspace";
 import { AccountsPayableTab } from "./accounts-payable-tab";
 import { FixedAssetsTab } from "./fixed-assets-tab";
@@ -44,6 +45,7 @@ const TABS = [
   { key: "coa", label: "Chart of Accounts", icon: FolderTree },
   { key: "journal", label: "Journal Entries", icon: FileEdit },
   { key: "reconciliation", label: "Bank Reconciliation", icon: Landmark },
+  { key: "banking", label: "Bank Accounts", icon: Landmark },
   { key: "receivables", label: "Accounts Receivable", icon: Receipt },
   { key: "payables", label: "Accounts Payable", icon: ShoppingBag },
   { key: "fixed_assets", label: "Fixed Assets", icon: Package },
@@ -52,7 +54,7 @@ const TABS = [
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
-export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {}, initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig }: { orgName: string; visibleTabKeys?: string[]; initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number>; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, { id: string; date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal"; matched: boolean }[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig }) {
+export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {}, initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveBookTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig }: { orgName: string; visibleTabKeys?: string[]; initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number>; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, import("@/types/accounting").BankStatementTransaction[]>; liveBookTransactions?: Record<string, import("@/types/accounting").BankBookTransaction[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, setCurrencyConfig } = useAccountingStore();
@@ -273,7 +275,9 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
           />
         )}
 
-        {effectiveActiveTab === "reconciliation" && <BankReconciliationTab initialBankAccounts={liveBankAccounts} initialBankTransactions={liveBankTransactions} />}
+        {effectiveActiveTab === "reconciliation" && <BankReconciliationTab initialBankAccounts={liveBankAccounts} initialBankTransactions={liveBankTransactions} initialBookTransactions={liveBookTransactions} />}
+
+        {effectiveActiveTab === "banking" && <BankAccountsTab initialBankAccounts={liveBankAccounts} />}
 
         {effectiveActiveTab === "receivables" && <CustomerCreditWorkspace initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} />}
 

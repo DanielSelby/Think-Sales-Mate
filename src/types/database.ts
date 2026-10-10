@@ -3052,6 +3052,17 @@ export interface Database {
       };
     };
     Functions: {
+      transfer_bank_funds: {
+        Args: {
+          p_org_id: string;
+          p_source_account_id: string;
+          p_destination_account_id: string;
+          p_amount: number;
+          p_transaction_date: string;
+          p_description: string | null;
+        };
+        Returns: undefined;
+      };
       submit_branch_product_return: {
         Args: {
           p_org_id: string;

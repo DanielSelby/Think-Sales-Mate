@@ -46,6 +46,33 @@
         animation: float 2.8s ease-in-out infinite;
       }
       .orb svg { width: 38px; height: 38px; }
+      .signal { transform-origin: center; }
+      .signal-wave { animation: signal-drop 1.8s ease-in-out infinite; }
+      .signal-wave:nth-of-type(2) { animation-delay: 0.18s; }
+      .signal-wave:nth-of-type(3) { animation-delay: 0.36s; }
+      .signal-slash { animation: slash-flash 1.8s ease-in-out infinite; }
+      .connection-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding: 7px 11px;
+        border: 1px solid rgb(248 113 113 / 35%);
+        border-radius: 999px;
+        color: #fecaca;
+        background: rgb(127 29 29 / 22%);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #fb7185;
+        box-shadow: 0 0 0 0 rgb(251 113 133 / 55%);
+        animation: status-pulse 1.5s ease-out infinite;
+      }
       h1 { margin: 12px 0 8px; font-size: 23px; }
       p { margin: 0; color: #cbd5e1; font-size: 14px; line-height: 1.6; }
       button {
@@ -65,8 +92,20 @@
         0%, 100% { transform: translateY(0) rotateX(18deg) rotateY(-18deg); }
         50% { transform: translateY(-10px) rotateX(24deg) rotateY(12deg); }
       }
+      @keyframes signal-drop {
+        0%, 100% { opacity: 0.85; }
+        50% { opacity: 0.18; }
+      }
+      @keyframes slash-flash {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.52; }
+      }
+      @keyframes status-pulse {
+        0% { box-shadow: 0 0 0 0 rgb(251 113 133 / 55%); }
+        70%, 100% { box-shadow: 0 0 0 7px rgb(251 113 133 / 0%); }
+      }
       @media (prefers-reduced-motion: reduce) {
-        .orb { animation: none; }
+        .orb, .signal-wave, .signal-slash, .status-dot { animation: none; }
       }
     </style>
   </head>
@@ -75,12 +114,18 @@
       <div class="scene" aria-hidden="true">
         <div class="orb">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 9.5a11 11 0 0 1 14 0M8 13a6.5 6.5 0 0 1 8 0M11 16.5a2 2 0 0 1 2 0M3 3l18 18" />
+            <g class="signal">
+              <path class="signal-wave" d="M5 9.5a11 11 0 0 1 14 0" />
+              <path class="signal-wave" d="M8 13a6.5 6.5 0 0 1 8 0" />
+              <path class="signal-wave" d="M11 16.5a2 2 0 0 1 2 0" />
+              <path class="signal-slash" d="M3 3l18 18" />
+            </g>
           </svg>
         </div>
       </div>
       <h1>You’re offline</h1>
-      <p>This page needs an internet connection. Your customer portal or Platform Admin page will be available again when you reconnect.</p>
+      <p>Your System Will be Restored When You Are Connected To The Internet, Check Your Internet Connection To Reconnect</p>
+      <div class="connection-status" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>No internet connection</div>
       <button type="button" onclick="window.location.reload()">Try again</button>
     </main>
     <script>
