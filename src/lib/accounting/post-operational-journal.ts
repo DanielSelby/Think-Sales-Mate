@@ -81,10 +81,14 @@ export async function resolveOperationalAccounts(
     const credit = payrollAccounts.find((account) => account.type === "liability")
       ?? accounts.find((account) => account.type === "liability" && /accounts payable|payroll payable|salary payable/i.test(account.name));
     if (!debit || !credit) {
+      const missingAccounts = [
+        !debit && "an active salary/payroll expense account",
+        !credit && "an active payroll payable or Accounts Payable liability account",
+      ].filter(Boolean);
       return {
         debitAccountId: debit?.id ?? null,
         creditAccountId: credit?.id ?? null,
-        error: "Automatic payroll journals need an active salary expense account and either a payroll payable or Accounts Payable liability account. Add or activate these in Accounting → Chart of Accounts.",
+        error: `Automatic payroll journals need ${missingAccounts.join(" and ")}. Add or activate the missing account${missingAccounts.length > 1 ? "s" : ""} in Accounting → Chart of Accounts.`,
       };
     }
     return { debitAccountId: debit.id, creditAccountId: credit.id, error: null };

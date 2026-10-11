@@ -19,6 +19,7 @@ import type { AccountsPayableItem } from "@/types/accounting";
 import type { BankAccountItem } from "@/types/accounting";
 import { recordPurchasePayment, schedulePurchasePayment } from "@/app/(dashboard)/purchases/actions";
 import { useRouter } from "next/navigation";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 interface AccountsPayableTabProps {
   initialPayables?: AccountsPayableItem[];
@@ -47,6 +48,7 @@ export function AccountsPayableTab({ initialPayables, initialBankAccounts = [], 
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentBankId, setPaymentBankId] = useState(initialBankAccounts[0]?.id ?? "");
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const [scheduleTarget, setScheduleTarget] = useState<AccountsPayableItem | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -99,10 +101,11 @@ export function AccountsPayableTab({ initialPayables, initialBankAccounts = [], 
     setPaymentError(null);
     void recordPurchasePayment(paymentTarget.id, paymentAmount, undefined, paymentBankId).then((result) => {
       if (!result.ok) {
-        setPaymentError(result.error ?? "The payment could not be recorded.");
+        setFeedback({ kind: "error", message: result.error ?? "The payment could not be recorded." });
         return;
       }
       setPaymentTarget(null);
+      setFeedback({ kind: "success", message: "Supplier payment recorded." });
       router.refresh();
     });
   };
@@ -112,10 +115,11 @@ export function AccountsPayableTab({ initialPayables, initialBankAccounts = [], 
     if (!scheduleTarget || !scheduleDate) return;
     void schedulePurchasePayment(scheduleTarget.id, scheduleDate, scheduleMethod).then((result) => {
       if (!result.ok) {
-        console.error(result.error);
+        setFeedback({ kind: "error", message: result.error ?? "The supplier payment could not be scheduled." });
         return;
       }
       setScheduleTarget(null);
+      setFeedback({ kind: "success", message: "Supplier payment scheduled." });
       router.refresh();
     });
   };
@@ -143,6 +147,7 @@ export function AccountsPayableTab({ initialPayables, initialBankAccounts = [], 
 
   return (
     <div className="space-y-6">
+      {feedback && <TransactionFeedback kind={feedback.kind} message={feedback.message} onClose={() => setFeedback(null)} />}
       {/* ── Aging Cards Summary ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-950/40 dark:bg-emerald-950/20">

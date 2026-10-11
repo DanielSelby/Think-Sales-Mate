@@ -279,7 +279,7 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
 
         {effectiveActiveTab === "banking" && <BankAccountsTab initialBankAccounts={liveBankAccounts} />}
 
-        {effectiveActiveTab === "receivables" && <CustomerCreditWorkspace initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} />}
+        {effectiveActiveTab === "receivables" && <CustomerCreditWorkspace initialReceivables={initialReceivables} initialBankAccounts={liveBankAccounts} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} />}
 
         {effectiveActiveTab === "payables" && (
           <AccountsPayableTab

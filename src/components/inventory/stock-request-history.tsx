@@ -24,6 +24,7 @@ import { approveStockRequest, rejectStockRequest } from "@/app/(dashboard)/inven
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExportCsvButton } from "@/components/reports/export-csv-button";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 type RequestStatus = "draft" | "pending_approval" | "approved" | "rejected" | "completed";
 
@@ -74,7 +75,7 @@ export function StockRequestHistory({
   initialRequestId?: string;
 }) {
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [viewing, setViewing] = useState<RequestRow | null>(() =>
     initialRequestId ? requests.find((request) => request.id === initialRequestId) ?? null : null
   );
@@ -141,7 +142,9 @@ export function StockRequestHistory({
     startTransition(async () => {
       const result =
         decision === "approve" ? await approveStockRequest(id) : await rejectStockRequest(id, reason!.trim());
-      setMessage(result.error ?? (decision === "approve" ? "Request approved and transfer created." : "Request rejected."));
+      setMessage(result.error
+        ? { kind: "error", text: result.error }
+        : { kind: "success", text: decision === "approve" ? "Request approved and transfer created." : "Request rejected." });
       setMenu(null);
     });
   }
@@ -176,7 +179,7 @@ export function StockRequestHistory({
         </div>
       </header>
 
-      {message && <div role="status" className="rounded-xl border border-signal/20 bg-signal-soft px-4 py-3 text-sm text-signal">{message}</div>}
+      {message && <TransactionFeedback kind={message.kind} message={message.text} onClose={() => setMessage(null)} />}
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {([

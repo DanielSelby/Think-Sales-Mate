@@ -39,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/sales/format";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { logReportExport } from "@/app/(dashboard)/reports/actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import type {
   ReportKpis,
   ProfitLossLine,
@@ -147,6 +148,7 @@ export function ReportsDashboard({
   const [activeTab, setActiveTab] = useState("Financial Reports");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [transactionFeedback, setTransactionFeedback] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState(filters.dateFrom);
   const [dateTo, setDateTo] = useState(filters.dateTo);
   const [locationId, setLocationId] = useState(filters.locationId ?? "all");
@@ -193,8 +195,7 @@ export function ReportsDashboard({
 
   function saveReportView() {
     window.localStorage.setItem("thinksales-report-view", JSON.stringify({ dateFrom, dateTo, locationId, period, activeTab }));
-    setNotice("Report view saved on this device.");
-    window.setTimeout(() => setNotice(null), 2500);
+    setTransactionFeedback("Report view saved on this device.");
   }
 
   function scrollTo(id: string) {
@@ -334,6 +335,7 @@ export function ReportsDashboard({
         ))}
       </div>
 
+      {transactionFeedback && <TransactionFeedback kind="success" message={transactionFeedback} onClose={() => setTransactionFeedback(null)} />}
       {/* Filters */}
       {notice && <p className="rounded-md bg-signal-soft px-3 py-2 text-sm text-signal">{notice}</p>}
       <div className="flex flex-wrap items-center gap-2 rounded-card border border-ledger-100 bg-transparent p-3 shadow-card dark:border-ledger-700">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowDownToLine, ArrowUpFromLine, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { recordPosCashMovement } from "@/app/(dashboard)/pos/actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export function CashDrawerView({ registerSessionId }: { registerSessionId: string; currency: string }) {
   const router = useRouter();
@@ -12,13 +13,11 @@ export function CashDrawerView({ registerSessionId }: { registerSessionId: strin
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [reference, setReference] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit() {
-    setError(null);
-    setSuccess(null);
+    setFeedback(null);
     startTransition(async () => {
       const result = await recordPosCashMovement({
         registerSessionId,
@@ -28,14 +27,15 @@ export function CashDrawerView({ registerSessionId }: { registerSessionId: strin
         reference,
       });
       if (!result.ok) {
-        setError(result.error ?? "Could not record this movement.");
+        setFeedback({ kind: "error", message: result.error ?? "Could not record this movement." });
         return;
       }
       setAmount("");
       setReason("");
       setReference("");
-      setSuccess("Cash movement recorded.");
-      if (result.error) setError(result.error);
+      setFeedback(result.error
+        ? { kind: "error", message: result.error }
+        : { kind: "success", message: "Cash movement recorded." });
       router.refresh();
     });
   }
@@ -44,8 +44,7 @@ export function CashDrawerView({ registerSessionId }: { registerSessionId: strin
     <section className="h-fit rounded-xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">
       <h2 className="font-semibold text-ink-900 dark:text-white">Record Cash Movement</h2>
       <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">Movements are attached to this open register session. Record a business expense in Expenses instead of also recording it as a paid-out movement.</p>
-      {error && <p role="alert" className="mt-3 rounded-md bg-alert-soft px-3 py-2 text-xs text-alert">{error}</p>}
-      {success && <p role="status" className="mt-3 rounded-md bg-signal-soft px-3 py-2 text-xs text-signal">{success}</p>}
+      {feedback && <TransactionFeedback kind={feedback.kind} message={feedback.message} onClose={() => setFeedback(null)} />}
       <div className="mt-4 grid grid-cols-3 gap-1 rounded-lg bg-ledger-50 p-1 dark:bg-white/[0.04]">
         {(["cash_in", "cash_out", "paid_out"] as const).map((value) => (
           <button type="button" key={value} onClick={() => setType(value)} className={`rounded-md px-2 py-2 text-xs font-semibold capitalize ${type === value ? "bg-white text-ink-900 shadow-sm dark:bg-ink-800 dark:text-white" : "text-ledger-500 dark:text-ledger-400"}`}>{value.replaceAll("_", " ")}</button>

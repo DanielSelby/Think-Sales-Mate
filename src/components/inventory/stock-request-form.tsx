@@ -6,6 +6,7 @@ import { CalendarDays, ChevronRight, FileText, Package2, Plus, Search, Trash2, U
 import { Button } from "@/components/ui/button";
 import { createStockRequest } from "@/app/(dashboard)/inventory/stock-requests/actions";
 import { useAppStore, THEMES } from "@/store/useAppStore";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 interface LocationOption { id: string; name: string; type: string; }
 interface ProductOption { id: string; name: string; sku: string; unit: string; stockByLocation: Record<string, number>; }
@@ -36,7 +37,7 @@ export function StockRequestForm({
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<RequestRow[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
   const sourceLocations = locations.filter((location) => allowedSourceLocationIds.includes(location.id) && location.id !== requestingLocationId);
   const filteredProducts = useMemo(() => {
@@ -56,7 +57,9 @@ export function StockRequestForm({
   };
   const submit = (shouldSubmit: boolean) => startTransition(async () => {
     const result = await createStockRequest({ requestingLocationId, sourceLocationId, expectedDeliveryDate, priority, reference, notes, submit: shouldSubmit, items: rows });
-    setMessage(result.error ?? (shouldSubmit ? "Request submitted for approval." : "Request saved as draft."));
+    setMessage(result.error
+      ? { kind: "error", text: result.error }
+      : { kind: "success", text: shouldSubmit ? "Request submitted for approval." : "Request saved as draft." });
     if (!result.error) setRows([]);
   });
 
@@ -66,7 +69,7 @@ export function StockRequestForm({
         <div><h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Branch Stock Request</h1><p className="mt-1 text-sm text-ledger-500">Request stock from your main branch or other branches.</p></div>
         <Link href="/inventory/stock-requests/history"><Button variant="outline"><FileText className="h-3.5 w-3.5" /> View Request History</Button></Link>
       </div>
-      {message && <div className="rounded-xl border border-signal/20 bg-signal-soft px-4 py-3 text-signal">{message}</div>}
+      {message && <TransactionFeedback kind={message.kind} message={message.text} onClose={() => setMessage(null)} />}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
         <main className="space-y-4">
           <section className="rounded-2xl border border-ledger-100 bg-white p-4 shadow-card dark:border-ledger-700 dark:bg-ink-900">

@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
 import { duplicateCustomerCampaign, sendCustomerCampaignNow, saveCustomerMessagePreferences, transitionCustomerMessage } from "@/app/(dashboard)/communication/messaging-actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 type Tab = "automated" | "campaigns" | "templates" | "scheduled" | "notifications" | "analytics" | "approvals" | "history";
 type Template = { id: string; name: string; category: string; content: string; channel: string; status: string; created_at: string };
@@ -63,7 +64,10 @@ export default function CustomerMessagingWorkspace() {
   const [history, setHistory] = useState<History[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [busy, setBusy] = useState(true);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const notify = (error: string | null | undefined, successMessage: string) => {
+    setNotice({ kind: error ? "error" : "success", message: error ?? successMessage });
+  };
   const [showComposer, setShowComposer] = useState(false);
   const [form, setForm] = useState({ name: "", content: "", category: "General", channel: "WhatsApp", audience: audiences[0], campaignType: campaignTypes[0], date: "", templateId: "" });
 
@@ -106,26 +110,26 @@ export default function CustomerMessagingWorkspace() {
     if (!form.name.trim() || !form.content.trim() || !orgId || !userId) return;
     const code = form.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
     const { error } = await (supabase as any).from("communication_templates").insert({ org_id: orgId, created_by: userId, name: form.name.trim(), category: form.category, template_code: `${code}_${Date.now()}`, content: form.content.trim(), channel: form.channel, status: "Draft" });
-    setNotice(error ? error.message : "Template created as draft.");
+    notify(error?.message, "Template created as draft.");
     setShowComposer(false); if (!error) void load();
   }
 
   async function createCampaign() {
     if (!form.name.trim() || !orgId || !userId) return;
     const { error } = await (supabase as any).from("customer_message_campaigns").insert({ org_id: orgId, created_by: userId, name: form.name.trim(), campaign_type: form.campaignType, audience: form.audience, channel: form.channel, template_id: form.templateId || null, status: "Draft", scheduled_at: form.date || null });
-    setNotice(error ? error.message : "Campaign saved as draft."); setShowComposer(false); if (!error) void load();
+    notify(error?.message, "Campaign saved as draft."); setShowComposer(false); if (!error) void load();
   }
 
   async function campaignAction(campaign: Campaign, action: "Submitted" | "Approved" | "Scheduled" | "Rejected" | "Sent") {
     const result = await transitionCustomerMessage({ campaignId: campaign.id, action });
-    setNotice(result.error ?? `Campaign ${action.toLowerCase()}.`); if (!result.error) void load();
+    notify(result.error, `Campaign ${action.toLowerCase()}.`); if (!result.error) void load();
   }
-  async function sendNow(campaign: Campaign) { const result = await sendCustomerCampaignNow(campaign.id); setNotice(result.error ?? `Campaign sent to ${("sent" in result ? result.sent : 0)} customers.`); if (!result.error) void load(); }
-  async function duplicate(campaign: Campaign) { const result = await duplicateCustomerCampaign(campaign.id); setNotice(result.error ?? "Campaign duplicated as a draft."); if (!result.error) void load(); }
+  async function sendNow(campaign: Campaign) { const result = await sendCustomerCampaignNow(campaign.id); notify(result.error, `Campaign sent to ${("sent" in result ? result.sent : 0)} customers.`); if (!result.error) void load(); }
+  async function duplicate(campaign: Campaign) { const result = await duplicateCustomerCampaign(campaign.id); notify(result.error, "Campaign duplicated as a draft."); if (!result.error) void load(); }
 
   async function toggleAutomation(item: Automation) {
     const { error } = await (supabase as any).from("communication_automations").update({ enabled: !item.enabled, updated_at: new Date().toISOString() }).eq("id", item.id);
-    setNotice(error ? error.message : `${item.event} automation ${item.enabled ? "disabled" : "enabled"}.`); if (!error) void load();
+    notify(error?.message, `${item.event} automation ${item.enabled ? "disabled" : "enabled"}.`); if (!error) void load();
   }
 
   if (busy) return <div className="flex min-h-[620px] items-center justify-center rounded-2xl bg-white text-sm text-ledger-500">Loading customer messaging workspace...</div>;
@@ -135,15 +139,15 @@ export default function CustomerMessagingWorkspace() {
       <div><div className="flex items-center gap-2 text-xs text-ledger-400"><span>CRM</span><ChevronRight className="h-3 w-3" /><span>Customer Messaging &amp; Engagement</span></div><h1 className="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-white">Customer Messaging &amp; Engagement</h1><p className="mt-0.5 text-xs text-ledger-400">Automate customer communication, run targeted campaigns, and keep customers engaged.</p></div>
       <div className="flex items-center gap-2"><button onClick={() => void load()} className="flex h-10 items-center gap-2 rounded-xl border border-ledger-200 bg-white px-3 text-xs font-semibold text-ledger-600"><RefreshCw className="h-4 w-4" /> Refresh</button><button onClick={() => { setShowComposer(true); setForm((current) => ({ ...current, name: "", content: "" })); }} className="flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-semibold text-white" style={{ background: theme.colors.primary }}><Plus className="h-4 w-4" /> Create Campaign</button></div>
     </div>
-    {notice && <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">{notice}<button onClick={() => setNotice("")}><XCircle className="h-4 w-4" /></button></div>}
+    {notice && <TransactionFeedback kind={notice.kind} message={notice.message} onClose={() => setNotice(null)} />}
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"><Kpi icon={Send} label="Messages Sent" value={metrics.sent.toLocaleString()} detail="Across all customer channels" color="bg-blue-50 text-blue-600" /><Kpi icon={Check} label="Delivered" value={metrics.delivered.toLocaleString()} detail="Delivery confirmations" color="bg-emerald-50 text-emerald-600" /><Kpi icon={Users} label="Read" value={metrics.read.toLocaleString()} detail={`${metrics.delivered ? Math.round((metrics.read / metrics.delivered) * 100) : 0}% read rate`} color="bg-sky-50 text-sky-600" /><Kpi icon={TrendingUp} label="Clicked" value={metrics.clicked.toLocaleString()} detail={`${metrics.sent ? Math.round((metrics.clicked / metrics.sent) * 100) : 0}% click rate`} color="bg-purple-50 text-purple-600" /><Kpi icon={XCircle} label="Failed" value={metrics.failed.toLocaleString()} detail={`${metrics.sent ? Math.round((metrics.failed / metrics.sent) * 100) : 0}% failure rate`} color="bg-red-50 text-red-600" /></div>
     <DashboardOverview history={history} campaigns={campaigns} onTab={setTab} />
     <Card className="p-2"><div className="flex gap-1 overflow-x-auto">{tabs.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => setTab(item.id)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-semibold", tab === item.id ? "bg-blue-600 text-white" : "text-ledger-500 hover:bg-ledger-50")}><Icon className="h-3.5 w-3.5" />{item.label}</button>; })}</div></Card>
     {tab === "automated" && <Automated automations={automations} templates={templates} onToggle={toggleAutomation} onManage={() => { setTab("templates"); setShowComposer(true); }} />}
     {tab === "campaigns" && <Campaigns campaigns={campaigns} templates={templates} onCreate={() => { setShowComposer(true); setForm((current) => ({ ...current, name: "", content: "" })); }} onAction={campaignAction} onSend={sendNow} onDuplicate={duplicate} />}
     {tab === "templates" && <Templates templates={templates} onCreate={() => setShowComposer(true)} />}
-    {tab === "scheduled" && <ScheduledRows rows={scheduled} onRun={async () => { const result = await import("@/app/(dashboard)/communication/messaging-actions").then((m) => m.executeDueCustomerMessages()); setNotice(result.error ?? `Processed ${("sent" in result ? result.sent : 0)} messages.`); if (!result.error) void load(); }} />}
-    {tab === "notifications" && <><Preferences customers={customers} onSave={async (input) => { const result = await saveCustomerMessagePreferences(input); setNotice(result.error ?? "Communication preferences saved."); }} /><HistoryRows rows={history} /></>}
+    {tab === "scheduled" && <ScheduledRows rows={scheduled} onRun={async () => { const result = await import("@/app/(dashboard)/communication/messaging-actions").then((m) => m.executeDueCustomerMessages()); notify(result.error, `Processed ${("sent" in result ? result.sent : 0)} messages.`); if (!result.error) void load(); }} />}
+    {tab === "notifications" && <><Preferences customers={customers} onSave={async (input) => { const result = await saveCustomerMessagePreferences(input); notify(result.error, "Communication preferences saved."); }} /><HistoryRows rows={history} /></>}
     {tab === "analytics" && <Analytics metrics={metrics} history={history} campaigns={campaigns} />}
     {tab === "approvals" && <Approvals campaigns={campaigns} onAction={campaignAction} />}
     {tab === "history" && <HistoryRows rows={history} />}

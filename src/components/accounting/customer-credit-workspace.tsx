@@ -17,7 +17,7 @@ import {
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { AccountsReceivableTab } from "./accounts-receivable-tab";
 import { formatMoney } from "@/lib/currency";
-import type { AccountsReceivableItem } from "@/types/accounting";
+import type { AccountsReceivableItem, BankAccountItem } from "@/types/accounting";
 
 type WorkspaceTab =
   | "overview"
@@ -47,7 +47,7 @@ const TABS: { key: WorkspaceTab; label: string; icon: typeof LayoutDashboard }[]
 
 const money = (currency: string, value: number) => formatMoney(value, currency);
 
-export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditLogs = [], initialPayments = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {} }: { initialReceivables?: AccountsReceivableItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number> }) {
+export function CustomerCreditWorkspace({ initialReceivables = [], initialBankAccounts = [], initialAuditLogs = [], initialPayments = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {} }: { initialReceivables?: AccountsReceivableItem[]; initialBankAccounts?: BankAccountItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number> }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { receivables: storeReceivables, currentCurrency, currentCurrencyCode } = useAccountingStore();
@@ -135,7 +135,7 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialAuditL
       </nav>
 
       {activeTab === "balances" ? (
-        <AccountsReceivableTab initialReceivables={receivables} />
+        <AccountsReceivableTab initialReceivables={receivables} initialBankAccounts={initialBankAccounts} />
       ) : activeTab === "overview" ? (
         <Overview
           currency={currentCurrencyCode}

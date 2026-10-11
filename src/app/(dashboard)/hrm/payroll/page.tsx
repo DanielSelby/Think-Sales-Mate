@@ -9,6 +9,7 @@ import { runPayroll } from "./actions";
 import { PayrollKpi } from "@/components/hrm/payroll-kpi";
 import { PayrollFilters } from "@/components/hrm/payroll/payroll-filters";
 import { PayrollRecordsTable, type PayrollRecordRow } from "@/components/hrm/payroll/payroll-records-table";
+import { PayrollErrorPopup } from "@/components/hrm/payroll/payroll-error-popup";
 
 type SearchParams = { month?: string; year?: string; branch?: string; department?: string; status?: string; payroll_type?: string; employee?: string; error?: string };
 
@@ -113,16 +114,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
           <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ backgroundColor: "var(--theme-primary)" }}><WalletCards className="h-6 w-6" /></div><div><div className="mb-1 text-[11px] font-semibold text-[var(--theme-primary)]">HRM &amp; Payroll <span className="mx-1 text-slate-300">›</span> Payroll</div><h1 className="text-xl font-bold text-[#12345a] dark:text-white">Payroll</h1><p className="text-xs text-ledger-500">Manage employee salaries, generate payslips and track payroll records.</p></div></div>
           {canManage && <form action={runPayroll}><button type="submit" className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: "var(--theme-primary)" }}><Play className="h-4 w-4" />Generate Payroll</button></form>}
         </div>
-        {filters.error && (
-          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <span>{filters.error}</span>
-            {filters.error.toLowerCase().includes("account") && (
-              <Link href="/accounting?tab=coa" className="inline-flex items-center rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">
-                Open Chart of Accounts
-              </Link>
-            )}
-          </div>
-        )}
+        {filters.error && <PayrollErrorPopup message={filters.error} />}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <PayrollKpi icon={<Users className="h-4 w-4" />} label="Total Employees" value={String(matchingEmployees.length)} tone="blue" />

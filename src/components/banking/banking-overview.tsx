@@ -17,6 +17,7 @@ export interface BankingTransactionRow {
   formattedAmount: string;
   description: string | null;
   counterpartyName: string | null;
+  recordedBy: string;
   category: string | null;
   transactionDate: string;
   accountName: string;
@@ -40,6 +41,8 @@ export function BankingOverview({
   today,
   transactionPage,
   transactionPages,
+  transactionPageSize,
+  transactionTotal,
   transactionFilters,
   initialTransferOpen = false,
 }: {
@@ -52,6 +55,8 @@ export function BankingOverview({
   today: string;
   transactionPage: number;
   transactionPages: number;
+  transactionPageSize: string;
+  transactionTotal: number;
   transactionFilters: BankingTransactionFilters;
   initialTransferOpen?: boolean;
 }) {
@@ -69,6 +74,7 @@ export function BankingOverview({
     if (transactionFilters.from) params.set("from", transactionFilters.from);
     if (transactionFilters.to) params.set("to", transactionFilters.to);
     if (transactionFilters.description) params.set("description", transactionFilters.description);
+    params.set("transactionsPageSize", transactionPageSize);
     params.set("transactionsPage", String(page));
     return `/banking?${params.toString()}#recent-transactions`;
   };
@@ -107,6 +113,8 @@ export function BankingOverview({
             </Link>
           </div>
           <form action="/banking#recent-transactions" method="get" className="grid gap-2 border-b border-ledger-100 bg-ledger-50/50 p-4 sm:grid-cols-2 xl:grid-cols-5 dark:border-slate-500 dark:bg-white/[0.02]">
+            <input type="hidden" name="transactionsPageSize" value={transactionPageSize} />
+            <input type="hidden" name="transactionsPage" value="1" />
             <label className="sr-only" htmlFor="transaction-account-filter">Filter by account</label>
             <select id="transaction-account-filter" name="accountId" defaultValue={transactionFilters.accountId} className="h-9 min-w-0 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs text-ink-900 dark:border-slate-500 dark:bg-ink-950 dark:text-white">
               <option value="">All accounts</option>
@@ -132,16 +140,43 @@ export function BankingOverview({
             </div>
             <div className="flex items-center justify-between sm:col-span-2 xl:col-span-5">
               <span className="text-[11px] text-ledger-500 dark:text-ledger-400">Filter by account, type, date, description, or depositor.</span>
-              <Link href="/banking#recent-transactions" className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear filters</Link>
+              <Link href={`/banking?transactionsPageSize=${transactionPageSize}#recent-transactions`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear filters</Link>
             </div>
           </form>
-          <div id="recent-transactions" className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-ledger-50/70 text-[11px] font-semibold uppercase tracking-wide text-ledger-500 dark:bg-white/[0.03] dark:text-ledger-400">
+          <form action="/banking#recent-transactions" method="get" className="flex flex-wrap items-center gap-2 border-b border-ledger-100 px-5 py-2.5 dark:border-slate-500">
+            {transactionFilters.accountId && <input type="hidden" name="accountId" value={transactionFilters.accountId} />}
+            {transactionFilters.type && <input type="hidden" name="type" value={transactionFilters.type} />}
+            {transactionFilters.from && <input type="hidden" name="from" value={transactionFilters.from} />}
+            {transactionFilters.to && <input type="hidden" name="to" value={transactionFilters.to} />}
+            {transactionFilters.description && <input type="hidden" name="description" value={transactionFilters.description} />}
+            <input type="hidden" name="transactionsPage" value="1" />
+            <label htmlFor="transaction-page-size" className="text-xs text-ledger-500 dark:text-ledger-400">Rows per page</label>
+            <select
+              id="transaction-page-size"
+              name="transactionsPageSize"
+              value={transactionPageSize}
+              onChange={(event) => event.currentTarget.form?.requestSubmit()}
+              className="h-8 rounded-lg border border-ledger-200 bg-white px-2 text-xs text-ink-900 dark:border-slate-500 dark:bg-ink-950 dark:text-white"
+            >
+              <option value="10">10</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="all">All</option>
+            </select>
+            <span className="text-xs text-ledger-500 dark:text-ledger-400">
+              {transactionTotal === 0 ? "No transactions" : transactionPageSize === "all"
+                ? `${transactionTotal} transactions`
+                : `${Math.min((transactionPage - 1) * Number(transactionPageSize) + 1, transactionTotal)}–${Math.min(transactionPage * Number(transactionPageSize), transactionTotal)} of ${transactionTotal}`}
+            </span>
+          </form>
+          <div id="recent-transactions" className="max-h-[32rem] overflow-auto">
+            <table className="w-full min-w-[820px] text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-ledger-50/95 text-[11px] font-semibold uppercase tracking-wide text-ledger-500 shadow-sm dark:bg-ink-900/95 dark:text-ledger-400">
                 <tr>
                   <th className="px-5 py-3">Date</th>
                   <th className="px-3 py-3">Description / Deposited by</th>
                   <th className="px-3 py-3">Account</th>
+                  <th className="px-3 py-3">User</th>
                   <th className="px-3 py-3">Type</th>
                   <th className="px-5 py-3 text-right">Amount</th>
                 </tr>
@@ -149,14 +184,14 @@ export function BankingOverview({
               <tbody className="divide-y divide-ledger-50 dark:divide-ledger-700/60">
                 {accounts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
+                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
                       Add an account to see its transaction history here.
                     </td>
                   </tr>
                 ) : null}
                 {accounts.length > 0 && !transactions?.length ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
+                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
                       No transactions recorded yet.
                     </td>
                   </tr>
@@ -206,6 +241,9 @@ export function BankingOverview({
                       <td className="max-w-[150px] truncate px-3 py-3.5 text-xs text-ledger-600 dark:text-ledger-300">
                         {transaction.accountName}
                       </td>
+                      <td className="max-w-[160px] truncate px-3 py-3.5 text-xs text-ledger-600 dark:text-ledger-300" title={transaction.recordedBy}>
+                        {transaction.recordedBy}
+                      </td>
                       <td className="px-3 py-3.5">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                           isTransfer
@@ -228,7 +266,7 @@ export function BankingOverview({
               </tbody>
             </table>
           </div>
-          {transactionPages > 1 && (
+          {transactionPageSize !== "all" && transactionPages > 1 && (
             <nav aria-label="Recent transaction pages" className="flex items-center justify-between border-t border-ledger-100 px-5 py-3 dark:border-slate-500">
               <span className="text-xs text-ledger-500 dark:text-ledger-400">Page {transactionPage} of {transactionPages}</span>
               <div className="flex gap-2">

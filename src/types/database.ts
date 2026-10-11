@@ -1175,6 +1175,7 @@ export interface Database {
           paid_amount: number;
           payment_method: string | null;
           payment_account: string | null;
+          payment_account_id: string | null;
           pay_from_account: string | null;
           purchase_note: string | null;
           internal_note: string | null;
@@ -1206,6 +1207,7 @@ export interface Database {
           paid_amount?: number;
           payment_method?: string | null;
           payment_account?: string | null;
+          payment_account_id?: string | null;
           pay_from_account?: string | null;
           purchase_note?: string | null;
           internal_note?: string | null;
@@ -1594,6 +1596,7 @@ export interface Database {
           expense_date: string;
           payment_method: string | null;
           payment_account: string | null;
+          payment_account_id: string | null;
           status: ExpenseStatus;
           payment_status: ExpensePaymentStatus;
           paid_on: string | null;
@@ -1630,6 +1633,7 @@ export interface Database {
           expense_date?: string;
           payment_method?: string | null;
           payment_account?: string | null;
+          payment_account_id?: string | null;
           status?: ExpenseStatus;
           payment_status?: ExpensePaymentStatus;
           paid_on?: string | null;
@@ -1662,6 +1666,13 @@ export interface Database {
             columns: ["location_id"];
             isOneToOne: false;
             referencedRelation: "business_locations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expenses_payment_account_id_fkey";
+            columns: ["payment_account_id"];
+            isOneToOne: false;
+            referencedRelation: "bank_accounts";
             referencedColumns: ["id"];
           },
           {
@@ -2753,6 +2764,7 @@ export interface Database {
           transaction_category: string | null;
           transaction_date: string;
           recorded_by: string;
+          source_expense_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -2766,6 +2778,7 @@ export interface Database {
           transaction_category?: string | null;
           transaction_date?: string;
           recorded_by: string;
+          source_expense_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["bank_transactions"]["Row"]>;
@@ -2775,6 +2788,13 @@ export interface Database {
             columns: ["account_id"];
             isOneToOne: false;
             referencedRelation: "bank_accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bank_transactions_source_expense_id_fkey";
+            columns: ["source_expense_id"];
+            isOneToOne: false;
+            referencedRelation: "expenses";
             referencedColumns: ["id"];
           }
         ];

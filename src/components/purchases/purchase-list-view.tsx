@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, formatDateTime, PAYMENT_STATUS_LABEL, type PaymentStatus } from "@/lib/sales/format";
 import { PURCHASE_STATUS_LABEL, PURCHASE_STATUS_TONE, formatPurchaseNumber } from "@/lib/purchases/format";
 import { PurchaseRowMenu } from "@/components/purchases/purchase-row-menu";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import type { PurchaseStatus } from "@/types/database";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
@@ -126,7 +127,6 @@ export function PurchaseListView({
 
   function showNotice(message: string, tone: "success" | "error" = "success") {
     setNotice({ message, tone });
-    setTimeout(() => setNotice(null), 4000);
   }
 
   const counts = React.useMemo(() => {
@@ -255,19 +255,7 @@ export function PurchaseListView({
         </div>
       </div>
 
-      {notice && (
-        <div
-          className={cn(
-            "flex items-center justify-between gap-2 rounded-md border px-4 py-2.5 text-sm",
-            notice.tone === "success"
-              ? "border-signal/30 bg-signal-soft text-ink-900 dark:bg-signal/10 dark:text-white"
-              : "border-alert/30 bg-alert-soft text-alert"
-          )}
-        >
-          {notice.message}
-          <button onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
+      {notice && <TransactionFeedback kind={notice.tone} message={notice.message} onClose={() => setNotice(null)} />}
 
       {/* ------------------------------------------------------------- */}
       {/* Main column — KPIs, filters, table now run full width         */}

@@ -13,6 +13,7 @@ import {
   createProductCategory, deleteProductCategory, importProductCategories,
   setProductCategoryStatus, updateProductCategory, type ProductCategoryInput,
 } from "@/app/(dashboard)/inventory/categories/actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface CategoryProductUsage {
   id: string;
@@ -101,7 +102,6 @@ export function ProductCategoriesManager({
 
   function notify(text: string, error = false) {
     setNotice({ text, error });
-    window.setTimeout(() => setNotice(null), 5000);
   }
 
   const creators = useMemo(() => Array.from(new Set(categories.map((category) => category.createdByName).filter((name) => name !== "—"))).sort(), [categories]);
@@ -300,7 +300,7 @@ export function ProductCategoriesManager({
         </div>
       </header>
 
-      {notice && <div role="status" className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${notice.error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{notice.text}<button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notification"><X className="h-4 w-4" /></button></div>}
+      {notice && <TransactionFeedback kind={notice.error ? "error" : "success"} message={notice.text} onClose={() => setNotice(null)} />}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi icon={<Layers3 />} label="Total Categories" value={kpis.total} tone="blue" />

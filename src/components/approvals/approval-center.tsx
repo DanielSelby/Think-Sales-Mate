@@ -7,6 +7,7 @@ import { Check, CheckCircle2, ChevronRight, ClipboardCheck, ClipboardList, Eye, 
 import { decideApproval, markApprovalDone, type ApprovalDecisionInput } from "@/app/(dashboard)/approvals/actions";
 import { formatMoney } from "@/lib/currency";
 import { RegisterApprovalSuccessDialog } from "@/components/pos/register-approval-success-dialog";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export type ApprovalRow = {
   id: string;
@@ -34,7 +35,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
   const [type, setType] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [rejecting, setRejecting] = useState<ApprovalRow | null>(null);
   const [reason, setReason] = useState("");
   const [viewing, setViewing] = useState<ApprovalRow | null>(null);
@@ -53,16 +54,16 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
     setBusy(row.id);
     const result = await decideApproval({ type: row.type, id: row.id, decision, reason: rejectionReason });
     setBusy(null);
-    if (result.error) setNotice(result.error);
+    if (result.error) setNotice({ kind: "error", message: result.error });
     else {
       if (row.type === "register_closure" && decision === "approved") {
         setSelected((current) => current.filter((id) => id !== row.id));
         if (canAccessEndOfDay) setRegisterApprovalPromptOpen(true);
-        else setNotice(`${row.document} approved.`);
+        else setNotice({ kind: "success", message: `${row.document} approved.` });
         if (reload) router.refresh();
         return;
       }
-      setNotice(`${row.document} ${decision}. Refreshing…`);
+      setNotice({ kind: "success", message: `${row.document} ${decision}. Refreshing…` });
       setSelected((current) => current.filter((id) => id !== row.id));
       if (reload) window.location.reload();
     }
@@ -75,7 +76,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
     for (const row of selectedRows) {
       const result = await decideApproval({ type: row.type, id: row.id, decision: "approved" });
       if (result.error) {
-        setNotice(`${row.document}: ${result.error}`);
+        setNotice({ kind: "error", message: `${row.document}: ${result.error}` });
         setBusy(null);
         return;
       }
@@ -95,9 +96,9 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
     setBusy(row.id);
     const result = await markApprovalDone({ type: row.type, id: row.id });
     setBusy(null);
-    if (result.error) setNotice(result.error);
+    if (result.error) setNotice({ kind: "error", message: result.error });
     else {
-      setNotice(`${row.document} moved to approval history.`);
+      setNotice({ kind: "success", message: `${row.document} moved to approval history.` });
       window.location.reload();
     }
   }
@@ -135,7 +136,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
             <button onClick={() => { setQuery(""); setType("all"); }} className="inline-flex items-center gap-2 rounded-xl border border-ledger-200 px-3 py-2 text-xs font-semibold text-ledger-600"><RefreshCw className="h-4 w-4" /> Clear filters</button>
             {tab === "pending" && <button disabled={!selected.length || !!busy} onClick={approveSelected} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Check className="h-4 w-4" /> Approve selected</button>}
           </div>
-          {notice && <div className="border-b border-ledger-100 bg-brand-50 px-4 py-3 text-sm text-brand-800">{notice}</div>}
+          {notice && <TransactionFeedback kind={notice.kind} message={notice.message} onClose={() => setNotice(null)} />}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-ledger-50 text-[10px] uppercase tracking-wide text-ledger-500 dark:bg-ink-950"><tr><th className="w-10 px-4 py-3"><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={() => setSelected(selected.length === filtered.length ? [] : filtered.map((row) => row.id))} /></th><th className="px-3 py-3">Document</th><th className="px-3 py-3">Requester</th><th className="px-3 py-3">Branch</th><th className="px-3 py-3">Date</th><th className="px-3 py-3">Amount</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Actions</th></tr></thead>
               <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">{filtered.map((row) => { const Icon = icons[row.type]; return <tr key={row.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]"><td className="px-4 py-4"><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggle(row.id)} /></td><td className="px-3 py-4"><div className="flex items-center gap-2"><span className="rounded-lg bg-brand-50 p-2 text-brand-600"><Icon className="h-4 w-4" /></span><div><Link href={row.href} className="font-semibold text-ink-900 hover:text-brand-600 dark:text-white">{row.document}</Link><p className="text-xs text-ledger-400">{row.title}</p></div></div></td><td className="px-3 py-4 text-xs font-medium">{row.requester}</td><td className="px-3 py-4 text-xs">{row.branch}</td><td className="px-3 py-4 text-xs text-ledger-500">{new Date(row.date).toLocaleDateString()}</td><td className="px-3 py-4 text-xs font-semibold">{formatAmount(row.amount)}</td><td className="px-3 py-4"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${row.priority === "high" || row.priority === "urgent" ? "bg-red-50 text-red-600" : tab === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{tab === "approved" ? "Approved" : tab === "history" ? "Completed" : row.priority}</span></td>                            <td className="px-3 py-4"><div className="flex items-center gap-1"><button type="button" onClick={() => setViewing(row)} title="View request details" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Eye className="h-4 w-4" /></button>{tab === "pending" ? <><button disabled={!!busy} onClick={() => decide(row, "approved")} title="Approve" className="rounded-lg p-2 text-emerald-600 hover:bg-emerald-50 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" /></button><button disabled={!!busy} onClick={() => setRejecting(row)} title="Reject" className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-40"><XCircle className="h-4 w-4" /></button></> : tab === "approved" ? canManageApprovalHistory ? <button disabled={!!busy} onClick={() => void complete(row)} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40">Done</button> : <span className="text-xs text-ledger-400">Approved</span> : <span className="text-xs text-ledger-400">Completed</span>}</div></td></tr>; })}</tbody></table>

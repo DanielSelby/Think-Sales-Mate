@@ -17,6 +17,7 @@ import { ATTENDANCE_STATUS_LABEL, ATTENDANCE_STATUS_TONE, WORK_TYPES, formatTime
 import { AttendanceRowMenu } from "@/components/hrm/attendance/attendance-row-menu";
 import { PayrollKpi } from "@/components/hrm/payroll-kpi";
 import { MarkAttendanceDialog, type EmployeeOption, type EditingAttendance } from "@/components/hrm/attendance/mark-attendance-dialog";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { checkIn, bulkMarkAbsent } from "@/app/(dashboard)/hrm/attendance/actions";
 import type { AttendanceStatus } from "@/types/database";
 
@@ -79,7 +80,6 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
 
   function showNotice(message: string, tone: "success" | "error" = "success") {
     setNotice({ message, tone });
-    setTimeout(() => setNotice(null), 4000);
   }
 
   function goToDate(newDate: string) {
@@ -196,15 +196,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
         </div>
       </div>
 
-      {notice && (
-        <div className={cn(
-          "flex items-center justify-between gap-2 rounded-md border px-4 py-2.5 text-sm",
-          notice.tone === "success" ? "border-signal/30 bg-signal-soft text-ink-900 dark:bg-signal/10 dark:text-white" : "border-alert/30 bg-alert-soft text-alert"
-        )}>
-          {notice.message}
-          <button onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
+      {notice && <TransactionFeedback kind={notice.tone} message={notice.message} onClose={() => setNotice(null)} />}
 
       <div className="space-y-5">
         <div className="space-y-5">

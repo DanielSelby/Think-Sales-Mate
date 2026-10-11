@@ -5,6 +5,7 @@ import { Download, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-rea
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface HrmModuleRow {
   id: string;
@@ -68,7 +69,7 @@ export function HrmModuleView({ title, description, actionLabel, columns, rows }
           <Button onClick={() => setShowForm(true)}><Plus className="h-4 w-4" /> {actionLabel}</Button>
         </div>
       </div>
-      {notice && <p className="rounded-md bg-signal/10 px-3 py-2 text-sm text-signal">{notice}</p>}
+      {notice && <TransactionFeedback kind="success" message={notice} onClose={() => setNotice("")} />}
       {showForm && (
         <Card accent="signal">
           <CardHeader className="flex-row items-center justify-between">

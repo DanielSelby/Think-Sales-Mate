@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
 import { DISPLAY_STATUS_LABEL, DISPLAY_STATUS_TONE, deriveDisplayStatus, formatExpenseNumber } from "@/lib/expenses/format";
 import { ExpenseRowMenu } from "@/components/expenses/expense-row-menu";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 
 export interface ExpenseDetailItem {
@@ -63,7 +64,6 @@ export function ExpenseDetailView({ expense }: { expense: ExpenseDetail }) {
   const [notice, setNotice] = React.useState<{ message: string; tone: "success" | "error" } | null>(null);
   function showNotice(message: string, tone: "success" | "error" = "success") {
     setNotice({ message, tone });
-    setTimeout(() => setNotice(null), 4000);
   }
 
   return (
@@ -100,18 +100,7 @@ export function ExpenseDetailView({ expense }: { expense: ExpenseDetail }) {
         />
       </div>
 
-      {notice && (
-        <div
-          className={cn(
-            "flex items-center justify-between gap-2 rounded-md border px-4 py-2.5 text-sm",
-            notice.tone === "success"
-              ? "border-signal/30 bg-signal-soft text-ink-900 dark:bg-signal/10 dark:text-white"
-              : "border-alert/30 bg-alert-soft text-alert"
-          )}
-        >
-          {notice.message}
-        </div>
-      )}
+      {notice && <TransactionFeedback kind={notice.tone} message={notice.message} onClose={() => setNotice(null)} />}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card accent="neutral" className="lg:col-span-2">

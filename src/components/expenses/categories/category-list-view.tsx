@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
 import { CATEGORY_ICONS, CATEGORY_COLORS, CATEGORY_STATUS_LABEL, CATEGORY_STATUS_TONE, type CategoryIconKey, type CategoryColorKey } from "@/lib/expenses/categories";
 import { CategoryDialog, type EditingCategory } from "@/components/expenses/categories/category-dialog";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { toggleExpenseCategoryStatus, deleteExpenseCategory } from "@/app/(dashboard)/expenses/categories/actions";
 import type { ExpenseCategoryStatus } from "@/types/database";
 
@@ -74,7 +75,6 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
 
   function showNotice(message: string, tone: "success" | "error" = "success") {
     setNotice({ message, tone });
-    setTimeout(() => setNotice(null), 4000);
   }
 
   const filtered = React.useMemo(() => {
@@ -154,15 +154,7 @@ export function CategoryListView({ categories, kpis, currency, departments, rece
         </div>
       </div>
 
-      {notice && (
-        <div className={cn(
-          "flex items-center justify-between gap-2 rounded-md border px-4 py-2.5 text-sm",
-          notice.tone === "success" ? "border-signal/30 bg-signal-soft text-ink-900 dark:bg-signal/10 dark:text-white" : "border-alert/30 bg-alert-soft text-alert"
-        )}>
-          {notice.message}
-          <button onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
+      {notice && <TransactionFeedback kind={notice.tone} message={notice.message} onClose={() => setNotice(null)} />}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">

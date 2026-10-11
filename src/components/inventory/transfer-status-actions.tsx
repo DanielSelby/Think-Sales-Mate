@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { updateTransferStatus } from "@/app/(dashboard)/inventory/transfers/actions";
 import type { TransferStatus } from "@/types/database";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export function TransferStatusActions({
   transferId,
@@ -36,15 +37,9 @@ export function TransferStatusActions({
 
   if (status === "completed" || status === "cancelled" || status === "received") return null;
 
-  const noticeStyle = notice?.kind === "success"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-    : notice?.kind === "warning"
-      ? "border-amber-200 bg-amber-50 text-amber-800"
-      : "border-red-200 bg-red-50 text-red-800";
-
   return (
     <div className="space-y-3">
-      {notice && <div role="status" className={`rounded-xl border px-4 py-3 text-sm font-semibold shadow-sm ${noticeStyle}`}>{notice.text}</div>}
+      {notice && <TransactionFeedback kind={notice.kind} message={notice.text} onClose={() => setNotice(null)} />}
       <div className="flex gap-2">
       {canManage && status === "pending" && (
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleUpdate("in_transit")}>

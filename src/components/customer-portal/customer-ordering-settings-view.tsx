@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { updatePortalSettings, type PortalSettings } from "@/app/(dashboard)/settings/customer-ordering/actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 interface SettingsViewProps {
   initial: PortalSettings;
@@ -53,7 +54,6 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
         return;
       }
       setNotice({ text: "Customer ordering settings saved successfully.", type: "success" });
-      setTimeout(() => setNotice(null), 3500);
       router.refresh();
     });
   }
@@ -135,17 +135,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
         </Button>
       </div>
 
-      {notice && (
-        <div className={cn(
-          "rounded-lg border px-4 py-3 text-sm flex items-center gap-2",
-          notice.type === "success" 
-            ? "border-signal/30 bg-signal-soft text-ink-900 dark:bg-signal/10 dark:text-white"
-            : "border-alert/30 bg-alert-soft text-alert"
-        )}>
-          {notice.type === "success" ? <CheckCircle2 className="h-4 w-4 text-signal shrink-0" /> : null}
-          <span>{notice.text}</span>
-        </div>
-      )}
+      {notice && <TransactionFeedback kind={notice.type} message={notice.text} onClose={() => setNotice(null)} />}
 
       {/* Storefront Link Card */}
       <Card accent="neutral" className="border-ledger-200/80 dark:border-ledger-700/80">

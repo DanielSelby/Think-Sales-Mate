@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { updateSaleStatus, getSaleReturnableItems, type ReturnableLine } from "@/app/(dashboard)/sales/actions";
 import { formatCurrency } from "@/lib/sales/format";
 import type { SaleStatus } from "@/types/database";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 interface SaleStatusMenuProps {
   saleId: string;
@@ -49,7 +50,7 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
   const [refundPaymentMethod, setRefundPaymentMethod] = React.useState("");
   const [note, setNote] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
-  const [notice, setNotice] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<{ kind: "warning"; message: string } | null>(null);
   const [loadingLines, setLoadingLines] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
 
@@ -146,7 +147,7 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
         return;
       }
       setTarget(null);
-      if (result.error) setNotice(result.error);
+      if (result.error) setNotice({ kind: "warning", message: result.error });
       router.refresh();
     });
   }
@@ -185,7 +186,7 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
           </div>
         )}
       </div>
-      {notice && <p role="status" className="mt-1 max-w-64 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">{notice}</p>}
+      {notice && <TransactionFeedback kind={notice.kind} message={notice.message} onClose={() => setNotice(null)} />}
 
       <Dialog
         open={target !== null}

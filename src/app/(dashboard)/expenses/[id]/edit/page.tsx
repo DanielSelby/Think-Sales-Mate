@@ -23,7 +23,7 @@ export default async function EditExpensePage({ params }: PageProps) {
     .select(`
       id, status, payment_status, category, vendor, department, location_id, expense_date, due_date,
       reference_number, purchase_order_id, expense_type, tags, approval_required, approver_id,
-      payment_method, transaction_reference, currency, discount_amount, is_recurring, recurring_frequency
+      payment_method, payment_account, payment_account_id, transaction_reference, currency, discount_amount, is_recurring, recurring_frequency
     `)
     .eq("id", id)
     .eq("org_id", context.orgId)
@@ -76,7 +76,8 @@ export default async function EditExpensePage({ params }: PageProps) {
     approvalRequired: expense.approval_required,
     approverId: expense.approver_id ?? "",
     paymentMethod: expense.payment_method ?? "",
-    paymentAccount: "",
+    paymentAccount: expense.payment_account ?? "",
+    paymentAccountId: expense.payment_account_id ?? "",
     transactionReference: expense.transaction_reference ?? "",
     expenseCurrency: expense.currency ?? context.currency,
     discountAmount: expense.discount_amount,

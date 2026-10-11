@@ -17,6 +17,7 @@ import {
   updateRoute,
   updateVisitStatus,
 } from "@/app/(dashboard)/route-sales/actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 type RouteRow = { id: string; name: string; territory: string | null; vehicle: string | null; status: string; route_days: string[]; start_time: string | null; end_time: string | null; assigned_rep_id: string | null; notes?: string | null };
 type Customer = { id: string; name: string; company: string | null; phone: string | null; email: string | null };
@@ -129,6 +130,7 @@ export default function RouteSalesWorkspace({ initial, currency }: { orgId: stri
   const [routes, setRoutes] = useState(initial.routes);
   const [visits, setVisits] = useState(initial.visits);
   const [notice, setNotice] = useState("");
+  const [transactionFeedback, setTransactionFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<RouteRow | null>(null);
@@ -146,7 +148,8 @@ export default function RouteSalesWorkspace({ initial, currency }: { orgId: stri
   const run = (work: () => Promise<{ error?: string }>, success: string, after?: () => void) =>
     startTransition(async () => {
       const result = await work();
-      notify(result.error ?? success);
+      setNotice("");
+      setTransactionFeedback({ kind: result.error ? "error" : "success", message: result.error ?? success });
       if (!result.error) after?.();
     });
 
@@ -180,6 +183,7 @@ export default function RouteSalesWorkspace({ initial, currency }: { orgId: stri
 
   return (
     <div className="route-sales-page space-y-5">
+      {transactionFeedback && <TransactionFeedback kind={transactionFeedback.kind} message={transactionFeedback.message} onClose={() => setTransactionFeedback(null)} />}
       {notice && (
         <button onClick={() => setNotice("")} className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-xs text-blue-800">
           {notice}

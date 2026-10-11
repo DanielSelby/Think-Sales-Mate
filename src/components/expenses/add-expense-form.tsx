@@ -43,6 +43,7 @@ export interface ExpenseEditInitialValues {
   approverId: string;
   paymentMethod: string;
   paymentAccount: string;
+  paymentAccountId: string;
   transactionReference: string;
   expenseCurrency: string;
   discountAmount: number;
@@ -110,7 +111,9 @@ export function AddExpenseForm({
   const [comments, setComments] = React.useState("");
 
   const [paymentMethod, setPaymentMethod] = React.useState<string>(initialValues?.paymentMethod || PAYMENT_METHODS[0]);
-  const [paymentAccount, setPaymentAccount] = React.useState(initialValues?.paymentAccount ?? bankAccounts[0]?.name ?? "");
+  const [paymentAccountId, setPaymentAccountId] = React.useState(
+    initialValues?.paymentAccountId ?? bankAccounts[0]?.id ?? ""
+  );
   const [transactionReference, setTransactionReference] = React.useState(initialValues?.transactionReference ?? "");
   const [expenseCurrency, setExpenseCurrency] = React.useState<string>(initialValues?.expenseCurrency || currency);
   const [paymentStatus, setPaymentStatus] = React.useState<"unpaid" | "paid">("unpaid");
@@ -179,7 +182,10 @@ export function AddExpenseForm({
     startTransition(async () => {
       const result = await createExpense({
         category, vendor: vendor || null, department, locationId: locationId || null,
-        paymentMethod, paymentAccount: paymentAccount || null, transactionReference: transactionReference || null,
+        paymentMethod,
+        paymentAccountId: paymentAccountId || null,
+        paymentAccount: bankAccounts.find((account) => account.id === paymentAccountId)?.name ?? null,
+        transactionReference: transactionReference || null,
         currency: expenseCurrency, referenceNumber: reference || null,
         purchaseOrderId: selectedPo?.id ?? null, expenseDate, dueDate: null, notes: notes || null,
         expenseType, tags, approvalRequired: finalApprovalRequired, approverId: approverId || null,
@@ -219,7 +225,10 @@ export function AddExpenseForm({
     startTransition(async () => {
       const result = await updateExpense(expenseId!, {
         category, vendor: vendor || null, department, locationId: locationId || null,
-        paymentMethod, paymentAccount: paymentAccount || null, transactionReference: transactionReference || null,
+        paymentMethod,
+        paymentAccountId: paymentAccountId || null,
+        paymentAccount: bankAccounts.find((account) => account.id === paymentAccountId)?.name ?? null,
+        transactionReference: transactionReference || null,
         currency: expenseCurrency, referenceNumber: reference || null,
         purchaseOrderId: selectedPo?.id ?? null, expenseDate, dueDate: null,
         expenseType, tags, approvalRequired, approverId: approverId || null,
@@ -581,9 +590,9 @@ export function AddExpenseForm({
                 </Select>
               </Field>
               <Field label="Payment Account" required>
-                <Select value={paymentAccount} onChange={(e) => setPaymentAccount(e.target.value)}>
+                <Select value={paymentAccountId} onChange={(e) => setPaymentAccountId(e.target.value)}>
                   <option value="">Select account</option>
-                  {bankAccounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+                  {bankAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </Select>
               </Field>
               <Field label="Transaction ID / Reference">

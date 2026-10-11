@@ -18,6 +18,7 @@ import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales
 import { cn } from "@/lib/utils";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
 import { useInvoiceFormat, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface BranchRequestRow {
   id: string;
@@ -115,7 +116,6 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
 
       setRows((current) => current.filter((row) => row.id !== id));
       setNotice({ message: "Document deleted.", tone: "success" });
-      window.setTimeout(() => setNotice(null), 3000);
     });
   }
 
@@ -234,7 +234,7 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
         </CardContent>
       </Card>
 
-      {notice && <div className={cn("flex items-center justify-between rounded-md border px-4 py-2.5 text-sm", notice.tone === "success" ? "border-signal/30 bg-signal-soft text-ink-900" : "border-alert/30 bg-alert-soft text-alert")}>{notice.message}<button onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button></div>}
+      {notice && <TransactionFeedback kind={notice.tone} message={notice.message} onClose={() => setNotice(null)} />}
 
       <Card accent="neutral" className="overflow-hidden rounded-2xl border-white shadow-card dark:border-white">
         <div className="flex items-center justify-between border-b border-ledger-100 px-4 py-3 text-xs text-ledger-500 dark:border-ledger-700">

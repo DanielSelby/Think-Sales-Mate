@@ -21,6 +21,7 @@ export default async function BankingPage({
 }: {
   searchParams: Promise<{
     transactionsPage?: string;
+    transactionsPageSize?: string;
     transfer?: string;
     accountCreated?: string;
     accountId?: string;
@@ -33,8 +34,11 @@ export default async function BankingPage({
   const query = await searchParams;
   const parsedPage = Number.parseInt(query.transactionsPage ?? "1", 10);
   const transactionPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-  const pageSize = 8;
-  const from = (transactionPage - 1) * pageSize;
+  const transactionPageSize = ["10", "50", "100", "all"].includes(query.transactionsPageSize ?? "")
+    ? query.transactionsPageSize ?? "10"
+    : "10";
+  const pageSize = transactionPageSize === "all" ? null : Number(transactionPageSize);
+  const from = pageSize === null ? 0 : (transactionPage - 1) * pageSize;
   const transactionType = ["income", "debt_pay", "expense", "transfer", "deposit"].includes(query.type ?? "")
     ? query.type ?? ""
     : "";
@@ -92,31 +96,64 @@ export default async function BankingPage({
   }));
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
   const selectedAccountId = query.accountId && accountNames.has(query.accountId) ? query.accountId : "";
-  let transactionsQuery = supabase
-    .from("bank_transactions")
-    .select("id, account_id, type, amount, description, counterparty_name, transaction_category, transaction_date", { count: "exact" })
-    .eq("org_id", context.orgId)
-    .order("transaction_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-  if (selectedAccountId) transactionsQuery = transactionsQuery.eq("account_id", selectedAccountId);
-  if (transactionType === "income") transactionsQuery = transactionsQuery.eq("transaction_category", "income");
-  else if (transactionType === "debt_pay") transactionsQuery = transactionsQuery.eq("transaction_category", "debt_payment");
-  else if (transactionType === "expense") transactionsQuery = transactionsQuery.eq("transaction_category", "expense");
-  else if (transactionType === "transfer") transactionsQuery = transactionsQuery.ilike("description", "Transfer %");
-  else if (transactionType === "deposit") {
-    transactionsQuery = transactionsQuery.eq("type", "deposit").is("transaction_category", null);
-  }
-  if (dateFrom) transactionsQuery = transactionsQuery.gte("transaction_date", dateFrom);
-  if (dateTo) transactionsQuery = transactionsQuery.lte("transaction_date", dateTo);
-  if (description) {
-    const safeSearch = description.replace(/[^a-zA-Z0-9\s-]/g, " ");
-    transactionsQuery = transactionsQuery.or(`description.ilike.%${safeSearch}%,counterparty_name.ilike.%${safeSearch}%`);
-  }
-  const transactionsResult = await transactionsQuery.range(from, from + pageSize - 1);
+  const createTransactionsQuery = () => {
+    let transactionsQuery = supabase
+      .from("bank_transactions")
+      .select("id, account_id, type, amount, description, counterparty_name, transaction_category, transaction_date, recorded_by", { count: "exact" })
+      .eq("org_id", context.orgId)
+      .order("transaction_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (selectedAccountId) transactionsQuery = transactionsQuery.eq("account_id", selectedAccountId);
+    if (transactionType === "income") transactionsQuery = transactionsQuery.eq("transaction_category", "income");
+    else if (transactionType === "debt_pay") transactionsQuery = transactionsQuery.eq("transaction_category", "debt_payment");
+    else if (transactionType === "expense") transactionsQuery = transactionsQuery.eq("transaction_category", "expense");
+    else if (transactionType === "transfer") transactionsQuery = transactionsQuery.ilike("description", "Transfer %");
+    else if (transactionType === "deposit") {
+      transactionsQuery = transactionsQuery.eq("type", "deposit").is("transaction_category", null);
+    }
+    if (dateFrom) transactionsQuery = transactionsQuery.gte("transaction_date", dateFrom);
+    if (dateTo) transactionsQuery = transactionsQuery.lte("transaction_date", dateTo);
+    if (description) {
+      const safeSearch = description.replace(/[^a-zA-Z0-9\s-]/g, " ");
+      transactionsQuery = transactionsQuery.or(`description.ilike.%${safeSearch}%,counterparty_name.ilike.%${safeSearch}%`);
+    }
+    return transactionsQuery;
+  };
+  const batchSize = 500;
+  const transactionsResult = await createTransactionsQuery().range(
+    pageSize === null ? 0 : from,
+    pageSize === null ? batchSize - 1 : from + pageSize - 1
+  );
   if (transactionsResult.error) throw new Error(`Bank transactions could not be loaded: ${transactionsResult.error.message}`);
+  const transactionCount = transactionsResult.count ?? 0;
+  const transactionData = transactionsResult.data ?? [];
+  if (pageSize === null) {
+    for (let offset = batchSize; offset < transactionCount; offset += batchSize) {
+      const batch = await createTransactionsQuery().range(offset, offset + batchSize - 1);
+      if (batch.error) throw new Error(`Bank transactions could not be loaded: ${batch.error.message}`);
+      transactionData.push(...(batch.data ?? []));
+    }
+  }
 
-  const transactions: BankingTransactionRow[] = (transactionsResult.data ?? [])
+  const recorderIds = [...new Set(transactionData.map((transaction) => transaction.recorded_by).filter(Boolean))];
+  const { data: members, error: membersError } = recorderIds.length
+    ? await supabase
+      .from("organization_members")
+      .select("user_id, username, contact_email, profiles(full_name)")
+      .eq("org_id", context.orgId)
+      .in("user_id", recorderIds)
+    : { data: [], error: null };
+  if (membersError) throw new Error(`Transaction users could not be loaded: ${membersError.message}`);
+  const recorderNames = new Map((members ?? []).map((member) => {
+    const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
+    return [
+      member.user_id,
+      profile?.full_name?.trim() || member.username?.trim() || member.contact_email?.trim() || member.user_id || "Unknown user",
+    ];
+  }).filter((entry): entry is [string, string] => Boolean(entry[0])));
+
+  const transactions: BankingTransactionRow[] = transactionData
     .filter((transaction) => accountNames.has(transaction.account_id))
     .map((transaction) => ({
       id: transaction.id,
@@ -125,11 +162,12 @@ export default async function BankingPage({
       formattedAmount: formatCurrency(transaction.amount, context.currency),
       description: transaction.description,
       counterpartyName: transaction.counterparty_name,
+      recordedBy: recorderNames.get(transaction.recorded_by) ?? transaction.recorded_by,
       category: transaction.transaction_category,
       transactionDate: transaction.transaction_date,
       accountName: accountNames.get(transaction.account_id)!,
     }));
-  const transactionPages = Math.max(1, Math.ceil((transactionsResult.count ?? 0) / pageSize));
+  const transactionPages = pageSize === null ? 1 : Math.max(1, Math.ceil(transactionCount / pageSize));
   const transactionFilters: BankingTransactionFilters = {
     accountId: selectedAccountId,
     type: transactionType,
@@ -143,6 +181,7 @@ export default async function BankingPage({
       if (value) params.set(key, value);
     }
     params.set("transactionsPage", String(transactionPages));
+    params.set("transactionsPageSize", transactionPageSize);
     redirect(`/banking?${params.toString()}#recent-transactions`);
   }
 
@@ -194,6 +233,8 @@ export default async function BankingPage({
         transactionPage={Math.min(transactionPage, transactionPages)}
         transactionPages={transactionPages}
         transactionFilters={transactionFilters}
+        transactionPageSize={transactionPageSize}
+        transactionTotal={transactionCount}
         initialTransferOpen={query.transfer === "1"}
       />
     </main>

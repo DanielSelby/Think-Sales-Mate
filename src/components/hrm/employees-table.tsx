@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { deleteEmployee } from "@/app/(dashboard)/hrm/actions";
 import { formatMoney } from "@/lib/currency";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface EmployeeRow {
   id: string;
@@ -38,7 +39,7 @@ export function EmployeesTable({ employees, canManage, currency = "GHS" }: { emp
 
   return (
     <div className="space-y-3">
-      {error && <p className="rounded-md bg-alert-soft px-3 py-2 text-sm text-alert">{error}</p>}
+      {error && <TransactionFeedback kind="error" message={error} onClose={() => setError(null)} />}
 
       <div className="overflow-hidden rounded-card border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <table className="w-full text-sm">

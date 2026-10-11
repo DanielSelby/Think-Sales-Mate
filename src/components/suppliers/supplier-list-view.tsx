@@ -17,6 +17,7 @@ import { SupplierRowMenu } from "@/components/suppliers/supplier-row-menu";
 import { KpiFlipCard } from "@/components/charts/kpi-flip-card";
 import { AddSupplierDialog } from "@/components/suppliers/add-supplier-dialog";
 import { ImportSuppliersDialog } from "@/components/suppliers/import-suppliers-dialog";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { bulkUpdateSupplierStatus, bulkDeleteSuppliers } from "@/app/(dashboard)/purchases/suppliers/actions";
 import { useRouter } from "next/navigation";
 import type { SupplierStatus } from "@/types/database";
@@ -125,7 +126,6 @@ export function SupplierListView({
 
   function showNotice(message: string, tone: "success" | "error" = "success") {
     setNotice({ message, tone });
-    setTimeout(() => setNotice(null), 4000);
   }
 
   const paymentTermsOptions = React.useMemo(
@@ -238,15 +238,7 @@ export function SupplierListView({
         </div>
       </div>
 
-      {notice && (
-        <div className={cn(
-          "flex items-center justify-between gap-2 rounded-md border px-4 py-2.5 text-sm",
-          notice.tone === "success" ? "border-signal/30 bg-signal-soft text-ink-900 dark:bg-signal/10 dark:text-white" : "border-alert/30 bg-alert-soft text-alert"
-        )}>
-          {notice.message}
-          <button onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
+      {notice && <TransactionFeedback kind={notice.tone} message={notice.message} onClose={() => setNotice(null)} />}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
         <div className="space-y-5">

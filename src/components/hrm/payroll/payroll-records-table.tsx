@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { CheckCircle2, Download, Eye, Pencil, Printer } from "lucide-react";
 import { approvePayrollRuns, markPayrollItemsPaid } from "@/app/(dashboard)/hrm/payroll/approval-actions";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface PayrollRecordRow {
   id: string;
@@ -37,6 +38,7 @@ export function PayrollRecordsTable({
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [message, setMessage] = useState<string | null>(null);
+  const [messageKind, setMessageKind] = useState<"success" | "error">("success");
   const [isPending, startTransition] = useTransition();
   const selectedRows = useMemo(() => rows.filter((row) => selectedIds.has(row.id)), [rows, selectedIds]);
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
@@ -93,9 +95,11 @@ export function PayrollRecordsTable({
         : await approvePayrollRuns(selectedRunIds);
       router.refresh();
       if (!result.ok) {
+        setMessageKind("error");
         setMessage(result.error ?? "The requested payroll action failed.");
         return;
       }
+      setMessageKind("success");
       setMessage(action === "paid" ? "Selected payroll items marked as paid." : "Selected payroll runs approved.");
       setSelectedIds(new Set());
     });
@@ -109,20 +113,18 @@ export function PayrollRecordsTable({
         : await approvePayrollRuns([row.runId]);
       router.refresh();
       if (!result.ok) {
+        setMessageKind("error");
         setMessage(result.error ?? "The requested payroll action failed.");
         return;
       }
+      setMessageKind("success");
       setMessage(action === "paid" ? `${row.employeeName} marked as paid.` : `Payroll run for ${row.salaryMonth} approved.`);
     });
   }
 
   return (
     <>
-      {message && (
-        <p role="status" className="border-b border-slate-100 px-4 py-2 text-xs text-slate-600 dark:border-ledger-700 dark:text-ledger-300">
-          {message}
-        </p>
-      )}
+      {message && <TransactionFeedback kind={messageKind} message={message} onClose={() => setMessage(null)} />}
       {canManage && selectedRows.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 dark:border-ledger-700 dark:bg-ink-950">
           <span className="mr-1 text-xs font-semibold text-slate-600 dark:text-ledger-300">{selectedRows.length} selected</span>

@@ -24,6 +24,7 @@ export interface CreateExpenseInput {
   locationId: string | null;
   paymentMethod: string | null;
   paymentAccount: string | null;
+  paymentAccountId: string | null;
   transactionReference: string | null;
   currency: string;
   referenceNumber: string | null;
@@ -88,6 +89,20 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
   if (!canUseLocation(context, input.locationId)) {
     return { ok: false, error: "You are not assigned to this branch." };
   }
+  if (input.paymentAccountId) {
+    const { data: account, error: accountError } = await supabase
+      .from("bank_accounts")
+      .select("id")
+      .eq("id", input.paymentAccountId)
+      .eq("org_id", context.orgId)
+      .maybeSingle();
+    if (accountError || !account) {
+      return { ok: false, error: accountError?.message ?? "Select a valid payment account." };
+    }
+  }
+  if (input.paymentStatus === "paid" && !input.paymentAccountId) {
+    return { ok: false, error: "Select the bank account used to pay this expense." };
+  }
 
   const status = input.action === "draft" ? "pending_approval" : input.approvalRequired ? "pending_approval" : "approved";
 
@@ -102,6 +117,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
       expense_date: input.expenseDate,
       payment_method: input.paymentMethod,
       payment_account: input.paymentAccount || null,
+      payment_account_id: input.paymentAccountId || null,
       status,
       payment_status: input.paymentStatus,
       paid_on: input.paymentStatus === "paid" ? (input.paidOn ?? input.expenseDate) : null,
@@ -161,6 +177,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<CreateEx
   if (audit.error) return { ok: false, error: audit.error };
 
   revalidatePath("/expenses");
+  if (input.paymentStatus === "paid") revalidatePath("/banking");
   return { ok: true, expenseId: data.id, expenseNumber: formatExpenseNumber(data.expense_number) };
 }
 
@@ -224,6 +241,7 @@ export interface UpdateExpenseInput {
   locationId: string | null;
   paymentMethod: string | null;
   paymentAccount: string | null;
+  paymentAccountId: string | null;
   transactionReference: string | null;
   currency: string;
   referenceNumber: string | null;
@@ -266,13 +284,28 @@ export async function updateExpense(expenseId: string, input: UpdateExpenseInput
 
   const { data: existing, error: fetchError } = await supabase
     .from("expenses")
-    .select("id, org_id, location_id")
+    .select("id, org_id, location_id, amount, payment_status, payment_account_id")
     .eq("id", expenseId)
     .eq("org_id", context.orgId)
     .single();
   if (fetchError || !existing) return { ok: false, error: "Expense not found." };
   if (!canUseLocation(context, existing.location_id) || !canUseLocation(context, input.locationId)) {
     return { ok: false, error: "Expense not found." };
+  }
+  if (input.paymentAccountId) {
+    const { data: account, error: accountError } = await supabase
+      .from("bank_accounts")
+      .select("id")
+      .eq("id", input.paymentAccountId)
+      .eq("org_id", context.orgId)
+      .maybeSingle();
+    if (accountError || !account) {
+      return { ok: false, error: accountError?.message ?? "Select a valid payment account." };
+    }
+  }
+  if (existing.payment_status === "paid" &&
+      (total !== Number(existing.amount) || input.paymentAccountId !== existing.payment_account_id)) {
+    return { ok: false, error: "A paid expense's amount and payment account cannot be changed." };
   }
 
   const { error: updateError } = await supabase
@@ -284,6 +317,8 @@ export async function updateExpense(expenseId: string, input: UpdateExpenseInput
       amount: total,
       expense_date: input.expenseDate,
       payment_method: input.paymentMethod,
+      payment_account: input.paymentAccount || null,
+      payment_account_id: input.paymentAccountId || null,
       department: input.department,
       location_id: input.locationId,
       due_date: input.dueDate,
@@ -334,6 +369,7 @@ export async function updateExpense(expenseId: string, input: UpdateExpenseInput
 
   revalidatePath("/expenses");
   revalidatePath(`/expenses/${expenseId}`);
+  revalidatePath("/banking");
   return { ok: true };
 }
 
@@ -486,6 +522,7 @@ export async function approveExpense(expenseId: string): Promise<SimpleResult> {
 
   await logExpenseAction(expense.org_id, user.id, "expense.approved", expenseId, { expense_number: expense.expense_number });
   revalidatePath("/expenses");
+  revalidatePath("/banking");
   return { ok: true };
 }
 
@@ -510,9 +547,16 @@ export async function markExpensePaid(expenseId: string, paidOn?: string): Promi
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
-  const { data: expense, error: fetchError } = await supabase.from("expenses").select("org_id, expense_number, status, amount, expense_date, location_id").eq("id", expenseId).single();
+  const { data: expense, error: fetchError } = await supabase
+    .from("expenses")
+    .select("org_id, expense_number, status, amount, expense_date, location_id, payment_account_id")
+    .eq("id", expenseId)
+    .single();
   if (fetchError || !expense) return { ok: false, error: "Expense not found." };
   if (expense.status !== "approved") return { ok: false, error: "Only approved expenses can be marked as paid." };
+  if (!expense.payment_account_id) {
+    return { ok: false, error: "Edit this expense and select its payment account before marking it as paid." };
+  }
 
   const { error } = await supabase.from("expenses").update({ payment_status: "paid", paid_on: paidOn ?? new Date().toISOString().slice(0, 10) }).eq("id", expenseId);
   if (error) return { ok: false, error: error.message };
@@ -540,6 +584,7 @@ export async function markExpensePaid(expenseId: string, paidOn?: string): Promi
 
   await logExpenseAction(expense.org_id, user.id, "expense.paid", expenseId, { expense_number: expense.expense_number });
   revalidatePath("/expenses");
+  revalidatePath("/banking");
   return { ok: true };
 }
 
