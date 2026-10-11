@@ -376,7 +376,6 @@ export default function CommunicationPage() {
     return () => { cancelled = true; };
   }, [attachmentUrls, messages, supabase]);
 
-  const activeMessages = messages.filter((item) => item.channel_id === active?.id);
   const memberInBranchScope = (member: Member) => {
     if (member.id === userId) return false;
     if (member.branchScope === "all") return true;
@@ -394,6 +393,7 @@ export default function CommunicationPage() {
   });
 
   const active = visibleChannels.find((item) => item.id === activeId) ?? visibleChannels[0];
+  const activeMessages = messages.filter((item) => item.channel_id === active?.id);
 
   function markRead(channelId: string) {
     const timestamp = new Date().toISOString();
