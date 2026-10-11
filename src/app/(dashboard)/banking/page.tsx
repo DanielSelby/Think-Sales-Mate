@@ -140,18 +140,17 @@ export default async function BankingPage({
   const { data: members, error: membersError } = recorderIds.length
     ? await supabase
       .from("organization_members")
-      .select("user_id, username, contact_email, profiles(full_name)")
+      .select("user_id, username, contact_email")
       .eq("org_id", context.orgId)
       .in("user_id", recorderIds)
     : { data: [], error: null };
   if (membersError) throw new Error(`Transaction users could not be loaded: ${membersError.message}`);
-  const recorderNames = new Map((members ?? []).map((member) => {
-    const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-    return [
+  const recorderNames = new Map((members ?? [])
+    .map((member) => [
       member.user_id,
-      profile?.full_name?.trim() || member.username?.trim() || member.contact_email?.trim() || member.user_id || "Unknown user",
-    ];
-  }).filter((entry): entry is [string, string] => Boolean(entry[0])));
+      member.username?.trim() || member.contact_email?.trim() || member.user_id || "Unknown user",
+    ] as const)
+    .filter((entry): entry is readonly [string, string] => Boolean(entry[0])));
 
   const transactions: BankingTransactionRow[] = transactionData
     .filter((transaction) => accountNames.has(transaction.account_id))

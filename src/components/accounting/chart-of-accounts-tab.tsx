@@ -21,6 +21,7 @@ import { formatCurrencyAmount } from "@/lib/currency";
 import type { AccountingAccount, AccountType } from "@/types/accounting";
 import { mergeAccountingAccounts, saveAccountingAccount, setAccountingAccountStatus } from "@/app/(dashboard)/accounting/actions";
 import { useRouter } from "next/navigation";
+import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] }: { initialAccounts?: AccountingAccount[]; initialBranches?: { id: string; name: string }[] }) {
   const {
@@ -41,6 +42,8 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<AccountingAccount | null>(null);
+  const [accountFeedback, setAccountFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
 
   // Form State for Add / Edit
   const [formData, setFormData] = useState<{
@@ -68,6 +71,30 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
   // Merge modal state
   const [mergeSourceId, setMergeSourceId] = useState("");
   const [mergeTargetId, setMergeTargetId] = useState("");
+
+  const handleAccountTypeChange = (type: AccountType) => {
+    const defaultSubType: Record<AccountType, string> = {
+      asset: "Current Assets",
+      liability: "Current Liabilities",
+      equity: "Equity",
+      revenue: "Operating Revenue",
+      cogs: "Cost of Goods Sold",
+      expense: "Operating Expenses",
+    };
+    setFormData((current) => ({ ...current, type, subType: defaultSubType[type] }));
+  };
+
+  const configurePayrollPayable = () => {
+    setFormData((current) => ({
+      ...current,
+      type: "liability",
+      name: "Payroll Payable",
+      subType: "Payroll Payable",
+      branch: "All Locations",
+      branchId: "",
+      description: "Liability for accrued salaries and wages awaiting payment.",
+    }));
+  };
 
   const filteredAccounts = accounts.filter((acc) => {
     const matchesType = selectedType === "all" || acc.type === selectedType;
@@ -114,39 +141,67 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
     e.preventDefault();
     if (!formData.code || !formData.name) return;
 
-    const result = await saveAccountingAccount({
-      code: formData.code,
-      name: formData.name,
-      type: formData.type,
-      subType: formData.subType,
-      parentId: formData.parentId || null,
-      locationId: formData.branchId || null,
-      currency: useAccountingStore.getState().currentCurrencyCode,
-      description: formData.description,
-    });
-    if (!result.ok) return;
-
-    setIsAddModalOpen(false);
+    setIsSavingAccount(true);
+    try {
+      const result = await saveAccountingAccount({
+        code: formData.code,
+        name: formData.name,
+        type: formData.type,
+        subType: formData.subType,
+        parentId: formData.parentId || null,
+        locationId: formData.branchId || null,
+        currency: useAccountingStore.getState().currentCurrencyCode,
+        description: formData.description,
+      });
+      if (!result.ok) {
+        setAccountFeedback({ kind: "error", message: result.error ?? "The account could not be created." });
+        return;
+      }
+      setIsAddModalOpen(false);
+      setAccountFeedback({ kind: "success", message: "Account created successfully." });
+      router.refresh();
+    } catch (error) {
+      setAccountFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : "The account could not be created.",
+      });
+    } finally {
+      setIsSavingAccount(false);
+    }
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAccount) return;
 
-    const result = await saveAccountingAccount({
-      id: selectedAccount.id,
-      code: formData.code,
-      name: formData.name,
-      type: formData.type,
-      subType: formData.subType,
-      parentId: formData.parentId || null,
-      locationId: formData.branchId || null,
-      currency: useAccountingStore.getState().currentCurrencyCode,
-      description: formData.description,
-    });
-    if (!result.ok) return;
-
-    setIsEditModalOpen(false);
+    setIsSavingAccount(true);
+    try {
+      const result = await saveAccountingAccount({
+        id: selectedAccount.id,
+        code: formData.code,
+        name: formData.name,
+        type: formData.type,
+        subType: formData.subType,
+        parentId: formData.parentId || null,
+        locationId: formData.branchId || null,
+        currency: useAccountingStore.getState().currentCurrencyCode,
+        description: formData.description,
+      });
+      if (!result.ok) {
+        setAccountFeedback({ kind: "error", message: result.error ?? "The account could not be updated." });
+        return;
+      }
+      setIsEditModalOpen(false);
+      setAccountFeedback({ kind: "success", message: "Account updated successfully." });
+      router.refresh();
+    } catch (error) {
+      setAccountFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : "The account could not be updated.",
+      });
+    } finally {
+      setIsSavingAccount(false);
+    }
   };
 
   const handlePerformMerge = async () => {
@@ -208,6 +263,7 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
 
   return (
     <div className="space-y-5">
+      {accountFeedback && <TransactionFeedback kind={accountFeedback.kind} message={accountFeedback.message} onClose={() => setAccountFeedback(null)} />}
       {/* ── Header Controls & Actions ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
@@ -421,7 +477,7 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
                   <label className="font-medium text-slate-700">Account Type *</label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as AccountType })}
+                    onChange={(e) => handleAccountTypeChange(e.target.value as AccountType)}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                   >
                     <option value="asset">Asset (1000s)</option>
@@ -444,6 +500,14 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600"
                 />
+              </div>
+
+              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">
+                <p className="font-semibold">Setting up payroll?</p>
+                <p className="mt-1 leading-relaxed">Create an active liability account named “Payroll Payable.” Use an unused liability code (typically in the 2000 range) and keep it under All Locations.</p>
+                <button type="button" onClick={configurePayrollPayable} className="mt-2 font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">
+                  Fill payroll payable details
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -506,9 +570,10 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm"
+                  disabled={isSavingAccount}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Create Account
+                  {isSavingAccount ? "Creating..." : "Create Account"}
                 </button>
               </div>
             </form>
@@ -545,7 +610,7 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
                   <label className="font-medium text-slate-700 dark:text-slate-300">Account Type *</label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as AccountType })}
+                    onChange={(e) => handleAccountTypeChange(e.target.value as AccountType)}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
                   >
                     <option value="asset">Asset</option>
@@ -615,9 +680,10 @@ export function ChartOfAccountsTab({ initialAccounts = [], initialBranches = [] 
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm"
+                  disabled={isSavingAccount}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Save Changes
+                  {isSavingAccount ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>
