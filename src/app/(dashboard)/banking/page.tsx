@@ -145,10 +145,25 @@ export default async function BankingPage({
       .in("user_id", recorderIds)
     : { data: [], error: null };
   if (membersError) throw new Error(`Transaction users could not be loaded: ${membersError.message}`);
+  const { data: profiles, error: profilesError } = recorderIds.length
+    ? await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", recorderIds)
+    : { data: [], error: null };
+  if (profilesError) throw new Error(`Transaction user names could not be loaded: ${profilesError.message}`);
+  const profileNames = new Map<string, string>();
+  for (const profile of profiles ?? []) {
+    const fullName = profile.full_name?.trim();
+    if (fullName) profileNames.set(profile.id, fullName);
+  }
   const recorderNames = new Map((members ?? [])
     .map((member) => [
       member.user_id,
-      member.username?.trim() || member.contact_email?.trim() || member.user_id || "Unknown user",
+      profileNames.get(member.user_id ?? "")
+        || member.username?.trim()
+        || member.contact_email?.trim()
+        || "Unknown user",
     ] as const)
     .filter((entry): entry is readonly [string, string] => Boolean(entry[0])));
 
@@ -161,7 +176,7 @@ export default async function BankingPage({
       formattedAmount: formatCurrency(transaction.amount, context.currency),
       description: transaction.description,
       counterpartyName: transaction.counterparty_name,
-      recordedBy: recorderNames.get(transaction.recorded_by) ?? transaction.recorded_by,
+      recordedBy: recorderNames.get(transaction.recorded_by) ?? "Unknown user",
       category: transaction.transaction_category,
       transactionDate: transaction.transaction_date,
       accountName: accountNames.get(transaction.account_id)!,
