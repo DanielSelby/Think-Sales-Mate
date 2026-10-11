@@ -9,14 +9,20 @@ import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
 
-export type CashSummary = { opening: number; sales: number; discounts: number; debt: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; posCashIn: number; posCashOut: number; posRegisterSessionCount: number; expected: number };
+export type CashSummary = { opening: number; sales: number; totalSales: number; discounts: number; creditSales: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; posCashIn: number; posCashOut: number; posRegisterSessionCount: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
-function splitAmount(method: unknown, bucket: "cash" | "momo" | "card") {
+function splitAmount(method: unknown, bucket: "cash" | "electronic") {
   const value = String(method ?? "");
-  if (!/^split\s*\(/i.test(value)) return null;
-  const match = value.replace(/^split\s*\(/i, "").replace(/\)\s*$/, "").match(new RegExp(`(?:${bucket === "momo" ? "momo|mobile money" : bucket})\\s+([-+]?\\d+(?:\\.\\d+)?)`, "i"));
-  return match ? n(match[1]) : 0;
+  const match = value.match(/^split\s*\((.*)\)\s*$/i);
+  if (!match) return null;
+  const methodPattern = bucket === "cash"
+    ? /cash\s+([-+]?\d+(?:\.\d+)?)/gi
+    : /(?:momo|mobile money|e-cash|electronic|card|bank transfer)\s+([-+]?\d+(?:\.\d+)?)/gi;
+  return [...match[1].matchAll(methodPattern)].reduce((total, part) => total + n(part[1]), 0);
 }
+const isCashMethod = (method: string) => /\bcash\b/i.test(method) && !/e-cash/i.test(method);
+const isElectronicMethod = (method: string) => /momo|mobile money|e-cash|electronic|card|bank transfer/i.test(method);
+const paymentAmount = (sale: Record<string, unknown>) => n(sale.amount_paid ?? sale.total);
 async function auditContext() {
   const h = await headers();
   return { device: h.get("user-agent") ?? "unknown", ip_address: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "unknown" };
@@ -121,14 +127,13 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     expenseQuery = expenseQuery.eq("recorded_by", userId);
     customerPaymentQuery = customerPaymentQuery.eq("recorded_by", userId);
   }
-  let txQ = db.from("bank_transactions").select("amount, type, recorded_by").eq("org_id", ctx.orgId).eq("transaction_date", date);
   let posMovementQuery = db.from("pos_cash_movements")
     .select("movement_type, amount")
     .eq("org_id", ctx.orgId)
     .gte("created_at", dayStart)
     .lt("created_at", dayEnd);
   let posSessionQuery = db.from("pos_register_sessions")
-    .select("id", { count: "exact", head: true })
+    .select("id, opening_cash", { count: "exact" })
     .eq("org_id", ctx.orgId)
     .gte("opened_at", dayStart)
     .lt("opened_at", dayEnd);
@@ -138,85 +143,76 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     posMovementQuery = posMovementQuery.eq("created_by", userId);
     posSessionQuery = posSessionQuery.eq("cashier_id", userId);
   }
-  const [salesQ, expQ, acctQ] = [
-    salesQuery,
-    expenseQuery,
-    db.from("bank_accounts").select("opening_balance").eq("org_id", ctx.orgId).eq("account_type", "cash"),
-  ];
-  if (userId) txQ = txQ.eq("recorded_by", userId);
-  const [{ data: sales }, expenseResult, { data: transactions }, { data: accounts }, { data: customerPayments }, { data: posMovements, error: posMovementError }, { count: posSessionCount, error: posSessionError }] = await Promise.all([
-    salesQ, expQ, txQ, acctQ, customerPaymentQuery, posMovementQuery, posSessionQuery,
+  const [salesResult, expenseResult, customerPaymentResult, posMovementResult, posSessionResult] = await Promise.all([
+    salesQuery, expenseQuery, customerPaymentQuery, posMovementQuery, posSessionQuery,
   ]);
-  if (posMovementError) throw new Error(`Could not load POS drawer movements: ${posMovementError.message}`);
-  if (posSessionError) throw new Error(`Could not load POS register sessions: ${posSessionError.message}`);
-  const expenses = expenseResult.error
-    ? (await (() => {
-        let query = scoped(db.from("expenses").select("amount, payment_method, expense_date, recorded_by").eq("org_id", ctx.orgId).eq("expense_date", date));
-        if (userId) query = query.eq("recorded_by", userId);
-        return query;
-      })()).data
-    : expenseResult.data;
-  const cashSales = (sales ?? [])
-    .filter((s: Record<string, unknown>) => splitAmount(s.payment_method, "cash") !== null || String(s.payment_method ?? "").toLowerCase().includes("cash"))
-    .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
-    .reduce((a: number, s: Record<string, unknown>) => a + (splitAmount(s.payment_method, "cash") ?? n(s.total)), 0);
-  const discounts = (sales ?? [])
+  if (salesResult.error) throw new Error(`Could not load sales for cash closing: ${salesResult.error.message}`);
+  if (expenseResult.error) throw new Error(`Could not load expenses for cash closing: ${expenseResult.error.message}`);
+  if (customerPaymentResult.error) throw new Error(`Could not load customer payments for cash closing: ${customerPaymentResult.error.message}`);
+  if (posMovementResult.error) throw new Error(`Could not load POS drawer movements: ${posMovementResult.error.message}`);
+  if (posSessionResult.error) throw new Error(`Could not load POS register sessions: ${posSessionResult.error.message}`);
+  const sales = salesResult.data ?? [];
+  const expenses = expenseResult.data ?? [];
+  const customerPayments = customerPaymentResult.data ?? [];
+  const posMovements = posMovementResult.data ?? [];
+  const saleDateRows = sales.filter((sale: Record<string, unknown>) => String(sale.created_at ?? "").slice(0, 10) === date);
+  const totalSales = saleDateRows
+    .filter((sale: Record<string, unknown>) => sale.status === "completed" || sale.status === "returned")
+    .reduce((total: number, sale: Record<string, unknown>) => total + n(sale.total), 0);
+  const cashSales = saleDateRows.reduce((total: number, sale: Record<string, unknown>) => {
+    const method = String(sale.payment_method ?? "");
+    const splitCash = splitAmount(method, "cash");
+    if (splitCash !== null) return total + splitCash;
+    return total + (isCashMethod(method) ? paymentAmount(sale) : 0);
+  }, 0);
+  const discounts = sales
     .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
     .reduce((a: number, s: Record<string, unknown>) => a + n(s.discount_amount), 0);
-  const customerDebt = (sales ?? [])
-    .filter((s: Record<string, unknown>) => !/^split\s*\(/i.test(String(s.payment_method ?? "")))
-    .filter((s: Record<string, unknown>) => String(s.payment_method ?? "").toLowerCase().includes("cash"))
-    .filter((s: Record<string, unknown>) => s.status === "completed")
-    .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
-    .reduce((a: number, s: Record<string, unknown>) => {
-      const total = n(s.total);
-      const amountPaid = s.amount_paid == null ? total : n(s.amount_paid);
-      return a + Math.max(0, total - amountPaid);
-    }, 0);
-  const electronic = (sales ?? [])
-    .filter((s: Record<string, unknown>) => {
-      const method = String(s.payment_method ?? "").toLowerCase();
-      return method.includes("mobile") || method.includes("momo") || method.includes("e-cash") || method.includes("electronic");
-    })
-    .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
-    .reduce((a: number, s: Record<string, unknown>) => a + (splitAmount(s.payment_method, "momo") ?? n(s.amount_paid ?? s.total)), 0);
-  const refunds = (sales ?? [])
-    .filter((s: Record<string, unknown>) => s.status === "returned" && !s.refund_register_session_id && String(s.refund_payment_method ?? s.payment_method ?? "").toLowerCase().includes("cash"))
+  const creditSales = saleDateRows
+    .filter((sale: Record<string, unknown>) => sale.status === "completed")
+    .reduce((total: number, sale: Record<string, unknown>) => total + Math.max(0, n(sale.total) - n(sale.amount_paid)), 0);
+  const electronicSales = saleDateRows.reduce((total: number, sale: Record<string, unknown>) => {
+    const method = String(sale.payment_method ?? "");
+    const splitElectronic = splitAmount(method, "electronic");
+    if (splitElectronic !== null) return total + splitElectronic;
+    return total + (isElectronicMethod(method) ? paymentAmount(sale) : 0);
+  }, 0);
+  const refunds = sales
+    .filter((s: Record<string, unknown>) => s.status === "returned" && !s.refund_register_session_id && isCashMethod(String(s.refund_payment_method ?? s.payment_method ?? "")))
     .filter((s: Record<string, unknown>) => String(s.status_changed_at ?? "").slice(0, 10) === date)
     .reduce((a: number, s: Record<string, unknown>) => a + n(s.refunded_amount), 0);
   const cashExpenses = (expenses ?? [])
     .filter((e: Record<string, unknown>) => {
       const paidDate = String(e.paid_on ?? e.expense_date ?? "");
-      return paidDate === date && String(e.payment_method ?? "cash").toLowerCase().includes("cash");
+      return paidDate === date && isCashMethod(String(e.payment_method ?? "cash"));
     })
     .reduce((a: number, e: Record<string, unknown>) => a + n(e.amount), 0);
-  const deposits = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "deposit").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
-  const withdrawals = (transactions ?? []).filter((t: Record<string, unknown>) => t.type === "withdrawal").reduce((a: number, t: Record<string, unknown>) => a + n(t.amount), 0);
-  const customerCashPayments = (customerPayments ?? [])
-    .filter((p: Record<string, unknown>) => String(p.payment_method ?? "").toLowerCase().includes("cash"))
+  const customerCashPayments = customerPayments
+    .filter((p: Record<string, unknown>) => isCashMethod(String(p.payment_method ?? "")))
     .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
-  const customerElectronicPayments = (customerPayments ?? [])
-    .filter((p: Record<string, unknown>) => /mobile|momo|e-cash|electronic/i.test(String(p.payment_method ?? "")))
+  const customerElectronicPayments = customerPayments
+    .filter((p: Record<string, unknown>) => isElectronicMethod(String(p.payment_method ?? "")))
     .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
-  const opening = (accounts ?? []).reduce((a: number, x: Record<string, unknown>) => a + n(x.opening_balance), 0);
-  const totalElectronic = electronic + customerElectronicPayments;
-  const posCashIn = (posMovements ?? []).reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type === "cash_in" ? n(movement.amount) : 0), 0);
-  const posCashOut = (posMovements ?? []).reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type !== "cash_in" ? n(movement.amount) : 0), 0);
+  const opening = (posSessionResult.data ?? []).reduce((total: number, session: Record<string, unknown>) => total + n(session.opening_cash), 0);
+  const totalElectronic = electronicSales + customerElectronicPayments;
+  const posCashIn = posMovements.reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type === "cash_in" ? n(movement.amount) : 0), 0);
+  const posCashOut = posMovements.reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type !== "cash_in" ? n(movement.amount) : 0), 0);
   return {
     opening,
     sales: cashSales,
+    totalSales,
     discounts,
-    debt: customerDebt,
+    creditSales,
     customerPayments: customerCashPayments,
     electronic: totalElectronic,
     refunds,
     expenses: cashExpenses,
-    deposits,
-    withdrawals,
+    deposits: 0,
+    withdrawals: 0,
     posCashIn,
     posCashOut,
-    posRegisterSessionCount: posSessionCount ?? 0,
-    expected: opening + cashSales - customerDebt + customerCashPayments - refunds - cashExpenses - deposits - withdrawals + posCashIn - posCashOut,
+    posRegisterSessionCount: posSessionResult.count ?? 0,
+    expected: opening + cashSales + customerCashPayments - refunds - cashExpenses + posCashIn - posCashOut,
   };
 }
 
@@ -249,7 +245,7 @@ export async function createCashClosing(formData: FormData) {
   const approvalRequired = Boolean(setting?.variance_approval_enabled ?? true) && Math.abs(variance) > threshold;
   const { data: closing, error } = await db.from("cash_closings").insert({
     org_id: ctx.orgId, location_id: locationId, closing_date: date, period_start: `${date}T00:00:00Z`, period_end: `${date}T23:59:59Z`,
-    opening_cash: summary.opening, cash_sales: summary.sales, cash_receipts: summary.debt, cash_customer_payments: summary.customerPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
+    opening_cash: summary.opening, cash_sales: summary.sales, total_sales: summary.totalSales, credit_sales: summary.creditSales, cash_receipts: summary.creditSales, cash_customer_payments: summary.customerPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
     deposits: summary.deposits, withdrawals: summary.withdrawals, pos_cash_in: summary.posCashIn, pos_cash_out: summary.posCashOut,
     pos_register_session_count: summary.posRegisterSessionCount, expected_cash: summary.expected, actual_cash: actual, variance, classification,
     variance_reason: varianceReason || null, notes: notes || null, comments: notes || null, shift,
