@@ -36,7 +36,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   let customerOutstandingById: Record<string, number> = {};
   let customerOutstandingByName: Record<string, number> = {};
   let initialAuditLogs: { userName: string; action: string; module: string; createdAt: string; branchId?: string }[] = [];
-  let initialPayments: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[] = [];
+  let initialPayments: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string; receivingBranch: string; invoiceBranch: string }[] = [];
   let liveFinancialSnapshot: LiveFinancialSnapshot | undefined;
   let liveAccounts: AccountingAccount[] = [];
   let liveJournalEntries: JournalEntry[] = [];
@@ -157,7 +157,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     const scopedJournalRows = (journalRows ?? []).filter((journal: any) => !allowedAccountingLocations || !journal.location_id || allowedAccountingLocations.has(journal.location_id));
     const accountNames = new Map(scopedAccountRows.map((account: any) => [account.id, account.name]));
     const locationRowsForAccounting = await accountingDb.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true);
-    const locationNamesForAccounting = new Map((locationRowsForAccounting.data ?? []).map((location: any) => [location.id, location.name]));
+    const locationNamesForAccounting = new Map<string, string>((locationRowsForAccounting.data ?? []).map((location: any) => [location.id, location.name] as const));
     initialBranchOptions = (locationRowsForAccounting.data ?? [])
       .filter((location: any) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
       .map((location: any) => ({ id: location.id, name: location.name }));
@@ -235,7 +235,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     const { data: locations } = await locationsQuery;
     initialBranches = (locations ?? []).map((location) => location.name);
     const auditQuery = db.from("audit_logs").select("actor_id, action, entity_type, created_at, metadata").eq("org_id", context.orgId).order("created_at", { ascending: false }).limit(100);
-    const paymentsQuery = db.from("customer_credit_payments").select("id, invoice_id, amount, payment_method, payment_date, recorded_by, location_id").eq("org_id", context.orgId).order("payment_date", { ascending: false });
+    const paymentsQuery = db.from("customer_credit_payments").select("id, invoice_id, amount, payment_method, payment_date, recorded_by, location_id, invoice_location_id").eq("org_id", context.orgId).order("payment_date", { ascending: false });
     const customerCreditLimitsQuery = db.from("customers").select("name, credit_limit").eq("org_id", context.orgId);
     const salesQuery = db
       .from("sales")
@@ -250,7 +250,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       .neq("status", "cancelled")
       .order("purchase_date", { ascending: false });
     if (context.isBranchScoped) {
-      paymentsQuery.in("location_id", context.allowedLocationIds);
+      paymentsQuery.in("invoice_location_id", context.allowedLocationIds);
       salesQuery.in("location_id", context.allowedLocationIds);
       purchasesQuery.in("location_id", context.allowedLocationIds);
     }
@@ -289,6 +289,8 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
       paymentMethod: payment.payment_method,
       paymentDate: payment.payment_date,
       recordedBy: recorderNames.get(payment.recorded_by) ?? payment.recorded_by ?? "—",
+      receivingBranch: locationNamesForAccounting.get(payment.location_id ?? "") ?? "Unassigned",
+      invoiceBranch: locationNamesForAccounting.get(payment.invoice_location_id ?? "") ?? "Unassigned",
     }));
     const payableToday = new Date();
     const paymentsByInvoice = new Map<string, number>();
@@ -316,6 +318,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         customerId: sale.customer_id ?? undefined,
         customerName: sale.customer_name ?? "Walk-in Customer",
         invoiceNumber,
+        locationId: sale.location_id,
         issueDate,
         dueDate,
         totalAmount,

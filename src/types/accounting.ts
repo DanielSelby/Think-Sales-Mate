@@ -83,6 +83,7 @@ export interface AccountsReceivableItem {
   customerName: string;
   customerId?: string;
   invoiceNumber: string;
+  locationId?: string | null;
   issueDate: string;
   dueDate: string;
   totalAmount: number;

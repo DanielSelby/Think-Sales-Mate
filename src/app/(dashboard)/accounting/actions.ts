@@ -5,6 +5,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { canPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 
 export async function recordCustomerCreditPayment(input: {
   invoiceId: string; customerId?: string | null; amount: number; paymentMethod: string;
@@ -19,6 +20,31 @@ export async function recordCustomerCreditPayment(input: {
     return { ok: false, error: "You do not have permission to deposit customer payments into a bank account." };
   }
   const db = await createClient() as any;
+  let invoiceLocationId: string | null = null;
+  const saleNumberMatch = /^SALE-(\d+)$/i.exec(input.invoiceId);
+  if (saleNumberMatch) {
+    const { data: sale, error: saleError } = await db.from("sales")
+      .select("location_id, customer_id")
+      .eq("org_id", context.orgId)
+      .eq("sale_number", Number(saleNumberMatch[1]))
+      .maybeSingle();
+    if (saleError) return { ok: false, error: `Could not verify the invoice branch: ${saleError.message}` };
+    if (!sale) return { ok: false, error: "The invoice could not be found." };
+    if (sale.customer_id && input.customerId && sale.customer_id !== input.customerId) {
+      return { ok: false, error: "This invoice does not belong to the selected customer." };
+    }
+    invoiceLocationId = sale.location_id;
+    if (!canAccessLocation(context, invoiceLocationId)) {
+      return { ok: false, error: "You are not assigned to the branch that owns this invoice." };
+    }
+  }
+  const receivingLocationId = input.locationId || (context.isBranchScoped ? context.locationId ?? invoiceLocationId : null);
+  if (receivingLocationId && !canAccessLocation(context, receivingLocationId)) {
+    return { ok: false, error: "You are not assigned to the branch where this payment was received." };
+  }
+  if (context.isBranchScoped && !receivingLocationId) {
+    return { ok: false, error: "Select an assigned branch where the payment was received." };
+  }
   const paymentMethod = /mobile money|mobile|momo/i.test(input.paymentMethod) ? "MoMo" : input.paymentMethod || "Cash";
   const { error } = await db.rpc("record_customer_credit_payment_with_bank_transaction", {
     p_org_id: context.orgId,
@@ -27,7 +53,8 @@ export async function recordCustomerCreditPayment(input: {
     p_amount: input.amount,
     p_payment_method: paymentMethod,
     p_payment_date: input.paymentDate || new Date().toISOString().slice(0, 10),
-    p_location_id: input.locationId || (context.isBranchScoped ? context.locationId : null),
+    p_location_id: receivingLocationId,
+    p_invoice_location_id: invoiceLocationId,
     p_recorded_by: context.userId,
     p_notes: input.notes || null,
     p_bank_account_id: input.bankAccountId || null,

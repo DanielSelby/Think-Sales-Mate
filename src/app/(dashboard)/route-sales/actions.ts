@@ -134,7 +134,8 @@ export async function recordRouteCollection(input: { customerId: string; routeId
         amount: allocation.amount,
         payment_method: paymentMethod,
         payment_date: new Date().toISOString().slice(0, 10),
-        location_id: allocation.locationId ?? (context.isBranchScoped ? context.locationId : null),
+        location_id: context.isBranchScoped ? context.locationId : null,
+        invoice_location_id: allocation.locationId,
         recorded_by: context.userId,
         notes: "Recorded from Route Sales collection",
       }))

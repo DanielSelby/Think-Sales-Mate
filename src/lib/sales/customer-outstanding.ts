@@ -14,7 +14,7 @@ type OutstandingSale = {
   amount_paid: number | null;
 };
 
-type OutstandingPayment = { invoice_id: string; amount: number };
+type OutstandingPayment = { invoice_id: string; amount: number; invoice_location_id?: string | null };
 type OutstandingInvoice = { customer_name: string; amount: number };
 
 export function calculateCustomerOutstandingBalances(
@@ -119,12 +119,12 @@ export async function getCustomerOutstandingBalances(
     .in("status", ["completed", "returned"]);
   let paymentsQuery = supabase
     .from("customer_credit_payments")
-    .select("invoice_id, amount, location_id")
+    .select("invoice_id, amount, invoice_location_id")
     .eq("org_id", orgId);
 
   if (allowedLocationIds) {
     salesQuery = salesQuery.in("location_id", allowedLocationIds);
-    paymentsQuery = paymentsQuery.in("location_id", allowedLocationIds);
+    paymentsQuery = paymentsQuery.in("invoice_location_id", allowedLocationIds);
   }
   if (excludeSaleId) salesQuery = salesQuery.neq("id", excludeSaleId);
 

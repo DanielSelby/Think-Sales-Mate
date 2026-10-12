@@ -788,6 +788,7 @@ export interface Database {
           payment_method: string;
           payment_date: string;
           location_id: string | null;
+          invoice_location_id: string | null;
           recorded_by: string;
           notes: string | null;
           created_at: string;
@@ -801,6 +802,7 @@ export interface Database {
           payment_method: string;
           payment_date?: string;
           location_id?: string | null;
+          invoice_location_id?: string | null;
           recorded_by: string;
           notes?: string | null;
           created_at?: string;

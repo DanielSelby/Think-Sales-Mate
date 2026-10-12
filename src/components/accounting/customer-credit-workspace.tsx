@@ -47,7 +47,7 @@ const TABS: { key: WorkspaceTab; label: string; icon: typeof LayoutDashboard }[]
 
 const money = (currency: string, value: number) => formatMoney(value, currency);
 
-export function CustomerCreditWorkspace({ initialReceivables = [], initialBankAccounts = [], initialAuditLogs = [], initialPayments = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {} }: { initialReceivables?: AccountsReceivableItem[]; initialBankAccounts?: BankAccountItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number> }) {
+export function CustomerCreditWorkspace({ initialReceivables = [], initialBranchOptions = [], initialBankAccounts = [], initialAuditLogs = [], initialPayments = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {} }: { initialReceivables?: AccountsReceivableItem[]; initialBranchOptions?: { id: string; name: string }[]; initialBankAccounts?: BankAccountItem[]; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string; receivingBranch: string; invoiceBranch: string }[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number> }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { receivables: storeReceivables, currentCurrency, currentCurrencyCode } = useAccountingStore();
@@ -135,7 +135,7 @@ export function CustomerCreditWorkspace({ initialReceivables = [], initialBankAc
       </nav>
 
       {activeTab === "balances" ? (
-        <AccountsReceivableTab initialReceivables={receivables} initialBankAccounts={initialBankAccounts} />
+        <AccountsReceivableTab initialReceivables={receivables} initialBranchOptions={initialBranchOptions} initialBankAccounts={initialBankAccounts} />
       ) : activeTab === "overview" ? (
         <Overview
           currency={currentCurrencyCode}
@@ -202,14 +202,14 @@ function WorkspaceSection({ tab, currency, receivables, auditLogs, payments, cus
   currency: string;
   receivables: ReturnType<typeof useAccountingStore.getState>["receivables"];
   auditLogs: { userName: string; action: string; module: string; createdAt: string }[];
-  payments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string }[];
+  payments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string; receivingBranch: string; invoiceBranch: string }[];
   customerRows: { name: string; branch: string; balance: number; creditLimit: number | null; lastPayment: string; items: typeof receivables }[];
   onSelect: (id: string) => void;
 }) {
   const title = TABS.find((item) => item.key === tab)?.label ?? tab;
   if (tab === "audit") return <TableCard title={title} columns={["User", "Action", "Module", "Date & Time"]} rows={auditLogs.map((log) => [log.userName, log.action, log.module, log.createdAt])} />;
   if (tab === "ledger") return <TableCard title={title} columns={["Date", "Reference", "Description", "Debit", "Credit", "Balance", "User"]} rows={receivables.map((r) => [r.issueDate, r.invoiceNumber, `Invoice for ${r.customerName}`, money(currency, r.totalAmount), "—", money(currency, r.outstandingAmount), "System"]) } />;
-  if (tab === "payments") return <TableCard title={title} columns={["Receipt Number", "Invoice", "Amount", "Date", "Method", "User"]} rows={(payments ?? []).map((payment) => [`RCPT-${payment.id.slice(-6)}`, payment.invoiceId, money(currency, payment.amount), payment.paymentDate, payment.paymentMethod === "Mobile Money" ? "MoMo" : payment.paymentMethod, payment.recordedBy])} />;
+  if (tab === "payments") return <TableCard title={title} columns={["Receipt Number", "Invoice", "Invoice Branch", "Received At", "Amount", "Date", "Method", "User"]} rows={(payments ?? []).map((payment) => [`RCPT-${payment.id.slice(-6)}`, payment.invoiceId, payment.invoiceBranch, payment.receivingBranch, money(currency, payment.amount), payment.paymentDate, payment.paymentMethod === "Mobile Money" ? "MoMo" : payment.paymentMethod, payment.recordedBy])} />;
   if (tab === "collections") return <TableCard title={title} columns={["Customer", "Amount Due", "Days Overdue", "Priority"]} rows={receivables.filter((r) => r.outstandingAmount > 0).sort((a, b) => b.daysOutstanding - a.daysOutstanding).map((r) => [r.customerName, money(currency, r.outstandingAmount), String(r.daysOutstanding), r.daysOutstanding > 60 ? "High" : "Normal"])} />;
   if (tab === "invoices") return <TableCard title={title} columns={["Invoice Number", "Customer", "Invoice Date", "Due Date", "Amount", "Paid Amount", "Balance", "Status"]} rows={receivables.map((r) => [r.invoiceNumber, r.customerName, r.issueDate, r.dueDate, money(currency, r.totalAmount), money(currency, r.paidAmount), money(currency, r.outstandingAmount), r.status])} />;
   if (tab === "statements") return <ActionCard title={title} text="Generate current, monthly, quarterly, annual, or custom-date customer statements from the selected customer profile." actions={["Preview", "Download PDF", "Email", "WhatsApp"]} />;

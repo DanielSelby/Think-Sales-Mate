@@ -9,19 +9,43 @@ import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
 
-export type CashSummary = { opening: number; sales: number; totalSales: number; discounts: number; creditSales: number; customerPayments: number; electronic: number; refunds: number; expenses: number; deposits: number; withdrawals: number; posCashIn: number; posCashOut: number; posRegisterSessionCount: number; expected: number };
+export type CashSummary = { opening: number; sales: number; totalSales: number; discounts: number; creditSales: number; customerPayments: number; customerElectronicPayments: number; electronic: number; electronicBreakdown: Record<string, number>; refunds: number; expenses: number; deposits: number; withdrawals: number; posCashIn: number; posCashOut: number; posRegisterSessionCount: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
+function electronicPaymentAmounts(method: string) {
+  const match = method.match(/^split\s*\((.*)\)\s*$/i);
+  if (!match) return [];
+  const details: Array<{ method: string; amount: number }> = [];
+  const paymentPattern = /\b(mobile money|momo|e-cash|electronic|card|bank transfer|cheque|check|wallet|online|other)\s*[:=]?\s*([-+]?\d+(?:\.\d+)?)/gi;
+  for (const payment of match[1].matchAll(paymentPattern)) {
+    const label = payment[1].toLowerCase();
+    details.push({
+      method: /momo|mobile money/.test(label) ? "MoMo"
+        : /card/.test(label) ? "Card"
+          : /bank transfer/.test(label) ? "Bank Transfer"
+            : /cheque|check/.test(label) ? "Cheque"
+              : /wallet/.test(label) ? "Wallet"
+                : /online/.test(label) ? "Online"
+                  : /e-cash|electronic/.test(label) ? "E-cash" : "Etc.",
+      amount: n(payment[2]),
+    });
+  }
+  return details;
+}
 function splitAmount(method: unknown, bucket: "cash" | "electronic") {
   const value = String(method ?? "");
+  if (bucket === "electronic") {
+    const details = electronicPaymentAmounts(value);
+    return /^split\s*\(/i.test(value)
+      ? details.filter((payment) => payment.method === "E-cash" || payment.method === "MoMo")
+        .reduce((total, payment) => total + payment.amount, 0)
+      : null;
+  }
   const match = value.match(/^split\s*\((.*)\)\s*$/i);
   if (!match) return null;
-  const methodPattern = bucket === "cash"
-    ? /cash\s+([-+]?\d+(?:\.\d+)?)/gi
-    : /(?:momo|mobile money|e-cash|electronic|card|bank transfer)\s+([-+]?\d+(?:\.\d+)?)/gi;
-  return [...match[1].matchAll(methodPattern)].reduce((total, part) => total + n(part[1]), 0);
+  return [...match[1].matchAll(/(?:^|[^a-z-])cash\s*[:=]?\s*([-+]?\d+(?:\.\d+)?)/gi)].reduce((total, part) => total + n(part[1]), 0);
 }
 const isCashMethod = (method: string) => /\bcash\b/i.test(method) && !/e-cash/i.test(method);
-const isElectronicMethod = (method: string) => /momo|mobile money|e-cash|electronic|card|bank transfer/i.test(method);
+const isElectronicMethod = (method: string) => /momo|mobile money|e-cash|electronic|card|bank transfer|cheque|check|wallet|online|other/i.test(method);
 const paymentAmount = (sale: Record<string, unknown>) => n(sale.amount_paid ?? sale.total);
 async function auditContext() {
   const h = await headers();
@@ -175,8 +199,26 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     const method = String(sale.payment_method ?? "");
     const splitElectronic = splitAmount(method, "electronic");
     if (splitElectronic !== null) return total + splitElectronic;
-    return total + (isElectronicMethod(method) ? paymentAmount(sale) : 0);
+    return total + (/momo|mobile money|e-cash|electronic/i.test(method) ? paymentAmount(sale) : 0);
   }, 0);
+  const electronicBreakdown = saleDateRows.reduce((breakdown: Record<string, number>, sale: Record<string, unknown>) => {
+    const method = String(sale.payment_method ?? "");
+    const splitDetails = electronicPaymentAmounts(method);
+    if (splitDetails.length) {
+      for (const payment of splitDetails) breakdown[payment.method] = (breakdown[payment.method] ?? 0) + payment.amount;
+      return breakdown;
+    }
+    if (isElectronicMethod(method)) {
+      const label = /momo|mobile money/i.test(method) ? "MoMo"
+        : /card/i.test(method) ? "Card"
+          : /bank transfer/i.test(method) ? "Bank Transfer"
+            : /cheque|check/i.test(method) ? "Cheque"
+              : /wallet/i.test(method) ? "Wallet"
+                : /online/i.test(method) ? "Online" : /e-cash|electronic/i.test(method) ? "E-cash" : "Etc.";
+      breakdown[label] = (breakdown[label] ?? 0) + paymentAmount(sale);
+    }
+    return breakdown;
+  }, {});
   const refunds = sales
     .filter((s: Record<string, unknown>) => s.status === "returned" && !s.refund_register_session_id && isCashMethod(String(s.refund_payment_method ?? s.payment_method ?? "")))
     .filter((s: Record<string, unknown>) => String(s.status_changed_at ?? "").slice(0, 10) === date)
@@ -194,7 +236,6 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     .filter((p: Record<string, unknown>) => isElectronicMethod(String(p.payment_method ?? "")))
     .reduce((a: number, p: Record<string, unknown>) => a + n(p.amount), 0);
   const opening = (posSessionResult.data ?? []).reduce((total: number, session: Record<string, unknown>) => total + n(session.opening_cash), 0);
-  const totalElectronic = electronicSales + customerElectronicPayments;
   const posCashIn = posMovements.reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type === "cash_in" ? n(movement.amount) : 0), 0);
   const posCashOut = posMovements.reduce((sum: number, movement: Record<string, unknown>) => sum + (movement.movement_type !== "cash_in" ? n(movement.amount) : 0), 0);
   return {
@@ -204,7 +245,9 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     discounts,
     creditSales,
     customerPayments: customerCashPayments,
-    electronic: totalElectronic,
+    customerElectronicPayments,
+    electronic: electronicSales,
+    electronicBreakdown,
     refunds,
     expenses: cashExpenses,
     deposits: 0,
@@ -245,7 +288,7 @@ export async function createCashClosing(formData: FormData) {
   const approvalRequired = Boolean(setting?.variance_approval_enabled ?? true) && Math.abs(variance) > threshold;
   const { data: closing, error } = await db.from("cash_closings").insert({
     org_id: ctx.orgId, location_id: locationId, closing_date: date, period_start: `${date}T00:00:00Z`, period_end: `${date}T23:59:59Z`,
-    opening_cash: summary.opening, cash_sales: summary.sales, total_sales: summary.totalSales, credit_sales: summary.creditSales, cash_receipts: summary.creditSales, cash_customer_payments: summary.customerPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
+    opening_cash: summary.opening, cash_sales: summary.sales, total_sales: summary.totalSales, credit_sales: summary.creditSales, cash_receipts: summary.creditSales, cash_customer_payments: summary.customerPayments, cash_customer_e_cash: summary.customerElectronicPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
     deposits: summary.deposits, withdrawals: summary.withdrawals, pos_cash_in: summary.posCashIn, pos_cash_out: summary.posCashOut,
     pos_register_session_count: summary.posRegisterSessionCount, expected_cash: summary.expected, actual_cash: actual, variance, classification,
     variance_reason: varianceReason || null, notes: notes || null, comments: notes || null, shift,
@@ -297,7 +340,7 @@ export async function createCashClosing(formData: FormData) {
   }
   revalidatePath("/banking/cash-closing");
   revalidatePath("/dashboard");
-  redirect("/banking/cash-closing?saved=1");
+  redirect(`/banking/cash-closing?tab=history&date_from=${encodeURIComponent(date)}&date_to=${encodeURIComponent(date)}&saved=1`);
 }
 
 export async function approveCashClosing(id: string, comments = "") {

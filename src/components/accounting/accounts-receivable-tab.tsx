@@ -25,9 +25,11 @@ import { TransactionFeedback } from "@/components/transactions/transaction-feedb
 
 export function AccountsReceivableTab({
   initialReceivables = [],
+  initialBranchOptions = [],
   initialBankAccounts = [],
 }: {
   initialReceivables?: AccountsReceivableItem[];
+  initialBranchOptions?: { id: string; name: string }[];
   initialBankAccounts?: BankAccountItem[];
 }) {
   const {
@@ -47,6 +49,7 @@ export function AccountsReceivableTab({
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
   const [paymentBankId, setPaymentBankId] = useState(initialBankAccounts[0]?.id ?? "");
+  const [receivingLocationId, setReceivingLocationId] = useState("");
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const [reminderTarget, setReminderTarget] = useState<AccountsReceivableItem | null>(null);
@@ -71,6 +74,11 @@ export function AccountsReceivableTab({
     setPaymentAmount(item.outstandingAmount);
     setPaymentMethod("Bank Transfer");
     setPaymentBankId(initialBankAccounts[0]?.id ?? "");
+    setReceivingLocationId(
+      item.locationId && initialBranchOptions.some((branch) => branch.id === item.locationId)
+        ? item.locationId
+        : initialBranchOptions.find((branch) => branch.name === currentBranch)?.id ?? ""
+    );
   };
 
   const handleConfirmPayment = async (e: React.FormEvent) => {
@@ -81,7 +89,7 @@ export function AccountsReceivableTab({
       customerId: paymentTarget.customerId,
       amount: paymentAmount,
       paymentMethod,
-      locationId: undefined,
+      locationId: receivingLocationId || null,
       bankAccountId: paymentBankId || null,
     });
     if (!result.ok) {
@@ -353,6 +361,26 @@ export function AccountsReceivableTab({
                   <option value="MoMo">MoMo (MTN / Telecel)</option>
                   <option value="Cheque">Cheque</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="font-medium text-slate-700 dark:text-slate-300">Received At Branch</label>
+                <select
+                  value={receivingLocationId}
+                  onChange={(e) => setReceivingLocationId(e.target.value)}
+                  required={initialBranchOptions.length > 0}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <option value="">No branch / direct account payment</option>
+                  {initialBranchOptions.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}{branch.id === paymentTarget.locationId ? " (invoice branch)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Invoice branch: {paymentTarget.branch}. Payment will reduce this invoice regardless of where it was received.
+                </p>
               </div>
 
               <div>
