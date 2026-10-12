@@ -137,7 +137,7 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     db.from("currencies").select("*").eq("org_id", ctx.orgId).or("is_base.eq.true,is_default.eq.true").order("is_base", { ascending: false }).limit(1).maybeSingle(),
     db.from("currency_settings").select("*").eq("org_id", ctx.orgId).maybeSingle(),
     db.from("company_profile").select("company_name, logo_url").eq("org_id", ctx.orgId).maybeSingle(),
-    db.from("organization_members").select("user_id, branch_scope, location_id, secondary_location_ids, profiles(full_name)").eq("org_id", ctx.orgId).eq("status", "active"),
+    db.from("organization_members").select("user_id, username, contact_email, invited_email, branch_scope, location_id, secondary_location_ids").eq("org_id", ctx.orgId).eq("status", "active"),
     selectedScheduleResult.error || organizationSettingsError
       ? Promise.resolve({ data: null, error: selectedScheduleResult.error
         ? `Could not load the selected branch schedule: ${selectedScheduleResult.error.message}`
@@ -146,6 +146,11 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
         .then((data) => ({ data, error: "" }))
         .catch((error: unknown) => ({ data: null, error: error instanceof Error ? error.message : "Unable to calculate expected cash." })),
   ]);
+  const memberIds = [...new Set((members ?? []).map((member: { user_id?: string | null }) => member.user_id).filter((id: string | null | undefined): id is string => Boolean(id)))];
+  const memberProfilesResult = memberIds.length
+    ? await db.from("profiles").select("id, full_name").in("id", memberIds)
+    : { data: [], error: null };
+  const memberProfileNames = new Map<string, string | null>((memberProfilesResult.data ?? []).map((profile: { id: string; full_name: string | null }) => [profile.id, profile.full_name]));
   const summary = summaryResult.data ?? { opening: 0, sales: 0, totalSales: 0, discounts: 0, creditSales: 0, customerPayments: 0, customerElectronicPayments: 0, electronic: 0, electronicBreakdown: {}, refunds: 0, expenses: 0, deposits: 0, withdrawals: 0, posCashIn: 0, posCashOut: 0, posRegisterSessionCount: 0, expected: 0 };
   const statusLocations = scopedLocations(locations);
   const branchScheduleResult = statusLocations.length
@@ -318,9 +323,12 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
       return true;
     })
     .filter((member: { user_id?: string | null }) => member.user_id)
-    .map((member: { user_id: string; profiles?: { full_name?: string | null } | { full_name?: string | null }[] | null }) => {
-      const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-      return { id: member.user_id, name: profile?.full_name ?? member.user_id };
+    .map((member: { user_id: string; username?: string | null; contact_email?: string | null; invited_email?: string | null }) => {
+      const name = memberProfileNames.get(member.user_id)?.trim();
+      return {
+        id: member.user_id,
+        name: name || member.username?.trim() || member.contact_email || member.invited_email || `User ${member.user_id.slice(0, 8)}`,
+      };
     });
   const listDateFrom = tab === "today" ? today : dateFrom || "1900-01-01";
   const listDateTo = tab === "today" ? today : dateTo || "2999-12-31";
