@@ -116,7 +116,7 @@ export function ApprovalCenter({ rows, approvedRows, historyRows, currency, canM
           ["approved", "Approved list", approvedRows.length],
           ["history", "Approval history", historyRows.length],
         ] as const).map(([key, label, count]) => (
-          <button key={key} onClick={() => { setTab(key); setSelected([]); setType("all"); }} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === key ? "bg-brand-600 text-white" : "text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.05]"}`}>
+          <button key={key} onClick={() => { setTab(key); setSelected([]); setType("all"); }} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === key ? "bg-brand-600 !text-white hover:!text-white" : "text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.05]"}`}>
             {label} <span className="ml-1 text-xs opacity-75">({count})</span>
           </button>
         ))}
