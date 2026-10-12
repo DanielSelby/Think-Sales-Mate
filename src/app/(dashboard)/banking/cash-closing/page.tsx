@@ -8,8 +8,9 @@ import { Banknote, CalendarDays, ChevronDown, ClipboardCheck, Clock3, Coins, Dow
 import { DenominationInputs } from "./denomination-inputs";
 import { BranchSelector } from "./branch-selector";
 import { BranchScheduleEditor } from "./branch-schedule-editor";
+import { MissedClosingAcknowledgement } from "./missed-closing-acknowledgement";
 import { UserSelector } from "./user-selector";
-import { businessDateForSchedule, businessDateInTimeZone, getCashClosingPeriod } from "./shift-time";
+import { businessDateForSchedule, businessDateInTimeZone, findMissedCashClosings, getCashClosingPeriod } from "./shift-time";
 import { getCurrencyConfigFromSettings, type CurrencyConfig, formatCurrencyAmount } from "@/lib/currency";
 import { CashClosingAnalytics } from "./analytics";
 import { canPermission } from "@/lib/rbac/permissions";
@@ -41,11 +42,11 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
   if (!canAccessEndOfDay) redirect("/dashboard");
   const [canCreateClosing, canApproveClosing, canEditClosing, canExportClosings, canPrintClosings, canManageBranchSchedules] = await Promise.all([
     canPermission("cash_closing", "create"),
-    canPermission("cash_closing", "approve"),
     canPermission("cash_closing", "edit"),
     canPermission("cash_closing", "export"),
     canPermission("cash_closing", "print"),
     canPermission("settings", "edit"),
+    canPermission("cash_closing", "approve"),
   ]);
   const params = (await searchParams) ?? {};
   const tab = params.tab === "variance" ? "history" : params.tab ?? "today";
@@ -149,17 +150,18 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
   const statusLocations = scopedLocations(locations);
   const branchScheduleResult = statusLocations.length
     ? await db.from("cash_closing_branch_schedules")
-      .select("location_id, required_shifts, shift_windows, time_zone")
+      .select("location_id, required_shifts, shift_windows, time_zone, tracking_started_on")
       .eq("org_id", ctx.orgId)
       .in("location_id", statusLocations.map((location) => location.id))
     : { data: [], error: null };
-  const branchSchedules = new Map<string, { requiredShifts: string[]; shiftWindows: Record<string, { start: string; end: string }>; timeZone: string; timeZoneOverride: string | null }>(
-    (branchScheduleResult.data ?? []).map((schedule: { location_id: string; required_shifts: string[]; shift_windows: Record<string, { start: string; end: string }> | null; time_zone: string | null }) =>
+  const branchSchedules = new Map<string, { requiredShifts: string[]; shiftWindows: Record<string, { start: string; end: string }>; timeZone: string; timeZoneOverride: string | null; trackingStartedOn: string | null }>(
+    (branchScheduleResult.data ?? []).map((schedule: { location_id: string; required_shifts: string[]; shift_windows: Record<string, { start: string; end: string }> | null; time_zone: string | null; tracking_started_on: string | null }) =>
       [schedule.location_id, {
         requiredShifts: schedule.required_shifts,
         shiftWindows: schedule.shift_windows ?? {},
         timeZone: schedule.time_zone || organizationTimeZone,
         timeZoneOverride: schedule.time_zone,
+        trackingStartedOn: schedule.tracking_started_on,
       }] as const),
   );
   const now = new Date();
@@ -173,34 +175,89 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     ),
   ]));
   const statusDates = [...new Set(statusDateByLocation.values())];
-  const branchClosingResult = statusLocations.length
-    ? await db.from("cash_closings")
-      .select("id, location_id, closing_date, shift, status, created_at")
-      .eq("org_id", ctx.orgId)
-      .in("closing_date", statusDates)
-      .in("location_id", statusLocations.map((location) => location.id))
-      .order("created_at", { ascending: false })
-    : { data: [], error: null };
+  const trackingStartedOnByLocation = new Map(statusLocations.map((location) => [
+    location.id,
+    branchSchedules.get(location.id)?.trackingStartedOn ?? businessDateInTimeZone(now, branchSchedules.get(location.id)?.timeZone ?? organizationTimeZone),
+  ]));
+  const oldestTrackingDate = [...trackingStartedOnByLocation.values()].sort()[0];
+  const latestStatusDate = statusDates.sort().at(-1);
+  const branchClosings: Array<{ id: string; location_id: string | null; closing_date: string; shift: string | null; status: string }> = [];
+  let branchClosingError: { message: string } | null = null;
+  if (statusLocations.length && oldestTrackingDate && latestStatusDate) {
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await db.from("cash_closings")
+        .select("id, location_id, closing_date, shift, status, created_at")
+        .eq("org_id", ctx.orgId)
+        .in("location_id", statusLocations.map((location) => location.id))
+        .gte("closing_date", oldestTrackingDate)
+        .lte("closing_date", latestStatusDate)
+        .order("closing_date", { ascending: true })
+        .order("created_at", { ascending: false })
+        .range(offset, offset + 999);
+      if (error) {
+        branchClosingError = error;
+        break;
+      }
+      branchClosings.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+  }
+  const missedAcknowledgements: Array<{ location_id: string; closing_date: string; shift: string }> = [];
+  let acknowledgementError: { message: string } | null = null;
+  if (statusLocations.length && oldestTrackingDate && latestStatusDate) {
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await db.from("cash_closing_missed_shift_acknowledgements")
+        .select("location_id, closing_date, shift")
+        .eq("org_id", ctx.orgId)
+        .in("location_id", statusLocations.map((location) => location.id))
+        .gte("closing_date", oldestTrackingDate)
+        .lte("closing_date", latestStatusDate)
+        .range(offset, offset + 999);
+      if (error) {
+        acknowledgementError = error;
+        break;
+      }
+      missedAcknowledgements.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+  }
   const branchClosingsByLocation = new Map<string, Array<{ id: string; closing_date: string; shift: string | null; status: string }>>();
-  for (const closing of branchClosingResult.data ?? []) {
+  for (const closing of branchClosings) {
     if (!closing.location_id) continue;
-    if (closing.closing_date !== statusDateByLocation.get(closing.location_id)) continue;
     const closings = branchClosingsByLocation.get(closing.location_id) ?? [];
     closings.push({ id: closing.id, closing_date: closing.closing_date, shift: closing.shift, status: closing.status });
     branchClosingsByLocation.set(closing.location_id, closings);
   }
   const branchClosingStatuses = statusLocations.map((location) => {
-    const closings = branchClosingsByLocation.get(location.id) ?? [];
+    const branchClosingsForLocation = branchClosingsByLocation.get(location.id) ?? [];
     const schedule = branchSchedules.get(location.id);
     const timeZone = schedule?.timeZone ?? organizationTimeZone;
     const timeZoneOverride = schedule?.timeZoneOverride ?? null;
     const businessDate = statusDateByLocation.get(location.id) ?? today;
     const requiredShifts = schedule?.requiredShifts ?? ["full_day"];
+    const closings = branchClosingsForLocation.filter((closing) => closing.closing_date === businessDate);
     const shiftWindows = schedule?.shiftWindows ?? {
       morning: { start: "06:00", end: "14:00" },
       afternoon: { start: "14:00", end: "22:00" },
       night: { start: "22:00", end: "06:00" },
     };
+    const trackingStartedOn = trackingStartedOnByLocation.get(location.id) ?? businessDate;
+    const missedClosings = findMissedCashClosings({
+      startDate: trackingStartedOn,
+      endDate: businessDate,
+      requiredShifts,
+      shiftWindows,
+      timeZone,
+      now,
+      closings: branchClosingsForLocation.map((closing) => ({
+        closingDate: closing.closing_date,
+        shift: closing.shift ?? "full_day",
+        status: closing.status,
+      })),
+      acknowledgements: missedAcknowledgements
+        .filter((acknowledgement) => acknowledgement.location_id === location.id)
+        .map(({ closing_date, shift }) => ({ closingDate: closing_date, shift })),
+    });
     const requiredClosings = requiredShifts.map((shift) => ({
       shift,
       closing: closings.find((candidate) => candidate.shift === shift) ?? null,
@@ -227,9 +284,9 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
       dueMissingShifts.length ? `Overdue: ${dueMissingShifts.map((shift) => shift === "full_day" ? "Full day" : shift).join(", ")}` : null,
     ].filter(Boolean).join(" · ");
     const closingId = issue?.closing?.id ?? requiredClosings.find(({ closing }) => closing)?.closing?.id ?? null;
-    if (issue?.closing?.status === "reopened") return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "reopened" as const, detail: `Reopened · ${detail}`, closingId };
-    if (issue?.closing?.status === "rejected") return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "rejected" as const, detail: `Rejected · ${detail}`, closingId };
-    if (missingShifts.length === 0) return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "closed" as const, detail, closingId };
+    if (issue?.closing?.status === "reopened") return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, missedClosings, state: "reopened" as const, detail: `Reopened · ${detail}`, closingId };
+    if (issue?.closing?.status === "rejected") return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, missedClosings, state: "rejected" as const, detail: `Rejected · ${detail}`, closingId };
+    if (missingShifts.length === 0) return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, missedClosings, state: "closed" as const, detail, closingId };
     if (!dueMissingShifts.length) return {
       ...location,
       requiredShifts,
@@ -237,13 +294,14 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
       timeZone,
       timeZoneOverride,
       businessDate,
+      missedClosings,
       state: closings.length ? "in_progress" as const : "upcoming" as const,
       detail,
       closingId,
     };
     return closings.length
-      ? { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "partial" as const, detail, closingId }
-      : { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "not_closed" as const, detail: "No required closing recorded", closingId: null };
+      ? { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, missedClosings, state: "partial" as const, detail, closingId }
+      : { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, missedClosings, state: "not_closed" as const, detail: "No required closing recorded", closingId: null };
   });
   const userOptions = (members ?? [])
     .filter((member: { branch_scope?: string | null; location_id?: string | null; secondary_location_ids?: string[] | null }) => {
@@ -462,16 +520,16 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
         {params.error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{params.error}</div>}
         {params.saved && <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">Cash closing saved successfully.</div>}
         {summaryResult.error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Cash summary could not be calculated: {summaryResult.error}</div>}
-        {(branchClosingResult.error || branchScheduleResult.error) && ctx.canViewOtherTransactions && tab === "today" && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Branch closing statuses could not be loaded: {branchClosingResult.error?.message ?? branchScheduleResult.error?.message}</div>}
+        {(branchClosingError || acknowledgementError || branchScheduleResult.error) && ctx.canViewOtherTransactions && tab === "today" && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Branch closing statuses could not be loaded: {branchClosingError?.message ?? acknowledgementError?.message ?? branchScheduleResult.error?.message}</div>}
         {closingResult.error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Closing records could not be loaded: {closingResult.error.message}</div>}
         {reportResult.error && (tab === "history" || tab === "today") && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Complete report records could not be loaded: {reportResult.error.message}</div>}
         {reportLinesError && (tab === "history" || tab === "today") && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Report denomination details could not be loaded: {reportLinesError}</div>}
         {analyticsResult.error && tab === "analytics" && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Analytics could not be loaded: {analyticsResult.error.message}</div>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">{cards.map(([label, value, tone, Icon]) => <div key={label} title={label === "E-cash / MoMo Sales" ? (Object.entries(summary.electronicBreakdown).length ? Object.entries(summary.electronicBreakdown).map(([method, amount]) => `${method}: ${formatCurrencyAmount(amount, currencyConfig)}`).join("\n") : "No electronic sales recorded today.") : undefined} className={`rounded-xl border border-[#dce8f2] p-4 shadow-sm dark:border-ledger-700 ${label === "Total Sales" ? "bg-signal-soft" : "bg-white dark:bg-ink-900"}`}><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full ${tone}`}><Icon className="h-4 w-4" /></div><p className={`text-[11px] font-medium text-ledger-500 ${label === "E-cash / MoMo Sales" ? "cursor-help" : ""}`}>{label}</p><p className={`mt-1 text-lg font-bold ${label === "Total Sales" ? "text-signal" : "text-[#17385d] dark:text-white"}`}>{formatCurrencyAmount(Number(value), currencyConfig)}</p></div>)}</div>
-        {tab === "today" && ctx.canViewOtherTransactions && !branchClosingResult.error && !branchScheduleResult.error && <section className="overflow-hidden rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
+        {tab === "today" && ctx.canViewOtherTransactions && !branchClosingError && !acknowledgementError && !branchScheduleResult.error && <section className="overflow-hidden rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5edf5] p-4">
-            <div><h2 className="font-bold text-[#17385d] dark:text-white">Branch Closing Status</h2><p className="text-xs text-ledger-500">Current business date · {branchClosingStatuses.filter((branch) => branch.state === "closed").length} closed · {branchClosingStatuses.filter((branch) => branch.state === "partial" || branch.state === "in_progress").length} in progress · {branchClosingStatuses.filter((branch) => branch.state === "not_closed" || branch.state === "reopened" || branch.state === "rejected").length} need attention</p></div>
-            <p className="text-[11px] text-ledger-500">Each branch uses its local date and configured shift times. Overnight closings use the date the shift started.</p>
+            <div><h2 className="font-bold text-[#17385d] dark:text-white">Branch Closing Status</h2><p className="text-xs text-ledger-500">Current business date · {branchClosingStatuses.filter((branch) => branch.state === "closed").length} closed · {branchClosingStatuses.filter((branch) => branch.state === "partial" || branch.state === "in_progress").length} in progress · {branchClosingStatuses.filter((branch) => branch.state === "not_closed" || branch.state === "reopened" || branch.state === "rejected").length} need attention · {branchClosingStatuses.reduce((count, branch) => count + branch.missedClosings.length, 0)} past-due closings outstanding</p></div>
+            <p className="text-[11px] text-ledger-500">Past-due shifts stay listed until a closing is recorded or a manager explicitly acknowledges the miss. Overnight closings use the date the shift started.</p>
           </div>
           {branchClosingStatuses.length ? <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {branchClosingStatuses.map((branch) => {
@@ -493,6 +551,23 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
                   <span className="min-w-0"><span className="block truncate text-sm font-semibold text-[#17385d] dark:text-white">{branch.name}</span><span className="mt-1 block text-[11px] text-ledger-500">{branch.businessDate} · {branch.detail}</span></span>
                   <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${tone}`}>{statusLabel}</span>
                 </Link>
+                {branch.missedClosings.length > 0 && <div className="mt-3 border-t border-amber-100 pt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">Outstanding missed closings ({branch.missedClosings.length})</p>
+                  <ul className="mt-1 space-y-1.5">
+                    {branch.missedClosings.slice(0, 5).map((missed) => (
+                      <li key={`${missed.closingDate}-${missed.shift}`} className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                        <Link
+                          href={`/banking/cash-closing?tab=history&date_from=${missed.closingDate}&date_to=${missed.closingDate}&location_id=${branch.id}&shift=${missed.shift}#cash-closing-report`}
+                          className="font-medium text-amber-900 underline decoration-amber-300 underline-offset-2"
+                        >
+                          {missed.closingDate} · {missed.shift === "full_day" ? "Full day" : missed.shift}
+                        </Link>
+                        {canManageBranchSchedules && <MissedClosingAcknowledgement locationId={branch.id} closingDate={missed.closingDate} shift={missed.shift} />}
+                      </li>
+                    ))}
+                  </ul>
+                  {branch.missedClosings.length > 5 && <p className="mt-1 text-[10px] text-ledger-500">And {branch.missedClosings.length - 5} older missed closing(s).</p>}
+                </div>}
                 {canManageBranchSchedules && <BranchScheduleEditor key={`${branch.id}-${branch.requiredShifts.join(",")}-${branch.timeZoneOverride ?? "organization"}`} locationId={branch.id} requiredShifts={branch.requiredShifts} shiftWindows={branch.shiftWindows} timeZoneOverride={branch.timeZoneOverride} organizationTimeZone={organizationTimeZone} />}
               </div>;
             })}

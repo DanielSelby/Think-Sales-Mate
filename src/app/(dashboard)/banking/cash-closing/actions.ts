@@ -8,7 +8,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
-import { getCashClosingPeriod, type CashClosingShiftWindow } from "./shift-time";
+import { businessDateInTimeZone, getCashClosingPeriod, type CashClosingShiftWindow } from "./shift-time";
 
 export type CashSummary = { opening: number; sales: number; totalSales: number; discounts: number; creditSales: number; customerPayments: number; customerElectronicPayments: number; electronic: number; electronicBreakdown: Record<string, number>; refunds: number; expenses: number; deposits: number; withdrawals: number; posCashIn: number; posCashOut: number; posRegisterSessionCount: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -222,6 +222,91 @@ export async function updateCashClosingBranchSchedule(input: {
     updated_at: new Date().toISOString(),
   }, { onConflict: "location_id" });
   if (error) return { error: error.message };
+
+  revalidatePath("/banking/cash-closing");
+  return { success: true };
+}
+
+export async function acknowledgeMissedCashClosing(input: { locationId: string; closingDate: string; shift: string }) {
+  const ctx = await getCurrentOrgContext();
+  if (!ctx || !await canPermission("settings", "edit")) {
+    return { error: "You do not have permission to acknowledge missed branch closings." };
+  }
+  const validShifts = new Set(["full_day", "morning", "afternoon", "night"]);
+  const parsedClosingDate = new Date(`${input.closingDate}T00:00:00.000Z`);
+  if (!input.locationId || !validShifts.has(input.shift)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(input.closingDate)
+    || Number.isNaN(parsedClosingDate.getTime())
+    || parsedClosingDate.toISOString().slice(0, 10) !== input.closingDate) {
+    return { error: "The missed closing details are invalid." };
+  }
+  if (!canAccessLocation(ctx, input.locationId)) {
+    return { error: "You are not assigned to this branch." };
+  }
+
+  const db = await createClient() as any;
+  const { data: location, error: locationError } = await db.from("business_locations")
+    .select("id")
+    .eq("id", input.locationId)
+    .eq("org_id", ctx.orgId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (locationError) return { error: locationError.message };
+  if (!location) return { error: "The selected branch is not available." };
+
+  const [{ data: schedule, error: scheduleError }, { data: organizationSettings, error: settingsError }] = await Promise.all([
+    db.from("cash_closing_branch_schedules")
+      .select("required_shifts, shift_windows, time_zone, tracking_started_on")
+      .eq("org_id", ctx.orgId)
+      .eq("location_id", input.locationId)
+      .maybeSingle(),
+    db.from("org_general_settings").select("timezone").eq("org_id", ctx.orgId).maybeSingle(),
+  ]);
+  if (scheduleError) return { error: scheduleError.message };
+  if (settingsError) return { error: `Could not load the organization timezone: ${settingsError.message}` };
+  if (schedule?.tracking_started_on && input.closingDate < schedule.tracking_started_on) {
+    return { error: "This date is outside the branch's missed-closing tracking period." };
+  }
+  const requiredShifts = schedule?.required_shifts ?? ["full_day"];
+  if (!requiredShifts.includes(input.shift)) {
+    return { error: "This shift is not required by the branch schedule." };
+  }
+  const timeZone = schedule?.time_zone || organizationSettings?.timezone || "UTC";
+  let period;
+  try {
+    period = getCashClosingPeriod(
+      input.closingDate,
+      input.shift,
+      timeZone,
+      input.shift === "full_day" ? undefined : schedule?.shift_windows?.[input.shift],
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not determine the closing period." };
+  }
+  if (period.end > new Date()) return { error: "A closing can only be acknowledged after its scheduled period has ended." };
+
+  const { data: closings, error: closingsError } = await db.from("cash_closings")
+    .select("id, status, shift")
+    .eq("org_id", ctx.orgId)
+    .eq("location_id", input.locationId)
+    .eq("closing_date", input.closingDate)
+    .eq("shift", input.shift);
+  if (closingsError) return { error: closingsError.message };
+  if ((closings ?? []).some((closing: { status: string; shift: string | null }) =>
+    (closing.shift === input.shift || (input.shift === "full_day" && !closing.shift))
+    && !["reopened", "rejected"].includes(closing.status))) {
+    return { error: "This shift already has a recorded closing and does not need acknowledgement." };
+  }
+
+  const { error: acknowledgementError } = await db.from("cash_closing_missed_shift_acknowledgements").upsert({
+    org_id: ctx.orgId,
+    location_id: input.locationId,
+    closing_date: input.closingDate,
+    shift: input.shift,
+    acknowledged_by: ctx.userId,
+    acknowledged_at: new Date().toISOString(),
+  }, { onConflict: "location_id,closing_date,shift" });
+  if (acknowledgementError) return { error: acknowledgementError.message };
 
   revalidatePath("/banking/cash-closing");
   return { success: true };

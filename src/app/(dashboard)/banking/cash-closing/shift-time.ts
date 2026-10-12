@@ -1,4 +1,33 @@
 export type CashClosingShiftWindow = { start: string; end: string };
+export type MissedCashClosing = { closingDate: string; shift: string };
+
+export function findMissedCashClosings(input: {
+  startDate: string;
+  endDate: string;
+  requiredShifts: string[];
+  shiftWindows: Record<string, CashClosingShiftWindow>;
+  timeZone: string;
+  now: Date;
+  closings: Array<{ closingDate: string; shift: string; status: string }>;
+  acknowledgements: MissedCashClosing[];
+}): MissedCashClosing[] {
+  const missed: MissedCashClosing[] = [];
+  const acknowledged = new Set(input.acknowledgements.map(({ closingDate, shift }) => `${closingDate}:${shift}`));
+  for (let date = input.startDate; date <= input.endDate;) {
+    for (const shift of input.requiredShifts) {
+      const period = getCashClosingPeriod(date, shift, input.timeZone, shift === "full_day" ? undefined : input.shiftWindows[shift]);
+      if (period.end > input.now) continue;
+      const isRecorded = input.closings.some((closing) =>
+        closing.closingDate === date && closing.shift === shift && !["reopened", "rejected"].includes(closing.status),
+      );
+      if (!isRecorded && !acknowledged.has(`${date}:${shift}`)) missed.push({ closingDate: date, shift });
+    }
+    const nextDate = new Date(`${date}T00:00:00.000Z`);
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+    date = nextDate.toISOString().slice(0, 10);
+  }
+  return missed;
+}
 
 export function businessDateInTimeZone(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
