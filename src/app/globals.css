@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes stock-limit-pop {
+  0% {
+    opacity: 0;
+    transform: perspective(900px) rotateX(-12deg) translateY(22px) scale(0.88);
+  }
+  70% {
+    transform: perspective(900px) rotateX(3deg) translateY(-3px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(900px) rotateX(0) translateY(0) scale(1);
+  }
+}
+
 @media print {
   body.stock-transfer-printing * {
     visibility: hidden !important;
@@ -2325,6 +2339,10 @@ html.dark body :is(
   html:not(.dark) body :is(.page-canvas, .platform-admin-console, main) table thead th {
     background-color: transparent !important;
     color: var(--theme-primary, #153361) !important;
+  }
+
+  html:not(.dark) .page-canvas .new-sale-page .sale-items-table-scroll table thead th {
+    color: #fff !important;
   }
 
   html:not(.dark) .page-canvas .purchase-history-page .purchase-history-table thead,

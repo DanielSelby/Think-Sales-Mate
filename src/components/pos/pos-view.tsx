@@ -34,6 +34,8 @@ import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { isOfflineTransactionsEnabled } from "@/lib/offline/cache";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
+import { StockLimitFeedback, StockLimitNotice, type StockLimitWarning } from "@/components/transactions/stock-limit-feedback";
+import { playStockWarningSound } from "@/lib/sales/stock-warning-sound";
 import { CustomerBalancePop } from "@/components/sales/customer-balance-pop";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 import { RegisterApprovalSuccessDialog } from "@/components/pos/register-approval-success-dialog";
@@ -128,6 +130,8 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
   const [activeBrand, setActiveBrand] = React.useState("all");
   const [priceTier, setPriceTier] = React.useState<"retail" | "wholesale" | "vip" | "special">(allowedPriceGroups[0] ?? "retail");
   const [cart, setCart] = React.useState<CartLine[]>([]);
+  const [stockLimitFeedback, setStockLimitFeedback] = React.useState<StockLimitWarning | null>(null);
+  const overStockLines = React.useRef(new Set<string>());
   const smartLocator = useSmartProductLocator(cart);
   const [priceEditLine, setPriceEditLine] = React.useState<CartLine | null>(null);
   const [cartAddSignal, setCartAddSignal] = React.useState(0);
@@ -370,7 +374,23 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
     }));
   }
   function setQtyDirect(key: string, value: number) {
-    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, quantity: Math.max(1, Math.min(l.maxStock, value || 1)) } : l)));
+    const line = cart.find((item) => item.key === key);
+    if (!line) return;
+    const quantity = Math.max(1, value || 1);
+    if (quantity > line.maxStock) {
+      if (!overStockLines.current.has(key)) playStockWarningSound();
+      overStockLines.current.add(key);
+      setStockLimitFeedback({
+        lineKey: key,
+        name: line.name,
+        quantity,
+        availableStock: line.maxStock,
+      });
+    } else {
+      overStockLines.current.delete(key);
+      setStockLimitFeedback((current) => current?.lineKey === key ? null : current);
+    }
+    setCart((prev) => prev.map((item) => (item.key === key ? { ...item, quantity } : item)));
   }
   function updateLinePrice(key: string, unitPrice: number) {
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, unitPrice } : l)));
@@ -389,9 +409,13 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
   }
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
+    overStockLines.current.delete(key);
+    setStockLimitFeedback((current) => current?.lineKey === key ? null : current);
   }
   function clearCart() {
     setCart([]);
+    overStockLines.current.clear();
+    setStockLimitFeedback(null);
     setCustomer(null);
     setDiscountAmount(0);
     setShippingAmount(0);
@@ -486,6 +510,10 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
   function handleCompleteSale(methodOverride?: string, paymentAllocations?: Array<{ paymentMethod: string; accountId?: string | null; amount: number }>) {
     setError(null);
     if (cart.length === 0) return setError("Cart is empty.");
+    const overstockLine = cart.find((line) => line.quantity > line.maxStock);
+    if (overstockLine) {
+      return setError(`Reduce ${overstockLine.name} to ${overstockLine.maxStock} unit(s) or less before completing this sale.`);
+    }
     if (!locationId) return setError("Select a branch/location.");
     if (!registerSession) return setError("Open a register for the selected branch before processing a sale.");
     const method = methodOverride ?? paymentMethod;
@@ -927,6 +955,12 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
           onClose={() => setOutOfStockFeedback(null)}
         />
       )}
+      {stockLimitFeedback && (
+        <StockLimitFeedback
+          warning={stockLimitFeedback}
+          onClose={() => setStockLimitFeedback(null)}
+        />
+      )}
       {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
         <span className="font-semibold">{registerSession.registerName} · Register Open · {registerSession.cashierName ?? cashierName} · {locations.find((location) => location.id === registerSession.locationId)?.name ?? "Assigned branch"}</span>
@@ -1275,12 +1309,27 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                          <button onClick={() => updateQty(l.key, -1)} aria-label={`Decrease ${l.name} quantity`} className="h-9 w-9 rounded-lg border border-alert/30 text-base font-semibold text-alert transition hover:bg-alert-soft">−</button>
                           <input
                             type="number"
+                            min={1}
+                            max={l.maxStock}
                             value={l.quantity}
                             onChange={(e) => setQtyDirect(l.key, Number(e.target.value))}
-                            className="h-9 w-20 rounded-lg border border-ledger-200 bg-white text-center text-base font-semibold dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            className={cn(
+                              "h-9 w-20 rounded-lg border bg-white text-center text-base font-semibold dark:bg-ink-900 dark:text-white",
+                              l.quantity > l.maxStock
+                                ? "border-alert text-alert focus-visible:ring-alert/40 dark:border-red-500"
+                                : "border-ledger-200 dark:border-ledger-700"
+                            )}
                           />
                           <button onClick={() => updateQty(l.key, 1)} aria-label={`Increase ${l.name} quantity`} className="h-9 w-9 rounded-lg border border-signal/30 text-base font-semibold text-signal transition hover:bg-signal-soft">+</button>
                         </div>
+                        {l.quantity > l.maxStock && (
+                          <StockLimitNotice warning={{
+                            lineKey: l.key,
+                            name: l.name,
+                            quantity: l.quantity,
+                            availableStock: l.maxStock,
+                          }} />
+                        )}
                       </td>
                       <td className="px-2 py-2 text-right font-mono text-[15px] font-semibold text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>
                        <td className="px-2 py-2 text-center">
@@ -1375,7 +1424,17 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
 
         <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
-          <Button variant="outline" size="sm" onClick={openRecentTransactions}><History className="h-3.5 w-3.5" /> Recent Transactions</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openRecentTransactions}
+            className="border-transparent !text-white transition-colors hover:!text-white"
+            style={{ background: theme.colors.primary }}
+            onMouseEnter={(event) => { event.currentTarget.style.background = theme.colors.primaryMid; }}
+            onMouseLeave={(event) => { event.currentTarget.style.background = theme.colors.primary; }}
+          >
+            <History className="h-3.5 w-3.5" /> Recent Transactions
+          </Button>
         </div>
       </div>
 

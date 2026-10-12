@@ -50,6 +50,8 @@ import { enqueueOfflineOperation } from "@/lib/offline/queue";
 import { isOfflineTransactionsEnabled } from "@/lib/offline/cache";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { OutOfStockFeedback, type OutOfStockItem } from "@/components/transactions/out-of-stock-feedback";
+import { StockLimitFeedback, StockLimitNotice, type StockLimitWarning } from "@/components/transactions/stock-limit-feedback";
+import { playStockWarningSound } from "@/lib/sales/stock-warning-sound";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 import { CustomerBalancePop } from "@/components/sales/customer-balance-pop";
 
@@ -252,6 +254,9 @@ export function SaleForm({
   const [error, setError] = useState<string | null>(null);
   const [transactionFeedback, setTransactionFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [stockWarning, setStockWarning] = useState<string | null>(null);
+  const [stockLimitFeedback, setStockLimitFeedback] = useState<StockLimitWarning | null>(null);
+  const overStockLines = useRef(new Set<string>());
+  const stockWarningTimer = useRef<number | null>(null);
   const [outOfStockFeedback, setOutOfStockFeedback] = useState<{ item: OutOfStockItem; message: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingSaleId] = useState<string | null>(initialSale?.id ?? null);
@@ -280,7 +285,6 @@ export function SaleForm({
   const [salesRepId, setSalesRepId] = useState(currentUserId);
   const [locationId, setLocationId] = useState(initialSale?.locationId ?? locations[0]?.id ?? "");
   const [reference, setReference] = useState(initialSale?.reference ?? "");
-  const [paymentTerm, setPaymentTerm] = useState(PAYMENT_METHODS[0]);
   const [docStatus, setDocStatus] = useState<"" | "draft" | "quotation" | "proforma" | "final">(initialSale?.documentStatus ?? "");
   const [invoiceScheme, setInvoiceScheme] = useState("Default");
 
@@ -290,6 +294,7 @@ export function SaleForm({
   const uniqueProductSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (uniqueProductSearchTimer.current) clearTimeout(uniqueProductSearchTimer.current);
+    if (stockWarningTimer.current) window.clearTimeout(stockWarningTimer.current);
   }, []);
   const [stockFilter, setStockFilter] = useState<"all" | "available">("all");
   const [lines, setLines] = useState<LineItem[]>(() => createInitialSaleLines(initialSale));
@@ -533,13 +538,19 @@ export function SaleForm({
   // Flags a line whose quantity exceeds available stock — shown as a
   // dismissing top banner plus a red Qty input, rather than silently
   // clamping the value the user typed.
-  function warnIfOverstock(quantity: number, stockQuantity: number | undefined, name: string) {
+  function warnIfOverstock(lineKey: string, quantity: number, stockQuantity: number | undefined, name: string) {
     if (stockQuantity === undefined) return;
     if (quantity > stockQuantity) {
       setStockWarning(`Only ${stockQuantity} unit(s) of "${name}" in stock — you entered ${quantity}.`);
-      window.clearTimeout((warnIfOverstock as any)._t);
-      (warnIfOverstock as any)._t = window.setTimeout(() => setStockWarning(null), 4000);
+      setStockLimitFeedback({ lineKey, name, quantity, availableStock: stockQuantity });
+      if (!overStockLines.current.has(lineKey)) playStockWarningSound();
+      overStockLines.current.add(lineKey);
+      if (stockWarningTimer.current) window.clearTimeout(stockWarningTimer.current);
+      stockWarningTimer.current = window.setTimeout(() => setStockWarning(null), 4000);
+      return;
     }
+    overStockLines.current.delete(lineKey);
+    setStockLimitFeedback((current) => current?.lineKey === lineKey ? null : current);
   }
 
   function showStockError(message: string) {
@@ -571,7 +582,6 @@ export function SaleForm({
     setSaleDate(todayIso());
     setSaleTime(new Date().toTimeString().slice(0, 5));
     setReference("");
-    setPaymentTerm(PAYMENT_METHODS[0]);
     setDocStatus("");
     setLines([]);
     setSearch("");
@@ -1001,6 +1011,12 @@ export function SaleForm({
           }}
         />
       )}
+      {stockLimitFeedback && (
+        <StockLimitFeedback
+          warning={stockLimitFeedback}
+          onClose={() => setStockLimitFeedback(null)}
+        />
+      )}
       {stockWarning && (
         <div className="mt-4 flex items-center gap-2 rounded-md border border-alert/30 bg-alert-soft px-3 py-2 text-sm text-alert">
           <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -1147,18 +1163,13 @@ export function SaleForm({
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Sale Time</label>
                 <Input type="time" value={saleTime} onChange={(e) => setSaleTime(e.target.value)} />
               </div>
-
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Payment Term</label>
-                <select
-                  value={paymentTerm}
-                  onChange={(e) => setPaymentTerm(e.target.value)}
-                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                >
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
+                <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">Payment Terms</label>
+                <div className="flex h-10 items-center rounded-md border border-ledger-200 bg-ledger-50 px-3 text-sm font-medium text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-white">
+                  {selectedCustomer?.paymentTermsDays
+                    ? `Net ${selectedCustomer.paymentTermsDays} days`
+                    : "Due on receipt"}
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-ledger-500 dark:text-ledger-400">
@@ -1408,7 +1419,7 @@ export function SaleForm({
                                   onChange={(e) => {
                                     const next = Math.max(1, Number(e.target.value));
                                     updateLine(line.key, { quantity: next });
-                                    if (product) warnIfOverstock(next, product.stockQuantity, product.name);
+                                    if (product) warnIfOverstock(line.key, next, product.stockQuantity, product.name);
                                   }}
                                   className={cn(
                                     "h-8 w-16 rounded border bg-white text-center text-sm dark:bg-ink-900 dark:text-white",
@@ -1429,6 +1440,14 @@ export function SaleForm({
                                   <Plus className="h-3 w-3" />
                                 </button>
                               </div>
+                              {product && line.quantity > product.stockQuantity && (
+                                <StockLimitNotice warning={{
+                                  lineKey: line.key,
+                                  name: product.name,
+                                  quantity: line.quantity,
+                                  availableStock: product.stockQuantity,
+                                }} />
+                              )}
                             </td>
                             <td className="px-2 py-2 text-right">
                               <div className="flex items-center justify-end gap-1">
