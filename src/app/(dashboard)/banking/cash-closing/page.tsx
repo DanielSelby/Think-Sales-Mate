@@ -7,7 +7,9 @@ import { CashClosingReport } from "./report";
 import { Banknote, CalendarDays, ChevronDown, ClipboardCheck, Clock3, Coins, Download, FileText, Printer, Receipt, Settings2, ShieldAlert, WalletCards } from "lucide-react";
 import { DenominationInputs } from "./denomination-inputs";
 import { BranchSelector } from "./branch-selector";
+import { BranchScheduleEditor } from "./branch-schedule-editor";
 import { UserSelector } from "./user-selector";
+import { businessDateForSchedule, businessDateInTimeZone, getCashClosingPeriod } from "./shift-time";
 import { getCurrencyConfigFromSettings, type CurrencyConfig, formatCurrencyAmount } from "@/lib/currency";
 import { CashClosingAnalytics } from "./analytics";
 import { canPermission } from "@/lib/rbac/permissions";
@@ -37,18 +39,43 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     await canPermission("cash_closing", "view") ||
     await canPermission("cash_closing", "create");
   if (!canAccessEndOfDay) redirect("/dashboard");
-  const [canCreateClosing, canApproveClosing, canEditClosing, canExportClosings, canPrintClosings] = await Promise.all([
+  const [canCreateClosing, canApproveClosing, canEditClosing, canExportClosings, canPrintClosings, canManageBranchSchedules] = await Promise.all([
     canPermission("cash_closing", "create"),
     canPermission("cash_closing", "approve"),
     canPermission("cash_closing", "edit"),
     canPermission("cash_closing", "export"),
     canPermission("cash_closing", "print"),
+    canPermission("settings", "edit"),
   ]);
   const params = (await searchParams) ?? {};
   const tab = params.tab === "variance" ? "history" : params.tab ?? "today";
   const db = await createClient() as any;
   const today = new Date().toISOString().slice(0, 10);
   const requestedLocationId = params.location_id || null;
+  const selectedLocationId = requestedLocationId && (!ctx.isBranchScoped || ctx.allowedLocationIds.includes(requestedLocationId)) ? requestedLocationId : null;
+  const scheduleLocationId = selectedLocationId ?? (ctx.isBranchScoped && ctx.allowedLocationIds.length === 1 ? ctx.allowedLocationIds[0] : null);
+  const { data: organizationSettings, error: organizationSettingsError } = await db.from("org_general_settings")
+    .select("timezone")
+    .eq("org_id", ctx.orgId)
+    .maybeSingle();
+  const organizationTimeZone = organizationSettings?.timezone || "UTC";
+  const selectedScheduleResult = scheduleLocationId
+    ? await db.from("cash_closing_branch_schedules")
+      .select("required_shifts, shift_windows, time_zone")
+      .eq("org_id", ctx.orgId)
+      .eq("location_id", scheduleLocationId)
+      .maybeSingle()
+    : { data: null, error: null };
+  const selectedSchedule = selectedScheduleResult.data as { required_shifts?: string[]; shift_windows?: Record<string, { start: string; end: string }>; time_zone?: string | null } | null;
+  const selectedTimeZone = selectedSchedule?.time_zone || organizationTimeZone;
+  const summaryDate = scheduleLocationId
+    ? businessDateForSchedule(
+      new Date(),
+      selectedTimeZone,
+      selectedSchedule?.required_shifts ?? ["full_day"],
+      selectedSchedule?.shift_windows ?? {},
+    )
+    : businessDateInTimeZone(new Date(), organizationTimeZone);
   const dateFrom = params.date_from || "";
   const dateTo = params.date_to || "";
   const requestedShift = params.shift || "";
@@ -73,7 +100,35 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     variance_reason: string | null;
     created_by: string;
   };
-  const selectedLocationId = requestedLocationId && (!ctx.isBranchScoped || ctx.allowedLocationIds.includes(requestedLocationId)) ? requestedLocationId : null;
+  type ClosingReportRow = {
+    id: string;
+    location_id: string | null;
+    created_by: string;
+    closing_date: string;
+    shift: string | null;
+    opening_cash: number | null;
+    cash_sales: number | null;
+    total_sales: number | null;
+    credit_sales: number | null;
+    cash_receipts: number | null;
+    cash_customer_payments: number | null;
+    cash_customer_e_cash: number | null;
+    cash_e_cash: number | null;
+    cash_refunds: number | null;
+    cash_expenses: number | null;
+    deposits: number | null;
+    withdrawals: number | null;
+    pos_cash_in: number | null;
+    pos_cash_out: number | null;
+    pos_register_session_count: number | null;
+    actual_cash: number;
+    expected_cash: number;
+    variance: number;
+    classification: string;
+    status: string;
+    approval_required: boolean;
+    variance_reason: string | null;
+  };
   const scopedLocations = (locations: Array<{ id: string; name: string }> | null | undefined) =>
     (locations ?? []).filter((location) => !ctx.isBranchScoped || ctx.allowedLocationIds.includes(location.id));
   const [{ data: locations }, { data: currencyRow }, { data: currencySettings }, { data: companyProfile }, { data: members }, summaryResult] = await Promise.all([
@@ -82,11 +137,114 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     db.from("currency_settings").select("*").eq("org_id", ctx.orgId).maybeSingle(),
     db.from("company_profile").select("company_name, logo_url").eq("org_id", ctx.orgId).maybeSingle(),
     db.from("organization_members").select("user_id, branch_scope, location_id, secondary_location_ids, profiles(full_name)").eq("org_id", ctx.orgId).eq("status", "active"),
-    calculateExpectedCash(today, selectedLocationId, "full_day", effectiveUserId || null)
-      .then((data) => ({ data, error: "" }))
-      .catch((error: unknown) => ({ data: null, error: error instanceof Error ? error.message : "Unable to calculate expected cash." })),
+    selectedScheduleResult.error || organizationSettingsError
+      ? Promise.resolve({ data: null, error: selectedScheduleResult.error
+        ? `Could not load the selected branch schedule: ${selectedScheduleResult.error.message}`
+        : `Could not load the organization timezone: ${organizationSettingsError?.message}` })
+      : calculateExpectedCash(summaryDate, selectedLocationId, "full_day", effectiveUserId || null, undefined, selectedTimeZone)
+        .then((data) => ({ data, error: "" }))
+        .catch((error: unknown) => ({ data: null, error: error instanceof Error ? error.message : "Unable to calculate expected cash." })),
   ]);
   const summary = summaryResult.data ?? { opening: 0, sales: 0, totalSales: 0, discounts: 0, creditSales: 0, customerPayments: 0, customerElectronicPayments: 0, electronic: 0, electronicBreakdown: {}, refunds: 0, expenses: 0, deposits: 0, withdrawals: 0, posCashIn: 0, posCashOut: 0, posRegisterSessionCount: 0, expected: 0 };
+  const statusLocations = scopedLocations(locations);
+  const branchScheduleResult = statusLocations.length
+    ? await db.from("cash_closing_branch_schedules")
+      .select("location_id, required_shifts, shift_windows, time_zone")
+      .eq("org_id", ctx.orgId)
+      .in("location_id", statusLocations.map((location) => location.id))
+    : { data: [], error: null };
+  const branchSchedules = new Map<string, { requiredShifts: string[]; shiftWindows: Record<string, { start: string; end: string }>; timeZone: string; timeZoneOverride: string | null }>(
+    (branchScheduleResult.data ?? []).map((schedule: { location_id: string; required_shifts: string[]; shift_windows: Record<string, { start: string; end: string }> | null; time_zone: string | null }) =>
+      [schedule.location_id, {
+        requiredShifts: schedule.required_shifts,
+        shiftWindows: schedule.shift_windows ?? {},
+        timeZone: schedule.time_zone || organizationTimeZone,
+        timeZoneOverride: schedule.time_zone,
+      }] as const),
+  );
+  const now = new Date();
+  const statusDateByLocation = new Map(statusLocations.map((location) => [
+    location.id,
+    businessDateForSchedule(
+      now,
+      branchSchedules.get(location.id)?.timeZone ?? organizationTimeZone,
+      branchSchedules.get(location.id)?.requiredShifts ?? ["full_day"],
+      branchSchedules.get(location.id)?.shiftWindows ?? {},
+    ),
+  ]));
+  const statusDates = [...new Set(statusDateByLocation.values())];
+  const branchClosingResult = statusLocations.length
+    ? await db.from("cash_closings")
+      .select("id, location_id, closing_date, shift, status, created_at")
+      .eq("org_id", ctx.orgId)
+      .in("closing_date", statusDates)
+      .in("location_id", statusLocations.map((location) => location.id))
+      .order("created_at", { ascending: false })
+    : { data: [], error: null };
+  const branchClosingsByLocation = new Map<string, Array<{ id: string; closing_date: string; shift: string | null; status: string }>>();
+  for (const closing of branchClosingResult.data ?? []) {
+    if (!closing.location_id) continue;
+    if (closing.closing_date !== statusDateByLocation.get(closing.location_id)) continue;
+    const closings = branchClosingsByLocation.get(closing.location_id) ?? [];
+    closings.push({ id: closing.id, closing_date: closing.closing_date, shift: closing.shift, status: closing.status });
+    branchClosingsByLocation.set(closing.location_id, closings);
+  }
+  const branchClosingStatuses = statusLocations.map((location) => {
+    const closings = branchClosingsByLocation.get(location.id) ?? [];
+    const schedule = branchSchedules.get(location.id);
+    const timeZone = schedule?.timeZone ?? organizationTimeZone;
+    const timeZoneOverride = schedule?.timeZoneOverride ?? null;
+    const businessDate = statusDateByLocation.get(location.id) ?? today;
+    const requiredShifts = schedule?.requiredShifts ?? ["full_day"];
+    const shiftWindows = schedule?.shiftWindows ?? {
+      morning: { start: "06:00", end: "14:00" },
+      afternoon: { start: "14:00", end: "22:00" },
+      night: { start: "22:00", end: "06:00" },
+    };
+    const requiredClosings = requiredShifts.map((shift) => ({
+      shift,
+      closing: closings.find((candidate) => candidate.shift === shift) ?? null,
+    }));
+    const issue = requiredClosings.find(({ closing }) => closing?.status === "reopened" || closing?.status === "rejected");
+    const missingShifts = requiredClosings.filter(({ closing }) => !closing).map(({ shift }) => shift);
+    const isShiftDue = (shift: string) => {
+      if (shift === "full_day") return true;
+      const window = shiftWindows[shift];
+      if (!window) return true;
+      const period = getCashClosingPeriod(businessDate, shift, timeZone, window);
+      return period.end.getTime() <= now.getTime();
+    };
+    const dueMissingShifts = missingShifts.filter(isShiftDue);
+    const completedShifts = requiredClosings.filter(({ closing }) => closing && closing.status !== "reopened" && closing.status !== "rejected");
+    const detail = [
+      requiredShifts.map((shift) => {
+        if (shift === "full_day") return "Full day";
+        const window = shiftWindows[shift];
+        const label = shift === "night" ? "Night / overnight" : shift.charAt(0).toUpperCase() + shift.slice(1);
+        return window ? `${label} ${window.start}–${window.end} (${timeZone})` : label;
+      }).join(", "),
+      completedShifts.some(({ closing }) => closing?.status === "pending_approval") ? "Pending approval" : null,
+      dueMissingShifts.length ? `Overdue: ${dueMissingShifts.map((shift) => shift === "full_day" ? "Full day" : shift).join(", ")}` : null,
+    ].filter(Boolean).join(" · ");
+    const closingId = issue?.closing?.id ?? requiredClosings.find(({ closing }) => closing)?.closing?.id ?? null;
+    if (issue?.closing?.status === "reopened") return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "reopened" as const, detail: `Reopened · ${detail}`, closingId };
+    if (issue?.closing?.status === "rejected") return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "rejected" as const, detail: `Rejected · ${detail}`, closingId };
+    if (missingShifts.length === 0) return { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "closed" as const, detail, closingId };
+    if (!dueMissingShifts.length) return {
+      ...location,
+      requiredShifts,
+      shiftWindows,
+      timeZone,
+      timeZoneOverride,
+      businessDate,
+      state: closings.length ? "in_progress" as const : "upcoming" as const,
+      detail,
+      closingId,
+    };
+    return closings.length
+      ? { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "partial" as const, detail, closingId }
+      : { ...location, requiredShifts, shiftWindows, timeZone, timeZoneOverride, businessDate, state: "not_closed" as const, detail: "No required closing recorded", closingId: null };
+  });
   const userOptions = (members ?? [])
     .filter((member: { branch_scope?: string | null; location_id?: string | null; secondary_location_ids?: string[] | null }) => {
       const assignedLocationIds = [
@@ -108,9 +266,8 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     });
   const listDateFrom = tab === "today" ? today : dateFrom || "1900-01-01";
   const listDateTo = tab === "today" ? today : dateTo || "2999-12-31";
-  const listQuery = (() => {
-    let query = db.from("cash_closings").select("id, location_id, closing_date, shift, opening_cash, cash_sales, total_sales, credit_sales, cash_receipts, cash_customer_payments, cash_customer_e_cash, cash_e_cash, cash_refunds, cash_expenses, deposits, withdrawals, pos_cash_in, pos_cash_out, pos_register_session_count, actual_cash, expected_cash, variance, classification, status, approval_required, variance_reason, created_at, created_by, submitted_at, closed_at, approved_by, approved_at, approval_decision, approval_comments, notes, reopen_status", { count: "exact" })
-      .eq("org_id", ctx.orgId)
+  const applyHistoryFilters = (query: any) => {
+    query = query.eq("org_id", ctx.orgId)
       .gte("closing_date", listDateFrom)
       .lte("closing_date", listDateTo);
     if (ctx.isBranchScoped) query = query.in("location_id", ctx.allowedLocationIds);
@@ -130,9 +287,15 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
       if (!filters.length) query = query.eq("id", "00000000-0000-0000-0000-000000000000");
       else query = query.or(filters.join(","));
     }
-    return query.order("created_at", { ascending: false }).range((pageNumber - 1) * pageSize, pageNumber * pageSize - 1);
-  })();
-  const [closingResult, analyticsResult] = await Promise.all([
+    return query;
+  };
+  const listQuery = applyHistoryFilters(
+    db.from("cash_closings").select("id, location_id, closing_date, shift, opening_cash, cash_sales, total_sales, credit_sales, cash_receipts, cash_customer_payments, cash_customer_e_cash, cash_e_cash, cash_refunds, cash_expenses, deposits, withdrawals, pos_cash_in, pos_cash_out, pos_register_session_count, actual_cash, expected_cash, variance, classification, status, approval_required, variance_reason, created_at, created_by, submitted_at, closed_at, approved_by, approved_at, approval_decision, approval_comments, notes, reopen_status", { count: "exact" })
+  ).order("created_at", { ascending: false }).range((pageNumber - 1) * pageSize, pageNumber * pageSize - 1);
+  const reportQuery = applyHistoryFilters(
+    db.from("cash_closings").select("id, location_id, closing_date, shift, opening_cash, cash_sales, total_sales, credit_sales, cash_receipts, cash_customer_payments, cash_customer_e_cash, cash_e_cash, cash_refunds, cash_expenses, deposits, withdrawals, pos_cash_in, pos_cash_out, pos_register_session_count, actual_cash, expected_cash, variance, classification, status, approval_required, variance_reason, created_at, created_by, submitted_at, closed_at, approved_by, approved_at, approval_decision, approval_comments, notes, reopen_status")
+  );
+  const [closingResult, analyticsResult, reportResult] = await Promise.all([
     listQuery,
     (async () => {
       let query = db.from("cash_closings").select("id, location_id, closing_date, shift, expected_cash, actual_cash, variance, classification, status, approval_required, variance_reason, created_by")
@@ -153,10 +316,24 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
       }
       return { data: rows, error: null };
     })(),
+    (async () => {
+      const rows: ClosingReportRow[] = [];
+      const batchSize = 1000;
+      const orderedQuery = reportQuery.order("created_at", { ascending: false });
+      for (let offset = 0; ; offset += batchSize) {
+        const { data, error } = await orderedQuery.range(offset, offset + batchSize - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data ?? []));
+        if (!data || data.length < batchSize) break;
+      }
+      return { data: rows, error: null };
+    })(),
   ]);
   const accessibleClosings = (closingResult.data ?? []).filter((row: { location_id?: string | null }) =>
     !ctx.isBranchScoped || Boolean(row.location_id && ctx.allowedLocationIds.includes(row.location_id)));
   const analyticsClosings = (analyticsResult.data ?? []).filter((row: { location_id?: string | null }) =>
+    !ctx.isBranchScoped || Boolean(row.location_id && ctx.allowedLocationIds.includes(row.location_id)));
+  const allReportClosings = (reportResult.data ?? []).filter((row: { location_id?: string | null }) =>
     !ctx.isBranchScoped || Boolean(row.location_id && ctx.allowedLocationIds.includes(row.location_id)));
   const totalPages = Math.max(1, Math.ceil(Number(closingResult.count ?? accessibleClosings.length) / pageSize));
   const selectedClosing = params.closing_id
@@ -173,14 +350,30 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
   const currencyConfig: CurrencyConfig = getCurrencyConfigFromSettings({ code: currencyRow?.code ?? ctx.currency, name: currencyRow?.name, symbol: currencyRow?.symbol, ...currencySettings });
   const todayClosings = accessibleClosings.filter((r: { closing_date: string }) => r.closing_date === today);
   const variance = todayClosings.reduce((sum: number, row: { variance: number }) => sum + Number(row.variance ?? 0), 0);
-  const filteredClosings = accessibleClosings;
+  const filteredClosings = allReportClosings;
   const closingIds = filteredClosings.map((row: { id: string }) => row.id);
-  const { data: reportLines } = closingIds.length
-    ? await db.from("cash_closing_lines").select("closing_id, denomination, quantity, amount").eq("org_id", ctx.orgId).in("closing_id", closingIds).order("denomination")
-    : { data: [] };
-  const reportClosings = filteredClosings.map((row: { id: string }) => ({
+  const reportLines: Array<{ closing_id: string; denomination: number; quantity: number; amount: number }> = [];
+  let reportLinesError = "";
+  for (let offset = 0; offset < closingIds.length; offset += 500) {
+    const { data, error } = await db.from("cash_closing_lines").select("closing_id, denomination, quantity, amount")
+      .eq("org_id", ctx.orgId).in("closing_id", closingIds.slice(offset, offset + 500)).order("denomination");
+    if (error) {
+      reportLinesError = error.message;
+      break;
+    }
+    reportLines.push(...(data ?? []));
+  }
+  const reportLinesByClosingId = new Map<string, Array<{ closing_id: string; denomination: number; quantity: number; amount: number }>>();
+  for (const line of reportLines) {
+    const lines = reportLinesByClosingId.get(line.closing_id) ?? [];
+    lines.push(line);
+    reportLinesByClosingId.set(line.closing_id, lines);
+  }
+  const reportClosings = filteredClosings.map((row) => ({
     ...row,
-    denomination_lines: (reportLines ?? []).filter((line: { closing_id: string }) => line.closing_id === row.id),
+    branch_name: (locations ?? []).find((location: { id: string }) => location.id === row.location_id)?.name ?? "All branches",
+    created_by_name: userOptions.find((user: { id: string }) => user.id === row.created_by)?.name ?? row.created_by.slice(0, 8),
+    denomination_lines: reportLinesByClosingId.get(row.id) ?? [],
   }));
   const paginationUrl = (page: number) => {
     const query = new URLSearchParams();
@@ -196,6 +389,41 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
     if (searchText) query.set("search", searchText);
     return `?${query.toString()}`;
   };
+  const preservedFilterParams: Record<string, string> = { tab };
+  if (dateFrom) preservedFilterParams.date_from = dateFrom;
+  if (dateTo) preservedFilterParams.date_to = dateTo;
+  if (selectedLocationId) preservedFilterParams.location_id = selectedLocationId;
+  if (requestedUserId) preservedFilterParams.user_id = requestedUserId;
+  if (requestedShift) preservedFilterParams.shift = requestedShift;
+  if (requestedClassification) preservedFilterParams.classification = requestedClassification;
+  if (statusFilter) preservedFilterParams.status = statusFilter;
+  if (searchText) preservedFilterParams.search = searchText;
+  const tabUrl = (nextTab: string) => {
+    const query = new URLSearchParams(preservedFilterParams);
+    query.set("tab", nextTab);
+    query.delete("page");
+    return `/banking/cash-closing?${query.toString()}#cash-closing-report`;
+  };
+  const reportDateLabel = tab === "today"
+    ? today
+    : dateFrom || dateTo
+      ? `${dateFrom || "Beginning"} to ${dateTo || "Present"}`
+      : "All dates";
+  const reportUserLabel = effectiveUserId
+    ? userOptions.find((user: { id: string }) => user.id === effectiveUserId)?.name ?? "Selected user"
+    : "All users";
+  const reportBranchLabel = selectedLocationId
+    ? (locations ?? []).find((location: { id: string }) => location.id === selectedLocationId)?.name ?? "Selected branch"
+    : "All accessible branches";
+  const reportFilterDescription = [
+    reportDateLabel,
+    reportBranchLabel,
+    reportUserLabel,
+    requestedShift ? requestedShift.replace("_", " ") : null,
+    requestedClassification || null,
+    statusFilter || null,
+    searchText ? `Search: ${searchText}` : null,
+  ].filter(Boolean).join(" · ");
   const cards = [
     ["Opening Cash", summary.opening, "bg-emerald-50 text-emerald-600", WalletCards],
     ["Cash Sales", summary.sales, "bg-blue-50 text-blue-600", Receipt],
@@ -215,12 +443,16 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><div className="mb-2 flex items-center gap-2 text-xs text-[#3975ae]"><span>Accounting</span><span>/</span><span className="text-ledger-500">End Of Day Accounts</span></div>          <div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#3d9bf4] to-[#1670d2] text-white shadow-md"><WalletCards className="h-6 w-6" /></div><div><h1 className="text-2xl font-bold tracking-tight text-[#12345a] dark:text-white">End Of Day Accounts</h1><p className="text-xs text-ledger-500">Total Sales includes all sales recorded today, including unpaid credit. Expected cash uses register floats and physical drawer movements only.</p></div></div></div>
           <div className="flex flex-wrap items-end justify-end gap-2">
-            <BranchSelector selectedLocationId={selectedLocationId} locations={scopedLocations(locations)} isBranchScoped={ctx.isBranchScoped} selectedUserId={effectiveUserId} />
-            {ctx.canViewOtherTransactions && <UserSelector selectedUserId={requestedUserId} selectedLocationId={selectedLocationId} users={userOptions} />}
+            <BranchSelector selectedLocationId={selectedLocationId} locations={scopedLocations(locations)} isBranchScoped={ctx.isBranchScoped} selectedUserId={effectiveUserId} preservedParams={preservedFilterParams} />
+            {ctx.canViewOtherTransactions && <UserSelector selectedUserId={requestedUserId} selectedLocationId={selectedLocationId} users={userOptions} preservedParams={preservedFilterParams} />}
             <form method="get" className="flex flex-wrap items-end gap-2 rounded-lg border border-[#d5e2ef] bg-white p-2 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
               <input type="hidden" name="tab" value={tab} />
               {selectedLocationId && <input type="hidden" name="location_id" value={selectedLocationId} />}
               {requestedUserId && <input type="hidden" name="user_id" value={requestedUserId} />}
+              {requestedShift && <input type="hidden" name="shift" value={requestedShift} />}
+              {requestedClassification && <input type="hidden" name="classification" value={requestedClassification} />}
+              {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+              {searchText && <input type="hidden" name="search" value={searchText} />}
               <label className="text-[10px] font-medium text-ledger-500">From<input name="date_from" type="date" defaultValue={dateFrom} className="mt-1 block h-8 rounded border border-ledger-200 px-2 text-xs dark:border-ledger-700 dark:bg-ink-950" /></label>
               <label className="text-[10px] font-medium text-ledger-500">To<input name="date_to" type="date" defaultValue={dateTo} className="mt-1 block h-8 rounded border border-ledger-200 px-2 text-xs dark:border-ledger-700 dark:bg-ink-950" /></label>
               <button className="h-8 rounded bg-[#1478dd] px-3 text-xs font-semibold text-white" type="submit"><CalendarDays className="mr-1 inline h-3.5 w-3.5" />Apply</button>
@@ -230,10 +462,43 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
         {params.error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{params.error}</div>}
         {params.saved && <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">Cash closing saved successfully.</div>}
         {summaryResult.error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Cash summary could not be calculated: {summaryResult.error}</div>}
+        {(branchClosingResult.error || branchScheduleResult.error) && ctx.canViewOtherTransactions && tab === "today" && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Branch closing statuses could not be loaded: {branchClosingResult.error?.message ?? branchScheduleResult.error?.message}</div>}
         {closingResult.error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Closing records could not be loaded: {closingResult.error.message}</div>}
+        {reportResult.error && (tab === "history" || tab === "today") && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Complete report records could not be loaded: {reportResult.error.message}</div>}
+        {reportLinesError && (tab === "history" || tab === "today") && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Report denomination details could not be loaded: {reportLinesError}</div>}
         {analyticsResult.error && tab === "analytics" && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Analytics could not be loaded: {analyticsResult.error.message}</div>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">{cards.map(([label, value, tone, Icon]) => <div key={label} title={label === "E-cash / MoMo Sales" ? (Object.entries(summary.electronicBreakdown).length ? Object.entries(summary.electronicBreakdown).map(([method, amount]) => `${method}: ${formatCurrencyAmount(amount, currencyConfig)}`).join("\n") : "No electronic sales recorded today.") : undefined} className={`rounded-xl border border-[#dce8f2] p-4 shadow-sm dark:border-ledger-700 ${label === "Total Sales" ? "bg-signal-soft" : "bg-white dark:bg-ink-900"}`}><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full ${tone}`}><Icon className="h-4 w-4" /></div><p className={`text-[11px] font-medium text-ledger-500 ${label === "E-cash / MoMo Sales" ? "cursor-help" : ""}`}>{label}</p><p className={`mt-1 text-lg font-bold ${label === "Total Sales" ? "text-signal" : "text-[#17385d] dark:text-white"}`}>{formatCurrencyAmount(Number(value), currencyConfig)}</p></div>)}</div>
-        <nav className="flex flex-wrap gap-2 border-b border-ledger-200 pb-2 text-sm dark:border-ledger-700">{[["today", "Today's Closings"], ["history", "Closing History"], ["approval", "Approval Queue"], ["analytics", "Analytics"]].map(([key, label]) => <a key={key} href={`/banking/cash-closing?tab=${key}#cash-closing-report`} className={`rounded-md px-3 py-2 ${tab === key ? "text-[var(--theme-primary)]" : "text-ledger-600 hover:bg-ledger-100 dark:text-ledger-300"}`} style={tab === key ? { background: "var(--theme-primary-pale)" } : undefined}>{label}</a>)}</nav>
+        {tab === "today" && ctx.canViewOtherTransactions && !branchClosingResult.error && !branchScheduleResult.error && <section className="overflow-hidden rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5edf5] p-4">
+            <div><h2 className="font-bold text-[#17385d] dark:text-white">Branch Closing Status</h2><p className="text-xs text-ledger-500">Current business date · {branchClosingStatuses.filter((branch) => branch.state === "closed").length} closed · {branchClosingStatuses.filter((branch) => branch.state === "partial" || branch.state === "in_progress").length} in progress · {branchClosingStatuses.filter((branch) => branch.state === "not_closed" || branch.state === "reopened" || branch.state === "rejected").length} need attention</p></div>
+            <p className="text-[11px] text-ledger-500">Each branch uses its local date and configured shift times. Overnight closings use the date the shift started.</p>
+          </div>
+          {branchClosingStatuses.length ? <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {branchClosingStatuses.map((branch) => {
+              const tone = branch.state === "closed"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : branch.state === "partial"
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : branch.state === "reopened"
+                    ? "border-orange-200 bg-orange-50 text-orange-700"
+                     : branch.state === "upcoming" || branch.state === "in_progress"
+                       ? "border-blue-200 bg-blue-50 text-blue-700"
+                       : "border-red-200 bg-red-50 text-red-700";
+              const statusLabel = branch.state === "not_closed" ? "Not closed" : branch.state === "reopened" ? "Reopened" : branch.state === "rejected" ? "Rejected" : branch.state === "partial" ? "Partial" : branch.state === "upcoming" ? "Scheduled" : branch.state === "in_progress" ? "In progress" : "Closed";
+              const href = branch.closingId
+                ? `/banking/cash-closing?tab=history&date_from=${branch.businessDate}&date_to=${branch.businessDate}&location_id=${branch.id}&closing_id=${branch.closingId}#cash-closing-report`
+                : `/banking/cash-closing?tab=history&date_from=${branch.businessDate}&date_to=${branch.businessDate}&location_id=${branch.id}#cash-closing-report`;
+              return <div key={branch.id} className="rounded-lg border border-[#e5edf5] p-3 dark:border-ledger-700">
+                <Link href={href} className="flex items-center justify-between gap-3 transition">
+                  <span className="min-w-0"><span className="block truncate text-sm font-semibold text-[#17385d] dark:text-white">{branch.name}</span><span className="mt-1 block text-[11px] text-ledger-500">{branch.businessDate} · {branch.detail}</span></span>
+                  <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${tone}`}>{statusLabel}</span>
+                </Link>
+                {canManageBranchSchedules && <BranchScheduleEditor key={`${branch.id}-${branch.requiredShifts.join(",")}-${branch.timeZoneOverride ?? "organization"}`} locationId={branch.id} requiredShifts={branch.requiredShifts} shiftWindows={branch.shiftWindows} timeZoneOverride={branch.timeZoneOverride} organizationTimeZone={organizationTimeZone} />}
+              </div>;
+            })}
+          </div> : <p className="p-4 text-sm text-ledger-500">No active branches are available to review.</p>}
+        </section>}
+        <nav className="flex flex-wrap gap-2 border-b border-ledger-200 pb-2 text-sm dark:border-ledger-700">{[["today", "Today's Closings"], ["history", "Closing History"], ["approval", "Approval Queue"], ["analytics", "Analytics"]].map(([key, label]) => <a key={key} href={tabUrl(key)} className={`rounded-md px-3 py-2 ${tab === key ? "text-[var(--theme-primary)]" : "text-ledger-600 hover:bg-ledger-100 dark:text-ledger-300"}`} style={tab === key ? { background: "var(--theme-primary-pale)" } : undefined}>{label}</a>)}</nav>
         {(tab === "history" || tab === "approval") && (
           <section className="overflow-hidden rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5edf5] p-4">
@@ -244,6 +509,8 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
                 {dateTo && <input type="hidden" name="date_to" value={dateTo} />}
                 {selectedLocationId && <input type="hidden" name="location_id" value={selectedLocationId} />}
                 {requestedUserId && <input type="hidden" name="user_id" value={requestedUserId} />}
+                {requestedShift && <input type="hidden" name="shift" value={requestedShift} />}
+                {requestedClassification && <input type="hidden" name="classification" value={requestedClassification} />}
                 <input name="search" defaultValue={searchText} placeholder="Closing ID, user, branch" className="h-8 w-44 rounded border px-2 text-xs dark:border-ledger-700 dark:bg-ink-950" />
                 <select name="shift" defaultValue={requestedShift} className="h-8 rounded border px-2 text-xs"><option value="">All shifts</option><option value="full_day">Full day</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night</option></select>
                 <select name="classification" defaultValue={requestedClassification} className="h-8 rounded border px-2 text-xs"><option value="">All variance types</option><option value="balanced">Balanced</option><option value="shortage">Shortage</option><option value="excess">Excess</option></select>
@@ -257,7 +524,7 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
                   <tr><th className="px-4 py-3">Date / Closing</th><th className="px-4 py-3">Branch</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Shift</th><th className="px-4 py-3">Expected</th><th className="px-4 py-3">Actual</th><th className="px-4 py-3">Variance</th><th className="px-4 py-3">Status / Approval</th><th className="px-4 py-3">Closing Time</th><th className="px-4 py-3">Action</th></tr>
                 </thead>
                 <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
-                  {filteredClosings.length ? filteredClosings.map((row: { id: string; location_id?: string | null; closing_date: string; shift?: string; expected_cash: number; actual_cash: number; variance: number; status: string; created_by: string; submitted_at?: string; closed_at?: string; approved_at?: string; approval_decision?: string; reopen_status?: string }) => (
+                  {accessibleClosings.length ? accessibleClosings.map((row: { id: string; location_id?: string | null; closing_date: string; shift?: string; expected_cash: number; actual_cash: number; variance: number; status: string; created_by: string; submitted_at?: string; closed_at?: string; approved_at?: string; approval_decision?: string; reopen_status?: string }) => (
                     <tr key={row.id}>
                       <td className="px-4 py-3"><span className="block">{row.closing_date}</span><span className="text-[10px] text-ledger-500">{row.id.slice(0, 8)}</span></td>
                       <td className="px-4 py-3">{(locations ?? []).find((location: { id: string }) => location.id === row.location_id)?.name ?? "All branches"}</td>
@@ -283,7 +550,7 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
               </table>
             </div>
             <div className="flex items-center justify-between border-t p-3 text-xs text-ledger-500">
-              <span>Page {pageNumber} of {totalPages} · {closingResult.count ?? filteredClosings.length} record(s)</span>
+              <span>Page {pageNumber} of {totalPages} · {closingResult.count ?? accessibleClosings.length} record(s)</span>
               <div className="flex gap-2">
                 {pageNumber > 1 && <a className="rounded border px-3 py-1.5" href={paginationUrl(pageNumber - 1)}>Previous</a>}
                 {pageNumber < totalPages && <a className="rounded border px-3 py-1.5" href={paginationUrl(pageNumber + 1)}>Next</a>}
@@ -307,15 +574,49 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
           {canEditClosing && visibleSelectedClosing.status === "approved" && visibleSelectedClosing.reopen_status === "none" && <form action={requestCashClosingReopenFromForm} className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4"><input type="hidden" name="id" value={visibleSelectedClosing.id} /><label className="text-xs">Reason to reopen<input name="reason" required className="mt-1 h-9 rounded border px-2" /></label><button className="h-9 rounded border border-amber-300 px-4 text-xs font-semibold text-amber-700">Request controlled reopen</button></form>}
           <div className="mt-4 border-t pt-4"><h3 className="mb-2 text-sm font-semibold text-[#17385d]">Audit trail</h3>{selectedAudit?.length ? <ol className="space-y-2">{selectedAudit.map((event: { action: string; actor_id: string; metadata?: Record<string, unknown>; created_at: string }, index: number) => <li key={`${event.created_at}-${index}`} className="flex flex-wrap justify-between gap-2 rounded-md bg-[#f5f9fc] p-2 text-xs"><span><strong className="capitalize">{event.action.replaceAll("_", " ")}</strong> · {userOptions.find((user: { id: string }) => user.id === event.actor_id)?.name ?? event.actor_id.slice(0, 8)}{typeof event.metadata?.reason === "string" ? ` · ${event.metadata.reason}` : ""}</span><time>{new Date(event.created_at).toLocaleString()}</time></li>)}</ol> : <p className="text-xs text-ledger-500">No audit events are recorded.</p>}</div>
         </section>}
-        {tab === "history" && <CashClosingReport closings={reportClosings} currency={currencyConfig} organizationName={companyProfile?.company_name ?? ctx.orgName} logoUrl={companyProfile?.logo_url ?? null} canExport={canExportClosings} canPrint={canPrintClosings} />}
+        {tab === "history" && !reportResult.error && !reportLinesError && <CashClosingReport closings={reportClosings} currency={currencyConfig} organizationName={companyProfile?.company_name ?? ctx.orgName} logoUrl={companyProfile?.logo_url ?? null} filterDescription={reportFilterDescription} canExport={canExportClosings} canPrint={canPrintClosings} />}
         {tab === "today" && <>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_1.25fr_0.9fr_260px]">
           <section className="rounded-xl border border-[#dce8f2] bg-white shadow-sm dark:border-ledger-700 dark:bg-ink-900"><div className="border-b border-[#e5edf5] p-4"><h2 className="font-bold text-[#17385d] dark:text-white">Cash Summary</h2></div><div className="divide-y divide-[#edf2f7] px-4">{[["Opening Cash", summary.opening], ["Cash Sales", summary.sales], ["E-cash / MoMo Sales", summary.electronic], ["Total Sales", summary.totalSales], ["Unpaid Credit Balance", summary.creditSales], ["Customer Payment (Cash)", summary.customerPayments], ["Customer Payment (E-cash)", summary.customerElectronicPayments], ["Refund / Return Sales", -summary.refunds], ["Cash Expenses", -summary.expenses], ["POS Drawer Cash In", summary.posCashIn], ["POS Drawer Cash Out / Paid Out", -summary.posCashOut]].map(([label, value]) => <div key={String(label)} className={`flex items-center justify-between py-3 text-xs ${label === "Total Sales" ? "bg-signal-soft px-2 text-signal" : ""}`}><span className={label === "Total Sales" ? "font-semibold text-signal" : String(label).startsWith("E-cash") ? "font-medium text-accentTeal" : "text-ledger-600"}>{label}</span><strong className={Number(value) < 0 ? "text-red-500" : label === "Total Sales" ? "text-signal" : String(label).startsWith("E-cash") ? "text-accentTeal" : "text-[#244e75] dark:text-white"}>{Number(value) < 0 ? "- " : ""}{formatCurrencyAmount(Math.abs(Number(value)), currencyConfig)}</strong></div>)}</div><div className="m-4 flex items-center justify-between rounded-lg bg-[#edf7ff] px-3 py-4"><span className="text-sm font-bold text-[#31577c]">Expected Closing Cash</span><strong className="text-lg text-[#1675d1]">{formatCurrencyAmount(summary.expected, currencyConfig)}</strong></div><p className="px-4 pb-4 text-xs text-ledger-500">Opening cash is summed from register sessions opened today ({summary.posRegisterSessionCount} session(s)). E-cash / MoMo sales, customer e-cash payments, and credit balances are informational, not drawer cash. Bank account deposits/withdrawals are excluded from this cash expectation.</p></section>
-          {canCreateClosing && <section className="rounded-xl border border-[#dce8f2] bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900"><div className="mb-3 flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-[#1675d1]" /><h2 className="font-bold text-[#17385d] dark:text-white">Declare Your Cash</h2></div><p className="mb-5 rounded-lg bg-[#f0f7fd] p-3 text-xs leading-5 text-ledger-600">Count your physical cash and enter the total amount below. The system will compare it with the expected cash.</p><form action={createCashClosing} className="space-y-3"><label className="text-xs">Closing date<input name="closing_date" type="date" defaultValue={today} className="mt-1 h-10 w-full rounded-md border border-ledger-200 px-3 dark:border-ledger-700 dark:bg-ink-950" required /></label><label className="text-xs">Branch<select name="location_id" required={ctx.isBranchScoped} className="mt-1 h-10 w-full rounded-md border border-ledger-200 px-3 dark:border-ledger-700 dark:bg-ink-950"><option value="">{ctx.isBranchScoped ? "Select an assigned branch" : "All accessible branches"}</option>{scopedLocations(locations).map((l: { id: string; name: string }) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label><label className="text-xs">Shift<select name="shift" defaultValue="full_day" className="mt-1 h-10 w-full rounded-md border border-ledger-200 px-3 dark:border-ledger-700 dark:bg-ink-950"><option value="full_day">Full day</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night</option></select></label><div className="border-t border-ledger-100 pt-3"><p className="mb-2 text-xs font-bold text-[#31577c]">Cash Count Details</p><div className="grid grid-cols-2 gap-2"><label className="text-xs">Notes<input name="notes_count" type="number" min="0" step="0.01" defaultValue="0" className="mt-1 h-9 w-full rounded-md border border-ledger-200 px-2 dark:border-ledger-700 dark:bg-ink-950" /></label><label className="text-xs">Coins<input name="coin_count" type="number" min="0" step="0.01" defaultValue="0" className="mt-1 h-9 w-full rounded-md border border-ledger-200 px-2 dark:border-ledger-700 dark:bg-ink-950" /></label></div></div><DenominationInputs expectedCash={summary.expected} currency={currencyConfig} /><label className="text-xs">Reason for Variance<span className="mt-1 block text-[11px] text-ledger-500">Briefly explain why the physical cash differs from the expected amount.</span><textarea name="variance_reason" rows={2} className="mt-1 w-full rounded-md border border-ledger-200 p-2 dark:border-ledger-700 dark:bg-ink-950" /></label><label className="text-xs">Comments<textarea name="notes" rows={2} className="mt-1 w-full rounded-md border border-ledger-200 p-2 dark:border-ledger-700 dark:bg-ink-950" /></label><button className="h-10 w-full rounded-md bg-[#1478dd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0f65bd]" type="submit">Complete Closing</button></form></section>}
+          {canCreateClosing && <section className="rounded-xl border border-[#dce8f2] bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
+            <div className="mb-3 flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-[#1675d1]" /><h2 className="font-bold text-[#17385d] dark:text-white">Declare Your Cash</h2></div>
+            <p className="mb-5 rounded-lg bg-[#f0f7fd] p-3 text-xs leading-5 text-ledger-600">Count your physical cash and enter the total amount below. The system will compare it with the expected cash.</p>
+            <form action={createCashClosing} className="space-y-3">
+              <label className="text-xs">Business date (shift start date)
+                <input name="closing_date" type="date" defaultValue={summaryDate} className="mt-1 h-10 w-full rounded-md border border-ledger-200 px-3 dark:border-ledger-700 dark:bg-ink-950" required />
+                <span className="mt-1 block text-[11px] text-ledger-500">For an overnight shift, use the date the shift began, even if you submit the closing after midnight.</span>
+              </label>
+              <label className="text-xs">Branch
+                <select name="location_id" defaultValue={selectedLocationId ?? scheduleLocationId ?? ""} required={ctx.isBranchScoped} className="mt-1 h-10 w-full rounded-md border border-ledger-200 px-3 dark:border-ledger-700 dark:bg-ink-950">
+                  <option value="">{ctx.isBranchScoped ? "Select an assigned branch" : "All accessible branches"}</option>
+                  {scopedLocations(locations).map((l: { id: string; name: string }) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs">Shift
+                <select name="shift" defaultValue="full_day" className="mt-1 h-10 w-full rounded-md border border-ledger-200 px-3 dark:border-ledger-700 dark:bg-ink-950">
+                  <option value="full_day">Full day</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night / overnight</option>
+                </select>
+              </label>
+              <div className="border-t border-ledger-100 pt-3">
+                <p className="mb-2 text-xs font-bold text-[#31577c]">Cash Count Details</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-xs">Notes<input name="notes_count" type="number" min="0" step="0.01" defaultValue="0" className="mt-1 h-9 w-full rounded-md border border-ledger-200 px-2 dark:border-ledger-700 dark:bg-ink-950" /></label>
+                  <label className="text-xs">Coins<input name="coin_count" type="number" min="0" step="0.01" defaultValue="0" className="mt-1 h-9 w-full rounded-md border border-ledger-200 px-2 dark:border-ledger-700 dark:bg-ink-950" /></label>
+                </div>
+              </div>
+              <DenominationInputs expectedCash={summary.expected} currency={currencyConfig} />
+              <label className="text-xs">Reason for Variance
+                <span className="mt-1 block text-[11px] text-ledger-500">Briefly explain why the physical cash differs from the expected amount.</span>
+                <textarea name="variance_reason" rows={2} className="mt-1 w-full rounded-md border border-ledger-200 p-2 dark:border-ledger-700 dark:bg-ink-950" />
+              </label>
+              <label className="text-xs">Comments<textarea name="notes" rows={2} className="mt-1 w-full rounded-md border border-ledger-200 p-2 dark:border-ledger-700 dark:bg-ink-950" /></label>
+              <button className="h-10 w-full rounded-md bg-[#1478dd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0f65bd]" type="submit">Complete Closing</button>
+            </form>
+          </section>}
           <section className={`rounded-xl border p-4 shadow-sm ${variance < 0 ? "border-red-200 bg-red-50/50" : variance > 0 ? "border-amber-200 bg-amber-50/50" : "border-emerald-200 bg-emerald-50/50"}`}><div className="mb-3 flex items-center gap-2"><ShieldAlert className={`h-5 w-5 ${variance < 0 ? "text-red-500" : "text-emerald-500"}`} /><h2 className="font-bold text-[#17385d]">Cash {variance < 0 ? "Shortage" : variance > 0 ? "Excess" : "Status"}</h2></div><div className="rounded-lg bg-white/80 p-4 text-xl font-bold text-red-500">{formatCurrencyAmount(Math.abs(variance), currencyConfig)}</div><div className="mt-4 space-y-2 text-xs"><div className="flex justify-between"><span>Expected Cash</span><strong>{formatCurrencyAmount(summary.expected, currencyConfig)}</strong></div><div className="flex justify-between"><span>Closings Today</span><strong>{todayClosings.length}</strong></div></div><p className="mt-4 rounded-lg bg-white/70 p-3 text-xs text-ledger-600">A variance requires a reason before completing the day.</p></section>
           <aside className="space-y-4"><section className="rounded-xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900"><div className="mb-3 flex items-center justify-between"><h2 className="font-bold text-[#17385d] dark:text-white">Today&apos;s Closing Status</h2><Clock3 className="h-4 w-4 text-ledger-400" /></div><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-[7px] border-[#dceaf7] text-center text-xs font-bold text-[#31577c]">{todayClosings.length} closing(s)</div><p className="mt-3 text-center text-xs font-semibold text-ledger-600">{todayClosings.length ? "Closing records saved" : "No closings yet"}</p><a href="#cash-closing-report" className="mt-3 block rounded-md bg-[#1478dd] py-2 text-center text-xs font-semibold text-white">Close Day</a></section><section className="rounded-xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900"><h2 className="mb-3 font-bold text-[#17385d] dark:text-white">Recent Closings</h2>{analyticsClosings.slice(0, 5).map((r) => <div key={r.id} className="flex items-center justify-between border-t border-ledger-100 py-2 text-[10px]"><span>{r.closing_date} · {(r.shift ?? "full_day").replace("_", " ")}</span><span className={`rounded-full px-2 py-1 ${r.classification === "shortage" ? "bg-red-100 text-red-600" : r.classification === "excess" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-600"}`}>{r.classification}</span></div>)}</section><section className="rounded-xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900"><h2 className="mb-3 font-bold text-[#17385d] dark:text-white">Quick Actions</h2><div className="grid grid-cols-2 gap-2"><a href="#cash-closing-report" className="rounded-lg border p-3 text-center text-[10px]"><FileText className="mx-auto mb-1 h-4 w-4 text-[#1675d1]" />View Reports</a><a href="#cash-closing-report" className="rounded-lg border p-3 text-center text-[10px]"><Download className="mx-auto mb-1 h-4 w-4 text-[#1675d1]" />Export Report</a><a href="#cash-closing-report" className="rounded-lg border p-3 text-center text-[10px]"><Printer className="mx-auto mb-1 h-4 w-4 text-[#1675d1]" />Print Report</a><Link href="/banking/cash-closing?tab=settings" className="rounded-lg border p-3 text-center text-[10px]"><Settings2 className="mx-auto mb-1 h-4 w-4 text-[#1675d1]" />Settings</Link></div></section></aside>
         </div>
-        <CashClosingReport closings={reportClosings} currency={currencyConfig} organizationName={companyProfile?.company_name ?? ctx.orgName} logoUrl={companyProfile?.logo_url ?? null} canExport={canExportClosings} canPrint={canPrintClosings} />
+        {!reportResult.error && !reportLinesError && <CashClosingReport closings={reportClosings} currency={currencyConfig} organizationName={companyProfile?.company_name ?? ctx.orgName} logoUrl={companyProfile?.logo_url ?? null} filterDescription={reportFilterDescription} canExport={canExportClosings} canPrint={canPrintClosings} />}
         </>}
         {tab === "analytics" && <div>
         <CashClosingAnalytics

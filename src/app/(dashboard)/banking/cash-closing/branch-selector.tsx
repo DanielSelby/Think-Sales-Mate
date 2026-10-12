@@ -7,15 +7,17 @@ interface BranchSelectorProps {
   locations: Array<{ id: string; name: string }>;
   isBranchScoped: boolean;
   selectedUserId?: string;
+  preservedParams?: Record<string, string>;
 }
 
-export function BranchSelector({ selectedLocationId, locations, isBranchScoped, selectedUserId }: BranchSelectorProps) {
+export function BranchSelector({ selectedLocationId, locations, isBranchScoped, selectedUserId, preservedParams = {} }: BranchSelectorProps) {
   return (
     <form
       method="get"
       className="flex h-10 items-center gap-2 rounded-lg border border-[#d5e2ef] bg-white px-3 text-xs font-medium text-[#31577c] shadow-sm dark:border-ledger-700 dark:bg-ink-900"
     >
-      {selectedUserId && <input type="hidden" name="user_id" value={selectedUserId} />}
+      {Object.entries(preservedParams).filter(([key]) => key !== "location_id").map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />)}
+      {selectedUserId && !preservedParams.user_id && <input type="hidden" name="user_id" value={selectedUserId} />}
       <Landmark className="h-4 w-4 text-[#2087e5]" />
       <select
         name="location_id"

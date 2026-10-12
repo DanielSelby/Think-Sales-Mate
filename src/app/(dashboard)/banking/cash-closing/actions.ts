@@ -8,6 +8,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
+import { getCashClosingPeriod, type CashClosingShiftWindow } from "./shift-time";
 
 export type CashSummary = { opening: number; sales: number; totalSales: number; discounts: number; creditSales: number; customerPayments: number; customerElectronicPayments: number; electronic: number; electronicBreakdown: Record<string, number>; refunds: number; expenses: number; deposits: number; withdrawals: number; posCashIn: number; posCashOut: number; posRegisterSessionCount: number; expected: number };
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -121,7 +122,112 @@ export async function logCashClosingAction(closingId: string | null, action: "ex
   return error ? { error: error.message } : { success: true };
 }
 
-export async function calculateExpectedCash(date: string, locationId?: string | null, _shift = "full_day", userId?: string | null): Promise<CashSummary> {
+export async function logCashClosingActions(closingIds: string[], action: "exported" | "printed") {
+  const ctx = await getCurrentOrgContext();
+  const uniqueIds = [...new Set(closingIds)];
+  if (!ctx || !uniqueIds.length) return { error: "No closing records were selected." };
+  if (!await canPermission("cash_closing", action === "exported" ? "export" : "print")) {
+    return { error: `You do not have permission to ${action === "exported" ? "export" : "print"} cash closings.` };
+  }
+  const db = await createClient() as any;
+  const auditMetadata = await auditContext();
+  for (let offset = 0; offset < uniqueIds.length; offset += 500) {
+    const batchIds = uniqueIds.slice(offset, offset + 500);
+    const { data: closings, error: lookupError } = await db.from("cash_closings")
+      .select("id, org_id, location_id, created_by")
+      .eq("org_id", ctx.orgId)
+      .in("id", batchIds);
+    if (lookupError) return { error: lookupError.message };
+    if ((closings ?? []).length !== batchIds.length || (closings ?? []).some((closing: { location_id: string | null; created_by: string }) =>
+      (closing.location_id && !canAccessLocation(ctx, closing.location_id))
+      || (!ctx.canViewOtherTransactions && closing.created_by !== ctx.userId))) {
+      return { error: "You cannot access one or more selected closings." };
+    }
+    const { error } = await db.from("cash_closing_audit").insert((closings ?? []).map((closing: { id: string; location_id: string | null }) => ({
+      closing_id: closing.id,
+      org_id: ctx.orgId,
+      location_id: closing.location_id,
+      action,
+      actor_id: ctx.userId,
+      ...auditMetadata,
+    })));
+    if (error) return { error: error.message };
+  }
+  return { success: true };
+}
+
+export async function updateCashClosingBranchSchedule(input: {
+  locationId: string;
+  requiredShifts: string[];
+  shiftWindows: Record<string, { start: string; end: string }>;
+  timeZone: string | null;
+}) {
+  const ctx = await getCurrentOrgContext();
+  if (!ctx || !await canPermission("settings", "edit")) {
+    return { error: "You do not have permission to update branch closing schedules." };
+  }
+  const validShifts = new Set(["full_day", "morning", "afternoon", "night"]);
+  const shifts = Array.isArray(input.requiredShifts) ? [...new Set(input.requiredShifts)] : [];
+  if (!input.locationId || !shifts.length || shifts.some((shift) => !validShifts.has(shift))
+    || (shifts.includes("full_day") && shifts.length > 1)) {
+    return { error: "Choose full day or one or more valid shift closings." };
+  }
+  if (!input.shiftWindows || typeof input.shiftWindows !== "object"
+    || Object.keys(input.shiftWindows).some((shift) => !["morning", "afternoon", "night"].includes(shift))) {
+    return { error: "Provide valid time windows for the branch shifts." };
+  }
+  const shiftWindows: Record<string, { start: string; end: string }> = {};
+  for (const [shift, window] of Object.entries(input.shiftWindows)) {
+    if (!window || !/^([01]\d|2[0-3]):[0-5]\d$/.test(window.start)
+      || !/^([01]\d|2[0-3]):[0-5]\d$/.test(window.end)
+      || window.start === window.end) {
+      return { error: `Set a valid, non-zero time window for the ${shift} shift.` };
+    }
+    shiftWindows[shift] = { start: window.start, end: window.end };
+  }
+  const timeZone = input.timeZone?.trim() || null;
+  if (timeZone) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    } catch (error) {
+      if (error instanceof RangeError) return { error: "Enter a valid IANA timezone, such as Africa/Accra or Europe/London." };
+      throw error;
+    }
+  }
+  for (const shift of shifts.filter((value) => value !== "full_day")) {
+    if (!shiftWindows[shift]) {
+      return { error: `Set a valid, non-zero time window for the ${shift} shift.` };
+    }
+  }
+
+  const db = await createClient() as any;
+  const { data: location, error: locationError } = await db.from("business_locations")
+    .select("id")
+    .eq("id", input.locationId)
+    .eq("org_id", ctx.orgId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (locationError) return { error: locationError.message };
+  if (!location || !canAccessLocation(ctx, input.locationId)) {
+    return { error: "The selected branch is not available to you." };
+  }
+
+  const { error } = await db.from("cash_closing_branch_schedules").upsert({
+    org_id: ctx.orgId,
+    location_id: input.locationId,
+    required_shifts: shifts,
+    shift_windows: shiftWindows,
+    time_zone: timeZone,
+    updated_by: ctx.userId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "location_id" });
+  if (error) return { error: error.message };
+
+  revalidatePath("/banking/cash-closing");
+  return { success: true };
+}
+
+export async function calculateExpectedCash(date: string, locationId?: string | null, shift = "full_day", userId?: string | null, shiftWindow?: CashClosingShiftWindow, timeZone = "UTC"): Promise<CashSummary> {
   const ctx = await getCurrentOrgContext();
   if (!ctx) throw new Error("Session expired");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
@@ -139,13 +245,21 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     if (ctx.isBranchScoped) return q.in("location_id", ctx.allowedLocationIds);
     return q;
   };
-  const dayStart = `${date}T00:00:00.000Z`;
-  const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
-  const dayEndInclusive = new Date(new Date(dayEnd).getTime() - 1).toISOString();
+  const { start, end } = getCashClosingPeriod(date, shift, timeZone, shiftWindow);
+  const dayStart = start.toISOString();
+  const dayEnd = end.toISOString();
+  const dayEndInclusive = new Date(end.getTime() - 1).toISOString();
   const salesDayFilter = `or(and(created_at.gte.${dayStart},created_at.lte.${dayEndInclusive}),and(status_changed_at.gte.${dayStart},status_changed_at.lte.${dayEndInclusive}))`;
   let salesQuery = scoped(db.from("sales").select("total, discount_amount, amount_paid, refunded_amount, payment_method, refund_payment_method, refund_register_session_id, status, created_at, status_changed_at, sold_by").eq("org_id", ctx.orgId).in("status", ["completed", "returned"]).or(salesDayFilter));
-  let expenseQuery = scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on, expense_date, recorded_by").eq("org_id", ctx.orgId).eq("payment_status", "paid").or(`expense_date.eq.${date},paid_on.eq.${date}`));
-  let customerPaymentQuery = scoped(db.from("customer_credit_payments").select("amount, payment_method, recorded_by").eq("org_id", ctx.orgId).eq("payment_date", date));
+  let expenseQuery = scoped(db.from("expenses").select("amount, payment_method, payment_status, paid_on, expense_date, recorded_by, created_at").eq("org_id", ctx.orgId).eq("payment_status", "paid"));
+  let customerPaymentQuery = scoped(db.from("customer_credit_payments").select("amount, payment_method, recorded_by, created_at").eq("org_id", ctx.orgId));
+  if (shift === "full_day") {
+    expenseQuery = expenseQuery.or(`expense_date.eq.${date},paid_on.eq.${date}`);
+    customerPaymentQuery = customerPaymentQuery.eq("payment_date", date);
+  } else {
+    expenseQuery = expenseQuery.gte("created_at", dayStart).lt("created_at", dayEnd);
+    customerPaymentQuery = customerPaymentQuery.gte("created_at", dayStart).lt("created_at", dayEnd);
+  }
   if (userId) {
     salesQuery = salesQuery.eq("sold_by", userId);
     expenseQuery = expenseQuery.eq("recorded_by", userId);
@@ -179,7 +293,10 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   const expenses = expenseResult.data ?? [];
   const customerPayments = customerPaymentResult.data ?? [];
   const posMovements = posMovementResult.data ?? [];
-  const saleDateRows = sales.filter((sale: Record<string, unknown>) => String(sale.created_at ?? "").slice(0, 10) === date);
+  const saleDateRows = sales.filter((sale: Record<string, unknown>) => {
+    const createdAt = Date.parse(String(sale.created_at ?? ""));
+    return Number.isFinite(createdAt) && createdAt >= start.getTime() && createdAt < end.getTime();
+  });
   const totalSales = saleDateRows
     .filter((sale: Record<string, unknown>) => sale.status === "completed" || sale.status === "returned")
     .reduce((total: number, sale: Record<string, unknown>) => total + n(sale.total), 0);
@@ -189,9 +306,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
     if (splitCash !== null) return total + splitCash;
     return total + (isCashMethod(method) ? paymentAmount(sale) : 0);
   }, 0);
-  const discounts = sales
-    .filter((s: Record<string, unknown>) => String(s.created_at ?? "").slice(0, 10) === date)
-    .reduce((a: number, s: Record<string, unknown>) => a + n(s.discount_amount), 0);
+  const discounts = saleDateRows.reduce((a: number, s: Record<string, unknown>) => a + n(s.discount_amount), 0);
   const creditSales = saleDateRows
     .filter((sale: Record<string, unknown>) => sale.status === "completed")
     .reduce((total: number, sale: Record<string, unknown>) => total + Math.max(0, n(sale.total) - n(sale.amount_paid)), 0);
@@ -221,12 +336,17 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
   }, {});
   const refunds = sales
     .filter((s: Record<string, unknown>) => s.status === "returned" && !s.refund_register_session_id && isCashMethod(String(s.refund_payment_method ?? s.payment_method ?? "")))
-    .filter((s: Record<string, unknown>) => String(s.status_changed_at ?? "").slice(0, 10) === date)
+    .filter((s: Record<string, unknown>) => {
+      const statusChangedAt = Date.parse(String(s.status_changed_at ?? ""));
+      return Number.isFinite(statusChangedAt) && statusChangedAt >= start.getTime() && statusChangedAt < end.getTime();
+    })
     .reduce((a: number, s: Record<string, unknown>) => a + n(s.refunded_amount), 0);
   const cashExpenses = (expenses ?? [])
     .filter((e: Record<string, unknown>) => {
+      const createdAt = Date.parse(String(e.created_at ?? ""));
+      const inShift = shift !== "full_day" && Number.isFinite(createdAt) && createdAt >= start.getTime() && createdAt < end.getTime();
       const paidDate = String(e.paid_on ?? e.expense_date ?? "");
-      return paidDate === date && isCashMethod(String(e.payment_method ?? "cash"));
+      return (inShift || (shift === "full_day" && paidDate === date)) && isCashMethod(String(e.payment_method ?? "cash"));
     })
     .reduce((a: number, e: Record<string, unknown>) => a + n(e.amount), 0);
   const customerCashPayments = customerPayments
@@ -271,14 +391,49 @@ export async function createCashClosing(formData: FormData) {
   const coinCount = n(formData.get("coin_count"));
   const varianceReason = String(formData.get("variance_reason") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
-  if (!date || actual < 0) redirect("/banking/cash-closing?error=Enter%20a%20valid%20date%20and%20cash");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || actual < 0) {
+    redirect("/banking/cash-closing?error=Enter%20a%20valid%20date%20and%20cash");
+  }
   if (ctx.isBranchScoped && !locationId) {
     redirect("/banking/cash-closing?error=Select%20an%20assigned%20branch");
   }
   if (locationId && !canAccessLocation(ctx, locationId)) {
     redirect("/banking/cash-closing?error=You%20are%20not%20assigned%20to%20this%20branch");
   }
-  const summary = await calculateExpectedCash(date, locationId, shift, ctx.canViewOtherTransactions ? null : ctx.userId);
+  let shiftWindow: CashClosingShiftWindow | undefined;
+  const defaultWindows: Record<string, CashClosingShiftWindow> = {
+    morning: { start: "06:00", end: "14:00" },
+    afternoon: { start: "14:00", end: "22:00" },
+    night: { start: "22:00", end: "06:00" },
+  };
+  let timeZone = "UTC";
+  let branchSchedule: { time_zone?: string; shift_windows?: Record<string, CashClosingShiftWindow> } | null = null;
+  const settingsDb = await createClient() as any;
+  const { data: organizationSettings, error: organizationSettingsError } = await settingsDb.from("org_general_settings")
+    .select("timezone")
+    .eq("org_id", ctx.orgId)
+    .maybeSingle();
+  if (organizationSettingsError) {
+    redirect(`/banking/cash-closing?error=${encodeURIComponent(`Could not load the organization timezone: ${organizationSettingsError.message}`)}`);
+  }
+  timeZone = organizationSettings?.timezone || "UTC";
+  if (locationId) {
+    const scheduleDb = await createClient() as any;
+    const { data: schedule, error: scheduleError } = await scheduleDb.from("cash_closing_branch_schedules")
+      .select("time_zone, shift_windows")
+      .eq("org_id", ctx.orgId)
+      .eq("location_id", locationId)
+      .maybeSingle();
+    if (scheduleError) redirect(`/banking/cash-closing?error=${encodeURIComponent(`Could not load branch shift settings: ${scheduleError.message}`)}`);
+    branchSchedule = schedule;
+    timeZone = schedule?.time_zone || timeZone;
+  }
+  if (shift !== "full_day") {
+    if (!defaultWindows[shift]) redirect("/banking/cash-closing?error=Select%20a%20valid%20shift");
+    shiftWindow = branchSchedule?.shift_windows?.[shift] ?? defaultWindows[shift];
+  }
+  const { start, end } = getCashClosingPeriod(date, shift, timeZone, shiftWindow);
+  const summary = await calculateExpectedCash(date, locationId, shift, ctx.canViewOtherTransactions ? null : ctx.userId, shiftWindow, timeZone);
   const variance = Number((actual - summary.expected).toFixed(2));
   if (Math.abs(variance) > 0.005 && !varianceReason) redirect("/banking/cash-closing?error=Variance%20reason%20is%20required");
   const classification = variance === 0 ? "balanced" : variance > 0 ? "excess" : "shortage";
@@ -287,7 +442,7 @@ export async function createCashClosing(formData: FormData) {
   const threshold = n(setting?.variance_threshold) || 50;
   const approvalRequired = Boolean(setting?.variance_approval_enabled ?? true) && Math.abs(variance) > threshold;
   const { data: closing, error } = await db.from("cash_closings").insert({
-    org_id: ctx.orgId, location_id: locationId, closing_date: date, period_start: `${date}T00:00:00Z`, period_end: `${date}T23:59:59Z`,
+    org_id: ctx.orgId, location_id: locationId, closing_date: date, period_start: start.toISOString(), period_end: new Date(end.getTime() - 1).toISOString(),
     opening_cash: summary.opening, cash_sales: summary.sales, total_sales: summary.totalSales, credit_sales: summary.creditSales, cash_receipts: summary.creditSales, cash_customer_payments: summary.customerPayments, cash_customer_e_cash: summary.customerElectronicPayments, cash_e_cash: summary.electronic, cash_refunds: summary.refunds, cash_expenses: summary.expenses,
     deposits: summary.deposits, withdrawals: summary.withdrawals, pos_cash_in: summary.posCashIn, pos_cash_out: summary.posCashOut,
     pos_register_session_count: summary.posRegisterSessionCount, expected_cash: summary.expected, actual_cash: actual, variance, classification,
