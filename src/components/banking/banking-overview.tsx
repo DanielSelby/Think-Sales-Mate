@@ -20,11 +20,15 @@ export interface BankingTransactionRow {
   recordedBy: string;
   category: string | null;
   transactionDate: string;
+  createdAt: string;
   accountName: string;
+  locationId: string | null;
+  locationName: string | null;
 }
 
 export interface BankingTransactionFilters {
   accountId: string;
+  locationId: string;
   type: string;
   from: string;
   to: string;
@@ -33,8 +37,11 @@ export interface BankingTransactionFilters {
 
 export function BankingOverview({
   accounts,
+  branches,
+  canFilterUnassigned,
   transactions,
   currency,
+  timeZone,
   canAddAccount,
   canTransfer,
   totalBalance,
@@ -47,8 +54,11 @@ export function BankingOverview({
   initialTransferOpen = false,
 }: {
   accounts: AccountRow[];
+  branches: Array<{ id: string; name: string }>;
+  canFilterUnassigned: boolean;
   transactions: BankingTransactionRow[];
   currency: string;
+  timeZone: string;
   canAddAccount: boolean;
   canTransfer: boolean;
   totalBalance: number;
@@ -70,6 +80,7 @@ export function BankingOverview({
   const pageHref = (page: number) => {
     const params = new URLSearchParams();
     if (transactionFilters.accountId) params.set("accountId", transactionFilters.accountId);
+    if (transactionFilters.locationId) params.set("location_id", transactionFilters.locationId);
     if (transactionFilters.type) params.set("type", transactionFilters.type);
     if (transactionFilters.from) params.set("from", transactionFilters.from);
     if (transactionFilters.to) params.set("to", transactionFilters.to);
@@ -112,13 +123,19 @@ export function BankingOverview({
               View all
             </Link>
           </div>
-          <form action="/banking#recent-transactions" method="get" className="grid gap-2 border-b border-ledger-100 bg-ledger-50/50 p-4 sm:grid-cols-2 xl:grid-cols-5 dark:border-slate-500 dark:bg-white/[0.02]">
+          <form action="/banking#recent-transactions" method="get" className="grid gap-2 border-b border-ledger-100 bg-ledger-50/50 p-4 sm:grid-cols-2 xl:grid-cols-6 dark:border-slate-500 dark:bg-white/[0.02]">
             <input type="hidden" name="transactionsPageSize" value={transactionPageSize} />
             <input type="hidden" name="transactionsPage" value="1" />
             <label className="sr-only" htmlFor="transaction-account-filter">Filter by account</label>
             <select id="transaction-account-filter" name="accountId" defaultValue={transactionFilters.accountId} className="h-9 min-w-0 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs text-ink-900 dark:border-slate-500 dark:bg-ink-950 dark:text-white">
               <option value="">All accounts</option>
               {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="transaction-branch-filter">Filter by branch</label>
+            <select id="transaction-branch-filter" name="location_id" defaultValue={transactionFilters.locationId} className="h-9 min-w-0 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs text-ink-900 dark:border-slate-500 dark:bg-ink-950 dark:text-white">
+              <option value="">All branches</option>
+              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              {canFilterUnassigned && <option value="unassigned">Unassigned</option>}
             </select>
             <label className="sr-only" htmlFor="transaction-type-filter">Filter by transaction type</label>
             <select id="transaction-type-filter" name="type" defaultValue={transactionFilters.type} className="h-9 min-w-0 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs text-ink-900 dark:border-slate-500 dark:bg-ink-950 dark:text-white">
@@ -138,13 +155,14 @@ export function BankingOverview({
               <input id="transaction-description-filter" name="description" type="search" maxLength={100} defaultValue={transactionFilters.description} placeholder="Description or depositor" className="h-9 min-w-0 flex-1 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs text-ink-900 placeholder:text-ledger-400 dark:border-slate-500 dark:bg-ink-950 dark:text-white" />
               <button type="submit" className="rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">Filter</button>
             </div>
-            <div className="flex items-center justify-between sm:col-span-2 xl:col-span-5">
-              <span className="text-[11px] text-ledger-500 dark:text-ledger-400">Filter by account, type, date, description, or depositor.</span>
+            <div className="flex items-center justify-between sm:col-span-2 xl:col-span-6">
+              <span className="text-[11px] text-ledger-500 dark:text-ledger-400">Filter by branch, account, type, date, description, or depositor.</span>
               <Link href={`/banking?transactionsPageSize=${transactionPageSize}#recent-transactions`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear filters</Link>
             </div>
           </form>
           <form action="/banking#recent-transactions" method="get" className="flex flex-wrap items-center gap-2 border-b border-ledger-100 px-5 py-2.5 dark:border-slate-500">
             {transactionFilters.accountId && <input type="hidden" name="accountId" value={transactionFilters.accountId} />}
+            {transactionFilters.locationId && <input type="hidden" name="location_id" value={transactionFilters.locationId} />}
             {transactionFilters.type && <input type="hidden" name="type" value={transactionFilters.type} />}
             {transactionFilters.from && <input type="hidden" name="from" value={transactionFilters.from} />}
             {transactionFilters.to && <input type="hidden" name="to" value={transactionFilters.to} />}
@@ -170,12 +188,13 @@ export function BankingOverview({
             </span>
           </form>
           <div id="recent-transactions" className="max-h-[32rem] overflow-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
+            <table className="w-full min-w-[920px] text-left text-sm">
               <thead className="sticky top-0 z-10 bg-ledger-50/95 text-[11px] font-semibold uppercase tracking-wide text-ledger-500 shadow-sm dark:bg-ink-900/95 dark:text-ledger-400">
                 <tr>
                   <th className="px-5 py-3">Date</th>
                   <th className="px-3 py-3">Description / Deposited by</th>
                   <th className="px-3 py-3">Account</th>
+                  <th className="px-3 py-3">Branch</th>
                   <th className="px-3 py-3">User</th>
                   <th className="px-3 py-3">Type</th>
                   <th className="px-5 py-3 text-right">Amount</th>
@@ -184,14 +203,14 @@ export function BankingOverview({
               <tbody className="divide-y divide-ledger-50 dark:divide-ledger-700/60">
                 {accounts.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
+                    <td colSpan={7} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
                       Add an account to see its transaction history here.
                     </td>
                   </tr>
                 ) : null}
                 {accounts.length > 0 && !transactions?.length ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
+                    <td colSpan={7} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
                       No transactions recorded yet.
                     </td>
                   </tr>
@@ -211,11 +230,21 @@ export function BankingOverview({
                   return (
                     <tr key={transaction.id} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.025]">
                       <td className="whitespace-nowrap px-5 py-3.5 text-xs text-ledger-500 dark:text-ledger-400">
-                        {new Date(`${transaction.transactionDate}T00:00:00`).toLocaleDateString(undefined, {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        <span className="block font-medium text-ink-900 dark:text-slate-200">
+                          {new Date(`${transaction.transactionDate}T00:00:00.000Z`).toLocaleDateString(undefined, {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            timeZone: "UTC",
+                          })}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">
+                          {new Date(transaction.createdAt).toLocaleTimeString(undefined, {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone,
+                          })}
+                        </span>
                       </td>
                       <td className="max-w-[260px] px-3 py-3.5">
                         <div className="flex min-w-0 items-center gap-2">
@@ -240,6 +269,9 @@ export function BankingOverview({
                       </td>
                       <td className="max-w-[150px] truncate px-3 py-3.5 text-xs text-ledger-600 dark:text-ledger-300">
                         {transaction.accountName}
+                      </td>
+                      <td className="max-w-[150px] truncate px-3 py-3.5 text-xs text-ledger-600 dark:text-ledger-300">
+                        {transaction.locationName ?? "Unassigned"}
                       </td>
                       <td className="max-w-[160px] truncate px-3 py-3.5 text-xs text-ledger-600 dark:text-ledger-300" title={transaction.recordedBy}>
                         {transaction.recordedBy}

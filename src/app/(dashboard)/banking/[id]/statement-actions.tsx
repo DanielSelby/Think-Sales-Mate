@@ -7,6 +7,7 @@ export type StatementDownloadRow = {
   date: string;
   description: string;
   counterparty: string;
+  branch: string;
   type: string;
   amount: number;
   runningBalance: number;
@@ -43,11 +44,12 @@ export function StatementActions({
       ["Statement period", period],
       ["Opening balance", openingBalance],
       [],
-      ["Date", "Description", "Counterparty", "Type", "Deposit", "Withdrawal", "Running balance"],
+      ["Date", "Description", "Counterparty", "Branch", "Type", "Deposit", "Withdrawal", "Running balance"],
       ...transactions.map((transaction) => [
         transaction.date,
         transaction.description,
         transaction.counterparty,
+        transaction.branch,
         transaction.type,
         transaction.amount > 0 ? transaction.amount : "",
         transaction.amount < 0 ? Math.abs(transaction.amount) : "",

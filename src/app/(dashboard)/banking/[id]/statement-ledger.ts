@@ -7,7 +7,8 @@ export type BankStatementTransaction = {
   transaction_category: string | null;
   transaction_date: string;
   created_at: string;
-};
+  location_id?: string | null;
+}
 
 export type BankStatementLine = BankStatementTransaction & { runningBalance: number };
 

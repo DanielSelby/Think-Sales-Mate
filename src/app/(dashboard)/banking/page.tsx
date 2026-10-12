@@ -25,6 +25,7 @@ export default async function BankingPage({
     transfer?: string;
     accountCreated?: string;
     accountId?: string;
+    location_id?: string;
     type?: string;
     from?: string;
     to?: string;
@@ -59,12 +60,27 @@ export default async function BankingPage({
   }
 
   const supabase = await createClient();
-  const accountsResult = await supabase
-    .from("bank_accounts")
-    .select("id, name, account_type, account_number, logo_url, current_balance")
-    .eq("org_id", context.orgId)
-    .order("name");
+  const [accountsResult, settingsResult, locationsResult] = await Promise.all([
+    supabase
+      .from("bank_accounts")
+      .select("id, name, account_type, account_number, logo_url, current_balance")
+      .eq("org_id", context.orgId)
+      .order("name"),
+    supabase.from("org_general_settings").select("timezone").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).order("name"),
+  ]);
   if (accountsResult.error) throw new Error(`Bank accounts could not be loaded: ${accountsResult.error.message}`);
+  if (settingsResult.error) throw new Error(`Organization timezone could not be loaded: ${settingsResult.error.message}`);
+  if (locationsResult.error) throw new Error(`Branches could not be loaded: ${locationsResult.error.message}`);
+  const organizationTimeZone = settingsResult.data?.timezone || "UTC";
+  const branchOptions = (locationsResult.data ?? []).filter((location) =>
+    !context.isBranchScoped || context.allowedLocationIds.includes(location.id)
+  );
+  const branchNames = new Map(branchOptions.map((location) => [location.id, location.name]));
+  const requestedLocationId = query.location_id ?? "";
+  const selectedLocationId = requestedLocationId === "unassigned" && !context.isBranchScoped
+    ? requestedLocationId
+    : branchOptions.some((location) => location.id === requestedLocationId) ? requestedLocationId : "";
 
   const trendAsOf = new Date();
   const trendAsOfDate = trendAsOf.toISOString().slice(0, 10);
@@ -99,11 +115,18 @@ export default async function BankingPage({
   const createTransactionsQuery = () => {
     let transactionsQuery = supabase
       .from("bank_transactions")
-      .select("id, account_id, type, amount, description, counterparty_name, transaction_category, transaction_date, recorded_by", { count: "exact" })
+      .select("id, account_id, type, amount, description, counterparty_name, transaction_category, transaction_date, created_at, recorded_by, location_id", { count: "exact" })
       .eq("org_id", context.orgId)
       .order("transaction_date", { ascending: false })
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
+    if (context.isBranchScoped) {
+      transactionsQuery = context.allowedLocationIds.length
+        ? transactionsQuery.in("location_id", context.allowedLocationIds)
+        : transactionsQuery.eq("location_id", "00000000-0000-0000-0000-000000000000");
+    }
+    if (selectedLocationId === "unassigned") transactionsQuery = transactionsQuery.is("location_id", null);
+    else if (selectedLocationId) transactionsQuery = transactionsQuery.eq("location_id", selectedLocationId);
     if (selectedAccountId) transactionsQuery = transactionsQuery.eq("account_id", selectedAccountId);
     if (transactionType === "income") transactionsQuery = transactionsQuery.eq("transaction_category", "income");
     else if (transactionType === "debt_pay") transactionsQuery = transactionsQuery.eq("transaction_category", "debt_payment");
@@ -179,11 +202,15 @@ export default async function BankingPage({
       recordedBy: recorderNames.get(transaction.recorded_by) ?? "Unknown user",
       category: transaction.transaction_category,
       transactionDate: transaction.transaction_date,
+      createdAt: transaction.created_at,
       accountName: accountNames.get(transaction.account_id)!,
+      locationId: transaction.location_id,
+      locationName: transaction.location_id ? branchNames.get(transaction.location_id) ?? null : null,
     }));
   const transactionPages = pageSize === null ? 1 : Math.max(1, Math.ceil(transactionCount / pageSize));
   const transactionFilters: BankingTransactionFilters = {
     accountId: selectedAccountId,
+    locationId: selectedLocationId,
     type: transactionType,
     from: dateFrom,
     to: dateTo,
@@ -192,8 +219,10 @@ export default async function BankingPage({
   if (transactionPage > transactionPages) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(transactionFilters)) {
+      if (key === "locationId") continue;
       if (value) params.set(key, value);
     }
+    if (transactionFilters.locationId) params.set("location_id", transactionFilters.locationId);
     params.set("transactionsPage", String(transactionPages));
     params.set("transactionsPageSize", transactionPageSize);
     redirect(`/banking?${params.toString()}#recent-transactions`);
@@ -238,8 +267,11 @@ export default async function BankingPage({
 
       <BankingOverview
         accounts={accounts}
+        branches={branchOptions}
+        canFilterUnassigned={!context.isBranchScoped}
         transactions={transactions}
         currency={context.currency}
+        timeZone={organizationTimeZone}
         canAddAccount={canAddAccount}
         canTransfer={canManage}
         totalBalance={totalBalance}

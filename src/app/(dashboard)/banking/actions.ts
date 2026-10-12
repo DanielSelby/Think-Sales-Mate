@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
+import { canUseLocation } from "@/lib/organizations/location-access";
 import type { BankAccountType } from "@/types/database";
 
 function isBankAccountType(value: string): value is BankAccountType {
@@ -116,6 +117,8 @@ export async function recordTransaction(accountId: string, formData: FormData): 
   const amount = Number(formData.get("amount"));
   const description = String(formData.get("description") ?? "").trim();
   const transactionDate = String(formData.get("transaction_date") ?? "").trim();
+  const submittedLocationId = String(formData.get("location_id") ?? "").trim();
+  const locationId = submittedLocationId || (context.isBranchScoped ? context.locationId : null);
 
   if (type !== "deposit" && type !== "withdrawal") {
     redirectWithError(`/banking/${accountId}`, "Pick deposit or withdrawal.");
@@ -123,8 +126,24 @@ export async function recordTransaction(accountId: string, formData: FormData): 
   if (Number.isNaN(amount) || amount <= 0) {
     redirectWithError(`/banking/${accountId}`, "Enter a valid amount.");
   }
+  if (context.isBranchScoped && !locationId) {
+    redirectWithError(`/banking/${accountId}`, "Select a branch for this transaction.");
+  }
+  if (!canUseLocation(context, locationId)) {
+    redirectWithError(`/banking/${accountId}`, "You cannot record transactions for the selected branch.");
+  }
 
   const supabase = await createClient();
+  if (locationId) {
+    const { data: location, error: locationError } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("id", locationId)
+      .maybeSingle();
+    if (locationError) redirectWithError(`/banking/${accountId}`, locationError.message);
+    if (!location) redirectWithError(`/banking/${accountId}`, "The selected branch is not available in this organization.");
+  }
   const { error } = await supabase.from("bank_transactions").insert({
     org_id: context.orgId,
     account_id: accountId,
@@ -133,7 +152,8 @@ export async function recordTransaction(accountId: string, formData: FormData): 
     description: description || null,
     transaction_category: type === "withdrawal" ? "expense" : null,
     transaction_date: transactionDate || new Date().toISOString().slice(0, 10),
-    recorded_by: context.userId
+    recorded_by: context.userId,
+    location_id: locationId,
   });
 
   if (error) redirectWithError(`/banking/${accountId}`, error.message);

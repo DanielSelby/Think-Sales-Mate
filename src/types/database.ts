@@ -2767,6 +2767,7 @@ export interface Database {
           transaction_date: string;
           recorded_by: string;
           source_expense_id: string | null;
+          location_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -2781,6 +2782,7 @@ export interface Database {
           transaction_date?: string;
           recorded_by: string;
           source_expense_id?: string | null;
+          location_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["bank_transactions"]["Row"]>;
@@ -2797,6 +2799,13 @@ export interface Database {
             columns: ["source_expense_id"];
             isOneToOne: false;
             referencedRelation: "expenses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bank_transactions_location_id_fkey";
+            columns: ["location_id"];
+            isOneToOne: false;
+            referencedRelation: "business_locations";
             referencedColumns: ["id"];
           }
         ];

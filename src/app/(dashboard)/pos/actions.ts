@@ -1464,6 +1464,7 @@ export async function completeSale(input: CompleteSaleInput): Promise<CompleteSa
     orgId: context.orgId,
     saleId: sale.id,
     saleNumber: sale.sale_number,
+    locationId: input.locationId,
     customerName: input.customerName,
     transactionDate: saleDate,
     actorId: user.id,

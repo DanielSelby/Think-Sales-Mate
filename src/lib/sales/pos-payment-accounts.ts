@@ -52,6 +52,7 @@ export async function recordSalePaymentDeposits(input: {
   orgId: string;
   saleId: string;
   saleNumber: number;
+  locationId: string | null;
   customerName: string | null;
   transactionDate: string;
   actorId: string;
@@ -77,6 +78,7 @@ export async function recordSalePaymentDeposits(input: {
     transaction_category: "income",
     transaction_date: input.transactionDate,
     recorded_by: input.actorId,
+    location_id: input.locationId,
   })));
   return error?.message ?? null;
 }

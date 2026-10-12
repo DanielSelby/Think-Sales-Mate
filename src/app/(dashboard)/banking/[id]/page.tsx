@@ -29,7 +29,7 @@ export default async function AccountDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; view?: string; type?: string; from?: string; to?: string; description?: string; page?: string }>;
+  searchParams: Promise<{ error?: string; view?: string; type?: string; from?: string; to?: string; description?: string; location_id?: string; page?: string }>;
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
@@ -45,6 +45,7 @@ export default async function AccountDetailPage({
   const requestedTo = validDate(resolvedSearchParams.to);
   const dateTo = dateFrom && requestedTo && requestedTo < dateFrom ? "" : requestedTo;
   const description = (resolvedSearchParams.description ?? "").trim().slice(0, 100);
+  const requestedLocationId = resolvedSearchParams.location_id ?? "";
   const pageValue = Number.parseInt(resolvedSearchParams.page ?? "1", 10);
   const statementPage = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1;
   const pageSize = 20;
@@ -53,6 +54,19 @@ export default async function AccountDetailPage({
   if (!context || !can(context.role, "banking.view")) return null;
 
   const supabase = await createClient();
+  const { data: locations, error: locationsError } = await supabase
+    .from("business_locations")
+    .select("id, name")
+    .eq("org_id", context.orgId)
+    .order("name");
+  if (locationsError) throw new Error(`Branches could not be loaded: ${locationsError.message}`);
+  const branchOptions = (locations ?? []).filter((location) =>
+    !context.isBranchScoped || context.allowedLocationIds.includes(location.id)
+  );
+  const locationNames = new Map((locations ?? []).map((location) => [location.id, location.name]));
+  const selectedLocationId = requestedLocationId === "unassigned" && !context.isBranchScoped
+    ? requestedLocationId
+    : branchOptions.some((location) => location.id === requestedLocationId) ? requestedLocationId : "";
   const { data: account } = await supabase
     .from("bank_accounts")
     .select("id, name, account_type, account_number, current_balance, opening_balance, logo_url")
@@ -64,7 +78,7 @@ export default async function AccountDetailPage({
 
   let transactionsQuery = supabase
     .from("bank_transactions")
-    .select("id, type, amount, description, counterparty_name, transaction_category, transaction_date, created_at", { count: "exact" })
+    .select("id, type, amount, description, counterparty_name, transaction_category, transaction_date, created_at, location_id", { count: "exact" })
     .eq("account_id", account.id)
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -87,7 +101,7 @@ export default async function AccountDetailPage({
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await supabase
         .from("bank_transactions")
-        .select("id, type, amount, description, counterparty_name, transaction_category, transaction_date, created_at")
+        .select("id, type, amount, description, counterparty_name, transaction_category, transaction_date, created_at, location_id")
         .eq("account_id", account.id)
         .order("transaction_date", { ascending: true })
         .order("created_at", { ascending: true })
@@ -116,6 +130,8 @@ export default async function AccountDetailPage({
     if (transactionType === "expense" && transaction.transaction_category !== "expense") return false;
     if (transactionType === "transfer" && transaction.transaction_category !== "transfer" && !transaction.description?.startsWith("Transfer ")) return false;
     if (transactionType === "deposit" && (transaction.type !== "deposit" || transaction.transaction_category)) return false;
+    if (selectedLocationId === "unassigned" && transaction.location_id) return false;
+    if (selectedLocationId && selectedLocationId !== "unassigned" && transaction.location_id !== selectedLocationId) return false;
     if (description) {
       const needle = description.toLocaleLowerCase();
       if (!`${transaction.description ?? ""} ${transaction.counterparty_name ?? ""}`.toLocaleLowerCase().includes(needle)) return false;
@@ -132,6 +148,7 @@ export default async function AccountDetailPage({
   const makeStatementHref = (page: number) => {
     const query = new URLSearchParams({ view: "statement", page: String(page) });
     if (transactionType) query.set("type", transactionType);
+    if (selectedLocationId) query.set("location_id", selectedLocationId);
     if (dateFrom) query.set("from", dateFrom);
     if (dateTo) query.set("to", dateTo);
     if (description) query.set("description", description);
@@ -165,6 +182,7 @@ export default async function AccountDetailPage({
       date: transaction.transaction_date,
       description: transaction.description || type,
       counterparty: transaction.counterparty_name ?? "",
+      branch: transaction.location_id ? locationNames.get(transaction.location_id) ?? "Unassigned" : "Unassigned",
       type,
       amount: transaction.type === "deposit" ? Number(transaction.amount) : -Number(transaction.amount),
       runningBalance: transaction.runningBalance,
@@ -194,6 +212,7 @@ export default async function AccountDetailPage({
               <input type="hidden" name="view" value="statement" />
               {transactionType && <input type="hidden" name="type" value={transactionType} />}
               {description && <input type="hidden" name="description" value={description} />}
+              {selectedLocationId && <input type="hidden" name="location_id" value={selectedLocationId} />}
               <label className="text-[10px] font-medium text-ledger-500">From
                 <input name="from" type="date" defaultValue={dateFrom} className="mt-1 block h-8 rounded-md border border-ledger-200 px-2 text-xs dark:border-slate-500 dark:bg-ink-950" />
               </label>
@@ -271,6 +290,12 @@ export default async function AccountDetailPage({
                 <select id="statement-type-filter" name="type" defaultValue={transactionType} className="h-9 rounded-lg border border-ledger-200 bg-white px-2 text-xs dark:border-slate-500 dark:bg-ink-950">
                   <option value="">All types</option><option value="income">Income</option><option value="debt_pay">Debt payment</option><option value="expense">Expense</option><option value="transfer">Transfer</option><option value="deposit">Other deposits</option>
                 </select>
+                <label className="sr-only" htmlFor="statement-branch-filter">Filter statement by branch</label>
+                <select id="statement-branch-filter" name="location_id" defaultValue={selectedLocationId} className="h-9 rounded-lg border border-ledger-200 bg-white px-2 text-xs dark:border-slate-500 dark:bg-ink-950">
+                  <option value="">All branches</option>
+                  {branchOptions.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+                  {!context.isBranchScoped && <option value="unassigned">Unassigned</option>}
+                </select>
                 <label className="sr-only" htmlFor="statement-description-filter">Search description or depositor</label>
                 <input id="statement-description-filter" name="description" type="search" maxLength={100} defaultValue={description} placeholder="Search transactions" className="h-9 min-w-0 rounded-lg border border-ledger-200 px-3 text-xs dark:border-slate-500 dark:bg-ink-950 sm:w-40" />
                 <Button type="submit" variant="outline" className="h-9 px-3 text-xs">Filter</Button>
@@ -286,19 +311,19 @@ export default async function AccountDetailPage({
                 <p className="text-[10px] text-ledger-500 dark:text-ledger-400">{label}</p><p className="mt-1 text-sm font-bold tabular-nums text-[#17385d] dark:text-white">{formatCurrency(Number(amount), context.currency)}</p>
               </div>)}
             </div>
-            <p className="account-statement-no-print border-b border-[#e5edf5] px-4 py-2 text-[10px] text-ledger-500 dark:border-slate-700 dark:text-ledger-400">Type and search filters narrow the on-screen list. Print and download include every transaction in the selected date range so balances reconcile.</p>
+            <p className="account-statement-no-print border-b border-[#e5edf5] px-4 py-2 text-[10px] text-ledger-500 dark:border-slate-700 dark:text-ledger-400">Branch, type and search filters narrow the on-screen list. Balances and downloads remain account-wide for the selected date range so they reconcile.</p>
             {!statementError && statementMatches.length === 0 ? (
               <div className="px-6 py-14 text-center">
                 <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><FileText className="h-5 w-5" /></span>
                 <h3 className="mt-3 text-sm font-semibold text-[#17385d] dark:text-white">No transactions in this statement</h3>
-                <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">{dateFrom || dateTo || transactionType || description ? "Try a wider date range or clear the additional filters." : "Transactions recorded for this account will appear here."}</p>
+                <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">{dateFrom || dateTo || transactionType || description || selectedLocationId ? "Try a wider date range or clear the additional filters." : "Transactions recorded for this account will appear here."}</p>
               </div>
             ) : !statementError ? (
               <>
                 <div className="account-statement-no-print account-statement-table-wrap overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-left text-xs">
+                  <table className="w-full min-w-[860px] text-left text-xs">
                     <thead className="bg-[#f9fbfe] text-[10px] font-semibold uppercase tracking-wide text-ledger-500 dark:bg-white/[0.025] dark:text-ledger-400">
-                      <tr><th className="px-4 py-3">Date and time</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3 text-right">Balance</th></tr>
+                      <tr><th className="px-4 py-3">Date and time</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Branch</th><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3 text-right">Balance</th></tr>
                     </thead>
                     <tbody className="divide-y divide-[#edf2f7] dark:divide-slate-700">
                       {visibleStatementRows.map((transaction) => {
@@ -320,6 +345,9 @@ export default async function AccountDetailPage({
                           <td className="max-w-[280px] px-4 py-3.5">
                             <span className="block truncate font-medium text-[#17385d] dark:text-white">{transaction.description || typeLabel}</span>
                             {transaction.counterparty_name && <span className="mt-0.5 block truncate text-[10px] text-ledger-500 dark:text-ledger-400">{transaction.type === "deposit" ? "From" : "To"} {transaction.counterparty_name}</span>}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3.5 text-ledger-600 dark:text-ledger-300">
+                            {transaction.location_id ? locationNames.get(transaction.location_id) ?? "Unassigned" : "Unassigned"}
                           </td>
                           <td className="px-4 py-3.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${isTransfer ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300" : transaction.type === "deposit" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"}`}>{typeLabel}</span></td>
                           <td className={`whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums ${isTransfer ? "text-blue-700 dark:text-blue-300" : transaction.type === "deposit" ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>
@@ -345,9 +373,9 @@ export default async function AccountDetailPage({
               <h2 className="mb-1 text-lg font-bold">{context.orgName} · Account Statement</h2>
               <p className="mb-3 text-xs">{account.name} · {account.account_number || "Account number not provided"} · {statementPeriod}</p>
               <table className="w-full border-collapse text-[10px]">
-                <thead><tr className="border-b border-slate-300 text-left"><th className="px-2 py-2">Date</th><th className="px-2 py-2">Description</th><th className="px-2 py-2">Counterparty</th><th className="px-2 py-2">Type</th><th className="px-2 py-2 text-right">Amount</th><th className="px-2 py-2 text-right">Running balance</th></tr></thead>
+                <thead><tr className="border-b border-slate-300 text-left"><th className="px-2 py-2">Date</th><th className="px-2 py-2">Description</th><th className="px-2 py-2">Counterparty</th><th className="px-2 py-2">Branch</th><th className="px-2 py-2">Type</th><th className="px-2 py-2 text-right">Amount</th><th className="px-2 py-2 text-right">Running balance</th></tr></thead>
                 <tbody>{statementDownloadRows.map((transaction, index) => <tr key={`${transaction.date}-${index}`} className="border-b border-slate-100">
-                  <td className="px-2 py-2">{transaction.date}</td><td className="px-2 py-2">{transaction.description}</td><td className="px-2 py-2">{transaction.counterparty}</td><td className="px-2 py-2">{transaction.type}</td>
+                  <td className="px-2 py-2">{transaction.date}</td><td className="px-2 py-2">{transaction.description}</td><td className="px-2 py-2">{transaction.counterparty}</td><td className="px-2 py-2">{transaction.branch}</td><td className="px-2 py-2">{transaction.type}</td>
                   <td className="px-2 py-2 text-right">{transaction.amount > 0 ? "+" : ""}{formatCurrency(transaction.amount, context.currency)}</td><td className="px-2 py-2 text-right">{formatCurrency(transaction.runningBalance, context.currency)}</td>
                 </tr>)}</tbody>
               </table>
@@ -444,6 +472,19 @@ export default async function AccountDetailPage({
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-ledger-700 dark:text-ledger-200">Date</label>
             <Input name="transaction_date" type="date" defaultValue={today} required />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="transaction-branch" className="text-sm font-medium text-ledger-700 dark:text-ledger-200">Branch</label>
+            <select
+              id="transaction-branch"
+              name="location_id"
+              defaultValue={context.locationId ?? ""}
+              required={context.isBranchScoped}
+              className="h-10 rounded-md border border-ledger-200 bg-white px-3 text-sm dark:border-slate-500 dark:bg-ink-900 dark:text-white"
+            >
+              <option value="">Unassigned</option>
+              {branchOptions.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </select>
           </div>
           <div className="flex-1 space-y-1.5">
             <label className="text-sm font-medium text-ledger-700 dark:text-ledger-200">
