@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import { canPermission } from "@/lib/rbac/permissions";
 import { formatCurrency } from "@/lib/sales/format";
+import { normalizeBankTransactionSearch } from "@/lib/banking/transaction-search";
 import { AddAccountDialog } from "@/components/banking/add-account-dialog";
 import { AccountsTable, type AccountRow } from "@/components/banking/accounts-table";
 import { BankingOverview, type BankingTransactionFilters, type BankingTransactionRow } from "@/components/banking/banking-overview";
@@ -47,6 +48,7 @@ export default async function BankingPage({
   const dateToValue = validISODate(query.to);
   const dateTo = dateFrom && dateToValue && dateToValue < dateFrom ? "" : dateToValue;
   const description = (query.description ?? "").trim().slice(0, 100);
+  const searchText = normalizeBankTransactionSearch(description);
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -131,15 +133,16 @@ export default async function BankingPage({
     if (transactionType === "income") transactionsQuery = transactionsQuery.eq("transaction_category", "income");
     else if (transactionType === "debt_pay") transactionsQuery = transactionsQuery.eq("transaction_category", "debt_payment");
     else if (transactionType === "expense") transactionsQuery = transactionsQuery.eq("transaction_category", "expense");
-    else if (transactionType === "transfer") transactionsQuery = transactionsQuery.ilike("description", "Transfer %");
+    else if (transactionType === "transfer") transactionsQuery = transactionsQuery.or("transaction_category.eq.transfer,description.ilike.Transfer %");
     else if (transactionType === "deposit") {
       transactionsQuery = transactionsQuery.eq("type", "deposit").is("transaction_category", null);
     }
     if (dateFrom) transactionsQuery = transactionsQuery.gte("transaction_date", dateFrom);
     if (dateTo) transactionsQuery = transactionsQuery.lte("transaction_date", dateTo);
-    if (description) {
-      const safeSearch = description.replace(/[^a-zA-Z0-9\s-]/g, " ");
-      transactionsQuery = transactionsQuery.or(`description.ilike.%${safeSearch}%,counterparty_name.ilike.%${safeSearch}%`);
+    if (description && !searchText) {
+      transactionsQuery = transactionsQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    } else if (searchText) {
+      transactionsQuery = transactionsQuery.or(`description.ilike.%${searchText}%,counterparty_name.ilike.%${searchText}%`);
     }
     return transactionsQuery;
   };

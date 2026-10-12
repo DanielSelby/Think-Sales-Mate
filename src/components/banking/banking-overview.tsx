@@ -7,6 +7,7 @@ import { ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpRight, FileText, Landmark, S
 import { transferBankFunds } from "@/app/(dashboard)/banking/actions";
 import { Button } from "@/components/ui/button";
 import { AddAccountDialog } from "@/components/banking/add-account-dialog";
+import { AutoSubmitFilterForm } from "@/components/banking/auto-submit-filter-form";
 import type { AccountRow } from "@/components/banking/accounts-table";
 import { formatCurrency } from "@/lib/sales/format";
 
@@ -123,7 +124,7 @@ export function BankingOverview({
               View all
             </Link>
           </div>
-          <form action="/banking#recent-transactions" method="get" className="grid gap-2 border-b border-ledger-100 bg-ledger-50/50 p-4 sm:grid-cols-2 xl:grid-cols-6 dark:border-slate-500 dark:bg-white/[0.02]">
+          <AutoSubmitFilterForm action="/banking#recent-transactions" className="grid gap-2 border-b border-ledger-100 bg-ledger-50/50 p-4 sm:grid-cols-2 xl:grid-cols-6 dark:border-slate-500 dark:bg-white/[0.02]">
             <input type="hidden" name="transactionsPageSize" value={transactionPageSize} />
             <input type="hidden" name="transactionsPage" value="1" />
             <label className="sr-only" htmlFor="transaction-account-filter">Filter by account</label>
@@ -159,7 +160,7 @@ export function BankingOverview({
               <span className="text-[11px] text-ledger-500 dark:text-ledger-400">Filter by branch, account, type, date, description, or depositor.</span>
               <Link href={`/banking?transactionsPageSize=${transactionPageSize}#recent-transactions`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear filters</Link>
             </div>
-          </form>
+          </AutoSubmitFilterForm>
           <form action="/banking#recent-transactions" method="get" className="flex flex-wrap items-center gap-2 border-b border-ledger-100 px-5 py-2.5 dark:border-slate-500">
             {transactionFilters.accountId && <input type="hidden" name="accountId" value={transactionFilters.accountId} />}
             {transactionFilters.locationId && <input type="hidden" name="location_id" value={transactionFilters.locationId} />}
@@ -187,9 +188,9 @@ export function BankingOverview({
                 : `${Math.min((transactionPage - 1) * Number(transactionPageSize) + 1, transactionTotal)}–${Math.min(transactionPage * Number(transactionPageSize), transactionTotal)} of ${transactionTotal}`}
             </span>
           </form>
-          <div id="recent-transactions" className="max-h-[32rem] overflow-auto">
+          <div id="recent-transactions" className="scroll-mt-4 overflow-x-auto overflow-y-clip">
             <table className="w-full min-w-[920px] text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-ledger-50/95 text-[11px] font-semibold uppercase tracking-wide text-ledger-500 shadow-sm dark:bg-ink-900/95 dark:text-ledger-400">
+              <thead className="bg-ledger-50/95 text-[11px] font-semibold uppercase tracking-wide text-ledger-500 dark:bg-ink-900/95 dark:text-ledger-400">
                 <tr>
                   <th className="px-5 py-3">Date</th>
                   <th className="px-3 py-3">Description / Deposited by</th>
@@ -211,7 +212,9 @@ export function BankingOverview({
                 {accounts.length > 0 && !transactions?.length ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">
-                      No transactions recorded yet.
+                      {transactionFilters.accountId || transactionFilters.locationId || transactionFilters.type || transactionFilters.from || transactionFilters.to || transactionFilters.description
+                        ? "No transactions match these filters."
+                        : "No transactions recorded yet."}
                     </td>
                   </tr>
                 ) : null}

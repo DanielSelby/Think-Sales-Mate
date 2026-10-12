@@ -197,7 +197,7 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
               )}
             </div>
 
-            <p className="mt-2 truncate font-mono text-[10px] text-ledger-500 dark:text-ledger-400" title={account.accountNumber ?? "No account number added"}>
+            <p className="mt-2 truncate font-mono text-[10px] font-bold text-[var(--theme-primary)]" title={account.accountNumber ?? "No account number added"}>
               {account.accountNumber || "No account number added"}
             </p>
 

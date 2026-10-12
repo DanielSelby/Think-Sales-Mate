@@ -1364,7 +1364,7 @@ export function SaleForm({
                         <th className="py-2 pl-3 pr-2">Product</th>
                         <th className="px-2 py-2">SKU</th>
                         <th className="px-2 py-2 text-right">Unit Price</th>
-                        <th className="px-2 py-2 text-center">Qty</th>
+                        <th className="w-36 px-2 py-2 text-center">Qty</th>
                         <th className="px-2 py-2 text-right">Disc. (%)</th>
                         <th className="px-2 py-2 text-right">Tax (%)</th>
                         <th className="px-2 py-2 text-right">Total</th>
@@ -1397,7 +1397,7 @@ export function SaleForm({
                                 <button
                                   type="button"
                                   onClick={() => updateLine(line.key, { quantity: Math.max(1, line.quantity - 1) })}
-                                  className="flex h-6 w-6 items-center justify-center rounded border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]"
+                                  className="flex h-8 w-8 items-center justify-center rounded border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]"
                                 >
                                   <Minus className="h-3 w-3" />
                                 </button>
@@ -1411,7 +1411,7 @@ export function SaleForm({
                                     if (product) warnIfOverstock(next, product.stockQuantity, product.name);
                                   }}
                                   className={cn(
-                                    "h-6 w-10 rounded border bg-white text-center text-xs dark:bg-ink-900 dark:text-white",
+                                    "h-8 w-16 rounded border bg-white text-center text-sm dark:bg-ink-900 dark:text-white",
                                     product && line.quantity > product.stockQuantity
                                       ? "border-alert text-alert focus-visible:ring-alert/40"
                                       : "border-ledger-200 dark:border-ledger-700"
@@ -1424,7 +1424,7 @@ export function SaleForm({
                                       quantity: Math.min(product?.stockQuantity ?? line.quantity, line.quantity + 1)
                                     })
                                   }
-                                  className="flex h-6 w-6 items-center justify-center rounded border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]"
+                                  className="flex h-8 w-8 items-center justify-center rounded border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700 dark:hover:bg-white/[0.06]"
                                 >
                                   <Plus className="h-3 w-3" />
                                 </button>

@@ -45,7 +45,7 @@ export function OutOfStockFeedback({
           <button type="button" onClick={onCheckAgain} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105" style={{ backgroundColor: "var(--theme-primary)" }}>
             <RefreshCw className="h-4 w-4" /> Check Again
           </button>
-          <button type="button" onClick={onBrowseSimilar} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-[#12345a] transition hover:bg-slate-100 dark:border-ledger-700 dark:bg-ink-800 dark:text-white dark:hover:bg-ink-700">
+          <button type="button" onClick={onBrowseSimilar} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105" style={{ backgroundColor: "var(--theme-primary)" }}>
             <Search className="h-4 w-4" /> Browse Similar
           </button>
         </div>

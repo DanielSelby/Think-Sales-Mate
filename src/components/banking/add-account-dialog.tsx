@@ -52,11 +52,11 @@ export function AddAccountDialog({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-xl border border-ledger-100 p-3 text-left hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:border-blue-900 dark:hover:bg-blue-500/5"
+          className="rounded-lg border border-ledger-100 p-2 text-left hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:border-blue-900 dark:hover:bg-blue-500/5"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Plus className="h-4 w-4" /></span>
-          <span className="mt-2 block text-xs font-semibold text-ink-900 dark:text-white">Add Bank Account</span>
-          <span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">Add an account or wallet</span>
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Plus className="h-3.5 w-3.5" /></span>
+          <span className="mt-1.5 block text-[11px] font-semibold text-ink-900 dark:text-white">Add Bank Account</span>
+          <span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">Add an account or wallet</span>
         </button>
       )}
 

@@ -1255,7 +1255,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
              <table className="pos-cart-grid w-full text-[15px]">                <thead className="sticky top-0 border-b border-ledger-100 bg-ledger-50 text-sm font-bold text-ink-900 dark:border-ledger-700 dark:bg-white/[0.04] dark:text-white">
                   <tr>
                     <th className="px-2 py-2 text-left font-bold">Product</th>
-                    <th className="px-2 py-2 text-center font-bold">Quantity</th>
+                    <th className="w-36 px-2 py-2 text-center font-bold">Quantity</th>
                     <th className="px-2 py-2 text-right font-bold">Subtotal</th>
                     <th className="w-7 px-2 py-2" />
                   </tr>
@@ -1272,14 +1272,14 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center justify-center gap-1">
-                         <button onClick={() => updateQty(l.key, -1)} aria-label={`Decrease ${l.name} quantity`} className="h-8 w-8 rounded-lg border border-alert/30 text-base font-semibold text-alert transition hover:bg-alert-soft">−</button>
+                         <button onClick={() => updateQty(l.key, -1)} aria-label={`Decrease ${l.name} quantity`} className="h-9 w-9 rounded-lg border border-alert/30 text-base font-semibold text-alert transition hover:bg-alert-soft">−</button>
                           <input
                             type="number"
                             value={l.quantity}
                             onChange={(e) => setQtyDirect(l.key, Number(e.target.value))}
-                            className="h-8 w-14 rounded-lg border border-ledger-200 bg-white text-center text-[15px] font-semibold dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                            className="h-9 w-20 rounded-lg border border-ledger-200 bg-white text-center text-base font-semibold dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                           />
-                          <button onClick={() => updateQty(l.key, 1)} aria-label={`Increase ${l.name} quantity`} className="h-8 w-8 rounded-lg border border-signal/30 text-base font-semibold text-signal transition hover:bg-signal-soft">+</button>
+                          <button onClick={() => updateQty(l.key, 1)} aria-label={`Increase ${l.name} quantity`} className="h-9 w-9 rounded-lg border border-signal/30 text-base font-semibold text-signal transition hover:bg-signal-soft">+</button>
                         </div>
                       </td>
                       <td className="px-2 py-2 text-right font-mono text-[15px] font-semibold text-ink-900 dark:text-white">{formatCurrency(l.quantity * l.unitPrice, currency)}</td>

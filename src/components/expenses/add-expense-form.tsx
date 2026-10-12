@@ -445,7 +445,7 @@ export function AddExpenseForm({
                       <th className="w-8 px-4 py-3 font-semibold">#</th>
                       <th className="px-4 py-3 font-semibold">Item / Description</th>
                       <th className="w-36 px-4 py-3 font-semibold">Category</th>
-                      <th className="w-16 px-4 py-3 text-right font-semibold">Qty</th>
+                      <th className="w-24 px-4 py-3 text-right font-semibold">Qty</th>
                       <th className="w-24 px-4 py-3 text-right font-semibold">Unit Cost</th>
                       <th className="w-20 px-4 py-3 text-right font-semibold">Tax</th>
                       <th className="w-24 px-4 py-3 text-right font-semibold">Amount</th>
@@ -465,7 +465,7 @@ export function AddExpenseForm({
                           </select>
                         </td>
                         <td className="px-4 py-3">
-                          <input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(item.key, { quantity: Math.max(1, Number(e.target.value)) })} className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
+                          <input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(item.key, { quantity: Math.max(1, Number(e.target.value)) })} className="h-9 min-w-20 w-full rounded border border-ledger-200 bg-white px-3 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />
                         </td>
                         <td className="px-4 py-3">
                           <input type="number" min={0} step="0.01" value={item.unitCost} onChange={(e) => updateItem(item.key, { unitCost: Number(e.target.value) })} className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white" />

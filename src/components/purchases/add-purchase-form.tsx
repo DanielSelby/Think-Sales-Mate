@@ -687,7 +687,7 @@ export function AddPurchaseForm({
                       <th className="px-3 py-2 font-semibold">SKU</th>
                       <th className="px-3 py-2 font-semibold">Barcode</th>
                       <th className="w-28 px-3 py-2 text-right font-semibold">Unit Price</th>
-                      <th className="w-20 px-3 py-2 text-right font-semibold">Qty</th>
+                      <th className="w-28 px-3 py-2 text-right font-semibold">Qty</th>
                       <th className="w-24 px-3 py-2 font-semibold">Unit</th>
                       <th className="w-24 px-3 py-2 text-right font-semibold">Disc. (%)</th>
                       <th className="w-20 px-3 py-2 text-right font-semibold">Tax (%)</th>
@@ -741,7 +741,7 @@ export function AddPurchaseForm({
                                 min={locked ? line.quantityReceived : 1}
                                 value={line.quantity}
                                 onChange={(e) => updateLine(line.key, { quantity: Math.max(1, Number(e.target.value)) })}
-                                className="h-8 w-full rounded border border-ledger-200 bg-white px-2 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                                className="h-9 min-w-20 w-full rounded border border-ledger-200 bg-white px-3 text-right text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                               />
                               {locked && (
                                 <span

@@ -7,11 +7,13 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
 import { formatCurrency } from "@/lib/sales/format";
+import { normalizeBankTransactionSearch } from "@/lib/banking/transaction-search";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { recordTransaction } from "@/app/(dashboard)/banking/actions";
 import { canPermission } from "@/lib/rbac/permissions";
 import { AddAccountDialog } from "@/components/banking/add-account-dialog";
+import { AutoSubmitFilterForm } from "@/components/banking/auto-submit-filter-form";
 import { buildAccountStatement, type BankStatementTransaction } from "./statement-ledger";
 import { CopyAccountNumberButton, StatementActions, type StatementDownloadRow } from "./statement-actions";
 
@@ -45,6 +47,7 @@ export default async function AccountDetailPage({
   const requestedTo = validDate(resolvedSearchParams.to);
   const dateTo = dateFrom && requestedTo && requestedTo < dateFrom ? "" : requestedTo;
   const description = (resolvedSearchParams.description ?? "").trim().slice(0, 100);
+  const searchText = normalizeBankTransactionSearch(description);
   const requestedLocationId = resolvedSearchParams.location_id ?? "";
   const pageValue = Number.parseInt(resolvedSearchParams.page ?? "1", 10);
   const statementPage = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1;
@@ -86,13 +89,21 @@ export default async function AccountDetailPage({
   if (transactionType === "income") transactionsQuery = transactionsQuery.eq("transaction_category", "income");
   else if (transactionType === "debt_pay") transactionsQuery = transactionsQuery.eq("transaction_category", "debt_payment");
   else if (transactionType === "expense") transactionsQuery = transactionsQuery.eq("transaction_category", "expense");
-  else if (transactionType === "transfer") transactionsQuery = transactionsQuery.ilike("description", "Transfer %");
+  else if (transactionType === "transfer") transactionsQuery = transactionsQuery.or("transaction_category.eq.transfer,description.ilike.Transfer %");
   else if (transactionType === "deposit") transactionsQuery = transactionsQuery.eq("type", "deposit").is("transaction_category", null);
   if (dateFrom) transactionsQuery = transactionsQuery.gte("transaction_date", dateFrom);
   if (dateTo) transactionsQuery = transactionsQuery.lte("transaction_date", dateTo);
-  if (description) {
-    const safeSearch = description.replace(/[^a-zA-Z0-9\s-]/g, " ");
-    transactionsQuery = transactionsQuery.or(`description.ilike.%${safeSearch}%,counterparty_name.ilike.%${safeSearch}%`);
+  if (context.isBranchScoped) {
+    transactionsQuery = context.allowedLocationIds.length
+      ? transactionsQuery.in("location_id", context.allowedLocationIds)
+      : transactionsQuery.eq("location_id", "00000000-0000-0000-0000-000000000000");
+  }
+  if (selectedLocationId === "unassigned") transactionsQuery = transactionsQuery.is("location_id", null);
+  else if (selectedLocationId) transactionsQuery = transactionsQuery.eq("location_id", selectedLocationId);
+  if (description && !searchText) {
+    transactionsQuery = transactionsQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  } else if (searchText) {
+    transactionsQuery = transactionsQuery.or(`description.ilike.%${searchText}%,counterparty_name.ilike.%${searchText}%`);
   }
   let transactions: BankStatementTransaction[] = [];
   let transactionCount = 0;
@@ -125,6 +136,8 @@ export default async function AccountDetailPage({
     ? buildAccountStatement(Number(account.opening_balance ?? 0), transactions, dateFrom, dateTo)
     : null;
   const statementMatches = statement?.transactions.filter((transaction) => {
+    if (context.isBranchScoped
+      && (!transaction.location_id || !context.allowedLocationIds.includes(transaction.location_id))) return false;
     if (transactionType === "income" && transaction.transaction_category !== "income") return false;
     if (transactionType === "debt_pay" && transaction.transaction_category !== "debt_payment") return false;
     if (transactionType === "expense" && transaction.transaction_category !== "expense") return false;
@@ -132,8 +145,9 @@ export default async function AccountDetailPage({
     if (transactionType === "deposit" && (transaction.type !== "deposit" || transaction.transaction_category)) return false;
     if (selectedLocationId === "unassigned" && transaction.location_id) return false;
     if (selectedLocationId && selectedLocationId !== "unassigned" && transaction.location_id !== selectedLocationId) return false;
-    if (description) {
-      const needle = description.toLocaleLowerCase();
+    if (description && !searchText) return false;
+    if (searchText) {
+      const needle = searchText.toLocaleLowerCase();
       if (!`${transaction.description ?? ""} ${transaction.counterparty_name ?? ""}`.toLocaleLowerCase().includes(needle)) return false;
     }
     return true;
@@ -154,6 +168,13 @@ export default async function AccountDetailPage({
     if (description) query.set("description", description);
     return `/banking/${account.id}?${query.toString()}`;
   };
+  const makeStatementDatesClearHref = () => {
+    const query = new URLSearchParams({ view: "statement" });
+    if (transactionType) query.set("type", transactionType);
+    if (selectedLocationId) query.set("location_id", selectedLocationId);
+    if (description) query.set("description", description);
+    return `/banking/${account.id}?${query.toString()}`;
+  };
 
   const canManage = can(context.role, "banking.manage");
   const boundRecord = recordTransaction.bind(null, account.id);
@@ -171,7 +192,10 @@ export default async function AccountDetailPage({
   const statementPeriod = dateFrom || dateTo
     ? `${dateFrom || "Beginning"} – ${dateTo || "Present"}`
     : "All transactions";
-  const statementDownloadRows: StatementDownloadRow[] = (statement?.transactions ?? []).map((transaction) => {
+  const statementDownloadRows: StatementDownloadRow[] = (statement?.transactions ?? [])
+    .filter((transaction) => !context.isBranchScoped
+      || Boolean(transaction.location_id && context.allowedLocationIds.includes(transaction.location_id)))
+    .map((transaction) => {
     const isTransfer = transaction.transaction_category === "transfer" || transaction.description?.startsWith("Transfer ");
     const type = isTransfer ? "Transfer"
       : transaction.transaction_category === "income" ? "Income"
@@ -187,7 +211,7 @@ export default async function AccountDetailPage({
       amount: transaction.type === "deposit" ? Number(transaction.amount) : -Number(transaction.amount),
       runningBalance: transaction.runningBalance,
     };
-  });
+    });
 
   if (isStatementView) {
     const statementError = transactionsErrorMessage
@@ -208,7 +232,7 @@ export default async function AccountDetailPage({
             <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">View your account details and transaction history.</p>
           </div>
           <div className="account-statement-no-print flex flex-col gap-2 sm:flex-row sm:items-end">
-            <form action={`/banking/${account.id}`} method="get" className="flex flex-wrap items-end gap-2 rounded-xl border border-[#d5e2ef] bg-white p-2 shadow-sm dark:border-slate-500 dark:bg-ink-900">
+            <AutoSubmitFilterForm action={`/banking/${account.id}`} className="flex flex-wrap items-end gap-2 rounded-xl border border-[#d5e2ef] bg-white p-2 shadow-sm dark:border-slate-500 dark:bg-ink-900">
               <input type="hidden" name="view" value="statement" />
               {transactionType && <input type="hidden" name="type" value={transactionType} />}
               {description && <input type="hidden" name="description" value={description} />}
@@ -220,8 +244,8 @@ export default async function AccountDetailPage({
                 <input name="to" type="date" min={dateFrom || undefined} defaultValue={dateTo} className="mt-1 block h-8 rounded-md border border-ledger-200 px-2 text-xs dark:border-slate-500 dark:bg-ink-950" />
               </label>
               <Button type="submit" className="h-8 px-3 text-xs">Apply dates</Button>
-              {(dateFrom || dateTo) && <Link href={`/banking/${account.id}?view=statement`} className="px-1 text-[10px] font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear dates</Link>}
-            </form>
+              {(dateFrom || dateTo) && <Link href={makeStatementDatesClearHref()} className="px-1 text-[10px] font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear dates</Link>}
+            </AutoSubmitFilterForm>
             <StatementActions
               accountName={account.name}
               accountNumber={account.account_number}
@@ -274,18 +298,17 @@ export default async function AccountDetailPage({
 
         {statementError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{statementError}</div>}
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,0.9fr)]">
-          <section className="account-statement-card min-w-0 overflow-hidden rounded-2xl border border-[#dce8f2] bg-white shadow-sm dark:border-slate-500 dark:bg-ink-900">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2.4fr)_minmax(230px,0.65fr)]">
+          <section className="account-statement-card min-w-0 rounded-2xl border border-[#dce8f2] bg-white shadow-sm dark:border-slate-500 dark:bg-ink-900">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5edf5] p-4 sm:p-5 dark:border-slate-700">
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><BarChart3 className="h-4 w-4" /></span>
                 <div><h2 className="font-display text-base font-semibold text-[#17385d] dark:text-white">Transaction History</h2><p className="mt-0.5 text-[11px] text-ledger-500 dark:text-ledger-400">{statementPeriod} · {statementMatches.length} transaction(s)</p></div>
               </div>
-              <form action={`/banking/${account.id}`} method="get" className="account-statement-no-print flex flex-wrap gap-2">
+              <AutoSubmitFilterForm action={`/banking/${account.id}`} className="account-statement-no-print flex flex-wrap gap-2">
                 <input type="hidden" name="view" value="statement" />
                 {dateFrom && <input type="hidden" name="from" value={dateFrom} />}
                 {dateTo && <input type="hidden" name="to" value={dateTo} />}
-                {description && <input type="hidden" name="description" value={description} />}
                 <label className="sr-only" htmlFor="statement-type-filter">Filter statement by transaction type</label>
                 <select id="statement-type-filter" name="type" defaultValue={transactionType} className="h-9 rounded-lg border border-ledger-200 bg-white px-2 text-xs dark:border-slate-500 dark:bg-ink-950">
                   <option value="">All types</option><option value="income">Income</option><option value="debt_pay">Debt payment</option><option value="expense">Expense</option><option value="transfer">Transfer</option><option value="deposit">Other deposits</option>
@@ -299,7 +322,7 @@ export default async function AccountDetailPage({
                 <label className="sr-only" htmlFor="statement-description-filter">Search description or depositor</label>
                 <input id="statement-description-filter" name="description" type="search" maxLength={100} defaultValue={description} placeholder="Search transactions" className="h-9 min-w-0 rounded-lg border border-ledger-200 px-3 text-xs dark:border-slate-500 dark:bg-ink-950 sm:w-40" />
                 <Button type="submit" variant="outline" className="h-9 px-3 text-xs">Filter</Button>
-              </form>
+              </AutoSubmitFilterForm>
             </div>
             <div className="grid gap-2 border-b border-[#e5edf5] bg-[#f6faff] p-3 sm:grid-cols-4 dark:border-slate-700 dark:bg-white/[0.02]">
               {[
@@ -311,7 +334,7 @@ export default async function AccountDetailPage({
                 <p className="text-[10px] text-ledger-500 dark:text-ledger-400">{label}</p><p className="mt-1 text-sm font-bold tabular-nums text-[#17385d] dark:text-white">{formatCurrency(Number(amount), context.currency)}</p>
               </div>)}
             </div>
-            <p className="account-statement-no-print border-b border-[#e5edf5] px-4 py-2 text-[10px] text-ledger-500 dark:border-slate-700 dark:text-ledger-400">Branch, type and search filters narrow the on-screen list. Balances and downloads remain account-wide for the selected date range so they reconcile.</p>
+            <p className="account-statement-no-print border-b border-[#e5edf5] px-4 py-2 text-[10px] text-ledger-500 dark:border-slate-700 dark:text-ledger-400">Branch, type and search filters narrow the on-screen list. Balances remain account-wide for reconciliation; print and downloads include transactions available to your branch access for the selected date range.</p>
             {!statementError && statementMatches.length === 0 ? (
               <div className="px-6 py-14 text-center">
                 <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><FileText className="h-5 w-5" /></span>
@@ -320,9 +343,9 @@ export default async function AccountDetailPage({
               </div>
             ) : !statementError ? (
               <>
-                <div className="account-statement-no-print account-statement-table-wrap overflow-x-auto">
+                <div className="account-statement-no-print account-statement-table-wrap max-h-[min(70vh,48rem)] overflow-auto">
                   <table className="w-full min-w-[860px] text-left text-xs">
-                    <thead className="bg-[#f9fbfe] text-[10px] font-semibold uppercase tracking-wide text-ledger-500 dark:bg-white/[0.025] dark:text-ledger-400">
+                    <thead className="sticky top-0 z-10 bg-[#f9fbfe] text-[10px] font-semibold uppercase tracking-wide text-ledger-500 shadow-sm dark:bg-ink-900 dark:text-ledger-400">
                       <tr><th className="px-4 py-3">Date and time</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Branch</th><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3 text-right">Balance</th></tr>
                     </thead>
                     <tbody className="divide-y divide-[#edf2f7] dark:divide-slate-700">
@@ -382,27 +405,27 @@ export default async function AccountDetailPage({
             </div>}
           </section>
 
-          <aside className="account-statement-no-print space-y-4">
-            <section className="account-statement-card rounded-2xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-slate-500 dark:bg-ink-900 sm:p-5">
-              <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><ArrowUpRight className="h-4 w-4" /></span><h2 className="font-display text-base font-semibold text-[#17385d] dark:text-white">Quick Actions</h2></div>
-              <div className="mt-4 grid grid-cols-2 gap-2.5">
+          <aside className="account-statement-no-print space-y-3">
+            <section className="account-statement-card rounded-xl border border-[#dce8f2] bg-white p-3 shadow-sm dark:border-slate-500 dark:bg-ink-900">
+              <div className="flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><ArrowUpRight className="h-3.5 w-3.5" /></span><h2 className="font-display text-sm font-semibold text-[#17385d] dark:text-white">Quick Actions</h2></div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {canAddAccount && <AddAccountDialog trigger="quick-action" />}
-                {canTransfer && <Link href={transferHref} className="rounded-xl border border-ledger-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><ArrowLeftRight className="h-4 w-4" /></span>
-                  <span className="mt-2 block text-xs font-semibold text-[#17385d] dark:text-white">Transfer Money</span><span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">Move between accounts</span>
+                {canTransfer && <Link href={transferHref} className="rounded-lg border border-ledger-100 p-2 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
+                  <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><ArrowLeftRight className="h-3.5 w-3.5" /></span>
+                  <span className="mt-1.5 block text-[11px] font-semibold text-[#17385d] dark:text-white">Transfer Money</span><span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">Move between accounts</span>
                 </Link>}
-                <Link href={viewTransactionsHref} className="rounded-xl border border-ledger-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><FileText className="h-4 w-4" /></span>
-                  <span className="mt-2 block text-xs font-semibold text-[#17385d] dark:text-white">View Statements</span><span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">Browse account transactions</span>
+                <Link href={viewTransactionsHref} className="rounded-lg border border-ledger-100 p-2 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
+                  <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><FileText className="h-3.5 w-3.5" /></span>
+                  <span className="mt-1.5 block text-[11px] font-semibold text-[#17385d] dark:text-white">View Statements</span><span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">Browse account transactions</span>
                 </Link>
-                <Link href="/banking#accounts" className="rounded-xl border border-ledger-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Landmark className="h-4 w-4" /></span>
-                  <span className="mt-2 block text-xs font-semibold text-[#17385d] dark:text-white">Manage Accounts</span><span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">{canManage ? "Edit and review accounts" : "View all accounts"}</span>
+                <Link href="/banking#accounts" className="rounded-lg border border-ledger-100 p-2 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
+                  <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Landmark className="h-3.5 w-3.5" /></span>
+                  <span className="mt-1.5 block text-[11px] font-semibold text-[#17385d] dark:text-white">Manage Accounts</span><span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">{canManage ? "Edit and review accounts" : "View all accounts"}</span>
                 </Link>
               </div>
             </section>
-            <section className="account-statement-card rounded-2xl border border-[#dce8f2] bg-white p-4 shadow-sm dark:border-slate-500 dark:bg-ink-900 sm:p-5">
-              <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><BarChart3 className="h-4 w-4" /></span><h2 className="font-display text-base font-semibold text-[#17385d] dark:text-white">Account Summary</h2></div>
+            <section className="account-statement-card rounded-xl border border-[#dce8f2] bg-white p-3 shadow-sm dark:border-slate-500 dark:bg-ink-900">
+              <div className="flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><BarChart3 className="h-3.5 w-3.5" /></span><h2 className="font-display text-sm font-semibold text-[#17385d] dark:text-white">Account Summary</h2></div>
               {accountCountError ? <p role="alert" className="mt-3 text-xs text-red-700">Account totals could not be loaded: {accountCountError}</p> : <>
                 <div className="mt-4 rounded-xl bg-[#f1f7fd] p-3 dark:bg-white/[0.03]"><p className="text-[10px] text-ledger-500 dark:text-ledger-400">Total organization balance</p><p className="mt-1 text-xl font-bold text-[#17385d] dark:text-white">{formatCurrency((organizationAccounts ?? []).reduce((sum, row) => sum + Number(row.current_balance ?? 0), 0), context.currency)}</p></div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
