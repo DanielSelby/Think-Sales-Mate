@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, ClipboardList, FileCheck2, FolderKanban, Loader2, Plus, Settings2, Trash2, X, Sparkles } from "lucide-react";
+import { ChevronRight, Loader2, Plus, Trash2, X, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +20,7 @@ import {
 } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+import { ExpenseNavigation } from "@/components/expenses/expense-navigation";
 
 export interface LocationOption { id: string; name: string; }
 export interface BankAccountOption { id: string; name: string; }
@@ -295,19 +295,7 @@ export function AddExpenseForm({
         </div>
       </div>
 
-      <nav aria-label="Expense management" className="overflow-x-auto rounded-2xl border border-ledger-100 bg-white p-1 shadow-card dark:border-white/10 dark:bg-ink-900">
-        <div className="flex min-w-max items-center gap-1">
-          <ExpenseTab href="/expenses/new" active icon={ClipboardList}>Add Expense</ExpenseTab>
-          <ExpenseTab href="/expenses" icon={FileCheck2}>Expense List</ExpenseTab>
-          <ExpenseTab href="/expenses/categories" icon={FolderKanban}>Categories</ExpenseTab>
-          <ExpenseTab href="/expenses?view=approvals" icon={FileCheck2}>Approval Queue</ExpenseTab>
-          <ExpenseTab href="/expenses?view=recurring" icon={ClipboardList}>Recurring Expenses</ExpenseTab>
-          <ExpenseTab href="/expenses?view=budgets" icon={FolderKanban}>Budget Control</ExpenseTab>
-          <ExpenseTab href="/expenses?view=reports" icon={FileCheck2}>Reports &amp; Analytics</ExpenseTab>
-          <ExpenseTab href="/expenses?view=attachments" icon={FolderKanban}>Attachments</ExpenseTab>
-          <ExpenseTab href="/expenses?view=settings" icon={Settings2}>Settings</ExpenseTab>
-        </div>
-      </nav>
+      <ExpenseNavigation active="new" />
 
       {isEdit && (
         <div className="flex items-center gap-2 rounded-md border border-signal/30 bg-signal-soft px-4 py-2.5 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">
@@ -709,31 +697,5 @@ function Field({ label, required, children }: { label: string; required?: boolea
       <span className="mb-1 block text-xs font-medium text-ledger-500">{label} {required && <span className="text-alert">*</span>}</span>
       {children}
     </label>
-  );
-}
-
-function ExpenseTab({
-  href,
-  active,
-  icon: Icon,
-  children,
-}: {
-  href: string;
-  active?: boolean;
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-        active
-          ? "bg-signal text-white shadow-sm"
-          : "text-ledger-500 hover:bg-ledger-50 hover:text-ink-900 dark:text-ledger-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
-      }`}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {children}
-    </Link>
   );
 }

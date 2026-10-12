@@ -24,6 +24,8 @@ import { TransactionFeedback } from "@/components/transactions/transaction-feedb
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { bulkApproveExpenses, bulkDeleteExpenses } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
+import { ExpenseNavigation, type ExpenseWorkspaceView } from "@/components/expenses/expense-navigation";
+import { ExpenseWorkspaceView as ExpenseWorkspaceContent, type ExpenseAttachmentRow, type ExpenseBudgetRow } from "@/components/expenses/expense-workspace-view";
 
 export interface ExpenseRow {
   id: string;
@@ -39,6 +41,9 @@ export interface ExpenseRow {
   dueDate: string | null;
   paidOn: string | null;
   department: string | null;
+  isRecurring: boolean;
+  recurringFrequency: string | null;
+  nextRecurrenceDate: string | null;
 }
 
 export interface ExpenseKpis {
@@ -63,6 +68,9 @@ interface ExpenseListViewProps {
   locations: { id: string; name: string }[];
   categoryBreakdown: CategorySlice[];
   recentActivity: ExpenseActivity[];
+  view: ExpenseWorkspaceView;
+  budgets: ExpenseBudgetRow[];
+  attachments: ExpenseAttachmentRow[];
 }
 
 const STATUS_TABS: { key: "all" | DisplayStatus; label: string }[] = [
@@ -78,12 +86,12 @@ const DONUT_COLORS = ["#1d8f5e", "#a8781f", "#68655c", "#b8402f", "#b3ab97", "#8
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
 export function ExpenseListView({
-  expenses, kpis, currency, initialCategory = "all", categories, paymentMethods, departments, categoryBreakdown, recentActivity,
+  expenses, kpis, currency, initialCategory = "all", categories, paymentMethods, departments, categoryBreakdown, recentActivity, view = "list", budgets, attachments,
 }: ExpenseListViewProps) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
-  const [activeTab, setActiveTab] = React.useState<"all" | DisplayStatus>("all");
+  const [activeTab, setActiveTab] = React.useState<"all" | DisplayStatus>(view === "approvals" ? "pending_approval" : "all");
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState(initialCategory);
   const [paymentMethod, setPaymentMethod] = React.useState("all");
@@ -195,12 +203,29 @@ export function ExpenseListView({
   const donutTotal = categoryBreakdown.reduce((sum, c) => sum + c.total, 0);
   const maxCategoryTotal = Math.max(1, ...categoryBreakdown.map((c) => c.total));
 
+  if (view !== "list" && view !== "approvals") {
+    return (
+      <div className="space-y-5 pb-16">
+        <ExpenseNavigation active={view} />
+        <ExpenseWorkspaceContent
+          view={view}
+          expenses={expenses}
+          kpis={kpis}
+          currency={currency}
+          categoryBreakdown={categoryBreakdown}
+          budgets={budgets}
+          attachments={attachments}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="expenses-page space-y-6 animate-in fade-in duration-150 pb-16">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Expenses</h1>
-          <p className="mt-0.5 text-xs text-ledger-400">{expenses.length} expenses recorded</p>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">{view === "approvals" ? "Expense Approval Queue" : "Expenses"}</h1>
+          <p className="mt-0.5 text-xs text-ledger-400">{view === "approvals" ? `${counts.pending_approval} awaiting approval` : `${expenses.length} expenses recorded`}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="md" className="h-10 gap-1.5 rounded-xl"><Upload className="h-4 w-4" /> Import</Button>
@@ -216,6 +241,8 @@ export function ExpenseListView({
           </Link>
         </div>
       </div>
+
+      <ExpenseNavigation active={view} />
 
       {notice && <TransactionFeedback kind={notice.tone} message={notice.message} onClose={() => setNotice(null)} />}
 
@@ -309,7 +336,7 @@ export function ExpenseListView({
                 </Select>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="expense-history-table-scroll overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
                   <tr>

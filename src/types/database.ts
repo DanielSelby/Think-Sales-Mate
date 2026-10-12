@@ -1736,6 +1736,40 @@ export interface Database {
           }
         ];
       };
+      expense_attachments: {
+        Row: {
+          id: string;
+          org_id: string;
+          expense_id: string;
+          storage_path: string;
+          file_name: string;
+          content_type: string;
+          file_size: number;
+          uploaded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          expense_id: string;
+          storage_path: string;
+          file_name: string;
+          content_type: string;
+          file_size: number;
+          uploaded_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["expense_attachments"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "expense_attachments_expense_id_fkey";
+            columns: ["expense_id"];
+            isOneToOne: false;
+            referencedRelation: "expenses";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       expense_categories: {
         Row: {
           id: string;

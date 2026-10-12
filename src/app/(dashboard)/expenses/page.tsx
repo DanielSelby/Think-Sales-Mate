@@ -12,13 +12,16 @@ const ACTIVITY_LABEL: Record<string, string> = {
   "expense.paid": "Expense marked paid",
 };
 
-export default async function ExpensesPage({ searchParams }: { searchParams: Promise<{ location?: string; category?: string }> }) {
+export default async function ExpensesPage({ searchParams }: { searchParams: Promise<{ location?: string; category?: string; view?: string }> }) {
   const context = await getCurrentOrgContext();
   if (!context) return null;
   const filters = await searchParams;
 
   const orgId = context.orgId;
   const supabase = await createClient();
+  const view = ["approvals", "recurring", "budgets", "reports", "attachments", "settings"].includes(filters.view ?? "")
+    ? filters.view as "approvals" | "recurring" | "budgets" | "reports" | "attachments" | "settings"
+    : "list";
 
   const requestedLocationId = context.masterLocationId ?? (filters.location && filters.location !== "all" ? filters.location : null);
   let expensesQuery = supabase.from("expenses").select("*").eq("org_id", orgId).order("expense_date", { ascending: false });
@@ -37,10 +40,13 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     expensesQuery = expensesQuery.eq("recorded_by", context.userId);
   }
 
-  const [{ data: expenses }, { data: locations }] = await Promise.all([
+  const [{ data: expenses, error: expensesError }, { data: locations }, { data: budgetCategories, error: budgetsError }] = await Promise.all([
     expensesQuery,
     supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true),
+    supabase.from("expense_categories").select("name, budget_limit").eq("org_id", orgId).not("budget_limit", "is", null).order("name"),
   ]);
+  if (expensesError) throw new Error(`Could not load expenses: ${expensesError.message}`);
+  if (budgetsError) throw new Error(`Could not load expense budgets: ${budgetsError.message}`);
 
   const rawLocations = locations ?? [];
   const scopedLocations = context.isBranchScoped && context.allowedLocationIds.length > 0
@@ -61,6 +67,9 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     dueDate: e.due_date,
     paidOn: e.paid_on,
     department: e.department,
+    isRecurring: e.is_recurring,
+    recurringFrequency: e.recurring_frequency,
+    nextRecurrenceDate: e.next_recurrence_date,
   }));
 
   const now = new Date();
@@ -112,8 +121,76 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     })
     .filter((a) => a.expenseNumber > 0);
 
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const budgetRows = (budgetCategories ?? [])
+    .filter((budget) => Number(budget.budget_limit) > 0)
+    .map((budget) => {
+    const monthExpenses = rows.filter((row) => row.category === budget.name && row.date.slice(0, 7) === currentMonthKey);
+    return {
+      category: budget.name,
+      monthlyLimit: Number(budget.budget_limit),
+      monthSpend: monthExpenses.reduce((sum, row) => sum + row.amount, 0),
+      transactions: monthExpenses.length,
+    };
+  });
+
+  let attachments: {
+    id: string;
+    expenseId: string;
+    expenseNumber: number;
+    category: string;
+    fileName: string;
+    contentType: string;
+    fileSize: number;
+    createdAt: string;
+    url: string | null;
+    linkError: string | null;
+  }[] = [];
+  if (view === "attachments" && rows.length > 0) {
+    const allowedExpenses = new Map(rows.map((row) => [row.id, row]));
+    const { data: attachmentRows, error: attachmentError } = await supabase
+      .from("expense_attachments")
+      .select("id, expense_id, storage_path, file_name, content_type, file_size, created_at")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false });
+    if (attachmentError) throw new Error(`Could not load expense attachments: ${attachmentError.message}`);
+    const visibleAttachments = (attachmentRows ?? []).filter((attachment: { expense_id: string }) =>
+      allowedExpenses.has(attachment.expense_id)
+    );
+    if (visibleAttachments.length > 0) {
+      const { data: signedUrls, error: signedUrlError } = await supabase.storage
+        .from("expense-attachments")
+        .createSignedUrls(visibleAttachments.map((attachment: { storage_path: string }) => attachment.storage_path), 60 * 60);
+      if (signedUrlError) throw new Error(`Could not create expense attachment links: ${signedUrlError.message}`);
+      const signedUrlByPath = new Map((signedUrls ?? []).map((entry) => [entry.path, {
+        url: entry.signedUrl,
+        error: entry.error,
+      }]));
+      attachments = visibleAttachments.flatMap((attachment: {
+        id: string; expense_id: string; storage_path: string; file_name: string;
+        content_type: string; file_size: number; created_at: string;
+      }) => {
+        const expense = allowedExpenses.get(attachment.expense_id);
+        const signedLink = signedUrlByPath.get(attachment.storage_path);
+        return expense ? [{
+          id: attachment.id,
+          expenseId: expense.id,
+          expenseNumber: expense.expenseNumber,
+          category: expense.category,
+          fileName: attachment.file_name,
+          contentType: attachment.content_type,
+          fileSize: Number(attachment.file_size),
+          createdAt: attachment.created_at,
+          url: signedLink?.url ?? null,
+          linkError: signedLink?.error ?? (signedLink ? null : "Could not create a secure file link."),
+        }] : [];
+      });
+    }
+  }
+
   return (
     <ExpenseListView
+      key={view}
       expenses={rows}
       kpis={kpis}
       currency={context.currency}
@@ -124,6 +201,9 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
       locations={scopedLocations.map((l) => ({ id: l.id, name: l.name }))}
       categoryBreakdown={categoryBreakdown}
       recentActivity={recentActivity}
+      view={view}
+      budgets={budgetRows}
+      attachments={attachments}
     />
   );
 }

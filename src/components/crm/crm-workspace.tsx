@@ -12,7 +12,7 @@ export type CrmCustomer = {
   id: string; name: string; company: string | null; email: string | null; phone: string | null;
   branch?: string | null; orders: number; sales: number; outstanding: number; lastActivity?: string | null;
 };
-export type CrmSale = { customer_name: string | null; total: number; created_at: string; status: string; };
+export type CrmSale = { customer_id?: string | null; customer_name: string | null; total: number; created_at: string; status: string; };
 export type CrmInvoice = { customer_name: string; amount: number; status: string; created_at: string; };
 
 const stages = ["New Lead", "Contacted", "Qualified", "Proposal Sent", "Negotiation", "Won", "Lost"];
@@ -26,7 +26,15 @@ export function CrmWorkspace({ customers, sales, invoices, canManage, currency }
   const [pipeline, setPipeline] = useState(() => customers.slice(0, 12).map((customer, index) => ({ ...customer, stage: stages[index % 5], value: Math.max(customer.sales, 1200) })));
   const [notice, setNotice] = useState("");
   const selected = customers.find((customer) => customer.id === selectedId) ?? customers[0];
-  const visibleCustomers = customers.filter((customer) => `${customer.name} ${customer.company ?? ""} ${customer.email ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+  const visibleCustomers = customers
+    .filter((customer) => `${customer.name} ${customer.company ?? ""} ${customer.email ?? ""}`.toLowerCase().includes(search.toLowerCase()))
+    .sort((left, right) => {
+      const leftActivity = left.lastActivity ? Date.parse(left.lastActivity) : Number.NaN;
+      const rightActivity = right.lastActivity ? Date.parse(right.lastActivity) : Number.NaN;
+      if (Number.isNaN(leftActivity)) return Number.isNaN(rightActivity) ? left.name.localeCompare(right.name) : 1;
+      if (Number.isNaN(rightActivity)) return -1;
+      return rightActivity - leftActivity || left.name.localeCompare(right.name);
+    });
   const pipelineValue = pipeline.reduce((sum, item) => sum + item.value, 0);
   const activeLeads = pipeline.filter((item) => !["Won", "Lost"].includes(item.stage)).length;
   const wonDeals = pipeline.filter((item) => item.stage === "Won").length;

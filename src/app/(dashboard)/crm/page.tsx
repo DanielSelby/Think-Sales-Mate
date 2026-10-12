@@ -13,7 +13,7 @@ export default async function CrmPage() {
   const supabase = await createClient();
   const [{ data: rows }, { data: sales }, { data: invoices }, balances] = await Promise.all([
     supabase.from("customers").select("id, name, email, phone, company, created_at").eq("org_id", context.orgId).order("name"),
-    (() => { let q = supabase.from("sales").select("customer_name, total, created_at, status, location_id").eq("org_id", context.orgId); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("created_at", { ascending: false }) : q.order("created_at", { ascending: false }); })(),
+    (() => { let q = supabase.from("sales").select("customer_id, customer_name, total, created_at, status, location_id").eq("org_id", context.orgId); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("created_at", { ascending: false }) : q.order("created_at", { ascending: false }); })(),
     supabase.from("invoices").select("customer_name, amount, status, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }),
     getCustomerOutstandingBalances(
       supabase,
@@ -28,14 +28,19 @@ export default async function CrmPage() {
   // receive organization-wide invoice totals.
   const rawInvoices = (context.isBranchScoped ? [] : invoices ?? []) as CrmInvoice[];
   const customers: CrmCustomer[] = (rows ?? []).map((c) => {
-    const customerSales = rawSales.filter((sale) => sale.customer_name?.toLowerCase() === c.name.toLowerCase());
+    const customerSales = rawSales.filter((sale) =>
+      sale.customer_id
+        ? sale.customer_id === c.id
+        : sale.customer_name?.trim().toLocaleLowerCase() === c.name.trim().toLocaleLowerCase()
+    );
     const outstanding = (balances.byCustomerId.get(c.id) ?? 0) +
       (balances.byCustomerName.get(c.name.trim().toLocaleLowerCase()) ?? 0);
     return {
       id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.company,
       branch: null, orders: customerSales.length, sales: customerSales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0),
       outstanding,
-      lastActivity: customerSales[0]?.created_at ?? c.created_at
+      lastActivity: customerSales.reduce<string>((latest, sale) =>
+        Date.parse(sale.created_at) > Date.parse(latest) ? sale.created_at : latest, c.created_at)
     };
   });
 

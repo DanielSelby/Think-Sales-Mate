@@ -675,7 +675,7 @@ export function AddPurchaseForm({
             </CardHeader>
             <CardContent className="pt-0">
               <SmartProductSummary products={products} rows={items} onLocate={smartLocator.locate} className="mb-3" />
-              <div className="overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
+              <div className="purchase-entry-items-scroll overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                 <table className="purchase-line-grid w-full text-left text-sm">
                   <thead>
                     <tr

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { CategoryListView, type CategoryKpis, type CategoryActivity } from "@/components/expenses/categories/category-list-view";
 import type { CategoryIconKey, CategoryColorKey } from "@/lib/expenses/categories";
+import { ExpenseNavigation } from "@/components/expenses/expense-navigation";
 
 export const metadata = { title: "Expense Categories · SalesMate ERP" };
 
@@ -99,12 +100,15 @@ export default async function ExpenseCategoriesPage() {
   });
 
   return (
-    <CategoryListView
-      categories={rows}
-      kpis={kpis}
-      currency={context.currency}
-      departments={departments}
-      recentActivity={recentActivity}
-    />
+    <>
+      <div className="mb-5"><ExpenseNavigation active="categories" /></div>
+      <CategoryListView
+        categories={rows}
+        kpis={kpis}
+        currency={context.currency}
+        departments={departments}
+        recentActivity={recentActivity}
+      />
+    </>
   );
 }

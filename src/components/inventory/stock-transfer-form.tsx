@@ -999,7 +999,7 @@ export function StockTransferForm({
           </div>
 
           {/* Editable Multi-Column Items Table */}
-          <div className="overflow-x-auto">
+          <div className="stock-transfer-items-scroll overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="border-b border-ledger-100 bg-ledger-50/70 text-[11px] font-semibold text-ledger-500 dark:border-ledger-700 dark:bg-white/[0.02]">
                 <tr>

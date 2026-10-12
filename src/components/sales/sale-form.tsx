@@ -1365,7 +1365,7 @@ export function SaleForm({
                   <button type="button" onClick={() => setAutoMergeDuplicates((value) => !value)} className={cn("rounded-full px-3 py-1 text-[10px] font-semibold", autoMergeDuplicates ? "bg-blue-600 text-white" : "bg-white text-ledger-500")}>{autoMergeDuplicates ? "ON" : "OFF"}</button>
                 </div>
                 <SmartProductSummary products={locationProducts} rows={lines} onLocate={smartLocator.locate} className="mt-3" />
-                <div className="sale-items-table-scroll mt-4 overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
+                <div className="sale-items-table-scroll sales-entry-items-scroll mt-4 overflow-x-auto rounded-md border border-ledger-100 dark:border-ledger-700">
                   <table className="w-full text-sm">
                     <thead>
                       <tr

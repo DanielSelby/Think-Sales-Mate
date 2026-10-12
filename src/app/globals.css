@@ -1915,6 +1915,42 @@ html.dark .platform-admin-console main :is(input, textarea)::placeholder {
 }
 
 @media screen {
+  body .page-canvas .expenses-page .expense-history-table-scroll {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: min(65vh, 600px) !important;
+    overflow-x: auto;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  body .page-canvas .expenses-page .expense-history-table-scroll thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  body .page-canvas .new-sale-page .sales-entry-items-scroll,
+  body .page-canvas .procurement-page .purchase-entry-items-scroll,
+  body .page-canvas .stock-transfer-items-scroll {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: min(65vh, 420px) !important;
+    overflow-x: auto;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  body .page-canvas .new-sale-page .sales-entry-items-scroll thead,
+  body .page-canvas .procurement-page .purchase-entry-items-scroll thead,
+  body .page-canvas .stock-transfer-items-scroll thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
   body .page-canvas :is(div, section, article):has(> table):not([class*="max-h-"]),
   body .page-canvas .sale-items-table-scroll,
   body .platform-admin-console main :is(div, section, article):has(> table):not([class*="max-h-"]) {
@@ -2342,6 +2378,21 @@ html.dark body :is(
   }
 
   html:not(.dark) .page-canvas .new-sale-page .sale-items-table-scroll table thead th {
+    color: #fff !important;
+  }
+
+  html:not(.dark) .page-canvas .expenses-page .expense-history-table-scroll thead {
+    background-color: var(--theme-header-light, #eef2fa) !important;
+    border-color: var(--theme-header-border-light, #dbeafe) !important;
+    color: var(--theme-primary, #153361) !important;
+  }
+
+  html:not(.dark) .page-canvas .expenses-page .expense-history-table-scroll thead th {
+    background-color: transparent !important;
+    color: var(--theme-primary, #153361) !important;
+  }
+
+  html:not(.dark) .page-canvas .procurement-page .purchase-line-grid thead th {
     color: #fff !important;
   }
 

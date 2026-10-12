@@ -65,8 +65,9 @@ export function ExpenseRowMenu({
 
   return (
     <div className="flex items-center justify-end gap-1 text-ledger-400">
-      <Link href={`/expenses/${expenseId}`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white" title="View">
+      <Link href={`/expenses/${expenseId}`} className="inline-flex items-center gap-1 rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white" title="Show expense details" aria-label={`Show ${formatExpenseNumber(expenseNumber)}`}>
         <Eye className="h-4 w-4" />
+        <span className="text-xs">Show</span>
       </Link>
       <Link href={`/expenses/${expenseId}/edit`} className="rounded-md p-1.5 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white" title="Edit">
         <Pencil className="h-4 w-4" />
