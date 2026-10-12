@@ -232,7 +232,7 @@ export function BankingOverview({
                             </span>
                             {transaction.counterpartyName && (
                               <span className="mt-0.5 block truncate text-[11px] text-ledger-500 dark:text-ledger-400">
-                                From {transaction.counterpartyName}
+                                {incoming ? "From" : "To"} {transaction.counterpartyName}
                               </span>
                             )}
                           </div>
