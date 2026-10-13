@@ -42,21 +42,91 @@ export interface ReturnableLine {
   unitPrice: number;
 }
 
+export interface SaleRefundAccountOption {
+  id: string;
+  name: string;
+  accountType: string;
+}
+
+export interface SaleRefundOptions {
+  amountPaid: number;
+  alreadyRefunded: number;
+  maxRefundable: number;
+  accounts: SaleRefundAccountOption[];
+}
+
+export async function getSaleRefundOptions(saleId: string): Promise<SaleRefundOptions> {
+  if (!await canPermission("sales", "approve")) throw new Error("You do not have permission to process sale returns.");
+  const supabase = await createClient();
+  const context = await getCurrentOrgContext();
+  if (!context) throw new Error("Your session expired — please sign in again.");
+
+  const { data: sale, error: saleError } = await supabase
+    .from("sales")
+    .select("org_id, location_id, sold_by, total, amount_paid, refunded_amount")
+    .eq("id", saleId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (saleError) throw new Error(`Could not load sale refund details: ${saleError.message}`);
+  if (
+    !sale ||
+    !canAccessLocation(context, sale.location_id) ||
+    (!context.canViewOtherTransactions && sale.sold_by !== context.userId)
+  ) throw new Error("You are not authorized to process this sale return.");
+
+  const admin = createAdminClient();
+  const { data: accounts, error: accountsError } = await admin
+    .from("bank_accounts")
+    .select("id, name, account_type")
+    .eq("org_id", sale.org_id)
+    .order("name");
+  if (accountsError) throw new Error(`Could not load refund accounts: ${accountsError.message}`);
+
+  const amountPaid = Math.max(0, Number(sale.amount_paid ?? 0));
+  const alreadyRefunded = Math.max(0, Number(sale.refunded_amount ?? 0));
+  return {
+    amountPaid,
+    alreadyRefunded,
+    maxRefundable: Math.max(0, Math.min(Number(sale.total), amountPaid) - alreadyRefunded),
+    accounts: (accounts ?? []).map((account) => ({
+      id: account.id,
+      name: account.name,
+      accountType: account.account_type,
+    })),
+  };
+}
+
 export async function getSaleReturnableItems(saleId: string): Promise<ReturnableLine[]> {
   if (!await canPermission("sales", "view")) throw new Error("You do not have permission to view sales.");
   const supabase = await createClient();
+  const context = await getCurrentOrgContext();
+  if (!context) throw new Error("Your session expired — please sign in again.");
+  const { data: sale, error: saleError } = await supabase
+    .from("sales")
+    .select("org_id, location_id, sold_by")
+    .eq("id", saleId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (saleError) throw new Error(`Could not verify sale access: ${saleError.message}`);
+  if (
+    !sale ||
+    !canAccessLocation(context, sale.location_id) ||
+    (!context.canViewOtherTransactions && sale.sold_by !== context.userId)
+  ) throw new Error("You are not authorized to view this sale's return details.");
 
-  const { data: items } = await supabase
+  const { data: items, error: itemsError } = await supabase
     .from("sale_items")
     .select("id, product_id, quantity, unit_price, product:products ( name )")
     .eq("sale_id", saleId);
+  if (itemsError) throw new Error(`Could not load returnable items: ${itemsError.message}`);
 
   if (!items || items.length === 0) return [];
 
-  const { data: returns } = await supabase
+  const { data: returns, error: returnsError } = await supabase
     .from("sale_return_items")
     .select("sale_item_id, quantity")
     .eq("sale_id", saleId);
+  if (returnsError) throw new Error(`Could not load existing sale returns: ${returnsError.message}`);
 
   const returnedByLine = new Map<string, number>();
   for (const r of returns ?? []) {
@@ -86,6 +156,7 @@ export interface UpdateSaleStatusInput {
   status: SaleStatus;
   refundedAmount?: number;
   refundPaymentMethod?: string | null;
+  refundAccountId?: string | null;
   note?: string;
   /** Only used when status === "returned": quantity being returned per line, > 0 only. */
   returnLines?: { saleItemId: string; productId: string; quantity: number }[];
@@ -101,6 +172,7 @@ export async function updateSaleStatus({
   status,
   refundedAmount,
   refundPaymentMethod,
+  refundAccountId,
   note,
   returnLines,
 }: UpdateSaleStatusInput): Promise<UpdateSaleStatusResult> {
@@ -120,12 +192,17 @@ export async function updateSaleStatus({
 
   const { data: sale, error: fetchError } = await supabase
     .from("sales")
-    .select("id, org_id, sale_number, total, status, location_id")
+    .select("id, org_id, sale_number, total, amount_paid, refunded_amount, customer_name, status, location_id, sold_by")
     .eq("id", saleId)
     .single();
   if (fetchError || !sale) return { ok: false, error: "Sale not found." };
   const context = await getCurrentOrgContext();
-  if (!context || sale.org_id !== context.orgId || !canAccessLocation(context, sale.location_id)) {
+  if (
+    !context ||
+    sale.org_id !== context.orgId ||
+    !canAccessLocation(context, sale.location_id) ||
+    (!context.canViewOtherTransactions && sale.sold_by !== user.id)
+  ) {
     return { ok: false, error: "You are not authorized to change this sale." };
   }
 
@@ -137,23 +214,34 @@ export async function updateSaleStatus({
     return { ok: false, error: "You do not have access to the branch required to process this return." };
   }
 
-  const nextRefundedAmount = status === "returned" ? Math.max(0, refundedAmount ?? 0) : 0;
-  if (status === "returned" && (!Number.isFinite(nextRefundedAmount) || nextRefundedAmount < 0)) {
+  const refundAmount = status === "returned" ? Number(refundedAmount ?? 0) : 0;
+  const nextRefundedAmount = status === "returned"
+    ? Number(sale.refunded_amount ?? 0) + refundAmount
+    : 0;
+  if (status === "returned" && (!Number.isFinite(refundAmount) || refundAmount < 0)) {
     return { ok: false, error: "Enter a valid refund amount." };
   }
-  if (nextRefundedAmount > sale.total) {
-    return { ok: false, error: "Refund amount can't exceed the sale total." };
+  const maxRefundable = Math.max(
+    0,
+    Math.min(Number(sale.total), Number(sale.amount_paid ?? 0)) - Number(sale.refunded_amount ?? 0)
+  );
+  if (refundAmount > maxRefundable) {
+    return { ok: false, error: `Refund amount can't exceed the unrefunded amount paid (${maxRefundable.toFixed(2)}).` };
   }
-  const refundTender = status === "returned" ? refundPaymentMethod?.trim() || null : null;
+  const refundTender = status === "returned" && refundAmount > 0 ? refundPaymentMethod?.trim() || null : null;
+  const selectedRefundAccountId = status === "returned" && refundAmount > 0 ? refundAccountId?.trim() || null : null;
   const allowedRefundTenders = ["Cash", "Card", "Mobile Money", "Bank Transfer", "Cheque", "Other"];
-  if (status === "returned" && nextRefundedAmount > 0 && !refundTender) {
+  if (refundAmount > 0 && !refundTender) {
     return { ok: false, error: "Select how the refund is being paid." };
   }
   if (refundTender && !allowedRefundTenders.includes(refundTender)) {
     return { ok: false, error: "Select a valid refund payment method." };
   }
+  if (refundAmount > 0 && refundTender !== "Cash" && !selectedRefundAccountId) {
+    return { ok: false, error: "Select the account used to pay this refund." };
+  }
   let refundSessionId: string | null = null;
-  if (status === "returned" && nextRefundedAmount > 0 && refundTender === "Cash") {
+  if (status === "returned" && refundAmount > 0 && refundTender === "Cash") {
     const { data: session, error: sessionError } = await (supabase as any)
       .from("pos_register_sessions")
       .select("id")
@@ -165,6 +253,26 @@ export async function updateSaleStatus({
     if (sessionError) return { ok: false, error: "Could not verify an open register for this cash refund." };
     if (!session) return { ok: false, error: "Open a register at this sale's branch before issuing a cash refund." };
     refundSessionId = session.id;
+  }
+  if (refundAmount > 0 && refundTender && refundTender !== "Cash") {
+    const { data: account, error: accountError } = await (admin as any)
+      .from("bank_accounts")
+      .select("id, account_type")
+      .eq("id", selectedRefundAccountId)
+      .eq("org_id", sale.org_id)
+      .maybeSingle();
+    if (accountError) return { ok: false, error: `Could not verify the refund account: ${accountError.message}` };
+    if (!account) return { ok: false, error: "The selected refund account is unavailable in this organization." };
+    const compatibleAccountTypes: Record<string, string[]> = {
+      Card: ["card", "checking", "savings", "other"],
+      "Mobile Money": ["mobile_money"],
+      "Bank Transfer": ["card", "checking", "savings", "other"],
+      Cheque: ["card", "checking", "savings", "other"],
+      Other: ["cash", "card", "checking", "savings", "mobile_money", "other"],
+    };
+    if (!compatibleAccountTypes[refundTender]?.includes(account.account_type)) {
+      return { ok: false, error: `The selected account type cannot be used for a ${refundTender} refund.` };
+    }
   }
   let refundAuditWarning: string | null = null;
 
@@ -243,16 +351,17 @@ export async function updateSaleStatus({
     }
 
     if (status === "returned") {
-      const { data: movementId, error: refundError } = await (admin as any).rpc("record_pos_sale_refund", {
+      const { data: movementId, error: refundError } = await (admin as any).rpc("record_pos_sale_refund_with_account", {
         p_sale_id: saleId,
         p_org_id: sale.org_id,
         p_actor_id: user.id,
-        p_amount: nextRefundedAmount,
+        p_amount: refundAmount,
         p_payment_method: refundTender,
         p_session_id: refundSessionId,
         p_location_id: restockLocationId,
         p_return_lines: returnLines ?? [],
         p_note: note?.trim() || null,
+        p_refund_account_id: selectedRefundAccountId,
       });
       if (refundError) throw new Error(refundError.message);
       const refundAudit = await recordAuditEvent(supabase, {
@@ -262,9 +371,14 @@ export async function updateSaleStatus({
         entityType: "sales",
         entityId: sale.id,
         module: "Sales",
-        description: "Sale return and refund method recorded.",
+        description: "Sale return and refund recorded.",
         branchId: sale.location_id,
-        newValues: { refunded_amount: nextRefundedAmount, refund_payment_method: refundTender, cash_movement_id: movementId },
+        newValues: {
+          refund_amount: refundAmount,
+          refund_payment_method: refundTender,
+          refund_account_id: selectedRefundAccountId,
+          refund_transaction_id: movementId,
+        },
       });
       if (refundAudit.error) refundAuditWarning = "Return saved, but its audit event could not be recorded. Notify an administrator.";
     } else {
@@ -290,7 +404,7 @@ export async function updateSaleStatus({
       if (accounts.error || !accounts.debitAccountId || !accounts.creditAccountId) {
         console.error("Automatic sale return journal was not posted:", accounts.error ?? "Sales accounts are not configured.");
       } else {
-        const refundValue = status === "returned" ? nextRefundedAmount : Number(sale.total);
+        const refundValue = status === "returned" ? refundAmount : Number(sale.total);
         const returnLinesValue = (returnLines ?? []).reduce((sum, line) => sum + Math.max(0, line.quantity), 0);
         const reversalValue = refundValue > 0 ? refundValue : Number(sale.total);
         const journal = await postOperationalJournal(supabase, {

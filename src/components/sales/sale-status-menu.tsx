@@ -6,7 +6,13 @@ import { MoreVertical, Undo2, XCircle, RotateCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { updateSaleStatus, getSaleReturnableItems, type ReturnableLine } from "@/app/(dashboard)/sales/actions";
+import {
+  updateSaleStatus,
+  getSaleReturnableItems,
+  getSaleRefundOptions,
+  type ReturnableLine,
+  type SaleRefundAccountOption,
+} from "@/app/(dashboard)/sales/actions";
 import { formatCurrency } from "@/lib/sales/format";
 import type { SaleStatus } from "@/types/database";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
@@ -45,9 +51,12 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [target, setTarget] = React.useState<SaleStatus | null>(null);
   const [lines, setLines] = React.useState<ReturnableLine[] | null>(null);
+  const [refundAccounts, setRefundAccounts] = React.useState<SaleRefundAccountOption[]>([]);
+  const [maxRefundable, setMaxRefundable] = React.useState(0);
   const [returnQty, setReturnQty] = React.useState<Record<string, string>>({});
-  const [refundInput, setRefundInput] = React.useState(String(total));
+  const [refundInput, setRefundInput] = React.useState("0");
   const [refundPaymentMethod, setRefundPaymentMethod] = React.useState("");
+  const [refundAccountId, setRefundAccountId] = React.useState("");
   const [note, setNote] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<{ kind: "warning"; message: string } | null>(null);
@@ -66,19 +75,24 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
   function openDialogFor(nextStatus: SaleStatus) {
     setMenuOpen(false);
     setTarget(nextStatus);
-    setRefundInput(String(total));
+    setRefundInput("0");
     setRefundPaymentMethod("");
+    setRefundAccountId("");
     setNote("");
     setError(null);
     setNotice(null);
     setLines(null);
+    setRefundAccounts([]);
+    setMaxRefundable(0);
     setReturnQty({});
 
     if (nextStatus === "returned") {
       setLoadingLines(true);
-      getSaleReturnableItems(saleId)
-        .then((fetched) => {
+      Promise.all([getSaleReturnableItems(saleId), getSaleRefundOptions(saleId)])
+        .then(([fetched, refundOptions]) => {
           setLines(fetched);
+          setRefundAccounts(refundOptions.accounts);
+          setMaxRefundable(refundOptions.maxRefundable);
           const defaults: Record<string, string> = {};
           let suggestedRefund = 0;
           for (const line of fetched) {
@@ -86,9 +100,9 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
             suggestedRefund += line.remaining * line.unitPrice;
           }
           setReturnQty(defaults);
-          setRefundInput(String(Math.min(suggestedRefund, total)));
+          setRefundInput(String(Math.min(suggestedRefund, refundOptions.maxRefundable)));
         })
-        .catch(() => setError("Couldn't load this sale's line items."))
+        .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Couldn't load this sale's return details."))
         .finally(() => setLoadingLines(false));
     }
   }
@@ -130,18 +144,30 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
         setError("Enter a valid refund amount.");
         return;
       }
-      if (refundedAmount > total) {
-        setError("Refund amount can't exceed the sale total.");
+      if (refundedAmount > maxRefundable) {
+        setError(`Refund amount can't exceed the unrefunded amount paid (${formatCurrency(maxRefundable, currency)}).`);
         return;
       }
       if (refundedAmount > 0 && !refundPaymentMethod) {
         setError("Select how the refund is being paid.");
         return;
       }
+      if (refundedAmount > 0 && refundPaymentMethod !== "Cash" && !refundAccountId) {
+        setError("Select the account used to pay this refund.");
+        return;
+      }
     }
 
     startTransition(async () => {
-      const result = await updateSaleStatus({ saleId, status: target, refundedAmount, refundPaymentMethod: refundPaymentMethod || null, note, returnLines });
+      const result = await updateSaleStatus({
+        saleId,
+        status: target,
+        refundedAmount,
+        refundPaymentMethod: refundPaymentMethod || null,
+        refundAccountId: refundAccountId || null,
+        note,
+        returnLines,
+      });
       if (!result.ok) {
         setError(result.error ?? "Something went wrong. Try again.");
         return;
@@ -153,6 +179,15 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
   }
 
   const availableActions = ACTIONS.filter((a) => a.target !== status);
+  const compatibleRefundAccounts = refundPaymentMethod === "Mobile Money"
+    ? refundAccounts.filter((account) => account.accountType === "mobile_money")
+    : refundPaymentMethod === "Card"
+      ? refundAccounts.filter((account) => ["card", "checking", "savings", "other"].includes(account.accountType))
+      : refundPaymentMethod === "Bank Transfer" || refundPaymentMethod === "Cheque"
+        ? refundAccounts.filter((account) => ["card", "checking", "savings", "other"].includes(account.accountType))
+        : refundPaymentMethod === "Other"
+          ? refundAccounts
+          : [];
 
   return (
     <>
@@ -237,34 +272,65 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
           {target === "returned" && (
             <div className="space-y-3">
               <label className="block text-xs font-medium text-ledger-500">
-                Refund amount ({formatCurrency(total, currency)} total)
+                Refund amount (up to {formatCurrency(maxRefundable, currency)} collected and not previously refunded)
                 <input
                   type="number"
                   min={0}
-                  max={total}
+                  max={maxRefundable}
                   step="0.01"
                   value={refundInput}
+                  disabled={maxRefundable <= 0}
                   onChange={(e) => setRefundInput(e.target.value)}
                   className="mt-1 flex h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                 />
               </label>
-              <label className="block text-xs font-medium text-ledger-500">
-                Refund paid by {Number(refundInput) > 0 && <span className="text-alert">*</span>}
-                <select
-                  value={refundPaymentMethod}
-                  onChange={(e) => setRefundPaymentMethod(e.target.value)}
-                  required={Number(refundInput) > 0}
-                  className="mt-1 h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
-                >
-                  <option value="">Select refund method</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Card">Card</option>
-                  <option value="Mobile Money">Mobile Money</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
+              {maxRefundable <= 0 ? (
+                <p className="rounded-md border border-ledger-100 bg-ledger-50 px-3 py-2 text-xs text-ledger-600 dark:border-ledger-700 dark:bg-ink-800 dark:text-ledger-300">
+                  No payment remains available to refund. You can return the items without selecting a payment method.
+                </p>
+              ) : Number(refundInput) > 0 ? (
+                <>
+                  <label className="block text-xs font-medium text-ledger-500">
+                    Refund paid by <span className="text-alert">*</span>
+                    <select
+                      value={refundPaymentMethod}
+                      onChange={(e) => {
+                        setRefundPaymentMethod(e.target.value);
+                        setRefundAccountId("");
+                      }}
+                      required
+                      className="mt-1 h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    >
+                      <option value="">Select refund method</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Card">Card</option>
+                      <option value="Mobile Money">Mobile Money</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+                  {refundPaymentMethod && refundPaymentMethod !== "Cash" && (
+                    <label className="block text-xs font-medium text-ledger-500">
+                      Refund account <span className="text-alert">*</span>
+                      <select
+                        value={refundAccountId}
+                        onChange={(e) => setRefundAccountId(e.target.value)}
+                        required
+                        className="mt-1 h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 focus-visible:border-signal dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                      >
+                        <option value="">Select account</option>
+                        {compatibleRefundAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>{account.name}</option>
+                        ))}
+                      </select>
+                      {compatibleRefundAccounts.length === 0 && (
+                        <span className="mt-1 block font-normal text-alert">No compatible account is configured for this refund method.</span>
+                      )}
+                    </label>
+                  )}
+                </>
+              ) : null}
             </div>
           )}
 

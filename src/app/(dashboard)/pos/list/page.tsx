@@ -181,7 +181,34 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
     p_page: page,
     p_page_size: PAGE_SIZE,
   });
-  if (error) throw new Error(`Could not load POS sales: ${error.message}`);
+  if (error) {
+    console.error("POS sales RPC failed:", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    if (["PGRST202", "PGRST203", "42883"].includes(error.code ?? "")) {
+      return (
+        <main className="mx-auto max-w-3xl py-16">
+          <Card>
+            <CardContent className="space-y-3 p-8 text-center">
+              <h1 className="font-display text-xl font-semibold text-ink-900 dark:text-white">POS sales database update required</h1>
+              <p className="text-sm text-ledger-500 dark:text-ledger-400">
+                The deployed database does not yet have the current POS sales query. Apply migration
+                <code className="mx-1 rounded bg-ledger-100 px-1 py-0.5 dark:bg-ink-800">20261013180000_pos_list_rpc_and_refund_accounts.sql</code>
+                in Supabase, then refresh this page.
+              </p>
+              <Link href="/pos/list?retry=1" className="inline-flex h-10 items-center justify-center rounded-md bg-signal px-4 text-sm font-semibold text-white hover:brightness-95">
+                Retry
+              </Link>
+            </CardContent>
+          </Card>
+        </main>
+      );
+    }
+    throw new Error(`Could not load POS sales (${error.code || "database error"}). Check the server logs for details.`);
+  }
 
   const result = asObject(data);
   if (!result) throw new Error("The POS sales query returned an invalid response.");
