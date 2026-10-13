@@ -116,7 +116,7 @@ as $$
       coalesce(sum(case when status <> 'cancelled' then greatest(total - refunded_amount, 0) else 0 end), 0) as total_sales_value,
       count(*) filter (where status = 'completed')::bigint as completed_transactions,
       count(*) filter (where status = 'completed' and amount_paid < total)::bigint as pending_transactions,
-      count(*) filter (where status = 'cancelled')::bigint as voided_transactions
+      count(*) filter (where status in ('cancelled', 'returned'))::bigint as voided_transactions
     from filtered
   ),
   page_rows as (

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { PosSalesAutoSubmitForm } from "@/components/pos/pos-sales-auto-submit-form";
+import { PosSalesKpi } from "@/components/pos/pos-sales-kpi";
 import { PosSalesSearchInput } from "@/components/pos/pos-sales-search-input";
 import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -84,31 +86,6 @@ function makeSortHref(params: Record<string, string>, sort: "date" | "total", di
 
 function nextDirection(sort: string, currentSort: string, currentDirection: string) {
   return sort === currentSort && currentDirection === "desc" ? "asc" : "desc";
-}
-
-function Kpi({
-  label, value, detail, icon: Icon, tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: typeof ShoppingBag;
-  tone: string;
-}) {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="flex items-start justify-between gap-3 p-4 sm:p-5">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-ledger-500 dark:text-ledger-400">{label}</p>
-          <p className="mt-2 truncate font-display text-2xl font-bold text-ink-900 dark:text-white">{value}</p>
-          <p className="mt-1 text-[11px] text-ledger-400">{detail}</p>
-        </div>
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
-          <Icon className="h-5 w-5" />
-        </span>
-      </CardContent>
-    </Card>
-  );
 }
 
 export default async function PosSalesListPage({ searchParams }: { searchParams: Query }) {
@@ -239,18 +216,18 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         </Link>
       </div>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Kpi label="Total POS Transactions" value={totalTransactions.toLocaleString()} detail="Matching current filters" icon={ClipboardList} tone="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300" />
-        <Kpi label="Today’s POS Sales" value={formatCurrency(numberValue(result.todaySales), context.currency)} detail="Net of recorded refunds" icon={CalendarDays} tone="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300" />
-        <Kpi label="Total POS Sales Value" value={formatCurrency(numberValue(result.totalSalesValue), context.currency)} detail="Net of refunds; voids excluded" icon={CircleDollarSign} tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
-        <Kpi label="Completed Transactions" value={numberValue(result.completedTransactions).toLocaleString()} detail="Sale status: completed" icon={ArrowUpRight} tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
-        <Kpi label="Pending Transactions" value={numberValue(result.pendingTransactions).toLocaleString()} detail="Completed sales with balance due" icon={ArrowDownRight} tone="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300" />
-        <Kpi label="Voided Transactions" value={numberValue(result.voidedTransactions).toLocaleString()} detail="Cancelled POS sales" icon={XCircle} tone="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300" />
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <PosSalesKpi label="Total POS Transactions" value={totalTransactions.toLocaleString()} detail="Matching current filters" icon={ClipboardList} tone="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300" />
+        <PosSalesKpi label="Today’s POS Sales" value={formatCurrency(numberValue(result.todaySales), context.currency)} detail="Net of recorded refunds" icon={CalendarDays} tone="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300" />
+        <PosSalesKpi label="Total POS Sales Value" value={formatCurrency(numberValue(result.totalSalesValue), context.currency)} detail="Net of refunds; voids excluded" icon={CircleDollarSign} tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
+        <PosSalesKpi label="Completed Transactions" value={numberValue(result.completedTransactions).toLocaleString()} detail="Sale status: completed" icon={ArrowUpRight} tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
+        <PosSalesKpi label="Pending Transactions" value={numberValue(result.pendingTransactions).toLocaleString()} detail="Completed sales with balance due" icon={ArrowDownRight} tone="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300" />
+        <PosSalesKpi label="Voided / Returned Transactions" value={numberValue(result.voidedTransactions).toLocaleString()} detail="Cancelled or returned POS sales" icon={XCircle} tone="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300" />
       </section>
 
       <Card>
         <CardContent className="p-4 sm:p-5">
-          <form method="get" action="/pos/list" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+          <PosSalesAutoSubmitForm className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
             <PosSalesSearchInput initialValue={search} />
             <label>
               <span className="sr-only">From date</span>
@@ -292,7 +269,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                 Reset
               </Link>
             </div>
-          </form>
+          </PosSalesAutoSubmitForm>
         </CardContent>
       </Card>
 
@@ -341,7 +318,16 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                 const total = numberValue(row.total);
                 const amountPaid = numberValue(row.amountPaid);
                 const rawStatus = stringValue(row.status);
-                const paidStatus = amountPaid >= total ? "Paid" : amountPaid > 0 ? "Partial" : "Unpaid";
+                const paidStatus = amountPaid >= total ? "Paid" : amountPaid > 0 ? "Partially paid" : "Unpaid";
+                const paymentStatusTone = amountPaid >= total
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                  : amountPaid > 0
+                    ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                    : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-300";
+                const paymentMethod = stringValue(row.paymentMethod);
+                const paymentMethodLabel = /^(?:split\b|multi[\s_-]*payment\b)/i.test(paymentMethod.trim())
+                  ? "Multi Payment"
+                  : paymentMethod || "—";
                 const date = stringValue(row.createdAt) || stringValue(row.saleDate);
                 const time = date ? formatDateTime(date) : null;
                 return (
@@ -365,8 +351,8 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                     <td className="whitespace-nowrap px-4 py-3 text-right figure">{formatCurrency(numberValue(row.discountAmount), context.currency)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right figure">{formatCurrency(numberValue(row.taxAmount), context.currency)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold figure">{formatCurrency(total, context.currency)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-ink-700 dark:text-ledger-200">{stringValue(row.paymentMethod) || "—"}</td>
-                    <td className="px-4 py-3"><span className="rounded-full border border-ledger-200 px-2 py-1 text-[11px] text-ledger-600 dark:border-ledger-700 dark:text-ledger-300">{paidStatus}</span></td>
+                    <td className="whitespace-nowrap px-4 py-3 text-ink-700 dark:text-ledger-200">{paymentMethodLabel}</td>
+                    <td className="px-4 py-3"><span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-medium ${paymentStatusTone}`}>{paidStatus}</span></td>
                     <td className="px-4 py-3"><span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-medium ${statusTone(rawStatus)}`}>{statusLabel(rawStatus)}</span></td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <div className="flex items-center gap-1">
