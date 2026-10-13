@@ -26,7 +26,13 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "live" },
   { label: "Approval Center", href: "/approvals", icon: ClipboardCheck, status: "live" },
-  { label: "POS", href: "/pos", icon: ShoppingCart, status: "live" },
+  {
+    label: "POS", href: "/pos", icon: ShoppingCart, status: "live",
+    children: [
+      { label: "Register", href: "/pos", icon: ShoppingCart },
+      { label: "List POS Sales", href: "/pos/list", icon: List },
+    ],
+  },
   {
     label: "Sales", href: "/sales", icon: Receipt, status: "live",
     children: [

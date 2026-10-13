@@ -25,6 +25,7 @@ export type CustomerAccountRequirement = "optional" | "required" | "guest_only";
 export type CustomerOrderStatus = "new" | "approved" | "picking" | "packing" | "delivery" | "completed" | "cancelled" | "returned" | "processing" | "reviewed";
 export type OrderPaymentStatus = "paid" | "partial" | "unpaid";
 export type OrderDeliveryStatus = "not_shipped" | "picking" | "packing" | "in_delivery" | "delivered";
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export interface Database {
   public: {
@@ -3125,6 +3126,25 @@ export interface Database {
       };
     };
     Functions: {
+      list_pos_sales: {
+        Args: {
+          p_org_id: string;
+          p_from: string | null;
+          p_to: string | null;
+          p_location_ids: string[] | null;
+          p_location_id: string | null;
+          p_cashier_id: string | null;
+          p_payment_method: string;
+          p_status: string;
+          p_payment_status: string;
+          p_search: string;
+          p_sort_by: string;
+          p_sort_direction: string;
+          p_page: number;
+          p_page_size: number;
+        };
+        Returns: Json;
+      };
       record_purchase_bank_payment: {
         Args: {
           p_purchase_id: string;

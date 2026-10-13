@@ -9,7 +9,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { checkCustomerCreditLimit, getCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
-import { canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
+import { canAccessLocation, canUseLocation, getPosRegisterLocation } from "@/lib/organizations/location-access";
 import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 import { recordSalePaymentDeposits, validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
@@ -148,17 +148,25 @@ export interface PosInvoiceData {
 }
 
 export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | null> {
+  await requirePermission("pos", "view");
   const context = await getCurrentOrgContext();
   if (!context) return null;
   const supabase = await createClient();
 
-  const { data: sale } = await supabase
+  const { data: sale, error: saleError } = await supabase
     .from("sales")
-    .select("sale_number, customer_name, subtotal, discount_amount, tax_amount, total, amount_paid, due_date, payment_method, sale_date, created_at, location_id, sold_by")
+    .select("sale_number, customer_name, subtotal, discount_amount, tax_amount, total, amount_paid, due_date, payment_method, sale_date, created_at, location_id, sold_by, register_session_id, document_status")
     .eq("id", saleId)
     .eq("org_id", context.orgId)
-    .single();
-  if (!sale) return null;
+    .maybeSingle();
+  if (saleError) throw new Error(`Could not load POS receipt: ${saleError.message}`);
+  if (
+    !sale ||
+    !sale.register_session_id ||
+    sale.document_status !== "final" ||
+    !canAccessLocation(context, sale.location_id) ||
+    (!context.canViewOtherTransactions && sale.sold_by !== context.userId)
+  ) return null;
 
   const [{ data: items }, locationResult, cashierResult, companyResult, systemName] = await Promise.all([
     supabase.from("sale_items").select("quantity, unit_price, discount_percent, tax_percent, line_total, products(name, sku, image_urls)").eq("sale_id", saleId),

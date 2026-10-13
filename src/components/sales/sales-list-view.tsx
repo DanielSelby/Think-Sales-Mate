@@ -122,6 +122,10 @@ const SALE_STATUS_BADGE_TONE: Record<SaleStatus, "signal" | "amber" | "alert" | 
 
 const ROWS_PER_PAGE_OPTIONS = [10, 50, 100, 1000] as const;
 
+function isMultiPaymentMethod(method: string | null) {
+  return method !== null && /^(?:split\b|multi[\s_-]*payment\b)/i.test(method.trim());
+}
+
 export function SalesListView({ userId, sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, invoiceTemplate, invoiceSlogan, invoiceThankYouMessage, invoiceTermsAndConditions, documentKpis }: SalesListViewProps) {
   const { activeTheme, darkMode } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
@@ -135,6 +139,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState(initialLocation);
   const [salesRep, setSalesRep] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | SaleStatus>("all");
   const [paymentStatus, setPaymentStatus] = useState<"all" | PaymentStatus>("all");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
@@ -146,7 +151,12 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(10);
 
   const paymentMethods = useMemo(
-    () => Array.from(new Set(sales.map((s) => s.paymentMethod).filter(Boolean))) as string[],
+    () => Array.from(new Set(
+      sales
+        .map((sale) => sale.paymentMethod)
+        .filter((method): method is string => Boolean(method))
+        .map((method) => isMultiPaymentMethod(method) ? "Multi Payment" : method)
+    )),
     [sales]
   );
 
@@ -160,6 +170,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
     const q = query.trim().toLowerCase();
     return sales.filter((s) => {
       if (activeTab !== "all" && s.status !== activeTab) return false;
+      if (statusFilter !== "all" && s.status !== statusFilter) return false;
       if (paymentStatus !== "all" && s.paymentStatus !== paymentStatus) return false;
       if (location !== "all" && s.locationName !== location) return false;
       if (salesRep !== "all" && s.soldByName !== salesRep) return false;
@@ -172,10 +183,12 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
       const saleDateKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, "0")}-${String(saleDate.getDate()).padStart(2, "0")}`;
       if (dateFrom && saleDateKey < dateFrom) return false;
       if (dateTo && saleDateKey > dateTo) return false;
-      if (paymentMethodFilter !== "all" && s.paymentMethod !== paymentMethodFilter) return false;
+      if (paymentMethodFilter !== "all") {
+        if (paymentMethodFilter === "Multi Payment" ? !isMultiPaymentMethod(s.paymentMethod) : s.paymentMethod !== paymentMethodFilter) return false;
+      }
       return true;
     });
-  }, [sales, activeTab, paymentStatus, location, salesRep, query, dateFrom, dateTo, paymentMethodFilter]);
+  }, [sales, activeTab, statusFilter, paymentStatus, location, salesRep, query, dateFrom, dateTo, paymentMethodFilter]);
 
   const filteredKpis = useMemo(() => {
     const totalOrders = filtered.length;
@@ -259,6 +272,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
     setQuery("");
     setLocation("all");
     setSalesRep("all");
+    setStatusFilter("all");
     setPaymentStatus("all");
     setDateFrom("");
     setDateTo("");
@@ -427,6 +441,16 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
                 <option value="paid">Paid</option>
                 <option value="partially_paid">Partially Paid</option>
                 <option value="pending">Pending</option>
+              </Select>
+            </div>
+
+            <div className="w-40">
+              <label className="mb-1 block text-xs font-medium text-ledger-500">Status</label>
+              <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as "all" | SaleStatus); setPage(1); }}>
+                <option value="all">All Statuses</option>
+                <option value="completed">{SALE_STATUS_LABEL.completed}</option>
+                <option value="returned">{SALE_STATUS_LABEL.returned}</option>
+                <option value="cancelled">{SALE_STATUS_LABEL.cancelled}</option>
               </Select>
             </div>
 
