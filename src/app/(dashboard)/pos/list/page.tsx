@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  ArrowDown, ArrowDownRight, ArrowUp, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight,
-  CircleDollarSign, ClipboardList, Search, ShoppingBag, XCircle,
+  ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, ShoppingBag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { PosSalesAutoSubmitForm } from "@/components/pos/pos-sales-auto-submit-form";
 import { PosSalesKpi } from "@/components/pos/pos-sales-kpi";
+import { PosSalesQueryError } from "@/components/pos/pos-sales-query-error";
 import { PosSalesSearchInput } from "@/components/pos/pos-sales-search-input";
 import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -134,8 +134,14 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
           .eq("status", "active")
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (locationResult.error) throw new Error(`Could not load POS branch filters: ${locationResult.error.message}`);
-  if (membersResult.error) throw new Error(`Could not load POS cashier filters: ${membersResult.error.message}`);
+  if (locationResult.error) {
+    console.error("POS branch filter query failed:", locationResult.error);
+    return <PosSalesQueryError title="Could not load POS branches" code={locationResult.error.code} message={locationResult.error.message} />;
+  }
+  if (membersResult.error) {
+    console.error("POS cashier filter query failed:", membersResult.error);
+    return <PosSalesQueryError title="Could not load POS cashiers" code={membersResult.error.code} message={membersResult.error.message} />;
+  }
 
   const locations = locationResult.data ?? [];
   const members = (membersResult.data ?? []).filter((member) => {
@@ -147,7 +153,10 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
   const { data: cashierProfiles, error: cashierProfilesError } = context.canViewOtherTransactions && memberUserIds.length
     ? await supabase.from("profiles").select("id, full_name").in("id", memberUserIds)
     : { data: [], error: null };
-  if (cashierProfilesError) throw new Error(`Could not load POS cashier names: ${cashierProfilesError.message}`);
+  if (cashierProfilesError) {
+    console.error("POS cashier names query failed:", cashierProfilesError);
+    return <PosSalesQueryError title="Could not load POS cashier names" code={cashierProfilesError.code} message={cashierProfilesError.message} />;
+  }
   const cashierNameById = new Map((cashierProfiles ?? []).map((profile) => [profile.id, profile.full_name || "Staff member"]));
   const cashierOptions = context.canViewOtherTransactions
     ? members.flatMap((member) => member.user_id
@@ -189,25 +198,18 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
       hint: error.hint,
     });
     if (["PGRST202", "PGRST203", "42883"].includes(error.code ?? "")) {
-      return (
-        <main className="mx-auto max-w-3xl py-16">
-          <Card>
-            <CardContent className="space-y-3 p-8 text-center">
-              <h1 className="font-display text-xl font-semibold text-ink-900 dark:text-white">POS sales database update required</h1>
-              <p className="text-sm text-ledger-500 dark:text-ledger-400">
-                The deployed database does not yet have the current POS sales query. Apply migration
-                <code className="mx-1 rounded bg-ledger-100 px-1 py-0.5 dark:bg-ink-800">20261013180000_pos_list_rpc_and_refund_accounts.sql</code>
-                in Supabase, then refresh this page.
-              </p>
-              <Link href="/pos/list?retry=1" className="inline-flex h-10 items-center justify-center rounded-md bg-signal px-4 text-sm font-semibold text-white hover:brightness-95">
-                Retry
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
+      return <PosSalesQueryError
+        title="POS sales database update required"
+        code={error.code}
+        message={error.message}
+        migrationRequired
+      />;
     }
-    throw new Error(`Could not load POS sales (${error.code || "database error"}). Check the server logs for details.`);
+    return <PosSalesQueryError
+      title="Could not load POS sales"
+      code={error.code}
+      message={error.message}
+    />;
   }
 
   const result = asObject(data);
@@ -244,12 +246,12 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
       </div>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <PosSalesKpi label="Total POS Transactions" value={totalTransactions.toLocaleString()} detail="Matching current filters" icon={ClipboardList} tone="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300" />
-        <PosSalesKpi label="Today’s POS Sales" value={formatCurrency(numberValue(result.todaySales), context.currency)} detail="Net of recorded refunds" icon={CalendarDays} tone="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300" />
-        <PosSalesKpi label="Total POS Sales Value" value={formatCurrency(numberValue(result.totalSalesValue), context.currency)} detail="Net of refunds; voids excluded" icon={CircleDollarSign} tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
-        <PosSalesKpi label="Completed Transactions" value={numberValue(result.completedTransactions).toLocaleString()} detail="Sale status: completed" icon={ArrowUpRight} tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
-        <PosSalesKpi label="Pending Transactions" value={numberValue(result.pendingTransactions).toLocaleString()} detail="Completed sales with balance due" icon={ArrowDownRight} tone="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300" />
-        <PosSalesKpi label="Voided / Returned Transactions" value={numberValue(result.voidedTransactions).toLocaleString()} detail="Cancelled or returned POS sales" icon={XCircle} tone="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300" />
+        <PosSalesKpi label="Total POS Transactions" value={totalTransactions.toLocaleString()} detail="Matching current filters" icon="transactions" tone="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300" />
+        <PosSalesKpi label="Today’s POS Sales" value={formatCurrency(numberValue(result.todaySales), context.currency)} detail="Net of recorded refunds" icon="today" tone="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300" />
+        <PosSalesKpi label="Total POS Sales Value" value={formatCurrency(numberValue(result.totalSalesValue), context.currency)} detail="Net of refunds; voids excluded" icon="sales" tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
+        <PosSalesKpi label="Completed Transactions" value={numberValue(result.completedTransactions).toLocaleString()} detail="Sale status: completed" icon="completed" tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300" />
+        <PosSalesKpi label="Pending Transactions" value={numberValue(result.pendingTransactions).toLocaleString()} detail="Completed sales with balance due" icon="pending" tone="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300" />
+        <PosSalesKpi label="Voided / Returned Transactions" value={numberValue(result.voidedTransactions).toLocaleString()} detail="Cancelled or returned POS sales" icon="returned" tone="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300" />
       </section>
 
       <Card>
