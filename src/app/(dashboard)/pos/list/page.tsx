@@ -152,7 +152,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
     scopedLocationsQuery ?? Promise.resolve({ data: [], error: null }),
     context.canViewOtherTransactions
       ? supabase.from("organization_members")
-          .select("user_id, branch_scope, location_id, secondary_location_ids, profiles(id, full_name)")
+          .select("user_id, branch_scope, location_id, secondary_location_ids")
           .eq("org_id", context.orgId)
           .eq("status", "active")
       : Promise.resolve({ data: [], error: null }),
@@ -166,11 +166,16 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
     const memberships = [member.location_id, ...(member.secondary_location_ids ?? [])].filter((id): id is string => Boolean(id));
     return member.branch_scope === "all" || memberships.some((id) => allowedLocationIds?.includes(id));
   });
+  const memberUserIds = Array.from(new Set(members.map((member) => member.user_id).filter((id): id is string => Boolean(id))));
+  const { data: cashierProfiles, error: cashierProfilesError } = context.canViewOtherTransactions && memberUserIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", memberUserIds)
+    : { data: [], error: null };
+  if (cashierProfilesError) throw new Error(`Could not load POS cashier names: ${cashierProfilesError.message}`);
+  const cashierNameById = new Map((cashierProfiles ?? []).map((profile) => [profile.id, profile.full_name || "Staff member"]));
   const cashierOptions = context.canViewOtherTransactions
-    ? members.flatMap((member) => {
-        const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-      return profile && member.user_id ? [{ id: member.user_id, name: profile.full_name || "Staff member" }] : [];
-      })
+    ? members.flatMap((member) => member.user_id
+      ? [{ id: member.user_id, name: cashierNameById.get(member.user_id) ?? "Staff member" }]
+      : [])
     : [];
 
   const locationId = requestedLocationId && locations.some((location) => location.id === requestedLocationId)
