@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, ShoppingBag,
+  ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ShoppingBag,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -15,7 +14,7 @@ import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, requirePermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
+import { formatCurrency, formatDateTime, formatPosReceiptNumber } from "@/lib/sales/format";
 import { PosReceiptPrintButton } from "@/components/pos/pos-receipt-print-button";
 import type { SaleStatus } from "@/types/database";
 
@@ -116,6 +115,8 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
     : PAGE_SIZE_OPTIONS.includes(Number(requestedPageSize) as (typeof PAGE_SIZE_OPTIONS)[number])
       ? Number(requestedPageSize) as (typeof PAGE_SIZE_OPTIONS)[number]
       : 10;
+  const receiptSearch = search.match(/^POS-\d{4}-(\d+)$/i);
+  const rpcSearch = receiptSearch ? String(Number.parseInt(receiptSearch[1], 10)) : search;
 
   const supabase = await createClient();
   const allowedLocationIds = context.isBranchScoped
@@ -133,7 +134,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
     p_payment_method: paymentMethod,
     p_status: status,
     p_payment_status: paymentStatus,
-    p_search: search,
+    p_search: rpcSearch,
     p_sort_by: sort,
     p_sort_direction: direction,
     p_page: page,
@@ -265,7 +266,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
       <Card accent="neutral" className="pos-sales-filter-panel rounded-2xl border border-ledger-100 shadow-card dark:border-ledger-700">
         <CardContent className="p-4 sm:p-5">
           <PosSalesAutoSubmitForm className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-            <PosSalesSearchInput initialValue={search} />
+            <PosSalesSearchInput key={search} initialValue={search} />
             <label>
               <span className="sr-only">From date</span>
               <Input type="date" name="from" defaultValue={from ?? ""} aria-label="From date" />
@@ -302,7 +303,6 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
             <input type="hidden" name="page" value="1" />
             <input type="hidden" name="pageSize" value={pageSize} />
             <div className="flex gap-2 sm:col-span-2 lg:col-span-4 xl:col-span-8">
-              <Button type="submit" className="gap-2"><Search className="h-4 w-4" /> Apply filters</Button>
               <Link href="/pos/list" className="inline-flex h-10 items-center justify-center rounded-md border border-ledger-200 px-4 text-sm font-medium text-ink-800 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white dark:hover:bg-ink-800">
                 Reset
               </Link>
@@ -388,7 +388,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                 return (
                   <tr key={id} className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-semibold text-signal">
-                      <Link href={`/pos/list/${id}`} className="hover:underline">{formatInvoiceNumber(saleNumber)}</Link>
+                      <Link href={`/pos/list/${id}`} className="hover:underline">{formatPosReceiptNumber(saleNumber, stringValue(row.saleDate) || date)}</Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-700 dark:text-ledger-200">
                       {time ? <>{time.date}<span className="block text-ledger-400">{time.time}</span></> : "—"}

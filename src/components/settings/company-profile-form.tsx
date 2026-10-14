@@ -408,12 +408,16 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
                 <select
                   id="sales-invoice-template"
                   value={salesInvoiceTemplate}
-                  onChange={(event) => setSalesInvoiceTemplate(event.target.value === "think-sales" ? "think-sales" : "standard")}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSalesInvoiceTemplate(value === "think-sales" || value === "retail" ? value : "standard");
+                  }}
                   disabled={!canManage}
                   className="mt-1 h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm disabled:opacity-60 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                 >
                   <option value="standard">Standard</option>
                   <option value="think-sales">Modern branded</option>
+                  <option value="retail">Retail POS</option>
                 </select>
                 <p className="mt-1 text-[11px] text-ledger-400">Choose the A4 sales invoice design used across the organization. Thermal printer output keeps its compact receipt layout.</p>
               </div>

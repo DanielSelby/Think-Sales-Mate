@@ -17,7 +17,8 @@ import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-temp
 import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
-import { useInvoiceFormat, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
+import { InvoiceTemplateSelect } from "@/components/sales/invoice-template-select";
+import { useInvoiceFormat, useInvoiceTemplate, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 
 export interface BranchRequestRow {
@@ -63,6 +64,8 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
   initialType?: "all" | DraftSaleRow["documentStatus"];
 }) {
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
+  const [savedInvoiceTemplate, setSavedInvoiceTemplate] = useInvoiceTemplate(userId);
+  const activeInvoiceTemplate = savedInvoiceTemplate ?? invoiceTemplate ?? "standard";
   const [rows, setRows] = useState(drafts);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | DraftSaleRow["documentStatus"]>(initialType);
@@ -141,7 +144,7 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
         organizationEmail,
         organizationWebsite,
         showOrganizationContact,
-        invoiceTemplate,
+        invoiceTemplate: activeInvoiceTemplate,
         invoiceSlogan,
         invoiceThankYouMessage,
         invoiceTermsAndConditions,
@@ -176,6 +179,7 @@ export function DraftsListView({ userId, drafts, currency, orgName, systemName, 
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
+          <InvoiceTemplateSelect value={activeInvoiceTemplate} onChange={setSavedInvoiceTemplate} />
           <Button variant="outline" size="md"><Download className="h-4 w-4" /> Export</Button>
           <Link href="/sales/new" className="inline-flex h-9 items-center gap-2 rounded-md bg-ink-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-ink-950 dark:bg-white dark:text-ink-900">
             <Plus className="h-4 w-4" /> New Document

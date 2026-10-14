@@ -19,7 +19,7 @@ export function PosSalesAutoSubmitForm({ children, onChange, ...props }: Props) 
     if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
     if (target.name === "search" || target.type === "hidden") return;
     if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
-    timeoutRef.current = window.setTimeout(() => formRef.current?.requestSubmit(), 250);
+    timeoutRef.current = window.setTimeout(() => formRef.current?.requestSubmit(), 100);
   }
 
   return (

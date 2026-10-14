@@ -33,6 +33,11 @@ export function formatInvoiceNumber(saleNumber: number) {
   return `INV-${new Date().getFullYear()}-${String(saleNumber).padStart(5, "0")}`;
 }
 
+export function formatPosReceiptNumber(saleNumber: number, saleDate?: string | null) {
+  const year = saleDate && /^\d{4}/.test(saleDate) ? saleDate.slice(0, 4) : String(new Date().getFullYear());
+  return `POS-${year}-${String(saleNumber).padStart(5, "0")}`;
+}
+
 export function formatCurrency(amount: number, currency: Database["public"]["Tables"]["organizations"]["Row"]["currency"] = "GHS") {
   return formatMoney(amount, currency);
 }

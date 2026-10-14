@@ -7,7 +7,7 @@ import { SaleStatusMenu } from "@/components/sales/sale-status-menu";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { canPermission, requirePermission } from "@/lib/rbac/permissions";
-import { formatCurrency, formatDateTime, formatInvoiceNumber } from "@/lib/sales/format";
+import { formatCurrency, formatDateTime, formatPosReceiptNumber } from "@/lib/sales/format";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "POS Transaction · SalesMate ERP" };
@@ -68,7 +68,7 @@ export default async function PosSaleDetailPage({ params }: { params: Promise<{ 
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ledger-400">POS transaction</p>
             <h1 className="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-white">
-              {formatInvoiceNumber(sale.sale_number)}
+              {formatPosReceiptNumber(sale.sale_number, sale.sale_date)}
             </h1>
             <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Transaction ID: <span className="font-mono">{sale.id}</span></p>
           </div>

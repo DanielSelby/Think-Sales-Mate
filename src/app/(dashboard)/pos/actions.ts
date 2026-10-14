@@ -50,6 +50,8 @@ export async function getRecentPosSales(locationId: string | null, limit: number
     .from("sales")
     .select("id, sale_number, customer_name, total, payment_method, sale_date")
     .eq("org_id", context.orgId)
+    .not("register_session_id", "is", null)
+    .eq("document_status", "final")
     .order("sale_date", { ascending: false })
     .limit(limit);
 
@@ -134,6 +136,7 @@ export interface PosInvoiceData {
   invoiceTermsAndConditions: string | null;
   dueDate: string | null;
   saleNumber: number;
+  receiptNumberPrefix: "POS";
   saleDate: string;
   cashierName: string;
   customerName: string;
@@ -211,6 +214,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     invoiceTermsAndConditions: companyResult.data?.invoice_terms_and_conditions ?? null,
     dueDate: sale.due_date,
     saleNumber: sale.sale_number,
+    receiptNumberPrefix: "POS",
     saleDate: combined,
     cashierName: cashierProfile?.full_name || "—",
     customerName: sale.customer_name || "Walk-In Customer",

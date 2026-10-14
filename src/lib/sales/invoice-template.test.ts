@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInvoiceHtml } from "./invoice-template";
+import { buildBrandedInvoiceHtml, buildInvoiceHtml } from "./invoice-template";
 
 const invoice = {
   orgName: "Example Store",
@@ -59,6 +59,72 @@ describe("invoice print formats", () => {
     expect(html).toContain('<div class="totals-row paid"><span>Amount Paid</span>');
     expect(html).toContain(".totals-row.paid,.totals-row.paid strong { color: #15803d; }");
     expect(html).not.toContain('class="due-card balance-due"');
+  });
+
+  it("uses the retail design for A4 while keeping POS receipts correctly titled", () => {
+    const html = buildBrandedInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "retail",
+      receiptNumberPrefix: "POS",
+      locationAddress: "12 Market Road",
+      locationPhone: "+233 20 000 0000",
+      locationEmail: "branch@example.test",
+      cashierName: "Cashier",
+      discountAmount: 0,
+      taxAmount: 0,
+      items: [{ ...invoice.items[0], discountAmount: 0 }],
+    });
+
+    expect(html).toContain("SALES RECEIPT");
+    expect(html).toContain("POS-2026-");
+    expect(html).toContain("12 Market Road");
+    expect(html).toContain("Sample Product");
+    expect(html).toContain("Grand Total");
+    expect(html).toContain("#087d69");
+  });
+
+  it("keeps the compact receipt layout for thermal printers when retail is selected", () => {
+    const html = buildBrandedInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "retail",
+      printFormat: "thermal-80mm",
+      locationAddress: null,
+      locationPhone: null,
+      locationEmail: null,
+      cashierName: "Cashier",
+      discountAmount: 0,
+      taxAmount: 0,
+      items: [{ ...invoice.items[0], discountAmount: 0 }],
+    });
+
+    expect(html).toContain("@page { size: 80mm auto; margin: 2mm; }");
+    expect(html).toContain('<body class="thermal">');
+    expect(html).not.toContain("class=\"retail-invoice\"");
+  });
+
+  it("uses a POS-specific receipt number without changing sales invoice numbers", () => {
+    const html = buildBrandedInvoiceHtml({
+      ...invoice,
+      receiptNumberPrefix: "POS",
+      locationAddress: null,
+      locationPhone: null,
+      locationEmail: null,
+      cashierName: "Cashier",
+      discountAmount: 0,
+      taxAmount: 0,
+      items: [{
+        productName: "Sample Product",
+        sku: "SKU-1",
+        quantity: 2,
+        unitPrice: 10,
+        discountAmount: 0,
+        lineTotal: 20,
+      }],
+    });
+
+    expect(html).toContain("POS-2026-00012");
+    expect(html).toContain("POS RECEIPT");
+    expect(buildInvoiceHtml(invoice)).toContain("INV-2026-00012");
   });
 
   it("highlights only an outstanding customer balance in red", () => {

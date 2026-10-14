@@ -42,7 +42,8 @@ import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { recordSale, updateSale, addCustomer, getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
-import { useInvoiceFormat, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
+import { InvoiceTemplateSelect } from "@/components/sales/invoice-template-select";
+import { useInvoiceFormat, useInvoiceTemplate, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import { derivePaymentStatus, formatCurrency } from "@/lib/sales/format";
 import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { CrossBranchStockButton } from "@/components/inventory/cross-branch-stock-button";
@@ -249,6 +250,8 @@ export function SaleForm({
   const router = useRouter();
   const { activeTheme } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(currentUserId);
+  const [savedInvoiceTemplate, setSavedInvoiceTemplate] = useInvoiceTemplate(currentUserId);
+  const activeInvoiceTemplate = savedInvoiceTemplate ?? invoiceTemplate ?? "standard";
   const theme = THEMES[activeTheme];
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -738,7 +741,7 @@ export function SaleForm({
         organizationEmail,
         organizationWebsite,
         showOrganizationContact,
-        invoiceTemplate,
+        invoiceTemplate: activeInvoiceTemplate,
         invoiceSlogan,
         invoiceThankYouMessage,
         invoiceTermsAndConditions,
@@ -1649,7 +1652,10 @@ export function SaleForm({
               <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Additional Options</h2>
             </div>
             <div className="mt-3 space-y-2 text-sm">
-              <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
+              <div className="flex flex-wrap items-center gap-3">
+                <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
+                <InvoiceTemplateSelect value={activeInvoiceTemplate} onChange={setSavedInvoiceTemplate} />
+              </div>
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={printReceipt} onChange={(e) => setPrintReceipt(e.target.checked)} className="h-4 w-4 rounded accent-signal" />
                 Print sale receipt after saving

@@ -31,7 +31,7 @@ export default async function PosPage() {
   const registerLocationIds = authorizedRegisterSessions.map((session: { location_id: string }) => session.location_id);
 
   const admin = createAdminClient();
-  const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }, { data: mobileMoneyAccounts }, { data: cardAccounts }] = await Promise.all([
+  const [{ data: products }, { data: locations }, { data: stockLevels }, { data: profile }, { data: mobileMoneyAccounts }, { data: cardAccounts }, { data: companyProfile }] = await Promise.all([
     supabase
       .from("products")
       .select("id, location_id, name, sku, barcode, category, brand, unit_price, wholesale_price, vip_price, special_price, cost_price, stock_quantity, image_urls")
@@ -42,7 +42,8 @@ export default async function PosPage() {
     supabase.from("product_stock_levels").select("product_id, location_id, quantity").eq("org_id", orgId).in("location_id", registerLocationIds),
     supabase.from("profiles").select("full_name").eq("id", context.userId).maybeSingle(),
     admin.from("bank_accounts").select("id, name, current_balance").eq("org_id", orgId).eq("account_type", "mobile_money").order("name"),
-    admin.from("bank_accounts").select("id, name, account_number, current_balance").eq("org_id", orgId).in("account_type", ["card", "checking", "savings", "other"]).order("name")
+    admin.from("bank_accounts").select("id, name, account_number, current_balance").eq("org_id", orgId).in("account_type", ["card", "checking", "savings", "other"]).order("name"),
+    supabase.from("company_profile").select("sales_invoice_template").eq("org_id", orgId).maybeSingle(),
   ]);
 
   const quantityByProduct = new Map<string, number>();
@@ -56,6 +57,7 @@ export default async function PosPage() {
     <PosView
       orgId={orgId}
       userId={context.userId}
+      invoiceTemplate={companyProfile?.sales_invoice_template ?? "standard"}
       products={rawProducts.map((p) => ({
         id: p.id,
         locationId: p.location_id,

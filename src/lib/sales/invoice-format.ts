@@ -3,18 +3,28 @@
 import * as React from "react";
 
 export type InvoiceFormat = "a4" | "thermal-80mm" | "thermal-58mm";
-export type SalesInvoiceTemplate = "standard" | "think-sales";
+export type SalesInvoiceTemplate = "standard" | "think-sales" | "retail";
 
 const DEFAULT_FORMAT: InvoiceFormat = "a4";
 const values = new Map<string, InvoiceFormat>();
 const subscribers = new Map<string, Set<() => void>>();
+const templateValues = new Map<string, SalesInvoiceTemplate>();
+const templateSubscribers = new Map<string, Set<() => void>>();
 
 function storageKey(userId: string) {
   return `salesmate-invoice-format:${userId}`;
 }
 
+function templateStorageKey(userId: string) {
+  return `salesmate-invoice-template:${userId}`;
+}
+
 function isInvoiceFormat(value: string | null): value is InvoiceFormat {
   return value === "a4" || value === "thermal-80mm" || value === "thermal-58mm";
+}
+
+function isSalesInvoiceTemplate(value: string | null): value is SalesInvoiceTemplate {
+  return value === "standard" || value === "think-sales" || value === "retail";
 }
 
 function readFormat(key: string): InvoiceFormat {
@@ -77,4 +87,61 @@ export function useInvoiceFormat(userId: string) {
     () => DEFAULT_FORMAT
   );
   return [format, (value: InvoiceFormat) => writeFormat(key, value)] as const;
+}
+
+function readTemplate(key: string): SalesInvoiceTemplate | null {
+  const inMemory = templateValues.get(key);
+  if (inMemory) return inMemory;
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (isSalesInvoiceTemplate(stored)) {
+      templateValues.set(key, stored);
+      return stored;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function subscribeTemplate(key: string, listener: () => void) {
+  let listeners = templateSubscribers.get(key);
+  if (!listeners) {
+    listeners = new Set();
+    templateSubscribers.set(key, listeners);
+  }
+  listeners.add(listener);
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== key) return;
+    templateValues.delete(key);
+    if (isSalesInvoiceTemplate(event.newValue)) templateValues.set(key, event.newValue);
+    listener();
+  };
+  window.addEventListener("storage", handleStorage);
+  return () => {
+    listeners?.delete(listener);
+    if (listeners?.size === 0) templateSubscribers.delete(key);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+function writeTemplate(key: string, template: SalesInvoiceTemplate) {
+  templateValues.set(key, template);
+  try {
+    window.localStorage.setItem(key, template);
+  } catch {
+    // Keep the preference for this page when browser storage is unavailable.
+  }
+  templateSubscribers.get(key)?.forEach((listener) => listener());
+}
+
+export function useInvoiceTemplate(userId: string) {
+  const key = templateStorageKey(userId);
+  const template = React.useSyncExternalStore(
+    (listener) => subscribeTemplate(key, listener),
+    () => readTemplate(key),
+    () => null
+  );
+  return [template, (value: SalesInvoiceTemplate) => writeTemplate(key, value)] as const;
 }

@@ -23,7 +23,8 @@ import {
   PAYMENT_STATUS_LABEL, SALE_STATUS_LABEL, type PaymentStatus, type SaleStatus,
 } from "@/lib/sales/format";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
-import { useInvoiceFormat, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
+import { InvoiceTemplateSelect } from "@/components/sales/invoice-template-select";
+import { useInvoiceFormat, useInvoiceTemplate, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 
 export interface SaleListRow {
   id: string;
@@ -129,6 +130,8 @@ function isMultiPaymentMethod(method: string | null) {
 export function SalesListView({ userId, sales, kpis, currency, locations, initialLocation = "all", salesReps, orgName, systemName, logoUrl, showLogoOnInvoices, organizationPhone, organizationEmail, organizationWebsite, showOrganizationContact, invoiceTemplate, invoiceSlogan, invoiceThankYouMessage, invoiceTermsAndConditions, documentKpis }: SalesListViewProps) {
   const { activeTheme, darkMode } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
+  const [savedInvoiceTemplate, setSavedInvoiceTemplate] = useInvoiceTemplate(userId);
+  const activeInvoiceTemplate = savedInvoiceTemplate ?? invoiceTemplate ?? "standard";
   const setBranch = useAccountingStore((state) => state.setBranch);
   const theme = THEMES[activeTheme];
   const salesHeaderBackground = darkMode
@@ -243,7 +246,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
         organizationEmail,
         organizationWebsite,
         showOrganizationContact,
-        invoiceTemplate,
+        invoiceTemplate: activeInvoiceTemplate,
         invoiceSlogan,
         invoiceThankYouMessage,
         invoiceTermsAndConditions,
@@ -329,6 +332,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
+          <InvoiceTemplateSelect value={activeInvoiceTemplate} onChange={setSavedInvoiceTemplate} />
           <Link
             href="/sales/drafts"
             className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-ledger-200 px-4 text-sm font-medium text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-white/[0.06]"

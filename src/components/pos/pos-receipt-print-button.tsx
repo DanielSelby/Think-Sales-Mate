@@ -4,12 +4,13 @@ import { useState } from "react";
 import { Printer } from "lucide-react";
 import { getInvoiceData } from "@/app/(dashboard)/pos/actions";
 import { buildBrandedInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
-import { useInvoiceFormat } from "@/lib/sales/invoice-format";
+import { useInvoiceFormat, useInvoiceTemplate } from "@/lib/sales/invoice-format";
 
 export function PosReceiptPrintButton({ saleId, userId }: { saleId: string; userId: string }) {
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invoiceFormat] = useInvoiceFormat(userId);
+  const [savedInvoiceTemplate] = useInvoiceTemplate(userId);
 
   async function printReceipt() {
     setError(null);
@@ -22,7 +23,11 @@ export function PosReceiptPrintButton({ saleId, userId }: { saleId: string; user
     try {
       const data = await getInvoiceData(saleId);
       if (!data) throw new Error("This POS receipt is unavailable or you do not have access to it.");
-      printWindow.document.write(buildBrandedInvoiceHtml({ ...data, printFormat: invoiceFormat }));
+      printWindow.document.write(buildBrandedInvoiceHtml({
+        ...data,
+        invoiceTemplate: savedInvoiceTemplate ?? data.invoiceTemplate,
+        printFormat: invoiceFormat,
+      }));
       printWindow.document.close();
       await waitForInvoiceImages(printWindow);
       printWindow.focus();

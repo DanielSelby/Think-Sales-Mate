@@ -15,10 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/sales/format";
+import { formatCurrency, formatPosReceiptNumber } from "@/lib/sales/format";
 import { buildBrandedInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
-import { useInvoiceFormat } from "@/lib/sales/invoice-format";
+import { InvoiceTemplateSelect } from "@/components/sales/invoice-template-select";
+import { useInvoiceFormat, useInvoiceTemplate, type SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import { addDaysToIsoDate } from "@/lib/sales/payment-terms";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import {
@@ -64,6 +65,7 @@ export interface StockLevel { productId: string; locationId: string; quantity: n
 interface PosViewProps {
   orgId: string;
   userId: string;
+  invoiceTemplate?: SalesInvoiceTemplate;
   products: PosProduct[];
   locations: LocationOption[];
   stockLevels: StockLevel[];
@@ -101,10 +103,12 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ orgId, userId, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, cardAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
+export function PosView({ orgId, userId, invoiceTemplate, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, cardAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
+  const [savedInvoiceTemplate, setSavedInvoiceTemplate] = useInvoiceTemplate(userId);
+  const activeInvoiceTemplate = savedInvoiceTemplate ?? invoiceTemplate ?? "standard";
   const theme = THEMES[activeTheme];
 
   // The POS screen needs the full width — collapse the nav sidebar on
@@ -494,7 +498,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
       setError("Couldn't load the invoice for that sale.");
       return;
     }
-    const html = buildBrandedInvoiceHtml({ ...data, printFormat: invoiceFormat });
+    const html = buildBrandedInvoiceHtml({ ...data, invoiceTemplate: activeInvoiceTemplate, printFormat: invoiceFormat });
     const win = window.open("", "_blank", "width=850,height=950");
     if (!win) {
       setError("Your browser blocked the receipt window — allow pop-ups for this site to print receipts.");
@@ -1424,6 +1428,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
 
         <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <InvoiceFormatSelect value={invoiceFormat} onChange={setInvoiceFormat} />
+          <InvoiceTemplateSelect value={activeInvoiceTemplate} onChange={setSavedInvoiceTemplate} />
           <Button
             variant="outline"
             size="sm"
@@ -1524,7 +1529,7 @@ export function PosView({ orgId, userId, products, locations, stockLevels, curre
               <div key={s.id} className="flex items-center justify-between gap-2 border-b border-ledger-50 py-2.5 text-sm dark:border-white/5">
                 <span className="w-6 shrink-0 text-ledger-400">{i + 1}.</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-ink-900 dark:text-white">{s.saleNumber} <span className="text-ledger-400">({s.customerName ?? "Walk-In Customer"})</span></p>
+                  <p className="truncate text-ink-900 dark:text-white">{formatPosReceiptNumber(s.saleNumber, s.createdAt)} <span className="text-ledger-400">({s.customerName ?? "Walk-In Customer"})</span></p>
                   <p className="truncate text-xs text-ledger-400">{s.itemsSummary}</p>
                 </div>
                 <span className="w-20 shrink-0 text-right font-mono text-ink-900 dark:text-white">{formatCurrency(s.total, currency)}</span>

@@ -645,7 +645,7 @@ export interface Database {
           default_sales_tax_percent: number;
           show_logo_on_invoices: boolean;
           show_contact_on_invoices: boolean;
-          sales_invoice_template: "standard" | "think-sales";
+          sales_invoice_template: "standard" | "think-sales" | "retail";
           invoice_slogan: string | null;
           invoice_thank_you_message: string | null;
           invoice_terms_and_conditions: string | null;
@@ -687,7 +687,7 @@ export interface Database {
           default_sales_tax_percent?: number;
           show_logo_on_invoices?: boolean;
           show_contact_on_invoices?: boolean;
-          sales_invoice_template?: "standard" | "think-sales";
+          sales_invoice_template?: "standard" | "think-sales" | "retail";
           invoice_slogan?: string | null;
           invoice_thank_you_message?: string | null;
           invoice_terms_and_conditions?: string | null;
