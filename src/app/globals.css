@@ -712,6 +712,20 @@ html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
     background-color: transparent !important;
   }
 
+  .page-canvas .pos-sales-list .pos-sales-kpi-card,
+  .page-canvas .pos-sales-list .pos-sales-filter-panel,
+  .page-canvas .pos-sales-list .pos-sales-table-wrap {
+    border: 1px solid #cbd5e1 !important;
+    background-color: #fff !important;
+  }
+
+  html.dark .page-canvas .pos-sales-list .pos-sales-kpi-card,
+  html.dark .page-canvas .pos-sales-list .pos-sales-filter-panel,
+  html.dark .page-canvas .pos-sales-list .pos-sales-table-wrap {
+    border: 1px solid #52657c !important;
+    background-color: #0f1d2d !important;
+  }
+
   .page-canvas .stock-transfer-modal-surface.rounded-2xl,
   .page-canvas .stock-transfer-modal-surface.rounded-xl {
     background-color: #fff !important;

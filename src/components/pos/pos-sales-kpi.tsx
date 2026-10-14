@@ -26,7 +26,7 @@ export function PosSalesKpi({
   const IconComponent = KPI_ICONS[Icon];
 
   return (
-    <div className="h-full rounded-2xl border border-ledger-100 bg-white p-3 shadow-card dark:border-ledger-700 dark:bg-ink-900 sm:p-4">
+    <div className="pos-sales-kpi-card h-full rounded-2xl border border-ledger-100 bg-white p-3 shadow-card dark:border-ledger-700 dark:bg-ink-900 sm:p-4">
       <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] font-medium leading-tight text-ledger-500 dark:text-ledger-300 sm:text-xs">{label}</p>

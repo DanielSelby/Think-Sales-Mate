@@ -239,7 +239,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
   }
 
   return (
-    <main className="mx-auto max-w-[1600px] space-y-6 pb-10">
+    <main className="pos-sales-list mx-auto max-w-[1600px] space-y-6 pb-10">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ledger-400">Point of sale</p>
@@ -262,7 +262,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         <PosSalesKpi label="Voided / Returned Transactions" value={numberValue(result.voidedTransactions).toLocaleString()} detail="Cancelled or returned POS sales" icon="returned" tone="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300" />
       </section>
 
-      <Card accent="neutral" className="rounded-2xl border border-ledger-100 shadow-card dark:border-ledger-700">
+      <Card accent="neutral" className="pos-sales-filter-panel rounded-2xl border border-ledger-100 shadow-card dark:border-ledger-700">
         <CardContent className="p-4 sm:p-5">
           <PosSalesAutoSubmitForm className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
             <PosSalesSearchInput initialValue={search} />
@@ -311,7 +311,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         </CardContent>
       </Card>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+      <div className="pos-sales-table-wrap flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex flex-col justify-between gap-2 border-b border-ledger-100 px-4 py-4 dark:border-ledger-700 sm:flex-row sm:items-center sm:px-5">
           <div>
             <h2 className="font-semibold text-ink-900 dark:text-white">POS transactions</h2>
