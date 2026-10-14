@@ -68,15 +68,24 @@ export default async function StockTransferDetailPage({
   ]);
 
   let requestedByEmail = "—";
-  let receivedByEmail = "—";
+  let receivedByName = "Pending receipt confirmation";
   const admin = createAdminClient();
   if (transfer.created_by) {
     const { data } = await admin.auth.admin.getUserById(transfer.created_by);
     requestedByEmail = data.user?.email ?? "—";
   }
   if (transfer.received_by) {
-    const { data } = await admin.auth.admin.getUserById(transfer.received_by);
-    receivedByEmail = data.user?.email ?? "—";
+    const [{ data: receivedProfile, error: profileError }, { data: receivedUser, error: userError }] = await Promise.all([
+      admin.from("profiles").select("full_name").eq("id", transfer.received_by).maybeSingle(),
+      admin.auth.admin.getUserById(transfer.received_by),
+    ]);
+    if (profileError) throw new Error(`Could not load transfer recipient name: ${profileError.message}`);
+    if (userError) throw new Error(`Could not load transfer recipient account: ${userError.message}`);
+    const metadataName = receivedUser.user?.user_metadata?.full_name;
+    receivedByName = receivedProfile?.full_name?.trim()
+      || (typeof metadataName === "string" ? metadataName.trim() : "")
+      || receivedUser.user?.email?.split("@")[0]
+      || "Unknown user";
   }
 
   const totalValue = (items ?? []).reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
@@ -104,7 +113,7 @@ export default async function StockTransferDetailPage({
   ];
 
   return (
-    <div className="stock-transfer-print-page mx-auto max-w-5xl space-y-5 pb-8">
+    <div className="stock-transfer-print-page mx-auto max-w-5xl space-y-5 pb-8 print:space-y-0 print:pb-0">
       <div className="print:hidden">
         <Link
           href="/inventory/transfers"
@@ -132,12 +141,12 @@ export default async function StockTransferDetailPage({
       )}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-sm print:rounded-none print:border-0 print:shadow-none">
-        <div className="space-y-5 p-5 sm:p-8 print:p-0">
-          <header className="grid gap-5 border-b border-slate-200 pb-5 md:grid-cols-[1fr_auto] print:grid-cols-[1fr_auto]">
+        <div className="space-y-5 p-5 sm:p-8 print:space-y-3 print:p-0">
+          <header className="grid gap-5 border-b border-slate-200 pb-5 md:grid-cols-[1fr_auto] print:grid-cols-[1fr_auto] print:gap-2 print:pb-2">
             <div>
               <div className="flex items-center gap-3">
                 {showOrganizationLogo && companyProfile?.logo_url ? (
-                  <Image src={companyProfile.logo_url} alt={`${organizationName} logo`} width={128} height={48} unoptimized className="h-12 max-w-32 object-contain" />
+                  <Image src={companyProfile.logo_url} alt={`${organizationName} logo`} width={128} height={48} unoptimized className="h-12 max-w-32 object-contain print:h-9" />
                 ) : (
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-800 text-white">
                     <Building2 className="h-6 w-6" />
@@ -145,10 +154,10 @@ export default async function StockTransferDetailPage({
                 )}
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">{organizationName}</h2>
               </div>
-              <p className="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-emerald-800">Inventory Management</p>
+              <p className="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-emerald-800 print:mt-1">Inventory Management</p>
             </div>
             {showOrganizationContact && (
-              <div className="space-y-1.5 text-xs text-slate-600 md:min-w-60 print:min-w-60">
+              <div className="space-y-1.5 text-xs text-slate-600 md:min-w-60 print:min-w-0 print:space-y-0.5">
                 {companyProfile?.business_phone && <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-emerald-800" />{companyProfile.business_phone}</p>}
                 {(companyProfile?.contact_email || companyProfile?.business_email) && (
                   <p className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-emerald-800" />{companyProfile.contact_email || companyProfile.business_email}</p>
@@ -161,27 +170,27 @@ export default async function StockTransferDetailPage({
             )}
           </header>
 
-          <div className="grid gap-4 md:grid-cols-[1fr_270px] print:grid-cols-[1fr_270px]">
+          <div className="grid gap-4 md:grid-cols-[1fr_270px] print:grid-cols-[1fr_240px] print:gap-2">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Stock Transfer Invoice</h1>
-              <p className="mt-1 text-lg font-medium text-slate-600">Branch to Branch Transfer</p>
-              <p className="mt-3 max-w-xl text-xs leading-5 text-slate-500">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900 print:text-2xl">Stock Transfer Invoice</h1>
+              <p className="mt-1 text-lg font-medium text-slate-600 print:text-base">Branch to Branch Transfer</p>
+              <p className="mt-3 max-w-xl text-xs leading-5 text-slate-500 print:mt-1 print:leading-4">
                 This document confirms the transfer of stock items between locations within {organizationName}.
               </p>
             </div>
-            <div className="space-y-2 rounded-xl bg-emerald-50 p-4 text-xs">
+            <div className="space-y-2 rounded-xl bg-emerald-50 p-4 text-xs print:space-y-1 print:p-2">
               <p className="flex justify-between gap-3"><span className="text-slate-500">Invoice No.</span><strong className="font-mono text-slate-900">{transferLabel}</strong></p>
               <p className="flex justify-between gap-3"><span className="text-slate-500">Transfer Date</span><strong className="text-slate-900">{formatDisplayDate(transfer.transfer_date)}</strong></p>
               <p className="flex justify-between gap-3 capitalize"><span className="text-slate-500">Status</span><strong className="text-emerald-800">{statusLabel}</strong></p>
             </div>
           </div>
 
-          <div className="grid items-center gap-3 md:grid-cols-[1fr_auto_1fr] print:grid-cols-[1fr_auto_1fr]">
+          <div className="grid items-center gap-3 md:grid-cols-[1fr_auto_1fr] print:grid-cols-[1fr_auto_1fr] print:gap-2">
             {[{ label: "From Location", location: from, tone: "emerald" }, { label: "To Location", location: to, tone: "blue" }].map(({ label, location, tone }, index) => (
-              <div key={label} className={`rounded-xl border p-4 ${index === 0 ? "md:col-start-1" : "md:col-start-3"} ${tone === "emerald" ? "border-emerald-100 bg-emerald-50/70" : "border-sky-100 bg-sky-50/70"}`}>
+              <div key={label} className={`rounded-xl border p-4 print:p-2 ${index === 0 ? "md:col-start-1" : "md:col-start-3"} ${tone === "emerald" ? "border-emerald-100 bg-emerald-50/70" : "border-sky-100 bg-sky-50/70"}`}>
                 <p className={`text-xs font-semibold uppercase tracking-wide ${tone === "emerald" ? "text-emerald-800" : "text-sky-800"}`}>{label}</p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900">{location?.name ?? "Unknown location"}</h3>
-                <div className="mt-3 space-y-1.5 text-xs text-slate-600">
+                <h3 className="mt-1 text-lg font-bold text-slate-900 print:text-sm">{location?.name ?? "Unknown location"}</h3>
+                <div className="mt-3 space-y-1.5 text-xs text-slate-600 print:mt-1 print:space-y-0.5">
                   {formatLocationAddress(location) && <p className="flex gap-2"><MapPin className="h-3.5 w-3.5 shrink-0" />{formatLocationAddress(location)}</p>}
                   {location?.manager_name && <p className="flex gap-2"><UserRound className="h-3.5 w-3.5 shrink-0" />{location.manager_name}</p>}
                   {location?.phone && <p className="flex gap-2"><Phone className="h-3.5 w-3.5 shrink-0" />{location.phone}</p>}
@@ -193,16 +202,16 @@ export default async function StockTransferDetailPage({
             <ArrowRight className="hidden h-6 w-6 text-emerald-800 md:col-start-2 md:row-start-1 md:block print:block" />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 print:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 print:grid-cols-4 print:gap-1">
             {[
               { label: "Total Items", value: String(items?.length ?? 0) },
               { label: "Total Quantity", value: String((items ?? []).reduce((sum, item) => sum + item.quantity, 0)) },
               { label: "Total Value", value: formatCurrency(totalValue, context.currency) },
               { label: "Transfer Reference", value: transfer.reference_no || transferLabel },
             ].map((stat) => (
-              <div key={stat.label} className="rounded-lg border border-slate-200 p-3">
+              <div key={stat.label} className="rounded-lg border border-slate-200 p-3 print:p-2">
                 <p className="text-[10px] text-slate-500">{stat.label}</p>
-                <p className="mt-1 break-words text-sm font-bold text-slate-900">{stat.value}</p>
+                <p className="mt-1 break-words text-sm font-bold text-slate-900 print:mt-0.5">{stat.value}</p>
               </div>
             ))}
           </div>
@@ -211,8 +220,8 @@ export default async function StockTransferDetailPage({
             <table className="w-full text-left text-xs">
               <thead className="bg-emerald-800 text-white">
                 <tr>
-                  <th className="px-3 py-3">#</th><th className="px-3 py-3">Product</th><th className="px-3 py-3">SKU</th>
-                  <th className="px-3 py-3 text-right">Unit Price</th><th className="px-3 py-3 text-right">Quantity</th><th className="px-3 py-3 text-right">Total Value</th>
+                  <th className="px-3 py-3 print:px-2 print:py-1">#</th><th className="px-3 py-3 print:px-2 print:py-1">Product</th><th className="px-3 py-3 print:px-2 print:py-1">SKU</th>
+                  <th className="px-3 py-3 text-right print:px-2 print:py-1">Unit Price</th><th className="px-3 py-3 text-right print:px-2 print:py-1">Quantity</th><th className="px-3 py-3 text-right print:px-2 print:py-1">Total Value</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -221,17 +230,17 @@ export default async function StockTransferDetailPage({
                   const imageUrl = product?.image_urls?.[0];
                   return (
                     <tr key={item.id}>
-                      <td className="px-3 py-3 text-slate-500">{index + 1}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2.5">
-                          {imageUrl ? <Image src={imageUrl} alt="" width={48} height={40} unoptimized className="h-10 w-12 rounded object-contain" /> : <div className="flex h-10 w-12 items-center justify-center rounded bg-slate-100"><FileText className="h-5 w-5 text-slate-400" /></div>}
+                      <td className="px-3 py-3 text-slate-500 print:px-2 print:py-1">{index + 1}</td>
+                      <td className="px-3 py-3 print:px-2 print:py-1">
+                        <div className="flex items-center gap-2.5 print:gap-1.5">
+                          {imageUrl ? <Image src={imageUrl} alt="" width={48} height={40} unoptimized className="h-10 w-12 rounded object-contain print:h-7 print:w-8" /> : <div className="flex h-10 w-12 items-center justify-center rounded bg-slate-100 print:h-7 print:w-8"><FileText className="h-5 w-5 text-slate-400 print:h-4 print:w-4" /></div>}
                           <span className="font-semibold text-slate-900">{product?.name ?? "Deleted product"}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 font-mono text-slate-600">{product?.sku ?? "—"}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(item.unit_cost, context.currency)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{item.quantity}</td>
-                      <td className="px-3 py-3 text-right font-semibold tabular-nums">{formatCurrency(item.unit_cost * item.quantity, context.currency)}</td>
+                      <td className="px-3 py-3 font-mono text-slate-600 print:px-2 print:py-1">{product?.sku ?? "—"}</td>
+                      <td className="px-3 py-3 text-right tabular-nums print:px-2 print:py-1">{formatCurrency(item.unit_cost, context.currency)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums print:px-2 print:py-1">{item.quantity}</td>
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums print:px-2 print:py-1">{formatCurrency(item.unit_cost * item.quantity, context.currency)}</td>
                     </tr>
                   );
                 })}
@@ -239,21 +248,21 @@ export default async function StockTransferDetailPage({
             </table>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr] print:grid-cols-[1fr_1fr]">
-            <div className="rounded-lg bg-slate-50 p-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr] print:grid-cols-[1fr_1fr] print:gap-2">
+            <div className="rounded-lg bg-slate-50 p-4 print:p-2">
               <h3 className="text-sm font-semibold text-emerald-900">Notes</h3>
-              <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{transfer.notes || transfer.reason || "Stock transfer between the listed locations."}</p>
+              <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600 print:mt-1 print:leading-4">{transfer.notes || transfer.reason || "Stock transfer between the listed locations."}</p>
             </div>
             <div className="overflow-hidden rounded-lg border border-emerald-100 text-xs">
-              <p className="flex justify-between px-4 py-2.5 text-slate-600"><span>Total Quantity</span><strong className="text-slate-900">{(items ?? []).reduce((sum, item) => sum + item.quantity, 0)}</strong></p>
-              <p className="flex justify-between border-t border-emerald-100 px-4 py-2.5 text-slate-600"><span>Subtotal</span><strong className="text-slate-900">{formatCurrency(totalValue, context.currency)}</strong></p>
-              <p className="flex justify-between bg-emerald-800 px-4 py-3 font-semibold text-white"><span>Grand Total</span><strong>{formatCurrency(totalValue, context.currency)}</strong></p>
+              <p className="flex justify-between px-4 py-2.5 text-slate-600 print:px-2 print:py-1"><span>Total Quantity</span><strong className="text-slate-900">{(items ?? []).reduce((sum, item) => sum + item.quantity, 0)}</strong></p>
+              <p className="flex justify-between border-t border-emerald-100 px-4 py-2.5 text-slate-600 print:px-2 print:py-1"><span>Subtotal</span><strong className="text-slate-900">{formatCurrency(totalValue, context.currency)}</strong></p>
+              <p className="flex justify-between bg-emerald-800 px-4 py-3 font-semibold text-white print:px-2 print:py-1.5"><span>Grand Total</span><strong>{formatCurrency(totalValue, context.currency)}</strong></p>
             </div>
           </div>
 
-          <div className="grid gap-4 border-t border-slate-200 pt-4 text-xs sm:grid-cols-2 print:grid-cols-2">
+          <div className="grid gap-4 border-t border-slate-200 pt-4 text-xs sm:grid-cols-2 print:grid-cols-2 print:gap-3 print:pt-2">
             <div>
-              <div className="mb-2 h-7 border-b border-dashed border-slate-300" />
+              <div className="mb-2 h-7 border-b border-dashed border-slate-300 print:mb-1 print:h-5" />
               <p className="text-slate-500">Prepared By</p>
               <p className="mt-1 font-semibold text-slate-900">{requestedByEmail}</p>
               <p className="mt-1 text-slate-500">{formatDisplayDate(transfer.created_at)}</p>
@@ -261,12 +270,12 @@ export default async function StockTransferDetailPage({
             <div>
               <div className="mb-2 h-7 border-b border-dashed border-slate-300" />
               <p className="text-slate-500">Received By</p>
-              <p className="mt-1 font-semibold text-slate-900">{transfer.received_by ? receivedByEmail : "Pending receipt confirmation"}</p>
+              <p className="mt-1 font-semibold text-slate-900">{receivedByName}</p>
               {transfer.received_at && <p className="mt-1 text-slate-500">{formatDisplayDate(transfer.received_at)}</p>}
             </div>
           </div>
         </div>
-        <footer className="flex flex-wrap items-center justify-between gap-2 bg-emerald-950 px-5 py-3 text-[10px] text-white print:px-8">
+        <footer className="flex flex-wrap items-center justify-between gap-2 bg-emerald-950 px-5 py-3 text-[10px] text-white print:px-4 print:py-2">
           <span>{organizationName} <span className="mx-2 text-emerald-300">|</span> Inventory Management</span>
           <span>Stock transfer record · {transferLabel}</span>
         </footer>

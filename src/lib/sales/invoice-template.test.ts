@@ -297,7 +297,9 @@ describe("invoice print formats", () => {
     expect(html).toContain(".served-by-label { display: block; font-size: 13px; font-weight: 700;");
     expect(html).toContain(".footer-bottom { display: grid; grid-template-columns: 1fr 1fr;");
     expect(html).toContain(".served-by { grid-column: 2; justify-self: center;");
-    expect(html).toContain(".totals-row.grand { margin: 4px -10px -8px;");
+    expect(html).toContain(".totals-row.grand { margin: 4px -10px 0;");
+    expect(html).not.toContain('<div class="footer-contact">');
+    expect(html).toContain('<div class="totals-row paid"><span>Amount Paid</span>');
     expect(html).not.toContain("margin: 5px -15px -13px");
   });
 

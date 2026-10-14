@@ -663,7 +663,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .totals-row > :last-child { text-align: right; }
   .totals-row strong { color: #19333d; }
   .totals-row.paid,.totals-row.paid strong { color: #15803d; }
-  .totals-row.grand { margin: 4px -10px -8px; padding: 8px 10px; border-radius: 0; background: #087b68; color: #fff; font-size: 12px; font-weight: 700; }
+  .totals-row.grand { margin: 4px -10px 0; padding: 8px 10px; border-radius: 0; background: #087b68; color: #fff; font-size: 12px; font-weight: 700; }
   .totals-row.grand strong { color: #fff; font-size: 14px; }
   .terms { margin-top: 6px; white-space: pre-line; line-height: 1.35; }
   .terms strong { display: block; margin-bottom: 4px; color: #087b68; }
@@ -722,7 +722,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     </div>
     <div class="due-card${hasBalanceDue ? " balance-due" : ""}"><div><span>${hasBalanceDue ? "Customer Balance" : "Payment Due"}</span><strong>${esc(paymentDue)}</strong></div><strong>${esc(formatCurrency(balanceDue, data.currency))}</strong></div>
   </section>
-  <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by"><span class="served-by-label">Served By</span><span class="served-by-name">${esc(data.cashierName || "—")}</span></div><div></div></div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}<div class="footer-note powered-by">${INVOICE_POWERED_BY}</div></footer>
+  <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by"><span class="served-by-label">Served By</span><span class="served-by-name">${esc(data.cashierName || "—")}</span></div><div></div></div><div class="footer-note powered-by">${INVOICE_POWERED_BY}</div></footer>
 </main>
 </body>
 </html>`;
