@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildBrandedInvoiceHtml, buildInvoiceHtml } from "./invoice-template";
+import { formatInvoiceNumber, formatSaleReceiptNumber } from "./format";
 
 const invoice = {
   orgName: "Example Store",
@@ -27,6 +28,11 @@ const invoice = {
 };
 
 describe("invoice print formats", () => {
+  it("formats POS-origin sales with POS receipts and regular sales with invoice numbers", () => {
+    expect(formatSaleReceiptNumber(12, "2026-10-07T10:00:00.000Z", true)).toBe("POS-2026-00012");
+    expect(formatSaleReceiptNumber(12, "2026-10-07T10:00:00.000Z", false)).toBe(formatInvoiceNumber(12));
+  });
+
   it("keeps the A4 invoice layout as the default", () => {
     const html = buildInvoiceHtml(invoice);
     expect(html).toContain("@page { size: A4 portrait; margin: 10mm; }");
@@ -75,12 +81,79 @@ describe("invoice print formats", () => {
       items: [{ ...invoice.items[0], discountAmount: 0 }],
     });
 
-    expect(html).toContain("SALES RECEIPT");
+    expect(html).toContain("<h1>Sales Receipt</h1>");
     expect(html).toContain("POS-2026-");
     expect(html).toContain("12 Market Road");
     expect(html).toContain("Sample Product");
     expect(html).toContain("Grand Total");
     expect(html).toContain("#087d69");
+    expect(html).not.toContain("<th>SKU</th>");
+    expect(html).not.toContain("SKU-1");
+    expect(html).not.toContain("POS · SALES · INVENTORY · CRM");
+    expect(html).toContain(".brand-slogan");
+    expect(html).toContain("footer-message");
+  });
+
+  it("prints line discounts and tax and labels partially paid receipts", () => {
+    const html = buildBrandedInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "retail",
+      receiptNumberPrefix: "POS",
+      locationAddress: null,
+      locationPhone: null,
+      locationEmail: null,
+      cashierName: "Cashier",
+      subtotal: 100,
+      discountAmount: 10,
+      taxAmount: 25,
+      total: 115,
+      amountPaid: 50,
+      items: [{
+        productName: "Sample Product",
+        sku: "SKU-1",
+        quantity: 1,
+        unitPrice: 100,
+        discountAmount: 10,
+        taxPercent: 25,
+        lineTotal: 90,
+      }],
+    });
+
+    expect(html).toContain('class="status partial">Partially Paid</span>');
+    expect(html).toContain("<th class=\"number\">Discount</th>");
+    expect(html).toContain("<th class=\"number\">Tax</th>");
+    expect(html).toContain("Amount Paid");
+    expect(html).toContain("Balance Due");
+    expect(html).toContain("22.50");
+  });
+
+  it("labels unpaid retail receipts and emphasizes fully paid receipts in green", () => {
+    const unpaid = buildBrandedInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "retail",
+      amountPaid: 0,
+      locationAddress: null,
+      locationPhone: null,
+      locationEmail: null,
+      cashierName: "Cashier",
+      discountAmount: 0,
+      taxAmount: 0,
+      items: [{ ...invoice.items[0], discountAmount: 0 }],
+    });
+    const paid = buildBrandedInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "retail",
+      locationAddress: null,
+      locationPhone: null,
+      locationEmail: null,
+      cashierName: "Cashier",
+      discountAmount: 0,
+      taxAmount: 0,
+      items: [{ ...invoice.items[0], discountAmount: 0 }],
+    });
+
+    expect(unpaid).toContain('class="status unpaid">Unpaid</span>');
+    expect(paid).toContain('class="status paid">Paid</span>');
   });
 
   it("keeps the compact receipt layout for thermal printers when retail is selected", () => {

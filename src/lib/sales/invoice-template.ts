@@ -388,11 +388,7 @@ const balance = Math.max(0, data.total - data.amountPaid);
 const logo = data.logoUrl && data.showLogoOnInvoices !== false
   ? `<img class="brand-logo" src="${esc(data.logoUrl)}" alt="${esc(data.orgName)}" />`
   : `<div class="brand-mark">${esc(initials(data.orgName))}</div>`;
-const contact = [
-  data.locationAddress,
-  data.locationPhone,
-  data.locationEmail,
-].filter(Boolean);
+const branchContacts = [data.locationPhone, data.locationEmail].filter(Boolean);
 const rows = data.items.map((item, index) => `
   <tr>
     <td class="row-number">${index + 1}</td>
@@ -401,20 +397,22 @@ const rows = data.items.map((item, index) => `
         ${item.imageUrl
           ? `<img class="product-image" src="${esc(item.imageUrl)}" alt="" />`
           : `<div class="product-image product-fallback">${esc(initials(item.productName))}</div>`}
-        <div><strong>${esc(item.productName)}</strong>${item.sku ? `<small>${esc(item.sku)}</small>` : ""}</div>
+        <div><strong>${esc(item.productName)}</strong></div>
       </div>
     </td>
-    <td class="sku">${esc(item.sku || "—")}</td>
     <td class="number">${item.quantity}</td>
     <td class="number">${esc(formatCurrency(item.unitPrice, data.currency))}</td>
+    <td class="number">${esc(formatCurrency(item.discountAmount, data.currency))}</td>
+    <td class="number">${esc(formatCurrency(Math.max(0, item.lineTotal) * ((item.taxPercent ?? 0) / 100), data.currency))}</td>
     <td class="number total">${esc(formatCurrency(item.lineTotal, data.currency))}</td>
   </tr>`).join("");
-const documentTitle = isPos ? "SALES RECEIPT" : "SALES INVOICE";
-const paymentStatus = paid ? "PAID" : data.amountPaid > 0 ? "PARTIALLY PAID" : "UNPAID";
+const documentTitle = isPos ? "Sales Receipt" : "Sales Invoice";
+const paymentStatus = paid ? "Paid" : data.amountPaid > 0 ? "Partially Paid" : "Unpaid";
+const paymentStatusClass = paid ? "paid" : data.amountPaid > 0 ? "partial" : "unpaid";
 const brandContact = data.showOrganizationContact === false
   ? []
   : [data.organizationPhone, data.organizationEmail, data.organizationWebsite].filter(Boolean);
-const footerMessage = data.invoiceThankYouMessage || data.invoiceSlogan || "Your support makes our business grow.";
+const thankYouMessage = data.invoiceThankYouMessage || "Thank you for your purchase!";
 
 return `<!DOCTYPE html>
 <html>
@@ -426,91 +424,84 @@ return `<!DOCTYPE html>
 @page { size: A4 portrait; margin: 8mm; }
 body { margin: 0; background: #fff; color: #17313b; font: 11px Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .retail-invoice { max-width: 820px; margin: 0 auto; }
-.top { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding: 12px 0 16px; }
+.top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 4px 0 8px; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.brand-logo { width: 58px; height: 52px; object-fit: contain; }
-.brand-mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: #087d69; color: #fff; font-size: 17px; font-weight: 800; }
-.brand-name { color: #142f39; font-size: 23px; font-weight: 800; letter-spacing: -.6px; }
+.brand-logo { width: 48px; height: 44px; object-fit: contain; }
+.brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: #087d69; color: #fff; font-size: 15px; font-weight: 800; }
+.brand-name { color: #142f39; font-size: 20px; font-weight: 800; letter-spacing: -.6px; }
 .brand-name span { color: #07856d; }
-.brand-tagline { margin-top: 4px; color: #315b57; font-size: 9px; font-weight: 700; letter-spacing: 2px; }
-.contacts { display: grid; gap: 5px; max-width: 260px; color: #39545a; font-size: 10px; text-align: right; }
-.intro-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px; margin: 2px 0 14px; }
-.intro { padding: 8px 0; }
-.kind { display: inline-block; border-radius: 14px; padding: 4px 12px; background: #07866c; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .7px; }
-h1 { margin: 7px 0 2px; color: #142f39; font-size: 30px; line-height: 1.05; letter-spacing: -.6px; }
-.customer-name { color: #607a80; font-size: 16px; font-weight: 600; }
-.intro-rule { width: 52px; height: 3px; margin: 12px 0; background: #07866c; }
-.intro p { max-width: 310px; margin: 4px 0; color: #526d73; line-height: 1.5; }
-.meta-card { padding: 14px 16px; border-radius: 12px; background: #edf8f5; }
-.meta-heading { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; color: #173d3b; font-size: 14px; font-weight: 700; }
-.meta-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: #087d69; color: white; font-size: 20px; }
-.meta-number { display: block; margin-top: 3px; font-size: 16px; font-weight: 800; }
-.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.brand-slogan { margin-top: 3px; color: #526d73; font-size: 10px; font-weight: 600; }
+.contacts { display: grid; gap: 3px; max-width: 260px; color: #39545a; font-size: 9px; line-height: 1.35; text-align: right; }
+.contacts strong { color: #17313b; font-size: 10px; }
+.intro-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10px; margin: 0 0 8px; }
+.intro { display: flex; align-items: center; padding: 4px 0; }
+h1 { margin: 0; color: #142f39; font-size: 23px; line-height: 1.1; letter-spacing: -.4px; }
+.meta-card { padding: 9px 11px; border-radius: 10px; background: #edf8f5; }
+.meta-heading { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; color: #173d3b; font-size: 12px; font-weight: 700; }
+.meta-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #087d69; color: white; font-size: 16px; }
+.meta-number { display: block; margin-top: 2px; font-size: 13px; font-weight: 800; }
+.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
 .meta-item span, .customer-card span, .payment-card span { display: block; margin-bottom: 3px; color: #668087; font-size: 9px; }
-.meta-item strong { color: #17313b; font-size: 11px; }
-.detail-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; margin-bottom: 14px; }
-.customer-card, .payment-card { min-height: 86px; padding: 14px 16px; border-radius: 12px; background: #f0f8fa; }
-.customer-card strong { display: block; margin-top: 3px; color: #17313b; font-size: 14px; }
-.customer-card small { display: block; margin-top: 5px; color: #71858a; }
+.meta-item strong { color: #17313b; font-size: 10px; }
+.detail-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 9px; margin-bottom: 8px; }
+.customer-card, .payment-card { min-height: 0; padding: 9px 11px; border-radius: 9px; background: #f0f8fa; }
+.customer-card strong { display: block; margin-top: 2px; color: #17313b; font-size: 12px; }
+.customer-card small { display: block; margin-top: 3px; color: #71858a; font-size: 9px; }
 .payment-card { display: flex; align-items: center; gap: 12px; background: #edf8f5; }
-.status { display: inline-block; border-radius: 15px; padding: 5px 12px; background: #07866c; color: #fff; font-size: 10px; font-weight: 800; }
-.status.partial, .status.unpaid { background: #c27613; }
-.payment-method { margin-top: 7px; color: #17313b; font-size: 12px; font-weight: 700; }
+.status { display: inline-block; border-radius: 15px; padding: 4px 10px; color: #fff; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.status.paid { background: #07866c; }
+.status.partial { background: #c27613; }
+.status.unpaid { background: #c2413a; }
+.payment-method { margin-top: 5px; color: #17313b; font-size: 10px; font-weight: 700; }
 table { width: 100%; border: 1px solid #dce9e7; border-collapse: separate; border-spacing: 0; overflow: hidden; border-radius: 10px; }
 thead { background: #087d69; color: #fff; }
-th { padding: 11px 10px; font-size: 10px; text-align: left; }
+th { padding: 8px 8px; font-size: 9px; text-align: left; }
 th.number, td.number { text-align: right; }
-td { padding: 9px 10px; border-bottom: 1px solid #e7eeee; color: #243e45; font-size: 10px; }
+td { padding: 6px 8px; border-bottom: 1px solid #e7eeee; color: #243e45; font-size: 9px; }
 tbody tr:last-child td { border-bottom: 0; }
-.row-number { width: 34px; }
-.sku { color: #567077; }
+.row-number { width: 28px; }
 .total { font-weight: 700; }
-.product { display: flex; align-items: center; gap: 9px; min-width: 175px; }
-.product-image { width: 38px; height: 38px; flex: 0 0 auto; border-radius: 7px; background: #f1f6f6; object-fit: contain; }
-.product-fallback { display: grid; place-items: center; color: #087d69; font-size: 10px; font-weight: 800; }
-.product strong { display: block; color: #17313b; font-size: 10px; }
-.product small { display: block; margin-top: 3px; color: #7b8d91; }
-.bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
-.sale-details, .totals { padding: 12px 15px; border-radius: 11px; background: #f0f8fa; }
-.sale-details { display: grid; align-content: center; gap: 10px; }
+.product { display: flex; align-items: center; gap: 7px; min-width: 150px; }
+.product-image { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 6px; background: #f1f6f6; object-fit: contain; }
+.product-fallback { display: grid; place-items: center; color: #087d69; font-size: 9px; font-weight: 800; }
+.product strong { display: block; color: #17313b; font-size: 9px; }
+.bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 8px; }
+.sale-details, .totals { padding: 8px 10px; border-radius: 9px; background: #f0f8fa; }
+.sale-details { display: grid; align-content: center; gap: 6px; }
 .detail-line { color: #567077; }
-.detail-line strong { display: block; margin-top: 3px; color: #17313b; }
+.detail-line strong { display: block; margin-top: 2px; color: #17313b; font-size: 10px; }
 .totals { background: #edf8f5; }
-.total-line { display: flex; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid #dcebe7; }
+.total-line { display: flex; justify-content: space-between; gap: 12px; padding: 4px 2px; border-bottom: 1px solid #dcebe7; font-size: 9px; }
 .total-line strong { color: #17313b; }
-.grand-total { margin: 8px -15px -12px; padding: 13px 15px; border-radius: 0 0 11px 11px; background: #087d69; color: #fff; font-size: 14px; font-weight: 800; }
-.grand-total strong { color: #fff; font-size: 17px; }
-.footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-top: 18px; padding: 18px; border-radius: 12px 12px 0 0; background: linear-gradient(120deg, #075d53, #07866c); color: #fff; }
-.footer strong { display: block; font-family: Georgia, serif; font-size: 23px; font-style: italic; }
-.footer p { margin: 4px 0 0; color: #d5f2e9; font-size: 10px; }
-.footer-contact { max-width: 45%; color: #d5f2e9; font-size: 9px; line-height: 1.6; text-align: right; }
+.grand-total { margin: 5px -10px -8px; padding: 9px 10px; border-radius: 0 0 9px 9px; background: #087d69; color: #fff; font-size: 12px; font-weight: 800; }
+.grand-total strong { color: #fff; font-size: 14px; }
+.footer { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 9px; background: linear-gradient(120deg, #075d53, #07866c); color: #fff; }
+.footer strong { display: block; font-family: Georgia, serif; font-size: 16px; font-style: italic; }
+.footer-message { padding: 7px 10px; border-radius: 7px; background: rgba(255,255,255,.13); color: #fff; font-size: 10px; font-weight: 700; text-align: center; }
+.footer-contact { color: #d5f2e9; font-size: 8px; line-height: 1.4; text-align: right; }
 .terms { margin-top: 8px; color: #71858a; font-size: 9px; line-height: 1.5; }
 @media (max-width: 620px) {
-  .top, .footer { align-items: flex-start; flex-direction: column; }
+  .top { flex-direction: column; }
+  .footer { grid-template-columns: 1fr; }
   .contacts, .footer-contact { max-width: none; text-align: left; }
   .intro-grid, .detail-grid, .bottom-grid { grid-template-columns: 1fr; }
-  h1 { font-size: 26px; }
+  h1 { font-size: 21px; }
 }
 @media print {
   .retail-invoice { max-width: none; }
-  .footer, .grand-total, thead, .kind, .status { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .footer, .footer-message, .grand-total, thead, .status { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
 </head>
 <body>
 <main class="retail-invoice">
   <header class="top">
-    <div class="brand">${logo}<div><div class="brand-name">${esc(data.orgName)}</div><div class="brand-tagline">POS · SALES · INVENTORY · CRM</div></div></div>
-    <div class="contacts">${data.locationName ? `<strong>${esc(data.locationName)}</strong>` : ""}${contact.map((item) => `<span>${esc(item)}</span>`).join("")}${brandContact.map((item) => `<span>${esc(item)}</span>`).join("")}</div>
+    <div class="brand">${logo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-slogan">${esc(data.invoiceSlogan)}</div>` : ""}</div></div>
+    <div class="contacts">${data.locationName ? `<strong>${esc(data.locationName)}</strong>` : ""}${data.locationAddress ? `<span>Location: ${esc(data.locationAddress)}</span>` : ""}${branchContacts.length ? `<span>Contact: ${branchContacts.map((item) => esc(item)).join(" · ")}</span>` : ""}</div>
   </header>
   <section class="intro-grid">
     <div class="intro">
-      <span class="kind">${isPos ? "POS" : "SALES"}</span>
       <h1>${documentTitle}</h1>
-      <div class="customer-name">${esc(data.customerName || "Walk-In Customer")}</div>
-      <div class="intro-rule"></div>
-      <p>${esc(data.invoiceThankYouMessage || "Thank you for your purchase!")}</p>
-      <p>${esc(data.invoiceSlogan || "We appreciate your business and look forward to seeing you again.")}</p>
     </div>
     <div class="meta-card">
       <div class="meta-heading"><span class="meta-icon">▤</span><div>Invoice No.<strong class="meta-number">${esc(receiptNumber)}</strong></div></div>
@@ -524,11 +515,11 @@ tbody tr:last-child td { border-bottom: 0; }
   </section>
   <section class="detail-grid">
     <div class="customer-card"><span>Customer</span><strong>${esc(data.customerName || "Walk-In Customer")}</strong><small>${esc(data.customerPhone || "Customer details provided")}</small></div>
-    <div class="payment-card"><div><span class="status ${paid ? "" : data.amountPaid > 0 ? "partial" : "unpaid"}">${paymentStatus}</span><span style="margin-top:8px">Payment Method</span><div class="payment-method">${esc(data.paymentMethod || "—")}</div></div></div>
+    <div class="payment-card"><div><span class="status ${paymentStatusClass}">${paymentStatus}</span><span style="margin-top:6px">Payment Method</span><div class="payment-method">${esc(data.paymentMethod || "—")}</div></div></div>
   </section>
   <table>
-    <thead><tr><th>#</th><th>Product</th><th>SKU</th><th class="number">Qty.</th><th class="number">Unit Price</th><th class="number">Total</th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="6" style="text-align:center;padding:22px">No line items</td></tr>`}</tbody>
+    <thead><tr><th>#</th><th>Product</th><th class="number">Qty.</th><th class="number">Unit Price</th><th class="number">Discount</th><th class="number">Tax</th><th class="number">Total</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="7" style="text-align:center;padding:14px">No line items</td></tr>`}</tbody>
   </table>
   <section class="bottom-grid">
     <div class="sale-details">
@@ -541,10 +532,11 @@ tbody tr:last-child td { border-bottom: 0; }
       <div class="total-line"><span>Discount</span><strong>${esc(formatCurrency(data.discountAmount, data.currency))}</strong></div>
       <div class="total-line"><span>Tax</span><strong>${esc(formatCurrency(data.taxAmount, data.currency))}</strong></div>
       <div class="total-line grand-total"><span>Grand Total</span><strong>${esc(formatCurrency(data.total, data.currency))}</strong></div>
+      ${data.amountPaid > 0 ? `<div class="total-line"><span>Amount Paid</span><strong>${esc(formatCurrency(data.amountPaid, data.currency))}</strong></div>` : ""}
       ${balance > 0.005 ? `<div class="total-line"><span>Balance Due</span><strong>${esc(formatCurrency(balance, data.currency))}</strong></div>` : ""}
     </div>
   </section>
-  <footer class="footer"><div><strong>Thank You!</strong><p>${esc(data.invoiceSlogan || "Your support makes our business grow.")}</p></div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}<div>${esc(data.systemName || "ThinkSales ERP Pro")}</div></div></footer>
+  <footer class="footer"><div><strong>Thank You!</strong></div><div class="footer-message">${esc(thankYouMessage)}</div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}<div>${esc(data.systemName || "ThinkSales ERP Pro")}</div></div></footer>
 </main>
 </body>
 </html>`;
@@ -764,6 +756,7 @@ export interface InvoiceData {
   invoiceTermsAndConditions?: string | null;
   customerPhone?: string | null;
   dueDate?: string | null;
+  receiptNumberPrefix?: "POS";
 }
 
 export function buildInvoiceHtml(data: InvoiceData): string {
@@ -800,6 +793,7 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     invoiceTermsAndConditions: data.invoiceTermsAndConditions,
     customerPhone: data.customerPhone,
     dueDate: data.dueDate,
+    receiptNumberPrefix: data.receiptNumberPrefix,
     saleNumber: data.saleNumber,
     saleDate: data.saleDate,
     cashierName: data.soldByName,

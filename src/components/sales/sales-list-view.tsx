@@ -19,7 +19,7 @@ import { getSaleInvoiceItems } from "@/app/(dashboard)/sales/actions";
 import { buildInvoiceHtml, waitForInvoiceImages } from "@/lib/sales/invoice-template";
 import { cn } from "@/lib/utils";
 import {
-  formatCurrency, formatDateTime, formatInvoiceNumber,
+  formatCurrency, formatDateTime, formatSaleReceiptNumber,
   PAYMENT_STATUS_LABEL, SALE_STATUS_LABEL, type PaymentStatus, type SaleStatus,
 } from "@/lib/sales/format";
 import { InvoiceFormatSelect } from "@/components/sales/invoice-format-select";
@@ -29,6 +29,7 @@ import { useInvoiceFormat, useInvoiceTemplate, type SalesInvoiceTemplate } from 
 export interface SaleListRow {
   id: string;
   saleNumber: number;
+  isPosSale: boolean;
   customerName: string;
   customerPhone: string | null;
   saleDate: string; // ISO
@@ -178,7 +179,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
       if (location !== "all" && s.locationName !== location) return false;
       if (salesRep !== "all" && s.soldByName !== salesRep) return false;
       if (q) {
-        const invoice = formatInvoiceNumber(s.saleNumber).toLowerCase();
+        const invoice = formatSaleReceiptNumber(s.saleNumber, s.saleDate, s.isPosSale).toLowerCase();
         if (!invoice.includes(q) && !s.customerName.toLowerCase().includes(q)) return false;
       }
 
@@ -233,6 +234,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
         logoUrl,
         showLogoOnInvoices,
         saleNumber: sale.saleNumber,
+        receiptNumberPrefix: sale.isPosSale ? "POS" : undefined,
         saleDate: sale.saleDate,
         dueDate: sale.dueDate,
         customerName: sale.customerName,
@@ -555,7 +557,7 @@ export function SalesListView({ userId, sales, kpis, currency, locations, initia
                     <td className="px-4 py-3.5">
                       <span className="flex items-center gap-1.5">
                         <Link href={`/sales/${s.id}`} className="font-mono text-[13px] font-medium text-signal hover:underline">
-                          {formatInvoiceNumber(s.saleNumber)}
+                          {formatSaleReceiptNumber(s.saleNumber, s.saleDate, s.isPosSale)}
                         </Link>
                         {s.status === "returned" && (
                        <span

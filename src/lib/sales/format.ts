@@ -38,6 +38,10 @@ export function formatPosReceiptNumber(saleNumber: number, saleDate?: string | n
   return `POS-${year}-${String(saleNumber).padStart(5, "0")}`;
 }
 
+export function formatSaleReceiptNumber(saleNumber: number, saleDate: string, isPosSale: boolean) {
+  return isPosSale ? formatPosReceiptNumber(saleNumber, saleDate) : formatInvoiceNumber(saleNumber);
+}
+
 export function formatCurrency(amount: number, currency: Database["public"]["Tables"]["organizations"]["Row"]["currency"] = "GHS") {
   return formatMoney(amount, currency);
 }

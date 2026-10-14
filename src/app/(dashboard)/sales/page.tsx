@@ -22,7 +22,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
       .from("sales")
       .select(`
         id, sale_number, customer_name, sale_date, due_date, created_at, total, amount_paid,
-        payment_method, sold_by, status, refunded_amount, location_id,
+        payment_method, sold_by, status, refunded_amount, location_id, register_session_id,
         location:business_locations ( name, code, phone, email ),
         items:sale_items ( quantity, products ( name ) ),
         customer:customers ( phone )
@@ -72,6 +72,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
    const rows: SaleListRow[] = rawSales.map((s) => ({
     id: s.id,
     saleNumber: s.sale_number,
+    isPosSale: Boolean(s.register_session_id),
     customerName: s.customer_name ?? "Walk-in Customer",
     customerPhone: (s.customer as { phone: string | null } | null)?.phone ?? null,
     // sale_date is a DATE column with no time component — every row would
