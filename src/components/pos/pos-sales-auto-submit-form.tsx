@@ -1,5 +1,6 @@
 "use client";
 
+import Form from "next/form";
 import { useEffect, useRef, type FormEvent, type FormHTMLAttributes } from "react";
 
 type Props = Omit<FormHTMLAttributes<HTMLFormElement>, "action" | "method">;
@@ -22,8 +23,8 @@ export function PosSalesAutoSubmitForm({ children, onChange, ...props }: Props) 
   }
 
   return (
-    <form ref={formRef} method="get" action="/pos/list" onChange={handleChange} {...props}>
+    <Form ref={formRef} action="/pos/list" onChange={handleChange} {...props}>
       {children}
-    </form>
+    </Form>
   );
 }

@@ -21,8 +21,8 @@ import type { SaleStatus } from "@/types/database";
 
 export const metadata = { title: "List POS Sales · SalesMate ERP" };
 
-const PAGE_SIZE = 25;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PAGE_SIZE_OPTIONS = [10, 50, 100] as const;
 const PAYMENT_METHODS = ["Cash", "Card", "MoMo", "Mobile Money", "Bank Transfer", "Cheque", "Multi Payment"];
 const STATUSES = ["all", "completed", "pending", "returned", "voided"] as const;
 const PAYMENT_STATUSES = ["all", "paid", "partial", "unpaid"] as const;
@@ -104,14 +104,41 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
   const requestedStatus = first(query.status) ?? "all";
   const requestedPaymentStatus = first(query.paymentStatus) ?? "all";
   const requestedSort = first(query.sort) ?? "date";
+  const status = (STATUSES as readonly string[]).includes(requestedStatus) ? requestedStatus : "all";
+  const paymentStatus = (PAYMENT_STATUSES as readonly string[]).includes(requestedPaymentStatus) ? requestedPaymentStatus : "all";
+  const paymentMethod = requestedMethod === "all" || PAYMENT_METHODS.includes(requestedMethod) ? requestedMethod : "all";
+  const requestedPageSize = first(query.pageSize) ?? "10";
   const sort = (SORT_KEYS as readonly string[]).includes(requestedSort) ? requestedSort : "date";
   const direction = first(query.direction) === "asc" ? "asc" : "desc";
   const page = Math.max(1, Math.min(100000, Number.parseInt(first(query.page) ?? "1", 10) || 1));
+  const pageSize = requestedPageSize === "all"
+    ? "all"
+    : PAGE_SIZE_OPTIONS.includes(Number(requestedPageSize) as (typeof PAGE_SIZE_OPTIONS)[number])
+      ? Number(requestedPageSize) as (typeof PAGE_SIZE_OPTIONS)[number]
+      : 10;
 
   const supabase = await createClient();
   const allowedLocationIds = context.isBranchScoped
     ? context.allowedLocationIds.filter((id) => UUID_PATTERN.test(id))
     : null;
+  const salesQueryPromise = supabase.rpc("list_pos_sales", {
+    p_org_id: context.orgId,
+    p_from: from,
+    p_to: to,
+    p_location_ids: allowedLocationIds,
+    p_location_id: UUID_PATTERN.test(requestedLocationId) ? requestedLocationId : context.masterLocationId,
+    p_cashier_id: context.canViewOtherTransactions
+      ? UUID_PATTERN.test(requestedCashierId) ? requestedCashierId : null
+      : context.userId,
+    p_payment_method: paymentMethod,
+    p_status: status,
+    p_payment_status: paymentStatus,
+    p_search: search,
+    p_sort_by: sort,
+    p_sort_direction: direction,
+    p_page: page,
+    p_page_size: pageSize === "all" ? 0 : pageSize,
+  });
 
   const locationsQuery = supabase
     .from("business_locations")
@@ -170,26 +197,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
   const cashierId = context.canViewOtherTransactions && cashierOptions.some((cashier) => cashier.id === requestedCashierId)
     ? requestedCashierId
     : context.canViewOtherTransactions ? null : context.userId;
-  const status = (STATUSES as readonly string[]).includes(requestedStatus) ? requestedStatus : "all";
-  const paymentStatus = (PAYMENT_STATUSES as readonly string[]).includes(requestedPaymentStatus) ? requestedPaymentStatus : "all";
-  const paymentMethod = requestedMethod === "all" || PAYMENT_METHODS.includes(requestedMethod) ? requestedMethod : "all";
-
-  const { data, error } = await supabase.rpc("list_pos_sales", {
-    p_org_id: context.orgId,
-    p_from: from,
-    p_to: to,
-    p_location_ids: allowedLocationIds,
-    p_location_id: locationId,
-    p_cashier_id: cashierId,
-    p_payment_method: paymentMethod,
-    p_status: status,
-    p_payment_status: paymentStatus,
-    p_search: search,
-    p_sort_by: sort,
-    p_sort_direction: direction,
-    p_page: page,
-    p_page_size: PAGE_SIZE,
-  });
+  const { data, error } = await salesQueryPromise;
   if (error) {
     console.error("POS sales RPC failed:", {
       code: error.code,
@@ -218,9 +226,9 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
     ? result.rows.map(asObject).filter((row): row is Record<string, unknown> => row !== null)
     : [];
   const totalTransactions = numberValue(result.totalTransactions);
-  const totalPages = Math.max(1, Math.ceil(totalTransactions / PAGE_SIZE));
-  const rangeStart = totalTransactions ? (page - 1) * PAGE_SIZE + 1 : 0;
-  const rangeEnd = Math.min(page * PAGE_SIZE, totalTransactions);
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalTransactions / pageSize));
+  const rangeStart = totalTransactions ? pageSize === "all" ? 1 : (page - 1) * pageSize + 1 : 0;
+  const rangeEnd = pageSize === "all" ? totalTransactions : Math.min(page * pageSize, totalTransactions);
   const linkParams: Record<string, string> = {};
   for (const [key, value] of Object.entries(query)) {
     const item = first(value);
@@ -254,7 +262,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         <PosSalesKpi label="Voided / Returned Transactions" value={numberValue(result.voidedTransactions).toLocaleString()} detail="Cancelled or returned POS sales" icon="returned" tone="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300" />
       </section>
 
-      <Card>
+      <Card className="dark:border-slate-600">
         <CardContent className="p-4 sm:p-5">
           <PosSalesAutoSubmitForm className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
             <PosSalesSearchInput initialValue={search} />
@@ -292,6 +300,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
               <option value="unpaid">Unpaid</option>
             </Select>
             <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="pageSize" value={pageSize} />
             <div className="flex gap-2 sm:col-span-2 lg:col-span-4 xl:col-span-8">
               <Button type="submit" className="gap-2"><Search className="h-4 w-4" /> Apply filters</Button>
               <Link href="/pos/list" className="inline-flex h-10 items-center justify-center rounded-md border border-ledger-200 px-4 text-sm font-medium text-ink-800 hover:bg-ledger-50 dark:border-ledger-700 dark:text-white dark:hover:bg-ink-800">
@@ -302,19 +311,36 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden">
-        <div className="flex flex-col justify-between gap-2 border-b border-ledger-100 px-4 py-4 dark:border-ledger-800 sm:flex-row sm:items-center sm:px-5">
+      <Card className="overflow-hidden dark:border-slate-600">
+        <div className="flex flex-col justify-between gap-2 border-b border-ledger-100 px-4 py-4 dark:border-slate-600 sm:flex-row sm:items-center sm:px-5">
           <div>
             <h2 className="font-semibold text-ink-900 dark:text-white">POS transactions</h2>
             <p className="text-xs text-ledger-500 dark:text-ledger-400">{totalTransactions.toLocaleString()} matching register sales</p>
           </div>
-          <p className="text-xs text-ledger-500 dark:text-ledger-400">
-            Showing {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} of {totalTransactions.toLocaleString()}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+            <p className="text-xs text-ledger-500 dark:text-ledger-400">
+              Showing {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} of {totalTransactions.toLocaleString()}
+            </p>
+            <PosSalesAutoSubmitForm className="flex items-center gap-2">
+              {Object.entries(linkParams)
+                .filter(([key]) => key !== "page" && key !== "pageSize")
+                .map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />)}
+              <input type="hidden" name="page" value="1" />
+              <label className="flex items-center gap-2 text-xs text-ledger-500 dark:text-ledger-400">
+                Rows per page
+                <Select name="pageSize" defaultValue={String(pageSize)} aria-label="Rows per page" className="h-9 w-24">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="all">All</option>
+                </Select>
+              </label>
+            </PosSalesAutoSubmitForm>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1280px] text-left text-sm">
-            <thead className="bg-ledger-50 text-[11px] uppercase tracking-wide text-ledger-500 dark:bg-ink-800 dark:text-ledger-300">
+            <thead className="border-b border-ledger-100 bg-ledger-50 text-[11px] uppercase tracking-wide text-ledger-500 dark:border-slate-600 dark:bg-ink-800 dark:text-ledger-300">
               <tr>
                 <th className="px-4 py-3 font-semibold">Receipt No.</th>
                 <th className="px-4 py-3 font-semibold">
@@ -326,7 +352,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3 font-semibold">Cashier</th>
                 <th className="px-4 py-3 font-semibold">Branch</th>
                 <th className="px-4 py-3 text-right font-semibold">Items / Units</th>
-                <th className="px-4 py-3 text-right font-semibold">Subtotal</th>
+                <th className="px-4 py-3 font-semibold">Product</th>
                 <th className="px-4 py-3 text-right font-semibold">Discount</th>
                 <th className="px-4 py-3 text-right font-semibold">Tax</th>
                 <th className="px-4 py-3 text-right font-semibold">
@@ -340,7 +366,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
+            <tbody className="divide-y divide-ledger-100 dark:divide-slate-700">
               {rows.map((row) => {
                 const id = stringValue(row.id);
                 const saleNumber = numberValue(row.saleNumber);
@@ -365,7 +391,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                       <Link href={`/pos/list/${id}`} className="hover:underline">{formatInvoiceNumber(saleNumber)}</Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-700 dark:text-ledger-200">
-                      {time ? <>{time.date}<span className="ml-1 text-ledger-400">{time.time}</span></> : "—"}
+                      {time ? <>{time.date}<span className="block text-ledger-400">{time.time}</span></> : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-ink-900 dark:text-white">{stringValue(row.customerName) || "Walk-in customer"}</p>
@@ -376,7 +402,14 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                     <td className="whitespace-nowrap px-4 py-3 text-right text-xs text-ink-700 dark:text-ledger-200">
                       {numberValue(row.itemCount)} items · {numberValue(row.unitCount)} units
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right figure">{formatCurrency(numberValue(row.subtotal), context.currency)}</td>
+                    <td className="px-4 py-3 text-ink-700 dark:text-ledger-200">
+                      <span className="block max-w-[220px] truncate" title={stringValue(row.productName) || "—"}>
+                        {stringValue(row.productName) || "—"}
+                      </span>
+                      {numberValue(row.itemCount) > 1 && (
+                        <span className="text-xs text-ledger-400">+{numberValue(row.itemCount) - 1} more</span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right figure">{formatCurrency(numberValue(row.discountAmount), context.currency)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right figure">{formatCurrency(numberValue(row.taxAmount), context.currency)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold figure">{formatCurrency(total, context.currency)}</td>
@@ -405,9 +438,11 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-3 border-t border-ledger-100 px-4 py-3 dark:border-ledger-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <span className="text-xs text-ledger-500 dark:text-ledger-400">Page {page} of {totalPages} · {PAGE_SIZE} rows per page</span>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 border-t border-ledger-100 px-4 py-3 dark:border-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <span className="text-xs text-ledger-500 dark:text-ledger-400">
+            {pageSize === "all" ? `Showing all ${totalTransactions.toLocaleString()} transactions` : `Page ${page} of ${totalPages} · ${pageSize} rows per page`}
+          </span>
+          {pageSize !== "all" && <div className="flex items-center gap-2">
             <Link
               aria-disabled={page <= 1}
               className={`inline-flex h-9 items-center gap-1 rounded-lg border border-ledger-200 px-3 text-xs dark:border-ledger-700 ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-ledger-50 dark:hover:bg-ink-800"}`}
@@ -418,7 +453,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
               className={`inline-flex h-9 items-center gap-1 rounded-lg border border-ledger-200 px-3 text-xs dark:border-ledger-700 ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-ledger-50 dark:hover:bg-ink-800"}`}
               href={makePageHref(linkParams, Math.min(totalPages, page + 1))}
             >Next <ChevronRight className="h-4 w-4" /></Link>
-          </div>
+          </div>}
         </div>
       </Card>
     </main>

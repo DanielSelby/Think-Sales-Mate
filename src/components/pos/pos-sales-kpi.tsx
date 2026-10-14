@@ -34,7 +34,7 @@ export function PosSalesKpi({
       className="h-full overflow-hidden"
       style={{
         borderColor: darkMode
-          ? `color-mix(in srgb, ${theme.colors.primary} 48%, #334155)`
+          ? `color-mix(in srgb, ${theme.colors.primary} 70%, #64748b)`
           : `color-mix(in srgb, ${theme.colors.primary} 24%, white)`,
         backgroundColor: darkMode
           ? `color-mix(in srgb, ${theme.colors.primary} 8%, #0f172a)`

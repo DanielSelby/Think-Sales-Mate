@@ -14,7 +14,7 @@ export function PosSalesSearchInput({ initialValue }: { initialValue: string }) 
       firstRender.current = false;
       return;
     }
-    const timeout = window.setTimeout(() => inputRef.current?.form?.requestSubmit(), 400);
+    const timeout = window.setTimeout(() => inputRef.current?.form?.requestSubmit(), 250);
     return () => window.clearTimeout(timeout);
   }, [value]);
 

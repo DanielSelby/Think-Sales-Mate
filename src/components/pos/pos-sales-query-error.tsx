@@ -25,7 +25,7 @@ export function PosSalesQueryError({
           {code && <p className="text-xs text-ledger-400">Database error code: {code}</p>}
           {migrationRequired && (
             <p className="text-sm text-ledger-500 dark:text-ledger-400">
-              Apply <code className="rounded bg-ledger-100 px-1 py-0.5 dark:bg-ink-800">20261013180000_pos_list_rpc_and_refund_accounts.sql</code> to Supabase, then refresh.
+              Apply <code className="rounded bg-ledger-100 px-1 py-0.5 dark:bg-ink-800">20261013220000_pos_list_performance_and_product_names.sql</code> to Supabase, then refresh.
             </p>
           )}
           <Link href="/pos/list?retry=1" className="inline-flex h-10 items-center justify-center rounded-md bg-signal px-4 text-sm font-semibold text-white hover:brightness-95">
