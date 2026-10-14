@@ -2,6 +2,8 @@ import { formatMoney } from "@/lib/currency";
 import type { InvoiceFormat, SalesInvoiceTemplate } from "@/lib/sales/invoice-format";
 import { formatInvoiceDate } from "@/lib/sales/payment-terms";
 
+const INVOICE_POWERED_BY = "Powered by Think-Digital Solution - 0244-707-120";
+
 // ---------------------------------------------------------------------------
 // Branded POS receipt — black/green diagonal-header style, used by the POS
 // module (both the post-sale receipt and Recent Transactions → Print).
@@ -378,7 +380,7 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
         </div>`
       : ""}
 
-    <div class="footer-note">Powered by ${esc(data.systemName || "ThinkSales ERP Pro")}</div>
+    <div class="footer-note">${INVOICE_POWERED_BY}</div>
   </div>
 </body>
 </html>`;
@@ -552,7 +554,7 @@ tbody tr:last-child td { border-bottom: 0; }
       <div class="total-line grand-total"><span>Grand Total</span><strong>${esc(formatCurrency(data.total, data.currency))}</strong></div>
     </div>
   </section>
-  <footer class="footer"><div><strong>Thank You!</strong><div class="footer-message">${esc(thankYouMessage)}</div></div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}${!isPos ? `<div>${esc(data.systemName || "ThinkSales ERP Pro")}</div>` : ""}</div>${isPos ? `<div class="footer-powered">Powered By ThinkSales ERP Pro</div>` : ""}</footer>
+  <footer class="footer"><div><strong>Thank You!</strong><div class="footer-message">${esc(thankYouMessage)}</div></div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}</div><div class="footer-powered">${INVOICE_POWERED_BY}</div></footer>
 </main>
 </body>
 </html>`;
@@ -610,60 +612,60 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
 <title>${esc(invoiceNo)}</title>
 <style>
   * { box-sizing: border-box; }
-  @page { size: A4 portrait; margin: 9mm; }
+  @page { size: A4 portrait; margin: 6mm; }
   body { margin: 0; background: #fff; color: #17313b; font: 11px Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .invoice { max-width: 960px; margin: 0 auto; overflow: hidden; }
-  .masthead { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding: 18px 6px 20px; border-bottom: 1px solid #e5edf0; position: relative; }
+  .masthead { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; padding: 9px 6px 11px; border-bottom: 1px solid #e5edf0; position: relative; }
   .masthead:after { content: ""; position: absolute; right: -28px; top: -60px; width: 160px; height: 150px; border-radius: 0 0 0 100%; background: linear-gradient(135deg,#42c69c,#087563); opacity: .18; }
   .brand { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
   .logo,.logo-placeholder { width: 54px; height: 48px; object-fit: contain; }
   .logo-placeholder { display: grid; place-items: center; border-radius: 8px; background: #0b806b; color: #fff; font-size: 15px; font-weight: 800; }
   .brand-name { color: #12313b; font-size: 22px; font-weight: 800; }
   .brand-caption { margin-top: 6px; color: #087d69; font-size: 9px; font-weight: 600; }
-  .branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 19px; padding: 8px 10px; border-left: 3px solid #087d69; border-radius: 4px; background: #e8f6f2; color: #075d53; font-size: 10px; font-weight: 700; }
+  .branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; padding: 6px 8px; border-left: 3px solid #087d69; border-radius: 4px; background: #e8f6f2; color: #075d53; font-size: 10px; font-weight: 700; }
   .branch-phone { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
   .branch-phone-icon { font-size: 12px; line-height: 1; }
-  .organization-contact { display: grid; gap: 7px; position: relative; z-index: 1; color: #344d56; font-size: 10px; }
+  .organization-contact { display: grid; gap: 5px; position: relative; z-index: 1; color: #344d56; font-size: 10px; }
   .contact-line { display: flex; gap: 8px; align-items: center; }
   .contact-icon { width: 14px; color: #087d69; font-weight: 700; text-align: center; }
-  .title-row { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: center; padding: 20px 6px 16px; }
+  .title-row { display: grid; grid-template-columns: 1fr 300px; gap: 14px; align-items: center; padding: 10px 6px 8px; }
   h1 { margin: 0; color: #102f3a; font-size: 23px; line-height: 1.2; letter-spacing: -.3px; }
-  .subtitle { margin: 8px 0 0; color: #70838a; font-size: 14px; }
-  .title-rule { width: 65px; height: 3px; margin-top: 12px; background: #15a780; }
-  .invoice-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-radius: 10px; background: #eef8f7; padding: 15px; }
-  .meta-item span { display: block; margin-bottom: 4px; color: #72848a; font-size: 9px; }
+  .subtitle { margin: 4px 0 0; color: #70838a; font-size: 12px; }
+  .title-rule { width: 52px; height: 3px; margin-top: 7px; background: #15a780; }
+  .invoice-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-radius: 10px; background: #eef8f7; padding: 10px; }
+  .meta-item span { display: block; margin-bottom: 2px; color: #72848a; font-size: 9px; }
   .meta-item strong { color: #17313b; font-size: 12px; }
-  .recipient-grid { display: grid; grid-template-columns: 1fr 1fr; margin: 0 6px 16px; border-top: 1px solid #e2eaed; border-bottom: 1px solid #e2eaed; }
-  .recipient { padding: 13px 8px; min-height: 88px; }
-  .recipient + .recipient { border-left: 1px solid #e2eaed; padding-left: 20px; }
+  .recipient-grid { display: grid; grid-template-columns: 1fr 1fr; margin: 0 6px 8px; border-top: 1px solid #e2eaed; border-bottom: 1px solid #e2eaed; }
+  .recipient { padding: 8px; min-height: 0; }
+  .recipient + .recipient { border-left: 1px solid #e2eaed; padding-left: 14px; }
   .recipient-label { color: #087d69; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-  .recipient-name { margin-top: 8px; color: #19333d; font-size: 14px; font-weight: 700; }
-  .recipient-note { margin-top: 6px; color: #617780; font-size: 10px; line-height: 1.5; }
+  .recipient-name { margin-top: 4px; color: #19333d; font-size: 13px; font-weight: 700; }
+  .recipient-note { margin-top: 3px; color: #617780; font-size: 10px; line-height: 1.4; }
   table { width: 100%; border-collapse: collapse; }
   thead { background: #087b68; color: white; }
-  th { padding: 10px 8px; text-align: left; font-size: 9px; }
+  th { padding: 7px 8px; text-align: left; font-size: 9px; }
   th.num { text-align: right; }
-  td { padding: 10px 8px; border-bottom: 1px solid #e7edef; vertical-align: middle; font-size: 9px; }
+  td { padding: 6px 8px; border-bottom: 1px solid #e7edef; vertical-align: middle; font-size: 9px; }
   tbody tr:nth-child(even) { background: #fbfcfc; }
   .index { width: 30px; }
-  .product-cell { display: flex; align-items: center; gap: 9px; min-width: 145px; }
-  .product-image,.product-placeholder { width: 42px; height: 38px; flex: 0 0 42px; object-fit: contain; border-radius: 5px; background: #f0f5f5; }
+  .product-cell { display: flex; align-items: center; gap: 7px; min-width: 145px; }
+  .product-image,.product-placeholder { width: 32px; height: 30px; flex: 0 0 32px; object-fit: contain; border-radius: 5px; background: #f0f5f5; }
   .product-placeholder { display: grid; place-items: center; color: #087b68; font-weight: 700; }
   .product-cell strong { display: block; color: #18343e; font-size: 9px; }
   .product-cell small,.tax-rate { display: block; margin-top: 3px; color: #72848a; font-size: 8px; }
   .num { text-align: right; white-space: nowrap; }
   .total { color: #17313b; font-weight: 700; }
-  .lower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-  .details-card,.totals-card,.due-card { border-radius: 9px; background: #f1f8f7; padding: 13px 15px; }
-  .details-card h2 { margin: 0 0 12px; color: #087b68; font-size: 11px; }
-  .details-row { margin-top: 7px; color: #405a63; font-size: 9px; }
-  .totals-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; color: #405a63; }
+  .lower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .details-card,.totals-card,.due-card { border-radius: 9px; background: #f1f8f7; padding: 8px 10px; }
+  .details-card h2 { margin: 0 0 6px; color: #087b68; font-size: 11px; }
+  .details-row { margin-top: 4px; color: #405a63; font-size: 9px; }
+  .totals-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 0; color: #405a63; }
   .totals-row > :last-child { text-align: right; }
   .totals-row strong { color: #19333d; }
   .totals-row.paid,.totals-row.paid strong { color: #15803d; }
-  .totals-row.grand { margin: 5px -15px 0; padding: 11px 15px; border-radius: 0; background: #087b68; color: #fff; font-size: 13px; font-weight: 700; }
-  .totals-row.grand strong { color: #fff; font-size: 16px; }
-  .terms { margin-top: 9px; white-space: pre-line; line-height: 1.45; }
+  .totals-row.grand { margin: 4px -10px -8px; padding: 8px 10px; border-radius: 0; background: #087b68; color: #fff; font-size: 12px; font-weight: 700; }
+  .totals-row.grand strong { color: #fff; font-size: 14px; }
+  .terms { margin-top: 6px; white-space: pre-line; line-height: 1.35; }
   .terms strong { display: block; margin-bottom: 4px; color: #087b68; }
   .footer-bottom { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 16px; }
   .served-by { grid-column: 2; justify-self: center; color: #fff; text-align: center; }
@@ -673,10 +675,11 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
   .due-card.balance-due,.due-card.balance-due strong { color: #b91c1c; }
   .due-card span { display: block; margin-bottom: 5px; color: #52716f; font-size: 9px; }
   .due-card strong { color: #19333d; font-size: 11px; }
-  .footer { margin: 17px -9mm -9mm; padding: 19px 9mm 14px; background: #075d53; color: white; }
+  .footer { margin: 10px -6mm -6mm; padding: 11px 6mm 9px; background: #075d53; color: white; }
   .footer-thanks { font-size: 19px; font-style: italic; font-weight: 700; }
-  .footer-note { margin-top: 5px; color: #c8e5df; font-size: 12px; font-style: italic; font-weight: 700; }
-  .footer-contact { margin-top: 12px; color: #d9eeea; font-size: 9px; }
+  .footer-note { margin-top: 3px; color: #c8e5df; font-size: 10px; font-style: italic; font-weight: 700; }
+  .footer-contact { margin-top: 8px; color: #d9eeea; font-size: 9px; }
+  .footer-note.powered-by { font-style: normal; }
   @media print { .invoice { max-width: none; } .footer { break-inside: avoid; } }
   @media screen and (max-width: 650px) { .title-row { grid-template-columns: 1fr; } .recipient-grid { grid-template-columns: 1fr; } .recipient + .recipient { border-left: 0; border-top: 1px solid #e2eaed; padding-left: 8px; } .invoice { overflow-x: auto; } }
 </style>
@@ -719,7 +722,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     </div>
     <div class="due-card${hasBalanceDue ? " balance-due" : ""}"><div><span>${hasBalanceDue ? "Customer Balance" : "Payment Due"}</span><strong>${esc(paymentDue)}</strong></div><strong>${esc(formatCurrency(balanceDue, data.currency))}</strong></div>
   </section>
-  <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by"><span class="served-by-label">Served By</span><span class="served-by-name">${esc(data.cashierName || "—")}</span></div><div></div></div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}</footer>
+  <footer class="footer"><div class="footer-bottom"><div><div class="footer-thanks">Thank You!</div><div class="footer-note">${esc(data.invoiceThankYouMessage || "Your support drives our success.")}</div></div><div class="served-by"><span class="served-by-label">Served By</span><span class="served-by-name">${esc(data.cashierName || "—")}</span></div><div></div></div>${data.showOrganizationContact !== false && contactItems.length ? `<div class="footer-contact">${contactItems.map((item) => esc(item)).join(" · ")}</div>` : ""}<div class="footer-note powered-by">${INVOICE_POWERED_BY}</div></footer>
 </main>
 </body>
 </html>`;

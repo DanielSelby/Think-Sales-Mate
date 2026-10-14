@@ -61,7 +61,12 @@ describe("invoice print formats", () => {
     expect(html).toContain('src="https://example.test/product.png"');
     expect(html).not.toContain("<th>SKU</th>");
     expect(html).not.toContain("SKU-1");
-    expect(html).not.toContain("ThinkSales ERP");
+    expect(html).not.toContain("ThinkSales ERP Pro");
+    expect(html).toContain("Powered by Think-Digital Solution - 0244-707-120");
+    expect(html).toContain("@page { size: A4 portrait; margin: 6mm; }");
+    expect(html).toContain(".title-row { display: grid; grid-template-columns: 1fr 300px; gap: 14px; align-items: center; padding: 10px 6px 8px; }");
+    expect(html).toContain(".recipient { padding: 8px; min-height: 0; }");
+    expect(html).toContain("padding: 6px 8px; border-bottom: 1px solid #e7edef");
     expect(html).toContain('<div class="recipient-label">Customer</div>');
     expect(html).toContain("Walk-in Customer · +233 24 000 0000");
     expect(html).toContain('<div class="totals-row paid"><span>Amount Paid</span>');
@@ -96,7 +101,7 @@ describe("invoice print formats", () => {
     expect(html).not.toContain("POS · SALES · INVENTORY · CRM");
     expect(html).toContain(".brand-slogan");
     expect(html).toContain("footer-message");
-    expect(html).toContain('<div class="footer-powered">Powered By ThinkSales ERP Pro</div>');
+    expect(html).toContain('<div class="footer-powered">Powered by Think-Digital Solution - 0244-707-120</div>');
     expect(html).toContain(".footer-powered { grid-column: 1 / -1;");
     expect(html).toContain(".contact-icon");
     expect(html).toContain(".contacts { display: grid; justify-items: end; gap: 4px; max-width: 300px; color: #263e45; font-size: 11px; font-weight: 700;");
@@ -120,6 +125,26 @@ describe("invoice print formats", () => {
 
     expect(standard).toContain("Walk-in Customer · +233 24 000 0000");
     expect(thermal).toContain("Walk-in Customer · +233 24 000 0000");
+  });
+
+  it("uses the Think-Digital footer on the standard and retail invoice templates", () => {
+    const standard = buildInvoiceHtml(invoice);
+    const retail = buildBrandedInvoiceHtml({
+      ...invoice,
+      invoiceTemplate: "retail",
+      locationAddress: null,
+      locationPhone: null,
+      locationEmail: null,
+      cashierName: "Cashier",
+      discountAmount: 0,
+      taxAmount: 0,
+      items: [{ ...invoice.items[0], discountAmount: 0 }],
+    });
+
+    expect(standard).toContain("Powered by Think-Digital Solution - 0244-707-120");
+    expect(retail).toContain("Powered by Think-Digital Solution - 0244-707-120");
+    expect(standard).not.toContain("ThinkSales ERP Pro");
+    expect(retail).not.toContain("ThinkSales ERP Pro");
   });
 
   it("prints line discounts and tax and labels partially paid receipts", () => {
@@ -265,13 +290,14 @@ describe("invoice print formats", () => {
 
     expect(html).toContain("Fresh goods, fair prices");
     expect(html).toContain("We hope to see you again.");
-    expect(html).toContain(".footer-note { margin-top: 5px; color: #c8e5df; font-size: 12px; font-style: italic; font-weight: 700;");
+    expect(html).toContain(".footer-note { margin-top: 3px; color: #c8e5df; font-size: 10px; font-style: italic; font-weight: 700;");
+    expect(html).toContain("Powered by Think-Digital Solution - 0244-707-120");
     expect(html).toContain("Returns accepted within 7 days.");
     expect(html).toContain('<span class="served-by-label">Served By</span><span class="served-by-name">Cashier</span>');
     expect(html).toContain(".served-by-label { display: block; font-size: 13px; font-weight: 700;");
     expect(html).toContain(".footer-bottom { display: grid; grid-template-columns: 1fr 1fr;");
     expect(html).toContain(".served-by { grid-column: 2; justify-self: center;");
-    expect(html).toContain(".totals-row.grand { margin: 5px -15px 0;");
+    expect(html).toContain(".totals-row.grand { margin: 4px -10px -8px;");
     expect(html).not.toContain("margin: 5px -15px -13px");
   });
 
@@ -295,7 +321,7 @@ describe("invoice print formats", () => {
     expect(branchPhone).toBeGreaterThan(branchName);
     expect(branchPhone).toBeLessThan(paidHtml.indexOf("<div class=\"organization-contact\">"));
     expect(paidHtml).toContain(".brand-caption { margin-top: 6px;");
-    expect(paidHtml).toContain(".branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 19px; padding: 8px 10px;");
+    expect(paidHtml).toContain(".branch-details { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; padding: 6px 8px;");
     expect(paidHtml).toContain('<span class="branch-phone-icon" aria-hidden="true">☎</span>');
     expect(paidHtml).toContain(".branch-phone { display: inline-flex; align-items: center; gap: 4px; font-size: 11px;");
     expect(paidHtml.slice(dueDate, dueDate + 100)).toContain("Paid in full");
