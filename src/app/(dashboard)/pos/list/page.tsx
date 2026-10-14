@@ -262,7 +262,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         <PosSalesKpi label="Voided / Returned Transactions" value={numberValue(result.voidedTransactions).toLocaleString()} detail="Cancelled or returned POS sales" icon="returned" tone="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300" />
       </section>
 
-      <Card className="dark:border-slate-600">
+      <Card accent="neutral" className="rounded-2xl border border-ledger-100 shadow-card dark:border-ledger-700">
         <CardContent className="p-4 sm:p-5">
           <PosSalesAutoSubmitForm className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
             <PosSalesSearchInput initialValue={search} />
@@ -311,8 +311,8 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden dark:border-slate-600">
-        <div className="flex flex-col justify-between gap-2 border-b border-ledger-100 px-4 py-4 dark:border-slate-600 sm:flex-row sm:items-center sm:px-5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex flex-col justify-between gap-2 border-b border-ledger-100 px-4 py-4 dark:border-ledger-700 sm:flex-row sm:items-center sm:px-5">
           <div>
             <h2 className="font-semibold text-ink-900 dark:text-white">POS transactions</h2>
             <p className="text-xs text-ledger-500 dark:text-ledger-400">{totalTransactions.toLocaleString()} matching register sales</p>
@@ -340,7 +340,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1280px] text-left text-sm">
-            <thead className="border-b border-ledger-100 bg-ledger-50 text-[11px] uppercase tracking-wide text-ledger-500 dark:border-slate-600 dark:bg-ink-800 dark:text-ledger-300">
+            <thead className="border-b border-ledger-100 text-[11px] font-semibold uppercase tracking-wide text-ledger-500 dark:border-ledger-700 dark:text-ledger-300">
               <tr>
                 <th className="px-4 py-3 font-semibold">Receipt No.</th>
                 <th className="px-4 py-3 font-semibold">
@@ -366,7 +366,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ledger-100 dark:divide-slate-700">
+            <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700/50">
               {rows.map((row) => {
                 const id = stringValue(row.id);
                 const saleNumber = numberValue(row.saleNumber);
@@ -386,7 +386,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
                 const date = stringValue(row.createdAt) || stringValue(row.saleDate);
                 const time = date ? formatDateTime(date) : null;
                 return (
-                  <tr key={id} className="hover:bg-ledger-50/70 dark:hover:bg-ink-800/60">
+                  <tr key={id} className="transition-colors hover:bg-ledger-50/40 dark:hover:bg-white/[0.02]">
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-semibold text-signal">
                       <Link href={`/pos/list/${id}`} className="hover:underline">{formatInvoiceNumber(saleNumber)}</Link>
                     </td>
@@ -438,7 +438,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-3 border-t border-ledger-100 px-4 py-3 dark:border-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-col gap-3 border-t border-ledger-100 px-4 py-3 dark:border-ledger-700 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <span className="text-xs text-ledger-500 dark:text-ledger-400">
             {pageSize === "all" ? `Showing all ${totalTransactions.toLocaleString()} transactions` : `Page ${page} of ${totalPages} · ${pageSize} rows per page`}
           </span>
@@ -455,7 +455,7 @@ export default async function PosSalesListPage({ searchParams }: { searchParams:
             >Next <ChevronRight className="h-4 w-4" /></Link>
           </div>}
         </div>
-      </Card>
+      </div>
     </main>
   );
 }

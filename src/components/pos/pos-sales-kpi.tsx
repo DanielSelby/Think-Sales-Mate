@@ -4,8 +4,6 @@ import {
   ArrowDownRight, ArrowUpRight, CalendarDays, CircleDollarSign,
   ClipboardList, XCircle,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { THEMES, useAppStore } from "@/store/useAppStore";
 
 const KPI_ICONS = {
   transactions: ClipboardList,
@@ -25,23 +23,11 @@ export function PosSalesKpi({
   icon: keyof typeof KPI_ICONS;
   tone: string;
 }) {
-  const { activeTheme, darkMode } = useAppStore();
-  const theme = THEMES[activeTheme];
   const IconComponent = KPI_ICONS[Icon];
 
   return (
-    <Card
-      className="h-full overflow-hidden"
-      style={{
-        borderColor: darkMode
-          ? `color-mix(in srgb, ${theme.colors.primary} 70%, #64748b)`
-          : `color-mix(in srgb, ${theme.colors.primary} 24%, white)`,
-        backgroundColor: darkMode
-          ? `color-mix(in srgb, ${theme.colors.primary} 8%, #0f172a)`
-          : undefined,
-      }}
-    >
-      <CardContent className="flex h-full items-start justify-between gap-2 p-3 sm:p-4">
+    <div className="h-full rounded-2xl border border-ledger-100 bg-white p-3 shadow-card dark:border-ledger-700 dark:bg-ink-900 sm:p-4">
+      <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] font-medium leading-tight text-ledger-500 dark:text-ledger-300 sm:text-xs">{label}</p>
           <p className="mt-2 truncate font-display text-lg font-bold text-ink-900 dark:text-white sm:text-xl">{value}</p>
@@ -50,7 +36,7 @@ export function PosSalesKpi({
         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${tone}`}>
           <IconComponent className="h-4 w-4" />
         </span>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
