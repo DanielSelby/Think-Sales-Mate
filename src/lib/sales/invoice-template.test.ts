@@ -92,6 +92,10 @@ describe("invoice print formats", () => {
     expect(html).not.toContain("POS · SALES · INVENTORY · CRM");
     expect(html).toContain(".brand-slogan");
     expect(html).toContain("footer-message");
+    expect(html).toContain(".contact-icon");
+    expect(html).toContain("<svg viewBox=\"0 0 24 24\"");
+    expect(html).not.toContain('<div class="detail-line">Branch');
+    expect(html).toContain("grid-template-columns: 1fr minmax(300px, 360px)");
   });
 
   it("prints line discounts and tax and labels partially paid receipts", () => {
@@ -119,12 +123,14 @@ describe("invoice print formats", () => {
       }],
     });
 
-    expect(html).toContain('class="status partial">Partially Paid</span>');
+    expect(html).toContain('class="status partial">');
+    expect(html).toContain("Partially Paid");
     expect(html).toContain("<th class=\"number\">Discount</th>");
     expect(html).toContain("<th class=\"number\">Tax</th>");
     expect(html).toContain("Amount Paid");
     expect(html).toContain("Balance Due");
     expect(html).toContain("22.50");
+    expect(html.indexOf("Amount Paid")).toBeLessThan(html.indexOf("Grand Total"));
   });
 
   it("labels unpaid retail receipts and emphasizes fully paid receipts in green", () => {
@@ -152,8 +158,10 @@ describe("invoice print formats", () => {
       items: [{ ...invoice.items[0], discountAmount: 0 }],
     });
 
-    expect(unpaid).toContain('class="status unpaid">Unpaid</span>');
-    expect(paid).toContain('class="status paid">Paid</span>');
+    expect(unpaid).toContain('class="status unpaid">');
+    expect(unpaid).toContain("Unpaid");
+    expect(paid).toContain('class="status paid">');
+    expect(paid).toContain("Paid");
   });
 
   it("keeps the compact receipt layout for thermal printers when retail is selected", () => {

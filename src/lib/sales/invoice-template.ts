@@ -431,24 +431,30 @@ body { margin: 0; background: #fff; color: #17313b; font: 11px Arial, Helvetica,
 .brand-name { color: #142f39; font-size: 20px; font-weight: 800; letter-spacing: -.6px; }
 .brand-name span { color: #07856d; }
 .brand-slogan { margin-top: 3px; color: #526d73; font-size: 10px; font-weight: 600; }
-.contacts { display: grid; gap: 3px; max-width: 260px; color: #39545a; font-size: 9px; line-height: 1.35; text-align: right; }
+.contacts { display: grid; justify-items: end; gap: 4px; max-width: 260px; color: #39545a; font-size: 9px; line-height: 1.35; text-align: right; }
 .contacts strong { color: #17313b; font-size: 10px; }
-.intro-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10px; margin: 0 0 8px; }
+.contact-line { display: flex; align-items: center; gap: 4px; }
+.contact-icon, .meta-label svg, .status svg { width: 12px; height: 12px; flex: 0 0 auto; }
+.intro-grid { display: grid; grid-template-columns: 1fr minmax(300px, 360px); gap: 10px; margin: 0 0 8px; }
 .intro { display: flex; align-items: center; padding: 4px 0; }
 h1 { margin: 0; color: #142f39; font-size: 23px; line-height: 1.1; letter-spacing: -.4px; }
 .meta-card { padding: 9px 11px; border-radius: 10px; background: #edf8f5; }
 .meta-heading { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; color: #173d3b; font-size: 12px; font-weight: 700; }
-.meta-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #087d69; color: white; font-size: 16px; }
+.meta-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #087d69; color: white; }
+.meta-icon svg { width: 17px; height: 17px; }
 .meta-number { display: block; margin-top: 2px; font-size: 13px; font-weight: 800; }
 .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
 .meta-item span, .customer-card span, .payment-card span { display: block; margin-bottom: 3px; color: #668087; font-size: 9px; }
 .meta-item strong { color: #17313b; font-size: 10px; }
+.meta-label { display: flex !important; align-items: center; gap: 4px; }
+.meta-label svg { width: 11px; height: 11px; }
 .detail-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 9px; margin-bottom: 8px; }
 .customer-card, .payment-card { min-height: 0; padding: 9px 11px; border-radius: 9px; background: #f0f8fa; }
 .customer-card strong { display: block; margin-top: 2px; color: #17313b; font-size: 12px; }
 .customer-card small { display: block; margin-top: 3px; color: #71858a; font-size: 9px; }
 .payment-card { display: flex; align-items: center; gap: 12px; background: #edf8f5; }
-.status { display: inline-block; border-radius: 15px; padding: 4px 10px; color: #fff; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.payment-card > div { width: 100%; }
+.status { display: flex; width: 100%; align-items: center; justify-content: center; gap: 5px; border-radius: 15px; padding: 4px 10px; color: #fff; font-size: 9px; font-weight: 800; text-transform: uppercase; }
 .status.paid { background: #07866c; }
 .status.partial { background: #c27613; }
 .status.unpaid { background: #c2413a; }
@@ -470,21 +476,24 @@ tbody tr:last-child td { border-bottom: 0; }
 .sale-details { display: grid; align-content: center; gap: 6px; }
 .detail-line { color: #567077; }
 .detail-line strong { display: block; margin-top: 2px; color: #17313b; font-size: 10px; }
-.totals { background: #edf8f5; }
-.total-line { display: flex; justify-content: space-between; gap: 12px; padding: 4px 2px; border-bottom: 1px solid #dcebe7; font-size: 9px; }
-.total-line strong { color: #17313b; }
+.totals { overflow: hidden; background: #edf8f5; }
+.total-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 2px; border-bottom: 1px solid #dcebe7; font-size: 9px; }
+.total-line > * { min-width: 0; }
+.total-line strong { color: #17313b; text-align: right; white-space: nowrap; }
 .grand-total { margin: 5px -10px -8px; padding: 9px 10px; border-radius: 0 0 9px 9px; background: #087d69; color: #fff; font-size: 12px; font-weight: 800; }
 .grand-total strong { color: #fff; font-size: 14px; }
-.footer { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 9px; background: linear-gradient(120deg, #075d53, #07866c); color: #fff; }
+.footer { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 9px; background: linear-gradient(120deg, #075d53, #07866c); color: #fff; }
 .footer strong { display: block; font-family: Georgia, serif; font-size: 16px; font-style: italic; }
-.footer-message { padding: 7px 10px; border-radius: 7px; background: rgba(255,255,255,.13); color: #fff; font-size: 10px; font-weight: 700; text-align: center; }
+.footer-message { margin-top: 3px; color: #d5f2e9; font-size: 9px; font-weight: 600; }
 .footer-contact { color: #d5f2e9; font-size: 8px; line-height: 1.4; text-align: right; }
 .terms { margin-top: 8px; color: #71858a; font-size: 9px; line-height: 1.5; }
 @media (max-width: 620px) {
   .top { flex-direction: column; }
   .footer { grid-template-columns: 1fr; }
-  .contacts, .footer-contact { max-width: none; text-align: left; }
+  .contacts { justify-items: start; max-width: none; text-align: left; }
+  .footer-contact { max-width: none; text-align: left; }
   .intro-grid, .detail-grid, .bottom-grid { grid-template-columns: 1fr; }
+  .intro-grid { grid-template-columns: 1fr; }
   h1 { font-size: 21px; }
 }
 @media print {
@@ -497,25 +506,25 @@ tbody tr:last-child td { border-bottom: 0; }
 <main class="retail-invoice">
   <header class="top">
     <div class="brand">${logo}<div><div class="brand-name">${esc(data.orgName)}</div>${data.invoiceSlogan ? `<div class="brand-slogan">${esc(data.invoiceSlogan)}</div>` : ""}</div></div>
-    <div class="contacts">${data.locationName ? `<strong>${esc(data.locationName)}</strong>` : ""}${data.locationAddress ? `<span>Location: ${esc(data.locationAddress)}</span>` : ""}${branchContacts.length ? `<span>Contact: ${branchContacts.map((item) => esc(item)).join(" · ")}</span>` : ""}</div>
+    <div class="contacts">${data.locationName ? `<strong>${esc(data.locationName)}</strong>` : ""}${data.locationAddress ? `<span class="contact-line"><svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span>${esc(data.locationAddress)}</span></span>` : ""}${branchContacts.map((item) => `<span class="contact-line"><svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">${item === data.locationPhone ? '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7l.4 2.8a2 2 0 0 1-.6 1.7L7 10.1a16 16 0 0 0 6 6l1.9-1.9a2 2 0 0 1 1.7-.6l2.8.4a2 2 0 0 1 1.7 1.9Z"/>' : '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'}</svg><span>${esc(item)}</span></span>`).join("")}</div>
   </header>
   <section class="intro-grid">
     <div class="intro">
       <h1>${documentTitle}</h1>
     </div>
     <div class="meta-card">
-      <div class="meta-heading"><span class="meta-icon">▤</span><div>Invoice No.<strong class="meta-number">${esc(receiptNumber)}</strong></div></div>
+      <div class="meta-heading"><span class="meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><div>Invoice No.<strong class="meta-number">${esc(receiptNumber)}</strong></div></div>
       <div class="meta-grid">
-        <div class="meta-item"><span>Date</span><strong>${esc(date)}</strong></div>
-        <div class="meta-item"><span>Time</span><strong>${esc(time)}</strong></div>
-        <div class="meta-item"><span>Cashier</span><strong>${esc(data.cashierName)}</strong></div>
-        <div class="meta-item"><span>Branch</span><strong>${esc(data.locationName || "—")}</strong></div>
+        <div class="meta-item"><span class="meta-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>Date</span><strong>${esc(date)}</strong></div>
+        <div class="meta-item"><span class="meta-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Time</span><strong>${esc(time)}</strong></div>
+        <div class="meta-item"><span class="meta-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>Cashier</span><strong>${esc(data.cashierName)}</strong></div>
+        <div class="meta-item"><span class="meta-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>Branch</span><strong>${esc(data.locationName || "—")}</strong></div>
       </div>
     </div>
   </section>
   <section class="detail-grid">
     <div class="customer-card"><span>Customer</span><strong>${esc(data.customerName || "Walk-In Customer")}</strong><small>${esc(data.customerPhone || "Customer details provided")}</small></div>
-    <div class="payment-card"><div><span class="status ${paymentStatusClass}">${paymentStatus}</span><span style="margin-top:6px">Payment Method</span><div class="payment-method">${esc(data.paymentMethod || "—")}</div></div></div>
+    <div class="payment-card"><div><span class="status ${paymentStatusClass}">${paid ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>' : data.amountPaid > 0 ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>'}${paymentStatus}</span><span style="margin-top:6px">Payment Method</span><div class="payment-method">${esc(data.paymentMethod || "—")}</div></div></div>
   </section>
   <table>
     <thead><tr><th>#</th><th>Product</th><th class="number">Qty.</th><th class="number">Unit Price</th><th class="number">Discount</th><th class="number">Tax</th><th class="number">Total</th></tr></thead>
@@ -524,19 +533,18 @@ tbody tr:last-child td { border-bottom: 0; }
   <section class="bottom-grid">
     <div class="sale-details">
       <div class="detail-line">Sales Type<strong>${isPos ? "Point of Sale" : "Sales Invoice"}</strong></div>
-      <div class="detail-line">Branch<strong>${esc(data.locationName || "—")}</strong></div>
       ${data.invoiceTermsAndConditions ? `<div class="detail-line">Terms<strong>${esc(data.invoiceTermsAndConditions)}</strong></div>` : ""}
     </div>
     <div class="totals">
       <div class="total-line"><span>Subtotal</span><strong>${esc(formatCurrency(data.subtotal, data.currency))}</strong></div>
       <div class="total-line"><span>Discount</span><strong>${esc(formatCurrency(data.discountAmount, data.currency))}</strong></div>
       <div class="total-line"><span>Tax</span><strong>${esc(formatCurrency(data.taxAmount, data.currency))}</strong></div>
-      <div class="total-line grand-total"><span>Grand Total</span><strong>${esc(formatCurrency(data.total, data.currency))}</strong></div>
       ${data.amountPaid > 0 ? `<div class="total-line"><span>Amount Paid</span><strong>${esc(formatCurrency(data.amountPaid, data.currency))}</strong></div>` : ""}
       ${balance > 0.005 ? `<div class="total-line"><span>Balance Due</span><strong>${esc(formatCurrency(balance, data.currency))}</strong></div>` : ""}
+      <div class="total-line grand-total"><span>Grand Total</span><strong>${esc(formatCurrency(data.total, data.currency))}</strong></div>
     </div>
   </section>
-  <footer class="footer"><div><strong>Thank You!</strong></div><div class="footer-message">${esc(thankYouMessage)}</div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}<div>${esc(data.systemName || "ThinkSales ERP Pro")}</div></div></footer>
+  <footer class="footer"><div><strong>Thank You!</strong><div class="footer-message">${esc(thankYouMessage)}</div></div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}<div>${esc(data.systemName || "ThinkSales ERP Pro")}</div></div></footer>
 </main>
 </body>
 </html>`;
