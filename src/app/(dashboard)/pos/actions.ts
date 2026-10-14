@@ -140,6 +140,7 @@ export interface PosInvoiceData {
   saleDate: string;
   cashierName: string;
   customerName: string;
+  customerPhone: string | null;
   paymentMethod: string | null;
   subtotal: number;
   discountAmount: number;
@@ -158,7 +159,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
 
   const { data: sale, error: saleError } = await supabase
     .from("sales")
-    .select("sale_number, customer_name, subtotal, discount_amount, tax_amount, total, amount_paid, due_date, payment_method, sale_date, created_at, location_id, sold_by, register_session_id, document_status")
+    .select("sale_number, customer_id, customer_name, subtotal, discount_amount, tax_amount, total, amount_paid, due_date, payment_method, sale_date, created_at, location_id, sold_by, register_session_id, document_status")
     .eq("id", saleId)
     .eq("org_id", context.orgId)
     .maybeSingle();
@@ -171,7 +172,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     (!context.canViewOtherTransactions && sale.sold_by !== context.userId)
   ) return null;
 
-  const [{ data: items }, locationResult, cashierResult, companyResult, systemName] = await Promise.all([
+  const [{ data: items }, locationResult, cashierResult, companyResult, customerResult, systemName] = await Promise.all([
     supabase.from("sale_items").select("quantity, unit_price, discount_percent, tax_percent, line_total, products(name, sku, image_urls)").eq("sale_id", saleId),
     sale.location_id
       ? supabase.from("business_locations").select("name, code, address, city, region, country, phone, email").eq("id", sale.location_id).single()
@@ -180,8 +181,12 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
       ? supabase.from("profiles").select("full_name").eq("id", sale.sold_by).single()
       : Promise.resolve({ data: null }),
     supabase.from("company_profile").select("company_name, logo_url, show_logo_on_invoices, show_contact_on_invoices, sales_invoice_template, invoice_slogan, invoice_thank_you_message, invoice_terms_and_conditions, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", context.orgId).maybeSingle(),
+    sale.customer_id
+      ? supabase.from("customers").select("phone").eq("id", sale.customer_id).eq("org_id", context.orgId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     getPlatformSystemName().catch(() => "ThinkSales ERP Pro"),
   ]);
+  if (customerResult.error) throw new Error(`Could not load the customer's contact number: ${customerResult.error.message}`);
   const location = locationResult.data;
   const cashierProfile = cashierResult.data;
 
@@ -218,6 +223,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     saleDate: combined,
     cashierName: cashierProfile?.full_name || "—",
     customerName: sale.customer_name || "Walk-In Customer",
+    customerPhone: customerResult.data?.phone ?? null,
     paymentMethod: sale.payment_method,
     subtotal: sale.subtotal,
     discountAmount: sale.discount_amount,

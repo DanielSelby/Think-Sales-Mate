@@ -112,6 +112,10 @@ function formatReceiptNumber(data: BrandedInvoiceData): string {
   return formatInvoiceNumber(data.saleNumber);
 }
 
+function formatCustomerName(name: string, phone?: string | null): string {
+  return phone ? `${name} · ${phone}` : name;
+}
+
 export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   const printFormat = data.printFormat ?? "a4";
   const thermal = printFormat !== "a4";
@@ -132,6 +136,7 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
   const balanceDue = Math.max(0, data.total - data.amountPaid);
   const hasBalanceDue = balanceDue > 0.005;
   const addressLine = [data.locationAddress].filter(Boolean).join(", ");
+  const customerName = formatCustomerName(data.customerName, data.customerPhone);
 
   const rows = data.items.map((item, index) => thermal
     ? `
@@ -320,7 +325,7 @@ export function buildBrandedInvoiceHtml(data: BrandedInvoiceData): string {
     <div class="cols">
       <div class="box">
         <div class="box-title">Customer</div>
-        <div class="box-value">${esc(data.customerName)}</div>
+        <div class="box-value">${esc(customerName)}</div>
       </div>
       <div class="box">
         <div class="box-title">Payment method</div>
@@ -409,6 +414,7 @@ const rows = data.items.map((item, index) => `
 const documentTitle = isPos ? "Sales Receipt" : "Sales Invoice";
 const paymentStatus = paid ? "Paid" : data.amountPaid > 0 ? "Partially Paid" : "Unpaid";
 const paymentStatusClass = paid ? "paid" : data.amountPaid > 0 ? "partial" : "unpaid";
+const customerName = formatCustomerName(data.customerName || "Walk-In Customer", data.customerPhone);
 const brandContact = data.showOrganizationContact === false
   ? []
   : [data.organizationPhone, data.organizationEmail, data.organizationWebsite].filter(Boolean);
@@ -431,8 +437,8 @@ body { margin: 0; background: #fff; color: #17313b; font: 11px Arial, Helvetica,
 .brand-name { color: #142f39; font-size: 20px; font-weight: 800; letter-spacing: -.6px; }
 .brand-name span { color: #07856d; }
 .brand-slogan { margin-top: 3px; color: #526d73; font-size: 10px; font-weight: 600; }
-.contacts { display: grid; justify-items: end; gap: 4px; max-width: 260px; color: #39545a; font-size: 9px; line-height: 1.35; text-align: right; }
-.contacts strong { color: #17313b; font-size: 10px; }
+.contacts { display: grid; justify-items: end; gap: 4px; max-width: 300px; color: #263e45; font-size: 11px; font-weight: 700; line-height: 1.4; text-align: right; }
+.contacts strong { color: #17313b; font-size: 12px; font-weight: 800; }
 .contact-line { display: flex; align-items: center; gap: 4px; }
 .contact-icon, .meta-label svg, .status svg { width: 12px; height: 12px; flex: 0 0 auto; }
 .intro-grid { display: grid; grid-template-columns: 1fr minmax(300px, 360px); gap: 10px; margin: 0 0 8px; }
@@ -454,10 +460,11 @@ h1 { margin: 0; color: #142f39; font-size: 23px; line-height: 1.1; letter-spacin
 .customer-card small { display: block; margin-top: 3px; color: #71858a; font-size: 9px; }
 .payment-card { display: flex; align-items: center; gap: 12px; background: #edf8f5; }
 .payment-card > div { width: 100%; }
-.status { display: flex; width: 100%; align-items: center; justify-content: center; gap: 5px; border-radius: 15px; padding: 4px 10px; color: #fff; font-size: 9px; font-weight: 800; text-transform: uppercase; }
-.status.paid { background: #07866c; }
-.status.partial { background: #c27613; }
-.status.unpaid { background: #c2413a; }
+.status { display: flex; width: 100%; align-items: center; justify-content: center; gap: 5px; border: 1px solid rgba(0,0,0,.12); border-radius: 15px; padding: 5px 10px; color: #fff !important; font-size: 10px; font-weight: 800; line-height: 1.25; text-transform: uppercase; }
+.status.paid { background: #087d69; color: #fff !important; }
+.status.partial { background: #a85d00; color: #fff !important; }
+.status.unpaid { background: #b42318; color: #fff !important; }
+.status svg { color: #fff !important; stroke: #fff !important; }
 .payment-method { margin-top: 5px; color: #17313b; font-size: 10px; font-weight: 700; }
 table { width: 100%; border: 1px solid #dce9e7; border-collapse: separate; border-spacing: 0; overflow: hidden; border-radius: 10px; }
 thead { background: #087d69; color: #fff; }
@@ -486,11 +493,12 @@ tbody tr:last-child td { border-bottom: 0; }
 .footer strong { display: block; font-family: Georgia, serif; font-size: 16px; font-style: italic; }
 .footer-message { margin-top: 3px; color: #d5f2e9; font-size: 9px; font-weight: 600; }
 .footer-contact { color: #d5f2e9; font-size: 8px; line-height: 1.4; text-align: right; }
+.footer-powered { grid-column: 1 / -1; color: #d5f2e9; font-size: 8px; font-weight: 700; text-align: center; }
 .terms { margin-top: 8px; color: #71858a; font-size: 9px; line-height: 1.5; }
 @media (max-width: 620px) {
   .top { flex-direction: column; }
   .footer { grid-template-columns: 1fr; }
-  .contacts { justify-items: start; max-width: none; text-align: left; }
+  .contacts { justify-items: start; max-width: none; font-size: 11px; text-align: left; }
   .footer-contact { max-width: none; text-align: left; }
   .intro-grid, .detail-grid, .bottom-grid { grid-template-columns: 1fr; }
   .intro-grid { grid-template-columns: 1fr; }
@@ -523,7 +531,7 @@ tbody tr:last-child td { border-bottom: 0; }
     </div>
   </section>
   <section class="detail-grid">
-    <div class="customer-card"><span>Customer</span><strong>${esc(data.customerName || "Walk-In Customer")}</strong><small>${esc(data.customerPhone || "Customer details provided")}</small></div>
+    <div class="customer-card"><span>Customer</span><strong>${esc(customerName)}</strong></div>
     <div class="payment-card"><div><span class="status ${paymentStatusClass}">${paid ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>' : data.amountPaid > 0 ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>'}${paymentStatus}</span><span style="margin-top:6px">Payment Method</span><div class="payment-method">${esc(data.paymentMethod || "—")}</div></div></div>
   </section>
   <table>
@@ -544,7 +552,7 @@ tbody tr:last-child td { border-bottom: 0; }
       <div class="total-line grand-total"><span>Grand Total</span><strong>${esc(formatCurrency(data.total, data.currency))}</strong></div>
     </div>
   </section>
-  <footer class="footer"><div><strong>Thank You!</strong><div class="footer-message">${esc(thankYouMessage)}</div></div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}<div>${esc(data.systemName || "ThinkSales ERP Pro")}</div></div></footer>
+  <footer class="footer"><div><strong>Thank You!</strong><div class="footer-message">${esc(thankYouMessage)}</div></div><div class="footer-contact">${brandContact.map((item) => `<div>${esc(item)}</div>`).join("")}${!isPos ? `<div>${esc(data.systemName || "ThinkSales ERP Pro")}</div>` : ""}</div>${isPos ? `<div class="footer-powered">Powered By ThinkSales ERP Pro</div>` : ""}</footer>
 </main>
 </body>
 </html>`;
@@ -566,6 +574,7 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     const taxable = Math.max(0, item.unitPrice * item.quantity - item.discountAmount);
     return sum + taxable * ((item.taxPercent ?? 0) / 100);
   }, 0);
+  const customerName = formatCustomerName(data.customerName, data.customerPhone);
   const rows = data.items.map((item, index) => {
     const taxable = Math.max(0, item.unitPrice * item.quantity - item.discountAmount);
     const taxAmount = taxable * ((item.taxPercent ?? 0) / 100);
@@ -692,8 +701,8 @@ function buildThinkSalesInvoiceHtml(data: BrandedInvoiceData): string {
     </div>
   </section>
   <section class="recipient-grid">
-    <div class="recipient"><div class="recipient-label">Customer</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">${data.customerPhone ? esc(data.customerPhone) : ""}</div></div>
-    <div class="recipient"><div class="recipient-label">Ship To</div><div class="recipient-name">${esc(data.customerName)}</div><div class="recipient-note">Same as billing address</div></div>
+    <div class="recipient"><div class="recipient-label">Customer</div><div class="recipient-name">${esc(customerName)}</div><div class="recipient-note"></div></div>
+    <div class="recipient"><div class="recipient-label">Ship To</div><div class="recipient-name">${esc(customerName)}</div><div class="recipient-note">Same as billing address</div></div>
   </section>
   <table>
     <thead><tr><th>#</th><th>Product</th><th class="num">Unit Price</th><th class="num">Quantity</th><th class="num">Discount</th><th class="num">Tax</th><th class="num">Total</th></tr></thead>

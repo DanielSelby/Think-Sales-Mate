@@ -1154,6 +1154,7 @@ export interface DraftSaleRow {
   locationPhone: string | null;
   locationEmail: string | null;
   customerName: string;
+  customerPhone: string | null;
   saleDate: string;
   dueDate: string | null;
   total: number;
@@ -1166,7 +1167,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
   const supabase = await createClient();
   let q = supabase
     .from("sales")
-    .select("id, sale_number, document_status, customer_name, sale_date, due_date, total, created_at, location_id, sold_by")
+    .select("id, sale_number, document_status, customer_id, customer_name, sale_date, due_date, total, created_at, location_id, sold_by")
     .eq("org_id", orgId)
     .in("document_status", ["draft", "quotation", "proforma"])
     .order("created_at", { ascending: false });
@@ -1181,10 +1182,18 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
 
   const { data } = await q;
   const soldByIds = Array.from(new Set((data ?? []).map((sale) => sale.sold_by).filter(Boolean)));
-  const { data: profiles } = soldByIds.length
-    ? await supabase.from("profiles").select("id, full_name").in("id", soldByIds)
-    : { data: [] as { id: string; full_name: string | null }[] };
+  const customerIds = Array.from(new Set((data ?? []).map((sale) => sale.customer_id).filter((id): id is string => id !== null)));
+  const [{ data: profiles }, { data: customers, error: customersError }] = await Promise.all([
+    soldByIds.length
+      ? supabase.from("profiles").select("id, full_name").in("id", soldByIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+    customerIds.length
+      ? supabase.from("customers").select("id, phone").eq("org_id", orgId).in("id", customerIds)
+      : Promise.resolve({ data: [] as { id: string; phone: string | null }[], error: null }),
+  ]);
+  if (customersError) throw new Error(`Could not load customer contact numbers for sales documents: ${customersError.message}`);
   const profileNames = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name ?? "Unknown"]));
+  const customerPhones = new Map((customers ?? []).map((customer) => [customer.id, customer.phone]));
 
   return (data ?? []).map((s) => ({
     id: s.id,
@@ -1196,6 +1205,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
     locationPhone: null,
     locationEmail: null,
     customerName: s.customer_name ?? "Walk-in Customer",
+    customerPhone: s.customer_id ? customerPhones.get(s.customer_id) ?? null : null,
     saleDate: s.sale_date,
     dueDate: s.due_date,
     total: s.total,

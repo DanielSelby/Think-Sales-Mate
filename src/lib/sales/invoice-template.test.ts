@@ -44,6 +44,7 @@ describe("invoice print formats", () => {
     const html = buildInvoiceHtml({
       ...invoice,
       invoiceTemplate: "think-sales",
+      customerPhone: "+233 24 000 0000",
       logoUrl: "https://example.test/logo.png",
       organizationPhone: "+233 20 000 0000",
       organizationEmail: "office@example.test",
@@ -62,6 +63,7 @@ describe("invoice print formats", () => {
     expect(html).not.toContain("SKU-1");
     expect(html).not.toContain("ThinkSales ERP");
     expect(html).toContain('<div class="recipient-label">Customer</div>');
+    expect(html).toContain("Walk-in Customer · +233 24 000 0000");
     expect(html).toContain('<div class="totals-row paid"><span>Amount Paid</span>');
     expect(html).toContain(".totals-row.paid,.totals-row.paid strong { color: #15803d; }");
     expect(html).not.toContain('class="due-card balance-due"');
@@ -72,6 +74,7 @@ describe("invoice print formats", () => {
       ...invoice,
       invoiceTemplate: "retail",
       receiptNumberPrefix: "POS",
+      customerPhone: "+233 24 000 0000",
       locationAddress: "12 Market Road",
       locationPhone: "+233 20 000 0000",
       locationEmail: "branch@example.test",
@@ -85,6 +88,7 @@ describe("invoice print formats", () => {
     expect(html).toContain("POS-2026-");
     expect(html).toContain("12 Market Road");
     expect(html).toContain("Sample Product");
+    expect(html).toContain("Walk-in Customer · +233 24 000 0000");
     expect(html).toContain("Grand Total");
     expect(html).toContain("#087d69");
     expect(html).not.toContain("<th>SKU</th>");
@@ -92,10 +96,30 @@ describe("invoice print formats", () => {
     expect(html).not.toContain("POS · SALES · INVENTORY · CRM");
     expect(html).toContain(".brand-slogan");
     expect(html).toContain("footer-message");
+    expect(html).toContain('<div class="footer-powered">Powered By ThinkSales ERP Pro</div>');
+    expect(html).toContain(".footer-powered { grid-column: 1 / -1;");
     expect(html).toContain(".contact-icon");
+    expect(html).toContain(".contacts { display: grid; justify-items: end; gap: 4px; max-width: 300px; color: #263e45; font-size: 11px; font-weight: 700;");
+    expect(html).toContain(".status.paid { background: #087d69; color: #fff !important; }");
+    expect(html).toContain("stroke: #fff !important");
     expect(html).toContain("<svg viewBox=\"0 0 24 24\"");
     expect(html).not.toContain('<div class="detail-line">Branch');
     expect(html).toContain("grid-template-columns: 1fr minmax(300px, 360px)");
+  });
+
+  it("prints the customer phone beside the name on standard and thermal invoices", () => {
+    const standard = buildInvoiceHtml({
+      ...invoice,
+      customerPhone: "+233 24 000 0000",
+    });
+    const thermal = buildInvoiceHtml({
+      ...invoice,
+      customerPhone: "+233 24 000 0000",
+      printFormat: "thermal-80mm",
+    });
+
+    expect(standard).toContain("Walk-in Customer · +233 24 000 0000");
+    expect(thermal).toContain("Walk-in Customer · +233 24 000 0000");
   });
 
   it("prints line discounts and tax and labels partially paid receipts", () => {
