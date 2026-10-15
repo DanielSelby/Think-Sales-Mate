@@ -19,7 +19,7 @@ export default async function OrganizationSettingsPage() {
   const [membersResult, locationsResult, companyProfileResult, employeesResult, roleTemplatesResult, auditsResult] = await Promise.all([
     supabase
       .from("organization_members")
-      .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, can_view_other_users_transactions, can_check_cross_branch_stock, role, status, location_id, created_at, organizations(created_by), profiles(avatar_url)")
+      .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, can_view_other_users_transactions, can_check_cross_branch_stock, role, status, location_id, created_at, organizations(created_by)")
       .eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     supabase.from("company_profile").select("website").eq("org_id", context.orgId).maybeSingle(),
@@ -30,12 +30,20 @@ export default async function OrganizationSettingsPage() {
   for (const result of [membersResult, locationsResult, companyProfileResult, employeesResult, roleTemplatesResult, auditsResult]) {
     if (result.error) throw new Error(`Could not load user management data: ${result.error.message}`);
   }
-  const memberRows = membersResult.data as any[];
-  const locationRows = locationsResult.data;
+  const memberRows = membersResult.data ?? [];
+  const locationRows = locationsResult.data ?? [];
   const companyProfile = companyProfileResult.data;
   const employeeRows = employeesResult.data;
   const roleTemplateRows = roleTemplatesResult.data;
   const auditRows = auditsResult.data;
+  const memberUserIds = Array.from(new Set(
+    memberRows.map((row) => row.user_id).filter((id): id is string => Boolean(id))
+  ));
+  const { data: profileRows, error: profileError } = memberUserIds.length
+    ? await supabase.from("profiles").select("id, avatar_url").in("id", memberUserIds)
+    : { data: [], error: null };
+  if (profileError) throw new Error(`Could not load member profile photos: ${profileError.message}`);
+  const avatarByUserId = new Map((profileRows ?? []).map((profile) => [profile.id, profile.avatar_url]));
   const { data: roleThemeRows, error: roleThemeError } = await supabase
     .from("organization_role_themes")
     .select("role_key, theme_key")
@@ -160,7 +168,7 @@ export default async function OrganizationSettingsPage() {
       username: row.username,
       email,
       phone: row.phone ?? "",
-      avatarUrl: row.profiles?.avatar_url ?? row.avatar_url,
+      avatarUrl: row.user_id ? avatarByUserId.get(row.user_id) ?? null : null,
       employeeId: row.employee_id ?? "",
       role: accessRole,
       roleLabel: isOwner ? "Super Admin" : accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff",

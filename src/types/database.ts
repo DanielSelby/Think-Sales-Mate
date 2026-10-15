@@ -81,7 +81,6 @@ export interface Database {
           username: string | null;
           employee_id: string | null;
           phone: string | null;
-          avatar_url: string | null;
           department: string | null;
           contact_email: string | null;
           branch_scope: "all" | "assigned" | "single";
@@ -103,7 +102,6 @@ export interface Database {
           username?: string | null;
           employee_id?: string | null;
           phone?: string | null;
-          avatar_url?: string | null;
           department?: string | null;
           contact_email?: string | null;
           branch_scope?: "all" | "assigned" | "single";
