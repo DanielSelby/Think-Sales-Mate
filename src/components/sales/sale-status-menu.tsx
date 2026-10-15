@@ -285,7 +285,7 @@ export function SaleStatusMenu({ saleId, status, total, currency }: SaleStatusMe
                 />
               </label>
               {maxRefundable <= 0 ? (
-                <p className="rounded-md border border-ledger-100 bg-ledger-50 px-3 py-2 text-xs text-ledger-600 dark:border-ledger-700 dark:bg-ink-800 dark:text-ledger-300">
+                <p className="min-w-0 break-words rounded-md border border-ledger-100 bg-ledger-50 px-3 py-2 text-xs leading-5 text-ledger-600 dark:border-ledger-700 dark:bg-ink-800 dark:text-ledger-300">
                   No payment remains available to refund. You can return the items without selecting a payment method.
                 </p>
               ) : Number(refundInput) > 0 ? (

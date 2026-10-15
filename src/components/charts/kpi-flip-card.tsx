@@ -113,11 +113,12 @@ export function KpiFlipCard({
               className={cn(
                 "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                 featured
-                  ? "bg-white/15 text-white"
+                  ? "bg-white text-white"
                   : style.badge
               )}
+              style={featured ? { backgroundColor: "#fff", color: theme.colors.primary } : undefined}
             >
-              <div className="h-4 w-4">{icon}</div>
+              <div className="h-4 w-4" style={featured ? { color: theme.colors.primary } : undefined}>{icon}</div>
             </div>
           </div>
 
