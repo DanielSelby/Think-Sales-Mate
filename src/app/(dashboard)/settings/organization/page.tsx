@@ -30,7 +30,7 @@ export default async function OrganizationSettingsPage() {
   for (const result of [membersResult, locationsResult, companyProfileResult, employeesResult, roleTemplatesResult, auditsResult]) {
     if (result.error) throw new Error(`Could not load user management data: ${result.error.message}`);
   }
-  const memberRows = membersResult.data;
+  const memberRows = membersResult.data as any[];
   const locationRows = locationsResult.data;
   const companyProfile = companyProfileResult.data;
   const employeeRows = employeesResult.data;
