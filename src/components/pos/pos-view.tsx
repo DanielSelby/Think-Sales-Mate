@@ -8,7 +8,7 @@ import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
   X, Trash2, Inbox, ChevronsLeft, XCircle, Briefcase, Calculator as CalculatorIcon,
  RotateCcw, Keyboard, PlusCircle, Plus, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar, ChevronsRight,
-  Lock, Download,
+  Lock, Download, EllipsisVertical, ShoppingCart,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -122,7 +122,9 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
 
   const [browseTab, setBrowseTab] = React.useState<"category" | "brands">("category");
   const [cartWidthPercent, setCartWidthPercent] = React.useState(30);
-         const [expandMenuOpen, setExpandMenuOpen] = React.useState(false);
+  const [expandMenuOpen, setExpandMenuOpen] = React.useState(false);
+  const [mobileRegisterView, setMobileRegisterView] = React.useState<"products" | "cart">("products");
+  const [posActionMenuOpen, setPosActionMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = React.useState(false);
   const uniqueProductSearchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -973,6 +975,67 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
 
       {/* Toolbar */}
       <div className="pos-toolbar flex flex-col items-stretch gap-3 rounded-xl border border-ledger-100 bg-white p-2.5 sm:flex-row sm:flex-wrap sm:items-center dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex items-center justify-between gap-2 xl:hidden">
+          <div className="flex rounded-lg border border-ledger-200 p-1 dark:border-ledger-700" role="group" aria-label="POS view">
+            <button
+              type="button"
+              aria-pressed={mobileRegisterView === "products"}
+              onClick={() => setMobileRegisterView("products")}
+              className={cn("rounded-md px-3 py-1.5 text-xs font-semibold", mobileRegisterView !== "products" && "text-ledger-500")}
+              style={mobileRegisterView === "products" ? { background: theme.colors.primary, color: "#fff" } : undefined}
+            >
+              Products
+            </button>
+            <button
+              type="button"
+              aria-pressed={mobileRegisterView === "cart"}
+              onClick={() => setMobileRegisterView("cart")}
+              className={cn("flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold", mobileRegisterView !== "cart" && "text-ledger-500")}
+              style={mobileRegisterView === "cart" ? { background: theme.colors.primary, color: "#fff" } : undefined}
+            >
+              <ShoppingCart className="h-3.5 w-3.5" /> Cart ({cart.length})
+            </button>
+          </div>
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="More POS actions"
+              aria-expanded={posActionMenuOpen}
+              onClick={() => setPosActionMenuOpen((open) => !open)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-ledger-200 text-ledger-600 dark:border-ledger-700 dark:text-ledger-200"
+            >
+              <EllipsisVertical className="h-5 w-5" />
+            </button>
+            {posActionMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close POS actions"
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setPosActionMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full z-50 mt-2 grid w-[min(90vw,320px)] grid-cols-2 gap-1 rounded-xl border border-ledger-200 bg-white p-2 shadow-xl dark:border-ledger-700 dark:bg-ink-900">
+                  <button type="button" onClick={() => { router.back(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Back</button>
+                  <button type="button" disabled={cart.length === 0} onClick={() => { handleVoid(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-alert hover:bg-alert-soft disabled:opacity-40">Void sale</button>
+                  <Link href="/sales" onClick={() => setPosActionMenuOpen(false)} className="rounded-lg px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Register / All Sales</Link>
+                  <button type="button" onClick={() => { setCalcOpen(true); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Calculator</button>
+                  <button type="button" onClick={() => { router.refresh(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Refresh Stock</button>
+                  <button type="button" onClick={() => { searchInputRef.current?.focus(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Focus Search / Scan</button>
+                  <button type="button" onClick={() => { openHeldList("hold"); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Suspended Sales</button>
+                  <button type="button" onClick={() => { openRegisterDialog(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Close Register</button>
+                  {registerSession && <Link href={`/pos/cash-drawer?location=${encodeURIComponent(locationId)}`} onClick={() => setPosActionMenuOpen(false)} className="rounded-lg px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Cash Drawer</Link>}
+                  <Link href="/accounting/expenses/new" onClick={() => setPosActionMenuOpen(false)} className="rounded-lg px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Add Expense</Link>
+                  <button type="button" onClick={() => { openRecentTransactions(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Recent Transactions</button>
+                  {canCheckCrossBranchStock && (
+                    <div className="col-span-2 px-2 py-1">
+                      <CrossBranchStockButton query={query} enabled={Boolean(query.trim()) && filteredProducts.length === 0} />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
         <div className="flex min-w-0 items-center gap-2 rounded-lg p-1.5">
           <span className="text-xs font-bold text-ink-900 dark:text-white">Location:</span>
           <select key={selectResetKey} value={locationId} onChange={(e) => handleLocationChange(e.target.value)} className="h-10 min-w-0 flex-1 rounded-md border-0 bg-white px-2 text-sm font-bold text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:bg-slate-800 dark:text-white">            {locations.length === 0 && <option value="" className="dark:bg-slate-800 dark:text-white">No branch</option>}
@@ -998,7 +1061,7 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
           {(["retail", "wholesale", "vip", "special"] as const).filter((tier) => allowedPriceGroups.includes(tier)).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => changePriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier !== tier && "text-ledger-500")} style={priceTier === tier ? { background: theme.colors.primary, color: "#fff" } : undefined}>{tier === "special" ? "S.P" : tier}</button>)}
         </div>
 
-        <div className="grid min-w-0 grid-cols-4 items-center justify-items-center gap-2 px-1 sm:ml-auto sm:flex sm:flex-1 sm:justify-around sm:gap-4 sm:px-3">
+        <div className="hidden min-w-0 items-center justify-around gap-4 px-3 xl:ml-auto xl:flex xl:flex-1">
           <button title="Back" onClick={() => router.back()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ledger-200 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronsLeft className="h-4 w-4" /></button>
           <button title="Void sale" onClick={handleVoid} disabled={cart.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-alert/30 text-alert hover:bg-alert-soft disabled:opacity-40"><XCircle className="h-4 w-4" /></button>
           <Link href="/sales" title="Register / all sales" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-signal/30 text-signal hover:bg-signal-soft"><Briefcase className="h-4 w-4" /></Link>
@@ -1009,7 +1072,7 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
           <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
         </div>
 
-        <div className="grid grid-cols-2 items-center gap-2 border-t border-ledger-200 pt-2 sm:flex sm:items-center sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-ledger-700">
+        <div className="hidden grid-cols-2 items-center gap-2 border-t border-ledger-200 pt-2 xl:flex xl:items-center xl:justify-end xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0 dark:border-ledger-700">
           <CrossBranchStockButton query={query} enabled={canCheckCrossBranchStock && Boolean(query.trim()) && filteredProducts.length === 0} />
           <Link href="/accounting/expenses/new">
             <Button
@@ -1032,7 +1095,7 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
         className="grid min-h-0 flex-none grid-cols-1 gap-3 xl:flex-1 xl:grid-cols-[var(--pos-left)_var(--pos-right)]"
         style={{ "--pos-left": `${100 - cartWidthPercent}%`, "--pos-right": `${cartWidthPercent}%` } as React.CSSProperties}      >
         {/* LEFT: images/grid */}
-        <div className="flex min-h-0 flex-col gap-3">
+        <div className={cn("min-h-0 flex-col gap-3", mobileRegisterView === "products" ? "flex" : "hidden xl:flex")}>
           <div className="pos-category-switch flex gap-2">
             <button
               onClick={() => setBrowseTab("category")}
@@ -1133,7 +1196,7 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
         </div>
 
         {/* RIGHT: customer + search + cart table + totals */}
-        <Card accent="signal" className="pos-cart-panel relative flex min-h-0 flex-col border-2 border-ledger-300 bg-gradient-to-br from-white via-white to-slate-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_3px_7px_rgba(15,23,42,0.07),0_12px_28px_rgba(15,23,42,0.1)] hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_5px_10px_rgba(15,23,42,0.08),0_18px_34px_rgba(15,23,42,0.16)] dark:border-ledger-600 dark:from-slate-900 dark:via-ink-900 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_3px_7px_rgba(0,0,0,0.25),0_12px_28px_rgba(0,0,0,0.3)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_5px_10px_rgba(0,0,0,0.3),0_18px_34px_rgba(0,0,0,0.42)]" style={{ borderLeftColor: theme.colors.primary }}>
+        <Card accent="signal" className={cn("pos-cart-panel relative min-h-0 flex-col border-2 border-ledger-300 bg-gradient-to-br from-white via-white to-slate-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_3px_7px_rgba(15,23,42,0.07),0_12px_28px_rgba(15,23,42,0.1)] hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),0_5px_10px_rgba(15,23,42,0.08),0_18px_34px_rgba(15,23,42,0.16)] dark:border-ledger-600 dark:from-slate-900 dark:via-ink-900 dark:to-slate-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(0,0,0,0.24),0_3px_7px_rgba(0,0,0,0.25),0_12px_28px_rgba(0,0,0,0.3)] dark:hover:shadow-[inset_1px_1px_0_rgba(255,255,255,0.08),0_5px_10px_rgba(0,0,0,0.3),0_18px_34px_rgba(0,0,0,0.42)]", mobileRegisterView === "cart" ? "flex" : "hidden xl:flex")} style={{ borderLeftColor: theme.colors.primary }}>
           <div className="absolute -left-3 top-1/2 z-20 -translate-y-1/2">
             <button
               title="Resize the cart panel"

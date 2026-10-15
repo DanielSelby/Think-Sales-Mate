@@ -82,9 +82,9 @@ export function TiltKpiCard({ color, label, value, note, icon, trend, sub, backD
         <div style={{
           width: 30, height: 30, borderRadius: 10, flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: solid ? "rgba(255,255,255,0.18)" : accent + "18",
+          background: solid ? "#ffffff" : accent + "18",
         }}>
-          <div style={{ width: 15, height: 15, color: solid ? "#fff" : accent }}>{icon}</div>
+          <div style={{ width: 15, height: 15, color: solid ? theme.colors.primary : accent }}>{icon}</div>
         </div>
       </div>
 

@@ -316,15 +316,15 @@ export function BrowseView({
                 HERO + PRODUCT HEADER — pinned below the top nav
             ================================================= */}
             <div
-              className="sticky top-[74px] z-30 isolate overflow-hidden bg-white pb-1 shadow-[0_8px_18px_rgba(255,255,255,0.98)] dark:bg-ink-950 dark:shadow-[0_8px_18px_rgba(10,16,14,0.98)]"
+              className="relative z-30 isolate overflow-hidden bg-white pb-1 shadow-[0_8px_18px_rgba(255,255,255,0.98)] sm:sticky sm:top-[74px] dark:bg-ink-950 dark:shadow-[0_8px_18px_rgba(10,16,14,0.98)]"
               style={{ contain: "paint" }}
             >
-            <div className="relative mb-5 min-h-[292px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[radial-gradient(circle_at_78%_36%,#ffffff_0,#e8f6ec_30%,transparent_57%),linear-gradient(110deg,#eaf7ee,#f8fcf9_55%,#dcefdc)] shadow-[0_18px_45px_rgba(36,108,72,0.12)] dark:border-ledger-800 dark:bg-ink-900">
+            <div className="relative mb-3 min-h-[154px] overflow-hidden rounded-xl border border-[#dceee2] bg-[radial-gradient(circle_at_78%_36%,#ffffff_0,#e8f6ec_30%,transparent_57%),linear-gradient(110deg,#eaf7ee,#f8fcf9_55%,#dcefdc)] shadow-[0_18px_45px_rgba(36,108,72,0.12)] sm:mb-5 sm:min-h-[292px] sm:rounded-2xl dark:border-ledger-800 dark:bg-ink-900">
               <img
                 src={customerPortalHeroUrl ?? "/customer-portal-hero.jpeg"}
                 alt=""
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-right"
+                className="pointer-events-none absolute inset-0 z-0 hidden h-full w-full object-cover object-right sm:block"
               />
               {/* 3D showcase illustration */}
               <div className="hidden">
@@ -390,29 +390,29 @@ export function BrowseView({
                 </div>
               </div>
 
-              <div className="relative z-10 max-w-xl px-7 py-5">
+              <div className="relative z-10 max-w-xl px-4 py-3 sm:px-7 sm:py-5">
 
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#258252]">Welcome to our</p>
-                <h1 className="mt-2 text-[30px] font-extrabold leading-tight tracking-tight text-ink-900 dark:text-white md:text-[39px]">
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#258252] sm:text-[11px] sm:tracking-[0.22em]">Welcome to our</p>
+                <h1 className="mt-1 text-[20px] font-extrabold leading-tight tracking-tight text-ink-900 dark:text-white sm:mt-2 sm:text-[30px] md:text-[39px]">
                   Customer Ordering Portal
                 </h1>
 
-                <p className="mt-1 text-sm text-ledger-600 dark:text-ledger-300">
+                <p className="mt-1 hidden text-sm text-ledger-600 sm:block dark:text-ledger-300">
                   Browse our products and add items to your cart
                 </p>
 
                 {/* Search */}
-                <div className="relative mt-5 max-w-[520px]">
+                <div className="relative mt-2 max-w-[520px] sm:mt-5">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
 
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search for products, brands and more..."
-                    className="h-12 w-full rounded-xl border border-white bg-white/95 pl-10 pr-3 text-sm text-ink-900 shadow-[0_10px_25px_rgba(34,103,63,0.12)] outline-none transition focus:border-signal focus:ring-2 focus:ring-signal/10 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                    className="h-10 w-full rounded-lg border border-white bg-white/95 pl-10 pr-3 text-xs text-ink-900 shadow-[0_10px_25px_rgba(34,103,63,0.12)] outline-none transition focus:border-signal focus:ring-2 focus:ring-signal/10 sm:h-12 sm:rounded-xl sm:text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                   />
                 </div>
-                <div className="mt-6 flex flex-wrap gap-x-7 gap-y-3">
+                <div className="mt-6 hidden flex-wrap gap-x-7 gap-y-3 sm:flex">
                   {[
                     { Icon: Truck, title: "Fast Delivery", text: "Quick & reliable" },
                     { Icon: ShieldCheck, title: "Secure Shopping", text: "Safe & trusted" },
@@ -520,7 +520,7 @@ export function BrowseView({
                 </p>
               </div>
             ) : view === "grid" ? (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-3 2xl:grid-cols-4">
 
                 {filtered.map((product) => (
                   <ProductCard

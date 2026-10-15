@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen, EllipsisVertical } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { RefreshButton } from "@/components/refresh-button";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
@@ -33,7 +33,7 @@ interface NotificationItem {
   location_id: string | null;
 }
 
-export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; onOpenMobileSidebar: () => void }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -222,7 +222,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
     <>
     <CommandBar open={commandBarOpen} onClose={() => setCommandBarOpen(false)} />
     <header
-      className="flex h-14 items-center gap-3 px-5 shrink-0 relative z-30"
+      className="relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 sm:gap-3 sm:px-5"
       style={{ background: topbar.background, borderBottom: `1px solid ${sidebar.borderColor}` }}
     >
       <button
@@ -234,10 +234,19 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       >
         {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
       </button>
+      <button
+        type="button"
+        onClick={onOpenMobileSidebar}
+        aria-label="Open navigation menu"
+        title="Open navigation menu"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+      >
+        <EllipsisVertical className="h-5 w-5" />
+      </button>
       {/* Global search — anchored to the far left */}
       <button
         onClick={() => setCommandBarOpen(true)}
-        className="relative flex h-8.5 w-[clamp(10rem,30vw,28rem)] shrink-0 items-center gap-2 rounded-xl border px-3 text-xs transition-all"
+        className="relative flex h-8.5 min-w-0 flex-1 items-center gap-2 rounded-xl border px-2 text-xs transition-all sm:w-[clamp(10rem,30vw,28rem)] sm:flex-none sm:px-3"
         style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.8)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)"; }}
@@ -250,14 +259,14 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       </button>
 
       {/* Organization branding — centered between search and actions */}
-      <div className="min-w-0 flex-1" />
+      <div className="hidden min-w-0 flex-1 md:block" />
       <div className="hidden max-w-[220px] shrink-0 items-center gap-2 lg:flex">
         <img src={logoUrl || "/thinksales-logo.jpeg"} alt="" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
         <span className="truncate text-sm font-semibold text-white/90">{orgName}</span>
       </div>
-      <div className="min-w-0 flex-1" />
+      <div className="hidden min-w-0 flex-1 md:block" />
 
-      <RefreshButton className="shrink-0 text-white/70 hover:bg-white/10" />
+      <RefreshButton className="hidden shrink-0 text-white/70 hover:bg-white/10 sm:flex" />
       <Link
         href="/pos"
         aria-label="Open POS"
@@ -274,7 +283,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         <button
           disabled={branchOptions.length === 0}
           onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
-          className="flex shrink-0 items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
+          className="flex shrink-0 items-center gap-1.5 h-8 px-1.5 sm:px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Building2 className="h-3.5 w-3.5 text-white/60" />
           <span className="hidden sm:block">{branchOptions.length > 0 ? (currentBranch === "all" ? "All Branches" : currentBranch) : "No locations"}</span>
@@ -322,7 +331,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
           className="flex shrink-0 items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Coins className="h-3.5 w-3.5 text-white/60" />
-          <span>{currencyOptions.find(c => c.code === currentCurrency)?.label || currentCurrency}</span>
+          <span className="hidden sm:inline">{currencyOptions.find(c => c.code === currentCurrency)?.label || currentCurrency}</span>
           <ChevronDown className="w-3 h-3 opacity-60" />
         </button>
         {showCurrencies && (
@@ -353,7 +362,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       <div className="relative">
         <button
           onClick={() => { if (!canChangeTheme) return; setShowThemes(v => !v); setShowUser(false); setShowNotifications(false); }}
-          className="flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold transition-all"
+          className="flex items-center gap-2 h-8 px-1.5 sm:px-3 rounded-xl text-xs font-semibold transition-all"
           style={{ color: "rgba(255,255,255,0.7)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}
           onMouseLeave={e => { if (!showThemes) (e.currentTarget as HTMLElement).style.background = "transparent" }}
@@ -449,7 +458,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       <div className="relative">
         <button
           onClick={() => router.push("/communication")}
-          className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10"
+          className="relative hidden h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10 sm:flex"
         >
           <MessageSquare className="h-4 w-4" />
           {unreadMessageCount > 0 && (
@@ -464,7 +473,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       <div className="relative">
         <button
           onClick={() => { setShowUser(v => !v); setShowThemes(false); setShowNotifications(false); }}
-          className="flex items-center gap-2.5 h-9 px-2 rounded-xl transition-all hover:bg-white/10"
+          className="flex items-center gap-1 sm:gap-2.5 h-9 px-1 sm:px-2 rounded-xl transition-all hover:bg-white/10"
         >
           {avatarUrl ? (
             <img
@@ -482,7 +491,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
             <p className="text-xs font-semibold text-white leading-tight">{userName || "User"}</p>
             <p className="text-[10px] text-white/60 leading-tight">{userRole ? userRole.replace(/_/g, " ") : "User"}</p>
           </div>
-          <ChevronDown className="h-3 w-3 text-white/60" />
+          <ChevronDown className="hidden h-3 w-3 text-white/60 sm:block" />
         </button>
         {showUser && (
           <>

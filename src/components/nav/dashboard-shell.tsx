@@ -35,8 +35,17 @@ interface Props {
 export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
   const useStandardLightSurfaces = pathname !== "/pos" &&
     !pathname.startsWith("/pos/");
+  React.useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileSidebarOpen(false);
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
   React.useEffect(() => {
     if (roleTheme) setTheme(roleTheme);
   }, [roleTheme, setTheme]);
@@ -59,11 +68,40 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
           "--theme-header-border-dark": `color-mix(in srgb, ${theme.colors.primary} 36%, #334155)`,
         } as React.CSSProperties}
       >
-        <Sidebar collapsed={sidebarCollapsed} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} />
+        <Sidebar
+          collapsed={mobileSidebarOpen ? false : sidebarCollapsed}
+          enabledModules={enabledModules}
+          systemLogoUrl={systemLogoUrl}
+          systemName={systemName}
+          mobileOpen={mobileSidebarOpen}
+          onNavigate={() => setMobileSidebarOpen(false)}
+        />
+        {mobileSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            className="fixed inset-0 z-50 bg-black/50 md:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <TopNav userId={userId} orgId={orgId} currency={currency} orgName={orgName} logoUrl={logoUrl} userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} userRole={userRole} allowedLocationIds={allowedLocationIds} canViewAllBranches={canViewAllBranches} canChangeTheme={canChangeTheme} />
+          <TopNav
+            userId={userId}
+            orgId={orgId}
+            currency={currency}
+            orgName={orgName}
+            logoUrl={logoUrl}
+            userName={userName}
+            userEmail={userEmail}
+            avatarUrl={avatarUrl}
+            userRole={userRole}
+            allowedLocationIds={allowedLocationIds}
+            canViewAllBranches={canViewAllBranches}
+            canChangeTheme={canChangeTheme}
+            onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          />
           <main
-            className="page-canvas flex-1 overflow-y-auto p-4 sm:p-5"
+            className="page-canvas flex-1 overflow-y-auto p-4 pb-20 sm:p-5 md:pb-5"
             data-light-surfaces={useStandardLightSurfaces ? "standard" : undefined}
           >
             {children}

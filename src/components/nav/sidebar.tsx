@@ -210,9 +210,10 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
 
 // ── Reusable child list ───────────────────────────────────────
 
-function ChildLinks({ items, sidebar }: {
+function ChildLinks({ items, sidebar, onNavigate }: {
   items:   NavChild[];
   sidebar: { text: string; textMuted: string; borderColor: string };
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -231,6 +232,7 @@ function ChildLinks({ items, sidebar }: {
           <Link
             key={child.href}
             href={child.href}
+            onClick={onNavigate}
             prefetch={PREFETCH_ROUTES.has(childUrl.pathname)}
             aria-current={childActive ? "page" : undefined}
             className="flex items-center gap-2 rounded-lg py-1.5 px-2 text-[13px] transition-all duration-150"
@@ -257,7 +259,7 @@ function ChildLinks({ items, sidebar }: {
   );
 }
 
-export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro" }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string }) {
+export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro", mobileOpen = false, onNavigate }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string; mobileOpen?: boolean; onNavigate?: () => void }) {
   const pathname  = usePathname();
   const { activeTheme, darkMode } = useAppStore();
   const theme     = THEMES[activeTheme];
@@ -308,8 +310,11 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   return (
     <aside
       className={cn(
-        "relative hidden h-screen flex-col transition-[width] duration-200 shrink-0 md:flex",
-        collapsed ? "w-16" : "w-60"
+        "relative h-screen shrink-0 flex-col transition-[width] duration-200",
+        mobileOpen
+          ? "fixed inset-y-0 left-0 z-[60] flex w-[min(86vw,320px)] shadow-2xl md:relative md:inset-auto md:z-auto md:h-screen md:shadow-none"
+          : "hidden md:flex",
+        mobileOpen ? "md:w-60" : collapsed ? "md:w-16" : "md:w-60"
       )}
       style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
     >
@@ -376,7 +381,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
                     </>
                   )}
                 </button>
-                {isOpen && childItems?.length ? <ChildLinks items={childItems} sidebar={sidebar} /> : null}
+                {isOpen && childItems?.length ? <ChildLinks items={childItems} sidebar={sidebar} onNavigate={onNavigate} /> : null}
               </div>
             );
           }
@@ -387,7 +392,13 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
               key={item.href}
               href={isSoon ? "#" : item.href}
               prefetch={PREFETCH_ROUTES.has(item.href.split("?")[0])}
-              onClick={e => isSoon && e.preventDefault()}
+              onClick={e => {
+                if (isSoon) {
+                  e.preventDefault();
+                  return;
+                }
+                onNavigate?.();
+              }}
               title={collapsed ? item.label : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-150",
@@ -435,6 +446,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
                 || enabledModules.includes(`Settings:${child.label}`)
               )}
               sidebar={sidebar}
+              onNavigate={onNavigate}
             />
           )}
         </div>
@@ -446,7 +458,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
         {/* Need Help / Support */}
         {!collapsed && (
           <div className="px-3 py-2">
-            <Link href="/support" className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
+            <Link href="/support" onClick={onNavigate} className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
               <Headphones className="h-4 w-4 shrink-0 text-blue-400" />
               <div>
                 <p className="font-semibold" style={{ color: sidebar.text }}>Need Help?</p>
