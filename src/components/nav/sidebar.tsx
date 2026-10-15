@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
   Wallet, Landmark, Receipt, Package, FolderKanban,
   BarChart3, Settings, Sparkles, Lock,
-  ChevronLeft, ChevronRight, ChevronDown,
+  ChevronDown,
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
   Inbox, Headphones, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
@@ -259,7 +259,7 @@ function ChildLinks({ items, sidebar }: {
 
 export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro" }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string }) {
   const pathname  = usePathname();
-  const { activeTheme, darkMode, toggleSidebar } = useAppStore();
+  const { activeTheme, darkMode } = useAppStore();
   const theme     = THEMES[activeTheme];
   const sidebar   = {
     ...theme.sidebar,
@@ -273,6 +273,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   };
 
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
+    if (pathname.startsWith("/settings")) return "settings";
     // Auto-open the group containing the current path on first render
     const active = SHARED_NAV_ITEMS.find(item =>
       item.children?.some(c => pathname.startsWith(c.href))
@@ -312,22 +313,6 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       )}
       style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
     >
-
-     {/* Top collapse toggle — floating pill on the sidebar's edge */}
-  <button
-    title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-    onClick={toggleSidebar}
-    className="absolute -right-2.5 top-7 z-20 flex h-6 w-5 items-center justify-center rounded-md border shadow-card"
-    style={{
-      background: theme.colors.surface,
-      borderColor: sidebar.borderColor,
-      color: sidebar.textMuted,
-    }}
-    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = theme.colors.text; }}
-    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = sidebar.textMuted; }}
-  >
-    {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-  </button>
 
       {/* ── Logo ── */}
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
@@ -419,15 +404,9 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
             </Link>
           );
         })}
-      </nav>
-
-      {/* ── Bottom: Settings + Collapse ── */}
-      <div className="px-2 py-2 space-y-0.5 shrink-0"
-        style={{ borderTop: `1px solid ${sidebar.borderColor}` }}>
-
-        {/* Settings collapsible */}
-        <div>
+        <div className="mt-2 border-t pt-2" style={{ borderColor: sidebar.borderColor }}>
           <button
+            type="button"
             onClick={() => toggleGroup("settings")}
             title={collapsed ? "Settings" : undefined}
             className={cn(
@@ -459,7 +438,11 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
             />
           )}
         </div>
+      </nav>
 
+      {/* ── Bottom: Support ── */}
+      <div className="px-2 py-2 space-y-0.5 shrink-0"
+        style={{ borderTop: `1px solid ${sidebar.borderColor}` }}>
         {/* Need Help / Support */}
         {!collapsed && (
           <div className="px-3 py-2">
@@ -473,22 +456,6 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
           </div>
         )}
 
-        {/* Collapse toggle */}
-        <button
-          onClick={toggleSidebar}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all",
-            collapsed ? "justify-center px-2" : "px-3"
-          )}
-          style={{ color: sidebar.textMuted }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground; (e.currentTarget as HTMLElement).style.color = sidebar.text; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = sidebar.textMuted; }}
-        >
-          {collapsed
-            ? <ChevronRight className="h-4 w-4" />
-            : <><ChevronLeft className="h-4 w-4" /><span className="flex-1 text-left">Collapse</span></>
-          }
-        </button>
       </div>
     </aside>
   );

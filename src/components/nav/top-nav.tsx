@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart } from "lucide-react";
+import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { RefreshButton } from "@/components/refresh-button";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
@@ -34,7 +34,7 @@ interface NotificationItem {
 }
 
 export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean }) {
-  const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen } = useAppStore();
+  const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
   const topbar  = theme.topbar;
@@ -225,6 +225,15 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       className="flex h-14 items-center gap-3 px-5 shrink-0 relative z-30"
       style={{ background: topbar.background, borderBottom: `1px solid ${sidebar.borderColor}` }}
     >
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white md:flex"
+      >
+        {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+      </button>
       {/* Global search — anchored to the far left */}
       <button
         onClick={() => setCommandBarOpen(true)}

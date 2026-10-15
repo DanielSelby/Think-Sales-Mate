@@ -518,6 +518,43 @@ export async function createCashClosing(formData: FormData) {
     shiftWindow = branchSchedule?.shift_windows?.[shift] ?? defaultWindows[shift];
   }
   const { start, end } = getCashClosingPeriod(date, shift, timeZone, shiftWindow);
+  const overrideRequested = formData.get("override_open_register") === "on";
+  const overrideReason = String(formData.get("open_register_override_reason") ?? "").trim();
+  const registerDb = await createClient() as any;
+  let openRegistersQuery = registerDb.from("pos_register_sessions")
+    .select("id, location_id, register_name, cashier_id, cashier_name, opened_at")
+    .eq("org_id", ctx.orgId)
+    .eq("status", "open")
+    .lt("opened_at", end.toISOString());
+  if (locationId) {
+    openRegistersQuery = openRegistersQuery.eq("location_id", locationId);
+  } else if (ctx.isBranchScoped) {
+    openRegistersQuery = openRegistersQuery.in("location_id", ctx.allowedLocationIds);
+  }
+  const { data: openRegisters, error: openRegistersError } = await openRegistersQuery;
+  const closingContext = new URLSearchParams({
+    tab: "today",
+    business_date: date,
+    close_shift: shift,
+    ...(locationId ? { location_id: locationId } : {}),
+  }).toString();
+  if (openRegistersError) {
+    redirect(`/banking/cash-closing?${closingContext}&error=${encodeURIComponent(`Could not verify open POS registers: ${openRegistersError.message}`)}#declare-cash`);
+  }
+  const unresolvedRegisters = openRegisters ?? [];
+  let openRegisterOverride: { reason: string; sessionIds: string[] } | null = null;
+  if (unresolvedRegisters.length) {
+    if (!overrideRequested) {
+      redirect(`/banking/cash-closing?${closingContext}&error=${encodeURIComponent("Close all POS registers for this period before completing the end-of-day account, or ask an authorized manager to override with a reason.")}#declare-cash`);
+    }
+    if (!await canPermission("cash_closing", "approve")) {
+      redirect(`/banking/cash-closing?${closingContext}&error=${encodeURIComponent("Manager approval permission is required to override open POS registers.")}#declare-cash`);
+    }
+    if (overrideReason.length < 5) {
+      redirect(`/banking/cash-closing?${closingContext}&error=${encodeURIComponent("Enter a reason of at least 5 characters for the open-register override.")}#declare-cash`);
+    }
+    openRegisterOverride = { reason: overrideReason, sessionIds: unresolvedRegisters.map((session: { id: string }) => session.id) };
+  }
   const summary = await calculateExpectedCash(date, locationId, shift, ctx.canViewOtherTransactions ? null : ctx.userId, shiftWindow, timeZone);
   const variance = Number((actual - summary.expected).toFixed(2));
   if (Math.abs(variance) > 0.005 && !varianceReason) redirect("/banking/cash-closing?error=Variance%20reason%20is%20required");
@@ -558,8 +595,8 @@ export async function createCashClosing(formData: FormData) {
     if (linesError) redirect(`/banking/cash-closing?error=${encodeURIComponent(`Closing saved, but cash count lines could not be recorded: ${linesError.message}`)}`);
   }
   const auditEvents = [
-    { closing_id: closing.id, org_id: ctx.orgId, location_id: locationId, action: "created", actor_id: ctx.userId, metadata: { variance }, ...audit },
-    { closing_id: closing.id, org_id: ctx.orgId, location_id: locationId, action: "submitted", actor_id: ctx.userId, metadata: { approval_required: approvalRequired }, ...audit },
+    { closing_id: closing.id, org_id: ctx.orgId, location_id: locationId, action: "created", actor_id: ctx.userId, metadata: { variance, open_register_override: openRegisterOverride }, ...audit },
+    { closing_id: closing.id, org_id: ctx.orgId, location_id: locationId, action: "submitted", actor_id: ctx.userId, metadata: { approval_required: approvalRequired, open_register_override: openRegisterOverride }, ...audit },
     ...(!approvalRequired ? [{
       closing_id: closing.id,
       org_id: ctx.orgId,
