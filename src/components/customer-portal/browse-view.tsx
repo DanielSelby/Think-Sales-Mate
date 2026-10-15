@@ -166,6 +166,11 @@ export function BrowseView({
               <p className="text-[17px] font-extrabold uppercase tracking-tight text-ink-900 dark:text-white">
                 {orgName}
               </p>
+              {organizationPhone && (
+                <a href={`tel:${organizationPhone}`} className="block text-[11px] font-medium leading-tight text-ledger-500 hover:text-signal dark:text-ledger-400">
+                  {organizationPhone}
+                </a>
+              )}
               <p className="text-xs text-ledger-500">
                 Customer Ordering Portal
               </p>
@@ -578,7 +583,7 @@ export function BrowseView({
                 </p>
               </div>
             ) : view === "grid" ? (
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4 2xl:grid-cols-5 2xl:gap-2">
 
                 {filtered.map((product) => (
                   <ProductCard
@@ -926,14 +931,14 @@ function ProductCard({
     <article className="group overflow-hidden rounded-xl border border-ledger-200 bg-white transition-all hover:-translate-y-0.5 hover:border-ledger-300 hover:shadow-md dark:border-ledger-800 dark:bg-ink-900">
 
       {/* Product image */}
-      <div className="relative mx-2 mt-2 flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-white dark:bg-ink-900">
+      <div className="relative mx-2 mt-2 flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-white 2xl:mx-1.5 2xl:mt-1.5 dark:bg-ink-900">
 
         {product.imageUrl ? (
           <Image
             src={product.imageUrl}
             alt={product.name}
             fill
-            className="object-contain p-3"
+            className="object-contain p-3 2xl:p-2"
             unoptimized
           />
         ) : (
@@ -945,7 +950,7 @@ function ProductCard({
       </div>
 
       {/* Product information */}
-      <div className="flex shrink-0 flex-col p-2 sm:p-3">
+      <div className="flex shrink-0 flex-col p-2 sm:p-3 2xl:p-2">
 
         {product.brand && (
           <p className="mb-0.5 truncate text-[9px] font-semibold uppercase tracking-wide text-ledger-400">
@@ -953,7 +958,7 @@ function ProductCard({
           </p>
         )}
 
-        <h3 className="line-clamp-2 min-h-[32px] text-xs font-semibold leading-4 text-ink-900 dark:text-white">
+        <h3 className="line-clamp-2 min-h-[32px] text-xs font-semibold leading-4 text-ink-900 2xl:text-[11px] dark:text-white">
           {product.name}
         </h3>
 
@@ -970,7 +975,7 @@ function ProductCard({
         <button
           type="button"
           onClick={onAdd}
-          className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-md bg-signal text-[10px] font-semibold text-white transition hover:bg-signal/90 sm:mt-2.5 sm:gap-1.5 sm:text-[11px]"
+          className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-md bg-signal text-[10px] font-semibold text-white transition hover:bg-signal/90 sm:mt-2.5 sm:gap-1.5 sm:text-[11px] 2xl:mt-1.5"
         >
           <Plus className="h-3.5 w-3.5" />
 
