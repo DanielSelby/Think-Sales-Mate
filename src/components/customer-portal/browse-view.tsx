@@ -313,11 +313,10 @@ export function BrowseView({
             </div>
 
             {/* =================================================
-                HERO + PRODUCT HEADER — pinned below the top nav
+                SEARCH HERO — pinned below the top nav
             ================================================= */}
             <div
-              className="relative z-30 isolate overflow-hidden bg-white pb-1 shadow-[0_8px_18px_rgba(255,255,255,0.98)] sm:sticky sm:top-[74px] dark:bg-ink-950 dark:shadow-[0_8px_18px_rgba(10,16,14,0.98)]"
-              style={{ contain: "paint" }}
+              className="sticky top-[74px] z-30 isolate overflow-hidden bg-white pb-1 shadow-[0_8px_18px_rgba(255,255,255,0.98)] dark:bg-ink-950 dark:shadow-[0_8px_18px_rgba(10,16,14,0.98)]"
             >
             <div className="relative mb-3 min-h-[154px] overflow-hidden rounded-xl border border-[#dceee2] bg-[radial-gradient(circle_at_78%_36%,#ffffff_0,#e8f6ec_30%,transparent_57%),linear-gradient(110deg,#eaf7ee,#f8fcf9_55%,#dcefdc)] shadow-[0_18px_45px_rgba(36,108,72,0.12)] sm:mb-5 sm:min-h-[292px] sm:rounded-2xl dark:border-ledger-800 dark:bg-ink-900">
               <img
@@ -426,6 +425,7 @@ export function BrowseView({
                 </div>
               </div>
             </div>
+            </div>
 
             {/* =================================================
                 PRODUCT HEADER
@@ -500,7 +500,6 @@ export function BrowseView({
                   <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-400" />
                 </div>
               </div>
-            </div>
             </div>
 
             {/* =================================================
@@ -868,7 +867,7 @@ function ProductCard({
     <article className="group overflow-hidden rounded-xl border border-ledger-200 bg-white transition-all hover:-translate-y-0.5 hover:border-ledger-300 hover:shadow-md dark:border-ledger-800 dark:bg-ink-900">
 
       {/* Product image */}
-      <div className="relative mx-2 mt-2 flex h-[125px] items-center justify-center overflow-hidden rounded-lg bg-white dark:bg-ink-900">
+      <div className="relative mx-2 mt-2 flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-white dark:bg-ink-900">
 
         {product.imageUrl ? (
           <Image
@@ -887,7 +886,7 @@ function ProductCard({
       </div>
 
       {/* Product information */}
-      <div className="p-3">
+      <div className="flex shrink-0 flex-col p-2 sm:p-3">
 
         {product.brand && (
           <p className="mb-0.5 truncate text-[9px] font-semibold uppercase tracking-wide text-ledger-400">
@@ -912,7 +911,7 @@ function ProductCard({
         <button
           type="button"
           onClick={onAdd}
-          className="mt-2.5 flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-signal text-[11px] font-semibold text-white transition hover:bg-signal/90"
+          className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-md bg-signal text-[10px] font-semibold text-white transition hover:bg-signal/90 sm:mt-2.5 sm:gap-1.5 sm:text-[11px]"
         >
           <Plus className="h-3.5 w-3.5" />
 

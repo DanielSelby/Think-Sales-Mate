@@ -8,7 +8,7 @@ import {
   Search, Package, Loader2, UserPlus, Pause, FileText, Banknote, CreditCard, Smartphone,
   X, Trash2, Inbox, ChevronsLeft, XCircle, Briefcase, Calculator as CalculatorIcon,
  RotateCcw, Keyboard, PlusCircle, Plus, Delete, History, Layers, Tag, CheckCircle2, Printer, Pencil, Calendar, ChevronsRight,
-  Lock, Download, EllipsisVertical, ShoppingCart,
+  Lock, Download, Menu, ShoppingCart, Maximize, ArrowLeft, Undo2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -739,6 +739,25 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
     reloadRegisterSummary();
   }
 
+  function openRegisterDetails() {
+    setRegisterOpen(true);
+    setRegisterTab("history");
+    if (historyList.length === 0) loadRegisterHistory();
+  }
+
+  async function toggleFullScreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not change full-screen mode.");
+    }
+    setPosActionMenuOpen(false);
+  }
+
   function reloadRegisterSummary() {
     if (!registerSession) {
       setError("No open register session is available for the selected branch.");
@@ -1004,7 +1023,7 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
               onClick={() => setPosActionMenuOpen((open) => !open)}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-ledger-200 text-ledger-600 dark:border-ledger-700 dark:text-ledger-200"
             >
-              <EllipsisVertical className="h-5 w-5" />
+              <Menu className="h-5 w-5" />
             </button>
             {posActionMenuOpen && (
               <>
@@ -1014,18 +1033,21 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
                   className="fixed inset-0 z-40 cursor-default"
                   onClick={() => setPosActionMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-full z-50 mt-2 grid w-[min(90vw,320px)] grid-cols-2 gap-1 rounded-xl border border-ledger-200 bg-white p-2 shadow-xl dark:border-ledger-700 dark:bg-ink-900">
-                  <button type="button" onClick={() => { router.back(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Back</button>
-                  <button type="button" disabled={cart.length === 0} onClick={() => { handleVoid(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-alert hover:bg-alert-soft disabled:opacity-40">Void sale</button>
-                  <Link href="/sales" onClick={() => setPosActionMenuOpen(false)} className="rounded-lg px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Register / All Sales</Link>
-                  <button type="button" onClick={() => { setCalcOpen(true); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Calculator</button>
-                  <button type="button" onClick={() => { router.refresh(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Refresh Stock</button>
-                  <button type="button" onClick={() => { searchInputRef.current?.focus(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Focus Search / Scan</button>
-                  <button type="button" onClick={() => { openHeldList("hold"); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Suspended Sales</button>
-                  <button type="button" onClick={() => { openRegisterDialog(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Close Register</button>
-                  {registerSession && <Link href={`/pos/cash-drawer?location=${encodeURIComponent(locationId)}`} onClick={() => setPosActionMenuOpen(false)} className="rounded-lg px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Cash Drawer</Link>}
-                  <Link href="/accounting/expenses/new" onClick={() => setPosActionMenuOpen(false)} className="rounded-lg px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Add Expense</Link>
-                  <button type="button" onClick={() => { openRecentTransactions(); setPosActionMenuOpen(false); }} className="rounded-lg px-3 py-2 text-left text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]">Recent Transactions</button>
+                <div className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(72vh,640px)] w-[min(90vw,320px)] flex-col gap-1 overflow-y-auto rounded-xl border border-ledger-200 bg-white p-2 shadow-xl dark:border-ledger-700 dark:bg-ink-900">
+                  <button type="button" onClick={() => { router.back(); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><ArrowLeft className="h-5 w-5 shrink-0 text-sky-500" /> Go Back</button>
+                  <button type="button" onClick={() => { openRecentTransactions(); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><History className="h-5 w-5 shrink-0 text-indigo-500" /> Recent Transactions</button>
+                  <button type="button" onClick={() => { openRegisterDialog(); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Lock className="h-5 w-5 shrink-0 text-rose-500" /> Close Register</button>
+                  <button type="button" onClick={() => { openRegisterDetails(); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Briefcase className="h-5 w-5 shrink-0 text-emerald-600" /> Register Details</button>
+                  <button type="button" onClick={() => { setCalcOpen(true); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><CalculatorIcon className="h-5 w-5 shrink-0 text-emerald-600" /> Calculator</button>
+                  <Link href="/sales" onClick={() => setPosActionMenuOpen(false)} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Undo2 className="h-5 w-5 shrink-0 text-rose-500" /> Sell Return</Link>
+                  <button type="button" onClick={() => { router.refresh(); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><RotateCcw className="h-5 w-5 shrink-0 text-blue-500" /> Refresh Stock</button>
+                  <button type="button" onClick={() => { searchInputRef.current?.focus(); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Keyboard className="h-5 w-5 shrink-0 text-blue-500" /> Focus Search / Scan</button>
+                  <button type="button" onClick={() => { handleVoid(); setPosActionMenuOpen(false); }} disabled={cart.length === 0} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-alert shadow-sm hover:bg-alert-soft disabled:opacity-40 dark:border-ledger-700 dark:bg-ink-900"><XCircle className="h-5 w-5 shrink-0" /> Void Sale</button>
+                  <button type="button" onClick={() => { openHeldList("hold"); setPosActionMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Pause className="h-5 w-5 shrink-0 text-slate-400" /> View Suspended Sales</button>
+                  <button type="button" onClick={() => { void toggleFullScreen(); }} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Maximize className="h-5 w-5 shrink-0 text-indigo-500" /> Full Screen</button>
+                  {registerSession && <Link href={`/pos/cash-drawer?location=${encodeURIComponent(locationId)}`} onClick={() => setPosActionMenuOpen(false)} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Package className="h-5 w-5 shrink-0 text-slate-500" /> Cash Drawer</Link>}
+                  <Link href="/accounting/expenses/new" onClick={() => setPosActionMenuOpen(false)} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><PlusCircle className="h-5 w-5 shrink-0 text-slate-900 dark:text-white" /> Add Expense</Link>
+                  <Link href="/sales" onClick={() => setPosActionMenuOpen(false)} className="flex w-full items-center gap-3 rounded-lg border border-ledger-200 bg-white px-3 py-2.5 text-sm font-semibold text-ledger-700 shadow-sm hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-white/[0.06]"><Briefcase className="h-5 w-5 shrink-0 text-emerald-600" /> Register / All Sales</Link>
                   {canCheckCrossBranchStock && (
                     <div className="col-span-2 px-2 py-1">
                       <CrossBranchStockButton query={query} enabled={Boolean(query.trim()) && filteredProducts.length === 0} />

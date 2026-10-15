@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen, EllipsisVertical } from "lucide-react";
+import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen, Menu } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { RefreshButton } from "@/components/refresh-button";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
@@ -241,7 +241,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         title="Open navigation menu"
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
       >
-        <EllipsisVertical className="h-5 w-5" />
+        <Menu className="h-5 w-5" />
       </button>
       {/* Global search — anchored to the far left */}
       <button

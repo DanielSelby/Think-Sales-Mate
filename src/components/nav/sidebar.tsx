@@ -316,7 +316,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
           : "hidden md:flex",
         mobileOpen ? "md:w-60" : collapsed ? "md:w-16" : "md:w-60"
       )}
-      style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
+      style={{ background: darkMode ? theme.colors.primary : sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
     >
 
       {/* ── Logo ── */}
