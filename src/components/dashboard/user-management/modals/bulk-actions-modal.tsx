@@ -163,7 +163,7 @@ export function BulkDeleteModal({
 
         <div className="p-6 space-y-3">
           <p className="text-xs text-ledger-600 dark:text-ledger-300">
-            Are you sure you want to remove the <strong className="text-ink-900 dark:text-white">{selectedCount} selected user accounts</strong> from ThinkSales Pro?
+            Are you sure you want to remove the <strong className="text-ink-900 dark:text-white">{selectedCount} selected members</strong> from this organization? Their authentication accounts will not be deleted.
           </p>
           <p className="text-[11px] text-ledger-400">
             This will revoke their login access, terminate active sessions, and remove branch assignments. Historical transactions and audit logs will remain intact.

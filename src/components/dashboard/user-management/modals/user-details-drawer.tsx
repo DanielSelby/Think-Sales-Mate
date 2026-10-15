@@ -13,8 +13,6 @@ import {
   KeyRound,
   CheckCircle2,
   AlertTriangle,
-  Smartphone,
-  Laptop,
   Globe,
   FileText,
   Lock,
@@ -473,32 +471,11 @@ export function UserDetailsDrawer({
             {/* SECURITY TAB */}
             {activeTab === "security" && (
               <div className="space-y-4">
-                <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Active Sessions & Devices</h3>
-                  <div className="space-y-2">
-                    {[
-                      { device: "Chrome 124 on Windows 11", ip: "102.176.94.12", location: "Accra, Ghana", current: true, time: "Active now" },
-                      { device: "Safari 17.4 on iOS 17 (iPhone 15)", ip: "154.160.22.41", location: "Kumasi, Ghana", current: false, time: "2 hours ago" }
-                    ].map((s, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-ledger-100 dark:border-ledger-800 bg-slate-50/50 dark:bg-slate-800/40 text-xs">
-                        <div className="flex items-center gap-3">
-                          {s.device.includes("iPhone") ? <Smartphone className="h-4 w-4 text-blue-600" /> : <Laptop className="h-4 w-4 text-blue-600" />}
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-bold text-ink-900 dark:text-white">{s.device}</p>
-                              {s.current && <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">This Device</span>}
-                            </div>
-                            <p className="text-[11px] text-ledger-400 font-mono">{s.ip} • {s.location} • {s.time}</p>
-                          </div>
-                        </div>
-                        {!s.current && (
-                          <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 text-xs h-7">
-                            Revoke
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">Session details unavailable</h3>
+                  <p className="mt-2 text-xs leading-5 text-ledger-600 dark:text-ledger-300">
+                    Device, IP address, location, and session revocation are not available from the current authentication integration.
+                  </p>
                 </div>
               </div>
             )}

@@ -38,7 +38,6 @@ function createInitialFormData(user: ManagedUser | null, branches: UserBranch[])
     branchScope,
     canViewOtherTransactions: user?.canViewOtherTransactions !== false,
     canCheckCrossBranchStock: user?.canCheckCrossBranchStock === true,
-    twoFactorEnabled: Boolean(user?.twoFactorEnabled),
     approvalStockTransfers: Boolean(user?.approvalPermissions?.stockTransfers),
     approvalPurchases: Boolean(user?.approvalPermissions?.purchases),
     approvalExpenses: Boolean(user?.approvalPermissions?.expenses),
@@ -114,7 +113,6 @@ export function EditUserModal({
       branchScope: isSuperAdmin ? "all" : formData.branchScope,
       canViewOtherTransactions: isSuperAdmin || formData.canViewOtherTransactions,
       canCheckCrossBranchStock: isSuperAdmin || formData.canCheckCrossBranchStock,
-      twoFactorEnabled: formData.twoFactorEnabled,
       approvalPermissions: {
         stockTransfers: formData.approvalStockTransfers,
         purchases: formData.approvalPurchases,
@@ -331,19 +329,9 @@ export function EditUserModal({
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-ledger-100 dark:border-ledger-800">
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.twoFactorEnabled}
-                      onChange={(e) => setFormData({ ...formData, twoFactorEnabled: e.target.checked })}
-                      className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-xs text-ink-900 dark:text-white font-medium">
-                      Require Two-Factor Authentication (2FA) for this account
-                    </span>
-                  </label>
-                </div>
+                <p className="border-t border-ledger-100 pt-3 text-xs text-ledger-500 dark:border-ledger-800 dark:text-ledger-400">
+                  Two-factor enrollment is managed by the authentication provider and cannot be changed from this form.
+                </p>
               </div>
             )}
 

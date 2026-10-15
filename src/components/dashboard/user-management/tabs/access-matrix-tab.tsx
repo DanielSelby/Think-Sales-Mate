@@ -21,7 +21,7 @@ import type { RoleDefinition, ModuleCategory, PermissionAction } from "../types"
 interface AccessMatrixTabProps {
   roles: RoleDefinition[];
   canManage: boolean;
-  onUpdateRolePermissions: (roleId: string, permissions: Record<ModuleCategory, PermissionAction[]>) => void;
+  onUpdateRolePermissions: (roleId: string, permissions: Record<ModuleCategory, PermissionAction[]>) => Promise<{ error?: string } | void>;
   mode?: "all" | "tabs" | "actions";
 }
 
@@ -43,6 +43,7 @@ export function AccessMatrixTab({
   const [search, setSearch] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [activeTabModule, setActiveTabModule] = useState(Object.keys(PERMISSION_PAGE_CONFIGS)[0] ?? "sales");
   const [moduleSearch, setModuleSearch] = useState("");
   const [showExcelMatrix, setShowExcelMatrix] = useState(false);
@@ -148,9 +149,20 @@ export function AccessMatrixTab({
     setHasChanges(true);
   };
 
-  const handleSaveMatrix = () => {
+  const handleSaveMatrix = async () => {
     if (activeRole) {
-      onUpdateRolePermissions(activeRole.id, matrixData[activeRoleKey]);
+      setSaveError(null);
+      let result: { error?: string } | void;
+      try {
+        result = await onUpdateRolePermissions(activeRole.id, matrixData[activeRoleKey]);
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : "Unexpected error while saving permissions.");
+        return;
+      }
+      if (result?.error) {
+        setSaveError(result.error);
+        return;
+      }
       setHasChanges(false);
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 2000);
@@ -203,6 +215,11 @@ export function AccessMatrixTab({
 
   return (
     <div className="space-y-4">
+      {saveError && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+          Could not save permission changes: {saveError}
+        </p>
+      )}
       
       {/* Matrix Controls Header */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-4 rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900">

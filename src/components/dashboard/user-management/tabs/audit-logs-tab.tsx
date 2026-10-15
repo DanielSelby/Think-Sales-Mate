@@ -43,9 +43,9 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
   const [selectedLogForDiff, setSelectedLogForDiff] = useState<AuditLogEntry | null>(null);
   const pageSize = 10;
 
-  // 6 Activity Dashboard KPIs
-  const totalActivitiesToday = logs.length;
-  const activeUsersToday = new Set(logs.map((l) => l.userId)).size;
+  const todayLogs = logs.filter((log) => new Date(log.timestamp).toDateString() === new Date().toDateString());
+  const totalActivitiesToday = todayLogs.length;
+  const activeUsersToday = new Set(todayLogs.map((log) => log.userId).filter(Boolean)).size;
   const failedLogins = logs.filter((l) => l.action.toLowerCase().includes("failed login") || l.status === "failed").length;
   const criticalChanges = logs.filter((l) => l.action.toLowerCase().includes("role") || l.action.toLowerCase().includes("price") || l.action.toLowerCase().includes("deactivat")).length;
   const exportsPerformed = logs.filter((l) => l.action.toLowerCase().includes("export") || l.module.toLowerCase().includes("report")).length;
@@ -151,15 +151,15 @@ export function AuditLogsTab({ logs, branches }: AuditLogsTabProps) {
       {/* 6 Activity Dashboard KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Total Activities</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Activities Today</span>
           <p className="text-xl font-bold text-ink-900 dark:text-white mt-1">{totalActivitiesToday}</p>
-          <p className="text-[11px] text-blue-600 font-medium">Logged events</p>
+          <p className="text-[11px] text-blue-600 font-medium">Within the latest 500 logs</p>
         </div>
 
         <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Active Users Today</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Users in Logs Today</span>
           <p className="text-xl font-bold text-ink-900 dark:text-white mt-1">{activeUsersToday}</p>
-          <p className="text-[11px] text-emerald-600 font-medium">Unique actors</p>
+          <p className="text-[11px] text-emerald-600 font-medium">Not a live-presence count</p>
         </div>
 
         <div className="p-3.5 rounded-2xl border border-ledger-100 bg-white dark:border-ledger-800 dark:bg-slate-900 shadow-sm">

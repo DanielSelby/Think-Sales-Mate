@@ -12,7 +12,7 @@ interface RoleModalProps {
   onClose: () => void;
   roleToEdit: RoleDefinition | null;
   mode: "create" | "edit" | "clone";
-  onSaveRole: (role: RoleDefinition) => void;
+  onSaveRole: (role: RoleDefinition) => Promise<{ error?: string } | void>;
 }
 
 function createDefaultPermissions(): Record<ModuleCategory, PermissionAction[]> {
@@ -39,6 +39,8 @@ export function RoleModal({
     priceUpdates: false,
     stockAdjustments: false
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -102,14 +104,17 @@ export function RoleModal({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     const totalCount = calculateTotalPermissions();
+    const roleKey = mode === "edit" && roleToEdit
+      ? roleToEdit.key
+      : name.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const newRole: RoleDefinition = {
-      id: mode === "edit" && roleToEdit ? roleToEdit.id : `role-${Date.now()}`,
-      key: mode === "edit" && roleToEdit ? roleToEdit.key : name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+      id: mode === "edit" && roleToEdit ? roleToEdit.id : `role-${roleKey}`,
+      key: roleKey,
       name: name.trim(),
       description: description.trim() || "Custom enterprise role with customized RBAC capabilities.",
       userCount: mode === "edit" && roleToEdit ? roleToEdit.userCount : 0,
@@ -121,8 +126,20 @@ export function RoleModal({
       approvalCapabilities: approvals
     };
 
-    onSaveRole(newRole);
-    onClose();
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const result = await onSaveRole(newRole);
+      if (result?.error) {
+        setSaveError(result.error);
+        return;
+      }
+      onClose();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save this role.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -154,6 +171,11 @@ export function RoleModal({
 
         {/* Content Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          {saveError && (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+              {saveError}
+            </p>
+          )}
           
           {/* Basic Details */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -302,11 +324,11 @@ export function RoleModal({
               Total Permissions: {calculateTotalPermissions()}
             </span>
             <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="bg-purple-600 hover:bg-purple-700 text-white">
-                {mode === "create" ? "Save New Role" : mode === "clone" ? "Clone Role" : "Update Role"}
+              <Button type="submit" size="sm" disabled={isSaving} className="bg-purple-600 hover:bg-purple-700 text-white">
+                {isSaving ? "Saving..." : mode === "create" ? "Save New Role" : mode === "clone" ? "Clone Role" : "Update Role"}
               </Button>
             </div>
           </div>

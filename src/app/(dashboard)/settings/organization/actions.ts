@@ -10,16 +10,21 @@ import { getCurrencyConfig } from "@/lib/currency";
 import { defaultPermissionMatrixForRole, normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
-import { isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
+import { canGrantSuperAdminRole, isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
 import { assertOrganizationCapacity } from "@/lib/organizations/capacity";
 
 function databaseRole(role: string): MemberRole {
-  const key = role.toLowerCase();
+  const key = role.trim().toLowerCase();
   if (key === "owner" || key === "super_admin") return "owner";
   if (key === "administrator" || key === "admin") return "admin";
   if (key === "manager" || key === "branch_manager") return "manager";
   if (key === "viewer") return "viewer";
   return "staff";
+}
+
+function isValidAvatar(file: File): boolean {
+  return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)
+    && file.size <= 5 * 1024 * 1024;
 }
 
 function submittedPermissions(formData: FormData, requestedRole = ""): Record<string, unknown> {
@@ -32,6 +37,35 @@ function submittedPermissions(formData: FormData, requestedRole = ""): Record<st
     }
   }
   return defaultPermissionMatrixForRole(requestedRole);
+}
+
+function submittedApprovalPermissions(formData: FormData): Record<string, boolean | number> | null | undefined {
+  const raw = formData.get("approval_permissions");
+  if (typeof raw !== "string" || !raw.trim()) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+  const input = parsed as Record<string, unknown>;
+  const result: Record<string, boolean | number> = {};
+  for (const key of ["stockTransfers", "purchases", "expenses", "priceUpdates", "stockAdjustments", "customerOrders"]) {
+    if (key in input) {
+      if (typeof input[key] !== "boolean") return null;
+      result[key] = input[key];
+    }
+  }
+  for (const key of ["maxExpenseAmount", "maxPurchaseAmount"]) {
+    if (key in input) {
+      const value = Number(input[key]);
+      if (!Number.isFinite(value) || value < 0) return null;
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> {
@@ -67,23 +101,47 @@ async function sendOrganizationInvite(email: string, name: string, orgName: stri
 
 export async function inviteMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const requestedRole = String(formData.get("role") ?? "staff").toLowerCase();
+  const requestedRole = String(formData.get("role") ?? "staff").trim().toLowerCase();
   const isSuperAdmin = isSuperAdminRole(requestedRole);
   const role = databaseRole(requestedRole);
   const avatar = formData.get("avatar");
   const locationId = String(formData.get("location_id") ?? "").trim();
   const branchScope = String(formData.get("branch_scope") ?? "assigned");
   const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  const phone = String(formData.get("phone") ?? "").trim();
+  const employeeId = String(formData.get("employee_id") ?? "").trim();
+  const department = String(formData.get("department") ?? "").trim();
   const canViewOther = isSuperAdmin || formData.get("can_view_other_users_transactions") !== "false";
   const canCheckCrossBranchStock = isSuperAdmin || formData.get("can_check_cross_branch_stock") === "true";
+  const approvalPermissions = submittedApprovalPermissions(formData);
 
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired." };
   if (!await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to invite members." };
   }
+  if (!canGrantSuperAdminRole(context.role, requestedRole)) {
+    return { error: "Only an organization owner can grant Super Admin access." };
+  }
+  if (!["all", "assigned", "single"].includes(branchScope)) return { error: "Invalid branch access scope." };
+  if (approvalPermissions === null) return { error: "Approval permissions are invalid." };
 
   if (!email) return { error: "Email is required." };
+  if (avatar instanceof File && avatar.size > 0 && !isValidAvatar(avatar)) {
+    return { error: "Profile photo must be a JPEG, PNG, WebP, or GIF under 5MB." };
+  }
+  const locationIds = [locationId, ...secondaryLocationIds].filter(Boolean);
+  if (locationIds.length) {
+    const admin = createAdminClient();
+    const { data: validLocations, error: locationError } = await admin
+      .from("business_locations")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .in("id", locationIds);
+    if (locationError) return { error: locationError.message };
+    const validLocationIds = new Set((validLocations ?? []).map((location) => location.id));
+    if (locationIds.some((id) => !validLocationIds.has(id))) return { error: "One or more selected branches are invalid." };
+  }
   try {
     await assertOrganizationCapacity(context.orgId, "users");
   } catch (error) {
@@ -102,18 +160,53 @@ export async function inviteMember(formData: FormData) {
     location_id: isSuperAdmin ? null : locationId || null,
     branch_scope: isSuperAdmin ? "all" : branchScope as "all" | "assigned" | "single",
     secondary_location_ids: isSuperAdmin ? [] : secondaryLocationIds,
+    phone: phone || null,
+    employee_id: employeeId || null,
+    department: department || null,
     can_view_other_users_transactions: canViewOther,
     can_check_cross_branch_stock: canCheckCrossBranchStock,
     access_permissions: {
       role_key: requestedRole,
-      permissions: submittedPermissions(formData, requestedRole)
+      permissions: submittedPermissions(formData, requestedRole),
+      ...(approvalPermissions ? { approvals: approvalPermissions } : {})
     },
   }).select("id").single();
 
   if (memberError) return { error: memberError.message };
 
+  let avatarUrl: string | null = null;
+  let warning: string | undefined;
+  if (avatar instanceof File && avatar.size > 0 && invited.userId) {
+    const extensionByType: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/gif": "gif"
+    };
+    const extension = extensionByType[avatar.type] ?? "jpg";
+    const path = `${invited.userId}/profile.${extension}`;
+    const admin = createAdminClient();
+    const { error: uploadError } = await admin.storage.from("profile-avatars").upload(path, avatar, {
+      upsert: true,
+      contentType: avatar.type
+    });
+    if (uploadError) {
+      warning = `Invitation created, but profile photo upload failed: ${uploadError.message}`;
+    } else {
+      avatarUrl = admin.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
+      const { error: profileError } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("id", invited.userId);
+      const { error: memberAvatarError } = await (admin.from("organization_members") as any)
+        .update({ avatar_url: avatarUrl })
+        .eq("id", member.id)
+        .eq("org_id", context.orgId);
+      if (profileError || memberAvatarError) {
+        warning = `Invitation created, but profile photo details could not be fully saved: ${profileError?.message ?? memberAvatarError?.message}`;
+      }
+    }
+  }
+
   revalidatePath("/settings/organization");
-  return { success: true, memberId: member?.id };
+  return { success: true, memberId: member?.id, avatarUrl, warning };
 }
 
 /**
@@ -138,6 +231,9 @@ export async function createStaffAccount(formData: FormData) {
   const department = String(formData.get("department") ?? "").trim();
   const requestedRole = String(formData.get("role") ?? "staff").trim().toLowerCase();
   const requestedSuperAdmin = isSuperAdminRole(requestedRole);
+  if (!canGrantSuperAdminRole(context.role, requestedRole)) {
+    return { error: "Only an organization owner can grant Super Admin access." };
+  }
   const locationId = String(formData.get("location_id") ?? "").trim() || null;
   const branchScope = String(formData.get("branch_scope") ?? "assigned");
   const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "")
@@ -171,8 +267,8 @@ export async function createStaffAccount(formData: FormData) {
     return { error: "Enter a valid email address or leave email blank." };
   }
   if (!["all", "assigned", "single"].includes(branchScope)) return { error: "Invalid branch access scope." };
-  if (avatar instanceof File && avatar.size > 0 && (!avatar.type.startsWith("image/") || avatar.size > 5 * 1024 * 1024)) {
-    return { error: "Profile photo must be an image under 5MB." };
+  if (avatar instanceof File && avatar.size > 0 && !isValidAvatar(avatar)) {
+    return { error: "Profile photo must be a JPEG, PNG, WebP, or GIF under 5MB." };
   }
 
   // The UI has richer role templates than the database's tenant roles. Keep
@@ -290,17 +386,34 @@ export async function createStaffAccount(formData: FormData) {
     return { error: memberError?.message ?? "Unable to save the staff profile." };
   }
 
+  let avatarUrl: string | null = null;
+  let warning: string | undefined;
   if (avatar instanceof File && avatar.size > 0) {
-    const extension = avatar.name.split(".").pop()?.toLowerCase() || "jpg";
+    const extensionByType: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/gif": "gif"
+    };
+    const extension = extensionByType[avatar.type] ?? "jpg";
     const path = `${authData.user.id}/profile.${extension}`;
     const { error: uploadError } = await admin.storage.from("profile-avatars").upload(path, avatar, {
       upsert: true,
       contentType: avatar.type
     });
-    if (uploadError) return { error: `Account created, but profile photo upload failed: ${uploadError.message}` };
-    const { data: publicUrl } = admin.storage.from("profile-avatars").getPublicUrl(path);
-    const { error: profileError } = await admin.from("profiles").update({ avatar_url: publicUrl.publicUrl }).eq("id", authData.user.id);
-    if (profileError) return { error: `Account created, but profile photo could not be saved: ${profileError.message}` };
+    if (uploadError) {
+      warning = `Account created, but profile photo upload failed: ${uploadError.message}`;
+    } else {
+      avatarUrl = admin.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
+      const { error: profileError } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("id", authData.user.id);
+      const { error: memberAvatarError } = await (admin.from("organization_members") as any)
+        .update({ avatar_url: avatarUrl })
+        .eq("id", member.id)
+        .eq("org_id", context.orgId);
+      if (profileError || memberAvatarError) {
+        warning = `Account created, but profile photo details could not be fully saved: ${profileError?.message ?? memberAvatarError?.message}`;
+      }
+    }
   }
 
   revalidatePath("/settings/organization");
@@ -310,7 +423,9 @@ export async function createStaffAccount(formData: FormData) {
     userId: authData.user.id,
     username,
     temporaryPassword: password,
-    email: contactEmail
+    email: contactEmail,
+    avatarUrl,
+    warning
   };
 }
 
@@ -338,6 +453,9 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
   if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to update member access." };
   }
+  if (!canGrantSuperAdminRole(context.role, input.role)) {
+    return { error: "Only an organization owner can grant Super Admin access." };
+  }
 
   const admin = createAdminClient();
   const targetOwner = await targetIsOwner(input.memberId, context.orgId);
@@ -350,8 +468,8 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     .maybeSingle();
 
   if (input.avatar instanceof File && input.avatar.size > 0) {
-    if (!input.avatar.type.startsWith("image/") || input.avatar.size > 5 * 1024 * 1024) {
-      return { error: "Profile photo must be an image under 5MB." };
+    if (!isValidAvatar(input.avatar)) {
+      return { error: "Profile photo must be a JPEG, PNG, WebP, or GIF under 5MB." };
     }
     if (!member?.user_id) return { error: "This user does not have an account profile to update." };
 
@@ -514,6 +632,9 @@ export async function updateMemberRole(memberId: string, role: MemberRole) {
   if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to change roles." };
   }
+  if (!canGrantSuperAdminRole(context.role, role)) {
+    return { error: "Only an organization owner can grant Super Admin access." };
+  }
   if (await targetIsOwner(memberId, context.orgId)) {
     return { error: "The organization owner is the super admin and cannot be demoted." };
   }
@@ -574,11 +695,28 @@ export async function updateMemberBranch(memberId: string, locationId: string | 
   if (!context || !await canPermission("user_management", "edit")) {
     return { error: "You don't have permission to reassign members." };
   }
+  if (await targetIsOwner(memberId, context.orgId)) {
+    return { error: "The organization owner has access to all branches." };
+  }
 
   const supabase = await createClient();
+  if (locationId) {
+    const { data: location, error: locationError } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("id", locationId)
+      .eq("org_id", context.orgId)
+      .maybeSingle();
+    if (locationError) return { error: locationError.message };
+    if (!location) return { error: "Select a valid branch." };
+  }
   const { error } = await supabase
     .from("organization_members")
-    .update({ location_id: locationId })
+    .update({
+      location_id: locationId,
+      branch_scope: locationId ? "single" : "assigned",
+      secondary_location_ids: []
+    })
     .eq("id", memberId)
     .eq("org_id", context.orgId);
 
@@ -617,13 +755,14 @@ export async function resendInvite(memberId: string) {
   }
 
   const supabase = await createClient();
-  const { data: member } = await supabase
+  const { data: member, error } = await supabase
     .from("organization_members")
     .select("invited_email, status")
     .eq("id", memberId)
     .eq("org_id", context.orgId)
-    .single();
+    .maybeSingle();
 
+  if (error) return { error: error.message };
   if (!member?.invited_email) return { error: "No email on file for this member." };
   if (member.status !== "invited") return { error: "This member has already accepted their invite." };
 
@@ -640,7 +779,44 @@ export async function removeMember(memberId: string) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("organization_members").delete().eq("id", memberId);
+  const { error } = await supabase
+    .from("organization_members")
+    .delete()
+    .eq("id", memberId)
+    .eq("org_id", context.orgId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings/organization");
+  return { success: true };
+}
+
+export async function deleteRoleTemplate(roleKey: string) {
+  const context = await getCurrentOrgContext();
+  if (!context || !await canPermission("user_management", "edit")) {
+    return { error: "You don't have permission to delete role templates." };
+  }
+  const normalizedRoleKey = roleKey.replace(/^role-/, "").trim();
+  if (!normalizedRoleKey || isSuperAdminRole(normalizedRoleKey)) {
+    return { error: "System roles cannot be removed." };
+  }
+
+  const supabase = await createClient();
+  const { data: assignedMembers, error: memberError } = await (supabase as any)
+    .from("organization_members")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .eq("access_permissions->>role_key", normalizedRoleKey)
+    .limit(1);
+  if (memberError) return { error: memberError.message };
+  if (assignedMembers?.length) {
+    return { error: "This role is assigned to members. Reassign them before deleting it." };
+  }
+
+  const { error } = await (supabase as any)
+    .from("organization_role_templates")
+    .delete()
+    .eq("org_id", context.orgId)
+    .eq("role_key", normalizedRoleKey);
   if (error) return { error: error.message };
 
   revalidatePath("/settings/organization");
@@ -649,65 +825,137 @@ export async function removeMember(memberId: string) {
 
 export interface BulkInviteRow {
   email: string;
-  role: MemberRole;
+  role: string;
   locationId?: string | null;
+  fullName?: string;
+  phone?: string;
+  employeeId?: string;
+  department?: string;
+  sourceRow?: number;
 }
 
 export interface BulkInviteResult {
   invited: number;
   skipped: { row: number; reason: string }[];
+  members: {
+    id: string;
+    userId: string | null;
+    email: string;
+    fullName: string;
+    role: string;
+    locationId: string | null;
+    phone: string | null;
+    employeeId: string | null;
+    department: string | null;
+    createdAt: string;
+  }[];
 }
 
 export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInviteResult> {
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("user_management", "edit")) {
-    return { invited: 0, skipped: rows.map((_, i) => ({ row: i + 1, reason: "Not permitted" })) };
+    return { invited: 0, skipped: rows.map((row, i) => ({ row: row.sourceRow ?? i + 1, reason: "Not permitted" })), members: [] };
+  }
+  if (rows.some((row) => isSuperAdminRole(row.role)) && !isSuperAdminRole(context.role)) {
+    return {
+      invited: 0,
+      skipped: rows.map((row, i) => ({
+        row: row.sourceRow ?? i + 1,
+        reason: isSuperAdminRole(row.role) ? "Only an organization owner can grant Super Admin access." : "Import cancelled because it contains a restricted role."
+      })),
+      members: []
+    };
   }
 
   const supabase = await createClient();
-  const admin = createAdminClient();
   const skipped: { row: number; reason: string }[] = [];
+  const members: BulkInviteResult["members"] = [];
   let invited = 0;
+  const requestedLocationIds = Array.from(new Set(rows.map((row) => row.locationId).filter((id): id is string => Boolean(id))));
+  const validLocationIds = new Set<string>();
+  if (requestedLocationIds.length) {
+    const { data: locations, error } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .in("id", requestedLocationIds);
+    if (error) {
+      return {
+        invited: 0,
+        skipped: rows.map((row, i) => ({ row: row.sourceRow ?? i + 1, reason: `Could not verify branches: ${error.message}` })),
+        members: []
+      };
+    }
+    for (const location of locations ?? []) validLocationIds.add(location.id);
+  }
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    const rowNumber = row.sourceRow ?? i + 1;
     const email = row.email.trim().toLowerCase();
-    if (!email) {
-      skipped.push({ row: i + 1, reason: "Missing email" });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      skipped.push({ row: rowNumber, reason: "Missing or invalid email" });
+      continue;
+    }
+    if (row.locationId && !validLocationIds.has(row.locationId)) {
+      skipped.push({ row: rowNumber, reason: "Branch does not belong to this organization" });
       continue;
     }
 
     try {
       await assertOrganizationCapacity(context.orgId, "users");
     } catch (error) {
-      skipped.push({ row: i + 1, reason: error instanceof Error ? error.message : "Could not verify the organization's user limit." });
+      skipped.push({ row: rowNumber, reason: error instanceof Error ? error.message : "Could not verify the organization's user limit." });
       continue;
     }
 
-    const inviteResult = await sendOrganizationInvite(email, email.split("@")[0], context.orgName);
+    const requestedRole = row.role.trim().toLowerCase() || "staff";
+    const isSuperAdmin = isSuperAdminRole(requestedRole);
+    const inviteResult = await sendOrganizationInvite(email, row.fullName?.trim() || email.split("@")[0], context.orgName);
     if ("error" in inviteResult) {
-      skipped.push({ row: i + 1, reason: inviteResult.error ?? "Invitation failed." });
+      skipped.push({ row: rowNumber, reason: inviteResult.error ?? "Invitation failed." });
       continue;
     }
 
-    const { error: memberError } = await supabase.from("organization_members").insert({
+    const fullName = row.fullName?.trim() || email.split("@")[0];
+    const locationId = isSuperAdmin ? null : row.locationId || null;
+    const { data: member, error: memberError } = await supabase.from("organization_members").insert({
       org_id: context.orgId,
       user_id: inviteResult.userId,
       invited_email: email,
-      role: row.role || "staff",
+      role: databaseRole(requestedRole),
       status: "invited",
-      location_id: row.locationId || null
-    });
+      location_id: locationId,
+      branch_scope: isSuperAdmin ? "all" : locationId ? "single" : "assigned",
+      phone: row.phone?.trim() || null,
+      employee_id: row.employeeId?.trim() || null,
+      department: row.department?.trim() || null,
+      can_view_other_users_transactions: true,
+      can_check_cross_branch_stock: isSuperAdmin,
+      access_permissions: { role_key: requestedRole }
+    }).select("id, created_at").single();
 
     if (memberError) {
-      skipped.push({ row: i + 1, reason: memberError.message });
+      skipped.push({ row: rowNumber, reason: memberError.message });
     } else {
       invited++;
+      members.push({
+        id: member.id,
+        userId: inviteResult.userId ?? null,
+        email,
+        fullName,
+        role: requestedRole,
+        locationId,
+        phone: row.phone?.trim() || null,
+        employeeId: row.employeeId?.trim() || null,
+        department: row.department?.trim() || null,
+        createdAt: member.created_at
+      });
     }
   }
 
   revalidatePath("/settings/organization");
-  return { invited, skipped };
+  return { invited, skipped, members };
 }
 
 

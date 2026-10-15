@@ -10,6 +10,10 @@ export function isSuperAdminRole(role: string | null | undefined): boolean {
   return normalizedRole === "owner" || normalizedRole === "super_admin";
 }
 
+export function canGrantSuperAdminRole(actorRole: string | null | undefined, requestedRole: string | null | undefined): boolean {
+  return !isSuperAdminRole(requestedRole) || isSuperAdminRole(actorRole);
+}
+
 export function isOrganizationSuperAdminMember({
   role,
   userId,

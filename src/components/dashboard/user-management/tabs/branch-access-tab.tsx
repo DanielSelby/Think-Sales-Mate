@@ -24,7 +24,7 @@ interface BranchAccessTabProps {
   branches: UserBranch[];
   users: ManagedUser[];
   canManage: boolean;
-  onSaveAccess?: (rule: BranchAccessRule) => Promise<void>;
+  onSaveAccess?: (rule: BranchAccessRule) => Promise<{ error?: string } | void>;
 }
 
 export function BranchAccessTab({ branches, users, canManage, onSaveAccess }: BranchAccessTabProps) {
@@ -41,9 +41,11 @@ export function BranchAccessTab({ branches, users, canManage, onSaveAccess }: Br
     canTransferBetweenBranches: user.canCheckCrossBranchStock === true,
     canApproveBranchOrders: user.approvalPermissions?.customerOrders === true
   })));
+  const [savedRules, setSavedRules] = useState(accessRules);
   const [search, setSearch] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleToggleViewAll = (userId: string) => {
     if (!canManage) return;
@@ -76,9 +78,38 @@ export function BranchAccessTab({ branches, users, canManage, onSaveAccess }: Br
   };
 
   const handleSave = async () => {
-    if (onSaveAccess) {
-      await Promise.all(accessRules.map((rule) => onSaveAccess(rule)));
+    const changedRules = accessRules.filter((rule) => {
+      const saved = savedRules.find((item) => item.userId === rule.userId);
+      return !saved || JSON.stringify(saved) !== JSON.stringify(rule);
+    });
+    if (onSaveAccess && changedRules.length) {
+      let results: Array<{ error?: string } | void>;
+      try {
+        results = await Promise.all(changedRules.map((rule) => onSaveAccess(rule)));
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : "Unexpected error while saving branch access.");
+        return;
+      }
+      const successfulIds = new Set<string>();
+      const failures: string[] = [];
+      results.forEach((result, index) => {
+        if (result?.error) failures.push(result.error);
+        else successfulIds.add(changedRules[index].userId);
+      });
+      if (successfulIds.size) {
+        setSavedRules((previous) => previous.map((rule) => {
+          const updated = accessRules.find((item) => item.userId === rule.userId);
+          return updated && successfulIds.has(rule.userId) ? updated : rule;
+        }));
+      }
+      if (failures.length) {
+        setSaveError(failures[0]);
+        setHasChanges(true);
+        return;
+      }
     }
+    setSaveError(null);
+    setSavedRules(accessRules);
     setHasChanges(false);
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 2000);
@@ -120,6 +151,11 @@ export function BranchAccessTab({ branches, users, canManage, onSaveAccess }: Br
 
   return (
     <div className="space-y-4">
+      {saveError && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+          Some branch access changes were not saved: {saveError}
+        </p>
+      )}
       
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900">

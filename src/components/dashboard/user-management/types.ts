@@ -114,7 +114,7 @@ export interface ManagedUser {
   lastSignInAt: string | null;
   joinedAt: string;
   isSelf: boolean;
-  twoFactorEnabled?: boolean;
+  twoFactorEnabled?: boolean | null;
   approvalPermissions?: ApprovalPermission;
   sessions?: UserSession[];
   branchScope?: "all" | "assigned" | "single";
@@ -239,7 +239,7 @@ export interface InvitationRecord {
   branchName: string;
   invitedBy: string;
   invitedAt: string;
-  expiresAt: string;
+  expiresAt?: string;
   status: "pending" | "accepted" | "expired";
 }
 
@@ -249,9 +249,6 @@ export interface UserFilterState {
   department: string;
   role: string;
   status: string;
-  dateCreated: string;
-  lastActive: string;
-  twoFactorOnly?: boolean;
   multiBranchOnly?: boolean;
   attentionOnly?: boolean;
 }

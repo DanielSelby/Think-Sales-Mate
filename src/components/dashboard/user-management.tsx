@@ -27,9 +27,7 @@ import {
   AlertTriangle,
   X,
   Sparkles,
-  Smartphone,
   Check,
-  Laptop,
   Activity,
   UserPlus,
   KeyRound,
@@ -70,7 +68,6 @@ import type {
   ActiveTab,
   UserFilterState,
   AuditLogEntry,
-  LoginSession,
   InvitationRecord,
   ModuleCategory,
   PermissionAction
@@ -79,20 +76,19 @@ import type { BranchAccessRule } from "./user-management/types";
 
 import {
   DEFAULT_ROLES,
-  INITIAL_INVITATIONS,
   DEPARTMENTS
 } from "./user-management/constants";
 
 import {
   inviteMember,
-  updateMemberRole,
   updateMemberBranch,
   updateMemberStatus,
   removeMember,
   bulkInviteMembers,
   resendInvite,
   updateMemberAccessScope,
-  saveRolePermissions
+  saveRolePermissions,
+  deleteRoleTemplate
 } from "@/app/(dashboard)/settings/organization/actions";
 import { createStaffAccount, saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
 import { THEMES, type ThemeKey, useAppStore } from "@/store/useAppStore";
@@ -104,7 +100,7 @@ interface UserManagementProps {
   branches?: UserBranch[];
   roles?: RoleDefinition[];
   auditLogs?: AuditLogEntry[];
-  sessions?: LoginSession[];
+  invitations?: InvitationRecord[];
   canManage?: boolean;
   orgName?: string;
   companyWebsite?: string | null;
@@ -118,15 +114,15 @@ export function UserManagement({
   branches: initialBranchesProp,
   roles: initialRolesProp,
   auditLogs: initialAuditLogsProp,
-  sessions: initialSessionsProp,
+  invitations: initialInvitationsProp,
   canManage = true,
-  orgName = "ThinkSales Pro",
+  orgName = "Organization",
   companyWebsite,
   employeeNames = [],
   roleThemes = {},
   canManageThemes = false
 }: UserManagementProps) {
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const { setTheme } = useAppStore();
   const showAlert = useAppAlert();
   const [roleThemeState, setRoleThemeState] = useState<Record<string, string>>(roleThemes);
@@ -145,7 +141,7 @@ export function UserManagement({
           email: u.email,
           fullName: u.fullName || u.name || u.email.split("@")[0],
           phone: u.phone || "",
-          employeeId: u.employeeId || `TS-EMP-0${idx + 1}`,
+          employeeId: u.employeeId || "",
           role: u.role || "staff",
           roleLabel: u.roleLabel || u.role || "Staff",
           status: u.status || "active",
@@ -169,16 +165,14 @@ export function UserManagement({
   const [roles, setRoles] = useState<RoleDefinition[]>(
     initialRolesProp && initialRolesProp.length > 0 ? initialRolesProp : DEFAULT_ROLES
   );
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(
-    initialAuditLogsProp ?? []
-  );
-  const [invitations, setInvitations] = useState<InvitationRecord[]>(INITIAL_INVITATIONS);
+  const auditLogs = initialAuditLogsProp ?? [];
+  const [invitations, setInvitations] = useState<InvitationRecord[]>(initialInvitationsProp ?? []);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Active Tab & Filters
   const [activeTab, setActiveTab] = useState<ActiveTab>("users");
   const [showSummary, setShowSummary] = useState(true);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Global & Card Filter State
@@ -188,9 +182,6 @@ export function UserManagement({
     department: "all",
     role: "all",
     status: "all",
-    dateCreated: "all",
-    lastActive: "all",
-    twoFactorOnly: false,
     multiBranchOnly: false,
     attentionOnly: false
   });
@@ -225,44 +216,10 @@ export function UserManagement({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Add Log Entry Helper
-  const recordAudit = (
-    action: string,
-    mod: string,
-    details: string,
-    opts?: { recordId?: string; oldValue?: string; newValue?: string }
-  ) => {
-    const newEntry: AuditLogEntry = {
-      id: `log-${Date.now()}`,
-      logId: `ACT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      timestamp: new Date().toISOString(),
-      userId: "usr-01",
-      userName: "John Doe (You)",
-      userEmail: "john.doe@thinksales.com",
-      role: "Administrator",
-      branch: "Head Office",
-      module: mod,
-      page: `/settings/users`,
-      action,
-      recordType: mod,
-      recordId: opts?.recordId,
-      oldValue: opts?.oldValue,
-      newValue: opts?.newValue,
-      device: "Admin Workstation",
-      ipAddress: "102.176.94.12",
-      status: "success",
-      details
-    };
-    setAuditLogs((prev) => [newEntry, ...prev]);
-  };
-
   // Refresh handler
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      showToast("User management data refreshed successfully");
-    }, 600);
+    window.location.reload();
   };
 
   // Clear filters
@@ -273,9 +230,6 @@ export function UserManagement({
       department: "all",
       role: "all",
       status: "all",
-      dateCreated: "all",
-      lastActive: "all",
-      twoFactorOnly: false,
       multiBranchOnly: false,
       attentionOnly: false
     });
@@ -335,11 +289,6 @@ export function UserManagement({
         return false;
       }
 
-      // 2FA
-      if (filters.twoFactorOnly && !u.twoFactorEnabled) {
-        return false;
-      }
-
       // Multi-branch
       if (filters.multiBranchOnly && (!u.secondaryBranches || u.secondaryBranches.length === 0)) {
         return false;
@@ -353,7 +302,7 @@ export function UserManagement({
   const totalUsersCount = users.length;
   const activeUsersCount = users.filter((u) => u.status === "active").length;
   const inactiveUsersCount = users.filter((u) => u.status === "inactive" || u.status === "suspended").length;
-  const pendingInvitationsCount = users.filter((u) => u.status === "pending").length + invitations.filter((i) => i.status === "pending").length;
+  const pendingInvitationsCount = invitations.filter((invitation) => invitation.status === "pending").length;
   const rolesCount = roles.length;
   const permissionsCount = roles.reduce((max, role) => Math.max(max, role.permissionCount), 0);
 
@@ -392,26 +341,26 @@ export function UserManagement({
   // User Actions Handlers
   const handleCreateUser = (newUser: Partial<ManagedUser>) => {
     const user: ManagedUser = {
-      id: `usr-${Date.now()}`,
-      userId: `u-${Date.now()}`,
+      id: `pending-${crypto.randomUUID()}`,
+      userId: null,
       name: newUser.name || newUser.fullName || "New User",
       fullName: newUser.fullName || newUser.name || "New User",
       email: newUser.email || "",
-      phone: newUser.phone || "+233 24 000 0000",
-      employeeId: newUser.employeeId || `TS-EMP-0${users.length + 1}`,
+      phone: newUser.phone || "",
+      employeeId: newUser.employeeId || "",
       role: newUser.role || "sales_officer",
       roleLabel: newUser.roleLabel || "Sales Associate",
       status: newUser.status || "active",
       avatarUrl: newUser.avatarUrl || null,
-      department: newUser.department || "Sales & Marketing",
-      locationId: newUser.locationId || "b-head",
-      locationName: newUser.locationName || "Head Office",
+      department: newUser.department || "",
+      locationId: newUser.locationId || null,
+      locationName: newUser.locationName || null,
       secondaryBranches: newUser.secondaryBranches || [],
       secondaryBranchNames: newUser.secondaryBranchNames || [],
       lastSignInAt: null,
       joinedAt: new Date().toISOString(),
       isSelf: false,
-      twoFactorEnabled: newUser.twoFactorEnabled || false,
+      twoFactorEnabled: newUser.twoFactorEnabled ?? null,
       approvalPermissions: newUser.approvalPermissions || {
         stockTransfers: false,
         purchases: false,
@@ -423,24 +372,22 @@ export function UserManagement({
     };
 
     setUsers((prev) => [user, ...prev]);
-    recordAudit("User Created", "User Management", `Created user account for ${user.fullName} (${user.email})`, {
-      recordId: user.id,
-      newValue: `Role: ${user.roleLabel}, Branch: ${user.locationName}`
-    });
-    showToast(`User ${user.fullName} created successfully`);
-
     // Persist the member and send the invitation using the configured company email.
     startTransition(async () => {
       const formData = new FormData();
       formData.set("name", user.fullName || user.name);
       formData.set("email", user.email);
       if (newUser.avatar instanceof File) formData.set("avatar", newUser.avatar);
+      formData.set("phone", user.phone);
+      formData.set("employee_id", user.employeeId);
+      formData.set("department", user.department);
       formData.set("role", user.role);
       formData.set("location_id", user.locationId ?? "");
       formData.set("branch_scope", user.branchScope ?? "assigned");
       formData.set("secondary_location_ids", (user.secondaryBranches ?? []).join(","));
       formData.set("can_view_other_users_transactions", String(user.canViewOtherTransactions !== false));
       formData.set("can_check_cross_branch_stock", String(user.canCheckCrossBranchStock === true));
+      formData.set("approval_permissions", JSON.stringify(user.approvalPermissions ?? {}));
       const result = await inviteMember(formData);
       if (result && "error" in result) {
         setUsers((prev) => prev.filter((item) => item.id !== user.id));
@@ -448,10 +395,27 @@ export function UserManagement({
         return;
       }
       if ("memberId" in result && result.memberId) {
-        const persistedUser = { ...user, id: result.memberId };
+        const persistedUser = { ...user, id: result.memberId, avatarUrl: result.avatarUrl ?? null };
         setUsers((prev) => prev.map((item) => item.id === user.id ? persistedUser : item));
+        setInvitations((previous) => [{
+          id: result.memberId!,
+          name: persistedUser.fullName || persistedUser.name,
+          email: persistedUser.email,
+          role: String(persistedUser.role),
+          roleLabel: persistedUser.roleLabel || String(persistedUser.role),
+          branchId: persistedUser.locationId ?? "",
+          branchName: persistedUser.locationName ?? "Unassigned",
+          invitedBy: "",
+          invitedAt: new Date().toISOString(),
+          status: "pending"
+        }, ...previous]);
+        showToast(`Invitation sent to ${persistedUser.email}`);
+        if (result.warning) showToast(result.warning);
         setSelectedUserForReset(persistedUser);
         setIsResetPasswordOpen(true);
+      } else {
+        setUsers((prev) => prev.filter((item) => item.id !== user.id));
+        showToast("The invitation was created, but its organization membership could not be confirmed. Refresh before retrying.");
       }
     });
   };
@@ -475,19 +439,6 @@ export function UserManagement({
   );
 
   if (updatedUser) {
-    recordAudit(
-      "User Updated",
-      "User Management",
-      `Updated profile & access settings for ${updatedUser.fullName}`,
-      {
-        recordId: updatedUser.id,
-        oldValue: `Role: ${oldUser?.roleLabel}, Branch: ${oldUser?.locationName}`,
-        newValue: `Role: ${updatedUser.roleLabel}, Branch: ${updatedUser.locationName}`
-      }
-    );
-
-    showToast(`Updated ${updatedUser.fullName}'s profile`);
-
     startTransition(async () => {
       const result = await updateMemberAccessScope({
         memberId: userId,
@@ -510,6 +461,11 @@ export function UserManagement({
       });
       if (result?.error) {
         showToast(`Failed to save access changes: ${result.error}`);
+        if (oldUser) {
+          setUsers((prev) => prev.map((user) => user.id === userId ? oldUser : user));
+        }
+      } else {
+        showToast(`Updated ${updatedUser.fullName}'s profile`);
       }
     });
   }
@@ -518,31 +474,30 @@ export function UserManagement({
   const handleToggleStatus = (user: ManagedUser) => {
     const nextStatus = user.status === "active" ? "inactive" : "active";
     const persistedStatus = nextStatus === "active" ? "active" : "suspended";
-    setUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, status: persistedStatus, attentionReason: null } : u))
-    );
-    recordAudit(
-      nextStatus === "active" ? "User Activated" : "User Deactivated",
-      "User Management",
-      `Changed ${user.fullName}'s status from ${user.status} to ${nextStatus}`,
-      { recordId: user.id, oldValue: user.status, newValue: nextStatus }
-    );
-    showToast(`User ${user.fullName} is now ${nextStatus}`);
     startTransition(async () => {
       const result = await updateMemberStatus(user.id, persistedStatus);
-      if ("error" in result && result.error) showToast(result.error);
+      if ("error" in result && result.error) {
+        showToast(result.error);
+        return;
+      }
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, status: persistedStatus, attentionReason: null } : u))
+      );
+      showToast(`User ${user.fullName} is now ${nextStatus}`);
     });
   };
 
   const handleDeleteUser = (user: ManagedUser) => {
-    if (!confirm(`Are you sure you want to delete user ${user.fullName || user.email}?`)) return;
-    setUsers((prev) => prev.filter((u) => u.id !== user.id));
-    recordAudit("User Deleted", "User Management", `Deleted user account ${user.fullName} (${user.email})`, {
-      recordId: user.id,
-      oldValue: user.email,
-      newValue: "Deleted"
+    if (!confirm(`Remove ${user.fullName || user.email} from this organization? Their authentication account will not be deleted.`)) return;
+    startTransition(async () => {
+      const result = await removeMember(user.id);
+      if ("error" in result && result.error) {
+        showToast(result.error);
+        return;
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      showToast(`Removed ${user.fullName} from the organization`);
     });
-    showToast(`Deleted ${user.fullName}`);
   };
 
   // Send Invitation Handler
@@ -559,26 +514,25 @@ export function UserManagement({
       showToast(result.error);
       return false;
     }
+    if (!("memberId" in result) || !result.memberId) {
+      showToast("Invitation was sent, but the organization membership could not be confirmed.");
+      return false;
+    }
 
     const newInvite: InvitationRecord = {
-      id: "memberId" in result && result.memberId ? result.memberId : `inv-${Date.now()}`,
+      id: result.memberId,
       name: inviteData.name,
       email: inviteData.email,
       role: inviteData.role,
       roleLabel: roleDef?.name || "Staff",
       branchId: inviteData.branchId,
-      branchName: branchDef?.name || "Head Office",
-      invitedBy: "John Doe (You)",
+      branchName: branchDef?.name || "Unassigned",
+      invitedBy: "",
       invitedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       status: "pending"
     };
 
     setInvitations((prev) => [newInvite, ...prev]);
-    recordAudit("User Invited", "User Management", `Sent account invitation email to ${inviteData.email} as ${newInvite.roleLabel}`, {
-      recordId: newInvite.id,
-      newValue: `Role: ${newInvite.roleLabel}, Branch: ${newInvite.branchName}`
-    });
     showToast(`Invitation sent to ${inviteData.email}`);
     return true;
   };
@@ -589,13 +543,18 @@ export function UserManagement({
       showToast(result.error);
       return result;
     }
+    if (!result.memberId) {
+      const error = "The account was created, but its organization membership could not be confirmed.";
+      showToast(error);
+      return { ...result, error };
+    }
 
     const roleKey = String(formData.get("role") ?? "staff");
     const branchId = String(formData.get("location_id") ?? "");
     const roleDef = roles.find((item) => item.key === roleKey);
     const branchDef = branches.find((item) => item.id === branchId);
     const createdUser: ManagedUser = {
-      id: result.memberId ?? `usr-${Date.now()}`,
+      id: result.memberId,
       userId: result.userId,
       name: String(formData.get("full_name") ?? ""),
       fullName: String(formData.get("full_name") ?? ""),
@@ -603,6 +562,7 @@ export function UserManagement({
       email: String(formData.get("email") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       employeeId: String(formData.get("employee_id") ?? ""),
+      avatarUrl: result.avatarUrl ?? null,
       role: roleKey,
       roleLabel: roleDef?.name ?? roleKey,
       status: "active",
@@ -615,44 +575,46 @@ export function UserManagement({
       lastSignInAt: null,
       joinedAt: new Date().toISOString(),
       isSelf: false,
-      twoFactorEnabled: false
+      twoFactorEnabled: null
     };
     setUsers((previous) => [createdUser, ...previous]);
-    recordAudit("Staff Account Created", "User Management", `Created staff account for ${createdUser.fullName} (${createdUser.username})`, {
-      recordId: createdUser.id,
-      newValue: `Role: ${createdUser.roleLabel}, Branch: ${createdUser.locationName ?? "Unassigned"}`
-    });
+    if (result.warning) showToast(result.warning);
     return result;
   };
 
   // Bulk Actions Handlers
   const handleBulkActivate = (userIds: string[]) => {
-    setUsers((prev) =>
-      prev.map((u) => (userIds.includes(u.id) ? { ...u, status: "active" as const, attentionReason: null } : u))
-    );
-    recordAudit("Bulk User Activated", "User Management", `Bulk activated ${userIds.length} user accounts.`);
-    showToast(`Activated ${userIds.length} users`);
+    startTransition(async () => {
+      const results = await Promise.all(userIds.map((id) => updateMemberStatus(id, "active")));
+      const succeeded = new Set(userIds.filter((_, index) => !("error" in results[index]) || !results[index].error));
+      setUsers((prev) => prev.map((user) =>
+        succeeded.has(user.id) ? { ...user, status: "active", attentionReason: null } : user
+      ));
+      const failedCount = userIds.length - succeeded.size;
+      const failure = results.find((result) => result?.error)?.error;
+      showToast(failedCount
+        ? `Activated ${succeeded.size}; ${failedCount} failed. ${failure ?? ""}`
+        : `Activated ${succeeded.size} users`);
+    });
   };
 
   const handleBulkDeactivate = (userIds: string[]) => {
-    setUsers((prev) =>
-      prev.map((u) => (userIds.includes(u.id) ? { ...u, status: "inactive" as const } : u))
-    );
-    recordAudit("Bulk User Deactivated", "User Management", `Bulk deactivated ${userIds.length} user accounts.`);
-    showToast(`Deactivated ${userIds.length} users`);
+    startTransition(async () => {
+      const results = await Promise.all(userIds.map((id) => updateMemberStatus(id, "suspended")));
+      const succeeded = new Set(userIds.filter((_, index) => !("error" in results[index]) || !results[index].error));
+      setUsers((prev) => prev.map((user) =>
+        succeeded.has(user.id) ? { ...user, status: "inactive" } : user
+      ));
+      const failedCount = userIds.length - succeeded.size;
+      const failure = results.find((result) => result?.error)?.error;
+      showToast(failedCount
+        ? `Deactivated ${succeeded.size}; ${failedCount} failed. ${failure ?? ""}`
+        : `Deactivated ${succeeded.size} users`);
+    });
   };
 
   const handleBulkAssignRoleSubmit = (roleKey: string) => {
     const roleDef = roles.find((r) => r.key === roleKey || r.id === roleKey);
-    setUsers((prev) =>
-      prev.map((u) =>
-        bulkSelectedIds.includes(u.id)
-          ? { ...u, role: roleKey, roleLabel: roleDef?.name || roleKey }
-          : u
-      )
-    );
-    recordAudit("Bulk Role Assigned", "User Management", `Assigned role ${roleDef?.name} to ${bulkSelectedIds.length} users.`);
-    showToast(`Assigned ${roleDef?.name} to ${bulkSelectedIds.length} users`);
     if (roleDef) {
       startTransition(async () => {
         const results = await Promise.all(
@@ -665,8 +627,15 @@ export function UserManagement({
             })
           )
         );
-        const failure = results.find((result) => result?.error);
-        if (failure?.error) showToast(`Failed to assign role: ${failure.error}`);
+        const succeededIds = new Set(bulkSelectedIds.filter((_, index) => !results[index]?.error));
+        setUsers((prev) => prev.map((user) =>
+          succeededIds.has(user.id) ? { ...user, role: roleKey, roleLabel: roleDef.name } : user
+        ));
+        const failedCount = bulkSelectedIds.length - succeededIds.size;
+        const failure = results.find((result) => result?.error)?.error;
+        showToast(failedCount
+          ? `Assigned role to ${succeededIds.size}; ${failedCount} failed. ${failure ?? ""}`
+          : `Assigned ${roleDef.name} to ${succeededIds.size} users`);
       });
     }
     setIsBulkRoleOpen(false);
@@ -674,23 +643,35 @@ export function UserManagement({
 
   const handleBulkAssignBranchSubmit = (branchId: string) => {
     const branchDef = branches.find((b) => b.id === branchId);
-    setUsers((prev) =>
-      prev.map((u) =>
-        bulkSelectedIds.includes(u.id)
-          ? { ...u, locationId: branchId, locationName: branchDef?.name || "Head Office" }
-          : u
-      )
-    );
-    recordAudit("Bulk Branch Assigned", "User Management", `Assigned branch ${branchDef?.name} to ${bulkSelectedIds.length} users.`);
-    showToast(`Assigned ${branchDef?.name} to ${bulkSelectedIds.length} users`);
-    setIsBulkBranchOpen(false);
+    startTransition(async () => {
+      const results = await Promise.all(bulkSelectedIds.map((id) => updateMemberBranch(id, branchId)));
+      const succeeded = new Set(bulkSelectedIds.filter((_, index) => !("error" in results[index]) || !results[index].error));
+      setUsers((prev) => prev.map((user) =>
+        succeeded.has(user.id)
+          ? { ...user, locationId: branchId, locationName: branchDef?.name ?? "Unassigned" }
+          : user
+      ));
+      const failedCount = bulkSelectedIds.length - succeeded.size;
+      const failure = results.find((result) => result?.error)?.error;
+      showToast(failedCount
+        ? `Assigned ${succeeded.size}; ${failedCount} failed. ${failure ?? ""}`
+        : `Assigned ${branchDef?.name} to ${succeeded.size} users`);
+      setIsBulkBranchOpen(false);
+    });
   };
 
   const handleBulkDeleteSubmit = () => {
-    setUsers((prev) => prev.filter((u) => !bulkSelectedIds.includes(u.id)));
-    recordAudit("Bulk User Deleted", "User Management", `Permanently deleted ${bulkSelectedIds.length} user accounts.`);
-    showToast(`Deleted ${bulkSelectedIds.length} users`);
-    setIsBulkDeleteOpen(false);
+    startTransition(async () => {
+      const results = await Promise.all(bulkSelectedIds.map((id) => removeMember(id)));
+      const succeeded = new Set(bulkSelectedIds.filter((_, index) => !("error" in results[index]) || !results[index].error));
+      setUsers((prev) => prev.filter((user) => !succeeded.has(user.id)));
+      const failedCount = bulkSelectedIds.length - succeeded.size;
+      const failure = results.find((result) => result?.error)?.error;
+      showToast(failedCount
+        ? `Removed ${succeeded.size}; ${failedCount} failed. ${failure ?? ""}`
+        : `Removed ${succeeded.size} members from the organization`);
+      setIsBulkDeleteOpen(false);
+    });
   };
 
   const handleExportUsersCsv = () => {
@@ -716,7 +697,6 @@ export function UserManagement({
     link.download = `thinksales_users_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    recordAudit("Users Exported", "User Management", `Exported ${filteredUsers.length} user records to CSV.`);
   };
 
   return (
@@ -926,15 +906,9 @@ export function UserManagement({
         {/* More Filters Expandable */}
         {showMoreFilters && (
           <div className="pt-3 border-t border-ledger-100 dark:border-ledger-800 grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in duration-150">
-            <label className="flex items-center gap-2 text-xs font-semibold text-ink-900 dark:text-white cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.twoFactorOnly}
-                onChange={(e) => setFilters({ ...filters, twoFactorOnly: e.target.checked })}
-                className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span>2FA Enforced Only</span>
-            </label>
+            <p className="text-xs text-ledger-500 dark:text-ledger-400">
+              2FA enrollment status is unavailable from the authentication provider.
+            </p>
 
             <label className="flex items-center gap-2 text-xs font-semibold text-ink-900 dark:text-white cursor-pointer">
               <input
@@ -1258,8 +1232,15 @@ export function UserManagement({
                 return;
               }
               if (!confirm(`Delete custom role "${role.name}"?`)) return;
-              setRoles((prev) => prev.filter((r) => r.id !== role.id));
-              showToast(`Deleted role ${role.name}`);
+              startTransition(async () => {
+                const result = await deleteRoleTemplate(role.id);
+                if ("error" in result && result.error) {
+                  showToast(result.error);
+                  return;
+                }
+                setRoles((prev) => prev.filter((item) => item.id !== role.id));
+                showToast(`Deleted role ${role.name}`);
+              });
             }}
             onFilterByRole={(roleKey) => {
               setFilters({ ...filters, role: roleKey });
@@ -1268,13 +1249,16 @@ export function UserManagement({
             roleThemes={roleThemeState}
             canManageThemes={canManageThemes}
             onSaveRoleTheme={(roleKey, themeKey) => {
-              setRoleThemeState((previous) => ({ ...previous, [roleKey]: themeKey }));
-              const currentUser = users.find((user) => user.isSelf);
-              if (currentUser && String(currentUser.role) === roleKey) setTheme(themeKey);
               startTransition(async () => {
                 const result = await saveRoleTheme(roleKey, themeKey);
-                if (result?.error) showToast(result.error);
-                else showToast("Role theme saved for all users in this role.");
+                if (result?.error) {
+                  showToast(result.error);
+                  return;
+                }
+                setRoleThemeState((previous) => ({ ...previous, [roleKey]: themeKey }));
+                const currentUser = users.find((user) => user.isSelf);
+                if (currentUser && String(currentUser.role) === roleKey) setTheme(themeKey);
+                showToast("Role theme saved for all users in this role.");
               });
             }}
           />
@@ -1289,34 +1273,17 @@ export function UserManagement({
           <AccessMatrixTab
           roles={roles}
           canManage={canManage}
-          onUpdateRolePermissions={(roleId, permissions) => {
-    setRoles((prev) =>
-      prev.map((role) =>
-        role.id === roleId
-          ? { ...role, permissions }
-          : role
-      )
-    );
-
-    const updatedRole = roles.find((role) => role.id === roleId);
-
-    recordAudit(
-      "Role Permissions Updated",
-      "User Management",
-      `Updated access permissions for ${updatedRole?.name || roleId}`,
-      {
-        recordId: roleId
-      }
-    );
-
-    showToast(
-      `Permissions updated for ${updatedRole?.name || "role"}`
-    );
-    startTransition(async () => {
-      const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
-      if ("error" in result && result.error) showToast(result.error);
-    });
-  }}
+          onUpdateRolePermissions={async (roleId, permissions) => {
+            const updatedRole = roles.find((role) => role.id === roleId);
+            const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
+            if ("error" in result && result.error) {
+              showToast(result.error);
+              return result;
+            }
+            setRoles((previous) => previous.map((role) => role.id === roleId ? { ...role, permissions } : role));
+            showToast(`Permissions updated for ${updatedRole?.name || "role"}`);
+            return {};
+          }}
 />
         )}
 
@@ -1325,20 +1292,16 @@ export function UserManagement({
             roles={roles}
             canManage={canManage}
             mode="actions"
-            onUpdateRolePermissions={(roleId, permissions) => {
-              setRoles((prev) => prev.map((role) => role.id === roleId ? { ...role, permissions } : role));
+            onUpdateRolePermissions={async (roleId, permissions) => {
               const updatedRole = roles.find((role) => role.id === roleId);
-              recordAudit(
-                "Role Tab and Action Permissions Updated",
-                "User Management",
-                `Updated tab and action permissions for ${updatedRole?.name || roleId}`,
-                { recordId: roleId }
-              );
+              const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
+              if ("error" in result && result.error) {
+                showToast(result.error);
+                return result;
+              }
+              setRoles((previous) => previous.map((role) => role.id === roleId ? { ...role, permissions } : role));
               showToast(`Tab and action permissions updated for ${updatedRole?.name || "role"}`);
-              startTransition(async () => {
-                const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
-                if ("error" in result && result.error) showToast(result.error);
-              });
+              return {};
             }}
           />
         )}
@@ -1354,7 +1317,7 @@ export function UserManagement({
             canManage={canManage}
             onSaveAccess={async (rule: BranchAccessRule) => {
               const user = users.find((item) => item.id === rule.userId);
-              if (!user) return;
+               if (!user) return { error: "The selected member could not be found." };
               const result = await updateMemberAccessScope({
                 memberId: rule.userId,
                 locationId: rule.primaryBranchId || null,
@@ -1366,7 +1329,7 @@ export function UserManagement({
                   customerOrders: rule.canApproveBranchOrders
                 }
               });
-              if (result?.error) showToast(result.error);
+              return result?.error ? { error: result.error } : undefined;
             }}
           />
         )}
@@ -1376,7 +1339,7 @@ export function UserManagement({
         )}
 
         {activeTab === "sessions" && (
-          <LoginSessionsTab canManage={canManage} initialSessions={initialSessionsProp ?? []} />
+          <LoginSessionsTab canManage={canManage} />
         )}
 
         {activeTab === "staff_accounts" && (
@@ -1421,13 +1384,24 @@ export function UserManagement({
         onResendInvite={(id) => {
           startTransition(async () => {
             const result = await resendInvite(id);
-            showToast(result?.error ?? "Invitation resent successfully");
+            showToast(result?.error ?? ("success" in result && result.success
+              ? "Invitation resent successfully"
+              : "Invitation could not be resent."));
           });
         }}
-        onRevokeInvite={(id) => {
-          setInvitations((prev) => prev.filter((i) => i.id !== id));
-          showToast("Invitation revoked");
-        }}
+          onRevokeInvite={(id) => {
+            if (!confirm("Remove this invitation from the organization? This does not delete the authentication account.")) return;
+            startTransition(async () => {
+              const result = await removeMember(id);
+              if ("error" in result && result.error) {
+                showToast(result.error);
+                return;
+              }
+              setInvitations((previous) => previous.filter((invitation) => invitation.id !== id));
+              setUsers((previous) => previous.filter((user) => user.id !== id));
+              showToast("Invitation removed from the organization.");
+            });
+          }}
       />
 
       {isEditUserOpen && selectedUserForEdit && (
@@ -1477,19 +1451,20 @@ export function UserManagement({
             setSelectedRoleForModal(null);
           }}
           roleToEdit={selectedRoleForModal}
-          onSaveRole={(saved) => {
+          onSaveRole={async (saved) => {
+            if (roles.some((role) => role.key === saved.key && role.id !== saved.id)) {
+              return { error: "A role with this key already exists. Choose a different name." };
+            }
+            const result = await saveRolePermissions(saved.key, saved.permissions, saved.name);
+            if ("error" in result && result.error) return result;
             if (roleModalMode === "create" || roleModalMode === "clone") {
-              setRoles((prev) => [...prev, saved]);
+              setRoles((previous) => [...previous, saved]);
               showToast(`Role "${saved.name}" created.`);
             } else {
-              setRoles((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+              setRoles((previous) => previous.map((role) => role.id === saved.id ? saved : role));
               showToast(`Role "${saved.name}" updated.`);
             }
-            startTransition(async () => {
-              const result = await saveRolePermissions(saved.key, saved.permissions, saved.name);
-              if ("error" in result && result.error) showToast(result.error);
-            });
-            setIsRoleModalOpen(false);
+            return {};
           }}
         />
       )}
@@ -1499,19 +1474,68 @@ export function UserManagement({
         onClose={() => setIsImportModalOpen(false)}
         roles={roles}
         branches={branches}
-        onImportUsers={(imported) => {
-         imported.forEach((importedUser) => {
-         handleCreateUser(importedUser);
-         });
-
-               recordAudit(
-                    "Users Imported",
-            "User Management",
-               `Imported ${imported.length} users from CSV.`
-        );
-
-                     showToast(`Successfully imported ${imported.length} users`);
-                      }}
+        onImportUsers={async (imported) => {
+          const result = await bulkInviteMembers(imported.map((user) => ({
+            email: user.email ?? "",
+            role: String(user.role ?? "staff"),
+            locationId: user.locationId,
+            fullName: user.fullName ?? user.name,
+            phone: user.phone,
+            employeeId: user.employeeId,
+            department: user.department,
+            sourceRow: user.sourceRow
+          })));
+          const createdInvitations: InvitationRecord[] = result.members.map((member) => {
+            const roleDef = roles.find((role) => role.key === member.role);
+            const branchDef = branches.find((branch) => branch.id === member.locationId);
+            return {
+              id: member.id,
+              name: member.fullName,
+              email: member.email,
+              role: member.role,
+              roleLabel: roleDef?.name ?? member.role,
+              branchId: member.locationId ?? "",
+              branchName: branchDef?.name ?? "Unassigned",
+              invitedBy: "",
+              invitedAt: member.createdAt,
+              status: "pending"
+            };
+          });
+          setInvitations((previous) => [...createdInvitations, ...previous]);
+          setUsers((previous) => [
+            ...result.members.map((member) => {
+              const roleDef = roles.find((role) => role.key === member.role);
+              const branchDef = branches.find((branch) => branch.id === member.locationId);
+              return {
+                id: member.id,
+                userId: member.userId,
+                name: member.fullName,
+                fullName: member.fullName,
+                email: member.email,
+                phone: member.phone ?? "",
+                employeeId: member.employeeId ?? "",
+                role: member.role,
+                roleLabel: roleDef?.name ?? member.role,
+                status: "pending" as const,
+                department: member.department ?? "",
+                locationId: member.locationId,
+                locationName: branchDef?.name ?? null,
+                secondaryBranches: [],
+                secondaryBranchNames: [],
+                branchScope: member.locationId ? "single" as const : "assigned" as const,
+                lastSignInAt: null,
+                joinedAt: member.createdAt,
+                isSelf: false,
+                twoFactorEnabled: null
+              };
+            }),
+            ...previous
+          ]);
+          showToast(result.skipped.length
+            ? `Invited ${result.invited}; ${result.skipped.length} row(s) failed.`
+            : `Invited ${result.invited} user(s).`);
+          return result;
+        }}
       />
 
       <ResetPasswordModal
@@ -1527,18 +1551,6 @@ export function UserManagement({
 
           const result = await resetMemberPassword(userId, mode, tempPassword);
           if (result?.error) return { error: result.error };
-
-          recordAudit(
-            mode === "email" ? "Password Reset Email Sent" : "Temporary Password Set",
-            "User Management",
-            mode === "email"
-              ? `Sent password reset email to ${resetUser.email}`
-              : `Set a temporary password for ${resetUser.email}`,
-            {
-              recordId: userId,
-              newValue: mode === "email" ? "Password reset email" : "Temporary password",
-            }
-          );
 
           showToast(
             mode === "email"
@@ -1575,7 +1587,6 @@ export function UserManagement({
       <SecuritySettingsModal
         isOpen={isSecuritySettingsOpen}
         onClose={() => setIsSecuritySettingsOpen(false)}
-        onSaveNotification={(msg) => showToast(msg)}
       />
 
     </div>

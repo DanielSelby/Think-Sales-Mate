@@ -31,13 +31,11 @@ export function AddUserModal({
     employeeId: "",
     role: "sales_officer",
     department: "Sales & Marketing",
-    locationId: branches[0]?.id ?? "b-head",
+    locationId: branches[0]?.id ?? "",
     secondaryBranches: [] as string[],
     branchScope: "assigned" as "all" | "assigned" | "single",
     canViewOtherTransactions: true,
     canCheckCrossBranchStock: false,
-    twoFactorEnforced: true,
-    sendInviteEmail: true,
     approvalStockTransfers: false,
     approvalPurchases: false,
     approvalExpenses: false,
@@ -80,8 +78,8 @@ export function AddUserModal({
       name: formData.fullName,
       fullName: formData.fullName,
       email: formData.email.trim().toLowerCase(),
-      phone: formData.phone || "+233 24 000 0000",
-      employeeId: formData.employeeId || `TS-EMP-${Date.now().toString().slice(-3)}`,
+      phone: formData.phone,
+      employeeId: formData.employeeId,
       avatar: formData.avatar,
       avatarUrl: formData.avatarPreview || null,
       role: formData.role,
@@ -89,13 +87,12 @@ export function AddUserModal({
       status: "pending",
       department: formData.department,
       locationId: formData.locationId,
-      locationName: selectedBranch?.name ?? "Head Office",
+      locationName: selectedBranch?.name ?? null,
       secondaryBranches: formData.secondaryBranches,
       secondaryBranchNames: secondaryNames,
       branchScope: formData.branchScope,
       canViewOtherTransactions: formData.canViewOtherTransactions,
       canCheckCrossBranchStock: formData.canCheckCrossBranchStock,
-      twoFactorEnabled: formData.twoFactorEnforced,
       joinedAt: new Date().toISOString(),
       lastSignInAt: null,
       isSelf: false,
@@ -296,29 +293,9 @@ export function AddUserModal({
                 </div>
 
                 <div className="pt-2 border-t border-ledger-100 dark:border-ledger-800 space-y-2">
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.sendInviteEmail}
-                      onChange={(e) => setFormData({ ...formData, sendInviteEmail: e.target.checked })}
-                      className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-xs text-ink-900 dark:text-white font-medium">
-                      Send welcome email with account activation link
-                    </span>
-                  </label>
-
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.twoFactorEnforced}
-                      onChange={(e) => setFormData({ ...formData, twoFactorEnforced: e.target.checked })}
-                      className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-xs text-ink-900 dark:text-white font-medium">
-                      Enforce Two-Factor Authentication (2FA) on first login
-                    </span>
-                  </label>
+                  <p className="text-xs text-ledger-500 dark:text-ledger-400">
+                    Two-factor enrollment is managed by the authentication provider and cannot be set from this form.
+                  </p>
                 </div>
               </div>
             )}

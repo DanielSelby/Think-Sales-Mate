@@ -30,7 +30,7 @@ export function InviteUserModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("sales_officer");
-  const [branchId, setBranchId] = useState(branches[0]?.id || "b-head");
+  const [branchId, setBranchId] = useState(branches[0]?.id || "");
   const [activeTab, setActiveTab] = useState<"invite" | "history">("invite");
   const [isSending, setIsSending] = useState(false);
 
@@ -172,7 +172,7 @@ export function InviteUserModal({
               <div className="p-3.5 rounded-xl border border-ledger-100 bg-blue-50/40 dark:border-ledger-800 dark:bg-blue-950/20 text-xs text-ledger-600 dark:text-slate-300 space-y-1">
                 <p className="font-bold text-blue-700 dark:text-blue-300">How activation works:</p>
                 <p>
-                  The invited user will receive an email containing a secure 7-day single-use activation link to configure their password and set up 2FA.
+                  The invited user will receive an activation email from the authentication provider. Expiration details and 2FA setup status are not available here.
                 </p>
               </div>
 
@@ -212,7 +212,7 @@ export function InviteUserModal({
                           {inv.email} • {inv.roleLabel} • {inv.branchName}
                         </p>
                         <p className="text-[10px] text-ledger-400 mt-0.5">
-                          Invited on {new Date(inv.invitedAt).toLocaleDateString()} (Expires: {new Date(inv.expiresAt).toLocaleDateString()})
+                          Invited on {new Date(inv.invitedAt).toLocaleDateString()}
                         </p>
                       </div>
 
@@ -222,7 +222,7 @@ export function InviteUserModal({
                             <RotateCw className="h-3 w-3 mr-1" /> Resend
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => onRevokeInvite(inv.id)} className="h-7 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">
+                        <Button size="sm" variant="ghost" aria-label="Remove invitation from organization" title="Remove invitation from organization" onClick={() => onRevokeInvite(inv.id)} className="h-7 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>

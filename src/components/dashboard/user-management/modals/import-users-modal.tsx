@@ -1,19 +1,26 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, Upload, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Trash2, ArrowRight } from "lucide-react";
+import { X, Upload, Download, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react";
+import Papa from "papaparse";
 import { Button } from "@/components/ui/button";
 import type { ManagedUser, RoleDefinition, UserBranch } from "../types";
+
+interface ImportOutcome {
+  invited: number;
+  skipped: { row: number; reason: string }[];
+}
 
 interface ImportUsersModalProps {
   isOpen: boolean;
   onClose: () => void;
   branches: UserBranch[];
   roles: RoleDefinition[];
-  onImportUsers: (newUsers: Partial<ManagedUser>[]) => void;
+  onImportUsers: (newUsers: (Partial<ManagedUser> & { sourceRow: number })[]) => Promise<ImportOutcome>;
 }
 
 interface ParsedUserRow {
+  rowNumber: number;
   fullName: string;
   email: string;
   phone: string;
@@ -21,7 +28,10 @@ interface ParsedUserRow {
   role: string;
   department: string;
   branch: string;
+  roleKey: string;
+  branchId: string | null;
   isValid: boolean;
+  isImported: boolean;
   errors: string[];
 }
 
@@ -38,63 +48,94 @@ export function ImportUsersModal({
   const [parsedRows, setParsedRows] = useState<ParsedUserRow[]>([]);
   const [step, setStep] = useState<"upload" | "preview">("upload");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [importOutcome, setImportOutcome] = useState<ImportOutcome | null>(null);
+  const [successfulCount, setSuccessfulCount] = useState(0);
 
   if (!isOpen) return null;
 
   const downloadSampleCsv = () => {
     const headers = ["Full Name", "Email Address", "Phone Number", "Employee ID", "Role", "Department", "Branch"];
-    const rows = [
-      ["Kwame Mensah", "kwame.m@thinksales.com", "+233 24 123 4567", "TS-EMP-020", "Sales Associate", "Sales & Marketing", "Accra Main Branch"],
-      ["Ama Serwaa", "ama.s@thinksales.com", "+233 50 234 5678", "TS-EMP-021", "Cashier", "Sales & Marketing", "Kumasi Branch"],
-      ["Kofi Antwi", "kofi.a@thinksales.com", "+233 27 345 6789", "TS-EMP-022", "Inventory Clerk", "Inventory & Warehouse", "Tema Branch"]
-    ];
-
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const csvContent = `${headers.join(",")}\n`;
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "thinksales_users_import_template.csv";
+    link.download = "users_import_template.csv";
     link.click();
     URL.revokeObjectURL(url);
   };
 
   const processCsvText = (text: string) => {
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    if (lines.length < 2) return;
+    const parsed = Papa.parse<string[]>(text, { skipEmptyLines: true });
+    if (parsed.errors.length) {
+      setParseError(`Could not parse CSV: ${parsed.errors[0].message}`);
+      return;
+    }
+    if (parsed.data.length < 2) {
+      setParseError("The CSV must contain a header row and at least one user row.");
+      return;
+    }
 
-    const dataRows = lines.slice(1);
-    const results: ParsedUserRow[] = dataRows.map((line, idx) => {
-      const parts = line.split(",").map((p) => p.trim().replace(/^"|"$/g, ""));
-      const [fullName = "", email = "", phone = "", employeeId = "", role = "Sales Associate", department = "Sales & Marketing", branch = "Head Office"] = parts;
+    const seenEmails = new Set<string>();
+    const results: ParsedUserRow[] = parsed.data.slice(1).map((parts, idx) => {
+      const [fullName = "", email = "", phone = "", employeeId = "", role = "", department = "", branch = ""] =
+        parts.map((part) => String(part ?? "").trim());
 
       const errors: string[] = [];
       if (!fullName) errors.push("Missing full name");
-      if (!email || !email.includes("@")) errors.push("Invalid email address");
+      const normalizedEmail = email.toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) errors.push("Invalid email address");
+      if (normalizedEmail && seenEmails.has(normalizedEmail)) errors.push("Duplicate email in CSV");
+      if (normalizedEmail) seenEmails.add(normalizedEmail);
+      const matchedRole = roles.find((candidate) =>
+        candidate.name.toLowerCase() === role.toLowerCase() || candidate.key.toLowerCase() === role.toLowerCase()
+      );
+      if (!matchedRole) errors.push("Role does not match a configured role");
+      const matchedBranch = branch
+        ? branches.find((candidate) => candidate.name.toLowerCase() === branch.toLowerCase())
+        : undefined;
+      if (branch && !matchedBranch) errors.push("Branch does not match an active organization branch");
 
       return {
-        fullName: fullName || `User ${idx + 1}`,
-        email: email || "",
-        phone: phone || "+233 24 000 0000",
-        employeeId: employeeId || `TS-EMP-0${50 + idx}`,
+        rowNumber: idx + 2,
+        fullName,
+        email: normalizedEmail,
+        phone,
+        employeeId,
         role,
         department,
         branch,
+        roleKey: matchedRole?.key ?? "",
+        branchId: matchedBranch?.id ?? null,
         isValid: errors.length === 0,
+        isImported: false,
         errors
       };
     });
 
+    if (!results.length) {
+      setParseError("The CSV contains no user rows.");
+      return;
+    }
+    setParseError(null);
+    setImportOutcome(null);
+    setSuccessfulCount(0);
     setParsedRows(results);
     setStep("preview");
   };
 
   const handleFile = (file: File) => {
     setFileName(file.name);
+    setParsedRows([]);
+    setParseError(null);
+    setImportOutcome(null);
+    setStep("upload");
     const reader = new FileReader();
     reader.onload = (e) => {
       processCsvText(String(e.target?.result || ""));
     };
+    reader.onerror = () => setParseError("The selected CSV file could not be read.");
     reader.readAsText(file);
   };
 
@@ -106,54 +147,49 @@ export function ImportUsersModal({
     }
   };
 
-  const handleImportSubmit = () => {
-    const validRows = parsedRows.filter((r) => r.isValid);
+  const handleImportSubmit = async () => {
+    const validRows = parsedRows.filter((r) => r.isValid && !r.isImported);
     if (validRows.length === 0) return;
 
     setIsProcessing(true);
-    const newUsers: Partial<ManagedUser>[] = validRows.map((row) => {
-      const matchedBranch = branches.find(
-        (b) => b.name.toLowerCase() === row.branch.toLowerCase()
-      ) || branches[0];
-
-      const matchedRole = roles.find(
-        (r) => r.name.toLowerCase() === row.role.toLowerCase() || r.key === row.role.toLowerCase()
-      ) || roles[2]; // Default to Sales Associate
-
-      return {
+    try {
+      const newUsers = validRows.map((row) => ({
         name: row.fullName,
         fullName: row.fullName,
-        email: row.email.toLowerCase(),
+        email: row.email,
         phone: row.phone,
         employeeId: row.employeeId,
-        role: matchedRole.key,
-        roleLabel: matchedRole.name,
-        status: "pending",
+        role: row.roleKey,
+        roleLabel: row.role,
+        status: "pending" as const,
         department: row.department,
-        locationId: matchedBranch.id,
-        locationName: matchedBranch.name,
+        locationId: row.branchId,
+        locationName: branches.find((branch) => branch.id === row.branchId)?.name ?? null,
         secondaryBranches: [],
         secondaryBranchNames: [],
-        branchScope: "single",
-        twoFactorEnabled: false,
+        branchScope: row.branchId ? "single" as const : "assigned" as const,
+        twoFactorEnabled: null,
         joinedAt: new Date().toISOString(),
         lastSignInAt: null,
         isSelf: false,
-        approvalPermissions: {
-          stockTransfers: false,
-          purchases: false,
-          expenses: false,
-          priceUpdates: false,
-          stockAdjustments: false
-        }
-      };
-    });
-
-    setTimeout(() => {
-      onImportUsers(newUsers);
+        sourceRow: row.rowNumber
+      }));
+      const result = await onImportUsers(newUsers);
+      const failureByRow = new Map(result.skipped.map((item) => [item.row, item.reason]));
+      const importedRows = new Set(validRows.filter((row) => !failureByRow.has(row.rowNumber)).map((row) => row.rowNumber));
+      setParsedRows((previous) => previous.map((row) => {
+        const failure = failureByRow.get(row.rowNumber);
+        if (failure) return { ...row, isValid: false, errors: [...row.errors, failure] };
+        return importedRows.has(row.rowNumber) ? { ...row, isImported: true } : row;
+      }));
+      setSuccessfulCount((previous) => previous + result.invited);
+      setImportOutcome(result);
+      if (result.skipped.length === 0 && parsedRows.every((row) => row.isValid)) onClose();
+    } catch (error) {
+      setParseError(error instanceof Error ? error.message : "User import failed.");
+    } finally {
       setIsProcessing(false);
-      onClose();
-    }, 500);
+    }
   };
 
   return (
@@ -167,8 +203,8 @@ export function ImportUsersModal({
               <Upload className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-ink-900 dark:text-white">Import Users (CSV / Excel)</h2>
-              <p className="text-xs text-ledger-500 dark:text-ledger-400">Bulk upload employees, roles, branches and system accounts</p>
+              <h2 className="text-base font-semibold text-ink-900 dark:text-white">Import Users (CSV)</h2>
+              <p className="text-xs text-ledger-500 dark:text-ledger-400">Bulk invite members to this organization</p>
             </div>
           </div>
           <button
@@ -191,6 +227,23 @@ export function ImportUsersModal({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {parseError && (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+              {parseError}
+            </p>
+          )}
+          {importOutcome && (
+            <div role="status" className="rounded-lg border border-ledger-200 bg-slate-50 px-3 py-2 text-xs text-ledger-700 dark:border-ledger-700 dark:bg-slate-800 dark:text-ledger-200">
+              Invited {successfulCount} user(s). {importOutcome.skipped.length} row(s) failed.
+              {importOutcome.skipped.length > 0 && (
+                <ul className="mt-2 list-inside list-disc">
+                  {importOutcome.skipped.map((item) => (
+                    <li key={`${item.row}-${item.reason}`}>Row {item.row}: {item.reason}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {step === "upload" ? (
             <div className="space-y-4">
               
@@ -240,10 +293,10 @@ export function ImportUsersModal({
                     File: <span className="text-ink-900 dark:text-white font-mono">{fileName}</span> ({parsedRows.length} rows detected)
                   </h3>
                   <p className="text-[11px] text-ledger-400">
-                    {parsedRows.filter((r) => r.isValid).length} valid rows ready to import, {parsedRows.filter((r) => !r.isValid).length} invalid rows
+                  {parsedRows.filter((r) => r.isValid && !r.isImported).length} valid rows ready to invite, {parsedRows.filter((r) => !r.isValid).length} invalid rows
                   </p>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => { setStep("upload"); setParsedRows([]); }} className="text-xs h-7">
+                <Button size="sm" variant="ghost" onClick={() => { setStep("upload"); setParsedRows([]); setFileName(null); setParseError(null); setImportOutcome(null); }} className="text-xs h-7">
                   Change File
                 </Button>
               </div>
@@ -263,9 +316,13 @@ export function ImportUsersModal({
                   </thead>
                   <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
                     {parsedRows.map((row, idx) => (
-                      <tr key={idx} className={row.isValid ? "" : "bg-red-50/50 dark:bg-red-950/20"}>
+                      <tr key={row.rowNumber} className={row.isValid || row.isImported ? "" : "bg-red-50/50 dark:bg-red-950/20"}>
                         <td className="p-2.5">
-                          {row.isValid ? (
+                          {row.isImported ? (
+                            <span className="flex items-center gap-1 text-emerald-600 font-semibold text-[10px]">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Invited
+                            </span>
+                          ) : row.isValid ? (
                             <span className="flex items-center gap-1 text-emerald-600 font-semibold text-[10px]">
                               <CheckCircle2 className="h-3.5 w-3.5" /> Valid
                             </span>
@@ -299,10 +356,10 @@ export function ImportUsersModal({
             <Button
               size="sm"
               onClick={handleImportSubmit}
-              disabled={isProcessing || parsedRows.filter((r) => r.isValid).length === 0}
+              disabled={isProcessing || parsedRows.filter((r) => r.isValid && !r.isImported).length === 0}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              {isProcessing ? "Importing Accounts..." : `Import ${parsedRows.filter((r) => r.isValid).length} Users`}
+              {isProcessing ? "Sending invitations..." : `Invite ${parsedRows.filter((r) => r.isValid && !r.isImported).length} Users`}
             </Button>
           )}
         </div>
