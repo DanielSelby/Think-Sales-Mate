@@ -29,6 +29,7 @@ import {
   Monitor,
   Smartphone,
   ImageOff,
+  EllipsisVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/sales/format";
@@ -40,6 +41,7 @@ import { RefreshButton } from "@/components/refresh-button";
 interface BrowseViewProps {
   orgSlug: string;
   orgName: string;
+  organizationPhone: string | null;
   companyLogoUrl: string | null;
   customerPortalHeroUrl: string | null;
   systemLogoUrl: string | null;
@@ -72,6 +74,7 @@ function getCategoryIcon(category: string) {
 export function BrowseView({
   orgSlug,
   orgName,
+  organizationPhone,
   companyLogoUrl,
   customerPortalHeroUrl,
   systemLogoUrl,
@@ -85,6 +88,7 @@ export function BrowseView({
   const [category, setCategory] = React.useState("all");
   const [sort, setSort] = React.useState("default");
   const [view, setView] = React.useState<"grid" | "list">("grid");
+  const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = React.useState(false);
 
   const categories = React.useMemo(
     () =>
@@ -168,9 +172,62 @@ export function BrowseView({
             </div>
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
             <TrackOrderLink orgSlug={orgSlug} />
+            <div className="relative xl:hidden">
+              <button
+                type="button"
+                aria-label="Browse product categories"
+                aria-expanded={mobileCategoryMenuOpen}
+                onClick={() => setMobileCategoryMenuOpen((open) => !open)}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-ledger-200 text-ledger-600 hover:bg-ledger-50 dark:border-ledger-700 dark:text-ledger-200 dark:hover:bg-ink-800"
+              >
+                <EllipsisVertical className="h-5 w-5" />
+              </button>
+              {mobileCategoryMenuOpen && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close categories menu"
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setMobileCategoryMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,480px)] w-56 overflow-y-auto rounded-xl border border-ledger-200 bg-white p-2 shadow-xl dark:border-ledger-700 dark:bg-ink-900">
+                    <button
+                      type="button"
+                      onClick={() => { setCategory("all"); setMobileCategoryMenuOpen(false); }}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold",
+                        category === "all"
+                          ? "bg-signal text-white"
+                          : "text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]"
+                      )}
+                    >
+                      <Grid2X2 className="h-4 w-4 shrink-0" /> All Categories
+                    </button>
+                    {categories.map((item) => {
+                      const Icon = getCategoryIcon(item);
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => { setCategory(item); setMobileCategoryMenuOpen(false); }}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold",
+                            category === item
+                              ? "bg-signal text-white"
+                              : "text-ledger-700 hover:bg-ledger-50 dark:text-ledger-200 dark:hover:bg-white/[0.06]"
+                          )}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" /> {item}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Cart button */}
@@ -258,9 +315,11 @@ export function BrowseView({
                       Contact our support team
                     </p>
 
-                    <p className="mt-1.5 text-[11px] font-semibold text-signal">
-                      +233 24 123 4567
-                    </p>
+                    {organizationPhone && (
+                      <a href={`tel:${organizationPhone}`} className="mt-1.5 block text-[11px] font-semibold text-signal">
+                        {organizationPhone}
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

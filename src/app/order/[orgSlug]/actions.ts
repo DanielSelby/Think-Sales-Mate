@@ -9,6 +9,7 @@ import { getPlatformSystemLogo } from "@/lib/supabase/platform-admin";
 export interface PortalContext {
   orgId: string;
   orgName: string;
+  organizationPhone: string | null;
   companyLogoUrl: string | null;
   customerPortalHeroUrl: string | null;
   systemLogoUrl: string | null;
@@ -42,7 +43,7 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
     .maybeSingle();
   if (!org) return null;
   const [{ data: companyProfile }, systemLogoUrl] = await Promise.all([
-    publicSupabase.from("company_profile").select("logo_url, customer_portal_hero_url").eq("org_id", org.id).maybeSingle(),
+    publicSupabase.from("company_profile").select("business_phone, contact_phone, logo_url, customer_portal_hero_url").eq("org_id", org.id).maybeSingle(),
     getPlatformSystemLogo().catch(() => null),
   ]);
 
@@ -51,6 +52,7 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
   return {
     orgId: org.id,
     orgName: org.name,
+    organizationPhone: companyProfile?.contact_phone || companyProfile?.business_phone || null,
     companyLogoUrl: companyProfile?.logo_url ?? null,
     customerPortalHeroUrl: companyProfile?.customer_portal_hero_url ?? null,
     systemLogoUrl,

@@ -341,7 +341,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       </div>
 
       {/* ── Nav ── */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
         {SHARED_NAV_ITEMS.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
@@ -453,12 +453,13 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       </nav>
 
       {/* ── Bottom: Support ── */}
-      <div className="px-2 py-2 space-y-0.5 shrink-0"
+      <div className="shrink-0 space-y-1 px-2 py-2"
         style={{ borderTop: `1px solid ${sidebar.borderColor}` }}>
         {/* Need Help / Support */}
         {!collapsed && (
-          <div className="px-3 py-2">
-            <Link href="/support" onClick={onNavigate} className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
+          <>
+          <div className="px-1 sm:px-3">
+            <Link href="/support" onClick={onNavigate} className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2 sm:p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
               <Headphones className="h-4 w-4 shrink-0 text-blue-400" />
               <div>
                 <p className="font-semibold" style={{ color: sidebar.text }}>Need Help?</p>
@@ -466,6 +467,14 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
               </div>
             </Link>
           </div>
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt="" className="h-7 w-7 shrink-0 rounded-md bg-white object-contain p-0.5" />
+            <div className="min-w-0">
+              <p className="text-[9px] font-medium leading-tight" style={{ color: sidebar.textMuted }}>Powered by</p>
+              <p className="truncate text-[10px] font-semibold leading-tight" style={{ color: sidebar.text }}>Think-Digital Solutions</p>
+            </div>
+          </div>
+          </>
         )}
 
       </div>
