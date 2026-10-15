@@ -7,7 +7,12 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission } from "@/lib/rbac/permissions";
 import type { MemberRole } from "@/lib/rbac";
 import { getCurrencyConfig } from "@/lib/currency";
-import { defaultPermissionMatrixForRole, normalizePermissionMatrix, savePermissionTemplate } from "@/lib/rbac/permissions";
+import {
+  canonicalRoleKey,
+  defaultPermissionMatrixForRole,
+  normalizePermissionMatrix,
+  savePermissionTemplate
+} from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
 import { canGrantSuperAdminRole, isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
@@ -25,18 +30,6 @@ function databaseRole(role: string): MemberRole {
 function isValidAvatar(file: File): boolean {
   return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)
     && file.size <= 5 * 1024 * 1024;
-}
-
-function submittedPermissions(formData: FormData, requestedRole = ""): Record<string, unknown> {
-  const raw = formData.get("permissions") ?? formData.get("permission_matrix");
-  if (typeof raw === "string" && raw.trim()) {
-    try {
-      return normalizePermissionMatrix(JSON.parse(raw));
-    } catch {
-      return defaultPermissionMatrixForRole(requestedRole);
-    }
-  }
-  return defaultPermissionMatrixForRole(requestedRole);
 }
 
 function submittedApprovalPermissions(formData: FormData): Record<string, boolean | number> | null | undefined {
@@ -166,8 +159,9 @@ export async function inviteMember(formData: FormData) {
     can_view_other_users_transactions: canViewOther,
     can_check_cross_branch_stock: canCheckCrossBranchStock,
     access_permissions: {
-      role_key: requestedRole,
-      permissions: submittedPermissions(formData, requestedRole),
+      role_key: canonicalRoleKey(requestedRole),
+      permissions_mode: "inherit",
+      role_defaults_fallback: defaultPermissionMatrixForRole(requestedRole),
       ...(approvalPermissions ? { approvals: approvalPermissions } : {})
     },
   }).select("id").single();
@@ -195,12 +189,8 @@ export async function inviteMember(formData: FormData) {
     } else {
       avatarUrl = admin.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
       const { error: profileError } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("id", invited.userId);
-      const { error: memberAvatarError } = await (admin.from("organization_members") as any)
-        .update({ avatar_url: avatarUrl })
-        .eq("id", member.id)
-        .eq("org_id", context.orgId);
-      if (profileError || memberAvatarError) {
-        warning = `Invitation created, but profile photo details could not be fully saved: ${profileError?.message ?? memberAvatarError?.message}`;
+      if (profileError) {
+        warning = `Invitation created, but profile photo details could not be fully saved: ${profileError.message}`;
       }
     }
   }
@@ -333,8 +323,9 @@ export async function createStaffAccount(formData: FormData) {
   if (authError || !authData.user) return { error: authError?.message ?? "Unable to create the authentication account." };
 
   const accessPermissions = {
-    role_key: requestedRole,
-    permissions: submittedPermissions(formData, requestedRole),
+    role_key: canonicalRoleKey(requestedRole),
+    permissions_mode: "inherit",
+    role_defaults_fallback: defaultPermissionMatrixForRole(requestedRole),
     approvals: requestedSuperAdmin
       ? {
           stockTransfers: true,
@@ -406,12 +397,8 @@ export async function createStaffAccount(formData: FormData) {
     } else {
       avatarUrl = admin.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
       const { error: profileError } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("id", authData.user.id);
-      const { error: memberAvatarError } = await (admin.from("organization_members") as any)
-        .update({ avatar_url: avatarUrl })
-        .eq("id", member.id)
-        .eq("org_id", context.orgId);
-      if (profileError || memberAvatarError) {
-        warning = `Account created, but profile photo details could not be fully saved: ${profileError?.message ?? memberAvatarError?.message}`;
+      if (profileError) {
+        warning = `Account created, but profile photo details could not be fully saved: ${profileError.message}`;
       }
     }
   }
@@ -446,6 +433,7 @@ export interface UpdateMemberAccessScopeInput {
   approvalPermissions?: any;
   priceGroups?: string[];
   permissions?: Record<string, unknown>;
+  inheritPermissions?: boolean;
 }
 
 export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInput) {
@@ -460,12 +448,15 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
   const admin = createAdminClient();
   const targetOwner = await targetIsOwner(input.memberId, context.orgId);
   const grantsSuperAdminAccess = targetOwner || isSuperAdminRole(input.role);
-  const { data: member } = await admin
+  const { data: member, error: memberError } = await admin
     .from("organization_members")
-    .select("user_id")
+    .select("user_id, role, access_permissions")
     .eq("id", input.memberId)
     .eq("org_id", context.orgId)
     .maybeSingle();
+  if (memberError) return { error: memberError.message };
+  if (!member) return { error: "This organization member could not be found." };
+  const existingPermissions = (member.access_permissions as Record<string, unknown> | null) ?? {};
 
   if (input.avatar instanceof File && input.avatar.size > 0) {
     if (!isValidAvatar(input.avatar)) {
@@ -486,10 +477,6 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
       .update({ avatar_url: publicUrl.publicUrl })
       .eq("id", member.user_id);
     if (profileError) return { error: profileError.message };
-    await (admin.from("organization_members") as any)
-      .update({ avatar_url: publicUrl.publicUrl })
-      .eq("id", input.memberId)
-      .eq("org_id", context.orgId);
   }
 
   const updatePayload: Record<string, any> = {};
@@ -533,13 +520,29 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     updatePayload.role = mappedRole;
   }
 
-  if (grantsSuperAdminAccess || input.role || input.permissions || input.approvalPermissions || input.priceGroups) {
-    const existing = await admin.from("organization_members").select("access_permissions").eq("id", input.memberId).maybeSingle();
-    const existingPermissions = existing.data?.access_permissions ?? {};
+  if (grantsSuperAdminAccess || input.role || input.permissions || input.inheritPermissions || input.approvalPermissions || input.priceGroups) {
+    const preserveCustomPermissions = existingPermissions.permissions_mode === "custom" && !input.inheritPermissions;
+    const setRoleInheritance = Boolean(input.inheritPermissions || (input.role && !preserveCustomPermissions));
     updatePayload.access_permissions = {
       ...existingPermissions,
-      role_key: grantsSuperAdminAccess ? "owner" : input.role || "staff",
+      role_key: grantsSuperAdminAccess
+        ? "owner"
+        : input.role
+          ? canonicalRoleKey(input.role)
+          : canonicalRoleKey(String(existingPermissions.role_key ?? member.role)),
       ...(input.permissions ? { permissions: normalizePermissionMatrix(input.permissions) } : {}),
+      ...(input.permissions
+        ? { permissions_mode: "custom" }
+        : setRoleInheritance
+          ? { permissions_mode: "inherit" }
+          : {}),
+      ...(setRoleInheritance
+        ? {
+            role_defaults_fallback: defaultPermissionMatrixForRole(
+              String(input.role ?? existingPermissions.role_key ?? member.role)
+            )
+          }
+        : {}),
       approvals: grantsSuperAdminAccess
         ? {
             stockTransfers: true,
@@ -640,16 +643,23 @@ export async function updateMemberRole(memberId: string, role: MemberRole) {
   }
 
   const supabase = await createClient();
-  const { data: existing } = await supabase.from("organization_members")
-    .select("access_permissions").eq("id", memberId).eq("org_id", context.orgId).maybeSingle();
-  const current = (existing?.access_permissions as Record<string, unknown>) ?? {};
-  const nextRoleKey = (current as Record<string, unknown>)?.role_key ?? role;
+  const { data: existing, error: existingError } = await supabase.from("organization_members")
+    .select("role, access_permissions").eq("id", memberId).eq("org_id", context.orgId).maybeSingle();
+  if (existingError) return { error: existingError.message };
+  if (!existing) return { error: "This organization member could not be found." };
+  const current = (existing.access_permissions as Record<string, unknown>) ?? {};
+  const preserveCustomPermissions = current.permissions_mode === "custom";
   const { error } = await supabase.from("organization_members").update({
     role,
     access_permissions: {
       ...current,
-      role_key: nextRoleKey,
-      permissions: normalizePermissionMatrix((current as Record<string, unknown>)?.permissions ?? defaultPermissionMatrixForRole(String(nextRoleKey)))
+      role_key: canonicalRoleKey(role),
+      ...(!preserveCustomPermissions
+        ? {
+            permissions_mode: "inherit",
+            role_defaults_fallback: defaultPermissionMatrixForRole(role === "admin" ? "administrator" : role)
+          }
+        : {})
     }
   }).eq("id", memberId).eq("org_id", context.orgId);
   if (error) return { error: error.message };
@@ -932,7 +942,11 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
       department: row.department?.trim() || null,
       can_view_other_users_transactions: true,
       can_check_cross_branch_stock: isSuperAdmin,
-      access_permissions: { role_key: requestedRole }
+      access_permissions: {
+        role_key: canonicalRoleKey(requestedRole),
+        permissions_mode: "inherit",
+        role_defaults_fallback: defaultPermissionMatrixForRole(requestedRole)
+      }
     }).select("id, created_at").single();
 
     if (memberError) {

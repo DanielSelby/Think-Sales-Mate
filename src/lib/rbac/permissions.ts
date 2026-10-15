@@ -2,12 +2,20 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import type { MemberRole } from "@/lib/rbac";
 import type { PermissionAction } from "@/lib/rbac";
+import {
+  canonicalRoleKey,
+  normalizePermissionMatrix,
+  resolveMemberPermissionMatrix,
+  type PermissionMatrix
+} from "./permission-matrix";
 
-export type PermissionMatrix = Record<string, PermissionAction[]>;
-
-const ACTIONS = new Set<PermissionAction>([
-  "view", "create", "edit", "delete", "approve", "import", "export", "print"
-]);
+export {
+  canonicalRoleKey,
+  defaultPermissionMatrixForRole,
+  normalizePermissionMatrix,
+  resolveMemberPermissionMatrix,
+  type PermissionMatrix
+} from "./permission-matrix";
 
 const MODULE_ALIASES: Record<string, string> = {
   hrm: "hrm_payroll",
@@ -25,36 +33,6 @@ const MODULE_ALIASES: Record<string, string> = {
 
 function canonicalModule(module: string) {
   return MODULE_ALIASES[module] ?? module;
-}
-
-export function normalizePermissionMatrix(value: unknown): PermissionMatrix {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const result: PermissionMatrix = {};
-  for (const [module, actions] of Object.entries(value)) {
-    if (!Array.isArray(actions)) continue;
-    const valid = actions.filter((action): action is PermissionAction =>
-      typeof action === "string" && ACTIONS.has(action as PermissionAction)
-    );
-    result[module] = Array.from(new Set(valid));
-  }
-  return result;
-}
-
-export function defaultPermissionMatrixForRole(role: string): PermissionMatrix {
-  switch (role.toLowerCase()) {
-    case "cashier":
-      return {
-        pos: ["view", "create", "edit", "print"],
-        sales: ["view", "create", "edit", "print"],
-        expenses: ["view", "create", "edit"],
-        banking: ["view"],
-        dashboard: ["view"],
-        customers: ["view", "create", "edit"],
-        reports: ["view"]
-      };
-    default:
-      return {};
-  }
 }
 
 export function hasPermission(matrix: PermissionMatrix, module: string, action: PermissionAction): boolean {
@@ -84,30 +62,33 @@ export function isTabVisible(matrix: PermissionMatrix, module: string, page: str
 }
 
 function roleKeyForMember(role: MemberRole, accessPermissions: Record<string, unknown>): string {
-  return typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : role;
+  return canonicalRoleKey(typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : role);
 }
 
-/** Load the effective matrix for a member. Explicit member permissions override its role template. */
+/** Custom member overrides are explicit; otherwise the current role template is authoritative. */
 export async function loadPermissionMatrix(
   orgId: string,
   role: MemberRole,
   accessPermissions: Record<string, unknown> = {}
 ): Promise<PermissionMatrix> {
-  const explicit = normalizePermissionMatrix(accessPermissions.permissions);
-  if (Object.keys(explicit).length > 0) return explicit;
-
   const roleKey = roleKeyForMember(role, accessPermissions);
-  const fallback = defaultPermissionMatrixForRole(roleKey);
-  if (Object.keys(fallback).length > 0) return fallback;
-
+  if (accessPermissions.permissions_mode === "custom") {
+    return normalizePermissionMatrix(accessPermissions.permissions);
+  }
   const supabase = await createClient();
-  const { data } = await (supabase as any)
+  const { data, error } = await (supabase as any)
     .from("organization_role_templates")
     .select("permissions")
     .eq("org_id", orgId)
     .eq("role_key", roleKey)
     .maybeSingle();
-  return normalizePermissionMatrix(data?.permissions);
+  if (error) throw new Error(`Could not load the role permission template: ${error.message}`);
+  return resolveMemberPermissionMatrix(
+    accessPermissions,
+    data?.permissions,
+    data !== null && data !== undefined,
+    roleKey
+  );
 }
 
 /** Server-side check using the signed-in user's active organization. */

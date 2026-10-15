@@ -60,7 +60,7 @@ export function RolesTab({
         <div>
           <h2 className="text-base font-bold text-ink-900 dark:text-white">Role-Based Access Control (RBAC) & Governance</h2>
           <p className="text-xs text-ledger-500 dark:text-ledger-400">
-            Configure system roles, access policies, approval authorities, and 1-click permission templates
+            Configure system roles, access policies, approval authorities, and saved permission templates
           </p>
         </div>
 
@@ -81,7 +81,7 @@ export function RolesTab({
             </h3>
           </div>
           <span className="text-[11px] text-ledger-500 dark:text-ledger-400">
-            Apply pre-configured best-practice authorizations instantly
+            Select a role to review and edit its saved permission template
           </span>
         </div>
 

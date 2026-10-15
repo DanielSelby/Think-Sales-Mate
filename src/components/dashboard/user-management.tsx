@@ -76,7 +76,8 @@ import type { BranchAccessRule } from "./user-management/types";
 
 import {
   DEFAULT_ROLES,
-  DEPARTMENTS
+  DEPARTMENTS,
+  PERMISSION_TEMPLATES
 } from "./user-management/constants";
 
 import {
@@ -237,12 +238,16 @@ export function UserManagement({
 
   // 1-Click Permission Template Handler
   const handleApplyTemplate = (templateKey: string) => {
-    const roleDef = roles.find((r) => r.key === templateKey || r.id.includes(templateKey));
+    const template = PERMISSION_TEMPLATES.find((item) => item.key === templateKey);
+    const roleKey = template?.roleKey ?? templateKey;
+    const roleDef = roles.find((r) => r.key === roleKey || r.id === `role-${roleKey}`);
     if (roleDef) {
       setSelectedRoleForModal(roleDef);
       setRoleModalMode("edit");
       setIsRoleModalOpen(true);
       showToast(`Loaded "${roleDef.name}" permission template`);
+    } else {
+      showToast(`No saved role exists for the "${template?.name ?? templateKey}" template.`);
     }
   };
 
@@ -622,7 +627,6 @@ export function UserManagement({
             updateMemberAccessScope({
               memberId,
               role: roleDef.key,
-              permissions: roleDef.permissions,
               approvalPermissions: roleDef.approvalCapabilities
             })
           )
@@ -1428,6 +1432,26 @@ export function UserManagement({
         roleDef={roles.find(
           (r) => r.key === selectedUserForDrawer?.role || r.id === selectedUserForDrawer?.role
         )}
+        canManage={canManage}
+        onResetPermissions={async (user) => {
+          const result = await updateMemberAccessScope({
+            memberId: user.id,
+            inheritPermissions: true
+          });
+          if (result?.error) return result;
+          const nextAccessPermissions = {
+            ...(user.accessPermissions ?? {}),
+            permissions_mode: "inherit"
+          };
+          setUsers((previous) => previous.map((member) => member.id === user.id
+            ? { ...member, accessPermissions: nextAccessPermissions }
+            : member));
+          setSelectedUserForDrawer((previous) => previous?.id === user.id
+            ? { ...previous, accessPermissions: nextAccessPermissions }
+            : previous);
+          showToast(`Role permissions now apply to ${user.fullName || user.name}.`);
+          return {};
+        }}
         auditLogs={auditLogs}
         onEdit={(u) => {
           setIsDrawerOpen(false);

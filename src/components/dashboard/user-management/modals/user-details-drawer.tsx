@@ -33,6 +33,8 @@ interface UserDetailsDrawerProps {
   onClose: () => void;
   user: ManagedUser | null;
   roleDef?: RoleDefinition;
+  canManage: boolean;
+  onResetPermissions: (user: ManagedUser) => Promise<{ error?: string }>;
   auditLogs: AuditLogEntry[];
   onEdit: (user: ManagedUser) => void;
   onResetPassword: (user: ManagedUser) => void;
@@ -44,12 +46,16 @@ export function UserDetailsDrawer({
   onClose,
   user,
   roleDef,
+  canManage,
+  onResetPermissions,
   auditLogs,
   onEdit,
   onResetPassword,
   onToggleStatus
 }: UserDetailsDrawerProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "branches" | "permissions" | "security" | "activity">("overview");
+  const [isResettingPermissions, setIsResettingPermissions] = useState(false);
+  const [permissionResetError, setPermissionResetError] = useState<string | null>(null);
 
   if (!isOpen || !user) return null;
 
@@ -93,6 +99,7 @@ export function UserDetailsDrawer({
   const effectiveApprovalPermissions = user.role === "owner"
     ? ownerApprovalPermissions
     : user.approvalPermissions;
+  const hasCustomPermissionOverride = user.accessPermissions?.permissions_mode === "custom";
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -415,6 +422,42 @@ export function UserDetailsDrawer({
             {/* PERMISSIONS TAB */}
             {activeTab === "permissions" && (
               <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                      Action permissions
+                    </h3>
+                    <p className="mt-1 text-xs text-blue-700 dark:text-blue-200">
+                      {hasCustomPermissionOverride
+                        ? "This member uses a custom permission override instead of inheriting the role template."
+                        : "This member inherits the latest saved permissions for their role."}
+                    </p>
+                  </div>
+                  {hasCustomPermissionOverride && canManage && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isResettingPermissions}
+                      onClick={async () => {
+                        setPermissionResetError(null);
+                        setIsResettingPermissions(true);
+                        try {
+                          const result = await onResetPermissions(user);
+                          if (result.error) setPermissionResetError(result.error);
+                        } catch (error) {
+                          setPermissionResetError(error instanceof Error ? error.message : "Could not reset permissions.");
+                        } finally {
+                          setIsResettingPermissions(false);
+                        }
+                      }}
+                    >
+                      {isResettingPermissions ? "Resetting..." : "Use role permissions"}
+                    </Button>
+                  )}
+                  {permissionResetError && (
+                    <p role="alert" className="w-full text-xs text-red-700 dark:text-red-300">{permissionResetError}</p>
+                  )}
+                </div>
                 <div className="rounded-xl border border-ledger-100 bg-white p-4 dark:border-ledger-800 dark:bg-slate-900 space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Approval Authorities</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
