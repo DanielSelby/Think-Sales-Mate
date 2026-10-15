@@ -310,7 +310,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   return (
     <aside
       className={cn(
-        "relative h-screen shrink-0 flex-col transition-[width] duration-200",
+        "relative h-[100dvh] shrink-0 flex-col transition-[width] duration-200 md:h-screen",
         mobileOpen
           ? "fixed inset-y-0 left-0 z-[60] flex w-[min(86vw,320px)] shadow-2xl md:relative md:inset-auto md:z-auto md:h-screen md:shadow-none"
           : "hidden md:flex",
@@ -323,7 +323,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
         <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />
-        {!collapsed && (
+        {(!collapsed || mobileOpen) && (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="truncate text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>
               {systemName.replace(/\s+Pro$/i, "")}
@@ -453,10 +453,10 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       </nav>
 
       {/* ── Bottom: Support ── */}
-      <div className="shrink-0 space-y-1 px-2 py-2"
-        style={{ borderTop: `1px solid ${sidebar.borderColor}` }}>
+      <div className="mt-auto shrink-0 space-y-1 border-t px-2 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
+        style={{ borderColor: sidebar.borderColor, background: darkMode ? theme.colors.primary : sidebar.background }}>
         {/* Need Help / Support */}
-        {!collapsed && (
+        {(!collapsed || mobileOpen) && (
           <>
           <div className="px-1 sm:px-3">
             <Link href="/support" onClick={onNavigate} className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2 sm:p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
