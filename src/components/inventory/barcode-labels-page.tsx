@@ -140,7 +140,7 @@ export function BarcodeLabelsPage({
     labelSize: "40x30",
     pageSize: "A4",
     columns: 3,
-    rows: 10,
+    rows: 8,
     horizontalSpacing: 2,
     verticalSpacing: 2,
     margins: 5,
@@ -298,7 +298,7 @@ export function BarcodeLabelsPage({
     padding: `${settings.margins}mm`,
     ["--label-width" as string]: `${labelSize[0]}mm`,
     ["--label-height" as string]: `${labelSize[1]}mm`,
-    ["--barcode-height" as string]: settings.barcodeSize === "small" ? "24px" : settings.barcodeSize === "large" ? "48px" : "36px",
+    ["--barcode-height" as string]: settings.barcodeSize === "small" ? "12mm" : settings.barcodeSize === "large" ? "18mm" : "16mm",
     ["--label-font-size" as string]: settings.fontSize === "small" ? "7pt" : settings.fontSize === "large" ? "10pt" : "8pt",
   } as React.CSSProperties;
 

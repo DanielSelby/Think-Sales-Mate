@@ -2617,17 +2617,44 @@ html.dark body :is(
     box-sizing: border-box;
     overflow: hidden;
     border: 0.2mm solid #d1d5db;
-    padding: 2mm;
+    padding: 1mm;
     text-align: center;
     background: #ffffff !important;
     color: #000000 !important;
     break-inside: avoid;
   }
 
+  body.barcode-label-page-printing .barcode-label-page-item .barcode-label-name {
+    margin: 0;
+    overflow: hidden;
+    font-size: 8pt;
+    font-weight: 700;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.barcode-label-page-printing .barcode-label-page-item .barcode-label-sku,
+  body.barcode-label-page-printing .barcode-label-page-item .barcode-label-value {
+    margin: 0;
+    font-family: monospace;
+    font-size: 6pt;
+    line-height: 1;
+  }
+
+  body.barcode-label-page-printing .barcode-label-page-item .barcode-label-price {
+    margin: 0;
+    font-size: 7pt;
+    font-weight: 700;
+    line-height: 1;
+  }
+
   body.barcode-label-page-printing .barcode-label-page-item .barcode-label-graphic {
-    width: 100%;
-    height: var(--barcode-height, 36px);
-    margin: 1mm auto;
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: var(--barcode-height, 16mm);
+    margin: 0 auto;
   }
 
   /* Display clean print container */
