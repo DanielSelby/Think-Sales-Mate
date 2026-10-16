@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { AddPurchaseForm, type Recommendation } from "@/components/purchases/add-purchase-form";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
 export const metadata = { title: "Add Purchase · SalesMate ERP" };
 
@@ -12,6 +13,7 @@ export default async function AddPurchasePage() {
   const isBranchScoped = context.isBranchScoped;
   const allowedLocationIds = context.allowedLocationIds;
   const supabase = await createClient();
+  const mobileScannerEnabled = (await getEnabledOrganizationModules(orgId)).includes("POS:Mobile Scanner");
 
   const [
     { data: suppliers },
@@ -75,6 +77,7 @@ export default async function AddPurchasePage() {
       bankAccounts={(bankAccounts ?? []).map((a) => ({ id: a.id, name: a.name }))}
       currency={context.currency}
       recommendations={recommendations}
+      mobileScannerEnabled={mobileScannerEnabled}
     />
   );
 

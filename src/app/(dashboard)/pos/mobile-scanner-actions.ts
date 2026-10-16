@@ -12,8 +12,8 @@ const SCANNER_FEATURE = "POS:Mobile Scanner";
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 type ScannerResult<T> = { ok: true; data: T } | { ok: false; error: string };
-type ScannerModule = "pos" | "sales" | "inventory" | "transfers" | "stock_adjustment";
-const scannerModules = new Set<ScannerModule>(["pos", "sales", "inventory", "transfers", "stock_adjustment"]);
+type ScannerModule = "pos" | "sales" | "inventory" | "transfers" | "stock_adjustment" | "purchases";
+const scannerModules = new Set<ScannerModule>(["pos", "sales", "inventory", "transfers", "stock_adjustment", "purchases"]);
 function isScannerModule(value: unknown): value is ScannerModule {
   return typeof value === "string" && scannerModules.has(value as ScannerModule);
 }
@@ -43,6 +43,8 @@ async function requireScannerPermission(sourceModule: ScannerModule) {
     await requirePermission("inventory", "edit");
   } else if (sourceModule === "transfers") {
     await requireTabPermission("inventory", "stock_transfer", "create_transfer", "create");
+  } else if (sourceModule === "purchases") {
+    await requirePermission("purchases", "create");
   } else {
     await requirePermission("inventory", "edit");
   }

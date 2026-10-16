@@ -17,7 +17,7 @@ export default async function NewProductPage({ searchParams }: { searchParams: P
   const [{ data: locationRows }, { categories, brands }, enabledModules] = await Promise.all([
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     getCategoryAndBrandOptions(),
-    getEnabledOrganizationModules(context.orgId)
+    getEnabledOrganizationModules(context.orgId),
   ]);
 
   return (

@@ -334,7 +334,13 @@ export function ProductForm({
                   )}
                 </div>
                 <Input id="barcode" name="barcode" value={barcode} onChange={(event) => setBarcode(event.target.value)} placeholder="Enter barcode" />
-                {!isEdit && mobileScannerEnabled && !locationId && <p className="text-xs text-ledger-500">Select a default location before connecting the phone scanner.</p>}
+                {!isEdit && (
+                  <p className="text-xs text-ledger-500">
+                    {mobileScannerEnabled && !locationId
+                      ? "Select a default location before connecting the phone scanner."
+                      : "Connect the phone scanner and scan the barcode printed on the manufacturer's packaging to fill this field."}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">

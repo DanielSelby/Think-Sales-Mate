@@ -13,7 +13,7 @@ import {
   pollMobileScannerScans,
 } from "@/app/(dashboard)/pos/mobile-scanner-actions";
 
-type SourceModule = "pos" | "sales" | "inventory" | "transfers" | "stock_adjustment";
+type SourceModule = "pos" | "sales" | "inventory" | "transfers" | "stock_adjustment" | "purchases";
 
 interface Props {
   enabled: boolean;

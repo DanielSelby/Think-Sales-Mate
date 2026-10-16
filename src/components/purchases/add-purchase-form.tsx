@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { PurchaseStatus } from "@/types/database";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
+import { MobileScannerPairing } from "@/components/pos/mobile-scanner-pairing";
 
 export interface SupplierOption {
   id: string;
@@ -101,6 +102,7 @@ interface AddPurchaseFormProps {
   bankAccounts: BankAccountOption[];
   currency: string;
   recommendations: Recommendation[];
+  mobileScannerEnabled?: boolean;
   /** Defaults to "create". Pass "edit" + purchaseId + initialValues to edit an existing purchase. */
   mode?: "create" | "edit";
   purchaseId?: string;
@@ -141,7 +143,7 @@ function lineTotal(line: LineItem) {
 
 export function AddPurchaseForm({
   suppliers, locations, projects, products, bankAccounts, currency, recommendations,
-  mode = "create", purchaseId, initialValues,
+  mode = "create", purchaseId, initialValues, mobileScannerEnabled = false,
 }: AddPurchaseFormProps) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -254,6 +256,18 @@ export function AddPurchaseForm({
         },
       ];
     });
+  }
+
+  function handlePhoneBarcode(barcode: string): string | null {
+    const query = barcode.trim().toLocaleLowerCase();
+    const product = products.find((candidate) =>
+      candidate.barcode?.trim().toLocaleLowerCase() === query
+      || candidate.sku.trim().toLocaleLowerCase() === query,
+    );
+    if (!product) return `No product matches barcode "${barcode}".`;
+
+    addProduct(product);
+    return null;
   }
 
   // "Add Row" — a blank line the user fills in via the row's own inline
@@ -657,6 +671,16 @@ export function AddPurchaseForm({
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                 <ProductPicker products={products} onSelect={addProduct} onNotFound={handleMissingProduct} className="max-w-none flex-1" theme={theme} />
                 <div className="flex shrink-0 items-center gap-2">
+                  {!isEdit && (
+                    <MobileScannerPairing
+                      enabled={mobileScannerEnabled}
+                      sourceModule="purchases"
+                      locationId={locationId}
+                      locationName={locations.find((location) => location.id === locationId)?.name ?? "Selected location"}
+                      disabled={!locationId}
+                      onBarcode={handlePhoneBarcode}
+                    />
+                  )}
                   <Button variant="outline" size="sm" onClick={addEmptyRow}>
                     <Plus className="h-3.5 w-3.5" /> Add Row
                   </Button>

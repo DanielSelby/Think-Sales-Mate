@@ -47,7 +47,17 @@ export default function MobileScannerClient({ token }: { token: string }) {
     setLastScanned("");
     try {
       const reader = new BrowserMultiFormatReader();
-      reader.possibleFormats = [BarcodeFormat.CODE_128];
+    reader.possibleFormats = [
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.CODE_93,
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.ITF,
+      BarcodeFormat.QR_CODE,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+    ];
       processedScanRef.current = false;
       setScanning(true);
       controlsRef.current = await reader.decodeFromVideoDevice(undefined, videoRef.current, async (result) => {
