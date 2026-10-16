@@ -520,11 +520,11 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
               <div>
                 <span className="text-ledger-400">Barcode</span>
                 <div className="mt-0.5 flex items-center gap-1 font-mono font-medium text-ink-900 dark:text-white">
-                  <span>{product.barcode || "8806094721234"}</span>
+                  <span>{product.barcode || "Not set"}</span>
                   <button
                     onClick={() => setShowBarcodeModal(true)}
                     className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                    title="Print Barcode"
+                    title={product.barcode?.trim() ? "Print Barcode" : "Add a barcode to this product before printing"}
                   >
                     <BarcodeIcon className="h-3.5 w-3.5" />
                   </button>
@@ -673,6 +673,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
                         setShowActionsMenu(false);
                         setShowBarcodeModal(true);
                       }}
+                      title={product.barcode?.trim() ? "Print Barcode Label" : "Add a barcode to this product before printing"}
                       className="flex w-full items-center gap-2.5 px-3.5 py-2 text-xs text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
                     >
                       <BarcodeIcon className="h-3.5 w-3.5 text-purple-500" />
@@ -1430,7 +1431,7 @@ export function ProductDetailsView({ initialData }: ProductDetailsViewProps) {
       <BarcodePrintModal
         productName={product.name}
         sku={product.sku}
-        barcode={product.barcode || "8806094721234"}
+        barcode={product.barcode ?? ""}
         price={product.sellingPrice}
         currency={currency}
         isOpen={showBarcodeModal}

@@ -2481,6 +2481,10 @@ html.dark body :is(
 }
 
 /* ── Print Media Optimization ── */
+.barcode-label-print-area {
+  display: none;
+}
+
 @media print {
   @page {
     margin: 12mm 10mm 15mm 10mm;
@@ -2509,6 +2513,79 @@ html.dark body :is(
 
   body.stock-transfer-printing .stock-transfer-print-page header {
     display: grid !important;
+  }
+
+  body.barcode-label-printing * {
+    visibility: hidden !important;
+  }
+
+  body.barcode-label-printing .barcode-label-print-area,
+  body.barcode-label-printing .barcode-label-print-area * {
+    visibility: visible !important;
+  }
+
+  body.barcode-label-printing .barcode-label-modal-overlay,
+  body.barcode-label-printing .barcode-label-modal-dialog {
+    position: static !important;
+    display: contents !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  body.barcode-label-printing .barcode-label-print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 5mm;
+    padding: 8mm;
+    box-sizing: border-box;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.barcode-label-printing .barcode-label {
+    break-inside: avoid;
+    border: 0.2mm solid #d1d5db;
+    padding: 4mm;
+    text-align: center;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.barcode-label-printing .barcode-label-name {
+    margin: 0;
+    font-size: 9pt;
+    font-weight: 700;
+  }
+
+  body.barcode-label-printing .barcode-label-sku,
+  body.barcode-label-printing .barcode-label-value {
+    margin: 1mm 0 0;
+    font-family: monospace;
+    font-size: 7pt;
+  }
+
+  body.barcode-label-printing .barcode-label-graphic {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: 16mm;
+    margin: 2mm auto 0;
+  }
+
+  body.barcode-label-printing .barcode-label-price {
+    margin: 1mm 0 0;
+    font-size: 8pt;
+    font-weight: 700;
   }
 
   /* Display clean print container */

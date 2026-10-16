@@ -215,6 +215,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}
+      mobileScannerEnabled={false}
     />
   );
 }

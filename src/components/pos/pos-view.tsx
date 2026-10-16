@@ -40,6 +40,7 @@ import { playStockWarningSound } from "@/lib/sales/stock-warning-sound";
 import { CustomerBalancePop } from "@/components/sales/customer-balance-pop";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 import { RegisterApprovalSuccessDialog } from "@/components/pos/register-approval-success-dialog";
+import { MobileScannerPairing } from "@/components/pos/mobile-scanner-pairing";
 
 export interface PosProduct {
   id: string;
@@ -65,6 +66,7 @@ export interface StockLevel { productId: string; locationId: string; quantity: n
 interface PosViewProps {
   orgId: string;
   userId: string;
+  mobileScannerEnabled: boolean;
   invoiceTemplate?: SalesInvoiceTemplate;
   products: PosProduct[];
   locations: LocationOption[];
@@ -103,7 +105,7 @@ function getTierPrice(product: PosProduct, tier: "retail" | "wholesale" | "vip" 
   return product.unitPrice;
 }
 
-export function PosView({ orgId, userId, invoiceTemplate, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, cardAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
+export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, products, locations, stockLevels, currency, taxRatePercent, cashierName, canCheckCrossBranchStock, canChoosePriceTier, allowedPriceGroups, useSystemPrices, mobileMoneyAccounts, cardAccounts, canApproveRegisterClosures, canAccessEndOfDay, registerSessions }: PosViewProps) {
   const router = useRouter();
   const { activeTheme, darkMode, setSidebarCollapsed } = useAppStore();
   const [invoiceFormat, setInvoiceFormat] = useInvoiceFormat(userId);
@@ -308,6 +310,20 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
     setCart((prev) => (existing ? prev.map((l) => (l.productId === product.id ? line : l)) : [...prev, line]));
     if (!useSystemPrices) setPriceEditLine(line);
     setCartAddSignal((n) => n + 1);
+  }
+
+  function handleMobileBarcode(barcode: string): string | null {
+    const value = barcode.trim().toLowerCase();
+    const product = locationProducts.find((candidate) =>
+      candidate.sku.trim().toLowerCase() === value || (candidate.barcode ?? "").trim().toLowerCase() === value,
+    );
+    if (!product) return `No product with barcode "${barcode}" is available at this branch.`;
+    const existing = cart.find((line) => line.productId === product.id);
+    if (product.stockQuantity <= 0 || (existing && existing.quantity >= product.stockQuantity)) {
+      return `Not enough stock for "${product.name}" at this branch.`;
+    }
+    addToCart(product);
+    return null;
   }
 
   function clearUniqueProductSearchTimer() {
@@ -1301,6 +1317,14 @@ export function PosView({ orgId, userId, invoiceTemplate, products, locations, s
                     onKeyDown={onBarcodeEnter}
                     placeholder="Product name / SKU / scan barcode"
                     className="h-10 pl-9"
+                  />
+                  <MobileScannerPairing
+                    enabled={mobileScannerEnabled}
+                    sourceModule="pos"
+                    locationId={locationId}
+                    locationName={locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}
+                    disabled={!registerSession}
+                    onBarcode={handleMobileBarcode}
                   />
                   {searchDropdownOpen && filteredProducts.length > 0 && (
                     <div className="absolute left-0 right-0 top-11 z-30 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">

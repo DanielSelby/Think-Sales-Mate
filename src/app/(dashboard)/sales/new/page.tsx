@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { can } from "@/lib/rbac";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 import { getCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import {
   SaleForm,
   type SellableProduct,
@@ -19,6 +20,7 @@ export default async function NewSalePage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
+  const mobileScannerEnabled = (await getEnabledOrganizationModules(context.orgId)).includes("POS:Mobile Scanner");
 
   const supabase = await createClient();
   let locationsQuery = supabase
@@ -184,6 +186,7 @@ export default async function NewSalePage() {
       canCheckCrossBranchStock={context.canCheckCrossBranchStock}
       canChoosePriceTier={context.priceGroups.length > 1}
       allowedPriceGroups={context.priceGroups}
+      mobileScannerEnabled={mobileScannerEnabled}
     />
   );
 }

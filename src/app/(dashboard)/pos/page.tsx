@@ -4,6 +4,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, requirePermission } from "@/lib/rbac/permissions";
 import { PosView } from "@/components/pos/pos-view";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
 export const metadata = { title: "POS · SalesMate ERP" };
 
@@ -13,6 +14,7 @@ export default async function PosPage() {
   await requirePermission("pos", "view");
 
   const orgId = context.orgId;
+  const mobileScannerEnabled = (await getEnabledOrganizationModules(orgId)).includes("POS:Mobile Scanner");
   const supabase = await createClient();
   const db = supabase as any;
   const { data: allRegisterSessions, error: sessionError } = await db
@@ -57,6 +59,7 @@ export default async function PosPage() {
     <PosView
       orgId={orgId}
       userId={context.userId}
+      mobileScannerEnabled={mobileScannerEnabled}
       invoiceTemplate={companyProfile?.sales_invoice_template ?? "standard"}
       products={rawProducts.map((p) => ({
         id: p.id,

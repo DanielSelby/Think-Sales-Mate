@@ -55,6 +55,7 @@ import { StockLimitFeedback, StockLimitNotice, type StockLimitWarning } from "@/
 import { playStockWarningSound } from "@/lib/sales/stock-warning-sound";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 import { CustomerBalancePop } from "@/components/sales/customer-balance-pop";
+import { MobileScannerPairing } from "@/components/pos/mobile-scanner-pairing";
 
 
 export interface SellableProduct {
@@ -218,6 +219,7 @@ export function SaleForm({
   canCheckCrossBranchStock,
   canChoosePriceTier,
   allowedPriceGroups,
+  mobileScannerEnabled,
 }: {
   products: SellableProduct[];
   customers: SaleCustomer[];
@@ -246,6 +248,7 @@ export function SaleForm({
   canCheckCrossBranchStock: boolean;
   canChoosePriceTier: boolean;
   allowedPriceGroups: PriceTier[];
+  mobileScannerEnabled: boolean;
 }) {
   const router = useRouter();
   const { activeTheme } = useAppStore();
@@ -438,6 +441,31 @@ export function SaleForm({
       return;
     }
     setLines((prev) => [...prev, { key: crypto.randomUUID(), productId, quantity: 1, discountPercent: 0, taxPercent: 0 }]);
+  }
+
+  function handleMobileBarcode(barcode: string): string | null {
+    const value = barcode.trim().toLowerCase();
+    const product = locationProducts.find((candidate) =>
+      candidate.sku.trim().toLowerCase() === value || (candidate.barcode ?? "").trim().toLowerCase() === value,
+    );
+    if (!product) return `No product with barcode "${barcode}" is available at this branch.`;
+
+    const quantityInSale = lines
+      .filter((line) => line.productId === product.id)
+      .reduce((totalQuantity, line) => totalQuantity + line.quantity, 0);
+    if (!product.allowNegativeStock && quantityInSale >= product.stockQuantity) {
+      return product.stockQuantity <= 0
+        ? `"${product.name}" is out of stock at this branch.`
+        : `Only ${product.stockQuantity} unit(s) of "${product.name}" are available at this branch.`;
+    }
+
+    setLines((currentLines) => {
+      const existingLine = currentLines.find((line) => line.productId === product.id);
+      return existingLine
+        ? currentLines.map((line) => line.key === existingLine.key ? { ...line, quantity: line.quantity + 1 } : line)
+        : [...currentLines, { key: crypto.randomUUID(), productId: product.id, quantity: 1, discountPercent: 0, taxPercent: 0 }];
+    });
+    return null;
   }
 
   function clearUniqueProductSearchTimer() {
@@ -1337,6 +1365,13 @@ export function SaleForm({
                   </div>
                 )}
               </div>
+              <MobileScannerPairing
+                enabled={mobileScannerEnabled}
+                sourceModule="sales"
+                locationId={locationId}
+                locationName={locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}
+                onBarcode={handleMobileBarcode}
+              />
               <CrossBranchStockButton
                 query={search}
                 enabled={canCheckCrossBranchStock && Boolean(search.trim()) && (filteredProducts.length === 0 || hasOnlyUnavailableMatches)}

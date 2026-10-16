@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import JsBarcode from "jsbarcode";
 import { X, Check, AlertCircle, ArrowRight, Printer, Barcode as BarcodeIcon, ShieldCheck, History, Sliders, Truck, ShoppingCart, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BranchStock, formatLedgerMoney } from "@/lib/inventory/stock-ledger";
@@ -385,16 +386,27 @@ export function BarcodePrintModal({
   onClose,
 }: BarcodeModalProps) {
   const [copies, setCopies] = useState<number>(4);
+  const [barcodeError, setBarcodeError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    window.print();
+    if (!barcode.trim() || barcodeError) return;
+    const cleanup = () => document.body.classList.remove("barcode-label-printing");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    document.body.classList.add("barcode-label-printing");
+    try {
+      window.print();
+    } catch (error) {
+      window.removeEventListener("afterprint", cleanup);
+      cleanup();
+      throw error;
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="relative w-full max-w-md rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
+    <div className="barcode-label-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="barcode-label-modal-dialog relative w-full max-w-md rounded-2xl border border-ledger-100 bg-white p-6 shadow-2xl dark:border-ledger-700 dark:bg-ink-900">
         <div className="flex items-center justify-between border-b border-ledger-100 pb-4 dark:border-ledger-700">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400">
@@ -412,32 +424,13 @@ export function BarcodePrintModal({
 
         {/* Barcode Label Preview */}
         <div className="mt-5 space-y-4">
-          <div className="rounded-xl border border-ledger-200 bg-white p-4 text-center dark:border-ledger-700 dark:bg-ink-950">
+          <div className="barcode-label rounded-xl border border-ledger-200 bg-white p-4 text-center dark:border-ledger-700 dark:bg-ink-950">
             <p className="font-bold text-xs text-ink-900 dark:text-white">{productName}</p>
             <p className="mt-0.5 font-mono text-[10px] text-ledger-400">SKU: {sku}</p>
-            
-            {/* Visual Barcode Graphic */}
-            <div className="my-3 flex items-center justify-center space-x-1 py-1">
-              <div className="h-10 w-1 bg-black dark:bg-white" />
-              <div className="h-10 w-0.5 bg-black dark:bg-white" />
-              <div className="h-10 w-2 bg-black dark:bg-white" />
-              <div className="h-10 w-1 bg-black dark:bg-white" />
-              <div className="h-10 w-0.5 bg-black dark:bg-white" />
-              <div className="h-10 w-1.5 bg-black dark:bg-white" />
-              <div className="h-10 w-0.5 bg-black dark:bg-white" />
-              <div className="h-10 w-2 bg-black dark:bg-white" />
-              <div className="h-10 w-1 bg-black dark:bg-white" />
-              <div className="h-10 w-0.5 bg-black dark:bg-white" />
-              <div className="h-10 w-1 bg-black dark:bg-white" />
-              <div className="h-10 w-2 bg-black dark:bg-white" />
-              <div className="h-10 w-0.5 bg-black dark:bg-white" />
-              <div className="h-10 w-1.5 bg-black dark:bg-white" />
-              <div className="h-10 w-1 bg-black dark:bg-white" />
-            </div>
-
-            <p className="font-mono font-bold text-xs tracking-widest text-ink-900 dark:text-white">
-              {barcode}
-            </p>
+            {barcode.trim()
+              ? <BarcodeGraphic value={barcode} onError={setBarcodeError} />
+              : <p className="my-3 rounded-md bg-amber-50 p-3 text-xs text-amber-800">This product has no barcode saved. Add one in Edit Product before printing a label.</p>}
+            {barcodeError && <p role="alert" className="my-2 text-xs text-red-600">{barcodeError}</p>}
             <p className="mt-1 font-bold text-sm text-blue-600 dark:text-blue-400">
               {currency} {formatLedgerMoney(price, currency)}
             </p>
@@ -463,11 +456,25 @@ export function BarcodePrintModal({
           </div>
         </div>
 
+        {barcode.trim() && !barcodeError && (
+          <div className="barcode-label-print-area" aria-hidden="true">
+            {Array.from({ length: copies }, (_, index) => (
+              <div key={index} className="barcode-label">
+                <p className="barcode-label-name">{productName}</p>
+                <p className="barcode-label-sku">SKU: {sku}</p>
+                <BarcodeGraphic value={barcode} onError={setBarcodeError} />
+                <p className="barcode-label-value">{barcode}</p>
+                <p className="barcode-label-price">{currency} {formatLedgerMoney(price, currency)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mt-6 flex items-center justify-end gap-2 border-t border-ledger-100 pt-4 dark:border-ledger-700">
           <Button variant="outline" size="sm" onClick={onClose} className="rounded-xl">
             Close
           </Button>
-          <Button size="sm" onClick={handlePrint} className="gap-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
+          <Button size="sm" onClick={handlePrint} disabled={!barcode.trim() || Boolean(barcodeError)} className="gap-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
             <Printer className="h-3.5 w-3.5" />
             Print {copies} Labels
           </Button>
@@ -475,6 +482,32 @@ export function BarcodePrintModal({
       </div>
     </div>
   );
+}
+
+function BarcodeGraphic({ value, onError }: { value: string; onError: (message: string | null) => void }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || !value.trim()) return;
+    try {
+      JsBarcode(svg, value, {
+        format: "CODE128",
+        displayValue: false,
+        height: 48,
+        width: 1.6,
+        margin: 8,
+        lineColor: "#000000",
+        background: "#ffffff",
+      });
+      onError(null);
+    } catch (error) {
+      svg.replaceChildren();
+      onError(error instanceof Error ? `Barcode cannot be encoded: ${error.message}` : "Barcode cannot be encoded. Check the saved barcode value.");
+    }
+  }, [value, onError]);
+
+  return <svg ref={svgRef} className="barcode-label-graphic mx-auto my-2 max-w-full" role="img" aria-label={`Code 128 barcode for ${value}`} />;
 }
 
 // ==========================================
