@@ -1005,7 +1005,12 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
       {hasCostWarning && <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">One or more selected prices are at or below cost. This transaction will be flagged for review.</div>}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
         <span className="font-semibold">{registerSession.registerName} · Register Open · {registerSession.cashierName ?? cashierName} · {locations.find((location) => location.id === registerSession.locationId)?.name ?? "Assigned branch"}</span>
-        <Link href={`/pos/cash-drawer?location=${encodeURIComponent(locationId)}`} className="font-semibold underline underline-offset-2">Cash Drawer</Link>
+        <div className="ml-auto flex items-center gap-3">
+          <Link href={`/pos/cash-drawer?location=${encodeURIComponent(locationId)}`} className="font-semibold underline underline-offset-2">Cash Drawer</Link>
+          {canCheckCrossBranchStock && (
+            <CrossBranchStockButton query={query} enabled={Boolean(query.trim()) && filteredProducts.length === 0} />
+          )}
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -1110,8 +1115,15 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
           <button title="Close Register" onClick={openRegisterDialog} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-amber/40 text-amber hover:bg-amber-soft"><Lock className="h-4 w-4" /></button>
         </div>
 
-        <div className="hidden grid-cols-2 items-center gap-2 border-t border-ledger-200 pt-2 xl:flex xl:items-center xl:justify-end xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0 dark:border-ledger-700">
-          <CrossBranchStockButton query={query} enabled={canCheckCrossBranchStock && Boolean(query.trim()) && filteredProducts.length === 0} />
+        <div className="flex items-center justify-end gap-2 border-t border-ledger-200 pt-2 sm:ml-auto sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-ledger-700">
+          <MobileScannerPairing
+            enabled={mobileScannerEnabled}
+            sourceModule="pos"
+            locationId={locationId}
+            locationName={locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}
+            disabled={!registerSession}
+            onBarcode={handleMobileBarcode}
+          />
           <Link href="/accounting/expenses/new">
             <Button
               size="sm"
@@ -1318,14 +1330,6 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                     placeholder="Product name / SKU / scan barcode"
                     className="h-10 pl-9"
                   />
-                  <MobileScannerPairing
-                    enabled={mobileScannerEnabled}
-                    sourceModule="pos"
-                    locationId={locationId}
-                    locationName={locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}
-                    disabled={!registerSession}
-                    onBarcode={handleMobileBarcode}
-                  />
                   {searchDropdownOpen && filteredProducts.length > 0 && (
                     <div className="absolute left-0 right-0 top-11 z-30 max-h-72 overflow-y-auto rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
                       {filteredProducts.slice(0, 10).map((p) => (
@@ -1372,10 +1376,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                   <Plus className="h-5 w-5" />
                 </button>
               </div>
-              {/* Select date — under the Walk-In Customer field. sale_date is a
-                  DATE column (no time component), so this is date-only. */}
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" />
+              <label className="block min-w-0 space-y-1 text-[11px] text-ledger-500 dark:text-ledger-400">
+                Sale date
                 <input
                   type="date"
                   value={saleDate}
@@ -1383,16 +1385,16 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                     setSaleDate(e.target.value);
                     setDueDate(addDaysToIsoDate(e.target.value, customer?.paymentTermsDays ?? 0));
                   }}
-                  className="h-10 w-full rounded-md border border-ledger-200 bg-white pl-9 pr-2 text-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  className="h-9 w-full min-w-0 rounded-md border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                 />
-              </div>
-              <label className="block space-y-1 text-xs text-ledger-500 dark:text-ledger-400">
+              </label>
+              <label className="block min-w-0 space-y-1 text-[11px] text-ledger-500 dark:text-ledger-400">
                 Payment due date {customer ? `(Net ${customer.paymentTermsDays ?? 0})` : "(due on receipt)"}
                 <input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="h-10 w-full rounded-md border border-ledger-200 bg-white px-2 text-sm text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                  className="h-9 w-full min-w-0 rounded-md border border-ledger-200 bg-white px-2 text-xs text-ink-900 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
                 />
               </label>
             </div>

@@ -134,13 +134,15 @@ export function MobileScannerPairing({
       <Button
         type="button"
         variant="outline"
-        className="h-10 shrink-0 px-2 sm:px-3"
+        className="h-10 shrink-0 gap-2 border-violet-200 bg-white px-2 text-violet-800 shadow-sm transition hover:border-fuchsia-300 hover:bg-violet-50 sm:px-3 dark:border-violet-800 dark:bg-ink-900 dark:text-violet-200 dark:hover:bg-violet-950/30"
         disabled={disabled || pending}
         onClick={() => void connect()}
         title={disabled ? "Open a POS register before connecting a phone" : "Connect a phone camera to scan items into this sale"}
       >
-        <Smartphone className="h-4 w-4" />
-        <span className="hidden sm:inline">{pending ? "Connecting…" : "Phone scan"}</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-sky-500 text-white shadow-sm shadow-fuchsia-500/25">
+          <Smartphone className="h-4 w-4" strokeWidth={2.4} />
+        </span>
+        <span>{pending ? "Connecting…" : "Phone scan"}</span>
       </Button>
 
       <Dialog open={Boolean(session)} onClose={() => void disconnect()} title="Connect phone scanner" className="max-w-md">
