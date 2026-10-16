@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 
@@ -13,7 +13,7 @@ export async function recordCustomerCreditPayment(input: {
 }) {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "Your session expired." };
-  if (!await canPermission("accounting", "create")) return { ok: false, error: "You do not have permission to record customer payments." };
+  if (!await canPermission("accounting", "create") || !await canTabPermission("accounting", "accounting", "receivables", "create")) return { ok: false, error: "You do not have permission to record customer payments." };
   if (!input.invoiceId || !Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, error: "Enter a valid payment amount." };
   if (input.locationId && context.isBranchScoped && !context.allowedLocationIds.includes(input.locationId)) return { ok: false, error: "You are not assigned to this branch." };
   if (input.bankAccountId && !await canPermission("banking", "edit")) {
@@ -72,7 +72,7 @@ export async function sendCustomerReminder(input: {
   locationId?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) {
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "receivables", "edit"))) {
     return { ok: false, error: "You do not have permission to send payment reminders." };
   }
   if (!input.invoiceId || !input.message.trim()) {
@@ -105,7 +105,8 @@ export async function saveAccountingAccount(input: {
   subType?: string; parentId?: string | null; locationId?: string | null; currency: string; description?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", input.id ? "edit" : "create"))) return { ok: false, error: "You do not have permission to manage accounts." };
+  const action = input.id ? "edit" : "create";
+  if (!context || !(await canPermission("accounting", action)) || !(await canTabPermission("accounting", "accounting", "coa", action))) return { ok: false, error: "You do not have permission to manage accounts." };
   if (!input.code.trim() || !input.name.trim()) return { ok: false, error: "Account code and name are required." };
   if (input.locationId && !context.allowedLocationIds.includes(input.locationId) && context.isBranchScoped) {
     return { ok: false, error: "You are not assigned to this branch." };
@@ -125,7 +126,7 @@ export async function saveAccountingAccount(input: {
 
 export async function setAccountingAccountStatus(id: string, active: boolean): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to manage accounts." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "coa", "edit"))) return { ok: false, error: "You do not have permission to manage accounts." };
   const supabase = await createClient() as any;
   const { error } = await supabase.from("accounting_accounts").update({ is_active: active }).eq("id", id).eq("org_id", context.orgId);
   if (error) return { ok: false, error: error.message };
@@ -135,7 +136,7 @@ export async function setAccountingAccountStatus(id: string, active: boolean): P
 
 export async function mergeAccountingAccounts(sourceId: string, targetId: string): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to merge accounts." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "coa", "edit"))) return { ok: false, error: "You do not have permission to merge accounts." };
   if (!sourceId || !targetId || sourceId === targetId) return { ok: false, error: "Choose two different accounts." };
   const supabase = await createClient() as any;
   const { error } = await supabase.rpc("merge_accounting_accounts", {
@@ -153,7 +154,7 @@ export async function createManualJournal(input: {
   lines: { accountId: string; description: string; debit: number; credit: number }[];
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "create"))) return { ok: false, error: "You do not have permission to create journal entries." };
+  if (!context || !(await canPermission("accounting", "create")) || !(await canTabPermission("accounting", "accounting", "journal", "create")) || (input.status === "posted" && !(await canTabPermission("accounting", "accounting", "journal", "approve")))) return { ok: false, error: "You do not have permission to create journal entries." };
   if (!input.description.trim() || input.lines.length < 2) return { ok: false, error: "A journal requires a description and at least two lines." };
   const totalDebit = input.lines.reduce((sum, line) => sum + line.debit, 0);
   const totalCredit = input.lines.reduce((sum, line) => sum + line.credit, 0);
@@ -182,7 +183,8 @@ export async function createManualJournal(input: {
 
 export async function updateJournalStatus(id: string, status: "posted" | "reversed", reason?: string): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to update journal entries." };
+  const action = status === "posted" ? "approve" : "edit";
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "journal", action))) return { ok: false, error: "You do not have permission to update journal entries." };
   const supabase = await createClient() as any;
   const { data: journal, error: fetchError } = await supabase.from("journal_entries").select("id, status, description, posted_by, posted_at").eq("id", id).eq("org_id", context.orgId).single();
   if (fetchError || !journal) return { ok: false, error: "Journal entry not found." };
@@ -205,7 +207,7 @@ export async function saveAccountingSettings(input: {
   numberSequences: { journalPrefix: string; invoicePrefix: string; billPrefix: string };
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to update accounting settings." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "settings", "edit"))) return { ok: false, error: "You do not have permission to update accounting settings." };
   const supabase = await createClient() as any;
   const { error } = await supabase.from("accounting_settings").upsert({
     org_id: context.orgId, financial_year_start: input.financialYearStart, financial_year_end: input.financialYearEnd,
@@ -237,7 +239,7 @@ export async function saveFixedAssetTreatment(input: {
   notes?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to manage fixed assets." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "fixed_assets", "edit"))) return { ok: false, error: "You do not have permission to manage fixed assets." };
   if (!input.assetCode.trim() || !input.assetName.trim() || input.cost < 0 || input.salvageValue < 0 || input.usefulLifeYears < 0) {
     return { ok: false, error: "Enter valid fixed asset details." };
   }
@@ -258,7 +260,7 @@ export async function saveFixedAssetTreatment(input: {
 
 export async function postFixedAssetDepreciation(months: number): Promise<{ ok: boolean; totalDepreciation?: number; entriesCreated?: number; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "create"))) return { ok: false, error: "You do not have permission to post depreciation." };
+  if (!context || !(await canPermission("accounting", "create")) || !(await canTabPermission("accounting", "accounting", "fixed_assets", "create"))) return { ok: false, error: "You do not have permission to post depreciation." };
   if (!Number.isInteger(months) || months < 1 || months > 12) return { ok: false, error: "Depreciation period must be between 1 and 12 months." };
   const supabase = await createClient() as any;
   const [{ data: assets, error: assetError }, { data: expenseAccounts }, { data: accumulatedAccounts }] = await Promise.all([
@@ -315,7 +317,7 @@ export async function importBankStatement(input: {
   transactions: { date: string; reference: string; description: string; amount: number; type: "deposit" | "withdrawal" }[];
 }): Promise<{ ok: boolean; imported?: number; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to import bank statements." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "reconciliation", "create"))) return { ok: false, error: "You do not have permission to import bank statements." };
   if (!input.accountId || !input.transactions.length || input.transactions.some((transaction) => !transaction.date || !Number.isFinite(transaction.amount) || transaction.amount <= 0)) return { ok: false, error: "The statement contains invalid transactions." };
   const supabase = await createClient() as any;
   const { data: account } = await supabase.from("bank_accounts").select("id").eq("id", input.accountId).eq("org_id", context.orgId).maybeSingle();
@@ -335,7 +337,7 @@ export async function matchBankStatementTransaction(
   bookTransactionId: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to update reconciliation." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "reconciliation", "edit"))) return { ok: false, error: "You do not have permission to update reconciliation." };
   const supabase = await createClient() as any;
 
   const { data: statement, error: statementError } = await supabase
@@ -395,7 +397,7 @@ export async function matchBankStatementTransaction(
 
 export async function autoMatchBankStatement(accountId: string): Promise<{ ok: boolean; matched?: number; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to reconcile bank statements." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "reconciliation", "edit"))) return { ok: false, error: "You do not have permission to reconcile bank statements." };
   const supabase = await createClient() as any;
   const [{ data: statements, error: statementError }, { data: bookTransactions, error: bookError }] = await Promise.all([
     supabase.from("bank_statement_transactions").select("id, transaction_date, amount, type, matched_transaction_id").eq("org_id", context.orgId).eq("bank_account_id", accountId),
@@ -425,7 +427,7 @@ export async function autoMatchBankStatement(accountId: string): Promise<{ ok: b
 
 export async function finalizeBankReconciliation(input: { accountId: string; statementBalance: number; statementDate?: string }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "edit"))) return { ok: false, error: "You do not have permission to finalize reconciliation." };
+  if (!context || !(await canPermission("accounting", "edit")) || !(await canTabPermission("accounting", "accounting", "reconciliation", "approve"))) return { ok: false, error: "You do not have permission to finalize reconciliation." };
   if (!Number.isFinite(input.statementBalance)) return { ok: false, error: "Enter a valid statement balance." };
   const supabase = await createClient() as any;
   const [{ data: account }, { data: unmatched, error: unmatchedError }] = await Promise.all([
@@ -453,7 +455,8 @@ export async function saveTaxRate(input: {
   appliesTo: "sales" | "purchases" | "both"; isActive: boolean; description: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", input.id ? "edit" : "create"))) return { ok: false, error: "You do not have permission to manage tax rates." };
+  const action = input.id ? "edit" : "create";
+  if (!context || !(await canPermission("accounting", action)) || !(await canTabPermission("accounting", "accounting", "tax", action))) return { ok: false, error: "You do not have permission to manage tax rates." };
   if (!input.name.trim() || !input.code.trim() || !Number.isFinite(input.rate) || input.rate < 0 || input.rate > 100) return { ok: false, error: "Enter a tax rate between 0 and 100." };
   const db = await createClient() as any;
   const payload = { org_id: context.orgId, name: input.name.trim(), code: input.code.trim().toUpperCase(), rate: input.rate, is_compound: input.isCompound, applies_to: input.appliesTo, is_active: input.isActive, description: input.description.trim() };
@@ -470,7 +473,7 @@ export async function fileAccountingTaxReturn(input: {
   withholdingTaxCredited: number; netTaxPayable: number;
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
-  if (!context || !(await canPermission("accounting", "create"))) return { ok: false, error: "You do not have permission to file tax returns." };
+  if (!context || !(await canPermission("accounting", "create")) || !(await canTabPermission("accounting", "accounting", "tax", "create"))) return { ok: false, error: "You do not have permission to file tax returns." };
   const amounts = [input.grossSales, input.exemptSales, input.taxableSales, input.standardVAT, input.nhil, input.getFund, input.covidLevy, input.totalOutputTax, input.inputTaxDeductions, input.withholdingTaxCredited, input.netTaxPayable];
   if (!input.period.trim() || amounts.some((amount) => !Number.isFinite(amount) || amount < 0)) return { ok: false, error: "The filing contains invalid tax amounts." };
   if (Math.abs(input.netTaxPayable - (input.totalOutputTax - input.inputTaxDeductions - input.withholdingTaxCredited)) > 0.01) return { ok: false, error: "Net tax payable does not match the filing deductions." };

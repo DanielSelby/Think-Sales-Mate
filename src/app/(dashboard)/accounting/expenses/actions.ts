@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -13,7 +13,7 @@ function redirectWithError(path: string, message: string): never {
 export async function createExpense(formData: FormData): Promise<void> {
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/accounting/expenses/new", "Your session expired — please sign in again.");
-  if (!await canPermission("accounting", "edit")) {
+  if (!await canPermission("accounting", "edit") || !await canTabPermission("accounting", "accounting", "payables", "create")) {
     redirectWithError("/accounting/expenses/new", "You don't have permission to record expenses.");
   }
 
@@ -49,7 +49,7 @@ export async function createExpense(formData: FormData): Promise<void> {
 
 export async function deleteExpense(expenseId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("accounting", "edit")) {
+  if (!context || !await canPermission("accounting", "edit") || !await canTabPermission("accounting", "accounting", "payables", "delete")) {
     return { error: "You don't have permission to remove expenses." };
   }
 

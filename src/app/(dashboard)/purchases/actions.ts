@@ -1,6 +1,6 @@
 "use server";
 
-import { canPermission, requirePermission } from "@/lib/rbac/permissions";
+import { canPermission, requirePermission, requireTabPermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -76,6 +76,7 @@ function computeTotals(items: PurchaseItemInput[], discountAmount: number, shipp
 }
 
 export async function createPurchase(input: CreatePurchaseInput): Promise<CreatePurchaseResult> {
+  await requireTabPermission("purchases", "purchases", "new_purchase", "create");
   await requirePermission("purchases", "create");
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one product before saving." };
@@ -251,6 +252,7 @@ export interface PurchasePrintData {
 }
 
 export async function getPurchasePrintData(purchaseId: string): Promise<PurchasePrintData | null> {
+  await requireTabPermission("purchases", "purchases", "purchase_history", "view");
   const context = await getCurrentOrgContext();
   if (!context) return null;
   const supabase = await createClient();
@@ -285,11 +287,22 @@ export async function getPurchasePrintData(purchaseId: string): Promise<Purchase
 }
 
 export async function getPurchaseReceivableItems(purchaseId: string): Promise<ReceivableLine[]> {
+  await requireTabPermission("purchases", "purchases", "purchase_history", "view");
+  const context = await getCurrentOrgContext();
+  if (!context) return [];
   const supabase = await createClient();
+  const { data: purchase, error: purchaseError } = await supabase
+    .from("purchases")
+    .select("org_id, location_id")
+    .eq("id", purchaseId)
+    .maybeSingle();
+  if (purchaseError) throw new Error(`Could not verify purchase access: ${purchaseError.message}`);
+  if (!purchase || purchase.org_id !== context.orgId || !canUseLocation(context, purchase.location_id)) return [];
   const { data: items } = await supabase
     .from("purchase_items")
     .select("id, product_id, quantity, quantity_received, product:products ( name )")
-    .eq("purchase_id", purchaseId);
+    .eq("purchase_id", purchaseId)
+    .eq("org_id", context.orgId);
 
   return (items ?? []).map((item) => ({
     purchaseItemId: item.id,
@@ -317,6 +330,7 @@ export async function receivePurchaseItems({
   lines,
   note,
 }: ReceivePurchaseItemsInput): Promise<ReceivePurchaseItemsResult> {
+  await requireTabPermission("purchases", "purchases", "purchase_history", "edit");
   const toReceive = lines.filter((l) => l.quantity > 0);
   if (toReceive.length === 0) return { ok: false, error: "Enter a quantity for at least one item." };
 
@@ -417,6 +431,7 @@ export interface DuplicatePurchaseResult {
 }
 
 export async function duplicatePurchase(purchaseId: string): Promise<DuplicatePurchaseResult> {
+  await requireTabPermission("purchases", "purchases", "new_purchase", "create");
   const supabase = await createClient();
   const {
     data: { user },
@@ -519,6 +534,7 @@ export async function recordPurchasePayment(
   note?: string,
   bankAccountId?: string,
 ): Promise<RecordPurchasePaymentResult> {
+  await requireTabPermission("purchases", "purchases", "purchase_history", "edit");
   if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Enter an amount greater than zero." };
 
   const supabase = await createClient();
@@ -611,6 +627,7 @@ export async function schedulePurchasePayment(
   scheduledDate: string,
   paymentMethod: string
 ): Promise<{ ok: boolean; error?: string }> {
+  await requireTabPermission("purchases", "purchases", "purchase_history", "edit");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
     return { ok: false, error: "Enter a valid scheduled payment date." };
   }
@@ -712,6 +729,7 @@ export interface UpdatePurchaseResult {
 }
 
 export async function updatePurchase(purchaseId: string, input: UpdatePurchaseInput): Promise<UpdatePurchaseResult> {
+  await requireTabPermission("purchases", "purchases", "purchase_history", "edit");
   await requirePermission("purchases", "edit");
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one product before saving." };

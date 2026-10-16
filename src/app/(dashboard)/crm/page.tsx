@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
+import { isTabVisible, loadPermissionMatrix } from "@/lib/rbac/permissions";
 import { getCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 import { CrmWorkspace, type CrmCustomer, type CrmInvoice, type CrmSale } from "@/components/crm/crm-workspace";
 
@@ -11,6 +12,15 @@ export default async function CrmPage() {
   if (!context) return null;
 
   const supabase = await createClient();
+  const permissionMatrix = await loadPermissionMatrix(context.orgId, context.role, context.accessPermissions);
+  const visibleCrmTabs = context.role === "owner"
+    ? ["customers", "leads", "activities", "reports"]
+    : ["customers", "leads", "activities", "reports"].filter((tab) =>
+        isTabVisible(permissionMatrix, "crm", "crm", tab)
+      );
+  if (visibleCrmTabs.length === 0) {
+    return <div role="alert" className="rounded-xl border border-dashed border-ledger-200 bg-white p-8 text-center text-sm text-ledger-500 dark:border-slate-700 dark:bg-ink-900 dark:text-ledger-400">You don’t have access to CRM.</div>;
+  }
   const [{ data: rows }, { data: sales }, { data: invoices }, balances] = await Promise.all([
     supabase.from("customers").select("id, name, email, phone, company, created_at").eq("org_id", context.orgId).order("name"),
     (() => { let q = supabase.from("sales").select("customer_id, customer_name, total, created_at, status, location_id").eq("org_id", context.orgId); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("created_at", { ascending: false }) : q.order("created_at", { ascending: false }); })(),
@@ -47,6 +57,6 @@ export default async function CrmPage() {
   const canManage = can(context.role, "crm.manage");
 
   return (
-    <div className="mx-auto max-w-[1600px]"><CrmWorkspace customers={customers} sales={rawSales} invoices={rawInvoices} canManage={canManage} currency={context.currency} /></div>
+    <div className="mx-auto max-w-[1600px]"><CrmWorkspace customers={customers} sales={rawSales} invoices={rawInvoices} canManage={canManage} currency={context.currency} visibleTabs={visibleCrmTabs} /></div>
   );
 }

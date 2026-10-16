@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { requireTabPermission } from "@/lib/rbac/permissions";
 import type { EmploymentType } from "@/types/database";
 
 export interface SimpleResult {
@@ -16,6 +17,7 @@ export interface SimpleResult {
 // ---------------------------------------------------------------------------
 
 export async function createEmployee(formData: FormData) {
+  await requireTabPermission("hrm_payroll", "hrm", "employees", "create");
   const fullName      = String(formData.get("full_name") ?? "").trim();
   const email         = String(formData.get("email") ?? "").trim() || null;
   const phone         = String(formData.get("phone") ?? "").trim() || null;
@@ -84,6 +86,7 @@ export async function createEmployee(formData: FormData) {
 }
 
 export async function setEmployeeStatus(employeeId: string, status: "active" | "inactive"): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "employees", "edit");
   const supabase = await createClient();
   const { error } = await supabase.from("employees").update({ status, on_leave_until: null }).eq("id", employeeId);
   if (error) return { ok: false, error: error.message };
@@ -93,6 +96,7 @@ export async function setEmployeeStatus(employeeId: string, status: "active" | "
 }
 
 export async function setEmployeeOnLeave(employeeId: string, untilDate: string): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "leave_management", "edit");
   const supabase = await createClient();
   const { error } = await supabase.from("employees").update({ on_leave_until: untilDate }).eq("id", employeeId);
   if (error) return { ok: false, error: error.message };
@@ -102,6 +106,7 @@ export async function setEmployeeOnLeave(employeeId: string, untilDate: string):
 }
 
 export async function deleteEmployee(employeeId: string): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "employees", "delete");
   const supabase = await createClient();
   const { error } = await supabase.from("employees").delete().eq("id", employeeId);
   if (error) return { ok: false, error: error.message };
@@ -146,6 +151,7 @@ export async function generatePayslipsForRun(input: {
   currency: string;
   actorId: string;
 }): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "payslips", "create");
   const supabase = await createClient();
   const [{ data: runItems, error: itemsError }] = await Promise.all([
     supabase.from("payroll_run_items").select("id, employee_id, employee_name, basic_pay, deductions, net_pay").eq("payroll_run_id", input.runId).eq("org_id", input.orgId),
@@ -225,6 +231,9 @@ function isIsoDate(value: string): boolean {
 }
 
 export async function processPayroll(input: ProcessPayrollInput): Promise<ProcessPayrollResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "payroll", "create");
+  await requireTabPermission("hrm_payroll", "hrm", "payroll", "approve");
+  await requireTabPermission("hrm_payroll", "hrm", "payslips", "create");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -358,6 +367,7 @@ export async function processPayroll(input: ProcessPayrollInput): Promise<Proces
 
 
 export async function updateEmployee(employeeId: string, formData: FormData) {
+  await requireTabPermission("hrm_payroll", "hrm", "employees", "edit");
   const context = await getCurrentOrgContext();
   if (!context) {
     redirect("/hrm?error=Session+expired");

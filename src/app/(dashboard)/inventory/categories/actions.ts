@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canTabPermission } from "@/lib/rbac/permissions";
 
 export interface ProductCategoryInput {
   name: string;
@@ -27,7 +27,7 @@ async function categoryContext(action: "view" | "create" | "edit" | "delete" | "
   if (context.isBranchScoped && action !== "view") {
     return { error: "Product categories are shared organization-wide. Only users with organization-wide access can change or export them." } as const;
   }
-  if (!await canPermission("product_categories", action)) {
+  if (!await canTabPermission("inventory", "products", "product_categories", action)) {
     return { error: `You don't have permission to ${action} product categories.` } as const;
   }
   return { context } as const;

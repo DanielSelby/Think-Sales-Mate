@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultPermissionMatrixForRole,
-  resolveMemberPermissionMatrix
+  normalizePermissionMatrix,
+  resolveMemberPermissionMatrix,
+  resolveTabPermissionActions
 } from "./permission-matrix";
 
 describe("role permission inheritance", () => {
@@ -66,5 +68,16 @@ describe("role permission inheritance", () => {
     expect(
       resolveMemberPermissionMatrix({}, {}, true, "cashier")
     ).toEqual({});
+  });
+
+  it("preserves tab permission entries, including an explicit deny-all override", () => {
+    const matrix = normalizePermissionMatrix({
+      sales: ["view", "create"],
+      "sales.sales.new_sales": []
+    });
+
+    expect(matrix["sales.sales.new_sales"]).toEqual([]);
+    expect(resolveTabPermissionActions(matrix, "sales", "sales", "new_sales")).toEqual([]);
+    expect(resolveTabPermissionActions(matrix, "sales", "sales", "sales_history")).toEqual(["view", "create"]);
   });
 });

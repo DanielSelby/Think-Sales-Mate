@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission, requireTabPermission } from "@/lib/rbac/permissions";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { headers } from "next/headers";
 import { postOperationalJournal } from "@/lib/accounting/post-operational-journal";
@@ -101,7 +101,8 @@ async function postCashClosingVarianceJournal(db: any, closing: { id: string; or
 export async function logCashClosingAction(closingId: string | null, action: "exported" | "printed") {
   const ctx = await getCurrentOrgContext();
   if (!ctx || !closingId) return { error: "Closing record not found." };
-  if (!await canPermission("cash_closing", action === "exported" ? "export" : "print")) {
+  const permissionAction = action === "exported" ? "export" : "print";
+  if (!await canPermission("cash_closing", permissionAction) || !await canTabPermission("banking", "banking", "reconciliation", permissionAction)) {
     return { error: `You do not have permission to ${action === "exported" ? "export" : "print"} cash closings.` };
   }
   const db = await createClient() as any;
@@ -126,7 +127,8 @@ export async function logCashClosingActions(closingIds: string[], action: "expor
   const ctx = await getCurrentOrgContext();
   const uniqueIds = [...new Set(closingIds)];
   if (!ctx || !uniqueIds.length) return { error: "No closing records were selected." };
-  if (!await canPermission("cash_closing", action === "exported" ? "export" : "print")) {
+  const permissionAction = action === "exported" ? "export" : "print";
+  if (!await canPermission("cash_closing", permissionAction) || !await canTabPermission("banking", "banking", "reconciliation", permissionAction)) {
     return { error: `You do not have permission to ${action === "exported" ? "export" : "print"} cash closings.` };
   }
   const db = await createClient() as any;
@@ -163,7 +165,7 @@ export async function updateCashClosingBranchSchedule(input: {
   timeZone: string | null;
 }) {
   const ctx = await getCurrentOrgContext();
-  if (!ctx || !await canPermission("settings", "edit")) {
+  if (!ctx || !await canPermission("settings", "edit") || !await canTabPermission("banking", "banking", "reconciliation", "edit")) {
     return { error: "You do not have permission to update branch closing schedules." };
   }
   const validShifts = new Set(["full_day", "morning", "afternoon", "night"]);
@@ -229,7 +231,7 @@ export async function updateCashClosingBranchSchedule(input: {
 
 export async function acknowledgeMissedCashClosing(input: { locationId: string; closingDate: string; shift: string }) {
   const ctx = await getCurrentOrgContext();
-  if (!ctx || !await canPermission("settings", "edit")) {
+  if (!ctx || !await canPermission("settings", "edit") || !await canTabPermission("banking", "banking", "reconciliation", "edit")) {
     return { error: "You do not have permission to acknowledge missed branch closings." };
   }
   const validShifts = new Set(["full_day", "morning", "afternoon", "night"]);
@@ -313,6 +315,7 @@ export async function acknowledgeMissedCashClosing(input: { locationId: string; 
 }
 
 export async function calculateExpectedCash(date: string, locationId?: string | null, shift = "full_day", userId?: string | null, shiftWindow?: CashClosingShiftWindow, timeZone = "UTC"): Promise<CashSummary> {
+  await requireTabPermission("banking", "banking", "reconciliation", "view");
   const ctx = await getCurrentOrgContext();
   if (!ctx) throw new Error("Session expired");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
@@ -467,7 +470,7 @@ export async function calculateExpectedCash(date: string, locationId?: string | 
 export async function createCashClosing(formData: FormData) {
   const ctx = await getCurrentOrgContext();
   if (!ctx) redirect("/banking/cash-closing?error=Session%20expired");
-  if (!await canPermission("cash_closing", "create")) redirect("/banking/cash-closing?error=Permission%20required");
+  if (!await canPermission("cash_closing", "create") || !await canTabPermission("banking", "banking", "reconciliation", "create")) redirect("/banking/cash-closing?error=Permission%20required");
   const date = String(formData.get("closing_date") ?? "").trim();
   const locationId = String(formData.get("location_id") ?? "").trim() || null;
   const actual = n(formData.get("actual_cash"));
@@ -547,7 +550,7 @@ export async function createCashClosing(formData: FormData) {
     if (!overrideRequested) {
       redirect(`/banking/cash-closing?${closingContext}&error=${encodeURIComponent("Close all POS registers for this period before completing the end-of-day account, or ask an authorized manager to override with a reason.")}#declare-cash`);
     }
-    if (!await canPermission("cash_closing", "approve")) {
+    if (!await canPermission("cash_closing", "approve") || !await canTabPermission("banking", "banking", "reconciliation", "approve")) {
       redirect(`/banking/cash-closing?${closingContext}&error=${encodeURIComponent("Manager approval permission is required to override open POS registers.")}#declare-cash`);
     }
     if (overrideReason.length < 5) {
@@ -621,7 +624,7 @@ export async function createCashClosing(formData: FormData) {
 }
 
 export async function approveCashClosing(id: string, comments = "") {
-  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
+  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "approve") || !await canTabPermission("banking", "banking", "reconciliation", "approve")) return { error: "Approval permission required" };
   const db = await createClient() as any;
   const { data: existing } = await db.from("cash_closings").select("location_id").eq("id", id).eq("org_id", ctx.orgId).maybeSingle();
   if (!existing || (existing.location_id && !canAccessLocation(ctx, existing.location_id))) return { error: "Closing record not found." };
@@ -646,7 +649,7 @@ export async function approveCashClosingFromForm(formData: FormData) {
 
 export async function rejectCashClosing(id: string, reason: string) {
   const ctx = await getCurrentOrgContext();
-  if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
+  if (!ctx || !await canPermission("cash_closing", "approve") || !await canTabPermission("banking", "banking", "reconciliation", "approve")) return { error: "Approval permission required" };
   if (!reason.trim()) return { error: "A rejection reason is required." };
   const db = await createClient() as any;
   const { data: existing, error: lookupError } = await db.from("cash_closings")
@@ -669,7 +672,7 @@ export async function rejectCashClosing(id: string, reason: string) {
 
 export async function requestCashClosingExplanation(id: string, message: string) {
   const ctx = await getCurrentOrgContext();
-  if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
+  if (!ctx || !await canPermission("cash_closing", "approve") || !await canTabPermission("banking", "banking", "reconciliation", "edit")) return { error: "Approval permission required" };
   if (!message.trim()) return { error: "An explanation request is required." };
   const db = await createClient() as any;
   const { data: closing, error: closingError } = await db.from("cash_closings")
@@ -712,7 +715,7 @@ export async function requestCashClosingExplanationFromForm(formData: FormData) 
 }
 
 export async function requestCashClosingReopen(id: string, reason: string) {
-  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "edit")) return { error: "Reopen permission required." };
+  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "edit") || !await canTabPermission("banking", "banking", "reconciliation", "edit")) return { error: "Reopen permission required." };
   const db = await createClient() as any;
   if (!reason.trim()) return { error: "A reopen reason is required." };
   const { data: closing, error: lookupError } = await db.from("cash_closings").select("location_id, created_by")
@@ -737,7 +740,7 @@ export async function requestCashClosingReopenFromForm(formData: FormData) {
 }
 
 export async function approveCashClosingReopen(id: string) {
-  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "approve")) return { error: "Approval permission required" };
+  const ctx = await getCurrentOrgContext(); if (!ctx || !await canPermission("cash_closing", "approve") || !await canTabPermission("banking", "banking", "reconciliation", "approve")) return { error: "Approval permission required" };
   const db = await createClient() as any;
   const { data: closing, error: lookupError } = await db.from("cash_closings").select("location_id")
     .eq("id", id).eq("org_id", ctx.orgId).eq("status", "approved").eq("reopen_status", "requested").maybeSingle();

@@ -4,62 +4,28 @@ import type { MemberRole } from "@/lib/rbac";
 import type { PermissionAction } from "@/lib/rbac";
 import {
   canonicalRoleKey,
+  hasModulePermission as hasPermission,
+  hasTabPermission,
+  isTabVisible,
   normalizePermissionMatrix,
   resolveMemberPermissionMatrix,
+  resolveTabPermissionActions,
   type PermissionMatrix
 } from "./permission-matrix";
 
 export {
   canonicalRoleKey,
   defaultPermissionMatrixForRole,
+  hasModulePermission,
+  hasTabPermission,
+  isTabVisible,
   normalizePermissionMatrix,
   resolveMemberPermissionMatrix,
+  resolveTabPermissionActions,
   type PermissionMatrix
 } from "./permission-matrix";
 
-const MODULE_ALIASES: Record<string, string> = {
-  hrm: "hrm_payroll",
-  payroll: "hrm_payroll",
-  payslip: "payslips",
-  "cash-closing": "cash_closing",
-  fraud_detection: "fraud",
-  customer_messaging: "communication",
-  "route-sales": "route_sales",
-  "stock-adjustment": "stock_adjustments",
-  "stock-request": "stock_requests",
-  "price-management": "price_management",
-  "product-duplicates": "product_duplicates"
-};
-
-function canonicalModule(module: string) {
-  return MODULE_ALIASES[module] ?? module;
-}
-
-export function hasPermission(matrix: PermissionMatrix, module: string, action: PermissionAction): boolean {
-  const key = canonicalModule(module);
-  return matrix[key]?.includes(action) === true || matrix[module]?.includes(action) === true;
-}
-
-function tabPermissionKey(module: string, page: string, tab: string) {
-  return `${canonicalModule(module)}.${page}.${tab}`;
-}
-
-/** Checks a tab action, falling back to the existing module/page grant for compatibility. */
-export function hasTabPermission(
-  matrix: PermissionMatrix,
-  module: string,
-  page: string,
-  tab: string,
-  action: PermissionAction
-): boolean {
-  const exact = matrix[tabPermissionKey(module, page, tab)] ?? matrix[`${module}.${page}.${tab}`];
-  if (exact) return exact.includes(action);
-  return hasPermission(matrix, module, action);
-}
-
-export function isTabVisible(matrix: PermissionMatrix, module: string, page: string, tab: string) {
-  return hasTabPermission(matrix, module, page, tab, "view");
-}
+export { hasModulePermission as hasPermission } from "./permission-matrix";
 
 function roleKeyForMember(role: MemberRole, accessPermissions: Record<string, unknown>): string {
   return canonicalRoleKey(typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : role);

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canUseLocation } from "@/lib/organizations/location-access";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission, requireTabPermission } from "@/lib/rbac/permissions";
 import { findProductDuplicates, getDuplicateSettings } from "@/app/(dashboard)/inventory/duplicate-actions";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -100,6 +100,7 @@ function parseProductForm(formData: FormData) {
 }
 
 export async function createProduct(formData: FormData): Promise<void> {
+  await requireTabPermission("inventory", "products", "add_product", "create");
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/inventory/new", "Your session expired — please sign in again.");
   if (!await canPermission("inventory", "edit")) {
@@ -208,6 +209,7 @@ export async function createProduct(formData: FormData): Promise<void> {
 }
 
 export async function updateProduct(productId: string, formData: FormData): Promise<void> {
+  await requireTabPermission("inventory", "products", "product_list", "edit");
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/inventory/${productId}/edit`, "Your session expired — please sign in again.");
   if (!await canPermission("inventory", "edit")) {
@@ -281,6 +283,7 @@ export async function updateProduct(productId: string, formData: FormData): Prom
 }
 
 export async function deleteProduct(productId: string) {
+  await requireTabPermission("inventory", "products", "product_list", "delete");
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to remove products." };
@@ -302,6 +305,7 @@ type ProductActivationResult = {
 };
 
 export async function toggleProductActive(productId: string, isActive: boolean): Promise<ProductActivationResult> {
+  await requireTabPermission("inventory", "products", "product_list", "edit");
   if (!isActive) {
     return bulkDeactivateProducts([productId]);
   }
@@ -324,6 +328,7 @@ export async function toggleProductActive(productId: string, isActive: boolean):
 }
 
 export async function bulkDeactivateProducts(productIds: string[]): Promise<ProductActivationResult> {
+  await requireTabPermission("inventory", "products", "product_list", "edit");
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to deactivate products." };
@@ -368,6 +373,7 @@ export async function bulkDeactivateProducts(productIds: string[]): Promise<Prod
 }
 
 export async function duplicateProduct(productId: string) {
+  await requireTabPermission("inventory", "products", "add_product", "create");
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to add products." };
@@ -453,6 +459,7 @@ export interface BulkImportResult {
 }
 
 export async function bulkImportProducts(rows: BulkImportRow[]): Promise<BulkImportResult> {
+  await requireTabPermission("inventory", "products", "import_products", "import");
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) {
     return { imported: 0, skipped: rows.map((_, i) => ({ row: i + 1, reason: "Not permitted" })) };
@@ -530,6 +537,7 @@ export interface UploadProductImageResult {
 }
 
 export async function uploadProductImage(formData: FormData): Promise<UploadProductImageResult> {
+  await requireTabPermission("inventory", "products", "product_list", "edit");
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("inventory", "edit")) {
     return { error: "You don't have permission to add products." };
@@ -566,7 +574,7 @@ export interface ProductCategoryOption {
 
 export async function getCategoryAndBrandOptions(): Promise<{ categories: ProductCategoryOption[]; brands: string[] }> {
   const context = await getCurrentOrgContext();
-  if (!context) return { categories: [], brands: [] };
+  if (!context || !await canTabPermission("inventory", "products", "add_product", "view")) return { categories: [], brands: [] };
   const supabase = await createClient();
   const [{ data: categories, error: categoryError }, { data: products, error: productsError }] = await Promise.all([
     supabase.from("product_categories").select("id, name, status").eq("org_id", context.orgId).order("display_order").order("name"),
@@ -733,7 +741,7 @@ export async function bulkAddProductsToLocation(
   productIds: string[],
   locationIds: string | string[]
 ): Promise<BulkAddLocationResult> {
-  if (!await canPermission("inventory", "edit")) {
+  if (!await canTabPermission("inventory", "products", "product_locations", "edit")) {
     return { ok: false, error: "You don't have permission to manage product locations.", importedProducts: [], skippedProducts: [], importedCount: 0, skippedCount: 0 };
   }
   const destinations = [...new Set((Array.isArray(locationIds) ? locationIds : [locationIds]).filter(Boolean))];
@@ -784,7 +792,7 @@ export async function validateRemoveProductsFromLocation(
   locationId: string
 ): Promise<ValidationRemoveResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) {
+  if (!context || !await canTabPermission("inventory", "products", "product_locations", "edit")) {
     return { ok: false, error: "You don't have permission to manage product locations.", products: [], removableCount: 0, blockedCount: 0 };
   }
 
@@ -951,7 +959,7 @@ export async function bulkRemoveProductsFromLocation(
   productIds: string[],
   locationId: string
 ): Promise<BulkRemoveLocationResult> {
-  if (!await canPermission("inventory", "edit")) {
+  if (!await canTabPermission("inventory", "products", "product_locations", "edit")) {
     return { ok: false, error: "You don't have permission to manage product locations.", removedCount: 0, blockedCount: 0, blockedProducts: [], removedProducts: [] };
   }
   const validation = await validateRemoveProductsFromLocation(productIds, locationId);

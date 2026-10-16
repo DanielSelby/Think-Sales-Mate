@@ -43,7 +43,7 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
   ]).map((page) => page.key === "products"
     ? {
         ...page,
-        tabs: page.tabs.map((tab) => tab.key === "product_categories"
+        tabs: page.tabs.map((tab) => tab.key === "product_categories" || tab.key === "import_products"
           ? { ...tab, supportedActions: [...(tab.supportedActions ?? TAB_ACTIONS), "import"] }
           : tab),
       }
@@ -62,7 +62,12 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
   ]),
   banking: pages([
     ["banking", "Banking", [["accounts", "Accounts"], ["transactions", "Transactions"], ["reconciliation", "Reconciliation"]]]
-  ])
+  ]).map((page) => ({
+    ...page,
+    tabs: page.tabs.map((tab) => tab.key === "reconciliation"
+      ? { ...tab, supportedActions: [...(tab.supportedActions ?? TAB_ACTIONS), "print"] }
+      : tab),
+  }))
 };
 
 export const MODULE_CONFIGS: ModulePermissionConfig[] = [

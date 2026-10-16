@@ -1,10 +1,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Landmark } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canTabPermission } from "@/lib/rbac/permissions";
 import { formatCurrency } from "@/lib/sales/format";
 import { normalizeBankTransactionSearch } from "@/lib/banking/transaction-search";
 import { AddAccountDialog } from "@/components/banking/add-account-dialog";
@@ -21,6 +22,7 @@ export default async function BankingPage({
   searchParams,
 }: {
   searchParams: Promise<{
+    tab?: string;
     transactionsPage?: string;
     transactionsPageSize?: string;
     transfer?: string;
@@ -34,6 +36,9 @@ export default async function BankingPage({
   }>;
 }) {
   const query = await searchParams;
+  const requestedTab = ["accounts", "transactions", "reconciliation"].includes(query.tab ?? "")
+    ? query.tab as "accounts" | "transactions" | "reconciliation"
+    : null;
   const parsedPage = Number.parseInt(query.transactionsPage ?? "1", 10);
   const transactionPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const transactionPageSize = ["10", "50", "100", "all"].includes(query.transactionsPageSize ?? "")
@@ -57,6 +62,23 @@ export default async function BankingPage({
     return (
       <div className="mx-auto max-w-2xl rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-slate-700/80 dark:bg-ink-900">
         <p className="text-sm text-ledger-500 dark:text-ledger-400">Banking is restricted to managers and above.</p>
+      </div>
+    );
+  }
+  const bankingTabs = [
+    { key: "accounts", label: "Accounts" },
+    { key: "transactions", label: "Transactions" },
+    { key: "reconciliation", label: "Reconciliation" },
+  ] as const;
+  const visibleTabs = (await Promise.all(bankingTabs.map(async (tab) => ({
+    ...tab,
+    visible: await canTabPermission("banking", "banking", tab.key, "view"),
+  })))).filter((tab) => tab.visible);
+  const activeTab = requestedTab ?? visibleTabs[0]?.key;
+  if (!activeTab || (requestedTab && !visibleTabs.some((tab) => tab.key === requestedTab))) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl rounded-card border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-slate-700/80 dark:bg-ink-900">
+        <p className="text-sm text-ledger-500 dark:text-ledger-400">You don’t have access to this Banking tab.</p>
       </div>
     );
   }
@@ -226,19 +248,19 @@ export default async function BankingPage({
       if (value) params.set(key, value);
     }
     if (transactionFilters.locationId) params.set("location_id", transactionFilters.locationId);
+    params.set("tab", activeTab);
     params.set("transactionsPage", String(transactionPages));
     params.set("transactionsPageSize", transactionPageSize);
     redirect(`/banking?${params.toString()}#recent-transactions`);
   }
 
-  const hasManageRole = can(context.role, "banking.manage");
-  const [canManage, canAddAccount] = hasManageRole
-    ? await Promise.all([
-      canPermission("banking", "edit"),
-      canPermission("banking", "create"),
-    ])
-    : [false, false];
-  const canDeleteAccount = hasManageRole && await canPermission("banking", "delete");
+  const [canManage, canAddAccount, canDeleteAccount, canTransfer, canViewTransactions] = await Promise.all([
+    canTabPermission("banking", "banking", "accounts", "edit"),
+    canTabPermission("banking", "banking", "accounts", "create"),
+    canTabPermission("banking", "banking", "accounts", "delete"),
+    canTabPermission("banking", "banking", "transactions", "create"),
+    canTabPermission("banking", "banking", "transactions", "view"),
+  ]);
   const totalBalance = accounts.reduce((sum, account) => sum + account.currentBalance, 0);
 
   return (
@@ -250,15 +272,36 @@ export default async function BankingPage({
               <Landmark className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight text-ink-900 dark:text-white">Bank Accounts</h1>
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-ink-900 dark:text-white">
+                {activeTab === "accounts" ? "Bank Accounts" : activeTab === "transactions" ? "Bank Transactions" : "Bank Reconciliation"}
+              </h1>
               <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">
-                Manage your bank accounts, track balances and view your transaction history.
+                {activeTab === "accounts"
+                  ? "Manage your bank accounts and track balances."
+                  : activeTab === "transactions"
+                    ? "Review and filter transactions across your bank accounts."
+                    : "Choose an account to review its statement and transaction balance."}
               </p>
             </div>
           </div>
         </div>
-        {canAddAccount && <AddAccountDialog />}
+        {activeTab === "accounts" && canAddAccount && <AddAccountDialog />}
       </header>
+
+      <nav aria-label="Banking sections" className="flex flex-wrap gap-2 border-b border-ledger-100 pb-3 dark:border-slate-700">
+        {visibleTabs.map((tab) => (
+          <Link
+            key={tab.key}
+            href={`/banking?tab=${tab.key}`}
+            aria-current={activeTab === tab.key ? "page" : undefined}
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${activeTab === tab.key
+              ? "bg-blue-600 text-white"
+              : "text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"}`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
 
       {query.accountCreated === "1" && (
         <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
@@ -266,26 +309,40 @@ export default async function BankingPage({
         </p>
       )}
 
-      <AccountsTable accounts={accounts} canEdit={canManage} canDelete={canDeleteAccount} currency={context.currency} />
+      {(activeTab === "accounts" || activeTab === "reconciliation") && (
+        <AccountsTable
+          accounts={accounts}
+          canEdit={activeTab === "accounts" && canManage}
+          canDelete={activeTab === "accounts" && canDeleteAccount}
+          canTransact={canTransfer && canViewTransactions}
+          canViewStatements={visibleTabs.some((tab) => tab.key === "reconciliation")}
+          currency={context.currency}
+        />
+      )}
 
-      <BankingOverview
-        accounts={accounts}
-        branches={branchOptions}
-        canFilterUnassigned={!context.isBranchScoped}
-        transactions={transactions}
-        currency={context.currency}
-        timeZone={organizationTimeZone}
-        canAddAccount={canAddAccount}
-        canTransfer={canManage}
-        totalBalance={totalBalance}
-        today={new Date().toISOString().slice(0, 10)}
-        transactionPage={Math.min(transactionPage, transactionPages)}
-        transactionPages={transactionPages}
-        transactionFilters={transactionFilters}
-        transactionPageSize={transactionPageSize}
-        transactionTotal={transactionCount}
-        initialTransferOpen={query.transfer === "1"}
-      />
+      {activeTab === "transactions" && (
+        <BankingOverview
+          accounts={accounts}
+          branches={branchOptions}
+          canFilterUnassigned={!context.isBranchScoped}
+          transactions={transactions}
+          currency={context.currency}
+          timeZone={organizationTimeZone}
+          canAddAccount={false}
+          canTransfer={canTransfer}
+          canViewStatements={visibleTabs.some((tab) => tab.key === "reconciliation")}
+          canManageAccounts={visibleTabs.some((tab) => tab.key === "accounts")}
+          totalBalance={totalBalance}
+          today={new Date().toISOString().slice(0, 10)}
+          transactionPage={Math.min(transactionPage, transactionPages)}
+          transactionPages={transactionPages}
+          transactionFilters={transactionFilters}
+          transactionPageSize={transactionPageSize}
+          transactionTotal={transactionCount}
+          initialTransferOpen={query.transfer === "1"}
+          showAccountSummary={false}
+        />
+      )}
     </main>
   );
 }

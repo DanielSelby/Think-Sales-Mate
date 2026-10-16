@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canTabPermission } from "@/lib/rbac/permissions";
 import { generateNextSku } from "@/lib/inventory/sku";
 
 export interface ImportReferenceData {
@@ -17,7 +17,9 @@ export interface ImportReferenceData {
 
 export async function getImportReferenceData(): Promise<ImportReferenceData> {
   const context = await getCurrentOrgContext();
-  if (!context) return { categories: [], brands: [], suppliers: [], locations: [], existingSkus: [], existingBarcodes: [] };
+  if (!context || !await canTabPermission("inventory", "products", "import_products", "view")) {
+    return { categories: [], brands: [], suppliers: [], locations: [], existingSkus: [], existingBarcodes: [] };
+  }
 
   const supabase = await createClient();
   const [{ data: products }, { data: suppliers }, { data: locations }] = await Promise.all([
@@ -75,7 +77,7 @@ export interface CommitImportResult {
 
 export async function commitProductImport(fileName: string, rows: ImportRowInput[]): Promise<CommitImportResult> {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) {
+  if (!context || !await canTabPermission("inventory", "products", "import_products", "import")) {
     return {
       imported: 0,
       skipped: rows.length,
@@ -201,7 +203,7 @@ export interface ImportBatchRow {
 
 export async function getImportHistory(): Promise<ImportBatchRow[]> {
   const context = await getCurrentOrgContext();
-  if (!context) return [];
+  if (!context || !await canTabPermission("inventory", "products", "import_products", "view")) return [];
 
   const supabase = await createClient();
   const { data } = await supabase

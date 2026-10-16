@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications";
 import type { Database, TransferStatus } from "@/types/database";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
@@ -33,7 +33,7 @@ export interface CreateTransferResult {
 export async function createStockTransfer(payload: CreateTransferPayload): Promise<CreateTransferResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
-  if (!await canPermission("transfers", "edit")) {
+  if (!await canTabPermission("inventory", "stock_transfer", "create_transfer", "create")) {
     return { error: "You don't have permission to create stock transfers." };
   }
   if (context.isBranchScoped &&
@@ -174,6 +174,11 @@ export async function updateTransferStatus(transferId: string, status: TransferS
   if (!context) {
     return { error: "You don't have permission to update transfers." };
   }
+  const permissionTab = status === "received" || status === "completed" ? "approvals" : "transfer_history";
+  const permissionAction = permissionTab === "approvals" ? "approve" : "edit";
+  if (!await canTabPermission("inventory", "stock_transfer", permissionTab, permissionAction)) {
+    return { error: "You don't have permission to update transfers." };
+  }
 
   const supabase = await createClient();
   const isInventoryManager = await canPermission("transfers", "edit");
@@ -282,7 +287,7 @@ export interface TransferItemDetail {
 
 export async function getTransferItems(transferId: string): Promise<TransferItemDetail[]> {
   const context = await getCurrentOrgContext();
-  if (!context) return [];
+  if (!context || !await canTabPermission("inventory", "stock_transfer", "transfer_history", "view")) return [];
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -305,7 +310,7 @@ export async function getTransferItems(transferId: string): Promise<TransferItem
 
 export async function deleteTransfer(transferId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("transfers", "delete")) {
+  if (!context || !await canTabPermission("inventory", "stock_transfer", "transfer_history", "delete")) {
     return { error: "You don't have permission to delete transfers." };
   }
 

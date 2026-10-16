@@ -1,6 +1,6 @@
 "use server";
 
-import { requirePermission } from "@/lib/rbac/permissions";
+import { requireTabPermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -27,6 +27,7 @@ export interface CurrentEmployeeMatch {
 }
 
 export async function getCurrentEmployeeMatch(): Promise<CurrentEmployeeMatch | null> {
+  await requireTabPermission("hrm_payroll", "hrm", "attendance", "view");
   const context = await getCurrentOrgContext();
   if (!context) return null;
   const supabase = await createClient();
@@ -40,6 +41,7 @@ export async function getCurrentEmployeeMatch(): Promise<CurrentEmployeeMatch | 
 }
 
 export async function checkIn(employeeId: string, workType: string): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "attendance", "create");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
@@ -63,6 +65,7 @@ export async function checkIn(employeeId: string, workType: string): Promise<Sim
 }
 
 export async function checkOut(recordId: string): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "attendance", "edit");
   const supabase = await createClient();
   const { data: record, error: fetchError } = await supabase
     .from("attendance_records")
@@ -104,6 +107,7 @@ export interface MarkAttendanceInput {
 }
 
 export async function markAttendance(input: MarkAttendanceInput): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "attendance", "edit");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
@@ -149,7 +153,7 @@ export async function markAttendance(input: MarkAttendanceInput): Promise<Simple
 }
 
 export async function deleteAttendanceRecord(recordId: string): Promise<SimpleResult> {
-  await requirePermission("hrm", "delete");
+  await requireTabPermission("hrm_payroll", "hrm", "attendance", "delete");
   const supabase = await createClient();
   const { error } = await supabase.from("attendance_records").delete().eq("id", recordId);
   if (error) return { ok: false, error: error.message };
@@ -158,6 +162,7 @@ export async function deleteAttendanceRecord(recordId: string): Promise<SimpleRe
 }
 
 export async function bulkMarkAbsent(workDate: string): Promise<SimpleResult & { marked?: number }> {
+  await requireTabPermission("hrm_payroll", "hrm", "attendance", "create");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();

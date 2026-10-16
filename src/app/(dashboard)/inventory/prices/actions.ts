@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canTabPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export type PriceUpdate = {
@@ -15,7 +15,7 @@ export type PriceUpdate = {
 
 export async function setUseSystemPrices(useSystemPrices: boolean) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to change price settings." };
+  if (!context || !await canTabPermission("inventory", "products", "price_management", "edit")) return { ok: false, error: "You do not have permission to change price settings." };
   const supabase = await createClient();
   const { data: organization } = await supabase.from("organizations").select("use_system_prices").eq("id", context.orgId).maybeSingle();
   const { error } = await supabase.from("organizations").update({ use_system_prices: useSystemPrices }).eq("id", context.orgId);
@@ -48,7 +48,7 @@ export async function updateProductPrices(productId: string, prices: PriceUpdate
     return { ok: false, error: "Enter valid non-negative prices." };
   }
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to update prices." };
+  if (!context || !await canTabPermission("inventory", "products", "price_management", "edit")) return { ok: false, error: "You do not have permission to update prices." };
   const supabase = await createClient();
   const { data: previous } = await supabase.from("products").select("unit_price, wholesale_price, vip_price, special_price").eq("id", productId).eq("org_id", context.orgId).maybeSingle();
   const { error } = await supabase
@@ -78,7 +78,7 @@ export async function updateProductPrices(productId: string, prices: PriceUpdate
 
 export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate>) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) {
+  if (!context || !await canTabPermission("inventory", "products", "price_management", "edit")) {
     return { ok: false, error: "You do not have permission to update prices.", updatedCount: 0 };
   }
 
@@ -127,7 +127,7 @@ export async function bulkUpdateProductPrices(prices: Record<string, PriceUpdate
 
 export async function getPriceHistory() {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("inventory", "edit")) return { ok: false, error: "You do not have permission to view price history.", entries: [] };
+  if (!context || !await canTabPermission("inventory", "products", "price_management", "view")) return { ok: false, error: "You do not have permission to view price history.", entries: [] };
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("audit_logs")

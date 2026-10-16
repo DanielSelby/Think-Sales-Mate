@@ -31,7 +31,7 @@ interface Props {
 
 export function TiltKpiCard({ color, label, value, note, icon, trend, sub, backDetails, solid }: Props) {
   const [flipped, setFlipped] = useState(false);
-  const { activeTheme } = useAppStore();
+  const { activeTheme, darkMode } = useAppStore();
   const theme  = THEMES[activeTheme];
   const accent = ACCENT_COLORS[color] ?? theme.colors.primary;
   const hasBack = backDetails && backDetails.length > 0;
@@ -83,6 +83,8 @@ export function TiltKpiCard({ color, label, value, note, icon, trend, sub, backD
           width: 30, height: 30, borderRadius: 10, flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
           background: solid ? "#ffffff" : accent + "18",
+          border: solid && darkMode ? "1px solid rgba(255,255,255,0.9)" : "none",
+          boxShadow: solid && darkMode ? "0 1px 3px rgba(0,0,0,0.18)" : "none",
         }}>
           <div style={{ width: 15, height: 15, color: solid ? theme.colors.primary : accent }}>{icon}</div>
         </div>

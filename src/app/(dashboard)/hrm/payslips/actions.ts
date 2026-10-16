@@ -4,17 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { requireTabPermission } from "@/lib/rbac/permissions";
 
 export async function recordPayslipEvent(payslipId: string, eventType: "viewed" | "downloaded" | "printed") {
+  await requireTabPermission("hrm_payroll", "hrm", "payslips", eventType === "viewed" ? "view" : "export");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "You don't have access to this payslip." };
   const supabase = await createClient();
-  if (!await canPermission("hrm", "view")) {
-    const { data: membership } = await supabase.from("organization_members").select("employee_id").eq("org_id", context.orgId).eq("user_id", context.userId).eq("status", "active").maybeSingle();
-    const { data: ownPayslip } = await supabase.from("payslips").select("id").eq("id", payslipId).eq("org_id", context.orgId).eq("employee_id", membership?.employee_id ?? "").maybeSingle();
-    if (!ownPayslip) return { ok: false, error: "You don't have access to this payslip." };
-  }
   const { error } = await supabase.from("payslip_events").insert({
     org_id: context.orgId,
     payslip_id: payslipId,
@@ -26,8 +22,9 @@ export async function recordPayslipEvent(payslipId: string, eventType: "viewed" 
 }
 
 export async function regeneratePayslip(payslipId: string) {
+  await requireTabPermission("hrm_payroll", "hrm", "payslips", "edit");
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("hrm", "edit")) return { ok: false, error: "You don't have permission to regenerate payslips." };
+  if (!context) return { ok: false, error: "You don't have permission to regenerate payslips." };
   const supabase = await createClient();
   const { data: payslip, error: readError } = await supabase
     .from("payslips")
@@ -52,8 +49,9 @@ export async function regeneratePayslip(payslipId: string) {
 }
 
 export async function updatePayslip(payslipId: string, formData: FormData) {
+  await requireTabPermission("hrm_payroll", "hrm", "payslips", "edit");
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("hrm", "edit")) redirect(`/hrm/payslips/${payslipId}?edit=1&error=permission`);
+  if (!context) redirect(`/hrm/payslips/${payslipId}?edit=1&error=permission`);
   const supabase = await createClient();
   const { data: payslip } = await supabase.from("payslips").select("id, payroll_run_id").eq("id", payslipId).eq("org_id", context.orgId).single();
   if (!payslip) redirect("/hrm/payslips?error=not-found");

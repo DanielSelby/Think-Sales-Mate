@@ -261,16 +261,16 @@ function ChildLinks({ items, sidebar, onNavigate }: {
 
 export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro", mobileOpen = false, onNavigate }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string; mobileOpen?: boolean; onNavigate?: () => void }) {
   const pathname  = usePathname();
-  const { activeTheme, darkMode } = useAppStore();
+  const { activeTheme } = useAppStore();
   const theme     = THEMES[activeTheme];
   const sidebar   = {
     ...theme.sidebar,
-    background: darkMode ? `${theme.colors.primary}16` : theme.colors.primaryPale,
-    text: darkMode ? "#f8fafc" : theme.colors.text,
-    textMuted: darkMode ? "rgba(226,232,240,0.72)" : theme.colors.textMuted,
+    background: theme.colors.primaryPale,
+    text: theme.colors.text,
+    textMuted: theme.colors.textMuted,
     activeBackground: theme.colors.primary,
     activeText: "#FFFFFF",
-    borderColor: darkMode ? "rgba(148,163,184,0.18)" : `${theme.colors.primary}22`,
+    borderColor: `${theme.colors.primary}22`,
     hoverBackground: `${theme.colors.primary}12`,
   };
 
@@ -316,7 +316,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
           : "hidden md:flex",
         mobileOpen ? "md:w-60" : collapsed ? "md:w-16" : "md:w-60"
       )}
-      style={{ background: darkMode ? theme.colors.primary : sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
+      style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
     >
 
       {/* ── Logo ── */}
@@ -454,7 +454,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
 
       {/* ── Bottom: Support ── */}
       <div className="mt-auto shrink-0 space-y-1 border-t px-2 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
-        style={{ borderColor: sidebar.borderColor, background: darkMode ? theme.colors.primary : sidebar.background }}>
+        style={{ borderColor: sidebar.borderColor, background: sidebar.background }}>
         {/* Need Help / Support */}
         {(!collapsed || mobileOpen) && (
           <>

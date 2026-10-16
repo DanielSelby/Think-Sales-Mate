@@ -8,13 +8,16 @@ export function findMissedCashClosings(input: {
   shiftWindows: Record<string, CashClosingShiftWindow>;
   timeZone: string;
   now: Date;
+  activeDates: string[];
   closings: Array<{ closingDate: string; shift: string; status: string }>;
   acknowledgements: MissedCashClosing[];
 }): MissedCashClosing[] {
   const missed: MissedCashClosing[] = [];
+  const activeDates = new Set(input.activeDates);
   const acknowledged = new Set(input.acknowledgements.map(({ closingDate, shift }) => `${closingDate}:${shift}`));
   for (let date = input.startDate; date <= input.endDate;) {
     for (const shift of input.requiredShifts) {
+      if (!activeDates.has(date)) continue;
       const period = getCashClosingPeriod(date, shift, input.timeZone, shift === "full_day" ? undefined : input.shiftWindows[shift]);
       if (period.end > input.now) continue;
       const isRecorded = input.closings.some((closing) =>

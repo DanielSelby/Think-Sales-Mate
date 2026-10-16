@@ -1,6 +1,6 @@
 "use server";
 
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission, requireTabPermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -56,6 +56,7 @@ export interface SaleRefundOptions {
 }
 
 export async function getSaleRefundOptions(saleId: string): Promise<SaleRefundOptions> {
+  await requireTabPermission("sales", "sales", "returns", "approve");
   if (!await canPermission("sales", "approve")) throw new Error("You do not have permission to process sale returns.");
   const supabase = await createClient();
   const context = await getCurrentOrgContext();
@@ -97,6 +98,7 @@ export async function getSaleRefundOptions(saleId: string): Promise<SaleRefundOp
 }
 
 export async function getSaleReturnableItems(saleId: string): Promise<ReturnableLine[]> {
+  await requireTabPermission("sales", "sales", "returns", "view");
   if (!await canPermission("sales", "view")) throw new Error("You do not have permission to view sales.");
   const supabase = await createClient();
   const context = await getCurrentOrgContext();
@@ -176,6 +178,7 @@ export async function updateSaleStatus({
   note,
   returnLines,
 }: UpdateSaleStatusInput): Promise<UpdateSaleStatusResult> {
+  await requireTabPermission("sales", "sales", status === "returned" ? "returns" : "sales_history", "approve");
   if (!await canPermission("sales", "approve")) throw new Error("You do not have permission to approve sales.");
   const supabase = await createClient();
 
@@ -491,6 +494,7 @@ export interface RecordSaleResult {
 }
 
 export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
+  await requireTabPermission("sales", "sales", "new_sales", "create");
   const canCreateSales = await canPermission("sales", "create");
   const canCreatePosSales = input.offlineSync && await canPermission("pos", "create");
   if (!canCreateSales && !canCreatePosSales) throw new Error("You do not have permission to create sales.");
@@ -865,6 +869,7 @@ export interface SaleEditData {
 }
 
 export async function getSaleForEdit(saleId: string): Promise<SaleEditData | null> {
+  await requireTabPermission("sales", "sales", "sales_history", "view");
   const supabase = await createClient();
   const context = await getCurrentOrgContext();
 
@@ -928,6 +933,7 @@ export interface UpdateSaleInput {
 }
 
 export async function updateSale(input: UpdateSaleInput): Promise<RecordSaleResult> {
+  await requireTabPermission("sales", "sales", "sales_history", "edit");
   if (!await canPermission("sales", "edit")) return { ok: false, error: "You do not have permission to edit sales." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -1164,6 +1170,8 @@ export interface DraftSaleRow {
 
 export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
   const context = await getCurrentOrgContext();
+  await requireTabPermission("sales", "sales", "sales_history", "view");
+  if (!context || context.orgId !== orgId) return [];
   const supabase = await createClient();
   let q = supabase
     .from("sales")
@@ -1172,11 +1180,13 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
     .in("document_status", ["draft", "quotation", "proforma"])
     .order("created_at", { ascending: false });
 
-  if (context && context.isBranchScoped && context.allowedLocationIds.length > 0) {
-    q = q.in("location_id", context.allowedLocationIds);
+  if (context.isBranchScoped) {
+    q = context.allowedLocationIds.length
+      ? q.in("location_id", context.allowedLocationIds)
+      : q.eq("location_id", "00000000-0000-0000-0000-000000000000");
   }
 
-  if (context && !context.canViewOtherTransactions) {
+  if (!context.canViewOtherTransactions) {
     q = q.eq("sold_by", context.userId);
   }
 
@@ -1215,6 +1225,7 @@ export async function getDraftSales(orgId: string): Promise<DraftSaleRow[]> {
 }
 
 export async function deleteDraftSale(saleId: string): Promise<{ ok: boolean; error?: string }> {
+  await requireTabPermission("sales", "sales", "sales_history", "delete");
   if (!await canPermission("sales", "delete")) throw new Error("You do not have permission to delete sales.");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -1257,6 +1268,7 @@ export interface AddCustomerResult {
 }
 
 export async function addCustomer(orgId: string, input: AddCustomerInput): Promise<AddCustomerResult> {
+  await requireTabPermission("sales", "sales", "new_sales", "create");
   if (input.creditLimit !== null && (!Number.isFinite(input.creditLimit) || input.creditLimit < 0)) {
     return { ok: false, error: "Credit limit must be a non-negative amount." };
   }
@@ -1306,7 +1318,27 @@ export interface SaleInvoiceLine {
 }
 
 export async function getSaleInvoiceItems(saleId: string): Promise<SaleInvoiceLine[]> {
+  const context = await getCurrentOrgContext();
+  if (!context) throw new Error("Your organization access could not be verified.");
+  const [canViewHistory, canViewNewSales] = await Promise.all([
+    canTabPermission("sales", "sales", "sales_history", "view"),
+    canTabPermission("sales", "sales", "new_sales", "view"),
+  ]);
+  if (!canViewHistory && !canViewNewSales) throw new Error("You do not have permission to view sale invoices.");
   const supabase = await createClient();
+  const { data: sale, error: saleError } = await supabase
+    .from("sales")
+    .select("org_id, location_id, sold_by")
+    .eq("id", saleId)
+    .maybeSingle();
+  if (saleError) throw new Error(`Could not verify sale access: ${saleError.message}`);
+  if (
+    !sale ||
+    sale.org_id !== context.orgId ||
+    !canAccessLocation(context, sale.location_id) ||
+    (!context.canViewOtherTransactions && sale.sold_by !== context.userId)
+  ) throw new Error("You are not authorized to view this sale invoice.");
+
   const { data: items } = await supabase
     .from("sale_items")
     .select("id, product_id, quantity, unit_price, discount_percent, tax_percent, line_total, product:products(name, sku, image_urls)")

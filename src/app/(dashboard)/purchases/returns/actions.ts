@@ -1,6 +1,6 @@
 "use server";
 
-import { requirePermission } from "@/lib/rbac/permissions";
+import { requirePermission, requireTabPermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +21,7 @@ export interface EligiblePurchase {
 }
 
 export async function searchEligiblePurchases(query: string): Promise<EligiblePurchase[]> {
+  await requireTabPermission("purchases", "purchases", "returns", "view");
   const context = await getCurrentOrgContext();
   if (!context) return [];
 
@@ -77,6 +78,7 @@ export interface PurchaseForReturn {
 }
 
 export async function getPurchaseForReturn(purchaseId: string): Promise<PurchaseForReturn | null> {
+  await requireTabPermission("purchases", "purchases", "returns", "view");
   const supabase = await createClient();
 
   const { data: purchase } = await supabase
@@ -183,6 +185,7 @@ export interface CreatePurchaseReturnResult {
 }
 
 export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Promise<CreatePurchaseReturnResult> {
+  await requireTabPermission("purchases", "purchases", "returns", "create");
   await requirePermission("purchases", "create");
   const lines = input.lines.filter((l) => l.returnQty > 0);
   if (lines.length === 0) return { ok: false, error: "Add at least one item to return." };
@@ -276,6 +279,7 @@ export interface ApprovePurchaseReturnResult {
 }
 
 export async function approvePurchaseReturn(returnId: string): Promise<ApprovePurchaseReturnResult> {
+  await requireTabPermission("purchases", "purchases", "returns", "approve");
   await requirePermission("purchases", "approve");
   const supabase = await createClient();
   const {

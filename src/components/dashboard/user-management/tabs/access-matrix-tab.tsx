@@ -5,16 +5,13 @@ import {
   FileSpreadsheet,
   Download,
   Save,
-  Check,
   Shield,
-  Layers,
   RotateCcw,
-  Sparkles,
-  Search,
-  Filter
+  Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { resolveTabPermissionActions } from "@/lib/rbac/permission-matrix";
 import { MODULE_CONFIGS, PERMISSION_ACTIONS, PERMISSION_PAGE_CONFIGS } from "../constants";
 import type { RoleDefinition, ModuleCategory, PermissionAction } from "../types";
 
@@ -22,14 +19,12 @@ interface AccessMatrixTabProps {
   roles: RoleDefinition[];
   canManage: boolean;
   onUpdateRolePermissions: (roleId: string, permissions: Record<ModuleCategory, PermissionAction[]>) => Promise<{ error?: string } | void>;
-  mode?: "all" | "tabs" | "actions";
 }
 
 export function AccessMatrixTab({
   roles,
   canManage,
-  onUpdateRolePermissions,
-  mode = "all"
+  onUpdateRolePermissions
 }: AccessMatrixTabProps) {
   const [activeRoleKey, setActiveRoleKey] = useState<string>(roles[0]?.key || "administrator");
   const [matrixData, setMatrixData] = useState<Record<string, Record<ModuleCategory, PermissionAction[]>>>(() => {
@@ -47,7 +42,6 @@ export function AccessMatrixTab({
   const [activeTabModule, setActiveTabModule] = useState(Object.keys(PERMISSION_PAGE_CONFIGS)[0] ?? "sales");
   const [moduleSearch, setModuleSearch] = useState("");
   const [showExcelMatrix, setShowExcelMatrix] = useState(false);
-  const [activeActionTab, setActiveActionTab] = useState("");
 
   const activeRole = roles.find((r) => r.key === activeRoleKey || r.id === activeRoleKey) || roles[0];
   const activePermissions = matrixData[activeRoleKey] || activeRole?.permissions || ({} as any);
@@ -80,7 +74,7 @@ export function AccessMatrixTab({
     const key = tabKey(module, page, tab);
     setMatrixData((prev) => {
       const rolePerms = prev[activeRoleKey] || {};
-      const current = rolePerms[key] || [];
+      const current = resolveTabPermissionActions(rolePerms, module, page, tab);
       const next = current.includes(action)
         ? current.filter((item) => item !== action)
         : [...current, action];
@@ -102,15 +96,11 @@ export function AccessMatrixTab({
 
   const handleResetModule = () => {
     if (!canManage) return;
-    const modulePages = getModulePages(activeTabModule);
     setMatrixData((prev) => {
       const rolePerms = { ...(prev[activeRoleKey] || {}) };
       Object.keys(rolePerms)
         .filter((key) => key.startsWith(`${activeTabModule}.`))
         .forEach((key) => delete rolePerms[key]);
-      modulePages.forEach((page) => page.tabs.forEach((tab) => {
-        rolePerms[tabKey(activeTabModule, page.key, tab.key)] = [...(tab.supportedActions ?? [])];
-      }));
       return { ...prev, [activeRoleKey]: rolePerms };
     });
     setHasChanges(true);
@@ -195,14 +185,15 @@ export function AccessMatrixTab({
     if (!q) return true;
     return m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q);
   });
-  const registeredModuleKeys = new Set(Object.keys(PERMISSION_PAGE_CONFIGS));
   const actionModules = MODULE_CONFIGS.filter((module) => {
     const query = moduleSearch.trim().toLowerCase();
-    return !query || module.name.toLowerCase().includes(query) || module.description.toLowerCase().includes(query);
+    const hasPagePermissions = Boolean(PERMISSION_PAGE_CONFIGS[module.key]?.length);
+    return hasPagePermissions && (
+      !query || module.name.toLowerCase().includes(query) || module.description.toLowerCase().includes(query)
+    );
   });
   const activeActionPages = getModulePages(activeTabModule);
   const actionTabs = activeActionPages.flatMap((page) => page.tabs.map((tab) => ({ ...tab, pageKey: page.key })));
-  const selectedActionTab = activeActionTab || (actionTabs[0] ? `${actionTabs[0].pageKey}.${actionTabs[0].key}` : "");
   const moduleActionCount = (moduleKey: string) => {
     const pages = getModulePages(moduleKey);
     const tabs = pages.flatMap((page) => page.tabs);
@@ -226,10 +217,10 @@ export function AccessMatrixTab({
         <div>
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-            <h2 className="text-base font-bold text-ink-900 dark:text-white">Excel-Style Access Matrix</h2>
+            <h2 className="text-base font-bold text-ink-900 dark:text-white">Page &amp; Tab Permissions</h2>
           </div>
           <p className="text-xs text-ledger-500 dark:text-ledger-400">
-            High-density security grid to review and configure role permissions across all business modules
+            Choose a role, then control what it can do on each configured page and tab. Use the module matrix for broader access.
           </p>
         </div>
 
@@ -275,14 +266,14 @@ export function AccessMatrixTab({
                   : "bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
               }`}
             >
-              <Save className="h-3.5 w-3.5 mr-1" /> {saveToast ? "Saved!" : "Save Matrix"}
+              <Save className="h-3.5 w-3.5 mr-1" /> {saveToast ? "Saved!" : "Save Permissions"}
             </Button>
           )}
         </div>
       </div>
 
       {/* Dense Excel Matrix Table */}
-      {mode !== "tabs" && (mode !== "actions" || showExcelMatrix) && <div className="relative rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900 overflow-hidden">
+      {showExcelMatrix && <div className="relative rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900 overflow-hidden">
         <div className="overflow-x-auto max-h-[68vh]">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="sticky top-0 z-20 bg-slate-100 text-ink-900 dark:bg-slate-800 dark:text-white border-b border-ledger-200 dark:border-ledger-700 shadow-sm">
@@ -391,8 +382,7 @@ export function AccessMatrixTab({
       </div>
       }
 
-      {/* Action Permissions matrix matching the role-management reference layout. */}
-      {mode === "actions" ? (
+      {/* Page and tab-level action permissions. */}
       <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="max-h-[calc(100vh-14rem)] overflow-y-auto rounded-2xl border border-ledger-200 bg-white p-3 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
           <h3 className="px-2 pb-2 text-sm font-bold text-ink-900 dark:text-white">Modules</h3>
@@ -409,7 +399,6 @@ export function AccessMatrixTab({
                   type="button"
                   onClick={() => {
                     setActiveTabModule(module.key);
-                    setActiveActionTab("");
                   }}
                   className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" : "text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.04]"}`}
                 >
@@ -428,37 +417,18 @@ export function AccessMatrixTab({
               </div>
               <div>
                 <h2 className="text-base font-bold text-ink-900 dark:text-white">
-                  {MODULE_CONFIGS.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} Module - Action Permissions
+                  {MODULE_CONFIGS.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} — Page &amp; Tab Permissions
                 </h2>
                 <p className="text-xs text-ledger-500 dark:text-ledger-400">Control what actions this role can perform in each tab.</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={() => setShowExcelMatrix((visible) => !visible)}>
-                {showExcelMatrix ? "Hide Excel Matrix" : "Show Excel Matrix"}
+                {showExcelMatrix ? "Hide Module Matrix" : "Show Module Matrix"}
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={handleResetModule} disabled={!canManage}>
-                <RotateCcw className="h-3.5 w-3.5" /> Reset to Default
+                <RotateCcw className="h-3.5 w-3.5" /> Reset to Module Defaults
               </Button>
-            </div>
-          </div>
-          <div className="mt-4 overflow-x-auto border-b border-ledger-200 dark:border-ledger-700">
-            <div className="flex min-w-max gap-1">
-              {actionTabs.map((tab) => {
-                const tabId = `${tab.pageKey}.${tab.key}`;
-                const selected = tabId === selectedActionTab;
-                return (
-                <button
-                  key={tabId}
-                  type="button"
-                  onClick={() => setActiveActionTab(tabId)}
-                  className={`border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors ${selected ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-ledger-500 hover:border-ledger-300 hover:text-ink-900 dark:text-ledger-400 dark:hover:text-white"}`}
-                  aria-pressed={selected}
-                >
-                  {tab.name}
-                </button>
-                );
-              })}
             </div>
           </div>
           <div className="mt-4 overflow-x-auto rounded-xl border border-ledger-200 dark:border-ledger-700">
@@ -478,9 +448,12 @@ export function AccessMatrixTab({
                     </td>
                     {actionTabs.map((tab) => {
                       const supported = (tab.supportedActions ?? []).includes(action.key);
-                      const key = tabKey(activeTabModule, tab.pageKey, tab.key);
-                      const explicit = Object.prototype.hasOwnProperty.call(activePermissions, key);
-                      const checked = (explicit ? activePermissions[key] : activePermissions[activeTabModule] ?? []).includes(action.key);
+                      const checked = resolveTabPermissionActions(
+                        activePermissions,
+                        activeTabModule,
+                        tab.pageKey,
+                        tab.key
+                      ).includes(action.key);
                       return (
                         <td key={`${action.key}.${tab.pageKey}.${tab.key}`} className="border-l border-ledger-100 p-3 text-center dark:border-ledger-800">
                           {supported ? <input type="checkbox" checked={checked} disabled={!canManage} onChange={() => handleToggleTab(activeTabModule, tab.pageKey, tab.key, action.key)} className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500" aria-label={`${action.label} ${tab.name}`} /> : <span className="text-ledger-300">—</span>}
@@ -494,91 +467,10 @@ export function AccessMatrixTab({
           </div>
           <div className="mt-4 flex gap-2 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-100">
             <Shield className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>This role has access to the {MODULE_CONFIGS.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} module with selective tab and action permissions. Only enabled tabs and actions will be visible to users assigned to this role.</p>
+            <p>For assigned users, each tab uses its saved actions when customized. Otherwise, it inherits the broader {MODULE_CONFIGS.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} module permissions. Tab visibility is enforced on pages wired to these checks.</p>
           </div>
         </section>
       </div>
-      ) : (
-      <div className="space-y-4 rounded-2xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-blue-600" />
-              <h2 className="text-base font-bold text-ink-900 dark:text-white">
-                Tab Access
-              </h2>
-            </div>
-            <p className="text-xs text-ledger-500 dark:text-ledger-400">
-              Control which tabs are visible and which actions are available inside each page.
-            </p>
-          </div>
-          <select
-            value={activeTabModule}
-            onChange={(event) => setActiveTabModule(event.target.value)}
-            className="h-8 rounded-lg border border-ledger-200 bg-white px-2.5 text-xs font-semibold dark:border-ledger-700 dark:bg-slate-800 dark:text-white"
-          >
-            {Object.keys(PERMISSION_PAGE_CONFIGS).map((moduleKey) => (
-              <option key={moduleKey} value={moduleKey}>
-                {MODULE_CONFIGS.find((module) => module.key === moduleKey)?.name ?? moduleKey}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {(PERMISSION_PAGE_CONFIGS[activeTabModule] ?? []).map((page) => (
-          <div key={page.key} className="overflow-x-auto rounded-xl border border-ledger-200 dark:border-ledger-700">
-            <div className="border-b border-ledger-200 bg-slate-50 px-3 py-2 text-xs font-bold text-ink-900 dark:border-ledger-700 dark:bg-slate-800 dark:text-white">
-              {page.name}
-            </div>
-            <table className="w-full min-w-[720px] text-left text-xs">
-              <thead className="bg-slate-100 dark:bg-slate-800">
-                <tr>
-                  <th className="p-2.5 font-bold text-ink-900 dark:text-white">Action</th>
-                  {page.tabs.map((tab) => (
-                    <th key={tab.key} className="min-w-[110px] p-2.5 text-center font-bold text-ink-900 dark:text-white">
-                      {tab.name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
-                {PERMISSION_ACTIONS.filter((action) => action.key !== "print").map((action) => (
-                  <tr key={action.key}>
-                    <td className="p-2.5 font-semibold text-ink-900 dark:text-white">
-                      <span className="capitalize">{action.label}</span>
-                      <span className="ml-2 text-[10px] font-normal text-ledger-400">{action.description}</span>
-                    </td>
-                    {page.tabs.map((tab) => {
-                      const supported = (tab.supportedActions ?? PERMISSION_ACTIONS.map((item) => item.key)).includes(action.key);
-                      const permissionKey = tabKey(activeTabModule, page.key, tab.key);
-                      const hasExplicitGrant = Object.prototype.hasOwnProperty.call(activePermissions, permissionKey);
-                      const current = activePermissions[permissionKey] ?? [];
-                      const checked = hasExplicitGrant
-                        ? current.includes(action.key)
-                        : (activePermissions[activeTabModule] ?? []).includes(action.key);
-                      return (
-                        <td key={tab.key} className="p-2.5 text-center">
-                          {supported ? (
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => handleToggleTab(activeTabModule, page.key, tab.key, action.key)}
-                              disabled={!canManage}
-                              aria-label={`${action.label} ${tab.name}`}
-                              className="h-4 w-4 rounded border-ledger-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          ) : <span className="text-ledger-300">—</span>}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
-      )}
 
     </div>
   );

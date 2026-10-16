@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
+import { canTabPermission } from "@/lib/rbac/permissions";
 import { InventoryIntelligenceCenter, type IntelligenceData } from "@/components/inventory/inventory-intelligence-center";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,30 @@ type SupplierPerformance = {
   quality: number | null;
 };
 
-export default async function InventoryIntelligencePage() {
+export default async function InventoryIntelligencePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const query = await searchParams;
+  const requestedView = ["dashboard", "dead_stock", "slow_moving_stock", "forecasting"].includes(query.view ?? "")
+    ? query.view ?? null
+    : null;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
+  const intelligenceTabs = ["dashboard", "dead_stock", "slow_moving_stock", "forecasting"];
+  const visiblePermissionTabs = (await Promise.all(intelligenceTabs.map(async (tab) => (
+    await canTabPermission("inventory", "inventory_intelligence", tab, "view") ? tab : null
+  )))).filter((tab): tab is string => tab !== null);
+  const initialView = requestedView ?? visiblePermissionTabs[0];
+  if (!initialView || (requestedView && !visiblePermissionTabs.includes(requestedView))) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">
+        You don’t have access to Inventory Intelligence.
+      </div>
+    );
+  }
 
   const supabase = await createClient();
   const now = new Date();
@@ -161,5 +182,5 @@ export default async function InventoryIntelligencePage() {
       }),
     monthlyMovement: [...monthlyMovement.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([month, values]) => ({ month, ...values })),
   };
-  return <InventoryIntelligenceCenter initialData={intelligenceData} />;
+  return <InventoryIntelligenceCenter initialData={intelligenceData} initialView={initialView} visiblePermissionTabs={visiblePermissionTabs} />;
 }

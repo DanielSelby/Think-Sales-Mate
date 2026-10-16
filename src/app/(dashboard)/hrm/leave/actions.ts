@@ -1,6 +1,6 @@
 "use server";
 
-import { requirePermission } from "@/lib/rbac/permissions";
+import { requireTabPermission } from "@/lib/rbac/permissions";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -25,6 +25,7 @@ export interface LeaveTypeOption {
 }
 
 export async function ensureLeaveTypes(): Promise<LeaveTypeOption[]> {
+  await requireTabPermission("hrm_payroll", "hrm", "leave_management", "view");
   const context = await getCurrentOrgContext();
   if (!context) return [];
   const supabase = await createClient();
@@ -35,6 +36,7 @@ export async function ensureLeaveTypes(): Promise<LeaveTypeOption[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
+  await requireTabPermission("hrm_payroll", "hrm", "leave_management", "create");
   const { data: inserted, error } = await supabase
     .from("leave_types")
     .insert(
@@ -65,7 +67,7 @@ export interface CreateLeaveRequestInput {
 }
 
 export async function createLeaveRequest(input: CreateLeaveRequestInput): Promise<SimpleResult> {
-  await requirePermission("hrm", "create");
+  await requireTabPermission("hrm_payroll", "hrm", "leave_management", "create");
   if (new Date(input.endDate) < new Date(input.startDate)) return { ok: false, error: "End date can't be before start date." };
 
   const context = await getCurrentOrgContext();
@@ -111,7 +113,7 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
 }
 
 export async function approveLeaveRequest(requestId: string): Promise<SimpleResult> {
-  await requirePermission("hrm", "approve");
+  await requireTabPermission("hrm_payroll", "hrm", "leave_management", "approve");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -150,6 +152,7 @@ export async function approveLeaveRequest(requestId: string): Promise<SimpleResu
 }
 
 export async function rejectLeaveRequest(requestId: string, note?: string): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "leave_management", "approve");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -185,6 +188,7 @@ export async function rejectLeaveRequest(requestId: string, note?: string): Prom
 }
 
 export async function deleteLeaveRequest(requestId: string): Promise<SimpleResult> {
+  await requireTabPermission("hrm_payroll", "hrm", "leave_management", "delete");
   const supabase = await createClient();
   const { data: request, error: fetchError } = await supabase
     .from("leave_requests")

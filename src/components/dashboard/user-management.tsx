@@ -1123,8 +1123,7 @@ export function UserManagement({
           { key: "users", label: "Users", count: filteredUsers.length },
           { key: "roles", label: "Roles & Templates", count: roles.length },
           { key: "permissions", label: "Permissions", count: permissionsCount },
-          { key: "matrix", label: "Access Matrix" },
-          { key: "action_permissions", label: "Action Permissions" },
+          { key: "action_permissions", label: "Page & Tab Permissions" },
           { key: "approvals", label: "Approval Matrix" },
           { key: "branches", label: "Branch Access" },
           { key: "audit", label: "Activity Logs", count: auditLogs.length },
@@ -1273,29 +1272,10 @@ export function UserManagement({
           />
         )}
 
-        {activeTab === "matrix" && (
-          <AccessMatrixTab
-          roles={roles}
-          canManage={canManage}
-          onUpdateRolePermissions={async (roleId, permissions) => {
-            const updatedRole = roles.find((role) => role.id === roleId);
-            const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
-            if ("error" in result && result.error) {
-              showToast(result.error);
-              return result;
-            }
-            setRoles((previous) => previous.map((role) => role.id === roleId ? { ...role, permissions } : role));
-            showToast(`Permissions updated for ${updatedRole?.name || "role"}`);
-            return {};
-          }}
-/>
-        )}
-
         {activeTab === "action_permissions" && (
           <AccessMatrixTab
             roles={roles}
             canManage={canManage}
-            mode="actions"
             onUpdateRolePermissions={async (roleId, permissions) => {
               const updatedRole = roles.find((role) => role.id === roleId);
               const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
@@ -1304,7 +1284,7 @@ export function UserManagement({
                 return result;
               }
               setRoles((previous) => previous.map((role) => role.id === roleId ? { ...role, permissions } : role));
-              showToast(`Tab and action permissions updated for ${updatedRole?.name || "role"}`);
+              showToast(`Permissions updated for ${updatedRole?.name || "role"}`);
               return {};
             }}
           />
@@ -1477,18 +1457,31 @@ export function UserManagement({
           roleToEdit={selectedRoleForModal}
           onSaveRole={async (saved) => {
             if (roles.some((role) => role.key === saved.key && role.id !== saved.id)) {
+              await showAlert("A role with this key already exists. Choose a different name.", {
+                title: "Role could not be saved",
+                tone: "error"
+              });
               return { error: "A role with this key already exists. Choose a different name." };
             }
-            const result = await saveRolePermissions(saved.key, saved.permissions, saved.name);
-            if ("error" in result && result.error) return result;
-            if (roleModalMode === "create" || roleModalMode === "clone") {
-              setRoles((previous) => [...previous, saved]);
-              showToast(`Role "${saved.name}" created.`);
-            } else {
-              setRoles((previous) => previous.map((role) => role.id === saved.id ? saved : role));
-              showToast(`Role "${saved.name}" updated.`);
+            try {
+              const result = await saveRolePermissions(saved.key, saved.permissions, saved.name);
+              if ("error" in result && result.error) {
+                await showAlert(result.error, { title: "Role could not be saved", tone: "error" });
+                return result;
+              }
+              if (roleModalMode === "create" || roleModalMode === "clone") {
+                setRoles((previous) => [...previous, saved]);
+                showToast(`Role "${saved.name}" created.`);
+              } else {
+                setRoles((previous) => previous.map((role) => role.id === saved.id ? saved : role));
+                showToast(`Role "${saved.name}" updated.`);
+              }
+              return {};
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Could not save this role.";
+              await showAlert(message, { title: "Role could not be saved", tone: "error" });
+              return { error: message };
             }
-            return {};
           }}
         />
       )}

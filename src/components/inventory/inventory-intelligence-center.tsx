@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, BrainCircuit, Boxes,
   CheckCircle2, ChevronDown, CircleDollarSign, Download, FileText, Filter, Package,
@@ -29,6 +30,21 @@ export interface IntelligenceData {
 }
 
 const tabs = ["Overview", "Fast Moving Products", "Slow Moving Products", "Dead Stock", "Overstocked Products", "Understocked Products", "Stock Aging", "Inventory Forecasting", "Branch Comparison", "Reorder Recommendations", "Supplier Performance", "Inventory Health Score", "AI Insights", "Reports"];
+const permissionKeyForTab = (tab: string) => tab === "Dead Stock"
+  ? "dead_stock"
+  : tab === "Slow Moving Products"
+    ? "slow_moving_stock"
+    : tab === "Inventory Forecasting"
+      ? "forecasting"
+      : "dashboard";
+const viewForTab = (tab: string) => permissionKeyForTab(tab);
+const tabForView = (view: string | undefined) => view === "dead_stock"
+  ? "Dead Stock"
+  : view === "slow_moving_stock"
+    ? "Slow Moving Products"
+    : view === "forecasting"
+      ? "Inventory Forecasting"
+      : "Overview";
 const money = (value: number, currency: string) => formatMoney(value, currency);
 const compact = (value: number) => value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value.toLocaleString();
 function MiniChart({ values, color = "#2563eb", negative = false }: { values: number[]; color?: string; negative?: boolean }) {
@@ -43,8 +59,17 @@ function Kpi({ icon: Icon, label, value, trend, tone = "blue", onClick }: { icon
   </button>;
 }
 
-export function InventoryIntelligenceCenter({ initialData }: { initialData: IntelligenceData }) {
-  const [tab, setTab] = useState("Overview");
+export function InventoryIntelligenceCenter({
+  initialData,
+  initialView,
+  visiblePermissionTabs,
+}: {
+  initialData: IntelligenceData;
+  initialView: string;
+  visiblePermissionTabs: string[];
+}) {
+  const router = useRouter();
+  const [tab, setTab] = useState(() => tabForView(initialView));
   const [branch, setBranch] = useState("all");
   const [category, setCategory] = useState("all");
   const [supplier, setSupplier] = useState("all");
@@ -66,7 +91,13 @@ export function InventoryIntelligenceCenter({ initialData }: { initialData: Inte
   const fast = [...filtered].sort((a, b) => b.sold - a.sold);
   const slow = [...filtered].filter((p) => p.sold > 0).sort((a, b) => a.sold - b.sold);
   const health = Math.max(0, Math.min(100, Math.round(100 - (dead.length / Math.max(filtered.length, 1) * 30) - (over.length / Math.max(filtered.length, 1) * 15) - (low.length / Math.max(filtered.length, 1) * 20))));
-  const go = (next: string) => setTab(next);
+  const canViewDashboard = visiblePermissionTabs.includes("dashboard");
+  const visibleTabs = tabs.filter((item) => visiblePermissionTabs.includes(permissionKeyForTab(item)));
+  const go = (next: string) => {
+    if (!visiblePermissionTabs.includes(permissionKeyForTab(next))) return;
+    setTab(next);
+    router.replace(`/inventory/intelligence?view=${viewForTab(next)}`, { scroll: false });
+  };
   const exportCsv = () => {
     const csv = ["Product,SKU,Category,Stock,Inventory Value,Quantity Sold", ...filtered.map((p) => [p.name, p.sku, p.category, p.stock, p.value, p.sold].join(","))].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const link = document.createElement("a"); link.href = url; link.download = "inventory-intelligence.csv"; link.click(); URL.revokeObjectURL(url);
@@ -76,19 +107,19 @@ export function InventoryIntelligenceCenter({ initialData }: { initialData: Inte
     <div className="mx-auto max-w-[1600px]">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 xl:flex-row xl:items-center xl:justify-between">
         <div><div className="flex items-center gap-2 text-xs font-medium text-blue-600"><Boxes className="h-3.5 w-3.5" /> Inventory <span className="text-slate-400">/</span> Intelligence Center</div><h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight">Inventory Intelligence Center <Sparkles className="h-5 w-5 text-violet-500" /></h1><p className="mt-1 text-sm text-slate-500">Monitor inventory health, stock movement, forecasting, risks, branch performance, and AI recommendations from a single workspace.</p></div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-3.5 w-3.5" /> Export</Button><Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" /> Print</Button><Button variant="outline" size="sm" onClick={() => window.location.reload()}><RefreshCw className="h-3.5 w-3.5" /> Refresh</Button><Button variant="secondary" size="sm" onClick={() => go("AI Insights")}><BrainCircuit className="h-3.5 w-3.5" /> AI Insights</Button><Button size="sm" onClick={() => go("Reports")}><FileText className="h-3.5 w-3.5" /> Generate Report</Button></div>
+        {canViewDashboard && <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-3.5 w-3.5" /> Export</Button><Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" /> Print</Button><Button variant="outline" size="sm" onClick={() => window.location.reload()}><RefreshCw className="h-3.5 w-3.5" /> Refresh</Button><Button variant="secondary" size="sm" onClick={() => go("AI Insights")}><BrainCircuit className="h-3.5 w-3.5" /> AI Insights</Button><Button size="sm" onClick={() => go("Reports")}><FileText className="h-3.5 w-3.5" /> Generate Report</Button></div>}
       </header>
 
-      <section className="mt-5 grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-3 xl:grid-cols-6">
+      {canViewDashboard && <section className="mt-5 grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-3 xl:grid-cols-6">
         {[["Branch", branch, setBranch, initialData.locations.map((x) => [x.id, x.name])], ["Category", category, setCategory, initialData.categories.map((x) => [x, x])], ["Supplier", supplier, setSupplier, initialData.suppliers.map((x) => [x, x])], ["Brand", brand, setBrand, initialData.brands.map((x) => [x, x])]].map(([label, value, setter, options]) => <label key={label as string} className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label as string}<span className="relative mt-1 block"><select value={value as string} onChange={(e) => (setter as (v: string) => void)(e.target.value)} className="h-9 w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 pr-7 text-xs font-medium text-slate-700 outline-none focus:border-blue-400"><option value="all">All {label as string}s</option>{(options as [string, string][]).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" /></span></label>)}
         <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 md:col-span-2 xl:col-span-2">Search products<span className="relative mt-1 block"><Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search SKU, product, category..." className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-8 text-xs outline-none focus:border-blue-400" />{query && <button onClick={() => setQuery("")} className="absolute right-2 top-2.5"><X className="h-3.5 w-3.5 text-slate-400" /></button>}</span></label>
-      </section>
+      </section>}
 
-      <section className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+      {canViewDashboard && <section className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
         <Kpi icon={CircleDollarSign} label="Total Inventory Value" value={money(totalValue, initialData.currency)} trend="+8.4%" onClick={() => go("Overview")} /><Kpi icon={Package} label="Total SKUs" value={compact(filtered.length)} trend="+4.5%" onClick={() => go("Overview")} /><Kpi icon={CheckCircle2} label="Active Products" value={compact(filtered.filter((p) => p.active).length)} trend="+6.1%" tone="green" onClick={() => go("Overview")} /><Kpi icon={AlertTriangle} label="Low Stock Products" value={compact(low.length)} trend="-12.3%" tone="red" onClick={() => go("Understocked Products")} /><Kpi icon={Boxes} label="Overstocked Products" value={compact(over.length)} trend="+8.7%" tone="amber" onClick={() => go("Overstocked Products")} /><Kpi icon={Package} label="Dead Stock Items" value={compact(dead.length)} trend="+16.7%" tone="red" onClick={() => go("Dead Stock")} /><Kpi icon={TrendingUp} label="Inventory Turnover Rate" value={`${(filtered.reduce((s, p) => s + p.sold, 0) / Math.max(filtered.reduce((s, p) => s + p.stock, 0), 1) * 12).toFixed(1)}x`} trend="+4.8%" onClick={() => go("Inventory Health Score")} /><Kpi icon={Target} label="Inventory Accuracy" value={`${health}%`} trend="+2.1%" tone="green" onClick={() => go("Inventory Health Score")} />
-      </section>
+      </section>}
 
-      <nav className="mt-5 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0.5">{tabs.map((item) => <button key={item} onClick={() => setTab(item)} className={cn("whitespace-nowrap rounded-t-lg px-3 py-2.5 text-[11px] font-semibold transition", tab === item ? "border-b-2 border-blue-600 bg-white text-blue-700" : "text-slate-500 hover:bg-white hover:text-slate-800")}>{item}</button>)}</nav>
+      <nav className="mt-5 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0.5">{visibleTabs.map((item) => <button key={item} onClick={() => go(item)} className={cn("whitespace-nowrap rounded-t-lg px-3 py-2.5 text-[11px] font-semibold transition", tab === item ? "border-b-2 border-blue-600 bg-white text-blue-700" : "text-slate-500 hover:bg-white hover:text-slate-800")}>{item}</button>)}</nav>
 
       <section className="mt-5">{tab === "Overview" && <Overview data={initialData} products={filtered} currency={initialData.currency} onTab={go} />}{["Fast Moving Products", "Slow Moving Products", "Dead Stock", "Overstocked Products", "Understocked Products"].includes(tab) && <ProductTable title={tab} products={tab === "Fast Moving Products" ? fast : tab === "Slow Moving Products" ? slow : tab === "Dead Stock" ? dead : tab === "Overstocked Products" ? over : low} currency={initialData.currency} deadDays={deadDays} setDeadDays={setDeadDays} />}{tab === "Stock Aging" && <Aging products={filtered} currency={initialData.currency} />}{tab === "Inventory Forecasting" && <Forecast products={filtered} currency={initialData.currency} monthly={initialData.monthlyMovement} />}{tab === "Branch Comparison" && <BranchComparison products={filtered} locations={initialData.locations} currency={initialData.currency} />}{tab === "Reorder Recommendations" && <Reorder products={low} currency={initialData.currency} />}{tab === "Supplier Performance" && <SupplierPerformance data={initialData.supplierPerformance} currency={initialData.currency} />}{tab === "Inventory Health Score" && <Health health={health} products={filtered} />}{tab === "AI Insights" && <Insights dead={dead} low={low} over={over} currency={initialData.currency} onAction={(index) => go(index === 0 ? "Dead Stock" : index === 1 ? "Understocked Products" : index === 2 ? "Overstocked Products" : "Fast Moving Products")} />}{tab === "Reports" && <Reports onExport={exportCsv} />}</section>
     </div>

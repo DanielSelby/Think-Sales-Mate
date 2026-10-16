@@ -48,7 +48,21 @@ function AccountIcon({ type, logoUrl, name }: { type: string; logoUrl: string | 
   );
 }
 
-export function AccountsTable({ accounts, canEdit, canDelete, currency }: { accounts: AccountRow[]; canEdit: boolean; canDelete: boolean; currency: string }) {
+export function AccountsTable({
+  accounts,
+  canEdit,
+  canDelete,
+  canTransact,
+  canViewStatements,
+  currency,
+}: {
+  accounts: AccountRow[];
+  canEdit: boolean;
+  canDelete: boolean;
+  canTransact: boolean;
+  canViewStatements: boolean;
+  currency: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -163,13 +177,13 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
                   </button>
                   {openMenu === account.id && (
                     <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-ledger-100 bg-white p-1.5 shadow-lg dark:border-slate-500 dark:bg-ink-900">
-                      <Link
+                      {canViewStatements && <Link
                         href={`/banking/${account.id}?view=statement`}
                         className="block rounded-lg px-3 py-2 text-left text-sm text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.06]"
                         onClick={() => setOpenMenu(null)}
                       >
                         View statement
-                      </Link>
+                      </Link>}
                       {canEdit && (
                         <button
                           type="button"
@@ -223,18 +237,18 @@ export function AccountsTable({ accounts, canEdit, canDelete, currency }: { acco
             </div>
 
             <div className="mt-2 flex items-center justify-between border-t border-ledger-100 pt-1.5 dark:border-slate-600">
-              <Link
+              {canTransact && <Link
                 href={`/banking/${account.id}`}
                 className="inline-flex min-h-7 items-center rounded-lg px-1.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10"
               >
                 Deposit / Withdraw
-              </Link>
-              <Link
+              </Link>}
+              {canViewStatements && <Link
                 href={`/banking/${account.id}?view=statement`}
                 className="inline-flex min-h-7 items-center rounded-lg px-1.5 text-[10px] font-semibold text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-white/[0.06]"
               >
                 View statement
-              </Link>
+              </Link>}
             </div>
           </article>
         ))}

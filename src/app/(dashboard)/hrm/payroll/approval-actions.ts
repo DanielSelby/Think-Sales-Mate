@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { requireTabPermission } from "@/lib/rbac/permissions";
 
 export async function approvePayrollRun(runId: string) {
   return approvePayrollRuns([runId]);
@@ -11,7 +11,8 @@ export async function approvePayrollRun(runId: string) {
 
 export async function approvePayrollRuns(runIds: string[]) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("hrm", "edit")) return { ok: false, error: "You don't have permission to approve payroll." };
+  if (!context) return { ok: false, error: "You don't have permission to approve payroll." };
+  await requireTabPermission("hrm_payroll", "hrm", "payroll", "approve");
   const ids = Array.from(new Set(runIds.filter(Boolean)));
   if (!ids.length) return { ok: false, error: "Select at least one payroll run." };
   const supabase = await createClient();
@@ -31,7 +32,8 @@ export async function approvePayrollRuns(runIds: string[]) {
 
 export async function submitPayrollRun(runId: string) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("hrm_payroll", "edit")) return { ok: false, error: "You don't have permission to submit payroll." };
+  if (!context) return { ok: false, error: "You don't have permission to submit payroll." };
+  await requireTabPermission("hrm_payroll", "hrm", "payroll", "edit");
   const supabase = await createClient();
   const { error } = await supabase.from("payroll_runs").update({ status: "processing", approval_status: "pending" }).eq("id", runId).eq("org_id", context.orgId);
   if (error) return { ok: false, error: error.message };
@@ -43,7 +45,8 @@ export async function submitPayrollRun(runId: string) {
 
 export async function markPayrollItemsPaid(itemIds: string[]) {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("hrm_payroll", "edit")) return { ok: false, error: "You don't have permission to mark payroll as paid." };
+  if (!context) return { ok: false, error: "You don't have permission to mark payroll as paid." };
+  await requireTabPermission("hrm_payroll", "hrm", "payroll", "edit");
   const ids = Array.from(new Set(itemIds.filter(Boolean)));
   if (!ids.length) return { ok: false, error: "Select at least one payroll item." };
   const supabase = await createClient();

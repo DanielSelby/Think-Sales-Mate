@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, requireTabPermission } from "@/lib/rbac/permissions";
 
 function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -39,6 +39,7 @@ function parseCustomerForm(formData: FormData) {
 }
 
 export async function createCustomer(formData: FormData): Promise<void> {
+  await requireTabPermission("crm", "crm", "customers", "create");
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("/crm/new", "Your session expired — please sign in again.");
   if (!await canPermission("customers", "create")) {
@@ -70,6 +71,7 @@ export async function createCustomer(formData: FormData): Promise<void> {
 }
 
 export async function updateCustomer(customerId: string, formData: FormData): Promise<void> {
+  await requireTabPermission("crm", "crm", "customers", "edit");
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/crm/${customerId}/edit`, "Your session expired — please sign in again.");
   if (!await canPermission("customers", "edit")) {
@@ -104,6 +106,7 @@ export async function updateCustomer(customerId: string, formData: FormData): Pr
 }
 
 export async function deleteCustomer(customerId: string) {
+  await requireTabPermission("crm", "crm", "customers", "delete");
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("customers", "delete")) {
     return { error: "You don't have permission to remove customers." };

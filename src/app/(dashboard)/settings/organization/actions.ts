@@ -685,11 +685,11 @@ export async function saveRolePermissions(
     actorId: context.userId,
     action: "role_permissions_updated",
     entityType: "role_permission_matrix",
-    entityId: roleKey.replace(/^role-/, ""),
     module: "user_management",
     description: `Updated module, page, tab, and action permissions for ${name ?? roleKey}`,
     newValues: { permissions },
     metadata: {
+      role_key: roleKey.replace(/^role-/, ""),
       role: name ?? roleKey,
       permission_scope: "module.page.tab.action",
       tab_permissions: Object.keys(permissions).filter((key) => key.split(".").length === 3)

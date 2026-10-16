@@ -45,6 +45,8 @@ export function BankingOverview({
   timeZone,
   canAddAccount,
   canTransfer,
+  canViewStatements,
+  canManageAccounts,
   totalBalance,
   today,
   transactionPage,
@@ -53,6 +55,7 @@ export function BankingOverview({
   transactionTotal,
   transactionFilters,
   initialTransferOpen = false,
+  showAccountSummary = true,
 }: {
   accounts: AccountRow[];
   branches: Array<{ id: string; name: string }>;
@@ -62,6 +65,8 @@ export function BankingOverview({
   timeZone: string;
   canAddAccount: boolean;
   canTransfer: boolean;
+  canViewStatements: boolean;
+  canManageAccounts: boolean;
   totalBalance: number;
   today: string;
   transactionPage: number;
@@ -70,6 +75,7 @@ export function BankingOverview({
   transactionTotal: number;
   transactionFilters: BankingTransactionFilters;
   initialTransferOpen?: boolean;
+  showAccountSummary?: boolean;
 }) {
   const [transferOpen, setTransferOpen] = useState(initialTransferOpen);
   const [transferMessage, setTransferMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -88,6 +94,7 @@ export function BankingOverview({
     if (transactionFilters.description) params.set("description", transactionFilters.description);
     params.set("transactionsPageSize", transactionPageSize);
     params.set("transactionsPage", String(page));
+    params.set("tab", "transactions");
     return `/banking?${params.toString()}#recent-transactions`;
   };
 
@@ -106,7 +113,7 @@ export function BankingOverview({
 
   function closeTransfer() {
     setTransferOpen(false);
-    if (initialTransferOpen) router.replace("/banking", { scroll: false });
+    if (initialTransferOpen) router.replace("/banking?tab=transactions", { scroll: false });
   }
 
   return (
@@ -120,11 +127,10 @@ export function BankingOverview({
               </span>
               <h2 className="font-display text-base font-semibold text-ink-900 dark:text-white">Recent Transactions</h2>
             </div>
-            <Link href={accounts[0] ? `/banking/${accounts[0].id}?view=statement` : "#accounts"} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">
-              View all
-            </Link>
+            {canViewStatements && <Link href={accounts[0] ? `/banking/${accounts[0].id}?view=statement` : "#accounts"} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">View all</Link>}
           </div>
           <AutoSubmitFilterForm action="/banking#recent-transactions" className="grid gap-2 border-b border-ledger-100 bg-ledger-50/50 p-4 sm:grid-cols-2 xl:grid-cols-6 dark:border-slate-500 dark:bg-white/[0.02]">
+            <input type="hidden" name="tab" value="transactions" />
             <input type="hidden" name="transactionsPageSize" value={transactionPageSize} />
             <input type="hidden" name="transactionsPage" value="1" />
             <label className="sr-only" htmlFor="transaction-account-filter">Filter by account</label>
@@ -158,10 +164,11 @@ export function BankingOverview({
             </div>
             <div className="flex items-center justify-between sm:col-span-2 xl:col-span-6">
               <span className="text-[11px] text-ledger-500 dark:text-ledger-400">Filter by branch, account, type, date, description, or depositor.</span>
-              <Link href={`/banking?transactionsPageSize=${transactionPageSize}#recent-transactions`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear filters</Link>
+              <Link href={`/banking?tab=transactions&transactionsPageSize=${transactionPageSize}#recent-transactions`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Clear filters</Link>
             </div>
           </AutoSubmitFilterForm>
           <form action="/banking#recent-transactions" method="get" className="flex flex-wrap items-center gap-2 border-b border-ledger-100 px-5 py-2.5 dark:border-slate-500">
+            <input type="hidden" name="tab" value="transactions" />
             {transactionFilters.accountId && <input type="hidden" name="accountId" value={transactionFilters.accountId} />}
             {transactionFilters.locationId && <input type="hidden" name="location_id" value={transactionFilters.locationId} />}
             {transactionFilters.type && <input type="hidden" name="type" value={transactionFilters.type} />}
@@ -325,7 +332,7 @@ export function BankingOverview({
         </section>
 
         <aside className="space-y-4">
-          <section className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-2 dark:border-slate-500 dark:bg-ink-900">
+          {showAccountSummary && <section className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-2 dark:border-slate-500 dark:bg-ink-900">
             <div className="flex items-center gap-2.5">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -347,18 +354,18 @@ export function BankingOverview({
                 <span className="mt-2 block text-xs font-semibold text-ink-900 dark:text-white">Transfer Money</span>
                 <span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">Move between accounts</span>
               </button>
-              <Link href={firstStatementHref} className="rounded-xl border border-ledger-100 p-3 hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:border-blue-900 dark:hover:bg-blue-500/5">
+              {canViewStatements && <Link href={firstStatementHref} className="rounded-xl border border-ledger-100 p-3 hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:border-blue-900 dark:hover:bg-blue-500/5">
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><FileText className="h-4 w-4" /></span>
                 <span className="mt-2 block text-xs font-semibold text-ink-900 dark:text-white">View Statements</span>
                 <span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">Open account transactions</span>
-              </Link>
-              <a href="#accounts" className="rounded-xl border border-ledger-100 p-3 hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:border-blue-900 dark:hover:bg-blue-500/5">
+              </Link>}
+              {canManageAccounts && <a href="#accounts" className="rounded-xl border border-ledger-100 p-3 hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:border-blue-900 dark:hover:bg-blue-500/5">
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Settings2 className="h-4 w-4" /></span>
                 <span className="mt-2 block text-xs font-semibold text-ink-900 dark:text-white">Manage Accounts</span>
                 <span className="mt-0.5 block text-[10px] text-ledger-500 dark:text-ledger-400">View account cards</span>
-              </a>
+              </a>}
             </div>
-          </section>
+          </section>}
 
           <section className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-2 dark:border-slate-500 dark:bg-ink-900">
             <div className="flex items-center justify-between gap-3">

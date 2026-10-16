@@ -11,7 +11,7 @@ import { normalizeBankTransactionSearch } from "@/lib/banking/transaction-search
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { recordTransaction } from "@/app/(dashboard)/banking/actions";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canTabPermission } from "@/lib/rbac/permissions";
 import { AddAccountDialog } from "@/components/banking/add-account-dialog";
 import { AutoSubmitFilterForm } from "@/components/banking/auto-submit-filter-form";
 import { buildAccountStatement, type BankStatementTransaction } from "./statement-ledger";
@@ -55,6 +55,18 @@ export default async function AccountDetailPage({
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context || !can(context.role, "banking.view")) return null;
+  const routeTab = isStatementView ? "reconciliation" : "transactions";
+  const [canViewRoute, canViewAccounts, canViewTransactions, canAddAccount, canEditAccounts, canCreateTransaction, canExportStatement, canPrintStatement] = await Promise.all([
+    canTabPermission("banking", "banking", routeTab, "view"),
+    canTabPermission("banking", "banking", "accounts", "view"),
+    canTabPermission("banking", "banking", "transactions", "view"),
+    canTabPermission("banking", "banking", "accounts", "create"),
+    canTabPermission("banking", "banking", "accounts", "edit"),
+    canTabPermission("banking", "banking", "transactions", "create"),
+    canTabPermission("banking", "banking", "reconciliation", "export"),
+    canTabPermission("banking", "banking", "reconciliation", "print"),
+  ]);
+  if (!canViewRoute || (!isStatementView && (!canViewAccounts || !canViewTransactions))) notFound();
 
   const supabase = await createClient();
   const { data: locations, error: locationsError } = await supabase
@@ -176,7 +188,6 @@ export default async function AccountDetailPage({
     return `/banking/${account.id}?${query.toString()}`;
   };
 
-  const canManage = can(context.role, "banking.manage");
   const boundRecord = recordTransaction.bind(null, account.id);
   const today = new Date().toISOString().slice(0, 10);
   const [{ data: organizationSettings, error: organizationSettingsError }, { data: organizationAccounts, error: organizationAccountsError }] = isStatementView
@@ -186,9 +197,8 @@ export default async function AccountDetailPage({
     ])
     : [{ data: null, error: null }, { data: null, error: null }];
   const statementTimeZone = organizationSettings?.timezone || "UTC";
-  const [canAddAccount, canTransfer] = isStatementView
-    ? await Promise.all([canPermission("banking", "create"), canPermission("banking", "edit")])
-    : [false, false];
+  const canRecordTransaction = canCreateTransaction && canViewAccounts && canViewTransactions;
+  const canTransfer = canCreateTransaction && canViewTransactions;
   const statementPeriod = dateFrom || dateTo
     ? `${dateFrom || "Beginning"} – ${dateTo || "Present"}`
     : "All transactions";
@@ -217,8 +227,8 @@ export default async function AccountDetailPage({
     const statementError = transactionsErrorMessage
       ?? (organizationSettingsError ? `Organization settings could not be loaded: ${organizationSettingsError.message}` : null);
     const accountCountError = organizationAccountsError?.message ?? null;
-    const transferHref = `/banking?transfer=1`;
-    const viewTransactionsHref = `/banking?accountId=${encodeURIComponent(account.id)}#recent-transactions`;
+    const transferHref = `/banking?tab=transactions&transfer=1`;
+    const viewTransactionsHref = `/banking?tab=transactions&accountId=${encodeURIComponent(account.id)}#recent-transactions`;
 
     return (
       <main className="account-statement-print w-full min-w-0 space-y-5 text-ink-900 dark:text-white">
@@ -255,6 +265,8 @@ export default async function AccountDetailPage({
               openingBalance={statement?.openingBalance ?? Number(account.opening_balance ?? 0)}
               closingBalance={statement?.closingBalance ?? Number(account.current_balance ?? 0)}
               transactions={statementDownloadRows}
+              canPrint={canPrintStatement}
+              canExport={canExportStatement}
             />
           </div>
         </header>
@@ -414,14 +426,14 @@ export default async function AccountDetailPage({
                   <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><ArrowLeftRight className="h-3.5 w-3.5" /></span>
                   <span className="mt-1.5 block text-[11px] font-semibold text-[#17385d] dark:text-white">Transfer Money</span><span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">Move between accounts</span>
                 </Link>}
-                <Link href={viewTransactionsHref} className="rounded-lg border border-ledger-100 p-2 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
+                {canViewTransactions && <Link href={viewTransactionsHref} className="rounded-lg border border-ledger-100 p-2 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
                   <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><FileText className="h-3.5 w-3.5" /></span>
                   <span className="mt-1.5 block text-[11px] font-semibold text-[#17385d] dark:text-white">View Statements</span><span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">Browse account transactions</span>
-                </Link>
-                <Link href="/banking#accounts" className="rounded-lg border border-ledger-100 p-2 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
+                </Link>}
+                {canViewAccounts && <Link href="/banking?tab=accounts" className="rounded-lg border border-ledger-100 p-2 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-500 dark:hover:bg-blue-500/5">
                   <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><Landmark className="h-3.5 w-3.5" /></span>
-                  <span className="mt-1.5 block text-[11px] font-semibold text-[#17385d] dark:text-white">Manage Accounts</span><span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">{canManage ? "Edit and review accounts" : "View all accounts"}</span>
-                </Link>
+                  <span className="mt-1.5 block text-[11px] font-semibold text-[#17385d] dark:text-white">Manage Accounts</span><span className="mt-0.5 block text-[9px] text-ledger-500 dark:text-ledger-400">{canEditAccounts ? "Edit and review accounts" : "View all accounts"}</span>
+                </Link>}
               </div>
             </section>
             <section className="account-statement-card rounded-xl border border-[#dce8f2] bg-white p-3 shadow-sm dark:border-slate-500 dark:bg-ink-900">
@@ -435,7 +447,7 @@ export default async function AccountDetailPage({
                 <p className="mt-3 text-[10px] leading-4 text-ledger-500 dark:text-ledger-400">Selected account balance: <strong className="text-[#17385d] dark:text-white">{formatCurrency(Number(account.current_balance), context.currency)}</strong></p>
               </>}
             </section>
-            {canManage && <Link href={`/banking/${account.id}`} className="account-statement-no-print inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300"><ArrowUpRight className="h-3.5 w-3.5" />Record deposit / withdrawal</Link>}
+            {canRecordTransaction && <Link href={`/banking/${account.id}`} className="account-statement-no-print inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300"><ArrowUpRight className="h-3.5 w-3.5" />Record deposit / withdrawal</Link>}
           </aside>
         </div>
       </main>
@@ -456,7 +468,7 @@ export default async function AccountDetailPage({
           <h1 className="font-display text-2xl font-semibold text-ink-900 dark:text-white">
             {isStatementView ? `${account.name} Statement` : account.name}
           </h1>
-          {isStatementView && canManage && (
+          {isStatementView && canRecordTransaction && (
             <Link href={`/banking/${account.id}`} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
               <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
               Record deposit / withdrawal
@@ -469,7 +481,7 @@ export default async function AccountDetailPage({
         </p>
       </div>
 
-      {canManage && !isStatementView && (
+      {canRecordTransaction && !isStatementView && (
         <form
           action={boundRecord}
           className="flex flex-wrap items-end gap-3 rounded-card border border-ledger-100 bg-white p-4 shadow-card dark:border-slate-500 dark:bg-ink-900"

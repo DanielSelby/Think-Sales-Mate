@@ -37,6 +37,7 @@ describe("cash closing shift periods", () => {
       shiftWindows: {},
       timeZone: "UTC",
       now: new Date("2026-06-11T12:00:00.000Z"),
+      activeDates: ["2026-06-09", "2026-06-10"],
       closings: [{ closingDate: "2026-06-10", shift: "full_day", status: "approved" }],
       acknowledgements: [],
     });
@@ -52,8 +53,41 @@ describe("cash closing shift periods", () => {
       shiftWindows: {},
       timeZone: "UTC",
       now: new Date("2026-06-11T12:00:00.000Z"),
+      activeDates: ["2026-06-09", "2026-06-10"],
       closings: [{ closingDate: "2026-06-10", shift: "full_day", status: "approved" }],
       acknowledgements: [{ closingDate: "2026-06-09", shift: "full_day" }],
+    });
+
+    expect(missed).toEqual([]);
+  });
+
+  it("does not mark an inactive business date as a missed closing", () => {
+    const missed = findMissedCashClosings({
+      startDate: "2026-06-09",
+      endDate: "2026-06-10",
+      requiredShifts: ["full_day"],
+      shiftWindows: {},
+      timeZone: "UTC",
+      now: new Date("2026-06-11T12:00:00.000Z"),
+      activeDates: ["2026-06-10"],
+      closings: [{ closingDate: "2026-06-10", shift: "full_day", status: "approved" }],
+      acknowledgements: [],
+    });
+
+    expect(missed).toEqual([]);
+  });
+
+  it("does not list any outstanding closing when there was no activity", () => {
+    const missed = findMissedCashClosings({
+      startDate: "2026-06-09",
+      endDate: "2026-06-10",
+      requiredShifts: ["full_day"],
+      shiftWindows: {},
+      timeZone: "UTC",
+      now: new Date("2026-06-11T12:00:00.000Z"),
+      activeDates: [],
+      closings: [],
+      acknowledgements: [],
     });
 
     expect(missed).toEqual([]);

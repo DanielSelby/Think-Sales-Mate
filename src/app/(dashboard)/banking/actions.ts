@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, requireTabPermission } from "@/lib/rbac/permissions";
 import { canUseLocation } from "@/lib/organizations/location-access";
 import type { BankAccountType } from "@/types/database";
 
@@ -47,6 +47,7 @@ async function uploadAccountLogo(
 }
 
 async function saveAccount(formData: FormData): Promise<{ success: true } | { error: string }> {
+  await requireTabPermission("banking", "banking", "accounts", "create");
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
   if (!await canPermission("banking", "create")) {
@@ -107,6 +108,7 @@ export async function createAccount(formData: FormData): Promise<void> {
 }
 
 export async function recordTransaction(accountId: string, formData: FormData): Promise<void> {
+  await requireTabPermission("banking", "banking", "transactions", "create");
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError(`/banking/${accountId}`, "Your session expired — please sign in again.");
   if (!await canPermission("banking", "edit")) {
@@ -164,6 +166,7 @@ export async function recordTransaction(accountId: string, formData: FormData): 
 }
 
 export async function deleteAccount(accountId: string) {
+  await requireTabPermission("banking", "banking", "accounts", "delete");
   const context = await getCurrentOrgContext();
   if (!context || !await canPermission("banking", "delete")) {
     return { error: "You don't have permission to remove accounts." };
@@ -188,6 +191,7 @@ export async function deleteAccount(accountId: string) {
 }
 
 export async function updateAccount(accountId: string, formData: FormData) {
+  await requireTabPermission("banking", "banking", "accounts", "edit");
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
   if (!await canPermission("banking", "edit")) {
@@ -231,6 +235,7 @@ export async function updateAccount(accountId: string, formData: FormData) {
 }
 
 export async function transferBankFunds(formData: FormData) {
+  await requireTabPermission("banking", "banking", "transactions", "create");
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Your session expired — please sign in again." };
   if (!await canPermission("banking", "edit")) {

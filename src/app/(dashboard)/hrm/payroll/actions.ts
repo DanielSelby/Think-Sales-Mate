@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canPermission } from "@/lib/rbac/permissions";
+import { requireTabPermission } from "@/lib/rbac/permissions";
 import { generatePayslipsForRun } from "@/app/(dashboard)/hrm/actions";
 import { postOperationalJournal, resolveOperationalAccounts } from "@/lib/accounting/post-operational-journal";
 
@@ -21,11 +21,9 @@ function currentPeriod() {
 }
 
 export async function runPayroll(): Promise<void> {
+  await requireTabPermission("hrm_payroll", "hrm", "payroll", "create");
   const context = await getCurrentOrgContext();
   if (!context) redirectWithError("Your session expired — please sign in again.");
-  if (!await canPermission("hrm_payroll", "edit")) {
-    redirectWithError("You don't have permission to run payroll.");
-  }
 
   const supabase = await createClient();
   const { periodMonth, periodEnd, periodLabel } = currentPeriod();

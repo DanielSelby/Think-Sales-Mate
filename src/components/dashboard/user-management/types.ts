@@ -257,8 +257,6 @@ export type ActiveTab =
   | "users" 
   | "roles" 
   | "permissions" 
-  | "matrix" 
-  | "tab_access"
   | "action_permissions"
   | "approvals" 
   | "branches" 

@@ -26,6 +26,8 @@ export function StatementActions({
   openingBalance,
   closingBalance,
   transactions,
+  canPrint,
+  canExport,
 }: {
   accountName: string;
   accountNumber: string | null;
@@ -35,6 +37,8 @@ export function StatementActions({
   openingBalance: number;
   closingBalance: number;
   transactions: StatementDownloadRow[];
+  canPrint: boolean;
+  canExport: boolean;
 }) {
   const downloadStatement = () => {
     const rows: Array<Array<string | number>> = [
@@ -92,21 +96,21 @@ export function StatementActions({
         }
       `}</style>
       <div className="account-statement-no-print flex flex-wrap items-center gap-2">
-        <button
+        {canPrint && <button
           type="button"
           onClick={() => window.print()}
           className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d5e2ef] bg-white px-4 text-sm font-semibold text-[#17385d] shadow-sm transition hover:bg-blue-50 dark:border-slate-500 dark:bg-ink-900 dark:text-white"
         >
           <Printer className="h-4 w-4" aria-hidden="true" /> Print
-        </button>
-        <button
+        </button>}
+        {canExport && <button
           type="button"
           onClick={downloadStatement}
           title="Downloads all transactions in the selected statement period."
           className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
         >
           <Download className="h-4 w-4" aria-hidden="true" /> Download Statement
-        </button>
+        </button>}
       </div>
     </>
   );
