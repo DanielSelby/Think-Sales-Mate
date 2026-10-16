@@ -3,7 +3,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { canUseLocation } from "@/lib/organizations/location-access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { requirePermission } from "@/lib/rbac/permissions";
+import { requirePermission, requireTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
@@ -12,12 +12,18 @@ const SCANNER_FEATURE = "POS:Mobile Scanner";
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 type ScannerResult<T> = { ok: true; data: T } | { ok: false; error: string };
+type ScannerModule = "pos" | "sales" | "inventory" | "transfers" | "stock_adjustment";
+const scannerModules = new Set<ScannerModule>(["pos", "sales", "inventory", "transfers", "stock_adjustment"]);
+function isScannerModule(value: unknown): value is ScannerModule {
+  return typeof value === "string" && scannerModules.has(value as ScannerModule);
+}
+
 type ScannerSessionRow = {
   id: string;
   org_id: string;
   location_id: string;
   created_by: string;
-  source_module: "pos" | "sales";
+  source_module: ScannerModule;
   expires_at: string | null;
   revoked_at: string | null;
 };
@@ -27,8 +33,19 @@ async function checkScannerAccess(orgId: string) {
   return enabledFeatures.includes(SCANNER_FEATURE);
 }
 
-async function requireScannerPermission(sourceModule: "pos" | "sales") {
-  await requirePermission(sourceModule, sourceModule === "pos" ? "view" : "create");
+async function requireScannerPermission(sourceModule: ScannerModule) {
+  if (sourceModule === "pos") {
+    await requirePermission("pos", "view");
+  } else if (sourceModule === "sales") {
+    await requirePermission("sales", "create");
+  } else if (sourceModule === "inventory") {
+    await requireTabPermission("inventory", "products", "add_product", "create");
+    await requirePermission("inventory", "edit");
+  } else if (sourceModule === "transfers") {
+    await requireTabPermission("inventory", "stock_transfer", "create_transfer", "create");
+  } else {
+    await requirePermission("inventory", "edit");
+  }
 }
 
 async function getOwnedSession(sessionId: string) {
@@ -44,6 +61,7 @@ async function getOwnedSession(sessionId: string) {
     .maybeSingle();
   if (error) throw new Error(`Could not verify the paired scanner: ${error.message}`);
   if (!session) throw new Error("This scanner session does not belong to your active organization or user.");
+  if (!isScannerModule(session.source_module)) throw new Error("This scanner session uses an unsupported page.");
   await requireScannerPermission(session.source_module);
   const allowed = await checkScannerAccess(context.orgId);
   if (!allowed) throw new Error("Phone barcode scanning is not enabled for this organization.");
@@ -83,6 +101,7 @@ async function findSessionForToken(token: string) {
     .maybeSingle();
   if (error) throw new Error(`Could not verify the scanner link: ${error.message}`);
   if (!session) throw new Error("This scanner link is invalid or belongs to another signed-in user or organization.");
+  if (!isScannerModule(session.source_module)) throw new Error("This scanner link uses an unsupported page.");
   await requireScannerPermission(session.source_module);
   if (!await checkScannerAccess(context.orgId)) {
     throw new Error("Phone barcode scanning is not enabled for this organization.");
@@ -110,11 +129,12 @@ async function findSessionForToken(token: string) {
   return { session: session as ScannerSessionRow, locationName: location.name };
 }
 
-export async function createMobileScannerSession(locationId: string, sourceModule: "pos" | "sales" = "pos"): Promise<ScannerResult<{
+export async function createMobileScannerSession(locationId: string, sourceModule: ScannerModule = "pos"): Promise<ScannerResult<{
   sessionId: string;
   token: string;
 }>> {
   try {
+    if (!isScannerModule(sourceModule)) throw new Error("Choose a supported page before connecting the phone scanner.");
     await requireScannerPermission(sourceModule);
     const context = await getCurrentOrgContext();
     if (!context) throw new Error("Your sign-in has expired.");

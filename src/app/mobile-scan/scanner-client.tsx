@@ -99,7 +99,7 @@ export default function MobileScannerClient({ token }: { token: string }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col gap-4 bg-slate-50 p-4 text-slate-900">
       <header className="rounded-2xl bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">SalesMate ERP · Mobile Scanner</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">THINK-SALES ERP - MOBILE SCANNER</p>
         <h1 className="mt-1 text-xl font-bold">Phone barcode scanner</h1>
         <p className="mt-2 text-sm text-slate-600">Connected to branch: <strong>{locationName}</strong></p>
         <p className="mt-1 text-xs text-slate-500">This connection stays active until you disconnect it from the desktop.</p>
@@ -108,6 +108,13 @@ export default function MobileScannerClient({ token }: { token: string }) {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-950">
           <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+          {scanning && (
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center">
+              <div className="relative h-24 w-[82%] rounded-xl border border-white/70 shadow-[0_0_0_999px_rgba(2,6,23,0.2)]">
+                <span className="mobile-scan-laser absolute inset-x-1 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-red-500 shadow-[0_0_8px_3px_rgba(248,113,113,0.85)]" />
+              </div>
+            </div>
+          )}
           {!scanning && !sending && !lastScanned && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span className="rounded bg-black/60 px-3 py-1 text-xs text-white">Camera preview appears here</span>

@@ -42,6 +42,7 @@ import { createStockAdjustment } from "@/app/(dashboard)/inventory/adjustments/a
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MobileScannerPairing } from "@/components/pos/mobile-scanner-pairing";
 
 export interface AdjustLocation {
   id: string;
@@ -82,6 +83,7 @@ export interface StockAdjustmentFormProps {
   currentUserId?: string;
   /** Gates the actions that actually persist/finalize a count. Server re-checks this regardless. */
   canManage?: boolean;
+  mobileScannerEnabled?: boolean;
   initialCountType?: "stock_taking" | "adjustment_only";
 }
 
@@ -137,6 +139,7 @@ export function StockAdjustmentForm({
   currentUserName,
   currentUserId,
   canManage = true,
+  mobileScannerEnabled = false,
   initialCountType = "stock_taking",
 }: StockAdjustmentFormProps) {
   const router = useRouter();
@@ -465,6 +468,32 @@ export function StockAdjustmentForm({
     setTimeout(() => setFeedbackMessage(null), 3500);
   };
 
+  function handlePhoneBarcode(barcode: string): string | null {
+    if (!selectedLocationId) return "Choose a warehouse/location before scanning.";
+
+    const query = barcode.trim().toLowerCase();
+    const existing = tableRows.find(
+      (row) => row.barcode?.trim().toLowerCase() === query || row.sku.trim().toLowerCase() === query,
+    );
+    if (existing) {
+      handleCountChange(existing.productId, existing.countedStock + 1);
+      setFeedbackMessage({
+        type: "success",
+        text: `Scanned: "${existing.name}". Quantity incremented to ${existing.countedStock + 1}.`,
+      });
+      return null;
+    }
+
+    const catalogMatch = products.find(
+      (product) => product.barcode?.trim().toLowerCase() === query || product.sku.trim().toLowerCase() === query,
+    );
+    if (!catalogMatch) return `No product found matching barcode/SKU "${barcode}".`;
+
+    handleAddProduct(catalogMatch);
+    setFeedbackMessage({ type: "success", text: `Scanned & added: "${catalogMatch.name}".` });
+    return null;
+  }
+
   // Export Count Sheet to Excel
   const handleExportSheet = () => {
     const dataRows = tableRows.map((r, i) => {
@@ -700,7 +729,7 @@ export function StockAdjustmentForm({
       <div className="rounded-2xl border border-ledger-100 bg-white shadow-card dark:border-ledger-700 dark:bg-ink-900 overflow-hidden">
         {/* Header Bar with Hide / Show Toggle */}
         <div className="flex items-center justify-between border-b border-ledger-100 px-6 py-3.5 dark:border-ledger-700">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-emerald-600" />
             <span className="font-semibold text-xs text-ink-900 dark:text-white">
               Adjustment Parameters &amp; Details
@@ -1370,6 +1399,14 @@ export function StockAdjustmentForm({
               <BarcodeIcon className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               Scan Barcode
             </Button>
+            <MobileScannerPairing
+              enabled={mobileScannerEnabled}
+              sourceModule="stock_adjustment"
+              locationId={selectedLocationId}
+              locationName={locations.find((location) => location.id === selectedLocationId)?.name ?? "Selected location"}
+              disabled={!selectedLocationId}
+              onBarcode={handlePhoneBarcode}
+            />
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import {
   StockTransferForm,
   type TransferLocation,
@@ -15,6 +16,7 @@ export default async function NewStockTransferPage({ searchParams }: { searchPar
   if (!context) return null;
 
   const supabase = await createClient();
+  const mobileScannerEnabled = (await getEnabledOrganizationModules(context.orgId)).includes("POS:Mobile Scanner");
   const { requestId } = await searchParams;
 
   const [{ data: locationRows }, { data: productRows }, { data: stockLevelRows }, { data: recentRows }] = await Promise.all([
@@ -27,7 +29,7 @@ export default async function NewStockTransferPage({ searchParams }: { searchPar
       .order("name"),
     supabase
       .from("products")
-      .select("id, sku, name, unit_price, cost_price")
+      .select("id, sku, name, barcode, category, image_urls, unit_price, cost_price")
       .eq("org_id", context.orgId)
       .eq("is_active", true)
       .order("name"),
@@ -58,6 +60,9 @@ export default async function NewStockTransferPage({ searchParams }: { searchPar
     id: p.id,
     sku: p.sku,
     name: p.name,
+    barcode: p.barcode,
+    category: p.category,
+    imageUrl: p.image_urls?.[0] ?? null,
     unitCost: p.cost_price ?? p.unit_price
   }));
 
@@ -127,6 +132,7 @@ export default async function NewStockTransferPage({ searchParams }: { searchPar
       currentUserName={context.userEmail ? context.userEmail.split("@")[0] : "Daniel Kofi"}
       currentUserRole={context.role || "Administrator"}
       currency={context.currency || "GHS"}
+      mobileScannerEnabled={mobileScannerEnabled}
       initialTransfer={initialTransfer}
     />
   );

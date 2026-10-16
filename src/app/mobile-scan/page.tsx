@@ -1,7 +1,7 @@
 import MobileScannerClient from "./scanner-client";
 
 export const metadata = {
-  title: "Phone Barcode Scanner · SalesMate ERP",
+  title: "Phone Barcode Scanner · THINK-SALES ERP",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
 };

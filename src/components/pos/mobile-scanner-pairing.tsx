@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import QRCode from "qrcode";
-import { ChevronRight, Smartphone } from "lucide-react";
+import { AlertTriangle, ChevronRight, Smartphone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { playBarcodeScanSound, prepareBarcodeScanSound } from "@/lib/sales/barcode-scan-sound";
@@ -13,7 +13,7 @@ import {
   pollMobileScannerScans,
 } from "@/app/(dashboard)/pos/mobile-scanner-actions";
 
-type SourceModule = "pos" | "sales";
+type SourceModule = "pos" | "sales" | "inventory" | "transfers" | "stock_adjustment";
 
 interface Props {
   enabled: boolean;
@@ -40,6 +40,7 @@ export function MobileScannerPairing({
   const [qr, setQr] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [scanWarning, setScanWarning] = useState("");
   const [lastScanned, setLastScanned] = useState("");
   const [minimized, setMinimized] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -136,6 +137,7 @@ export function MobileScannerPairing({
             const message = onBarcodeRef.current(scan.barcode);
             if (message) {
               setError(message);
+              setScanWarning(message);
               setLastScanned("");
               playBarcodeScanSound(false);
             } else {
@@ -206,6 +208,45 @@ export function MobileScannerPairing({
           </div>
         </div>
       </Dialog>
+      {scanWarning && (
+        <div
+          className="fixed inset-0 z-[115] grid place-items-center bg-ink-950/65 p-4 backdrop-blur-sm"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="mobile-scan-warning-title"
+          aria-describedby="mobile-scan-warning-description"
+        >
+          <section className="animate-[stock-limit-pop_420ms_cubic-bezier(0.16,1,0.3,1)_both] relative w-full max-w-md rounded-3xl border border-red-200 bg-white p-7 text-center shadow-[0_32px_100px_rgba(127,29,29,0.42)] dark:border-red-800 dark:bg-ink-900">
+            <button
+              type="button"
+              onClick={() => {
+                setScanWarning("");
+                setError("");
+              }}
+              aria-label="Close scan warning"
+              className="absolute right-3 top-3 rounded-full p-2 text-ledger-500 transition hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-[1.75rem] bg-red-50 text-red-600 shadow-[inset_0_2px_8px_rgba(127,29,29,0.12),0_12px_24px_rgba(127,29,29,0.2)] dark:bg-red-950/60 dark:text-red-300">
+              <AlertTriangle className="h-10 w-10" strokeWidth={1.8} />
+            </div>
+            <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.2em] text-red-600 dark:text-red-300">Scan not added</p>
+            <h2 id="mobile-scan-warning-title" className="mt-2 text-2xl font-bold text-ink-900 dark:text-white">Check this product</h2>
+            <p id="mobile-scan-warning-description" className="mt-3 text-sm leading-6 text-ledger-600 dark:text-ledger-200">{scanWarning}</p>
+            <Button
+              type="button"
+              className="mt-5 h-10 w-full rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+              onClick={() => {
+                setScanWarning("");
+                setError("");
+              }}
+            >
+              Okay
+            </Button>
+          </section>
+        </div>
+      )}
     </>
   );
 }

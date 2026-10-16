@@ -16,6 +16,26 @@
   }
 }
 
+@keyframes mobile-scan-laser {
+  0%,
+  100% {
+    transform: translateY(-36px);
+  }
+  50% {
+    transform: translateY(36px);
+  }
+}
+
+.mobile-scan-laser {
+  animation: mobile-scan-laser 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-scan-laser {
+    animation: none;
+  }
+}
+
 @media print {
   body.stock-transfer-printing * {
     visibility: hidden !important;

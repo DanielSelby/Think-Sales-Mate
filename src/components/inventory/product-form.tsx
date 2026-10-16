@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { uploadProductImage } from "@/app/(dashboard)/inventory/actions";
 import { findProductDuplicates } from "@/app/(dashboard)/inventory/duplicate-actions";
 import type { ProductDuplicateMatch } from "@/lib/inventory/duplicate-products";
+import { MobileScannerPairing } from "@/components/pos/mobile-scanner-pairing";
 
 export interface ProductFormValues {
   sku?: string;
@@ -120,7 +121,8 @@ export function ProductForm({
   brands = [],
   error,
   submitLabel,
-  prefilledName
+  prefilledName,
+  mobileScannerEnabled = false,
 }: {
   action: (formData: FormData) => void;
   initialValues?: ProductFormValues;
@@ -130,6 +132,7 @@ export function ProductForm({
   error?: string;
   submitLabel: string;
   prefilledName?: string;
+  mobileScannerEnabled?: boolean;
 }) {
   const isEdit = !!initialValues?.sku;
   const [skuPreview] = React.useState(() => initialValues?.sku ?? makeSkuPreview());
@@ -159,12 +162,18 @@ export function ProductForm({
   const [imageError, setImageError] = React.useState<string | null>(null);
   const [imageUrlInput, setImageUrlInput] = React.useState("");
   const [productName, setProductName] = React.useState(initialValues?.name ?? prefilledName ?? "");
+  const [barcode, setBarcode] = React.useState(initialValues?.barcode ?? "");
   const [duplicateMatches, setDuplicateMatches] = React.useState<ProductDuplicateMatch[]>([]);
   const [duplicateChecking, setDuplicateChecking] = React.useState(false);
   const [duplicateOverride, setDuplicateOverride] = React.useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  function handlePhoneBarcode(scannedBarcode: string) {
+    setBarcode(scannedBarcode);
+    return null;
+  }
 
   const [tags, setTags] = React.useState<string[]>(initialValues?.tags ?? []);
   const [tagInput, setTagInput] = React.useState("");
@@ -311,8 +320,21 @@ export function ProductForm({
                 <p className="text-xs text-signal">{isEdit ? "SKU can't be changed after creation." : "SKU will be generated automatically"}</p>
               </div>
               <div className="space-y-1.5">
-                <FieldLabel htmlFor="barcode" optional>Barcode</FieldLabel>
-                <Input id="barcode" name="barcode" defaultValue={initialValues?.barcode ?? ""} placeholder="Enter barcode" />
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor="barcode" optional>Barcode</FieldLabel>
+                  {!isEdit && (
+                    <MobileScannerPairing
+                      enabled={mobileScannerEnabled}
+                      sourceModule="inventory"
+                      locationId={locationId}
+                      locationName={locations.find((location) => location.id === locationId)?.name ?? "Default location"}
+                      disabled={!locationId}
+                      onBarcode={handlePhoneBarcode}
+                    />
+                  )}
+                </div>
+                <Input id="barcode" name="barcode" value={barcode} onChange={(event) => setBarcode(event.target.value)} placeholder="Enter barcode" />
+                {!isEdit && mobileScannerEnabled && !locationId && <p className="text-xs text-ledger-500">Select a default location before connecting the phone scanner.</p>}
               </div>
 
               <div className="space-y-1.5">

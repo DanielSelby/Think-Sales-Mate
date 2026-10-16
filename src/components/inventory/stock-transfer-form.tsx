@@ -45,6 +45,7 @@ import { formatCurrency } from "@/lib/sales/format";
 import { createStockTransfer, updateTransferStatus, deleteTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
 import type { TransferStatus, LocationType } from "@/types/database";
 import { SmartProductSummary, useSmartProductLocator } from "@/components/transactions/smart-product-locator";
+import { MobileScannerPairing } from "@/components/pos/mobile-scanner-pairing";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ export interface StockTransferFormProps {
   currentUserName?: string;
   currentUserRole?: string;
   currency?: string;
+  mobileScannerEnabled?: boolean;
   initialTransfer?: {
     fromLocationId: string;
     toLocationId: string;
@@ -153,6 +155,7 @@ export function StockTransferForm({
   currentUserName = "Administrator",
   currentUserRole = "Administrator",
   currency = "GHS",
+  mobileScannerEnabled = false,
   initialTransfer,
 }: StockTransferFormProps) {
   const router = useRouter();
@@ -344,6 +347,26 @@ export function StockTransferForm({
     setSearchQuery("");
     setShowProductDropdown(false);
   };
+
+  function handlePhoneBarcode(barcode: string): string | null {
+    const value = barcode.trim().toLocaleLowerCase();
+    const product = products.find((candidate) =>
+      candidate.barcode?.trim().toLocaleLowerCase() === value
+      || candidate.sku.trim().toLocaleLowerCase() === value,
+    );
+    if (!product) return `No product matches barcode "${barcode}".`;
+
+    const sourceStock = getStockQty(product.id, fromLocationId);
+    if (sourceStock <= 0) return `${product.name} is out of stock at the selected source location.`;
+
+    const existingItem = items.find((item) => item.productId === product.id);
+    if (existingItem && existingItem.transferQty >= existingItem.sourceQtyOnHand) {
+      return `No additional stock is available for ${product.name} at the selected source location.`;
+    }
+
+    handleAddProduct(product);
+    return null;
+  }
 
   const handleUpdateQty = (rowId: string, newQty: number) => {
     setItems((prev) =>
@@ -879,6 +902,14 @@ export function StockTransferForm({
               </h3>
 
               <div className="flex items-center gap-2">
+                <MobileScannerPairing
+                  enabled={mobileScannerEnabled}
+                  sourceModule="transfers"
+                  locationId={fromLocationId}
+                  locationName={locations.find((location) => location.id === fromLocationId)?.name ?? "Source location"}
+                  disabled={!fromLocationId || fromLocationId === toLocationId}
+                  onBarcode={handlePhoneBarcode}
+                />
                 <button
                   type="button"
                   onClick={() => setShowScannerModal(true)}

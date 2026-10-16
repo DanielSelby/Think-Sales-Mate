@@ -5,6 +5,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { ProductForm } from "@/components/inventory/product-form";
 import { createProduct, getCategoryAndBrandOptions } from "@/app/(dashboard)/inventory/actions";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
 export default async function NewProductPage({ searchParams }: { searchParams: Promise<{ error?: string; name?: string }> }) {
   const resolvedSearchParams = await searchParams;
@@ -13,9 +14,10 @@ export default async function NewProductPage({ searchParams }: { searchParams: P
   if (!context) return null;
 
   const supabase = await createClient();
-  const [{ data: locationRows }, { categories, brands }] = await Promise.all([
+  const [{ data: locationRows }, { categories, brands }, enabledModules] = await Promise.all([
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
-    getCategoryAndBrandOptions()
+    getCategoryAndBrandOptions(),
+    getEnabledOrganizationModules(context.orgId)
   ]);
 
   return (
@@ -36,6 +38,7 @@ export default async function NewProductPage({ searchParams }: { searchParams: P
         error={resolvedSearchParams.error}
         submitLabel="Save Product"
         prefilledName={resolvedSearchParams.name}
+        mobileScannerEnabled={enabledModules.includes("POS:Mobile Scanner")}
       />
     </div>
   );

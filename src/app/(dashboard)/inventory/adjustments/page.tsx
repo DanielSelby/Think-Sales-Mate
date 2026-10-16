@@ -18,6 +18,7 @@ import { cookies } from "next/headers";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import {
   StockAdjustmentForm,
   type AdjustLocation,
@@ -35,6 +36,7 @@ export default async function StockAdjustmentPage({ searchParams }: { searchPara
   if (!context) return null;
 
   const supabase = await createClient();
+  const mobileScannerEnabled = (await getEnabledOrganizationModules(context.orgId)).includes("POS:Mobile Scanner");
 
   const [
     { data: locationRows },
@@ -155,6 +157,7 @@ export default async function StockAdjustmentPage({ searchParams }: { searchPara
       currentUserName={currentUserName}
       currentUserId={context.userId}
       canManage={can(context.role, "inventory.manage")}
+      mobileScannerEnabled={mobileScannerEnabled}
       initialCountType={mode}
     />
   );
