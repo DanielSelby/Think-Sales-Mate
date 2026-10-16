@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import JsBarcode from "jsbarcode";
+import { useState, useTransition } from "react";
 import { X, Check, AlertCircle, ArrowRight, Printer, Barcode as BarcodeIcon, ShieldCheck, History, Sliders, Truck, ShoppingCart, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BarcodeGraphic } from "@/components/inventory/barcode-graphic";
 import { BranchStock, formatLedgerMoney } from "@/lib/inventory/stock-ledger";
 import { createStockAdjustment } from "@/app/(dashboard)/inventory/adjustments/actions";
 import { createStockTransfer } from "@/app/(dashboard)/inventory/transfers/actions";
@@ -482,32 +482,6 @@ export function BarcodePrintModal({
       </div>
     </div>
   );
-}
-
-function BarcodeGraphic({ value, onError }: { value: string; onError: (message: string | null) => void }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg || !value.trim()) return;
-    try {
-      JsBarcode(svg, value, {
-        format: "CODE128",
-        displayValue: false,
-        height: 48,
-        width: 1.6,
-        margin: 8,
-        lineColor: "#000000",
-        background: "#ffffff",
-      });
-      onError(null);
-    } catch (error) {
-      svg.replaceChildren();
-      onError(error instanceof Error ? `Barcode cannot be encoded: ${error.message}` : "Barcode cannot be encoded. Check the saved barcode value.");
-    }
-  }, [value, onError]);
-
-  return <svg ref={svgRef} className="barcode-label-graphic mx-auto my-2 max-w-full" role="img" aria-label={`Code 128 barcode for ${value}`} />;
 }
 
 // ==========================================

@@ -11,7 +11,6 @@ export default function MobileScannerClient({ token }: { token: string }) {
   const processedScanRef = useRef(false);
   const [loading, setLoading] = useState(Boolean(token));
   const [locationName, setLocationName] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
   const [scanning, setScanning] = useState(false);
   const [sending, setSending] = useState(false);
   const [lastScanned, setLastScanned] = useState("");
@@ -24,7 +23,6 @@ export default function MobileScannerClient({ token }: { token: string }) {
       if (cancelled) return;
       if (result.ok) {
         setLocationName(result.data.locationName);
-        setExpiresAt(result.data.expiresAt);
       } else {
         setError(result.error);
       }
@@ -104,7 +102,7 @@ export default function MobileScannerClient({ token }: { token: string }) {
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">SalesMate ERP · Mobile Scanner</p>
         <h1 className="mt-1 text-xl font-bold">Phone barcode scanner</h1>
         <p className="mt-2 text-sm text-slate-600">Connected to branch: <strong>{locationName}</strong></p>
-        {expiresAt && <p className="mt-1 text-xs text-slate-500">Connection expires {new Date(expiresAt).toLocaleTimeString()}.</p>}
+        <p className="mt-1 text-xs text-slate-500">This connection stays active until you disconnect it from the desktop.</p>
       </header>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -6,7 +6,7 @@ import {
   Truck, ClipboardEdit, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
-  Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route,
+  Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route, Barcode,
 } from "lucide-react";
 
 export interface NavChild {
@@ -62,6 +62,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Products", href: "/inventory", icon: Boxes, status: "live",
     children: [
       { label: "All Products", href: "/inventory", icon: List },
+      { label: "Print Barcode Labels", href: "/inventory/barcode-labels", icon: Barcode },
       { label: "Product Categories", href: "/inventory/categories", icon: LayoutGrid },
       { label: "Inventory Intelligence", href: "/inventory/intelligence", icon: BarChart3 },
       { label: "Return Products Management", href: "/inventory/return-products", icon: PackageCheck },

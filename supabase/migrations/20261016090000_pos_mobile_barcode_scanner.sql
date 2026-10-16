@@ -5,7 +5,7 @@ create table if not exists public.pos_mobile_scanner_sessions (
   created_by uuid not null references auth.users(id) on delete cascade,
   source_module text not null default 'pos' check (source_module in ('pos', 'sales')),
   token_hash text not null unique,
-  expires_at timestamptz not null,
+  expires_at timestamptz,
   revoked_at timestamptz,
   created_at timestamptz not null default now()
 );

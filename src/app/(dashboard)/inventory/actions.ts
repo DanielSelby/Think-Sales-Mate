@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { randomInt } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canUseLocation } from "@/lib/organizations/location-access";
@@ -206,6 +207,75 @@ export async function createProduct(formData: FormData): Promise<void> {
 
   revalidatePath("/inventory");
   redirect("/inventory");
+}
+
+export async function assignBarcodeToProduct(productId: string): Promise<{ ok: true; barcode: string } | { ok: false; error: string }> {
+  if (!productId || !/^[0-9a-f-]{36}$/i.test(productId)) {
+    return { ok: false, error: "Select a valid product." };
+  }
+  if (!await canTabPermission("inventory", "products", "product_list", "edit")
+    || !await canPermission("inventory", "edit")) {
+    return { ok: false, error: "You do not have permission to assign product barcodes." };
+  }
+
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "Your session expired. Sign in and try again." };
+
+  const supabase = await createClient();
+  const { data: product, error: productError } = await supabase
+    .from("products")
+    .select("id, location_id, barcode")
+    .eq("id", productId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (productError) {
+    console.error("Could not load product for barcode assignment:", productError.message);
+    return { ok: false, error: "Could not verify the selected product." };
+  }
+  if (!product) return { ok: false, error: "The selected product is not available in this organization." };
+  if (!canUseLocation(context, product.location_id)) {
+    return { ok: false, error: "You do not have access to this product's branch." };
+  }
+  if (product.barcode?.trim()) {
+    return { ok: false, error: "This product already has a barcode. Existing barcodes are never overwritten." };
+  }
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = `TS${randomInt(0, 100_000_000_000).toString().padStart(11, "0")}`;
+    const { data: duplicate, error: duplicateError } = await supabase
+      .from("products")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("barcode", candidate)
+      .maybeSingle();
+    if (duplicateError) {
+      console.error("Could not verify barcode uniqueness:", duplicateError.message);
+      return { ok: false, error: "Could not verify barcode availability." };
+    }
+    if (duplicate) continue;
+
+    let updateQuery = supabase.from("products")
+      .update({ barcode: candidate })
+      .eq("id", product.id)
+      .eq("org_id", context.orgId);
+    updateQuery = product.barcode === null
+      ? updateQuery.is("barcode", null)
+      : updateQuery.eq("barcode", "");
+    const { data: updated, error: updateError } = await updateQuery.select("barcode").maybeSingle();
+    if (updateError) {
+      console.error("Could not assign barcode to product:", updateError.message);
+      return { ok: false, error: "Could not save the generated barcode." };
+    }
+    if (updated?.barcode === candidate) {
+      revalidatePath("/inventory");
+      revalidatePath("/inventory/barcode-labels");
+      revalidatePath(`/inventory/${product.id}`);
+      return { ok: true, barcode: candidate };
+    }
+    return { ok: false, error: "This product was updated by another user. Refresh and try again." };
+  }
+
+  return { ok: false, error: "Could not generate a unique barcode. Please try again." };
 }
 
 export async function updateProduct(productId: string, formData: FormData): Promise<void> {

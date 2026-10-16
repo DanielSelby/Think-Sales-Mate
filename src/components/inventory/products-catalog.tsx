@@ -11,7 +11,6 @@ import {
   Package,
   Upload,
   Download,
-  Printer,
   Plus,
   ChevronLeft,
   ChevronRight,
@@ -31,7 +30,8 @@ import {
   GitMerge,
   CheckCircle2,
   Loader2,
-  Info
+  Info,
+  Barcode
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -538,49 +538,6 @@ export function ProductsCatalog({
     reader.readAsText(file);
   }
 
-  function handlePrintLabels() {
-    const targets = products.filter((p) => selectedIds.has(p.id));
-    if (targets.length === 0) {
-      setError("Select at least one product to print labels for.");
-      return;
-    }
-    const win = window.open("", "_blank", "width=800,height=600");
-    if (!win) return;
-    const labelsHtml = targets
-      .map(
-        (p) => `
-        <div class="label">
-          <div class="name">${p.name}</div>
-          <div class="sku">${p.sku}</div>
-          <div class="barcode">${p.barcode ?? ""}</div>
-          <div class="price">${formatMoney(p.unitPrice, currency)}</div>
-        </div>`
-      )
-      .join("");
-    win.document.write(`
-      <html>
-        <head>
-          <title>Print labels</title>
-          <style>
-            body { font-family: sans-serif; margin: 0; padding: 16px; }
-            .sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-            .label { border: 1px solid #ccc; border-radius: 6px; padding: 10px; text-align: center; }
-            .name { font-weight: 600; font-size: 13px; }
-            .sku { font-family: monospace; font-size: 11px; color: #666; margin-top: 2px; }
-            .barcode { font-family: monospace; font-size: 12px; letter-spacing: 2px; margin-top: 6px; }
-            .price { font-weight: 700; font-size: 14px; margin-top: 4px; }
-          </style>
-        </head>
-        <body>
-          <div class="sheet">${labelsHtml}</div>
-        </body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    win.print();
-  }
-
   return (
     <div className="product-page products-catalog-page space-y-4 text-xs">
       <input
@@ -603,8 +560,15 @@ export function ProductsCatalog({
             Manage your product catalog and track inventory in real time.
           </p>
         </div>
-        {canManage && (
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link href="/inventory/barcode-labels">
+            <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30">
+              <Barcode className="h-3.5 w-3.5" />
+              Print Barcode Labels
+            </Button>
+          </Link>
+          {canManage && (
+          <>
             <Link href="/inventory/import">
             <Button variant="outline">
              <Upload className="h-3.5 w-3.5" />
@@ -614,10 +578,6 @@ export function ProductsCatalog({
             <Button variant="outline" onClick={handleExport}>
               <Download className="h-3.5 w-3.5" />
               Export
-            </Button>
-            <Button variant="outline" onClick={handlePrintLabels}>
-              <Printer className="h-3.5 w-3.5" />
-              Print labels
             </Button>
             <Link href="/inventory/new">
               <Button
@@ -630,8 +590,9 @@ export function ProductsCatalog({
                 Add product
               </Button>
             </Link>
-          </div>
-        )}
+          </>
+          )}
+        </div>
       </div>
 
       {error && (

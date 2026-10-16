@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     console.error("Could not verify mobile scanner pairing:", error.message);
     return NextResponse.json({ error: "Could not verify the phone scanner pairing." }, { status: 503 });
   }
-  if (!session || session.created_by !== user.id || session.revoked_at || Date.parse(session.expires_at) <= Date.now()) {
+  if (!session || session.created_by !== user.id || session.revoked_at || (session.expires_at && Date.parse(session.expires_at) <= Date.now())) {
     return NextResponse.json({ error: "This scanner link is expired, disconnected, or belongs to a different user." }, { status: 403 });
   }
 

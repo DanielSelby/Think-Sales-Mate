@@ -2588,6 +2588,48 @@ html.dark body :is(
     font-weight: 700;
   }
 
+  body.barcode-label-page-printing * {
+    visibility: hidden !important;
+  }
+
+  body.barcode-label-page-printing .barcode-label-page-print-area,
+  body.barcode-label-page-printing .barcode-label-page-print-area * {
+    visibility: visible !important;
+  }
+
+  body.barcode-label-page-printing .barcode-label-page-print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid !important;
+    width: 100%;
+    align-content: start;
+    box-sizing: border-box;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.barcode-label-page-printing .barcode-label-page-item {
+    width: var(--label-width, 40mm);
+    height: var(--label-height, 30mm);
+    font-size: var(--label-font-size, 8pt);
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 0.2mm solid #d1d5db;
+    padding: 2mm;
+    text-align: center;
+    background: #ffffff !important;
+    color: #000000 !important;
+    break-inside: avoid;
+  }
+
+  body.barcode-label-page-printing .barcode-label-page-item .barcode-label-graphic {
+    width: 100%;
+    height: var(--barcode-height, 36px);
+    margin: 1mm auto;
+  }
+
   /* Display clean print container */
   .print-only {
     display: block !important;

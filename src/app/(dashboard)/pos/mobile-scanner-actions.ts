@@ -9,7 +9,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
 const SCANNER_FEATURE = "POS:Mobile Scanner";
-const SESSION_LIFETIME_MS = 20 * 60 * 1000;
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 type ScannerResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -19,7 +18,7 @@ type ScannerSessionRow = {
   location_id: string;
   created_by: string;
   source_module: "pos" | "sales";
-  expires_at: string;
+  expires_at: string | null;
   revoked_at: string | null;
 };
 
@@ -49,7 +48,7 @@ async function getOwnedSession(sessionId: string) {
   const allowed = await checkScannerAccess(context.orgId);
   if (!allowed) throw new Error("Phone barcode scanning is not enabled for this organization.");
   if (session.revoked_at) throw new Error("This scanner session has been disconnected.");
-  if (Date.parse(session.expires_at) <= Date.now()) throw new Error("This scanner session has expired. Pair the phone again.");
+  if (session.expires_at && Date.parse(session.expires_at) <= Date.now()) throw new Error("This scanner session has expired. Pair the phone again.");
 
   const registerResult = session.source_module === "pos"
     ? await (await createClient()).from("pos_register_sessions")
@@ -89,7 +88,7 @@ async function findSessionForToken(token: string) {
     throw new Error("Phone barcode scanning is not enabled for this organization.");
   }
   if (session.revoked_at) throw new Error("This scanner session has been disconnected from the desktop.");
-  if (Date.parse(session.expires_at) <= Date.now()) throw new Error("This scanner link has expired. Create a new pairing from Sales or POS.");
+  if (session.expires_at && Date.parse(session.expires_at) <= Date.now()) throw new Error("This scanner link has expired. Create a new pairing from Sales or POS.");
 
   const [{ data: location, error: locationError }, { data: register, error: registerError }] = await Promise.all([
     admin.from("business_locations").select("name").eq("id", session.location_id).eq("org_id", context.orgId).maybeSingle(),
@@ -114,7 +113,6 @@ async function findSessionForToken(token: string) {
 export async function createMobileScannerSession(locationId: string, sourceModule: "pos" | "sales" = "pos"): Promise<ScannerResult<{
   sessionId: string;
   token: string;
-  expiresAt: string;
 }>> {
   try {
     await requireScannerPermission(sourceModule);
@@ -137,7 +135,6 @@ export async function createMobileScannerSession(locationId: string, sourceModul
     }
 
     const token = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(Date.now() + SESSION_LIFETIME_MS).toISOString();
     const admin = createAdminClient() as any;
     const { data, error } = await admin.from("pos_mobile_scanner_sessions")
       .insert({
@@ -146,12 +143,12 @@ export async function createMobileScannerSession(locationId: string, sourceModul
         created_by: context.userId,
         source_module: sourceModule,
         token_hash: hashToken(token),
-        expires_at: expiresAt,
+        expires_at: null,
       })
       .select("id")
       .single();
     if (error) throw new Error(`Could not create the phone scanner session: ${error.message}`);
-    return { ok: true, data: { sessionId: data.id, token, expiresAt } };
+    return { ok: true, data: { sessionId: data.id, token } };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not connect the phone scanner." };
   }
@@ -159,11 +156,10 @@ export async function createMobileScannerSession(locationId: string, sourceModul
 
 export async function getMobileScannerSession(token: string): Promise<ScannerResult<{
   locationName: string;
-  expiresAt: string;
 }>> {
   try {
     const { session, locationName } = await findSessionForToken(token);
-    return { ok: true, data: { locationName, expiresAt: session.expires_at } };
+    return { ok: true, data: { locationName } };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not verify the scanner link." };
   }
