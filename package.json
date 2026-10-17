@@ -13,6 +13,7 @@
     "db:types": "supabase gen types typescript --linked > src/types/database.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.30.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.58.0",
     "@types/leaflet": "^1.9.22",

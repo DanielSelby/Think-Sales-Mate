@@ -55,6 +55,11 @@ configuration to determine which features are enabled for an organization.
 
    Keep secret keys private. Do not commit `.env.local` or service-role keys.
    Other environment variables in `.env.example` are for optional integrations.
+   The AI Assistant uses the server-only `GEMINI_API_KEY` from Google AI
+   Studio; `GEMINI_MODEL` optionally selects a supported Gemini model and
+   defaults to `gemini-2.5-flash`. Set both in Vercel Environment Variables
+   when deploying. The authenticated `GET /api/ai/config` check reports only
+   whether the key is configured; it never returns the key.
 4. Install packages and start the development server:
 
    ```sh
@@ -69,6 +74,17 @@ Database migrations are in `supabase/migrations/`. Apply them to the target
 Supabase project in the intended order using the Supabase CLI or your normal
 database deployment process. Do not assume that copying only the original core
 migration creates the full schema required by the current application.
+
+The AI Assistant migration adds metadata-only usage events and atomic database
+request limits (20 requests per user per hour and 300 requests per organization
+per day). It does not store chat messages. Chat context exists only in the
+current browser session and is sent to the authenticated server endpoint with
+each request. The initial read-only business tools cover sales, inventory,
+approved expenses, purchases, and organization-wide outstanding invoices. Each
+tool is limited by the member's module and branch permissions; invoice balances
+are unavailable to branch-scoped users because invoices do not have a branch
+field. HR/payroll, cash-closing data, and write actions are not exposed to the
+assistant.
 
 ### Organization registration approval
 

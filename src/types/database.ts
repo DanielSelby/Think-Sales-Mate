@@ -2957,6 +2957,36 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["ai_insights"]["Row"]>;
         Relationships: [];
       };
+      ai_usage_events: {
+        Row: {
+          id: string;
+          org_id: string;
+          user_id: string;
+          model: string;
+          status: "pending" | "succeeded" | "failed";
+          input_tokens: number;
+          output_tokens: number;
+          latency_ms: number;
+          error_code: string | null;
+          created_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          user_id: string;
+          model: string;
+          status?: "pending" | "succeeded" | "failed";
+          input_tokens?: number;
+          output_tokens?: number;
+          latency_ms?: number;
+          error_code?: string | null;
+          created_at?: string;
+          completed_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["ai_usage_events"]["Row"]>;
+        Relationships: [];
+      };
       organization_role_themes: {
         Row: {
           org_id: string;
@@ -3124,6 +3154,22 @@ export interface Database {
       };
     };
     Functions: {
+      get_ai_usage_summary: {
+        Args: { p_org_id: string };
+        Returns: {
+          total_requests: number;
+          successful_requests: number;
+          failed_requests: number;
+          input_tokens: number;
+          output_tokens: number;
+          average_latency_ms: number;
+          recent_errors: Json;
+        }[];
+      };
+      reserve_ai_usage_request: {
+        Args: { p_org_id: string; p_user_id: string; p_model: string };
+        Returns: string | null;
+      };
       list_pos_sales: {
         Args: {
           p_org_id: string;
