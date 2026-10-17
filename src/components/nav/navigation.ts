@@ -144,7 +144,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { label: "Audit Center", href: "/audit", icon: ShieldCheck, status: "live" },
   { label: "Fraud & Anomaly Detection", href: "/fraud", icon: ShieldAlert, status: "live" },
-  { label: "AI Assistant", href: "/ai", icon: Sparkles, status: "live" },
+  { label: "ThinkSales Ai Agent", href: "/ai", icon: Sparkles, status: "live" },
   {
     label: "Communication",
     href: "/customer-messaging",

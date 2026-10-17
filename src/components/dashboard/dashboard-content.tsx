@@ -166,7 +166,7 @@ export function DashboardContent({ summary, currency, orgName, lowStockItems, la
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">AI Assistant</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">ThinkSales Ai Agent</p>
               <p className="text-sm font-bold text-slate-800">Latest Insights</p>
             </div>
           </div>
