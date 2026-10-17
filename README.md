@@ -65,7 +65,9 @@ configuration to determine which features are enabled for an organization.
    with Gemini API access. Restart the local server after editing `.env.local`;
    for Vercel, update the project environment variable and redeploy. A
    configured-key check confirms only that a value exists, not that Google
-   accepts the key or model.
+   accepts the key or model. On the AI page, **Test Gemini connection** sends
+   a minimal server-side test request and reports whether the deployed key and
+   model work; it uses one normal AI request from the applicable usage limit.
 4. Install packages and start the development server:
 
    ```sh
