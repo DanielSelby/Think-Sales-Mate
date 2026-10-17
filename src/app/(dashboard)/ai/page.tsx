@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { Sparkles } from "lucide-react";
+import { AlertTriangle, Sparkles } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
@@ -12,6 +12,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function AiAssistantPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
+  const actionError = params.error?.startsWith("NEXT_REDIRECT")
+    ? "The request was redirected unexpectedly. Refresh the page and try again. If it continues, check the server logs."
+    : params.error;
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -94,7 +97,17 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
         </div>
       </header>
 
-      {params.error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">{params.error}</p>}
+      {actionError && (
+        <div role="alert" className="relative flex items-start gap-3 overflow-hidden rounded-2xl border border-rose-200 bg-gradient-to-br from-white via-rose-50 to-rose-100 px-4 py-3.5 text-sm text-rose-900 shadow-[0_7px_0_0_rgba(190,24,93,0.12),0_14px_28px_-12px_rgba(190,24,93,0.25)] ring-1 ring-white/80 dark:border-rose-900 dark:from-rose-950 dark:via-rose-950/80 dark:to-slate-950 dark:text-rose-100 dark:ring-rose-900/50">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-[0_4px_0_0_rgba(159,18,57,0.65)]">
+            <AlertTriangle className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold">We couldn&apos;t complete that action</p>
+            <p className="mt-0.5 text-xs leading-5 text-rose-800 dark:text-rose-200">{actionError}</p>
+          </div>
+        </div>
+      )}
       {insightsError && (
         <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
           AI insight history is temporarily unavailable.

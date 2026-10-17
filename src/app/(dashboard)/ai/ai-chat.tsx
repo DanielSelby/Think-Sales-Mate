@@ -11,6 +11,7 @@ import {
 import {
   ArrowDown,
   ArrowRight,
+  AlertTriangle,
   BarChart3,
   Boxes,
   Building2,
@@ -469,7 +470,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
                     ? <MarkdownContent content={message.content} />
                     : loading
                       ? <div className="flex items-center gap-2 py-1 text-xs text-slate-500 dark:text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin text-sky-500" />Checking authorized business data…</div>
-                      : <p className="text-xs text-slate-500">No response was received.</p>}
+                      : <p className="text-xs text-slate-500 dark:text-slate-400">{message.failed ? "I couldn’t prepare a reply. See the error details below." : "No response was received."}</p>}
                   {message.failed && message.content && <p className="mt-2 border-t border-slate-200 pt-2 text-xs text-amber-700 dark:border-slate-700 dark:text-amber-300">The response was interrupted and may be incomplete.</p>}
                 </div>
                 <p className="mt-1.5 text-[10px] text-slate-400">ThinkSales AI · Gemini</p>
@@ -478,10 +479,18 @@ export function AiChat({ userLabel }: { userLabel: string }) {
           ))}
 
           {error && (
-            <div className="ml-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200" role="alert">
-              <span>{error}</span>
+            <div className="ml-10 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-gradient-to-br from-white via-rose-50 to-rose-100 px-3.5 py-3 text-xs text-rose-900 shadow-[0_7px_0_0_rgba(190,24,93,0.12),0_14px_28px_-12px_rgba(190,24,93,0.25)] ring-1 ring-white/80 dark:border-rose-900 dark:from-rose-950 dark:via-rose-950/80 dark:to-slate-950 dark:text-rose-100 dark:ring-rose-900/50" role="alert">
+              <span className="flex min-w-0 flex-1 items-start gap-2.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-[0_3px_0_0_rgba(159,18,57,0.65)]">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                </span>
+                <span>
+                  <span className="block font-semibold">The request didn&apos;t finish</span>
+                  <span className="mt-0.5 block leading-5 text-rose-800 dark:text-rose-200">{error}</span>
+                </span>
+              </span>
               {retryRequest && (
-                <button type="button" onClick={retry} disabled={loading} className="inline-flex shrink-0 items-center gap-1.5 font-semibold hover:underline disabled:opacity-50">
+                <button type="button" onClick={retry} disabled={loading} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-rose-300 bg-white/80 px-2.5 font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950">
                   <RotateCcw className="h-3.5 w-3.5" /> Try again
                 </button>
               )}
