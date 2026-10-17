@@ -45,7 +45,7 @@ export function userFacingGeminiError(errorCode: string): string {
     return "Gemini rejected the server API key. Ask an administrator to verify GEMINI_API_KEY in the deployment environment.";
   }
   if (errorCode === "provider_model") {
-    return "The configured Gemini model could not be found. Ask an administrator to check GEMINI_MODEL.";
+    return `Gemini could not find model "${GEMINI_MODEL}" for the configured API key. Check that the server is using the intended GEMINI_MODEL and a Google AI Studio key with Gemini API access.`;
   }
   if (errorCode === "provider_request") {
     return "Gemini rejected this request. Ask an administrator to verify the configured model and Gemini API settings.";

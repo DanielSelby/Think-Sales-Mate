@@ -12,7 +12,8 @@ describe("Gemini error handling", () => {
     expect(geminiErrorCode(invalidKey)).toBe("provider_auth");
     expect(userFacingGeminiError(geminiErrorCode(invalidKey))).toContain("GEMINI_API_KEY");
     expect(geminiErrorCode(missingModel)).toBe("provider_model");
-    expect(userFacingGeminiError(geminiErrorCode(missingModel))).toContain("GEMINI_MODEL");
+    expect(userFacingGeminiError(geminiErrorCode(missingModel))).toContain("gemini-2.5-flash");
+    expect(userFacingGeminiError(geminiErrorCode(missingModel))).toContain("Google AI Studio");
   });
 
   it("does not expose provider details for temporary service failures", () => {

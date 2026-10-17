@@ -59,7 +59,13 @@ configuration to determine which features are enabled for an organization.
    Studio; `GEMINI_MODEL` optionally selects a supported Gemini model and
    defaults to `gemini-2.5-flash`. Set both in Vercel Environment Variables
    when deploying. The authenticated `GET /api/ai/config` check reports only
-   whether the key is configured; it never returns the key.
+   whether the key is configured; it never returns the key. If Gemini reports
+   that the model cannot be found, verify the running environment has the
+   intended `GEMINI_MODEL` and that `GEMINI_API_KEY` is a Google AI Studio key
+   with Gemini API access. Restart the local server after editing `.env.local`;
+   for Vercel, update the project environment variable and redeploy. A
+   configured-key check confirms only that a value exists, not that Google
+   accepts the key or model.
 4. Install packages and start the development server:
 
    ```sh
