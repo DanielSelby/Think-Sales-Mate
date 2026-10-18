@@ -7,6 +7,7 @@ import {
   GEMINI_MODEL,
   geminiErrorCode,
   isGeminiConfigured,
+  safeGeminiErrorDetails,
   userFacingGeminiError,
 } from "@/lib/ai/gemini";
 import { finishAiUsage, reserveAiUsage } from "@/lib/ai/usage";
@@ -112,7 +113,12 @@ export async function POST(request: Request) {
     const errorCode = error instanceof Error && error.message === "empty_response"
       ? "empty_response"
       : geminiErrorCode(error);
-    console.error("AI connection test failed.", { orgId: context.orgId, errorCode, model: GEMINI_MODEL });
+    console.error("AI connection test failed.", {
+      orgId: context.orgId,
+      errorCode,
+      model: GEMINI_MODEL,
+      ...safeGeminiErrorDetails(error),
+    });
     await finishAiUsage({
       id: reservation.id,
       orgId: context.orgId,

@@ -40,6 +40,23 @@ export function geminiErrorCode(error: unknown): string {
   return "provider_error";
 }
 
+export function safeGeminiErrorDetails(error: unknown): {
+  providerStatus: number | null;
+  providerMessage: string;
+} {
+  const providerStatus = error && typeof error === "object" && "status" in error
+    ? Number(error.status)
+    : null;
+  const rawMessage = error instanceof Error ? error.message : "";
+  const providerMessage = rawMessage
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]")
+    .replace(/((?:api[_-]?key|key)\s*[=:]\s*)[^,\s&]+/gi, "$1[redacted]")
+    .replace(/https?:\/\/\S+/gi, "[url]")
+    .replace(/[\r\n\t]+/g, " ")
+    .slice(0, 300);
+  return { providerStatus, providerMessage: providerMessage || "No provider message was supplied." };
+}
+
 export function userFacingGeminiError(errorCode: string): string {
   if (errorCode === "provider_auth") {
     return "Gemini rejected the server API key. Ask an administrator to verify GEMINI_API_KEY in the deployment environment.";
