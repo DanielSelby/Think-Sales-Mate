@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FunctionCallingConfigMode, type Content, type Part } from "@google/genai";
+import type { Interactions } from "@google/genai";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import { canPermission } from "@/lib/rbac/permissions";
@@ -142,9 +142,19 @@ export async function POST(request: Request) {
           Promise.resolve(createGeminiClient()),
           createAuthorizedBusinessTools(context),
         ]);
-        const contents: Content[] = parsed.data.messages.map((message) => ({
-          role: message.role === "assistant" ? "model" : "user",
-          parts: [{ text: message.content }],
+        const contents: Interactions.Step[] = parsed.data.messages.map((message) => (
+          message.role === "assistant"
+            ? { type: "model_output", content: [{ type: "text", text: message.content }] }
+            : { type: "user_input", content: [{ type: "text", text: message.content }] }
+        ));
+        const functionDeclarations = businessTools.tools
+          .flatMap((tool) => tool.functionDeclarations ?? [])
+          .filter((declaration): declaration is typeof declaration & { name: string } => Boolean(declaration.name));
+        const tools: Interactions.Function[] = functionDeclarations.map((declaration) => ({
+          type: "function",
+          name: declaration.name,
+          description: declaration.description,
+          parameters: declaration.parameters,
         }));
         const requestAbort = AbortSignal.any([request.signal, AbortSignal.timeout(50_000)]);
         const systemInstruction = [
@@ -160,61 +170,56 @@ export async function POST(request: Request) {
         let finishedWithText = false;
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-          const roundParts: Part[] = [];
-          let roundInputTokens = 0;
-          let roundOutputTokens = 0;
-          const generation = await gemini.models.generateContentStream({
+          const interaction = await gemini.interactions.create({
             model: GEMINI_MODEL,
-            contents,
-            config: {
-              systemInstruction,
+            input: contents,
+            system_instruction: systemInstruction,
+            generation_config: {
               temperature: 0.2,
-              maxOutputTokens: GEMINI_OUTPUT_TOKENS,
-              abortSignal: requestAbort,
-              ...(businessTools.tools.length ? {
-                tools: businessTools.tools,
-                toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
-              } : {}),
+              max_output_tokens: GEMINI_OUTPUT_TOKENS,
             },
-          });
+            ...(tools.length ? { tools } : {}),
+            store: false,
+          }, { fetch_options: { signal: requestAbort } });
 
-          for await (const chunk of generation) {
-            const parts = chunk.candidates?.[0]?.content?.parts ?? [];
-            roundParts.push(...parts);
-            if (chunk.usageMetadata) {
-              roundInputTokens = Math.max(roundInputTokens, chunk.usageMetadata.promptTokenCount ?? 0);
-              roundOutputTokens = Math.max(roundOutputTokens, chunk.usageMetadata.candidatesTokenCount ?? 0);
-            }
-            for (const part of parts) {
-              if (part.text && !part.thought) {
-                jsonLine(controller, { type: "delta", text: part.text });
-                finishedWithText = true;
-              }
-            }
+          inputTokens += interaction.usage?.total_input_tokens ?? 0;
+          outputTokens += interaction.usage?.total_output_tokens ?? 0;
+          const interactionSteps = interaction.steps ?? [];
+          const functionCalls = interactionSteps.filter(
+            (step): step is Interactions.FunctionCallStep => step.type === "function_call"
+          );
+          if (functionCalls.length === 0) {
+            const responseText = interactionSteps
+              .filter((step): step is Interactions.ModelOutputStep => step.type === "model_output")
+              .flatMap((step) => step.content ?? [])
+              .filter((content): content is Interactions.TextContent => content.type === "text")
+              .map((content) => content.text)
+              .join("")
+              .trim();
+            if (!responseText) throw new Error("empty_response");
+            jsonLine(controller, { type: "delta", text: responseText });
+            finishedWithText = true;
+            break;
           }
-
-          inputTokens += roundInputTokens;
-          outputTokens += roundOutputTokens;
-          const functionCalls = roundParts.flatMap((part) => part.functionCall ? [part.functionCall] : []);
-          if (functionCalls.length === 0) break;
           toolCallCount += functionCalls.length;
           if (toolCallCount > MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1) {
             throw new Error("tool_limit");
           }
 
-          contents.push({ role: "model", parts: roundParts });
-          const responses = await Promise.all(functionCalls.map(async (call) => {
-            if (!call.name) throw new Error("unknown_tool");
-            const result = await businessTools.execute(call.name, call.args ?? {});
+          contents.push(...interactionSteps.filter(
+            (step): step is Interactions.ModelOutputStep | Interactions.FunctionCallStep =>
+              step.type === "model_output" || step.type === "function_call"
+          ));
+          const responses = await Promise.all(functionCalls.map(async (call): Promise<Interactions.FunctionResultStep> => {
+            const result = await businessTools.execute(call.name, call.arguments ?? {});
             return {
-              functionResponse: {
-                name: call.name,
-                ...(call.id ? { id: call.id } : {}),
-                response: { output: result },
-              },
+              type: "function_result",
+              call_id: call.id,
+              name: call.name,
+              result: { output: result },
             };
           }));
-          contents.push({ role: "user", parts: responses });
+          contents.push(...responses);
         }
 
         if (!finishedWithText) throw new Error("empty_response");

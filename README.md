@@ -57,7 +57,7 @@ configuration to determine which features are enabled for an organization.
    Other environment variables in `.env.example` are for optional integrations.
    The AI Assistant uses the server-only `GEMINI_API_KEY` from Google AI
    Studio; `GEMINI_MODEL` optionally selects a supported Gemini model and
-   defaults to `gemini-2.5-flash`. Set both in Vercel Environment Variables
+   defaults to `gemini-3.8-flash`. Set both in Vercel Environment Variables
    when deploying. The authenticated `GET /api/ai/config` check reports only
    whether the key is configured; it never returns the key. If Gemini reports
    that the model cannot be found, verify the running environment has the
@@ -65,7 +65,8 @@ configuration to determine which features are enabled for an organization.
    with Gemini API access. Restart the local server after editing `.env.local`;
    for Vercel, update the project environment variable and redeploy. A
    configured-key check confirms only that a value exists, not that Google
-   accepts the key or model. On the AI page, **Test Gemini connection** sends
+   accepts the key or model. The Gemini integration uses the Interactions API.
+   On the AI page, **Test Gemini connection** sends
    a minimal server-side test request and reports whether the deployed key and
    model work; it uses one normal AI request from the applicable usage limit.
 4. Install packages and start the development server:

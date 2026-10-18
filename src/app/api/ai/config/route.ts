@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Interactions } from "@google/genai";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import { canPermission } from "@/lib/rbac/permissions";
@@ -85,14 +86,22 @@ export async function POST(request: Request) {
   let inputTokens = 0;
   let outputTokens = 0;
   try {
-    const response = await createGeminiClient().models.generateContent({
+    const response = await createGeminiClient().interactions.create({
       model: GEMINI_MODEL,
-      contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }],
-      config: { maxOutputTokens: 8, temperature: 0 },
+      input: "Reply with OK.",
+      generation_config: { max_output_tokens: 8, temperature: 0 },
+      store: false,
     });
-    inputTokens = response.usageMetadata?.promptTokenCount ?? 0;
-    outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
-    if (!response.text?.trim()) throw new Error("empty_response");
+    inputTokens = response.usage?.total_input_tokens ?? 0;
+    outputTokens = response.usage?.total_output_tokens ?? 0;
+    const responseText = (response.steps ?? [])
+      .filter((step): step is Interactions.ModelOutputStep => step.type === "model_output")
+      .flatMap((step) => step.content ?? [])
+      .filter((content): content is Interactions.TextContent => content.type === "text")
+      .map((content) => content.text)
+      .join("")
+      .trim();
+    if (!responseText) throw new Error("empty_response");
 
     const usageSaved = await finishAiUsage({
       id: reservation.id,
