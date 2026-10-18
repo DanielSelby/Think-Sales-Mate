@@ -98,6 +98,7 @@ export async function createStockAdjustment(payload: CreateAdjustmentPayload): P
       system_stock: item.systemStock,
       counted_stock: item.countedStock,
       unit_cost: item.unitCost,
+      reason: item.reason?.trim() || null,
     }));
 
     const { error: itemsError } = await supabase.from("stock_adjustment_items").insert(itemRows);

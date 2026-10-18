@@ -38,35 +38,39 @@ function periodDateRange(period: string) {
   return { from: from.toISOString().slice(0, 10), to };
 }
 
+function isValidISODate(value?: string): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 export default async function ReportsPage({
   searchParams
 }: {
-  searchParams: { from?: string; to?: string; location?: string; period?: string };
+  searchParams: Promise<{ from?: string; to?: string; location?: string; period?: string }>;
 }) {
+  const params = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
 
   const defaults = defaultDateRange();
-  const isoDate = /^\d{4}-\d{2}-\d{2}$/;
-  const requestedPeriod = ["today", "yesterday", "weekly", "monthly", "quarterly", "yearly", "custom"].includes(searchParams.period ?? "")
-    ? searchParams.period!
+  const requestedPeriod = ["today", "yesterday", "weekly", "monthly", "quarterly", "yearly", "custom"].includes(params.period ?? "")
+    ? params.period!
     : "monthly";
   const hasValidRange = Boolean(
-    searchParams.from &&
-    searchParams.to &&
-    isoDate.test(searchParams.from) &&
-    isoDate.test(searchParams.to) &&
-    searchParams.from <= searchParams.to
+    isValidISODate(params.from) &&
+    isValidISODate(params.to) &&
+    params.from <= params.to
   );
   const requestedRange = hasValidRange
-    ? { from: searchParams.from!, to: searchParams.to! }
+    ? { from: params.from!, to: params.to! }
     : periodDateRange(requestedPeriod);
   const dateFrom = requestedRange.from || defaults.from;
   const dateTo = requestedRange.to || defaults.to;
-  const hasLocationFilter = typeof searchParams.location === "string";
+  const hasLocationFilter = typeof params.location === "string";
   const requestedLocationId = hasLocationFilter
-    ? (searchParams.location !== "all" ? searchParams.location : null)
+    ? (params.location !== "all" ? params.location : null)
     : null;
   const locationId: string | null = context.isBranchScoped
     ? (requestedLocationId && context.allowedLocationIds.includes(requestedLocationId) ? requestedLocationId : null)
@@ -80,7 +84,8 @@ export default async function ReportsPage({
     dateFrom,
     dateTo,
     locationId,
-    allowedLocationIds: context.isBranchScoped ? context.allowedLocationIds : undefined
+    allowedLocationIds: context.isBranchScoped ? context.allowedLocationIds : undefined,
+    canViewBanking: can(context.role, "banking.view")
   };
 
   const supabase = await createClient();

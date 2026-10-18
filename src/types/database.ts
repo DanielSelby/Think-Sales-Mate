@@ -499,6 +499,7 @@ export interface Database {
           system_stock: number;
           counted_stock: number;
           unit_cost: number;
+          reason: string | null;
           created_at: string;
         };
         Insert: {
@@ -509,6 +510,7 @@ export interface Database {
           system_stock: number;
           counted_stock: number;
           unit_cost?: number;
+          reason?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["stock_adjustment_items"]["Row"]>;

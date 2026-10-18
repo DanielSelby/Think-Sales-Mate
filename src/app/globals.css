@@ -1024,6 +1024,18 @@ html.dark .communication-workspace {
   border-color: #26384d !important;
 }
 
+html.dark .communication-workspace [class~="bg-blue-600"] {
+  background-color: var(--theme-primary) !important;
+}
+
+html.dark .communication-workspace [class~="bg-blue-50"] {
+  background-color: color-mix(in srgb, var(--theme-primary) 24%, #0f1d2d) !important;
+}
+
+html.dark .communication-workspace [class~="bg-slate-50/40"] {
+  background-color: #0a0c11 !important;
+}
+
 html.dark .audit-center .bg-white,
 html.dark .communication-workspace .bg-white,
 html.dark .support-page .bg-white {
@@ -1039,6 +1051,14 @@ html.dark .support-page .bg-slate-50 {
 html.dark .audit-center [class~="bg-blue-50"],
 html.dark .support-page [class~="bg-blue-50"] {
   background-color: #102d4a !important;
+}
+
+html:not(.dark) .communication-workspace [class~="bg-blue-600"] {
+  background-color: var(--theme-primary) !important;
+}
+
+html:not(.dark) .communication-workspace [class~="bg-blue-50"] {
+  background-color: color-mix(in srgb, var(--theme-primary) 12%, white) !important;
 }
 
 html.dark .support-page [class~="bg-emerald-50"] {

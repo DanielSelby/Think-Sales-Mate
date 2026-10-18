@@ -308,6 +308,7 @@ export function ReportsDashboard({
           className="mb-2"
           onClick={() => {
             setActiveTab("Custom Reports");
+            setSelectedReport(null);
             setNotice("Choose a custom report template below to continue.");
           }}
         >
@@ -706,7 +707,7 @@ const REPORTS_BY_TAB: Record<string, string[]> = {
   "Sales Reports": ["Sales by Product", "Sales by Category", "Sales by Customer", "Sales by Branch", "Sales Returns", "Discount Analysis"],
   "Purchase Reports": ["Purchases by Supplier", "Purchases by Product", "Purchase Return Report", "Supplier Performance"],
   "Inventory Reports": ["Current Inventory", "Inventory Valuation", "Inventory Aging", "Reorder Report", "Damaged Items", "Expired Items"],
-  "Tax Reports": ["VAT Summary", "Sales Tax Collected", "Purchase Tax Paid", "Tax Liability"],
+  "Tax Reports": ["VAT Summary", "Sales Tax Collected", "Purchase Tax Paid (estimated)", "Tax Liability"],
   "Customer Reports": ["Top Customers", "Customer Purchase History", "Outstanding Balances", "Customer Order Trends"],
   "Supplier Reports": ["Supplier Purchases", "Supplier Payment History", "Outstanding Supplier Balances"],
   "Branch Reports": ["Branch Performance Comparison", "Branch Stock Value", "Branch Expenses", "Branch Sales"],
@@ -719,26 +720,75 @@ const REPORTS_BY_TAB: Record<string, string[]> = {
 };
 
 const REPORT_DATASETS: Record<string, keyof OperationalReportData | "customers" | "expenses" | "tax" | "series"> = {
+  "Sales by Customer": "salesByCustomer",
+  "Discount Analysis": "discountAnalysis",
   "Sales by Product": "salesByProduct",
   "Sales by Category": "salesByCategory",
   "Sales by Branch": "salesByBranch",
   "Sales Returns": "salesReturns",
+  "Customer Purchase History": "customerPurchaseHistory",
+  "Customer Order Trends": "customerOrderTrends",
+  "Outstanding Balances": "outstandingBalances",
+  "Supplier Purchases": "purchasesBySupplier",
+  "Supplier Performance": "supplierPerformance",
+  "Supplier Payment History": "supplierPaymentHistory",
+  "Outstanding Supplier Balances": "outstandingSupplierBalances",
+  "Purchase Tax Paid (estimated)": "purchaseTaxRecorded",
   "Purchases by Supplier": "purchasesBySupplier",
   "Purchases by Product": "purchasesByProduct",
   "Purchase Return Report": "purchaseReturns",
   "Current Inventory": "currentInventory",
   "Inventory Valuation": "inventoryValuation",
   "Reorder Report": "reorderReport",
+  "Expired Items": "expiredItems",
+  "Damaged Items": "damagedItems",
+  "Stock Transfer Report": "stockTransferReport",
+  "Stock Adjustment Report": "stockAdjustmentReport",
+  "Inventory Movement Report": "inventoryMovementReport",
   "Top Customers": "customers",
   "Expenses by Category": "expenses",
+  "Expenses by Branch": "branchExpenses",
+  "Expenses by User": "expensesByUser",
+  "Branch Stock Value": "branchStockValue",
+  "Product Profitability": "productProfitability",
+  "Branch Profitability": "branchProfitability",
+  "Customer Profitability": "customerProfitability",
+  "Category Profitability": "categoryProfitability",
+  "Slow Moving Products": "slowMovingProducts",
+  "Fast Moving Products": "fastMovingProducts",
+  "Product Sales Trend": "productSalesTrend",
+  "User Activity Timeline": "userActivityTimeline",
+  "Most Active Users": "mostActiveUsers",
+  "Inactive Users": "inactiveUsers",
   "VAT Summary": "tax",
   "Sales Tax Collected": "tax",
-  "Tax Liability": "tax",
   "Branch Performance Comparison": "salesByBranch",
   "Branch Sales": "salesByBranch",
   "Product Performance": "salesByProduct",
-  "Product Sales Trend": "salesByProduct"
 };
+
+function hasReportDataset(report: string, reports: OperationalReportData): boolean {
+  const dataset = REPORT_DATASETS[report];
+  if (!dataset) return false;
+  if (dataset === "supplierPaymentHistory") return reports.supplierPaymentHistoryAvailable;
+  if (dataset === "userActivityTimeline" || dataset === "mostActiveUsers" || dataset === "inactiveUsers") {
+    return reports.userActivityReportsAvailable;
+  }
+  return true;
+}
+
+function reportUnavailableReason(report: string, reports: OperationalReportData): string {
+  if (report === "Inventory Aging") return "Stock batches/receipt dates are not recorded, so stock age cannot be calculated reliably.";
+  if (report === "Tax Liability") return "There is no tax remittance ledger to calculate the unpaid tax balance.";
+  if (report === "Supplier Payment History" && !reports.supplierPaymentHistoryAvailable) return "Requires the Banking view permission.";
+  if (["User Activity Timeline", "Most Active Users", "Inactive Users"].includes(report) && !reports.userActivityReportsAvailable) {
+    return "Audit events have no branch attribution. Clear the branch filter to view organization-wide activity.";
+  }
+  if (["Report Builder", "Saved Templates", "Scheduled Reports", "Shared Reports"].includes(report)) {
+    return "Custom report templates and scheduling are not configured yet.";
+  }
+  return "This report does not have a live data source yet.";
+}
 
 function ReportWorkspace({
   tab,
@@ -770,13 +820,9 @@ function ReportWorkspace({
   onSelectReport: (report: string) => void;
 }) {
   const reports = REPORTS_BY_TAB[tab] ?? [];
-  const values = [
-    ["Revenue", fmt(kpis.totalRevenue, currency)],
-    ["Expenses", fmt(kpis.totalExpenses, currency)],
-    ["Net Profit", fmt(kpis.netProfit, currency)],
-    ["Gross Margin", `${kpis.grossMargin}%`]
-  ];
-  const datasetKey = selectedReport ? REPORT_DATASETS[selectedReport] : undefined;
+  const datasetKey = selectedReport && hasReportDataset(selectedReport, operationalReports)
+    ? REPORT_DATASETS[selectedReport]
+    : undefined;
   const selectedRows = datasetKey === "customers"
     ? topCustomers.map((row) => [String(row.rank), row.customerName, fmt(row.revenue, currency)])
     : datasetKey === "expenses"
@@ -785,6 +831,18 @@ function ReportWorkspace({
         ? [["Tax collected", String(taxSummary.salesCount), fmt(taxSummary.taxCollected, currency)]]
         : datasetKey === "series"
           ? revenueExpenseSeries.map((row) => [row.label, fmt(row.revenue, currency), fmt(row.expenses, currency)])
+          : datasetKey === "slowMovingProducts"
+          ? operationalReports.slowMovingProducts.map((row) => [row.label, row.secondary ?? "", String(row.quantity ?? 0)])
+          : datasetKey === "damagedItems"
+            ? operationalReports.damagedItems.map((row) => [row.label, String(row.quantity ?? 0), String(row.count ?? 0)])
+            : datasetKey === "supplierPaymentHistory"
+              ? operationalReports.supplierPaymentHistory.map((row) => [row.label, `${row.secondary ?? ""} · ${row.count ?? 0} payment(s)`, fmt(row.amount ?? 0, currency)])
+              : datasetKey === "stockTransferReport"
+                ? operationalReports.stockTransferReport.map((row) => [row.label, row.secondary ?? "", String(row.quantity ?? 0)])
+                : datasetKey === "stockAdjustmentReport"
+                  ? operationalReports.stockAdjustmentReport.map((row) => [row.label, row.secondary ?? "", String(row.count ?? 0)])
+                  : datasetKey === "inventoryMovementReport"
+                    ? operationalReports.inventoryMovementReport.map((row) => [row.label, row.secondary ?? "", String(row.quantity ?? 0)])
           : datasetKey
             ? (operationalReports[datasetKey] as Array<{ label: string; secondary?: string; quantity?: number; amount?: number; count?: number }>).map((row) => [
                 row.label,
@@ -794,6 +852,38 @@ function ReportWorkspace({
             : [];
   const selectedHeaders = datasetKey === "customers"
     ? ["Rank", "Customer", "Revenue"]
+    : datasetKey === "salesByCustomer"
+      ? ["Customer", "Orders", "Revenue"]
+      : datasetKey === "discountAnalysis"
+        ? ["Metric", "Sales", "Amount"]
+    : datasetKey === "customerPurchaseHistory"
+      ? ["Customer", "Sale Date", "Total"]
+      : datasetKey === "customerOrderTrends"
+        ? ["Month", "Orders", "Revenue"]
+        : datasetKey === "purchaseTaxRecorded"
+          ? ["Metric", "Purchases with payments", "Estimated amount"]
+          : datasetKey === "supplierPaymentHistory"
+            ? ["Supplier", "Payment date · count", "Amount paid"]
+            : datasetKey === "userActivityTimeline"
+              ? ["User", "Recorded activity", "Events"]
+              : datasetKey === "mostActiveUsers"
+                ? ["User", "Recorded events", "Count"]
+                : datasetKey === "inactiveUsers"
+                  ? ["User", "Activity status", "Events"]
+                  : datasetKey === "damagedItems"
+                    ? ["Product", "Adjusted quantity", "Adjustment lines"]
+                    : datasetKey === "stockTransferReport"
+                      ? ["Transfer", "Route · status", "Units"]
+                      : datasetKey === "stockAdjustmentReport"
+                        ? ["Adjustment", "Date · reason", "Items"]
+                        : datasetKey === "inventoryMovementReport"
+                          ? ["Product", "Movement", "Quantity"]
+                          : datasetKey === "salesByBranch" || datasetKey === "purchasesBySupplier"
+                            ? ["Branch / Supplier", "Transactions", "Amount"]
+      : datasetKey === "slowMovingProducts"
+        ? ["Product", "Current stock · selected-period sales", "Units sold"]
+        : datasetKey === "fastMovingProducts"
+          ? ["Product", "Units sold", "Sales revenue"]
     : datasetKey === "expenses"
       ? ["Category", "Share", "Amount"]
       : datasetKey === "tax"
@@ -806,19 +896,28 @@ function ReportWorkspace({
       <div className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-ink-900 dark:text-white">{tab}</h2>
-            <p className="mt-1 text-xs text-ledger-400">{dateFrom} to {dateTo} · filtered live data</p>
+            <h2 className="text-base font-semibold text-ink-900 dark:text-white">{selectedReport ?? tab}</h2>
+            <p className="mt-1 text-xs text-ledger-400">{dateFrom} to {dateTo}{datasetKey ? " · filtered live data" : ""}</p>
           </div>
-          <span className="rounded-full bg-signal-soft px-2.5 py-1 text-xs font-medium text-signal">Live filtered data</span>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${datasetKey ? "bg-signal-soft text-signal" : "bg-ledger-100 text-ledger-500 dark:bg-white/[0.06] dark:text-ledger-300"}`}>
+            {datasetKey ? "Live filtered data" : selectedReport ? "Source not connected" : "Select a report"}
+          </span>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {values.map(([label, value]) => (
-            <div key={label} className="rounded-md bg-ledger-50 p-3 dark:bg-white/[0.04]">
-              <p className="text-xs text-ledger-400">{label}</p>
-              <p className="figure mt-1 text-sm font-semibold text-ink-900 dark:text-white">{value}</p>
-            </div>
-          ))}
-        </div>
+        {!selectedReport && (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ["Revenue", fmt(kpis.totalRevenue, currency)],
+              ["Expenses", fmt(kpis.totalExpenses, currency)],
+              ["Net Profit", fmt(kpis.netProfit, currency)],
+              ["Gross Margin", `${kpis.grossMargin}%`]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md bg-ledger-50 p-3 dark:bg-white/[0.04]">
+                <p className="text-xs text-ledger-400">{label}</p>
+                <p className="figure mt-1 text-sm font-semibold text-ink-900 dark:text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="rounded-card border border-ledger-100 bg-transparent p-5 shadow-card dark:border-ledger-700">
         <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Available reports</h3>
@@ -836,7 +935,7 @@ function ReportWorkspace({
             >
               {report}
               <span className="mt-1 block text-xs text-ledger-400">
-                {REPORT_DATASETS[report] ? "Live filtered result" : "Not yet available"}
+                {hasReportDataset(report, operationalReports) ? "Live filtered result" : reportUnavailableReason(report, operationalReports)}
               </span>
             </button>
           ))}
@@ -846,14 +945,6 @@ function ReportWorkspace({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold text-ink-900 dark:text-white">{selectedReport}</h4>
               <span className="text-xs text-signal">{dateFrom} to {dateTo}</span>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {values.map(([label, value]) => (
-                <div key={label}>
-                  <p className="text-xs text-ledger-500 dark:text-ledger-400">{label}</p>
-                  <p className="figure mt-1 text-sm font-semibold text-ink-900 dark:text-white">{value}</p>
-                </div>
-              ))}
             </div>
             <div className="mt-4 overflow-x-auto rounded-md border border-signal/20 bg-transparent">
               {datasetKey && selectedRows.length > 0 ? (
@@ -881,11 +972,25 @@ function ReportWorkspace({
                 <p className="px-3 py-4 text-xs text-ledger-500 dark:text-ledger-400">
                   {datasetKey
                     ? "No records match the selected date and branch filters."
-                    : "This report does not have a live data source yet."}
+                    : reportUnavailableReason(selectedReport, operationalReports)}
                 </p>
               )}
             </div>
-            <p className="mt-3 text-xs text-signal">This result uses the currently applied date and branch filters.</p>
+            <p className="mt-3 text-xs text-signal">
+              {selectedReport === "Purchase Tax Paid (estimated)"
+                ? "Estimated by allocating each purchase's recorded tax in proportion to its amount paid; this is not a tax-remittance ledger."
+                : selectedReport === "User Activity Timeline" || selectedReport === "Most Active Users" || selectedReport === "Inactive Users"
+                  ? "Activity reflects recorded organization audit events only; it does not track sign-ins or every page view."
+                  : selectedReport === "Supplier Payment History"
+                    ? "Shows supplier payment withdrawals recorded through linked purchase bank transactions."
+                : ["Product Profitability", "Branch Profitability", "Customer Profitability", "Category Profitability"].includes(selectedReport)
+                  ? "Profit is estimated using current product cost prices, not historical cost at the time of each sale."
+                  : selectedReport === "Outstanding Balances" || selectedReport === "Outstanding Supplier Balances"
+                    ? "Balances are calculated as of the selected end date; the start date does not limit balances."
+                    : ["Current Inventory", "Inventory Valuation", "Reorder Report", "Expired Items", "Branch Stock Value"].includes(selectedReport)
+                ? "This live stock result uses the selected branch. Inventory is current, not historical."
+                : "Where applicable, this result uses the currently applied date and branch filters."}
+            </p>
           </div>
         )}
         <p className="mt-4 text-xs text-ledger-400">Select a report above to view its filtered result summary.</p>
