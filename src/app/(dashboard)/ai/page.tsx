@@ -83,12 +83,6 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-500 shadow-sm dark:border-slate-700 dark:bg-ink-900 dark:text-slate-400">
-          <span>Powered by</span>
-          <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-white">
-            <Sparkles className="h-4 w-4 text-indigo-500" /> Gemini
-          </span>
-          </div>
           {canGenerate && (
           <form action={generateInsights}>
             <AiGenerateButton />

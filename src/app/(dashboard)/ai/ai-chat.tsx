@@ -198,8 +198,6 @@ export function AiChat({ userLabel }: { userLabel: string }) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [configured, setConfigured] = useState<boolean | null>(null);
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionTest, setConnectionTest] = useState<{ ok: boolean; message: string; model?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -382,65 +380,8 @@ export function AiChat({ userLabel }: { userLabel: string }) {
     void requestAnswer(retryRequest.prompt, retryRequest.priorMessages, retryRequest.conversationId);
   }
 
-  async function testConnection() {
-    if (testingConnection) return;
-    setTestingConnection(true);
-    setConnectionTest(null);
-    try {
-      const response = await fetch("/api/ai/config", { method: "POST" });
-      const result = await response.json().catch(() => null);
-      if (!response.ok) {
-        setConnectionTest({
-          ok: false,
-          message: typeof result?.error === "string" ? result.error : "The connection test could not be completed.",
-          model: typeof result?.model === "string" ? result.model : undefined,
-        });
-        return;
-      }
-      setConnectionTest({
-        ok: true,
-        message: "Gemini responded successfully. Chat is connected.",
-        model: typeof result?.model === "string" ? result.model : undefined,
-      });
-    } catch {
-      setConnectionTest({
-        ok: false,
-        message: "Could not reach the application server. Check your connection and try again.",
-      });
-    } finally {
-      setTestingConnection(false);
-    }
-  }
-
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-ink-900">
-        <p className="text-xs text-slate-500 dark:text-slate-400">Having trouble? Send a small test request to check this deployment&apos;s Gemini connection (uses one AI request).</p>
-        <button
-          type="button"
-          onClick={() => void testConnection()}
-          disabled={testingConnection || configured !== true}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-sky-200 bg-gradient-to-b from-white to-sky-50 px-3 text-xs font-semibold text-sky-800 shadow-[0_3px_0_0_rgba(2,132,199,0.18)] transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-900 dark:from-slate-800 dark:to-slate-900 dark:text-sky-200"
-        >
-          {testingConnection ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          {testingConnection ? "Testing Gemini…" : "Test Gemini connection"}
-        </button>
-      </div>
-      {connectionTest && (
-        <div
-          role="status"
-          className={`rounded-xl border px-3.5 py-3 text-xs shadow-[0_4px_0_0_rgba(15,23,42,0.08)] ${
-            connectionTest.ok
-              ? "border-emerald-200 bg-gradient-to-b from-white to-emerald-50 text-emerald-900 dark:border-emerald-900 dark:from-emerald-950 dark:to-slate-950 dark:text-emerald-100"
-              : "border-rose-200 bg-gradient-to-b from-white to-rose-50 text-rose-900 dark:border-rose-900 dark:from-rose-950 dark:to-slate-950 dark:text-rose-100"
-          }`}
-        >
-          <span className="font-semibold">{connectionTest.ok ? "Connection test passed" : "Connection test failed"}</span>
-          <span className="mt-0.5 block leading-5">{connectionTest.message}</span>
-          {connectionTest.model && <span className="mt-1 block text-[10px] opacity-75">Server model: {connectionTest.model}</span>}
-        </div>
-      )}
-
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
       <section className="flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700 dark:bg-ink-900">
         {messages.length === 0 ? (
