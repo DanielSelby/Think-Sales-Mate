@@ -72,7 +72,7 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
     <div className="w-full space-y-5">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-sm shadow-blue-500/20">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--theme-primary)] text-white shadow-sm">
           <Sparkles className="h-5 w-5" />
           </span>
           <div>
@@ -112,7 +112,7 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
         <AiChat key={context.orgId} userLabel="You" />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-ink-900">
-          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600 dark:bg-slate-800 dark:text-sky-300"><Sparkles className="h-5 w-5" /></span>
+          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--theme-primary-pale)] text-[var(--theme-primary)]"><Sparkles className="h-5 w-5" /></span>
           <p className="mt-3 text-sm font-medium text-slate-800 dark:text-white">Your AI Assistant access is read-only.</p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Ask an organization manager to grant AI Assistant access if you need to send questions.</p>
         </div>
@@ -159,7 +159,7 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
 
           {!latest ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-7 text-center dark:border-slate-700 dark:bg-ink-900">
-            <Sparkles className="mx-auto h-5 w-5 text-slate-300 dark:text-slate-600" />
+            <Sparkles className="mx-auto h-5 w-5 text-[var(--theme-primary)]" />
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{canGenerate ? "No summaries yet. Generate an insight when you're ready." : "No saved summaries are available yet."}</p>
           </div>
           ) : (

@@ -51,18 +51,18 @@ type RetryRequest = {
 };
 
 const QUICK_QUESTIONS = [
-  { label: "Today's sales summary", prompt: "Summarize today's sales performance.", icon: BarChart3, color: "text-sky-600 bg-sky-50" },
-  { label: "Low stock products", prompt: "Which products are low in stock at my authorized branches?", icon: Boxes, color: "text-violet-600 bg-violet-50" },
-  { label: "Top-selling products", prompt: "What are my top-selling products in the last 30 days?", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50" },
-  { label: "Branch performance", prompt: "Compare sales performance across the branches I can access for the last 30 days.", icon: Building2, color: "text-amber-600 bg-amber-50" },
+  { label: "Today's sales summary", prompt: "Summarize today's sales performance.", icon: BarChart3 },
+  { label: "Low stock products", prompt: "Which products are low in stock at my authorized branches?", icon: Boxes },
+  { label: "Top-selling products", prompt: "What are my top-selling products in the last 30 days?", icon: TrendingUp },
+  { label: "Branch performance", prompt: "Compare sales performance across the branches I can access for the last 30 days.", icon: Building2 },
 ];
 
 const QUICK_ACTIONS = [
-  { label: "Ask about sales", prompt: "Summarize my sales performance for the last 30 days.", icon: BarChart3, color: "bg-sky-500" },
-  { label: "Check inventory", prompt: "Show my low-stock and out-of-stock products.", icon: Boxes, color: "bg-emerald-500" },
-  { label: "View reports", href: "/reports", icon: FileBarChart, color: "bg-violet-500" },
-  { label: "Analyze performance", prompt: "Analyze sales and approved expenses for the last 30 days. Separate retrieved facts from recommendations.", icon: TrendingUp, color: "bg-amber-500" },
-  { label: "Find customer balances", prompt: "Summarize outstanding customer invoices where I have permission to view them.", icon: UsersRound, color: "bg-cyan-600" },
+  { label: "Ask about sales", prompt: "Summarize my sales performance for the last 30 days.", icon: BarChart3 },
+  { label: "Check inventory", prompt: "Show my low-stock and out-of-stock products.", icon: Boxes },
+  { label: "View reports", href: "/reports", icon: FileBarChart },
+  { label: "Analyze performance", prompt: "Analyze sales and approved expenses for the last 30 days. Separate retrieved facts from recommendations.", icon: TrendingUp },
+  { label: "Find customer balances", prompt: "Summarize outstanding customer invoices where I have permission to view them.", icon: UsersRound },
 ];
 
 const POPULAR_QUESTIONS = [
@@ -385,9 +385,9 @@ export function AiChat({ userLabel }: { userLabel: string }) {
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
       <section className="flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700 dark:bg-ink-900">
         {messages.length === 0 ? (
-          <div className="border-b border-slate-100 bg-gradient-to-r from-sky-50 via-blue-50/70 to-indigo-50/70 px-5 py-5 sm:px-7 sm:py-6 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/30">
+          <div className="border-b border-slate-100 bg-[var(--theme-primary-pale)] px-5 py-5 sm:px-7 sm:py-6 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-start gap-3 sm:gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-md shadow-blue-500/20">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--theme-primary)] text-white shadow-md">
                 <Sparkles className="h-6 w-6" />
               </div>
               <div className="min-w-0 flex-1">
@@ -398,17 +398,17 @@ export function AiChat({ userLabel }: { userLabel: string }) {
               </div>
             </div>
             <div className="mt-5 grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
-              {QUICK_QUESTIONS.map(({ label, prompt, icon: Icon, color }) => (
+              {QUICK_QUESTIONS.map(({ label, prompt, icon: Icon }) => (
                 <button
                   key={label}
                   type="button"
                   onClick={() => sendPrompt(prompt)}
                   disabled={loading || configured !== true}
-                  className="group flex min-h-12 items-center gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2 text-left text-xs font-medium leading-4 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-sky-700"
+                  className="group flex min-h-12 items-center gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2 text-left text-xs font-medium leading-4 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--theme-primary)] hover:bg-white hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200"
                 >
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color}`}><Icon className="h-4 w-4" /></span>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--theme-primary-pale)] text-[var(--theme-primary)]"><Icon className="h-4 w-4" /></span>
                   <span className="flex-1">{label}</span>
-                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-sky-500" />
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[var(--theme-primary)]" />
                 </button>
               ))}
             </div>
@@ -416,7 +416,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
         ) : (
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-6 dark:border-slate-800">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--theme-primary)] text-white">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div className="min-w-0">
@@ -428,9 +428,9 @@ export function AiChat({ userLabel }: { userLabel: string }) {
               type="button"
               onClick={startNewConversation}
               disabled={loading}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:border-[var(--theme-primary)] hover:text-[var(--theme-primary)] disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
             >
-              <Plus className="h-3.5 w-3.5" /> New chat
+              <Plus className="h-3.5 w-3.5 text-[var(--theme-primary)]" /> New chat
             </button>
           </div>
         )}
@@ -438,7 +438,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
         <div ref={messageListRef} className="relative flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6" aria-live="polite">
           {messages.length === 0 && (
             <div className="flex min-h-36 flex-col items-center justify-center px-3 text-center">
-              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-sky-50 text-sky-600 dark:bg-slate-800 dark:text-sky-300">
+              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--theme-primary-pale)] text-[var(--theme-primary)] dark:bg-slate-800">
                 <CircleHelp className="h-5 w-5" />
               </span>
               <p className="text-sm font-medium text-slate-700 dark:text-slate-200">What would you like to know?</p>
@@ -451,18 +451,18 @@ export function AiChat({ userLabel }: { userLabel: string }) {
           {messages.map((message) => message.role === "user" ? (
             <div key={message.id} className="flex items-end justify-end gap-2.5">
               <div className="max-w-[88%]">
-                <div className="rounded-2xl rounded-br-md bg-gradient-to-br from-blue-600 to-sky-600 px-4 py-3 text-sm leading-6 text-white shadow-sm shadow-blue-500/15">
+                <div className="rounded-2xl rounded-br-md bg-[var(--theme-primary)] px-4 py-3 text-sm leading-6 text-white shadow-sm">
                   {message.content}
                 </div>
                 <p className="mt-1.5 text-right text-[10px] text-slate-400">You · {activeConversation ? formatConversationTime(activeConversation.updatedAt) : "Earlier"}</p>
               </div>
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-semibold text-white" aria-label={userLabel}>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--theme-primary)] text-[10px] font-semibold text-white" aria-label={userLabel}>
                 {userInitials}
               </span>
             </div>
           ) : (
             <div key={message.id} className="flex items-start gap-2.5 sm:gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-sm">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm">
                 <Sparkles className="h-4 w-4" />
               </span>
               <div className="min-w-0 max-w-[94%] flex-1 sm:max-w-[90%]">
@@ -470,7 +470,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
                   {message.content
                     ? <MarkdownContent content={message.content} />
                     : loading
-                      ? <div className="flex items-center gap-2 py-1 text-xs text-slate-500 dark:text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin text-sky-500" />Checking authorized business data…</div>
+                      ? <div className="flex items-center gap-2 py-1 text-xs text-slate-500 dark:text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin text-[var(--theme-primary)]" />Checking authorized business data…</div>
                       : <p className="text-xs text-slate-500 dark:text-slate-400">{message.failed ? "I couldn’t prepare a reply. See the error details below." : "No response was received."}</p>}
                   {message.failed && message.content && <p className="mt-2 border-t border-slate-200 pt-2 text-xs text-amber-700 dark:border-slate-700 dark:text-amber-300">The response was interrupted and may be incomplete.</p>}
                 </div>
@@ -499,7 +499,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
           )}
 
           {showScrollButton && (
-            <button type="button" aria-label="Scroll to latest message" onClick={() => messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" })} className="sticky bottom-0 left-1/2 mx-auto flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+            <button type="button" aria-label="Scroll to latest message" onClick={() => messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" })} className="sticky bottom-0 left-1/2 mx-auto flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[var(--theme-primary)] shadow-md dark:border-slate-700 dark:bg-slate-900">
               <ArrowDown className="h-4 w-4" />
             </button>
           )}
@@ -524,7 +524,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
               placeholder={configured === false ? "Gemini is not configured" : "Ask me anything about your business…"}
               className="max-h-36 min-h-10 flex-1 resize-y bg-transparent px-2 py-1 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60 dark:text-white"
             />
-            <button type="submit" aria-label="Send message" disabled={loading || configured !== true || !draft.trim()} className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700">
+            <button type="submit" aria-label="Send message" disabled={loading || configured !== true || !draft.trim()} className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--theme-primary)] text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700">
               {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
           </div>
@@ -538,19 +538,19 @@ export function AiChat({ userLabel }: { userLabel: string }) {
       <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-ink-900">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-300"><Sparkles className="h-4 w-4" /></span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--theme-primary-pale)] text-[var(--theme-primary)] dark:bg-slate-800"><Sparkles className="h-4 w-4" /></span>
             Quick Actions
           </div>
           <div className="space-y-1.5">
-            {QUICK_ACTIONS.map(({ label, prompt, href, icon: Icon, color }) => href ? (
-              <a key={label} href={href} className="group flex min-h-10 items-center gap-2.5 rounded-lg border border-slate-100 px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50/60 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800">
-                <span className={`flex h-6 w-6 items-center justify-center rounded-md text-white ${color}`}><Icon className="h-3.5 w-3.5" /></span>
-                <span className="flex-1">{label}</span><ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-sky-500" />
+            {QUICK_ACTIONS.map(({ label, prompt, href, icon: Icon }) => href ? (
+              <a key={label} href={href} className="group flex min-h-10 items-center gap-2.5 rounded-lg border border-slate-100 px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-[var(--theme-primary)] hover:bg-[var(--theme-primary-pale)] dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--theme-primary)] text-white"><Icon className="h-3.5 w-3.5" /></span>
+                <span className="flex-1">{label}</span><ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-[var(--theme-primary)]" />
               </a>
             ) : (
-              <button key={label} type="button" onClick={() => sendPrompt(prompt ?? "")} disabled={loading || configured !== true} className="group flex min-h-10 w-full items-center gap-2.5 rounded-lg border border-slate-100 px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50/60 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800">
-                <span className={`flex h-6 w-6 items-center justify-center rounded-md text-white ${color}`}><Icon className="h-3.5 w-3.5" /></span>
-                <span className="flex-1">{label}</span><ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-sky-500" />
+              <button key={label} type="button" onClick={() => sendPrompt(prompt ?? "")} disabled={loading || configured !== true} className="group flex min-h-10 w-full items-center gap-2.5 rounded-lg border border-slate-100 px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-[var(--theme-primary)] hover:bg-[var(--theme-primary-pale)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--theme-primary)] text-white"><Icon className="h-3.5 w-3.5" /></span>
+                <span className="flex-1">{label}</span><ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-[var(--theme-primary)]" />
               </button>
             ))}
           </div>
@@ -558,13 +558,13 @@ export function AiChat({ userLabel }: { userLabel: string }) {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-ink-900">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-slate-800 dark:text-amber-300"><CircleHelp className="h-4 w-4" /></span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--theme-primary-pale)] text-[var(--theme-primary)] dark:bg-slate-800"><CircleHelp className="h-4 w-4" /></span>
             Popular Questions
           </div>
           <div className="space-y-1.5">
             {POPULAR_QUESTIONS.map((question) => (
-              <button key={question} type="button" onClick={() => sendPrompt(question)} disabled={loading || configured !== true} className="flex w-full items-start gap-2 rounded-lg border border-slate-100 px-2.5 py-2 text-left text-[11px] leading-4 text-slate-600 transition hover:border-sky-200 hover:bg-sky-50/60 hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-sky-200">
-                <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-sky-500" />
+              <button key={question} type="button" onClick={() => sendPrompt(question)} disabled={loading || configured !== true} className="flex w-full items-start gap-2 rounded-lg border border-slate-100 px-2.5 py-2 text-left text-[11px] leading-4 text-slate-600 transition hover:border-[var(--theme-primary)] hover:bg-[var(--theme-primary-pale)] hover:text-[var(--theme-primary)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800">
+                <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-[var(--theme-primary)]" />
                 {question}
               </button>
             ))}
@@ -574,11 +574,11 @@ export function AiChat({ userLabel }: { userLabel: string }) {
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-ink-900">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-slate-800 dark:text-indigo-300"><Clock3 className="h-4 w-4" /></span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--theme-primary-pale)] text-[var(--theme-primary)] dark:bg-slate-800"><Clock3 className="h-4 w-4" /></span>
               Recent Conversations
             </div>
             {recentConversations.length > 4 && (
-              <button type="button" onClick={() => setShowAllRecent((value) => !value)} className="text-[10px] font-semibold text-blue-600 hover:underline dark:text-blue-300">
+              <button type="button" onClick={() => setShowAllRecent((value) => !value)} className="text-[10px] font-semibold text-[var(--theme-primary)] hover:underline">
                 {showAllRecent ? "Show less" : "View all"}
               </button>
             )}
@@ -590,20 +590,20 @@ export function AiChat({ userLabel }: { userLabel: string }) {
                   key={conversation.id}
                   type="button"
                   onClick={() => { setActiveConversationId(conversation.id); setError(null); setRetryRequest(null); }}
-                  className={`flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-sky-50/70 dark:hover:bg-slate-800 ${conversation.id === activeConversationId ? "bg-sky-50 dark:bg-slate-800" : ""}`}
+                  className={`flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-[var(--theme-primary-pale)] dark:hover:bg-slate-800 ${conversation.id === activeConversationId ? "bg-[var(--theme-primary-pale)] dark:bg-slate-800" : ""}`}
                 >
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600 dark:bg-slate-700 dark:text-sky-300"><MessageCircle className="h-3 w-3" /></span>
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--theme-primary-pale)] text-[var(--theme-primary)] dark:bg-slate-700"><MessageCircle className="h-3 w-3" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[11px] font-medium text-slate-700 dark:text-slate-200">{conversation.title}</span>
                     <span className="mt-0.5 block text-[10px] text-slate-400">{formatConversationTime(conversation.updatedAt)}</span>
                   </span>
-                  {conversation.id === activeConversationId && <Check className="mt-1 h-3 w-3 shrink-0 text-sky-600" />}
+                  {conversation.id === activeConversationId && <Check className="mt-1 h-3 w-3 shrink-0 text-[var(--theme-primary)]" />}
                 </button>
               ))}
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-200 px-3 py-5 text-center dark:border-slate-700">
-              <MessageCircle className="mx-auto h-5 w-5 text-slate-300 dark:text-slate-600" />
+              <MessageCircle className="mx-auto h-5 w-5 text-[var(--theme-primary)] opacity-50" />
               <p className="mt-2 text-xs font-medium text-slate-600 dark:text-slate-300">Your conversations will appear here</p>
               <p className="mt-1 text-[10px] leading-4 text-slate-400">Start a chat to see it in this session.</p>
             </div>
