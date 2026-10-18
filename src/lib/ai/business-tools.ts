@@ -7,6 +7,7 @@ import { aiLocationScope, canReadAiBusinessModule } from "@/lib/ai/access";
 import { defaultDateRange } from "@/lib/accounting/metrics";
 import { isValidDateRange } from "@/lib/ai/chat-validation";
 import { createClient } from "@/lib/supabase/server";
+import { getCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 
 const MAX_DATA_ROWS = 5_000;
 const PAGE_SIZE = 1_000;
@@ -133,6 +134,77 @@ export async function createAuthorizedBusinessTools(
             ...(byBranch.size > 25 ? { branch_breakdown_note: "Branch breakdown shows the 25 branches with recorded sales in this result." } : {}),
           } : {}),
           ...(complete ? {} : { note: `Partial result: at most ${MAX_DATA_ROWS} records were read. Do not treat totals as complete.` }),
+        };
+      },
+    });
+    if (canView("customers")) available.push({
+      declaration: {
+        name: "get_customer_sales_ranking",
+        description: "Return the top 25 customers ranked separately by completed sales revenue and order count for a date range. Branch users see only sales from their assigned branches. Defaults to the last 30 days.",
+        parameters: rangeParameters(),
+      },
+      async execute(args) {
+        const range = dateRange(args);
+        const locationIds = aiLocationScope(context);
+        const query = async (from: number, to: number) => {
+          let request = supabase
+            .from("sales")
+            .select("customer_id, customer_name, total", { count: "exact" })
+            .eq("org_id", context.orgId)
+            .eq("status", "completed")
+            .gte("sale_date", range.from)
+            .lte("sale_date", range.to)
+            .range(from, to);
+          if (locationIds) request = request.in("location_id", locationIds);
+          return request;
+        };
+        const { rows, complete } = await collectRows(query);
+        const customerIds = [...new Set(rows.flatMap((sale) => sale.customer_id ? [sale.customer_id] : []))];
+        const customerNameBatches = await Promise.all(
+          Array.from({ length: Math.ceil(customerIds.length / 250) }, (_, index) =>
+            supabase
+              .from("customers")
+              .select("id, name")
+              .eq("org_id", context.orgId)
+              .in("id", customerIds.slice(index * 250, (index + 1) * 250))
+          )
+        );
+        if (customerNameBatches.some(({ error }) => error)) throw new Error("Customer sales lookup failed.");
+        const customerNames = new Map(
+          customerNameBatches.flatMap(({ data }) =>
+            (data ?? []).map((customer) => [customer.id, String(customer.name).slice(0, 120)] as const)
+          )
+        );
+
+        const byCustomer = new Map<string, { customer: string; revenue: number; order_count: number }>();
+        for (const sale of rows) {
+          const customerName = String(
+            (sale.customer_id && customerNames.get(sale.customer_id)) ||
+            sale.customer_name ||
+            (sale.customer_id ? `Customer ${sale.customer_id.slice(0, 8)}` : "Walk-in customer")
+          ).slice(0, 120);
+          const key = sale.customer_id
+            ? `id:${sale.customer_id}`
+            : `name:${customerName.trim().toLocaleLowerCase()}`;
+          const current = byCustomer.get(key) ?? { customer: customerName, revenue: 0, order_count: 0 };
+          current.revenue += Number(sale.total ?? 0);
+          current.order_count += 1;
+          byCustomer.set(key, current);
+        }
+        const customers = [...byCustomer.values()];
+        const topByRevenue = [...customers].sort((left, right) => right.revenue - left.revenue).slice(0, 25);
+        const topByOrderCount = [...customers].sort((left, right) => right.order_count - left.order_count).slice(0, 25);
+        return {
+          source: "completed sales records grouped by customer",
+          from: range.from,
+          to: range.to,
+          complete,
+          sales_count: rows.length,
+          customer_count: customers.length,
+          top_by_revenue: topByRevenue,
+          top_by_order_count: topByOrderCount,
+          rankings_truncated: customers.length > 25,
+          ...(complete ? {} : { note: `Partial result: at most ${MAX_DATA_ROWS} sales were read. Do not treat totals or rankings as complete.` }),
         };
       },
     });
@@ -280,39 +352,68 @@ export async function createAuthorizedBusinessTools(
     });
   }
 
-  if (canView("customers") && canView("accounting") && !context.isBranchScoped) {
+  if (canView("customers") && (canView("sales") || canView("accounting"))) {
     available.push({
       declaration: {
         name: "get_outstanding_customer_balances",
-        description: "Get current outstanding sent and overdue invoice totals grouped by customer name. Only available to organization-wide users with customer and accounting read permissions.",
+        description: "Get current unpaid credit-sale balances grouped by customer, including outstanding sent and overdue invoices when accounting access is available. Branch users only see balances from their assigned branches; legacy invoices are excluded for branch users because invoices are not branch-scoped.",
         parameters: {},
       },
       async execute() {
-        const invoices = await collectRows(async (from, to) => supabase
-          .from("invoices")
-          .select("customer_name, amount, due_date, status", { count: "exact" })
-          .eq("org_id", context.orgId)
-          .in("status", ["sent", "overdue"])
-          .range(from, to));
-        const byCustomer = new Map<string, { balance: number; invoices: number }>();
-        for (const invoice of invoices.rows) {
-          const customer = String(invoice.customer_name || "Unspecified customer").slice(0, 120);
-          const current = byCustomer.get(customer) ?? { balance: 0, invoices: 0 };
-          current.balance += Number(invoice.amount ?? 0);
-          current.invoices += 1;
-          byCustomer.set(customer, current);
+        const salesAccess = canView("sales");
+        const accountingAccess = canView("accounting");
+        const balances = salesAccess
+          ? await getCustomerOutstandingBalances(
+              supabase,
+              context.orgId,
+              aiLocationScope(context),
+              undefined,
+              false
+            )
+          : { byCustomerId: new Map<string, number>(), byCustomerName: new Map<string, number>() };
+        const [customersResult, invoices] = await Promise.all([
+          salesAccess
+            ? supabase.from("customers").select("id, name").eq("org_id", context.orgId)
+            : Promise.resolve({ data: [], error: null }),
+          accountingAccess && !context.isBranchScoped
+            ? collectRows(async (from, to) => supabase
+                .from("invoices")
+                .select("customer_name, amount", { count: "exact" })
+                .eq("org_id", context.orgId)
+                .in("status", ["sent", "overdue"])
+                .range(from, to))
+            : Promise.resolve({ rows: [], complete: true }),
+        ]);
+        if (customersResult.error) throw new Error("Customer balance query failed.");
+
+        const customerNameById = new Map((customersResult.data ?? []).map((customer) => [customer.id, customer.name]));
+        const byCustomer = new Map<string, { customer: string; balance: number }>();
+        const addBalance = (customer: string, balance: number) => {
+          const normalized = customer.trim().toLocaleLowerCase();
+          if (!normalized || balance <= 0) return;
+          const current = byCustomer.get(normalized) ?? { customer: customer.trim(), balance: 0 };
+          current.balance += balance;
+          byCustomer.set(normalized, current);
+        };
+        for (const [customerId, balance] of balances.byCustomerId) {
+          addBalance(customerNameById.get(customerId) ?? "Unspecified customer", balance);
         }
-        const customers = [...byCustomer.entries()]
-          .map(([customer, amounts]) => ({ customer, ...amounts }))
+        for (const [customerName, balance] of balances.byCustomerName) {
+          addBalance(customerName, balance);
+        }
+        for (const invoice of invoices.rows) {
+          addBalance(String(invoice.customer_name || "Unspecified customer"), Number(invoice.amount ?? 0));
+        }
+
+        const customersWithBalances = [...byCustomer.values()]
           .sort((left, right) => right.balance - left.balance);
+        const outstandingTotal = customersWithBalances.reduce((sum, customer) => sum + customer.balance, 0);
         return {
-          source: "sent and overdue invoices",
-          complete: invoices.complete,
-          invoice_count: invoices.rows.length,
-          outstanding_total: invoices.rows.reduce((sum, invoice) => sum + Number(invoice.amount ?? 0), 0),
-          customers: customers.slice(0, 25),
-          customers_truncated: customers.length > 25,
-          ...(invoices.complete ? {} : { note: `Partial result: at most ${MAX_DATA_ROWS} invoices were read.` }),
+          source: "unpaid completed or returned credit sales and available outstanding invoices",
+          outstanding_total: outstandingTotal,
+          customers: customersWithBalances.slice(0, 25),
+          customers_truncated: customersWithBalances.length > 25,
+          ...(invoices.complete ? {} : { note: `Invoice results are partial: at most ${MAX_DATA_ROWS} invoices were read.` }),
         };
       },
     });

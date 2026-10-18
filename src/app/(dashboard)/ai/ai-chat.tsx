@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Send,
   Sparkles,
+  Trash2,
   TrendingUp,
   UsersRound,
 } from "lucide-react";
@@ -201,6 +202,8 @@ export function AiChat({ userLabel }: { userLabel: string }) {
   const [loading, setLoading] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const inFlight = useRef(false);
@@ -216,7 +219,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/ai/config", { cache: "no-store" })
+    void fetch("/api/ai/config", { cache: "no-store" })
       .then(async (response) => {
         if (!response.headers.get("content-type")?.includes("application/json")) {
           throw new Error("Your session may have expired. Refresh the page and sign in again.");
@@ -227,6 +230,50 @@ export function AiChat({ userLabel }: { userLabel: string }) {
       })
       .catch((cause: unknown) => {
         if (active) setError(cause instanceof Error ? cause.message : "Could not check AI configuration.");
+      });
+    void fetch("/api/ai/conversations", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.headers.get("content-type")?.includes("application/json")) {
+          throw new Error("Conversation history could not be loaded.");
+        }
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Conversation history could not be loaded.");
+        if (active && Array.isArray(result.conversations)) {
+          const loadedConversations = result.conversations.flatMap((item: {
+            id?: unknown;
+            title?: unknown;
+            messages?: unknown;
+            updated_at?: unknown;
+          }) => {
+            if (
+              typeof item.id !== "string"
+              || typeof item.title !== "string"
+              || typeof item.updated_at !== "string"
+              || !Array.isArray(item.messages)
+            ) return [];
+            const messages = item.messages.flatMap((message: { role?: unknown; content?: unknown }) =>
+              (message.role === "user" || message.role === "assistant") && typeof message.content === "string"
+                ? [{ id: crypto.randomUUID(), role: message.role, content: message.content } as ChatMessage]
+                : []
+            );
+            return messages.length
+              ? [{ id: item.id, title: item.title, updatedAt: Date.parse(item.updated_at), messages }]
+              : [];
+          });
+          setConversations((current) => {
+            const loadedIds = new Set(loadedConversations.map((conversation: Conversation) => conversation.id));
+            return [
+              ...current.filter((conversation) => !loadedIds.has(conversation.id)),
+              ...loadedConversations,
+            ];
+          });
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active) setHistoryError(cause instanceof Error ? cause.message : "Conversation history could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
       });
     return () => {
       active = false;
@@ -248,13 +295,34 @@ export function AiChat({ userLabel }: { userLabel: string }) {
     setRetryRequest(null);
   }
 
-  async function requestAnswer(prompt: string, previousMessages: ChatTurn[], requestedConversationId?: string) {
+  async function requestAnswer(
+    prompt: string,
+    previousMessages: ChatTurn[],
+    requestedConversationId?: string,
+    isRetry = false
+  ) {
     if (inFlight.current) return;
     inFlight.current = true;
-    const boundedMessages = boundedContext([...previousMessages, { role: "user" as const, content: prompt }]);
-    const priorMessages = boundedMessages.slice(0, -1);
+    const existingConversation = requestedConversationId
+      ? conversations.find((conversation) => conversation.id === requestedConversationId)
+      : undefined;
+    const fullPriorMessages = existingConversation
+      ? existingConversation.messages
+          .filter((message) => !message.failed)
+          .map(({ id, role, content }) => ({ id, role, content }))
+      : previousMessages.map((message) => ({ ...message, id: crypto.randomUUID() }));
+    if (
+      isRetry
+      && fullPriorMessages[fullPriorMessages.length - 1]?.role === "user"
+      && fullPriorMessages[fullPriorMessages.length - 1]?.content === prompt
+    ) {
+      fullPriorMessages.pop();
+    }
+    const priorMessages = fullPriorMessages.map(({ role, content }) => ({ role, content }));
+    const boundedMessages = boundedContext([...priorMessages, { role: "user" as const, content: prompt }]);
     const submittedMessages = boundedMessages;
     const conversationId = requestedConversationId ?? crypto.randomUUID();
+    const title = existingConversation?.title ?? (prompt.trim().replace(/\s+/g, " ").slice(0, 58) || "New conversation");
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -262,11 +330,10 @@ export function AiChat({ userLabel }: { userLabel: string }) {
     };
     const assistantId = crypto.randomUUID();
     const nextMessages: ChatMessage[] = [
-      ...priorMessages.map((message) => ({ ...message, id: crypto.randomUUID() })),
+      ...fullPriorMessages,
       userMessage,
       { id: assistantId, role: "assistant", content: "" },
     ];
-    const title = prompt.trim().replace(/\s+/g, " ").slice(0, 58) || "New conversation";
     setActiveConversationId(conversationId);
     setConversations((current) => {
       const found = current.some((conversation) => conversation.id === conversationId);
@@ -278,8 +345,11 @@ export function AiChat({ userLabel }: { userLabel: string }) {
     setError(null);
     setRetryRequest(null);
     setLoading(true);
+    let responseText = "";
+    let responseCompleted = false;
 
     const appendText = (text: string) => {
+      responseText += text;
       setConversations((current) => current.map((conversation) => conversation.id === conversationId
         ? {
             ...conversation,
@@ -344,8 +414,29 @@ export function AiChat({ userLabel }: { userLabel: string }) {
       buffer += decoder.decode();
       if (buffer.trim()) processLine(buffer);
       if (!done) throw new Error("The assistant response ended unexpectedly. Please try again.");
+      responseCompleted = true;
+      const savedMessages = [
+        ...fullPriorMessages.map(({ role, content }) => ({ role, content })),
+        { role: "user" as const, content: userMessage.content },
+        { role: "assistant" as const, content: responseText },
+      ].slice(-100);
+      const saveResponse = await fetch("/api/ai/conversations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: conversationId, title, messages: savedMessages }),
+      });
+      if (!saveResponse.ok) {
+        const saveResult = await saveResponse.json().catch(() => null);
+        throw new Error(typeof saveResult?.error === "string" ? saveResult.error : "The conversation could not be saved.");
+      }
+      setHistoryError(null);
     } catch (cause) {
-      fail(cause instanceof Error ? cause.message : "The assistant could not complete your request.");
+      const message = cause instanceof Error ? cause.message : "The assistant could not complete your request.";
+      if (responseCompleted) {
+        setHistoryError(message);
+      } else {
+        fail(message);
+      }
     } finally {
       inFlight.current = false;
       setLoading(false);
@@ -377,7 +468,21 @@ export function AiChat({ userLabel }: { userLabel: string }) {
 
   function retry() {
     if (!retryRequest) return;
-    void requestAnswer(retryRequest.prompt, retryRequest.priorMessages, retryRequest.conversationId);
+    void requestAnswer(retryRequest.prompt, retryRequest.priorMessages, retryRequest.conversationId, true);
+  }
+
+  async function deleteConversation(conversation: Conversation) {
+    if (loading || !window.confirm(`Delete “${conversation.title}” and its saved messages?`)) return;
+    setHistoryError(null);
+    try {
+      const response = await fetch(`/api/ai/conversations?id=${encodeURIComponent(conversation.id)}`, { method: "DELETE" });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(typeof result?.error === "string" ? result.error : "The conversation could not be deleted.");
+      setConversations((current) => current.filter((item) => item.id !== conversation.id));
+      if (activeConversationId === conversation.id) setActiveConversationId(null);
+    } catch (cause) {
+      setHistoryError(cause instanceof Error ? cause.message : "The conversation could not be deleted.");
+    }
   }
 
   return (
@@ -586,19 +691,30 @@ export function AiChat({ userLabel }: { userLabel: string }) {
           {recentToShow.length > 0 ? (
             <div className="space-y-1">
               {recentToShow.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() => { setActiveConversationId(conversation.id); setError(null); setRetryRequest(null); }}
-                  className={`flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-[var(--theme-primary-pale)] dark:hover:bg-slate-800 ${conversation.id === activeConversationId ? "bg-[var(--theme-primary-pale)] dark:bg-slate-800" : ""}`}
-                >
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--theme-primary-pale)] text-[var(--theme-primary)] dark:bg-slate-700"><MessageCircle className="h-3 w-3" /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[11px] font-medium text-slate-700 dark:text-slate-200">{conversation.title}</span>
-                    <span className="mt-0.5 block text-[10px] text-slate-400">{formatConversationTime(conversation.updatedAt)}</span>
-                  </span>
-                  {conversation.id === activeConversationId && <Check className="mt-1 h-3 w-3 shrink-0 text-[var(--theme-primary)]" />}
-                </button>
+                <div key={conversation.id} className={`flex items-center gap-1 rounded-lg transition hover:bg-[var(--theme-primary-pale)] dark:hover:bg-slate-800 ${conversation.id === activeConversationId ? "bg-[var(--theme-primary-pale)] dark:bg-slate-800" : ""}`}>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveConversationId(conversation.id); setError(null); setRetryRequest(null); }}
+                    className="flex min-w-0 flex-1 items-start gap-2.5 px-2 py-2 text-left"
+                  >
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--theme-primary-pale)] text-[var(--theme-primary)] dark:bg-slate-700"><MessageCircle className="h-3 w-3" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] font-medium text-slate-700 dark:text-slate-200">{conversation.title}</span>
+                      <span className="mt-0.5 block text-[10px] text-slate-400">{formatConversationTime(conversation.updatedAt)}</span>
+                    </span>
+                    {conversation.id === activeConversationId && <Check className="mt-1 h-3 w-3 shrink-0 text-[var(--theme-primary)]" />}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete conversation: ${conversation.title}`}
+                    title="Delete conversation"
+                    disabled={loading}
+                    onClick={() => void deleteConversation(conversation)}
+                    className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -608,8 +724,10 @@ export function AiChat({ userLabel }: { userLabel: string }) {
               <p className="mt-1 text-[10px] leading-4 text-slate-400">Start a chat to see it in this session.</p>
             </div>
           )}
+          {historyLoading && <p className="mt-2 text-[10px] text-slate-400">Loading saved conversations…</p>}
+          {historyError && <p role="alert" className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] leading-4 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">{historyError}</p>}
           <p className="mt-3 border-t border-slate-100 pt-2.5 text-[10px] leading-4 text-slate-400 dark:border-slate-800">
-            Conversations stay in this page session and aren&apos;t stored on the server.
+            Your conversations are saved to your account and organization. Only you can view or delete them.
           </p>
         </section>
       </aside>

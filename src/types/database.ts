@@ -2957,6 +2957,28 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["ai_insights"]["Row"]>;
         Relationships: [];
       };
+      ai_chat_conversations: {
+        Row: {
+          id: string;
+          org_id: string;
+          user_id: string;
+          title: string;
+          messages: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          user_id: string;
+          title: string;
+          messages: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ai_chat_conversations"]["Row"]>;
+        Relationships: [];
+      };
       ai_usage_events: {
         Row: {
           id: string;
