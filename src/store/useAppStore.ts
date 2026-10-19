@@ -51,6 +51,12 @@ export const THEMES = {
     sidebar: { background: "#95b8a0", text: "#0E2A1F", textMuted: "rgba(14,42,31,0.6)", activeBackground: "rgba(27,67,50,0.18)", activeText: "#1b4332", borderColor: "rgba(14,42,31,0.12)", hoverBackground: "rgba(14,42,31,0.08)" },
     topbar: { background: "#1b4332", text: "#FFFFFF" },
   },
+  orangeBlack: {
+    name: "Orange & Black",
+    colors: { primary: "#171717", primaryMid: "#262626", primaryLight: "#404040", primaryPale: "#fff4e8", accent: "#f97316", accentLight: "rgba(249,115,22,0.16)", background: "#f7f7f7", surface: "#FFFFFF", text: "#171717", textMuted: "#57534e" },
+    sidebar: { background: "#111111", text: "#FFFFFF", textMuted: "rgba(255,255,255,0.62)", activeBackground: "rgba(249,115,22,0.18)", activeText: "#fb923c", borderColor: "rgba(255,255,255,0.10)", hoverBackground: "rgba(255,255,255,0.08)" },
+    topbar: { background: "#111111", text: "#FFFFFF" },
+  },
 } as const;
 
 export type ThemeKey = keyof typeof THEMES;

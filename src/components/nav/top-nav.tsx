@@ -20,6 +20,7 @@ const THEME_OPTIONS: { key: ThemeKey; label: string }[] = [
   { key: "eclipse", label: "Eclipse"      },
   { key: "harvest", label: "Harvest"      },
   { key: "royal",   label: "Royal Blue"   },
+  { key: "orangeBlack", label: "Orange & Black" },
 ];
 
 interface NotificationItem {
