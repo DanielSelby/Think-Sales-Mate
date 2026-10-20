@@ -47,7 +47,7 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
     getPlatformSystemLogo().catch(() => null),
   ]);
 
-  const { data: settings } = await supabase.from("customer_portal_settings").select("*").eq("org_id", org.id).maybeSingle();
+  const { data: settings } = await publicSupabase.from("customer_portal_settings").select("*").eq("org_id", org.id).maybeSingle();
 
   return {
     orgId: org.id,
@@ -91,7 +91,7 @@ export interface StorefrontLocation {
 }
 
 export async function getStorefrontLocations(orgId: string): Promise<StorefrontLocation[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("business_locations")
     .select("id, name, city, region, address")
@@ -207,18 +207,42 @@ export interface PlaceOrderResult {
 }
 
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
-  if (!input.guestName.trim() || !input.guestPhone.trim()) return { ok: false, error: "Customer name and phone number are required." };
-  if (!input.deliveryAddress.trim()) return { ok: false, error: "Delivery address is required." };
-  if (input.items.length === 0) return { ok: false, error: "Your cart is empty." };
+  if (!input || !/^[0-9a-f-]{36}$/i.test(input.orgId)) return { ok: false, error: "This store is unavailable." };
+  if (typeof input.guestName !== "string" || !input.guestName.trim() || input.guestName.trim().length > 160) return { ok: false, error: "Enter a valid customer name." };
+  if (typeof input.guestPhone !== "string" || !input.guestPhone.trim() || input.guestPhone.trim().length > 40) return { ok: false, error: "Enter a valid phone number." };
+  if (typeof input.deliveryAddress !== "string" || !input.deliveryAddress.trim() || input.deliveryAddress.trim().length > 1000) return { ok: false, error: "Enter a valid delivery or contact address." };
+  if (input.guestEmail != null && (typeof input.guestEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.guestEmail.trim()) || input.guestEmail.trim().length > 254)) {
+    return { ok: false, error: "Enter a valid email address." };
+  }
+  if (!Array.isArray(input.items) || input.items.length === 0) return { ok: false, error: "Your cart is empty." };
+  if (input.items.length > 100) return { ok: false, error: "Your order contains too many items." };
+  if (input.items.some((item) => !item || typeof item.productId !== "string" || !/^[0-9a-f-]{36}$/i.test(item.productId) || !Number.isFinite(item.quantity) || item.quantity <= 0 || item.quantity > 1_000_000)) {
+    return { ok: false, error: "One or more item quantities are invalid." };
+  }
+  if (input.items.some((item, index) => input.items.findIndex((candidate) => candidate.productId === item.productId) !== index)) {
+    return { ok: false, error: "Your cart contains duplicate items. Please refresh and try again." };
+  }
+  if (input.locationId != null && (typeof input.locationId !== "string" || !/^[0-9a-f-]{36}$/i.test(input.locationId))) {
+    return { ok: false, error: "Choose a valid branch location." };
+  }
+  if (input.deliveryOption != null && typeof input.deliveryOption !== "string") {
+    return { ok: false, error: "Choose a valid delivery method." };
+  }
+  if (input.notes != null && (typeof input.notes !== "string" || input.notes.length > 2000)) return { ok: false, error: "Order notes are too long." };
 
-  const supabase = await createClient();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "");
+  const voiceNotePrefix = supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/customer-order-attachments/${input.orgId}/` : null;
+  if (input.voiceNoteUrl != null && (typeof input.voiceNoteUrl !== "string" || !voiceNotePrefix || !input.voiceNoteUrl.startsWith(voiceNotePrefix))) {
+    return { ok: false, error: "The voice note attachment is invalid. Please record it again." };
+  }
 
+  const supabase = createAdminClient();
   const [{ data: settings }, { data: org }] = await Promise.all([
     supabase.from("customer_portal_settings").select("*").eq("org_id", input.orgId).maybeSingle(),
     supabase.from("organizations").select("currency").eq("id", input.orgId).maybeSingle(),
   ]);
 
-  if (!settings || !isPortalActive({
+  if (!settings || !org || !isPortalActive({
     isEnabled: settings.is_enabled,
     scheduleEnabled: settings.schedule_enabled ?? false,
     activeFrom: settings.active_from?.slice(0, 5) ?? "00:00",
@@ -226,125 +250,35 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     scheduleTimezone: settings.schedule_timezone ?? "UTC",
   })) return { ok: false, error: "Ordering is currently unavailable." };
 
-  // If customer location selection is enabled and required, validate location
-  let assignedLocationId: string | null = null;
-  let branchName: string | null = null;
-  if (settings.allow_customer_location_selection && input.locationId) {
-    assignedLocationId = input.locationId;
-    const { data: loc } = await supabase.from("business_locations").select("name").eq("id", input.locationId).maybeSingle();
-    branchName = loc?.name ?? null;
-  }
-
-  // Try to match an existing customer record by phone
-  const { data: existingCustomer } = await supabase
-    .from("customers")
-    .select("id")
-    .eq("org_id", input.orgId)
-    .eq("phone", input.guestPhone.trim())
-    .maybeSingle();
-
-  const subtotal = input.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
-  const total = subtotal + Math.max(0, input.deliveryFee);
-
-  // Generate formatted order number
-  const today = new Date();
-  const dateStr = `${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
-  const randomSuffix = Math.floor(100 + Math.random() * 900);
-  const orderNumber = `ORD-${dateStr}-${randomSuffix}`;
-
-    const baseOrderPayload = {
-    org_id: input.orgId,
-    order_number: orderNumber,
-    customer_id: existingCustomer?.id ?? null,
-    guest_name: input.guestName.trim(),
-    guest_phone: input.guestPhone.trim(),
-    guest_email: input.guestEmail?.trim() || null,
-    delivery_address: input.deliveryAddress.trim(),
-    delivery_option: input.deliveryOption,
-    delivery_fee: Math.max(0, input.deliveryFee),
-    notes: input.notes?.trim() || null,
-    subtotal,
-    total,
-    status: "new" as const,
-    payment_status: "unpaid" as const,
-    delivery_status: "not_shipped" as const,
-    location_id: assignedLocationId,
-  };
-
-  let order: { id: string; order_number: string; access_token: string } | null = null;
-  let orderError: { message: string } | null = null;
-
-  if (input.voiceNoteUrl) {
-    const attempt = await supabase
-      .from("customer_orders")
-      .insert({ ...baseOrderPayload, voice_note_url: input.voiceNoteUrl })
-      .select("id, order_number, access_token")
-      .single();
-
-    if (attempt.error && /voice_note_url/i.test(attempt.error.message)) {
-      const fallback = await supabase
-        .from("customer_orders")
-        .insert(baseOrderPayload)
-        .select("id, order_number, access_token")
-        .single();
-      order = fallback.data;
-      orderError = fallback.error;
-    } else {
-      order = attempt.data;
-      orderError = attempt.error;
-    }
-  } else {
-    const attempt = await supabase
-      .from("customer_orders")
-      .insert(baseOrderPayload)
-      .select("id, order_number, access_token")
-      .single();
-    order = attempt.data;
-    orderError = attempt.error;
-  }
-
-  if (orderError || !order) return { ok: false, error: orderError?.message ?? "Couldn't create order." };
-
-  const { error: itemsError } = await supabase.from("customer_order_items").insert(
-    input.items.map((i) => ({
-      order_id: order.id,
-      org_id: input.orgId,
-      product_id: i.productId,
-      product_name: i.productName,
-      quantity: i.quantity,
-      unit_price: i.unitPrice,
-      line_total: i.quantity * i.unitPrice,
-    }))
-  );
-  if (itemsError) {
-    await supabase.from("customer_orders").delete().eq("id", order.id);
-    return { ok: false, error: itemsError.message };
-  }
-
-  // Create initial timeline event
-  await supabase.from("customer_order_timeline").insert({
-    order_id: order.id,
-    org_id: input.orgId,
-    title: "Order Created",
-    actor_name: input.guestName.trim(),
-    status: "completed",
-    notes: assignedLocationId ? `Submitted with branch selection: ${branchName}` : "Submitted to Admin review queue",
+  const { data: orders, error } = await supabase.rpc("place_customer_portal_order", {
+    p_org_id: input.orgId,
+    p_guest_name: input.guestName.trim(),
+    p_guest_phone: input.guestPhone.trim(),
+    p_guest_email: input.guestEmail?.trim() || null,
+    p_delivery_address: input.deliveryAddress.trim(),
+    p_delivery_option: settings.allow_customer_select_delivery ? input.deliveryOption : null,
+    p_location_id: settings.allow_customer_location_selection ? input.locationId || null : null,
+    p_notes: input.notes?.trim() || null,
+    p_voice_note_url: input.voiceNoteUrl || null,
+    p_items: input.items.map(({ productId, quantity }) => ({ product_id: productId, quantity })),
   });
 
-  // Trigger notifications
+  const order = orders?.[0];
+  if (error || !order) return { ok: false, error: error?.message ?? "Couldn't create order." };
+
   await notifyNewCustomerOrder({
     orgId: input.orgId,
-    orderId: order.id,
+    orderId: order.order_id,
     orderNumber: order.order_number,
     customerName: input.guestName.trim(),
-    total,
+    total: order.total,
     currency: org?.currency ?? "GHS",
-    locationId: assignedLocationId,
-    branchName,
+    locationId: settings.allow_customer_location_selection ? input.locationId || null : null,
+    branchName: order.branch_name,
     customerPhone: input.guestPhone.trim(),
     customerEmail: input.guestEmail?.trim() || null,
-    sendEmail: settings?.send_email_notifications,
-    sendWhatsApp: settings?.send_whatsapp_notifications,
+    sendEmail: settings.send_email_notifications,
+    sendWhatsApp: settings.send_whatsapp_notifications,
   });
 
   return { ok: true, orderNumber: order.order_number, accessToken: order.access_token };

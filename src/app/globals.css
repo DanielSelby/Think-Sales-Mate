@@ -623,6 +623,10 @@ html.dark .dashboard-motion .flip-face:not([style]) {
   background-color: #0f1d2d !important;
 }
 
+html.dark .dashboard-motion .sales-today-kpi-icon {
+  background-color: #fff !important;
+}
+
 .dashboard-motion .rounded-card:hover {
   box-shadow: 0 14px 30px rgb(15 23 42 / 0.10);
 }

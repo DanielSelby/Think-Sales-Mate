@@ -555,6 +555,9 @@ export function CheckoutView({
                     <span className="text-ink-900 dark:text-white">Estimated Total</span>
                     <span className="font-mono text-signal">{formatCurrency(total, currency)}</span>
                   </div>
+                  <p className="text-[11px] text-ledger-400">
+                    Tax, if applicable, will be confirmed by the store during order review.
+                  </p>
                 </div>
               ) : (
                 <div className="flex items-start gap-2 rounded-lg bg-amber-soft p-3 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
@@ -578,7 +581,7 @@ export function CheckoutView({
               </button>
 
               <p className="text-center text-[11px] text-ledger-400">
-                Your order will be instantly submitted for review, stock reservation, and branch dispatch.
+                Your order will be submitted for review. Stock and fulfillment details are confirmed by the store.
               </p>
             </div>
           </div>

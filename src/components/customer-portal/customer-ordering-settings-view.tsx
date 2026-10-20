@@ -405,18 +405,9 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
                 </p>
               </div>
             )}
-            <ToggleRow
-              label="Require Customer Account"
-              description="Require customers to create or log in to an account before submitting orders."
-              checked={settings.requireCustomerAccount}
-              onChange={(v) => patch("requireCustomerAccount", v)}
-            />
-            <ToggleRow
-              label="Allow Guest Orders"
-              description="Allow visitors to place orders immediately with just their name, phone, and address without an account."
-              checked={settings.allowGuestOrders}
-              onChange={(v) => patch("allowGuestOrders", v)}
-            />
+            <p className="rounded-lg border border-ledger-100 bg-ledger-50/50 p-3 text-xs text-ledger-600 dark:border-ledger-700 dark:bg-white/[0.02] dark:text-ledger-300">
+              Customer sign-in and account creation are not available yet. The storefront currently uses guest checkout with contact details.
+            </p>
             <ToggleRow
               label="Allow Customers to View Order Status"
               description="Provide customers with a live order tracking URL to monitor review, picking, and delivery stages."

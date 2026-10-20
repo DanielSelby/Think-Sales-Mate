@@ -112,6 +112,7 @@ export function KpiFlipCard({
             <div
               className={cn(
                 "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                featured && "sales-today-kpi-icon",
                 featured
                   ? "bg-white text-white"
                   : style.badge

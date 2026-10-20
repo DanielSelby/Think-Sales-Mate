@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface TrackedOrderItem {
   productName: string;
@@ -50,7 +50,8 @@ export interface TrackedOrder {
 }
 
 export async function trackOrder(token: string): Promise<TrackedOrder | null> {
-  const supabase = await createClient();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)) return null;
+  const supabase = createAdminClient();
 
   const { data: order } = await supabase
     .from("customer_orders")
@@ -110,30 +111,18 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
 }
 
 export async function confirmOrderReceived(token: string, feedback: string) {
-  const supabase = await createClient();
-  const { data: order } = await supabase
-    .from("customer_orders")
-    .select("id, org_id, status, customer_received_at")
-    .eq("access_token", token)
-    .maybeSingle();
-  if (!order) return { error: "This tracking link is invalid or expired." };
-  if (order.customer_received_at) return { error: "This order has already been marked as received." };
-  if (order.status !== "completed") return { error: "The order can only be confirmed after delivery." };
-
-  const receivedAt = new Date().toISOString();
-  const { error } = await supabase
-    .from("customer_orders")
-    .update({ customer_received_at: receivedAt, customer_feedback: feedback.trim() || null })
-    .eq("id", order.id)
-    .eq("access_token", token);
-  if (error) return { error: error.message };
-  await supabase.from("customer_order_timeline").insert({
-    order_id: order.id,
-    org_id: order.org_id,
-    title: "Order Received",
-    actor_name: "Customer",
-    status: "received",
-    notes: feedback.trim() || "Customer confirmed receipt.",
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)) {
+    return { error: "This tracking link is invalid or expired." };
+  }
+  const supabase = createAdminClient();
+  const { data: result, error } = await supabase.rpc("confirm_customer_portal_order_received", {
+    p_access_token: token,
+    p_feedback: feedback.trim().slice(0, 1000) || null,
   });
+  if (error) return { error: "We couldn't confirm receipt right now. Please try again." };
+  if (result === "invalid") return { error: "This tracking link is invalid or expired." };
+  if (result === "already_received") return { error: "This order has already been marked as received." };
+  if (result === "not_completed") return { error: "The order can only be confirmed after delivery." };
+  if (result !== "success") return { error: "We couldn't confirm receipt right now. Please try again." };
   return { success: true };
 }

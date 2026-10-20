@@ -583,7 +583,7 @@ export function BrowseView({
                 </p>
               </div>
             ) : view === "grid" ? (
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4 2xl:grid-cols-5 2xl:gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 2xl:grid-cols-5 2xl:gap-2">
 
                 {filtered.map((product) => (
                   <ProductCard
@@ -782,11 +782,6 @@ export function BrowseView({
                     )}
                   </div>
 
-                  <div className="flex justify-between text-ledger-500">
-                    <span>Tax</span>
-                    <span>--</span>
-                  </div>
-
                   <div className="flex justify-between border-t border-ledger-100 pt-2.5 text-sm font-bold dark:border-ledger-800">
                     <span className="text-ink-900 dark:text-white">
                       Total
@@ -927,6 +922,8 @@ function ProductCard({
   showPrices: boolean;
   onAdd: () => void;
 }) {
+  const isOutOfStock = product.stockQuantity <= 0;
+
   return (
     <article className="group overflow-hidden rounded-xl border border-ledger-200 bg-white transition-all hover:-translate-y-0.5 hover:border-ledger-300 hover:shadow-md dark:border-ledger-800 dark:bg-ink-900">
 
@@ -975,11 +972,11 @@ function ProductCard({
         <button
           type="button"
           onClick={onAdd}
-          className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-md bg-signal text-[10px] font-semibold text-white transition hover:bg-signal/90 sm:mt-2.5 sm:gap-1.5 sm:text-[11px] 2xl:mt-1.5"
+          disabled={isOutOfStock}
+          className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-md bg-signal text-[10px] font-semibold text-white transition hover:bg-signal/90 disabled:cursor-not-allowed disabled:opacity-40 sm:mt-2.5 sm:gap-1.5 sm:text-[11px] 2xl:mt-1.5"
         >
           <Plus className="h-3.5 w-3.5" />
-
-          Add to Cart
+          {isOutOfStock ? "Sold Out" : "Add to Cart"}
         </button>
       </div>
     </article>
