@@ -2493,6 +2493,9 @@ export interface Database {
           account_requirement: CustomerAccountRequirement;
           require_approval_before_processing: boolean;
           allow_customer_select_delivery: boolean;
+          standard_delivery_fee: number;
+          express_delivery_fee: number;
+          pickup_delivery_fee: number;
           allow_order_notes: boolean;
           allow_view_order_status: boolean;
           allow_create_account: boolean;
@@ -2521,6 +2524,9 @@ export interface Database {
           account_requirement?: CustomerAccountRequirement;
           require_approval_before_processing?: boolean;
           allow_customer_select_delivery?: boolean;
+          standard_delivery_fee?: number;
+          express_delivery_fee?: number;
+          pickup_delivery_fee?: number;
           allow_order_notes?: boolean;
           allow_view_order_status?: boolean;
           allow_create_account?: boolean;

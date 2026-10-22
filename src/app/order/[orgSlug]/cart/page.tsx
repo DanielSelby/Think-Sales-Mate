@@ -24,6 +24,9 @@ export default async function CartPage({ params }: { params: Promise<{ orgSlug: 
       currency={context.currency}
       showPrices={context.showPrices}
       allowSelectDelivery={context.allowCustomerSelectDelivery}
+      standardDeliveryFee={context.standardDeliveryFee}
+      expressDeliveryFee={context.expressDeliveryFee}
+      pickupDeliveryFee={context.pickupDeliveryFee}
       allowNotes={context.allowOrderNotes}
       allowLocationSelection={context.allowCustomerLocationSelection}
       locations={locations}

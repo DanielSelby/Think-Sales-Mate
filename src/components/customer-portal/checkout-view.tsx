@@ -18,16 +18,13 @@ interface CheckoutViewProps {
   currency: string;
   showPrices: boolean;
   allowSelectDelivery: boolean;
+  standardDeliveryFee: number;
+  expressDeliveryFee: number;
+  pickupDeliveryFee: number;
   allowNotes: boolean;
   allowLocationSelection: boolean;
   locations: StorefrontLocation[];
 }
-
-const DELIVERY_OPTIONS = [
-  { label: "Standard Delivery", fee: 5 },
-  { label: "Express Delivery", fee: 15 },
-  { label: "Pickup / In-Store Collection", fee: 0 },
-];
 
 function formatSeconds(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);
@@ -43,6 +40,9 @@ export function CheckoutView({
   currency,
   showPrices,
   allowSelectDelivery,
+  standardDeliveryFee,
+  expressDeliveryFee,
+  pickupDeliveryFee,
   allowNotes,
   allowLocationSelection,
   locations,
@@ -53,7 +53,12 @@ export function CheckoutView({
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [address, setAddress] = React.useState("");
-  const [deliveryOption, setDeliveryOption] = React.useState(DELIVERY_OPTIONS[0].label);
+  const deliveryOptions = React.useMemo(() => [
+    { label: "Standard Delivery", fee: standardDeliveryFee },
+    { label: "Express Delivery", fee: expressDeliveryFee },
+    { label: "Pickup / In-Store Collection", fee: pickupDeliveryFee },
+  ], [standardDeliveryFee, expressDeliveryFee, pickupDeliveryFee]);
+  const [deliveryOption, setDeliveryOption] = React.useState("Standard Delivery");
   const [notes, setNotes] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [selectedLocationId, setSelectedLocationId] = React.useState<string>(locations[0]?.id ?? "");
@@ -74,7 +79,7 @@ export function CheckoutView({
   const playbackAudioRef = React.useRef<HTMLAudioElement | null>(null);
   const mediaStreamRef = React.useRef<MediaStream | null>(null);
 
-  const deliveryFee = DELIVERY_OPTIONS.find((d) => d.label === deliveryOption)?.fee ?? 0;
+  const deliveryFee = deliveryOptions.find((d) => d.label === deliveryOption)?.fee ?? standardDeliveryFee;
   const total = cart.subtotal + (allowSelectDelivery ? deliveryFee : 0);
 
   const filteredLocations = React.useMemo(() => {
@@ -204,7 +209,6 @@ export function CheckoutView({
         guestEmail: email ? email.trim() : null,
         deliveryAddress: address,
         deliveryOption: allowSelectDelivery ? deliveryOption : null,
-        deliveryFee: allowSelectDelivery ? deliveryFee : 0,
         notes: combinedNotes,voiceNoteUrl,
         locationId: allowLocationSelection ? selectedLocationId || null : null,
         items: cart.items.map((i) => ({
@@ -461,7 +465,7 @@ export function CheckoutView({
                     onChange={(e) => setDeliveryOption(e.target.value)}
                     className="h-9 w-full rounded-md border border-ledger-200 bg-white px-3 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-signal dark:border-ledger-700 dark:bg-ink-800 dark:text-white"
                   >
-                    {DELIVERY_OPTIONS.map((d) => (
+                    {deliveryOptions.map((d) => (
                       <option key={d.label} value={d.label}>
                         {d.label} {showPrices ? `(${formatCurrency(d.fee, currency)})` : ""}
                       </option>

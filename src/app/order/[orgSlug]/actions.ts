@@ -20,6 +20,9 @@ export interface PortalContext {
   showPrices: boolean;
   accountRequirement: "optional" | "required" | "guest_only";
   allowCustomerSelectDelivery: boolean;
+  standardDeliveryFee: number;
+  expressDeliveryFee: number;
+  pickupDeliveryFee: number;
   allowOrderNotes: boolean;
   allowViewOrderStatus: boolean;
   allowCreateAccount: boolean;
@@ -71,6 +74,9 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
     showPrices: settings?.show_prices_to_customers ?? true,
     accountRequirement: settings?.account_requirement ?? "optional",
     allowCustomerSelectDelivery: settings?.allow_customer_select_delivery ?? true,
+    standardDeliveryFee: settings?.standard_delivery_fee ?? 5,
+    expressDeliveryFee: settings?.express_delivery_fee ?? 15,
+    pickupDeliveryFee: settings?.pickup_delivery_fee ?? 0,
     allowOrderNotes: settings?.allow_order_notes ?? true,
     allowViewOrderStatus: settings?.allow_view_order_status ?? true,
     allowCreateAccount: settings?.allow_create_account ?? true,
@@ -192,7 +198,6 @@ export interface PlaceOrderInput {
   guestEmail: string | null;
   deliveryAddress: string;
   deliveryOption: string | null;
-  deliveryFee: number;
   notes: string | null;
   voiceNoteUrl?: string | null;
   locationId?: string | null;

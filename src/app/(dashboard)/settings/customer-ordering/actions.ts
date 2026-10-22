@@ -17,6 +17,9 @@ export interface PortalSettings {
   accountRequirement: CustomerAccountRequirement;
   requireApprovalBeforeProcessing: boolean;
   allowCustomerSelectDelivery: boolean;
+  standardDeliveryFee: number;
+  expressDeliveryFee: number;
+  pickupDeliveryFee: number;
   allowOrderNotes: boolean;
   allowViewOrderStatus: boolean;
   allowCreateAccount: boolean;
@@ -44,6 +47,9 @@ export async function getPortalSettings(): Promise<PortalSettings> {
     accountRequirement: "optional",
     requireApprovalBeforeProcessing: true,
     allowCustomerSelectDelivery: true,
+    standardDeliveryFee: 5,
+    expressDeliveryFee: 15,
+    pickupDeliveryFee: 0,
     allowOrderNotes: true,
     allowViewOrderStatus: true,
     allowCreateAccount: true,
@@ -76,6 +82,9 @@ export async function getPortalSettings(): Promise<PortalSettings> {
     accountRequirement: data.account_requirement ?? defaults.accountRequirement,
     requireApprovalBeforeProcessing: data.require_approval_before_processing ?? defaults.requireApprovalBeforeProcessing,
     allowCustomerSelectDelivery: data.allow_customer_select_delivery ?? defaults.allowCustomerSelectDelivery,
+    standardDeliveryFee: data.standard_delivery_fee ?? defaults.standardDeliveryFee,
+    expressDeliveryFee: data.express_delivery_fee ?? defaults.expressDeliveryFee,
+    pickupDeliveryFee: data.pickup_delivery_fee ?? defaults.pickupDeliveryFee,
     allowOrderNotes: data.allow_order_notes ?? defaults.allowOrderNotes,
     allowViewOrderStatus: data.allow_view_order_status ?? defaults.allowViewOrderStatus,
     allowCreateAccount: data.allow_create_account ?? defaults.allowCreateAccount,
@@ -105,6 +114,12 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
   const allowedColorThemes = ["green", "navy", "teal", "plum", "fintech", "royal", "harvest", "eclipse"] as const;
   if (!allowedColorThemes.includes(settings.portalColorTheme)) {
     return { ok: false, error: "Please select a valid customer portal color theme." };
+  }
+  const maxDeliveryFee = 9_999_999_999.99;
+  if ([settings.standardDeliveryFee, settings.expressDeliveryFee, settings.pickupDeliveryFee].some(
+    (fee) => !Number.isFinite(fee) || fee < 0 || fee > maxDeliveryFee || Math.abs(Math.round(fee * 100) - fee * 100) > 1e-8
+  )) {
+    return { ok: false, error: "Delivery fees must be valid amounts with no more than two decimal places." };
   }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -138,6 +153,9 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
       account_requirement: settings.accountRequirement,
       require_approval_before_processing: settings.requireApprovalBeforeProcessing,
       allow_customer_select_delivery: settings.allowCustomerSelectDelivery,
+      standard_delivery_fee: settings.standardDeliveryFee,
+      express_delivery_fee: settings.expressDeliveryFee,
+      pickup_delivery_fee: settings.pickupDeliveryFee,
       allow_order_notes: settings.allowOrderNotes,
       allow_view_order_status: settings.allowViewOrderStatus,
       allow_create_account: settings.allowCreateAccount,

@@ -22,7 +22,7 @@ export default async function CustomerOrderingSettingsPage() {
 
   const supabase = await createClient();
   const [{ data: org }, { data: companyProfile }] = await Promise.all([
-    supabase.from("organizations").select("slug").eq("id", context.orgId).single(),
+    supabase.from("organizations").select("slug, currency").eq("id", context.orgId).single(),
     supabase.from("company_profile").select("company_name, description, website, business_email, business_phone, contact_email, contact_phone, logo_url").eq("org_id", context.orgId).maybeSingle(),
   ]);
 
@@ -38,5 +38,5 @@ export default async function CustomerOrderingSettingsPage() {
   const siteUrl = (host ? `${protocol}://${host}` : configuredSiteUrl) || "https://yourapp.com";
   const portalUrl = `${siteUrl}/order/${org?.slug ?? context.orgId}`;
 
-  return <CustomerOrderingSettingsView initial={settings} portalUrl={portalUrl} companyProfile={companyProfile} />;
+  return <CustomerOrderingSettingsView initial={settings} portalUrl={portalUrl} currency={org?.currency ?? "GHS"} companyProfile={companyProfile} />;
 }

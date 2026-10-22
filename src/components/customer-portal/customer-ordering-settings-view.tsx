@@ -12,6 +12,7 @@ import { TransactionFeedback } from "@/components/transactions/transaction-feedb
 interface SettingsViewProps {
   initial: PortalSettings;
   portalUrl: string;
+  currency: string;
   companyProfile: {
     company_name: string | null;
     description: string | null;
@@ -24,9 +25,14 @@ interface SettingsViewProps {
   } | null;
 }
 
-export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfile }: SettingsViewProps) {
+export function CustomerOrderingSettingsView({ initial, portalUrl, currency, companyProfile }: SettingsViewProps) {
   const router = useRouter();
   const [settings, setSettings] = React.useState<PortalSettings>(initial);
+  const [deliveryFeeDrafts, setDeliveryFeeDrafts] = React.useState({
+    standard: String(initial.standardDeliveryFee),
+    express: String(initial.expressDeliveryFee),
+    pickup: String(initial.pickupDeliveryFee),
+  });
   const [isPending, startTransition] = React.useTransition();
   const [notice, setNotice] = React.useState<{ text: string; type: "success" | "error" } | null>(null);
   const [copied, setCopied] = React.useState(false);
@@ -47,8 +53,20 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
   }
 
   function save() {
+    const fees = {
+      standardDeliveryFee: Number(deliveryFeeDrafts.standard),
+      expressDeliveryFee: Number(deliveryFeeDrafts.express),
+      pickupDeliveryFee: Number(deliveryFeeDrafts.pickup),
+    };
+    if (
+      Object.values(deliveryFeeDrafts).some((value) => value.trim() === "") ||
+      Object.values(fees).some((fee) => !Number.isFinite(fee) || fee < 0 || fee > 9_999_999_999.99 || Math.abs(Math.round(fee * 100) - fee * 100) > 1e-8)
+    ) {
+      setNotice({ text: "Enter valid delivery fees with no more than two decimal places.", type: "error" });
+      return;
+    }
     startTransition(async () => {
-      const result = await updatePortalSettings(settings);
+      const result = await updatePortalSettings({ ...settings, ...fees });
       if (!result.ok) {
         setNotice({ text: result.error ?? "Failed to save settings.", type: "error" });
         return;
@@ -450,6 +468,29 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, companyProfil
               checked={settings.allowCustomerSelectDelivery}
               onChange={(v) => patch("allowCustomerSelectDelivery", v)}
             />
+            <div className="rounded-lg border border-ledger-100 bg-ledger-50/50 p-4 dark:border-ledger-700 dark:bg-white/[0.02]">
+              <p className="text-sm font-medium text-ink-900 dark:text-white">Delivery fees ({currency})</p>
+              <p className="mt-0.5 text-xs text-ledger-500 dark:text-ledger-400">
+                These fees are applied by the server and included in the order total. Use 0 for free delivery or pickup.
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <DeliveryFeeInput
+                  label="Standard delivery"
+                  value={deliveryFeeDrafts.standard}
+                  onChange={(value) => setDeliveryFeeDrafts((current) => ({ ...current, standard: value }))}
+                />
+                <DeliveryFeeInput
+                  label="Express delivery"
+                  value={deliveryFeeDrafts.express}
+                  onChange={(value) => setDeliveryFeeDrafts((current) => ({ ...current, express: value }))}
+                />
+                <DeliveryFeeInput
+                  label="Pickup / collection"
+                  value={deliveryFeeDrafts.pickup}
+                  onChange={(value) => setDeliveryFeeDrafts((current) => ({ ...current, pickup: value }))}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -545,5 +586,31 @@ function ToggleRow({
         />
       </button>
     </div>
+  );
+}
+
+function DeliveryFeeInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block text-xs font-medium text-ledger-600 dark:text-ledger-300">
+      {label}
+      <input
+        type="number"
+        min="0"
+        max="9999999999.99"
+        step="0.01"
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 block h-9 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 outline-none focus:border-signal dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+      />
+    </label>
   );
 }
