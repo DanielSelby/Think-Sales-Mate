@@ -627,6 +627,8 @@ export interface Database {
           registration_no: string | null;
           business_email: string | null;
           business_phone: string | null;
+          whatsapp_business_number: string | null;
+          customer_portal_whatsapp_message: string | null;
           website: string | null;
           tin: string | null;
           description: string | null;
@@ -669,6 +671,8 @@ export interface Database {
           registration_no?: string | null;
           business_email?: string | null;
           business_phone?: string | null;
+          whatsapp_business_number?: string | null;
+          customer_portal_whatsapp_message?: string | null;
           website?: string | null;
           tin?: string | null;
           description?: string | null;

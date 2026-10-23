@@ -9,12 +9,15 @@ import { useCart } from "@/components/customer-portal/cart-context";
 import { placeOrder, uploadVoiceNote, type StorefrontLocation } from "@/app/order/[orgSlug]/actions";
 import { cn } from "@/lib/utils";
 import { RefreshButton } from "@/components/refresh-button";
+import { WhatsAppContactLink } from "@/components/customer-portal/whatsapp-contact-link";
 
 interface CheckoutViewProps {
   orgSlug: string;
   orgId: string;
   orgName: string;
   customerPortalHeroUrl: string | null;
+  whatsappBusinessNumber: string | null;
+  customerPortalWhatsAppMessage: string | null;
   currency: string;
   showPrices: boolean;
   allowSelectDelivery: boolean;
@@ -37,6 +40,8 @@ export function CheckoutView({
   orgId,
   orgName,
   customerPortalHeroUrl,
+  whatsappBusinessNumber,
+  customerPortalWhatsAppMessage,
   currency,
   showPrices,
   allowSelectDelivery,
@@ -241,6 +246,11 @@ export function CheckoutView({
       >
         <ArrowLeft className="h-4 w-4" /> Back to Storefront
       </Link>
+      <WhatsAppContactLink
+        phoneNumber={whatsappBusinessNumber}
+        message={customerPortalWhatsAppMessage}
+        className="mb-4 ml-4 inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1ebe5d]"
+      />
 
       <div className="relative mb-7 min-h-[230px] overflow-hidden rounded-2xl border border-[#dceee2] bg-[#eaf7ee] shadow-[0_18px_45px_rgba(36,108,72,0.1)]">
         <img src={customerPortalHeroUrl ?? "/customer-portal-hero.jpeg"} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-right" />

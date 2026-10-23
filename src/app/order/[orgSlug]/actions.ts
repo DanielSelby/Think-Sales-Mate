@@ -10,6 +10,8 @@ export interface PortalContext {
   orgId: string;
   orgName: string;
   organizationPhone: string | null;
+  whatsappBusinessNumber: string | null;
+  customerPortalWhatsAppMessage: string | null;
   companyLogoUrl: string | null;
   customerPortalHeroUrl: string | null;
   systemLogoUrl: string | null;
@@ -46,7 +48,7 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
     .maybeSingle();
   if (!org) return null;
   const [{ data: companyProfile }, systemLogoUrl] = await Promise.all([
-    publicSupabase.from("company_profile").select("business_phone, contact_phone, logo_url, customer_portal_hero_url").eq("org_id", org.id).maybeSingle(),
+    publicSupabase.from("company_profile").select("business_phone, contact_phone, whatsapp_business_number, customer_portal_whatsapp_message, logo_url, customer_portal_hero_url").eq("org_id", org.id).maybeSingle(),
     getPlatformSystemLogo().catch(() => null),
   ]);
 
@@ -56,6 +58,8 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
     orgId: org.id,
     orgName: org.name,
     organizationPhone: companyProfile?.contact_phone || companyProfile?.business_phone || null,
+    whatsappBusinessNumber: companyProfile?.whatsapp_business_number ?? null,
+    customerPortalWhatsAppMessage: companyProfile?.customer_portal_whatsapp_message ?? null,
     companyLogoUrl: companyProfile?.logo_url ?? null,
     customerPortalHeroUrl: companyProfile?.customer_portal_hero_url ?? null,
     systemLogoUrl,

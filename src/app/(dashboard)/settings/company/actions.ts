@@ -23,6 +23,8 @@ export interface CompanyProfileFields {
   industry?: string;
   businessEmail: string;
   businessPhone: string;
+  whatsappBusinessNumber?: string;
+  customerPortalWhatsAppMessage?: string;
   website?: string;
   tin?: string;
   description?: string;
@@ -58,6 +60,15 @@ export async function saveCompanyProfile(fields: CompanyProfileFields) {
 
   if (!fields.companyName.trim()) return { error: "Company name is required." };
   if (!fields.businessEmail.trim()) return { error: "Business email is required." };
+  const rawWhatsAppNumber = fields.whatsappBusinessNumber?.trim() ?? "";
+  const normalizedWhatsAppNumber = rawWhatsAppNumber.replace(/[\s().-]/g, "");
+  if (normalizedWhatsAppNumber && !/^\+?[1-9]\d{7,14}$/.test(normalizedWhatsAppNumber)) {
+    return { error: "Enter the WhatsApp number with its country code, such as +15551234567." };
+  }
+  const customerPortalWhatsAppMessage = fields.customerPortalWhatsAppMessage?.trim() ?? "";
+  if (customerPortalWhatsAppMessage.length > 300) {
+    return { error: "The WhatsApp prefilled message must be 300 characters or fewer." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("company_profile").upsert(
@@ -70,6 +81,8 @@ export async function saveCompanyProfile(fields: CompanyProfileFields) {
       industry: fields.industry || null,
       business_email: fields.businessEmail.trim(),
       business_phone: fields.businessPhone || null,
+      whatsapp_business_number: normalizedWhatsAppNumber ? normalizedWhatsAppNumber.replace(/^\+/, "") : null,
+      customer_portal_whatsapp_message: customerPortalWhatsAppMessage || null,
       website: fields.website || null,
       tin: fields.tin || null,
       description: fields.description || null,

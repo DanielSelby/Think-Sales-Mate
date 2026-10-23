@@ -209,6 +209,8 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
         industry: String(formData.get("industry") ?? ""),
         businessEmail,
         businessPhone: String(formData.get("business_phone") ?? ""),
+        whatsappBusinessNumber: String(formData.get("whatsapp_business_number") ?? ""),
+        customerPortalWhatsAppMessage: String(formData.get("customer_portal_whatsapp_message") ?? ""),
         website: String(formData.get("website") ?? ""),
         tin: String(formData.get("tin") ?? ""),
         description,
@@ -367,6 +369,36 @@ export function CompanyProfileForm({ profile, canManage }: { profile: CompanyPro
               <Field label="Designation" name="contact_designation" defaultValue={profile?.contact_designation ?? ""} disabled={!canManage} />
               <Field label="Email" name="contact_email" type="email" defaultValue={profile?.contact_email ?? ""} disabled={!canManage} />
               <Field label="Phone" name="contact_phone" type="tel" defaultValue={profile?.contact_phone ?? ""} disabled={!canManage} />
+            </div>
+          </div>
+
+          <div className={cardClass}>
+            <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Customer portal WhatsApp</h2>
+            <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">
+              Customers can open a direct WhatsApp chat from your storefront and checkout.
+            </p>
+            <div className="mt-4 space-y-4">
+              <Field
+                label="WhatsApp Business number (with country code)"
+                name="whatsapp_business_number"
+                type="tel"
+                defaultValue={profile?.whatsapp_business_number ?? ""}
+                disabled={!canManage}
+              />
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-ledger-500 dark:text-ledger-400">Prefilled chat message</span>
+                <textarea
+                  name="customer_portal_whatsapp_message"
+                  defaultValue={profile?.customer_portal_whatsapp_message ?? ""}
+                  maxLength={300}
+                  rows={3}
+                  disabled={!canManage}
+                  placeholder="Hello, I have a question about your products."
+                  className="w-full rounded-md border border-ledger-200 bg-white px-3 py-2 text-sm disabled:opacity-60 dark:border-ledger-700 dark:bg-ink-900 dark:text-white"
+                />
+                <span className="mt-1 block text-[11px] text-ledger-400">Up to 300 characters. Leave blank to use the default greeting.</span>
+              </label>
+              <p className="text-[11px] text-ledger-400">Enter the full international number, for example +15551234567. The number is saved in WhatsApp link format without punctuation.</p>
             </div>
           </div>
 

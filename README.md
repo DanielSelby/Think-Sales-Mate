@@ -91,6 +91,12 @@ tracking link. The customer-ordering setting **Send Email Notifications**
 controls these messages. Delivery results are recorded with the order
 notifications; failed deliveries are logged and marked as failed.
 
+To show a WhatsApp contact link on the customer storefront and checkout, apply
+`supabase/migrations/20261023220000_customer_portal_whatsapp_contact.sql`.
+Organizations can then configure their WhatsApp Business number and prefilled
+chat message under **Settings → Company Information**. The number must include
+its international country code.
+
 The AI Assistant migration adds metadata-only usage events and atomic database
 request limits (20 requests per user per hour and 300 requests per organization
 per day). It does not store chat messages. Chat context exists only in the

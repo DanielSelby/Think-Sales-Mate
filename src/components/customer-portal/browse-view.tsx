@@ -37,11 +37,14 @@ import { useCart } from "@/components/customer-portal/cart-context";
 import type { CatalogProduct } from "@/app/order/[orgSlug]/actions";
 import { TrackOrderLink } from "@/components/customer-portal/track-order-link";
 import { RefreshButton } from "@/components/refresh-button";
+import { WhatsAppContactLink } from "@/components/customer-portal/whatsapp-contact-link";
 
 interface BrowseViewProps {
   orgSlug: string;
   orgName: string;
   organizationPhone: string | null;
+  whatsappBusinessNumber: string | null;
+  customerPortalWhatsAppMessage: string | null;
   companyLogoUrl: string | null;
   customerPortalHeroUrl: string | null;
   systemLogoUrl: string | null;
@@ -75,6 +78,8 @@ export function BrowseView({
   orgSlug,
   orgName,
   organizationPhone,
+  whatsappBusinessNumber,
+  customerPortalWhatsAppMessage,
   companyLogoUrl,
   customerPortalHeroUrl,
   systemLogoUrl,
@@ -180,6 +185,12 @@ export function BrowseView({
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
             <TrackOrderLink orgSlug={orgSlug} />
+            <WhatsAppContactLink
+              phoneNumber={whatsappBusinessNumber}
+              message={customerPortalWhatsAppMessage}
+              label="WhatsApp"
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[#25D366] px-3 text-xs font-semibold text-white transition hover:bg-[#1ebe5d] sm:px-4"
+            />
             <div className="relative xl:hidden">
               <button
                 type="button"
@@ -324,6 +335,13 @@ export function BrowseView({
                       <a href={`tel:${organizationPhone}`} className="mt-1.5 block text-[11px] font-semibold text-signal">
                         {organizationPhone}
                       </a>
+                    )}
+                    {whatsappBusinessNumber && (
+                      <WhatsAppContactLink
+                        phoneNumber={whatsappBusinessNumber}
+                        message={customerPortalWhatsAppMessage}
+                        className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#168a43] hover:underline dark:text-emerald-400"
+                      />
                     )}
                   </div>
                 </div>
