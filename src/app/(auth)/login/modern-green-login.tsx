@@ -15,11 +15,12 @@ export function isLoginArtworkVideo(url: string) {
   }
 }
 
-export function LoginArtwork({ url, className, poster = "/login/modern-green-artwork.jpeg", showControlsWhenReducedMotion = true }: {
+export function LoginArtwork({ url, className, poster = "/login/modern-green-artwork.jpeg", showControlsWhenReducedMotion = true, style }: {
   url: string;
   className: string;
   poster?: string;
   showControlsWhenReducedMotion?: boolean;
+  style?: React.CSSProperties;
 }) {
   const [reducedMotion, setReducedMotion] = useState(true);
   const isVideo = isLoginArtworkVideo(url);
@@ -33,13 +34,14 @@ export function LoginArtwork({ url, className, poster = "/login/modern-green-art
   }, []);
 
   if (!isVideo) {
-    return <img src={url} alt="ThinkSales Pro login artwork" className={className} />;
+    return <img src={url} alt="ThinkSales Pro login artwork" className={className} style={style} />;
   }
 
   return (
     <video
       aria-label="ThinkSales Pro login artwork"
       className={className}
+      style={style}
       autoPlay={!reducedMotion}
       loop={!reducedMotion}
       muted
@@ -240,6 +242,7 @@ export function ModernGreenLogin({
   device = "desktop",
   artworkUrl = null,
   backgroundArtworkUrl = null,
+  backgroundArtworkVisibility = 100,
   loginFormTransparent = false,
 }: {
   organizationName?: string | null;
@@ -247,6 +250,7 @@ export function ModernGreenLogin({
   device?: "desktop" | "tablet" | "mobile";
   artworkUrl?: string | null;
   backgroundArtworkUrl?: string | null;
+  backgroundArtworkVisibility?: number;
   loginFormTransparent?: boolean;
 }) {
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
@@ -290,9 +294,13 @@ export function ModernGreenLogin({
               <LoginArtwork
                 url={backgroundArtworkUrl}
                 showControlsWhenReducedMotion={false}
-                className="absolute inset-0 h-full w-full object-cover opacity-30"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ opacity: backgroundArtworkVisibility / 100 }}
               />
-              <div className="absolute inset-0 bg-white/45 dark:bg-slate-950/55" />
+              <div
+                className="absolute inset-0 bg-white dark:bg-slate-950"
+                style={{ opacity: ((100 - backgroundArtworkVisibility) / 100) * 0.45 }}
+              />
             </div>
           )}
           <div className="modern-login-bubbles" aria-hidden="true">

@@ -458,11 +458,18 @@ export async function updateLoginTheme(themeId: string, name: string, descriptio
   revalidatePath("/platform-admin");
 }
 
-export async function updateLoginThemeFormSettings(themeId: string, loginFormTransparent: boolean) {
+export async function updateLoginThemeFormSettings(themeId: string, loginFormTransparent: boolean, backgroundArtworkVisibility: number) {
   const { admin, supabase } = await requirePlatformManagement();
+  if (typeof loginFormTransparent !== "boolean") {
+    throw new Error("Choose whether the login form background is transparent.");
+  }
+  if (typeof backgroundArtworkVisibility !== "number" || !Number.isInteger(backgroundArtworkVisibility)
+    || backgroundArtworkVisibility < 0 || backgroundArtworkVisibility > 100) {
+    throw new Error("Background artwork visibility must be a whole number between 0 and 100.");
+  }
   const { data: theme, error: themeError } = await supabase
     .from("login_themes")
-    .select("name, login_form_transparent, theme_type")
+    .select("name, login_form_transparent, background_artwork_visibility, theme_type")
     .eq("id", themeId)
     .single();
   if (themeError) throw new Error(themeError.message);
@@ -470,7 +477,11 @@ export async function updateLoginThemeFormSettings(themeId: string, loginFormTra
 
   const { error } = await supabase
     .from("login_themes")
-    .update({ login_form_transparent: loginFormTransparent, updated_at: new Date().toISOString() })
+    .update({
+      login_form_transparent: loginFormTransparent,
+      background_artwork_visibility: backgroundArtworkVisibility,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", themeId);
   if (error) throw new Error(error.message);
   const { error: auditError } = await supabase.from("platform_audit_logs").insert({
@@ -481,7 +492,9 @@ export async function updateLoginThemeFormSettings(themeId: string, loginFormTra
       themeId,
       themeName: theme.name,
       previousTransparent: theme.login_form_transparent,
+      previousBackgroundArtworkVisibility: theme.background_artwork_visibility,
       loginFormTransparent,
+      backgroundArtworkVisibility,
     },
   });
   if (auditError) throw new Error(`Form appearance was saved, but its audit record failed: ${auditError.message}`);
@@ -495,7 +508,7 @@ export async function duplicateLoginTheme(themeId: string, name: string) {
   if (!cleanName) throw new Error("Enter a name for the duplicate theme.");
   const { data: source, error: sourceError } = await supabase
     .from("login_themes")
-    .select("description, preview_image, background_artwork, login_form_transparent, theme_type")
+    .select("description, preview_image, background_artwork, background_artwork_visibility, login_form_transparent, theme_type")
     .eq("id", themeId)
     .single();
   if (sourceError) throw new Error(sourceError.message);
@@ -506,9 +519,10 @@ export async function duplicateLoginTheme(themeId: string, name: string) {
     description: source.description,
     preview_image: source.preview_image,
     background_artwork: source.background_artwork,
+    background_artwork_visibility: source.background_artwork_visibility,
     login_form_transparent: source.login_form_transparent,
     theme_type: source.theme_type,
-    is_active: false,
+    is_active: true,
   });
   if (error) throw new Error(error.message);
   const { error: auditError } = await supabase.from("platform_audit_logs").insert({

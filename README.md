@@ -132,6 +132,12 @@ is unlimited. The Platform Admin alert bell receives new platform notifications
 through Supabase Realtime; administrators can enable its synthesized chime from
 the bell menu after a browser interaction.
 
+For Modern Green login themes, apply
+`supabase/platform-migrations/0011_login_theme_form_background.sql` and
+`supabase/platform-migrations/0012_login_theme_background_visibility.sql` to
+the separate Platform Admin database to enable separate form background
+artwork, transparent form surfaces, and artwork visibility settings.
+
 ## Validation
 
 Run these checks before submitting changes:

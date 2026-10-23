@@ -367,6 +367,7 @@ export interface PlatformDatabase {
         description: string;
         preview_image: string | null;
         background_artwork: string | null;
+        background_artwork_visibility: number;
         login_form_transparent: boolean;
         theme_type: string;
         is_active: boolean;
@@ -378,6 +379,7 @@ export interface PlatformDatabase {
         description?: string;
         preview_image?: string | null;
         background_artwork?: string | null;
+        background_artwork_visibility?: number;
         login_form_transparent?: boolean;
         theme_type: string;
         is_active?: boolean;

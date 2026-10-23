@@ -13,6 +13,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         organizationName={experience.organizationName}
         artworkUrl={experience.artworkUrl}
         backgroundArtworkUrl={experience.backgroundArtworkUrl}
+        backgroundArtworkVisibility={experience.backgroundArtworkVisibility}
         loginFormTransparent={experience.loginFormTransparent}
       />
     );

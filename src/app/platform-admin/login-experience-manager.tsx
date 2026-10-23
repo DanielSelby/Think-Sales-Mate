@@ -20,6 +20,7 @@ type LoginTheme = {
   description: string;
   preview_image: string | null;
   background_artwork: string | null;
+  background_artwork_visibility: number;
   login_form_transparent: boolean;
   theme_type: string;
   is_active: boolean;
@@ -84,6 +85,9 @@ export function LoginExperienceManager({
   const [selectedGlobal, setSelectedGlobal] = useState(globalThemeId);
   const [assignments, setAssignments] = useState<Record<string, string>>(
     Object.fromEntries(organizations.map((org) => [org.organization_id, org.use_global_login_theme ? "" : org.login_theme_id ?? ""])),
+  );
+  const [backgroundVisibilityDrafts, setBackgroundVisibilityDrafts] = useState<Record<string, number>>(
+    Object.fromEntries(themes.map((theme) => [theme.id, theme.background_artwork_visibility])),
   );
   const [preview, setPreview] = useState<LoginTheme | null>(null);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
@@ -295,12 +299,13 @@ export function LoginExperienceManager({
                             disabled={busy}
                             onChange={(event) => {
                               const transparent = event.target.checked;
+                              const visibility = backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility;
                               void run(
-                                () => updateLoginThemeFormSettings(theme.id, transparent),
+                                () => updateLoginThemeFormSettings(theme.id, transparent, visibility),
                                 transparent ? "Login form background is transparent." : "Login form background is opaque.",
                               ).then((saved) => {
                                 if (saved) setPreview((current) => current?.id === theme.id
-                                  ? { ...current, login_form_transparent: transparent }
+                                  ? { ...current, login_form_transparent: transparent, background_artwork_visibility: visibility }
                                   : current);
                               });
                             }}
@@ -308,6 +313,52 @@ export function LoginExperienceManager({
                           />
                           <span><span className="block font-semibold">Transparent login form</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">Show the uploaded form background through the login card.</span></span>
                         </label>
+                        <div className="rounded-lg border border-slate-200 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <label htmlFor={`background-visibility-${theme.id}`} className="text-xs font-semibold text-slate-700">Background artwork visibility</label>
+                            <output htmlFor={`background-visibility-${theme.id}`} className="text-xs font-semibold tabular-nums text-emerald-700">
+                              {backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility}%
+                            </output>
+                          </div>
+                          <input
+                            id={`background-visibility-${theme.id}`}
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility}
+                            disabled={busy}
+                            onChange={(event) => {
+                              const visibility = Number(event.target.value);
+                              setBackgroundVisibilityDrafts((drafts) => ({ ...drafts, [theme.id]: visibility }));
+                              setPreview((current) => current?.id === theme.id
+                                ? { ...current, background_artwork_visibility: visibility }
+                                : current);
+                            }}
+                            className="mt-2 w-full accent-emerald-700"
+                          />
+                          <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                            100% shows the original artwork fully clear, with no overlay. Lower values soften it behind the form.
+                          </p>
+                          <button
+                            type="button"
+                            disabled={busy || (backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility) === theme.background_artwork_visibility}
+                            onClick={() => {
+                              const visibility = backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility;
+                              void run(
+                                () => updateLoginThemeFormSettings(theme.id, theme.login_form_transparent, visibility),
+                                "Background artwork visibility saved.",
+                              ).then((saved) => {
+                                if (saved) setPreview((current) => current?.id === theme.id
+                                  ? { ...current, background_artwork_visibility: visibility }
+                                  : current);
+                              });
+                            }}
+                            className="mt-2 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Save visibility
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -357,6 +408,7 @@ export function LoginExperienceManager({
                   device={previewDevice}
                   artworkUrl={preview.preview_image}
                   backgroundArtworkUrl={preview.background_artwork}
+                  backgroundArtworkVisibility={preview.background_artwork_visibility}
                   loginFormTransparent={preview.login_form_transparent}
                 />
               </div>
@@ -431,13 +483,13 @@ export function LoginExperienceManager({
             onSubmit={(event) => {
               event.preventDefault();
               if (editing) void run(() => updateLoginTheme(editing.id, form.name, form.description), "Login theme updated.").then((saved) => { if (saved) closeDialogs(); });
-              else if (duplicateSource) void run(() => duplicateLoginTheme(duplicateSource.id, form.name), "Login theme duplicated as an inactive theme.").then((saved) => { if (saved) closeDialogs(); });
+              else if (duplicateSource) void run(() => duplicateLoginTheme(duplicateSource.id, form.name), "Modern Green theme created and made available for assignment.").then((saved) => { if (saved) closeDialogs(); });
             }}
           >
             <div className="flex items-center justify-between"><h3 id="login-theme-dialog-title" className="text-lg font-bold text-slate-900">{editing ? "Edit login theme" : "Add login theme"}</h3><button type="button" onClick={closeDialogs} className="text-xl text-slate-400" aria-label="Close">×</button></div>
             <label className="block text-xs font-semibold text-slate-700">Theme name<input required maxLength={80} value={form.name} onChange={(event) => setForm((state) => ({ ...state, name: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal" /></label>
             <label className="block text-xs font-semibold text-slate-700">Description<textarea maxLength={300} rows={3} value={form.description} onChange={(event) => setForm((state) => ({ ...state, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm font-normal" /></label>
-            {!editing && <p className="text-xs text-slate-500">This creates an inactive Modern Green Login copy. You can upload unique artwork for the copied theme, preview it, then activate it and assign it to organizations.</p>}
+            {!editing && <p className="text-xs text-slate-500">This creates an active Modern Green Login copy, so it will be available in the global and organization theme selectors. You can still preview it before assigning it.</p>}
             <div className="flex justify-end gap-2"><button type="button" onClick={closeDialogs} className="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : editing ? "Save changes" : "Create theme"}</button></div>
           </form>
         </div>
