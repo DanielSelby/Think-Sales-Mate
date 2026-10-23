@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Eye, Globe2, ImagePlus, Monitor, Pencil, Plus, ShieldCheck, Smartphone, Tablet, Upload, Users } from "lucide-react";
-import { ModernGreenLogin } from "@/app/(auth)/login/modern-green-login";
+import { LoginArtwork, ModernGreenLogin } from "@/app/(auth)/login/modern-green-login";
 import { createPlatformClient } from "@/lib/supabase/platform-client";
 import {
   duplicateLoginTheme,
@@ -100,16 +100,35 @@ export function LoginExperienceManager({
     try {
       const formData = new FormData(event.currentTarget);
       const file = formData.get("file");
-      if (!(file instanceof File) || file.size === 0) throw new Error("Choose an artwork image to upload.");
+      if (!(file instanceof File) || file.size === 0) throw new Error("Choose an artwork image or video to upload.");
       if (file.size > 20 * 1024 * 1024) throw new Error("Artwork must be 20MB or smaller.");
 
       const extensionByType: Record<string, string> = {
         "image/jpeg": "jpg",
         "image/png": "png",
         "image/webp": "webp",
+        "video/mp4": "mp4",
+        "video/webm": "webm",
       };
       const extension = extensionByType[file.type];
-      if (!extension) throw new Error("Upload a valid JPG, PNG, or WebP image.");
+      if (!extension) throw new Error("Upload a JPG, PNG, or WebP image, or an MP4/WebM video.");
+      if (file.type.startsWith("video/")) {
+        const videoUrl = URL.createObjectURL(file);
+        try {
+          const duration = await new Promise<number>((resolve, reject) => {
+            const video = document.createElement("video");
+            video.preload = "metadata";
+            video.onloadedmetadata = () => resolve(video.duration);
+            video.onerror = () => reject(new Error("The selected video could not be read."));
+            video.src = videoUrl;
+          });
+          if (!Number.isFinite(duration) || duration <= 0 || duration > 30) {
+            throw new Error("Login artwork videos must be 30 seconds or shorter.");
+          }
+        } finally {
+          URL.revokeObjectURL(videoUrl);
+        }
+      }
 
       const storagePath = `login-themes/${themeId}/${crypto.randomUUID()}.${extension}`;
       const platformClient = createPlatformClient();
@@ -191,7 +210,20 @@ export function LoginExperienceManager({
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div><h3 className="font-semibold text-slate-950">Login Theme Library</h3><p className="mt-1 text-xs text-slate-500">Available sign-in presentations</p></div>
-            <button type="button" disabled={busy} onClick={() => { setDuplicateSource(themes[0] ?? null); setForm({ name: "", description: "" }); }} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><Plus className="h-3.5 w-3.5" /> Add New Theme</button>
+            <button
+              type="button"
+              disabled={busy || !themes.some((theme) => theme.theme_type === "modern-green")}
+              onClick={() => {
+                const modernTheme = themes.find((theme) => theme.id === "modern-green-login")
+                  ?? themes.find((theme) => theme.theme_type === "modern-green");
+                if (!modernTheme) return;
+                setDuplicateSource(modernTheme);
+                setForm({ name: `${modernTheme.name} Copy`, description: modernTheme.description });
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Modern Green Theme
+            </button>
           </div>
           <div className="space-y-4">
             {themes.map((theme) => {
@@ -205,7 +237,7 @@ export function LoginExperienceManager({
                   <div className="min-w-0">
                     <button type="button" onClick={() => { setPreview(theme); setPreviewDevice("desktop"); }} className="group relative block h-36 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-left">
                     {theme.theme_type === "modern-green" ? (
-                      <img src={theme.preview_image ?? "/login/modern-green-artwork.jpeg"} alt="Modern login left-side artwork preview" className="h-full w-full object-cover object-left" />
+                      <LoginArtwork url={theme.preview_image ?? "/login/modern-green-artwork.jpeg"} className="h-full w-full object-cover object-left" />
                     ) : (
                       <div className="flex h-full">
                         <div className="w-1/2 bg-[#172517] p-3 text-[8px] font-semibold text-white"><span>ThinkSales Pro</span><p className="mt-3 text-sm leading-tight">Smart Sales.<br />Stronger Business.</p><div className="mt-4 h-10 rounded bg-white/10" /></div>
@@ -218,18 +250,18 @@ export function LoginExperienceManager({
                       <form onSubmit={(event) => void uploadArtwork(theme.id, event)} className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
                         <input type="hidden" name="themeId" value={theme.id} />
                         <label htmlFor={`artwork-${theme.id}`} className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
-                          <ImagePlus className="h-4 w-4 text-emerald-700" /> Left-side artwork
+                          <ImagePlus className="h-4 w-4 text-emerald-700" /> Left-side artwork or animation
                         </label>
                         <input
                           id={`artwork-${theme.id}`}
                           name="file"
                           type="file"
-                          accept="image/jpeg,image/png,image/webp"
+                          accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
                           required
                           disabled={uploadingThemeId !== null}
                           className="block w-full cursor-pointer text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-white file:px-2.5 file:py-2 file:text-xs file:font-semibold file:text-slate-700 file:shadow-sm hover:file:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                         />
-                        <p className="mt-2 text-[11px] leading-4 text-slate-500">JPG, PNG, or WebP · up to 20MB · preferred 2560 × 2880 px; minimum 1600 × 1800 px. Original image quality is preserved.</p>
+                        <p className="mt-2 text-[11px] leading-4 text-slate-500">JPG, PNG, WebP, MP4, or WebM · up to 20MB. Videos must be 30 seconds or shorter and play muted on the login page.</p>
                         <button
                           type="submit"
                           disabled={uploadingThemeId !== null}
@@ -361,7 +393,7 @@ export function LoginExperienceManager({
             <div className="flex items-center justify-between"><h3 id="login-theme-dialog-title" className="text-lg font-bold text-slate-900">{editing ? "Edit login theme" : "Add login theme"}</h3><button type="button" onClick={closeDialogs} className="text-xl text-slate-400" aria-label="Close">×</button></div>
             <label className="block text-xs font-semibold text-slate-700">Theme name<input required maxLength={80} value={form.name} onChange={(event) => setForm((state) => ({ ...state, name: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal" /></label>
             <label className="block text-xs font-semibold text-slate-700">Description<textarea maxLength={300} rows={3} value={form.description} onChange={(event) => setForm((state) => ({ ...state, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm font-normal" /></label>
-            {!editing && <p className="text-xs text-slate-500">New themes start inactive and inherit the selected visual renderer. You can activate them after review.</p>}
+            {!editing && <p className="text-xs text-slate-500">This creates an inactive Modern Green Login copy. You can upload unique artwork for the copied theme, preview it, then activate it and assign it to organizations.</p>}
             <div className="flex justify-end gap-2"><button type="button" onClick={closeDialogs} className="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : editing ? "Save changes" : "Create theme"}</button></div>
           </form>
         </div>

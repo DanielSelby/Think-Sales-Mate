@@ -341,9 +341,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-one {
-  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
-  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
-  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
+  --login-bubble-border: rgb(37 99 235 / 0.7);
+  --login-bubble-fill: rgb(96 165 250 / 0.42);
+  --login-bubble-shadow: rgb(37 99 235 / 0.2);
   width: clamp(6rem, 11vw, 10rem);
   aspect-ratio: 1;
   right: 12%;
@@ -351,9 +351,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-two {
-  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
-  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
-  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
+  --login-bubble-border: rgb(234 88 12 / 0.68);
+  --login-bubble-fill: rgb(251 146 60 / 0.42);
+  --login-bubble-shadow: rgb(234 88 12 / 0.18);
   width: clamp(4rem, 7vw, 6rem);
   aspect-ratio: 1;
   left: 8%;
@@ -362,9 +362,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-three {
-  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
-  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
-  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
+  --login-bubble-border: rgb(22 163 74 / 0.68);
+  --login-bubble-fill: rgb(74 222 128 / 0.42);
+  --login-bubble-shadow: rgb(22 163 74 / 0.18);
   width: clamp(8rem, 15vw, 13rem);
   aspect-ratio: 1;
   right: 6%;
@@ -373,9 +373,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-four {
-  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
-  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
-  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
+  --login-bubble-border: rgb(37 99 235 / 0.7);
+  --login-bubble-fill: rgb(96 165 250 / 0.42);
+  --login-bubble-shadow: rgb(37 99 235 / 0.2);
   width: clamp(3rem, 5vw, 4.5rem);
   aspect-ratio: 1;
   left: 18%;
@@ -388,20 +388,6 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
   25% { transform: translate3d(12px, -9px, 0) scale(1.02); }
   50% { transform: translate3d(-5px, -16px, 0) scale(0.99); }
   75% { transform: translate3d(-12px, -5px, 0) scale(1.01); }
-}
-
-@media (min-width: 1024px) {
-  .modern-login-form-panel {
-    border-left-width: 7px;
-    border-left-color: #059669;
-  }
-}
-
-@media (max-width: 1023px) {
-  .modern-login-form-panel {
-    border-top-width: 7px;
-    border-top-color: #059669;
-  }
 }
 
 @media (max-height: 900px) {
@@ -605,26 +591,31 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
   border: 1px solid var(--login-card-border, rgb(255 255 255 / 0.92));
   background: linear-gradient(145deg, color-mix(in srgb, var(--login-card-surface, #ffffff) 94%, white), var(--login-card-surface, #f6f8f6));
   box-shadow:
-    22px 24px 54px color-mix(in srgb, var(--login-primary) 11%, transparent),
-    -12px -12px 34px rgb(255 255 255 / 0.92),
-    inset 1px 1px 0 rgb(255 255 255 / 0.92);
+    26px 30px 62px color-mix(in srgb, var(--login-primary) 16%, rgb(15 23 42 / 0.08)),
+    -14px -14px 34px rgb(255 255 255 / 0.96),
+    inset 1px 1px 0 rgb(255 255 255 / 0.98),
+    inset 0 -1px 0 rgb(15 23 42 / 0.035);
+  transform: perspective(1200px) rotateX(0.35deg);
 }
 
 .login-neumorphic-logo {
-  border: 1px solid rgb(255 255 255 / 0.96);
-  background: linear-gradient(145deg, #ffffff, #edf2ee);
+  border: 1px solid rgb(255 255 255 / 0.98);
+  background: linear-gradient(145deg, #ffffff, #e8efea);
   box-shadow:
-    10px 12px 24px rgb(15 23 42 / 0.10),
-    -7px -7px 18px rgb(255 255 255 / 0.95),
-    inset 1px 1px 0 rgb(255 255 255 / 0.95);
+    12px 15px 28px rgb(15 23 42 / 0.15),
+    -8px -8px 20px rgb(255 255 255 / 0.98),
+    inset 1px 1px 0 rgb(255 255 255 / 0.98),
+    inset 0 -2px 0 rgb(15 23 42 / 0.04);
 }
 
 .login-neumorphic-input {
-  border-color: var(--login-input-border, rgb(255 255 255 / 0.92)) !important;
-  background: linear-gradient(145deg, #f4f7f4, #ffffff) !important;
+  border-color: var(--login-input-border, rgb(255 255 255 / 0.96)) !important;
+  background: linear-gradient(160deg, #ffffff 0%, #f8faf8 45%, #eef3ef 100%) !important;
   box-shadow:
-    inset 4px 5px 10px rgb(15 23 42 / 0.075),
-    inset -3px -3px 8px rgb(255 255 255 / 0.96);
+    7px 9px 18px rgb(15 23 42 / 0.09),
+    -5px -5px 14px rgb(255 255 255 / 0.95),
+    inset 0 1px 0 rgb(255 255 255 / 0.98),
+    inset 0 -1px 0 rgb(15 23 42 / 0.035);
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -635,28 +626,31 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 .login-neumorphic-input:focus-visible {
   border-color: var(--login-primary) !important;
   box-shadow:
-    inset 2px 3px 7px rgb(15 23 42 / 0.06),
     0 0 0 3px color-mix(in srgb, var(--login-primary) 18%, transparent),
-    0 8px 18px color-mix(in srgb, var(--login-primary) 9%, transparent);
-  transform: translateY(-1px);
+    0 11px 22px color-mix(in srgb, var(--login-primary) 14%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.98);
+  transform: translateY(-2px);
 }
 
 .login-neumorphic-submit {
-  border: 1px solid color-mix(in srgb, var(--login-primary) 64%, white);
-  background: linear-gradient(115deg, var(--login-primary-hover), var(--login-primary) 58%, color-mix(in srgb, var(--login-primary) 82%, white));
+  border: 1px solid color-mix(in srgb, var(--login-primary) 45%, white);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--login-primary) 75%, #0ea5e9), var(--login-primary) 54%, color-mix(in srgb, var(--login-primary) 72%, #8b5cf6));
   box-shadow:
-    0 12px 24px color-mix(in srgb, var(--login-primary) 24%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 0.30),
-    inset 0 -2px 0 rgb(0 0 0 / 0.12);
+    0 14px 25px color-mix(in srgb, var(--login-primary) 30%, transparent),
+    0 4px 8px rgb(15 23 42 / 0.12),
+    inset 0 2px 0 rgb(255 255 255 / 0.42),
+    inset 0 -3px 0 rgb(0 0 0 / 0.16);
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.16);
 }
 
 .login-neumorphic-oauth {
-  border: 1px solid rgb(255 255 255 / 0.95);
-  background: linear-gradient(145deg, #ffffff, #f3f6f3);
+  border: 1px solid rgb(255 255 255 / 0.98);
+  background: linear-gradient(145deg, #ffffff, #edf2ee);
   box-shadow:
-    7px 8px 16px rgb(15 23 42 / 0.07),
-    -4px -4px 12px rgb(255 255 255 / 0.95),
-    inset 1px 1px 0 rgb(255 255 255 / 0.9);
+    8px 10px 18px rgb(15 23 42 / 0.09),
+    -5px -5px 14px rgb(255 255 255 / 0.98),
+    inset 1px 1px 0 rgb(255 255 255 / 0.98),
+    inset 0 -1px 0 rgb(15 23 42 / 0.035);
 }
 
 .login-neumorphic-control:focus-visible {
@@ -701,8 +695,9 @@ html.dark .login-neumorphic-input {
   background: linear-gradient(145deg, #121a16, #19231d) !important;
   color: #f1f5f2 !important;
   box-shadow:
-    inset 4px 5px 10px rgb(0 0 0 / 0.24),
-    inset -2px -2px 7px rgb(255 255 255 / 0.025);
+    7px 9px 18px rgb(0 0 0 / 0.28),
+    -4px -4px 12px rgb(255 255 255 / 0.035),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
 }
 
 html.dark .login-neumorphic-input::placeholder {
@@ -761,6 +756,10 @@ html.dark .login-neumorphic-oauth {
   }
 
   .login-neumorphic-input:focus-visible {
+    transform: none;
+  }
+
+  .login-neumorphic-card {
     transform: none;
   }
 }

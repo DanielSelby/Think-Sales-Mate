@@ -7,6 +7,51 @@ import { ArrowRight, Eye, EyeOff, LoaderCircle, LockKeyhole, UserRound } from "l
 import { createClient } from "@/lib/supabase/client";
 import { loginWithIdentifier } from "./actions";
 
+export function isLoginArtworkVideo(url: string) {
+  try {
+    return /\.(mp4|webm)$/i.test(new URL(url, "https://login-artwork.invalid").pathname);
+  } catch {
+    return false;
+  }
+}
+
+export function LoginArtwork({ url, className, poster = "/login/modern-green-artwork.jpeg" }: {
+  url: string;
+  className: string;
+  poster?: string;
+}) {
+  const [reducedMotion, setReducedMotion] = useState(true);
+  const isVideo = isLoginArtworkVideo(url);
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setReducedMotion(preference.matches);
+    updatePreference();
+    preference.addEventListener("change", updatePreference);
+    return () => preference.removeEventListener("change", updatePreference);
+  }, []);
+
+  if (!isVideo) {
+    return <img src={url} alt="ThinkSales Pro login artwork" className={className} />;
+  }
+
+  return (
+    <video
+      aria-label="ThinkSales Pro login artwork"
+      className={className}
+      autoPlay={!reducedMotion}
+      loop={!reducedMotion}
+      muted
+      playsInline
+      controls={reducedMotion}
+      preload="metadata"
+      poster={poster}
+    >
+      <source src={url} type={url.toLowerCase().includes(".webm") ? "video/webm" : "video/mp4"} />
+    </video>
+  );
+}
+
 function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organizationName: string | null; preview: boolean; systemLogoUrl: string | null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -208,16 +253,18 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
       style={{
         "--login-primary": "#1d8f5e",
         "--login-primary-hover": "#16744b",
-        "--login-bubble-color": "color-mix(in srgb, #1d8f5e 22%, transparent)",
       } as React.CSSProperties}
     >
       <div className={`modern-login-layout grid min-h-[inherit] min-w-0 ${splitLayout ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"}`}>
         <section className={`relative min-h-[inherit] min-w-0 overflow-hidden bg-[#e9f4ed] p-3 sm:p-4 lg:p-5 ${splitLayout ? "hidden lg:block" : "hidden"}`}>
           <div className="relative h-full min-h-[inherit] min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.08)]">
-            <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
+            <LoginArtwork
+              url={artworkUrl ?? "/login/modern-green-artwork.jpeg"}
+              className="absolute inset-0 h-full w-full object-cover object-center"
+            />
           </div>
         </section>
-        <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
+        <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden">
           <div className="modern-login-bubbles" aria-hidden="true">
             <span className="modern-login-bubble modern-login-bubble-one" />
             <span className="modern-login-bubble modern-login-bubble-two" />

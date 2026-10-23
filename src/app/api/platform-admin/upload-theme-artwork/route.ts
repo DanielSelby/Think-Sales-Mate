@@ -4,6 +4,13 @@ import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  webm: "video/webm",
+};
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +36,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Artwork can only be uploaded for the Modern Green Login theme." }, { status: 400 });
     }
 
-    const match = body.storagePath.match(/^login-themes\/([a-zA-Z0-9_-]+)\/([0-9a-f-]{36})\.(jpg|png|webp)$/i);
+    const match = body.storagePath.match(/^login-themes\/([a-zA-Z0-9_-]+)\/([0-9a-f-]{36})\.(jpg|png|webp|mp4|webm)$/i);
     if (!match || match[1] !== body.themeId) {
       return NextResponse.json({ error: "Invalid login artwork storage path." }, { status: 400 });
     }
@@ -42,8 +49,16 @@ export async function POST(request: Request) {
     const uploadedObject = objects?.find((object) => object.name === `${match[2]}.${match[3]}`);
     if (!uploadedObject) return NextResponse.json({ error: "The uploaded artwork could not be found." }, { status: 404 });
     const fileSize = uploadedObject.metadata?.size;
-    if (typeof fileSize === "number" && (fileSize <= 0 || fileSize > MAX_FILE_SIZE)) {
+    if (typeof fileSize !== "number") {
+      return NextResponse.json({ error: "Could not verify the uploaded artwork file size." }, { status: 400 });
+    }
+    if (fileSize <= 0 || fileSize > MAX_FILE_SIZE) {
       return NextResponse.json({ error: "Artwork must be 20MB or smaller." }, { status: 413 });
+    }
+    const expectedContentType = CONTENT_TYPE_BY_EXTENSION[match[3].toLowerCase()];
+    const uploadedContentType = uploadedObject.metadata?.mimetype;
+    if (uploadedContentType !== expectedContentType) {
+      return NextResponse.json({ error: "The uploaded artwork file type does not match its file extension." }, { status: 400 });
     }
 
     const { data } = supabase.storage.from("platform-assets").getPublicUrl(path);
