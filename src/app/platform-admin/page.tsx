@@ -31,7 +31,7 @@ export default async function PlatformAdminPage() {
     supabase.from("platform_settings").select("key, value, updated_at").order("key"),
     supabase.from("platform_complaints").select("*").order("created_at", { ascending: false }),
     supabase.from("platform_support_contacts").select("*").order("name"),
-    supabase.from("login_themes").select("id, name, description, preview_image, theme_type, is_active, created_at").order("created_at"),
+    supabase.from("login_themes").select("id, name, description, preview_image, background_artwork, login_form_transparent, theme_type, is_active, created_at").order("created_at"),
     supabase.from("platform_organizations").select("organization_id, name, use_global_login_theme, login_theme_id").order("name"),
     supabase.from("platform_audit_logs").select("id, admin_id, organization_id, action, metadata, created_at").eq("module", "login_experience").order("created_at", { ascending: false }).limit(100),
   ]);

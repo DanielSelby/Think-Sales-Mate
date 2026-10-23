@@ -9,6 +9,7 @@ import {
   duplicateLoginTheme,
   setGlobalLoginTheme,
   setLoginThemeActive,
+  updateLoginThemeFormSettings,
   setOrganizationLoginTheme,
   updateLoginTheme,
 } from "./actions";
@@ -18,6 +19,8 @@ type LoginTheme = {
   name: string;
   description: string;
   preview_image: string | null;
+  background_artwork: string | null;
+  login_form_transparent: boolean;
   theme_type: string;
   is_active: boolean;
   created_at: string;
@@ -92,9 +95,9 @@ export function LoginExperienceManager({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function uploadArtwork(themeId: string, event: React.FormEvent<HTMLFormElement>) {
+  async function uploadArtwork(themeId: string, slot: "side" | "background", event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setUploadingThemeId(themeId);
+    setUploadingThemeId(`${themeId}:${slot}`);
     setError(null);
     setNotice(null);
     try {
@@ -130,7 +133,7 @@ export function LoginExperienceManager({
         }
       }
 
-      const storagePath = `login-themes/${themeId}/${crypto.randomUUID()}.${extension}`;
+      const storagePath = `login-themes/${themeId}/${slot}/${crypto.randomUUID()}.${extension}`;
       const platformClient = createPlatformClient();
       const { error: uploadError } = await platformClient.storage
         .from("platform-assets")
@@ -140,12 +143,12 @@ export function LoginExperienceManager({
       const response = await fetch("/api/platform-admin/upload-theme-artwork", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ themeId, storagePath }),
+        body: JSON.stringify({ themeId, storagePath, slot }),
       });
       const responseText = await response.text();
-      let result: { error?: string };
+      let result: { error?: string; url?: string };
       try {
-        result = JSON.parse(responseText) as { error?: string };
+        result = JSON.parse(responseText) as { error?: string; url?: string };
       } catch {
         throw new Error(
           response.redirected
@@ -154,7 +157,12 @@ export function LoginExperienceManager({
         );
       }
       if (!response.ok) throw new Error(result.error ?? "Artwork upload failed.");
-      setNotice("Login artwork uploaded and applied.");
+      const artworkUrl = result.url;
+      if (!artworkUrl) throw new Error("Artwork was uploaded, but the server did not return its public URL.");
+      setPreview((current) => current?.id === themeId
+        ? { ...current, ...(slot === "side" ? { preview_image: artworkUrl } : { background_artwork: artworkUrl }) }
+        : current);
+      setNotice(slot === "side" ? "Side artwork uploaded and applied." : "Form background artwork uploaded and applied.");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Artwork upload failed.");
@@ -247,30 +255,60 @@ export function LoginExperienceManager({
                     <span className="absolute inset-0 flex items-center justify-center bg-slate-950/0 text-xs font-semibold text-white opacity-0 transition group-hover:bg-slate-950/35 group-hover:opacity-100"><Eye className="mr-1.5 h-4 w-4" /> Preview</span>
                     </button>
                     {theme.theme_type === "modern-green" && (
-                      <form onSubmit={(event) => void uploadArtwork(theme.id, event)} className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
-                        <input type="hidden" name="themeId" value={theme.id} />
-                        <label htmlFor={`artwork-${theme.id}`} className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
-                          <ImagePlus className="h-4 w-4 text-emerald-700" /> Left-side artwork or animation
+                      <div className="mt-3 space-y-3">
+                        {([
+                          { slot: "side", label: "Left-side artwork or animation" },
+                          { slot: "background", label: "Form background artwork or animation" },
+                        ] as const).map(({ slot, label }) => {
+                          const uploadId = `${theme.id}:${slot}`;
+                          return (
+                            <form key={slot} onSubmit={(event) => void uploadArtwork(theme.id, slot, event)} className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+                              <input type="hidden" name="themeId" value={theme.id} />
+                              <label htmlFor={`artwork-${slot}-${theme.id}`} className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                <ImagePlus className="h-4 w-4 text-emerald-700" /> {label}
+                              </label>
+                              <input
+                                id={`artwork-${slot}-${theme.id}`}
+                                name="file"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                                required
+                                disabled={uploadingThemeId !== null}
+                                className="block w-full cursor-pointer text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-white file:px-2.5 file:py-2 file:text-xs file:font-semibold file:text-slate-700 file:shadow-sm hover:file:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              />
+                              <p className="mt-2 text-[11px] leading-4 text-slate-500">JPG, PNG, WebP, MP4, or WebM · up to 20MB. Videos must be 30 seconds or shorter.</p>
+                              <button
+                                type="submit"
+                                disabled={uploadingThemeId !== null}
+                                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60"
+                              >
+                                <Upload className="h-3.5 w-3.5" />
+                                {uploadingThemeId === uploadId ? "Uploading artwork…" : `Upload ${slot === "side" ? "side" : "background"} artwork`}
+                              </button>
+                            </form>
+                          );
+                        })}
+                        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 p-3 text-xs text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={theme.login_form_transparent}
+                            disabled={busy}
+                            onChange={(event) => {
+                              const transparent = event.target.checked;
+                              void run(
+                                () => updateLoginThemeFormSettings(theme.id, transparent),
+                                transparent ? "Login form background is transparent." : "Login form background is opaque.",
+                              ).then((saved) => {
+                                if (saved) setPreview((current) => current?.id === theme.id
+                                  ? { ...current, login_form_transparent: transparent }
+                                  : current);
+                              });
+                            }}
+                            className="mt-0.5 h-4 w-4 accent-emerald-700"
+                          />
+                          <span><span className="block font-semibold">Transparent login form</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">Show the uploaded form background through the login card.</span></span>
                         </label>
-                        <input
-                          id={`artwork-${theme.id}`}
-                          name="file"
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
-                          required
-                          disabled={uploadingThemeId !== null}
-                          className="block w-full cursor-pointer text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-white file:px-2.5 file:py-2 file:text-xs file:font-semibold file:text-slate-700 file:shadow-sm hover:file:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        />
-                        <p className="mt-2 text-[11px] leading-4 text-slate-500">JPG, PNG, WebP, MP4, or WebM · up to 20MB. Videos must be 30 seconds or shorter and play muted on the login page.</p>
-                        <button
-                          type="submit"
-                          disabled={uploadingThemeId !== null}
-                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60"
-                        >
-                          <Upload className="h-3.5 w-3.5" />
-                          {uploadingThemeId === theme.id ? "Uploading artwork…" : "Upload artwork"}
-                        </button>
-                      </form>
+                      </div>
                     )}
                   </div>
                   <div className="flex min-w-0 flex-col justify-between gap-4">
@@ -314,7 +352,13 @@ export function LoginExperienceManager({
           <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
             {preview?.theme_type === "modern-green" ? (
               <div className="max-h-[460px] overflow-auto">
-                <ModernGreenLogin preview device={previewDevice} artworkUrl={preview.preview_image} />
+                <ModernGreenLogin
+                  preview
+                  device={previewDevice}
+                  artworkUrl={preview.preview_image}
+                  backgroundArtworkUrl={preview.background_artwork}
+                  loginFormTransparent={preview.login_form_transparent}
+                />
               </div>
             ) : preview ? (
               <div className="max-h-[460px] overflow-auto"><LegacyLoginPreview /></div>

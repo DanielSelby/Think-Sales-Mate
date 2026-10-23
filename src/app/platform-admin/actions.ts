@@ -458,13 +458,44 @@ export async function updateLoginTheme(themeId: string, name: string, descriptio
   revalidatePath("/platform-admin");
 }
 
+export async function updateLoginThemeFormSettings(themeId: string, loginFormTransparent: boolean) {
+  const { admin, supabase } = await requirePlatformManagement();
+  const { data: theme, error: themeError } = await supabase
+    .from("login_themes")
+    .select("name, login_form_transparent, theme_type")
+    .eq("id", themeId)
+    .single();
+  if (themeError) throw new Error(themeError.message);
+  if (theme.theme_type !== "modern-green") throw new Error("Form appearance settings are only available for the Modern Green Login theme.");
+
+  const { error } = await supabase
+    .from("login_themes")
+    .update({ login_form_transparent: loginFormTransparent, updated_at: new Date().toISOString() })
+    .eq("id", themeId);
+  if (error) throw new Error(error.message);
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "login_theme_form_settings_updated",
+    module: "login_experience",
+    metadata: {
+      themeId,
+      themeName: theme.name,
+      previousTransparent: theme.login_form_transparent,
+      loginFormTransparent,
+    },
+  });
+  if (auditError) throw new Error(`Form appearance was saved, but its audit record failed: ${auditError.message}`);
+  revalidatePath("/platform-admin");
+  revalidatePath("/login");
+}
+
 export async function duplicateLoginTheme(themeId: string, name: string) {
   const { admin, supabase } = await requirePlatformManagement();
   const cleanName = name.trim();
   if (!cleanName) throw new Error("Enter a name for the duplicate theme.");
   const { data: source, error: sourceError } = await supabase
     .from("login_themes")
-    .select("description, preview_image, theme_type")
+    .select("description, preview_image, background_artwork, login_form_transparent, theme_type")
     .eq("id", themeId)
     .single();
   if (sourceError) throw new Error(sourceError.message);
@@ -474,6 +505,8 @@ export async function duplicateLoginTheme(themeId: string, name: string) {
     name: cleanName,
     description: source.description,
     preview_image: source.preview_image,
+    background_artwork: source.background_artwork,
+    login_form_transparent: source.login_form_transparent,
     theme_type: source.theme_type,
     is_active: false,
   });

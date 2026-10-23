@@ -15,10 +15,11 @@ export function isLoginArtworkVideo(url: string) {
   }
 }
 
-export function LoginArtwork({ url, className, poster = "/login/modern-green-artwork.jpeg" }: {
+export function LoginArtwork({ url, className, poster = "/login/modern-green-artwork.jpeg", showControlsWhenReducedMotion = true }: {
   url: string;
   className: string;
   poster?: string;
+  showControlsWhenReducedMotion?: boolean;
 }) {
   const [reducedMotion, setReducedMotion] = useState(true);
   const isVideo = isLoginArtworkVideo(url);
@@ -43,7 +44,7 @@ export function LoginArtwork({ url, className, poster = "/login/modern-green-art
       loop={!reducedMotion}
       muted
       playsInline
-      controls={reducedMotion}
+      controls={reducedMotion && showControlsWhenReducedMotion}
       preload="metadata"
       poster={poster}
     >
@@ -52,7 +53,12 @@ export function LoginArtwork({ url, className, poster = "/login/modern-green-art
   );
 }
 
-function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organizationName: string | null; preview: boolean; systemLogoUrl: string | null }) {
+function ModernGreenForm({ organizationName, preview, systemLogoUrl, loginFormTransparent }: {
+  organizationName: string | null;
+  preview: boolean;
+  systemLogoUrl: string | null;
+  loginFormTransparent: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState("");
@@ -107,7 +113,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
 
   return (
     <div className="modern-login-form-shell flex min-h-[inherit] items-center justify-center px-3 py-3 sm:px-6 lg:px-8">
-      <div className="modern-login-card login-card-enter login-neumorphic-card w-full max-w-[540px] rounded-[28px] px-7 py-9 sm:px-11 sm:py-12">
+      <div className={`modern-login-card login-card-enter login-neumorphic-card w-full max-w-[540px] rounded-[28px] px-7 py-9 sm:px-11 sm:py-12 ${loginFormTransparent ? "login-neumorphic-card-transparent" : ""}`}>
         <div className="flex flex-col items-center text-center">
           <div className="modern-login-logo login-logo-enter login-neumorphic-logo flex h-[76px] w-[76px] items-center justify-center rounded-[24px] p-2">
             {systemLogoUrl ? (
@@ -228,7 +234,21 @@ function MicrosoftMark() {
   return <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true"><rect x="3" y="3" width="8.5" height="8.5" fill="#F25022" /><rect x="12.5" y="3" width="8.5" height="8.5" fill="#7FBA00" /><rect x="3" y="12.5" width="8.5" height="8.5" fill="#00A4EF" /><rect x="12.5" y="12.5" width="8.5" height="8.5" fill="#FFB900" /></svg>;
 }
 
-export function ModernGreenLogin({ organizationName = null, preview = false, device = "desktop", artworkUrl = null }: { organizationName?: string | null; preview?: boolean; device?: "desktop" | "tablet" | "mobile"; artworkUrl?: string | null }) {
+export function ModernGreenLogin({
+  organizationName = null,
+  preview = false,
+  device = "desktop",
+  artworkUrl = null,
+  backgroundArtworkUrl = null,
+  loginFormTransparent = false,
+}: {
+  organizationName?: string | null;
+  preview?: boolean;
+  device?: "desktop" | "tablet" | "mobile";
+  artworkUrl?: string | null;
+  backgroundArtworkUrl?: string | null;
+  loginFormTransparent?: boolean;
+}) {
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
   const pageHeight = preview ? "min-h-[680px]" : "min-h-[100dvh]";
   const previewWidth = preview ? device === "mobile" ? "mx-auto max-w-[390px]" : device === "tablet" ? "mx-auto max-w-[900px]" : "w-full" : "w-full";
@@ -265,6 +285,16 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
           </div>
         </section>
         <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden">
+          {backgroundArtworkUrl && (
+            <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+              <LoginArtwork
+                url={backgroundArtworkUrl}
+                showControlsWhenReducedMotion={false}
+                className="absolute inset-0 h-full w-full object-cover opacity-30"
+              />
+              <div className="absolute inset-0 bg-white/45 dark:bg-slate-950/55" />
+            </div>
+          )}
           <div className="modern-login-bubbles" aria-hidden="true">
             <span className="modern-login-bubble modern-login-bubble-one" />
             <span className="modern-login-bubble modern-login-bubble-two" />
@@ -277,7 +307,12 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
           </div>
           <div className="modern-login-form-enter relative z-10 flex min-h-0 flex-1 items-center justify-center">
             <Suspense fallback={<div className="h-96" />}>
-              <ModernGreenForm organizationName={organizationName} preview={preview} systemLogoUrl={systemLogoUrl} />
+              <ModernGreenForm
+                organizationName={organizationName}
+                preview={preview}
+                systemLogoUrl={systemLogoUrl}
+                loginFormTransparent={loginFormTransparent}
+              />
             </Suspense>
           </div>
           <p className="modern-login-copyright relative z-10 pb-4 text-center text-[11px] text-slate-400">© {new Date().getFullYear()} ThinkSales Pro. All rights reserved.</p>

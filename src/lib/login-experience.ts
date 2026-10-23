@@ -9,6 +9,8 @@ export interface LoginExperience {
   themeType: "existing" | "modern-green";
   themeName: string;
   artworkUrl: string | null;
+  backgroundArtworkUrl: string | null;
+  loginFormTransparent: boolean;
   organizationName: string | null;
 }
 
@@ -17,6 +19,8 @@ const SYSTEM_DEFAULT: LoginExperience = {
   themeType: "existing",
   themeName: "Default ThinkSales Login",
   artworkUrl: null,
+  backgroundArtworkUrl: null,
+  loginFormTransparent: false,
   organizationName: null,
 };
 
@@ -34,7 +38,7 @@ export async function getLoginExperience(requestedSlug?: string): Promise<LoginE
     const slug = requestedSlug?.trim().toLowerCase() || inferOrganizationSlug(host);
     const platform = createPlatformAdminClient();
     const [{ data: themes, error: themesError }, { data: globalSetting, error: globalError }] = await Promise.all([
-      platform.from("login_themes").select("id, name, theme_type, is_active, preview_image"),
+      platform.from("login_themes").select("id, name, theme_type, is_active, preview_image, background_artwork, login_form_transparent"),
       platform.from("platform_settings").select("value").eq("key", "global_login_theme").maybeSingle(),
     ]);
     if (themesError) throw themesError;
@@ -76,6 +80,8 @@ export async function getLoginExperience(requestedSlug?: string): Promise<LoginE
       themeType,
       themeName: selectedTheme.name,
       artworkUrl: selectedTheme.preview_image,
+      backgroundArtworkUrl: selectedTheme.background_artwork,
+      loginFormTransparent: selectedTheme.login_form_transparent,
       organizationName,
     };
   } catch (error) {

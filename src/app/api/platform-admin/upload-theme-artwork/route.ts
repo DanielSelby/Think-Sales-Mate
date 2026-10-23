@@ -19,15 +19,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "You do not have permission to manage login themes." }, { status: 403 });
     }
 
-    const body = await request.json() as { themeId?: unknown; storagePath?: unknown };
-    if (typeof body.themeId !== "string" || typeof body.storagePath !== "string") {
+    const body = await request.json() as { themeId?: unknown; storagePath?: unknown; slot?: unknown };
+    if (typeof body.themeId !== "string" || typeof body.storagePath !== "string" || (body.slot !== "side" && body.slot !== "background")) {
       return NextResponse.json({ error: "Missing login theme or uploaded artwork." }, { status: 400 });
     }
+    const slot = body.slot;
 
     const supabase = await createPlatformServerClient();
     const { data: theme, error: themeError } = await supabase
       .from("login_themes")
-      .select("name, theme_type, preview_image")
+      .select("name, theme_type, preview_image, background_artwork")
       .eq("id", body.themeId)
       .maybeSingle();
     if (themeError) throw new Error(`Could not find the login theme: ${themeError.message}`);
@@ -36,17 +37,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Artwork can only be uploaded for the Modern Green Login theme." }, { status: 400 });
     }
 
-    const match = body.storagePath.match(/^login-themes\/([a-zA-Z0-9_-]+)\/([0-9a-f-]{36})\.(jpg|png|webp|mp4|webm)$/i);
-    if (!match || match[1] !== body.themeId) {
+    const match = body.storagePath.match(/^login-themes\/([a-zA-Z0-9_-]+)\/(side|background)\/([0-9a-f-]{36})\.(jpg|png|webp|mp4|webm)$/i);
+    if (!match || match[1] !== body.themeId || match[2] !== slot) {
       return NextResponse.json({ error: "Invalid login artwork storage path." }, { status: 400 });
     }
 
     const path = body.storagePath;
     const { data: objects, error: listError } = await supabase.storage
       .from("platform-assets")
-      .list(`login-themes/${body.themeId}`, { search: match[2] });
+      .list(`login-themes/${body.themeId}/${slot}`, { search: match[3] });
     if (listError) throw new Error(`Could not verify uploaded artwork: ${listError.message}`);
-    const uploadedObject = objects?.find((object) => object.name === `${match[2]}.${match[3]}`);
+    const uploadedObject = objects?.find((object) => object.name === `${match[3]}.${match[4]}`);
     if (!uploadedObject) return NextResponse.json({ error: "The uploaded artwork could not be found." }, { status: 404 });
     const fileSize = uploadedObject.metadata?.size;
     if (typeof fileSize !== "number") {
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
     if (fileSize <= 0 || fileSize > MAX_FILE_SIZE) {
       return NextResponse.json({ error: "Artwork must be 20MB or smaller." }, { status: 413 });
     }
-    const expectedContentType = CONTENT_TYPE_BY_EXTENSION[match[3].toLowerCase()];
+    const expectedContentType = CONTENT_TYPE_BY_EXTENSION[match[4].toLowerCase()];
     const uploadedContentType = uploadedObject.metadata?.mimetype;
     if (uploadedContentType !== expectedContentType) {
       return NextResponse.json({ error: "The uploaded artwork file type does not match its file extension." }, { status: 400 });
@@ -64,9 +65,13 @@ export async function POST(request: Request) {
     const { data } = supabase.storage.from("platform-assets").getPublicUrl(path);
     const publicUrl = data.publicUrl;
 
+    const previousArtwork = slot === "side" ? theme.preview_image : theme.background_artwork;
     const { error: updateError } = await supabase
       .from("login_themes")
-      .update({ preview_image: publicUrl, updated_at: new Date().toISOString() })
+      .update({
+        ...(slot === "side" ? { preview_image: publicUrl } : { background_artwork: publicUrl }),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", body.themeId);
     if (updateError) {
       throw new Error(`Artwork uploaded, but the theme could not be updated: ${updateError.message}`);
@@ -76,7 +81,7 @@ export async function POST(request: Request) {
       admin_id: admin.id,
       action: "login_theme_artwork_updated",
       module: "login_experience",
-      metadata: { themeId: body.themeId, themeName: theme.name, previousArtwork: theme.preview_image, newArtwork: publicUrl },
+      metadata: { themeId: body.themeId, themeName: theme.name, slot, previousArtwork, newArtwork: publicUrl },
     });
     if (auditError) throw new Error(`Artwork was saved, but its audit record failed: ${auditError.message}`);
 
