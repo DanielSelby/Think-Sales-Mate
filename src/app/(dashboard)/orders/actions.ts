@@ -20,7 +20,7 @@ export async function setOrderStatus(orderId: string, status: CustomerOrderStatu
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: existingOrder } = await supabase.from("customer_orders").select("org_id, location_id").eq("id", orderId).maybeSingle();
+  const { data: existingOrder } = await supabase.from("customer_orders").select("org_id, location_id, status, order_number, guest_name, guest_phone, guest_email").eq("id", orderId).maybeSingle();
   if (!existingOrder || existingOrder.org_id !== context.orgId || !canUseLocation(context, existingOrder.location_id)) {
     return { ok: false, error: "Order not found." };
   }
@@ -39,6 +39,31 @@ export async function setOrderStatus(orderId: string, status: CustomerOrderStatu
     actor_id: user?.id ?? null,
     status: "completed",
   });
+
+  const notificationStatusByOrderStatus: Partial<Record<CustomerOrderStatus, Parameters<typeof notifyCustomerOrderStatus>[0]["status"]>> = {
+    approved: "approved",
+    cancelled: "rejected",
+    picking: "picking",
+    packing: "packing",
+    delivery: "delivery",
+    completed: "completed",
+  };
+  const notificationStatus = notificationStatusByOrderStatus[status];
+  if (notificationStatus && existingOrder.status !== status) {
+    const { data: settings } = await supabase.from("customer_portal_settings").select("send_email_notifications, send_whatsapp_notifications").eq("org_id", context.orgId).maybeSingle();
+    await notifyCustomerOrderStatus({
+      orgId: context.orgId,
+      orderId,
+      orderNumber: existingOrder.order_number,
+      status: notificationStatus,
+      customerName: existingOrder.guest_name,
+      customerPhone: existingOrder.guest_phone,
+      customerEmail: existingOrder.guest_email,
+      locationId: existingOrder.location_id,
+      sendEmail: settings?.send_email_notifications,
+      sendWhatsApp: settings?.send_whatsapp_notifications,
+    });
+  }
 
   revalidatePath("/orders");
   revalidatePath(`/orders/${orderId}`);
@@ -198,18 +223,20 @@ export async function approveAndProcessOrder({ orderId, locationId }: ApproveOrd
   ]);
 
   // Customer notification
-  await notifyCustomerOrderStatus({
-    orgId: context.orgId,
-    orderId,
-    orderNumber: order.order_number,
-    status: "approved",
-    customerName: order.guest_name,
-    customerPhone: order.guest_phone,
-    customerEmail: order.guest_email,
-    locationId: targetLocationId,
-    sendEmail: settings?.send_email_notifications,
-    sendWhatsApp: settings?.send_whatsapp_notifications,
-  });
+  if (order.status !== "processing") {
+    await notifyCustomerOrderStatus({
+      orgId: context.orgId,
+      orderId,
+      orderNumber: order.order_number,
+      status: "approved",
+      customerName: order.guest_name,
+      customerPhone: order.guest_phone,
+      customerEmail: order.guest_email,
+      locationId: targetLocationId,
+      sendEmail: settings?.send_email_notifications,
+      sendWhatsApp: settings?.send_whatsapp_notifications,
+    });
+  }
 
   revalidatePath("/orders");
   revalidatePath(`/orders/${orderId}`);
@@ -254,6 +281,7 @@ export async function updateOrderFulfillmentStatus(
       : status === "completed"
       ? "delivered"
       : "not_shipped");
+  const statusChanged = order.status !== status;
 
   const { error } = await supabase
     .from("customer_orders")
@@ -286,12 +314,18 @@ export async function updateOrderFulfillmentStatus(
   }
 
   const { data: settings } = await supabase.from("customer_portal_settings").select("*").eq("org_id", context.orgId).maybeSingle();
-  if (["picking", "packing", "delivery", "completed"].includes(status)) {
+  const notificationStatus =
+    status === "picking" ? "picking"
+      : status === "packing" ? "packing"
+        : status === "delivery" ? "delivery"
+          : status === "completed" ? "completed"
+            : null;
+  if (statusChanged && notificationStatus) {
     await notifyCustomerOrderStatus({
       orgId: context.orgId,
       orderId,
       orderNumber: order.order_number,
-      status: status as any,
+      status: notificationStatus,
       customerName: order.guest_name,
       customerPhone: order.guest_phone,
       customerEmail: order.guest_email,
@@ -396,6 +430,22 @@ export async function convertOrderToSale(orderId: string): Promise<ApproveOrderR
     notes: `Sale record #${sale.id.slice(0, 8)} generated.`,
   });
 
+  if (order.status !== "completed") {
+    const { data: settings } = await supabase.from("customer_portal_settings").select("send_email_notifications, send_whatsapp_notifications").eq("org_id", context.orgId).maybeSingle();
+    await notifyCustomerOrderStatus({
+      orgId: context.orgId,
+      orderId,
+      orderNumber: order.order_number,
+      status: "completed",
+      customerName: order.guest_name,
+      customerPhone: order.guest_phone,
+      customerEmail: order.guest_email,
+      locationId: order.location_id,
+      sendEmail: settings?.send_email_notifications,
+      sendWhatsApp: settings?.send_whatsapp_notifications,
+    });
+  }
+
   revalidatePath("/orders");
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/sales");
@@ -437,19 +487,21 @@ export async function declineOrder(orderId: string, reason?: string): Promise<Si
   });
 
   const { data: settings } = await supabase.from("customer_portal_settings").select("*").eq("org_id", context.orgId).maybeSingle();
-  await notifyCustomerOrderStatus({
-    orgId: context.orgId,
-    orderId,
-    orderNumber: order.order_number,
-    status: "rejected",
-    customerName: order.guest_name,
-    customerPhone: order.guest_phone,
-    customerEmail: order.guest_email,
-    locationId: order.location_id,
-    notes: reason,
-    sendEmail: settings?.send_email_notifications,
-    sendWhatsApp: settings?.send_whatsapp_notifications,
-  });
+  if (order.status !== "cancelled") {
+    await notifyCustomerOrderStatus({
+      orgId: context.orgId,
+      orderId,
+      orderNumber: order.order_number,
+      status: "rejected",
+      customerName: order.guest_name,
+      customerPhone: order.guest_phone,
+      customerEmail: order.guest_email,
+      locationId: order.location_id,
+      notes: reason,
+      sendEmail: settings?.send_email_notifications,
+      sendWhatsApp: settings?.send_whatsapp_notifications,
+    });
+  }
 
   revalidatePath("/orders");
   revalidatePath(`/orders/${orderId}`);

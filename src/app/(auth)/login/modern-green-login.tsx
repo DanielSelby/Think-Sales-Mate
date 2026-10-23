@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, LoaderCircle, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LoaderCircle, LockKeyhole, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithIdentifier } from "./actions";
 
@@ -62,9 +62,9 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
 
   return (
     <div className="modern-login-form-shell flex min-h-[inherit] items-center justify-center px-3 py-3 sm:px-6 lg:px-8">
-      <div className="modern-login-card login-card-enter w-full max-w-[540px] rounded-[28px] border border-slate-200/80 bg-white px-7 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:px-11 sm:py-12">
+      <div className="modern-login-card login-card-enter login-neumorphic-card w-full max-w-[540px] rounded-[28px] px-7 py-9 sm:px-11 sm:py-12">
         <div className="flex flex-col items-center text-center">
-          <div className="modern-login-logo login-logo-enter flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
+          <div className="modern-login-logo login-logo-enter login-neumorphic-logo flex h-[76px] w-[76px] items-center justify-center rounded-[24px] p-2">
             {systemLogoUrl ? (
               <img src={systemLogoUrl} alt="ThinkSales system logo" className="h-full w-full rounded-xl object-contain" />
             ) : (
@@ -85,16 +85,18 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
           <div>
             <label htmlFor="modern-login-email" className="mb-2 block text-sm font-semibold text-slate-800">Email address or username</label>
             <div className="relative">
-              <Mail className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-500" />
+              <UserRound className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-500" />
               <input
                 id="modern-login-email"
+                type="text"
+                required
                 autoComplete="username"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 disabled={preview || loading}
                 aria-invalid={Boolean(error)}
                 placeholder="you@company.com"
-                className="modern-login-input login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
+                className="modern-login-input login-neumorphic-input login-input login-input-green h-[52px] w-full rounded-xl border pl-12 pr-4 text-[15px] text-slate-900 outline-none"
               />
             </div>
           </div>
@@ -111,14 +113,14 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 disabled={preview || loading}
                 aria-invalid={Boolean(error)}
                 placeholder="Enter your password"
-                className="modern-login-input login-input login-input-green h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none disabled:bg-slate-50"
+                className="modern-login-input login-neumorphic-input login-input login-input-green h-[52px] w-full rounded-xl border pl-12 pr-12 text-[15px] text-slate-900 outline-none"
               />
               <button
                 type="button"
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword((visible) => !visible)}
                 disabled={preview}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-800 disabled:cursor-default"
+                className="login-neumorphic-control absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-800 disabled:cursor-default"
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -132,7 +134,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
                 checked={rememberMe}
                 onChange={(event) => setRememberMe(event.target.checked)}
                 disabled={preview}
-                className="h-4 w-4 rounded border-slate-300 accent-emerald-700"
+                className="h-4 w-4 rounded border-slate-300 accent-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
               />
               Remember me
             </label>
@@ -143,7 +145,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
           <button
             type="submit"
             disabled={preview || loading}
-            className="modern-login-submit login-submit flex h-[52px] w-full items-center justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 hover:from-emerald-800 hover:to-emerald-700 disabled:cursor-default disabled:opacity-75"
+            className="modern-login-submit login-neumorphic-submit login-submit flex h-[52px] w-full items-center justify-between rounded-xl px-5 text-sm font-semibold text-white disabled:cursor-default disabled:opacity-75"
           >
             <span>{preview ? "Sign in" : loading ? "Signing in..." : "Sign in"}</span>
             {loading ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-5 w-5" />}
@@ -156,10 +158,10 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl }: { organiz
           <span className="h-px flex-1 bg-slate-200" />
         </div>
         <div className="modern-login-oauth grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button type="button" disabled={preview || loading} onClick={() => void oauth("google")} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-default">
+          <button type="button" disabled={preview || loading} onClick={() => void oauth("google")} className="login-neumorphic-oauth flex h-11 items-center justify-center gap-2 rounded-xl text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-default">
             <GoogleMark /> Continue with Google
           </button>
-          <button type="button" disabled={preview || loading} onClick={() => void oauth("azure")} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-default">
+          <button type="button" disabled={preview || loading} onClick={() => void oauth("azure")} className="login-neumorphic-oauth flex h-11 items-center justify-center gap-2 rounded-xl text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-default">
             <MicrosoftMark /> Continue with Microsoft
           </button>
         </div>
@@ -201,14 +203,21 @@ export function ModernGreenLogin({ organizationName = null, preview = false, dev
   }, []);
 
   return (
-    <main className={`modern-login-page login-page-enter ${pageHeight} ${previewWidth} bg-[#f5f8f6] text-slate-900`}>
+    <main
+      className={`login-neumorphic-page modern-login-page login-page-enter ${pageHeight} ${previewWidth} text-slate-900`}
+      style={{
+        "--login-primary": "#1d8f5e",
+        "--login-primary-hover": "#16744b",
+        "--login-bubble-color": "color-mix(in srgb, #1d8f5e 22%, transparent)",
+      } as React.CSSProperties}
+    >
       <div className={`modern-login-layout grid min-h-[inherit] min-w-0 ${splitLayout ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"}`}>
         <section className={`relative min-h-[inherit] min-w-0 overflow-hidden bg-[#e9f4ed] p-3 sm:p-4 lg:p-5 ${splitLayout ? "hidden lg:block" : "hidden"}`}>
           <div className="relative h-full min-h-[inherit] min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.08)]">
             <img src={artworkUrl ?? "/login/modern-green-artwork.jpeg"} alt="ThinkSales Pro login artwork with sales dashboard on a laptop" className="absolute inset-0 h-full w-full object-cover object-center" />
           </div>
         </section>
-        <section className="modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 bg-[#f7f8f5] lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
+        <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden border-t border-emerald-700/20 lg:border-l-2 lg:border-t-0 lg:border-l-emerald-700/40">
           <div className="modern-login-bubbles" aria-hidden="true">
             <span className="modern-login-bubble modern-login-bubble-one" />
             <span className="modern-login-bubble modern-login-bubble-two" />

@@ -335,15 +335,15 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
   display: block;
   border: 2px solid var(--login-bubble-border);
   border-radius: 9999px;
-  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.96), var(--login-bubble-fill) 62%, var(--login-bubble-shadow));
-  box-shadow: inset 0 0 24px rgb(255 255 255 / 0.58), 0 12px 40px var(--login-bubble-shadow);
+  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.88), var(--login-bubble-fill) 62%, var(--login-bubble-shadow));
+  box-shadow: inset 0 0 24px rgb(255 255 255 / 0.42), 0 12px 34px var(--login-bubble-shadow);
   animation: login-bubble-float 14s ease-in-out infinite;
 }
 
 .modern-login-bubble-one {
-  --login-bubble-border: rgb(37 99 235 / 0.7);
-  --login-bubble-fill: rgb(96 165 250 / 0.42);
-  --login-bubble-shadow: rgb(37 99 235 / 0.2);
+  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
+  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
+  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
   width: clamp(6rem, 11vw, 10rem);
   aspect-ratio: 1;
   right: 12%;
@@ -351,9 +351,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-two {
-  --login-bubble-border: rgb(234 88 12 / 0.68);
-  --login-bubble-fill: rgb(251 146 60 / 0.42);
-  --login-bubble-shadow: rgb(234 88 12 / 0.18);
+  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
+  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
+  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
   width: clamp(4rem, 7vw, 6rem);
   aspect-ratio: 1;
   left: 8%;
@@ -362,9 +362,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-three {
-  --login-bubble-border: rgb(22 163 74 / 0.68);
-  --login-bubble-fill: rgb(74 222 128 / 0.42);
-  --login-bubble-shadow: rgb(22 163 74 / 0.18);
+  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
+  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
+  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
   width: clamp(8rem, 15vw, 13rem);
   aspect-ratio: 1;
   right: 6%;
@@ -373,9 +373,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 }
 
 .modern-login-bubble-four {
-  --login-bubble-border: rgb(37 99 235 / 0.7);
-  --login-bubble-fill: rgb(96 165 250 / 0.42);
-  --login-bubble-shadow: rgb(37 99 235 / 0.2);
+  --login-bubble-border: color-mix(in srgb, var(--login-bubble-color, #1d8f5e) 80%, white);
+  --login-bubble-fill: var(--login-bubble-color, rgb(29 143 94 / 0.22));
+  --login-bubble-shadow: color-mix(in srgb, var(--login-primary) 18%, transparent);
   width: clamp(3rem, 5vw, 4.5rem);
   aspect-ratio: 1;
   left: 18%;
@@ -385,9 +385,9 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
 
 @keyframes login-bubble-float {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  25% { transform: translate3d(68px, -52px, 0) scale(1.06); }
-  50% { transform: translate3d(-24px, -104px, 0) scale(0.96); }
-  75% { transform: translate3d(-82px, -36px, 0) scale(1.04); }
+  25% { transform: translate3d(12px, -9px, 0) scale(1.02); }
+  50% { transform: translate3d(-5px, -16px, 0) scale(0.99); }
+  75% { transform: translate3d(-12px, -5px, 0) scale(1.01); }
 }
 
 @media (min-width: 1024px) {
@@ -584,6 +584,153 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
   transform: translateY(0) scale(0.99);
 }
 
+.login-neumorphic-page {
+  --login-primary: #1d8f5e;
+  --login-primary-hover: #16744b;
+  --login-page-surface: #f1f4f1;
+  background:
+    radial-gradient(ellipse at 12% 16%, color-mix(in srgb, var(--login-primary) 8%, transparent), transparent 34rem),
+    linear-gradient(145deg, #f8faf8, var(--login-page-surface));
+}
+
+.login-neumorphic-panel {
+  background:
+    radial-gradient(circle at 92% 10%, color-mix(in srgb, var(--login-primary) 8%, transparent), transparent 18rem),
+    linear-gradient(145deg, #f7f9f7, var(--login-page-surface));
+}
+
+.login-neumorphic-card {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--login-card-border, rgb(255 255 255 / 0.92));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--login-card-surface, #ffffff) 94%, white), var(--login-card-surface, #f6f8f6));
+  box-shadow:
+    22px 24px 54px color-mix(in srgb, var(--login-primary) 11%, transparent),
+    -12px -12px 34px rgb(255 255 255 / 0.92),
+    inset 1px 1px 0 rgb(255 255 255 / 0.92);
+}
+
+.login-neumorphic-logo {
+  border: 1px solid rgb(255 255 255 / 0.96);
+  background: linear-gradient(145deg, #ffffff, #edf2ee);
+  box-shadow:
+    10px 12px 24px rgb(15 23 42 / 0.10),
+    -7px -7px 18px rgb(255 255 255 / 0.95),
+    inset 1px 1px 0 rgb(255 255 255 / 0.95);
+}
+
+.login-neumorphic-input {
+  border-color: var(--login-input-border, rgb(255 255 255 / 0.92)) !important;
+  background: linear-gradient(145deg, #f4f7f4, #ffffff) !important;
+  box-shadow:
+    inset 4px 5px 10px rgb(15 23 42 / 0.075),
+    inset -3px -3px 8px rgb(255 255 255 / 0.96);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    background-color 180ms ease;
+}
+
+.login-neumorphic-input:focus-visible {
+  border-color: var(--login-primary) !important;
+  box-shadow:
+    inset 2px 3px 7px rgb(15 23 42 / 0.06),
+    0 0 0 3px color-mix(in srgb, var(--login-primary) 18%, transparent),
+    0 8px 18px color-mix(in srgb, var(--login-primary) 9%, transparent);
+  transform: translateY(-1px);
+}
+
+.login-neumorphic-submit {
+  border: 1px solid color-mix(in srgb, var(--login-primary) 64%, white);
+  background: linear-gradient(115deg, var(--login-primary-hover), var(--login-primary) 58%, color-mix(in srgb, var(--login-primary) 82%, white));
+  box-shadow:
+    0 12px 24px color-mix(in srgb, var(--login-primary) 24%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.30),
+    inset 0 -2px 0 rgb(0 0 0 / 0.12);
+}
+
+.login-neumorphic-oauth {
+  border: 1px solid rgb(255 255 255 / 0.95);
+  background: linear-gradient(145deg, #ffffff, #f3f6f3);
+  box-shadow:
+    7px 8px 16px rgb(15 23 42 / 0.07),
+    -4px -4px 12px rgb(255 255 255 / 0.95),
+    inset 1px 1px 0 rgb(255 255 255 / 0.9);
+}
+
+.login-neumorphic-control:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--login-primary) 45%, white);
+  outline-offset: 3px;
+}
+
+html.dark .login-neumorphic-page {
+  --login-page-surface: #111a16;
+  background:
+    radial-gradient(ellipse at 12% 16%, color-mix(in srgb, var(--login-primary) 14%, transparent), transparent 34rem),
+    linear-gradient(145deg, #17221c, #101713);
+}
+
+html.dark .login-neumorphic-panel {
+  background:
+    radial-gradient(circle at 92% 10%, color-mix(in srgb, var(--login-primary) 14%, transparent), transparent 18rem),
+    linear-gradient(145deg, #17211c, #111a16);
+}
+
+html.dark .login-neumorphic-card {
+  border-color: rgb(255 255 255 / 0.08);
+  background: linear-gradient(145deg, #1c2922, #141e19);
+  box-shadow:
+    20px 22px 48px rgb(0 0 0 / 0.32),
+    -8px -8px 24px rgb(255 255 255 / 0.025),
+    inset 1px 1px 0 rgb(255 255 255 / 0.05);
+}
+
+html.dark .login-neumorphic-logo,
+html.dark .login-neumorphic-oauth {
+  border-color: rgb(255 255 255 / 0.09);
+  background: linear-gradient(145deg, #26362d, #1a2720);
+  box-shadow:
+    7px 8px 18px rgb(0 0 0 / 0.22),
+    -4px -4px 12px rgb(255 255 255 / 0.025),
+    inset 1px 1px 0 rgb(255 255 255 / 0.05);
+}
+
+html.dark .login-neumorphic-input {
+  border-color: rgb(255 255 255 / 0.08) !important;
+  background: linear-gradient(145deg, #121a16, #19231d) !important;
+  color: #f1f5f2 !important;
+  box-shadow:
+    inset 4px 5px 10px rgb(0 0 0 / 0.24),
+    inset -2px -2px 7px rgb(255 255 255 / 0.025);
+}
+
+html.dark .login-neumorphic-input::placeholder {
+  color: #9aa9a0;
+}
+
+html.dark .login-neumorphic-card .text-slate-900,
+html.dark .login-neumorphic-card .text-slate-800,
+html.dark .login-neumorphic-card .text-slate-700,
+html.dark .login-neumorphic-card .text-slate-600,
+html.dark .login-neumorphic-card .text-slate-500,
+html.dark .login-neumorphic-card .text-slate-400 {
+  color: #d6e0d9 !important;
+}
+
+html.dark .login-neumorphic-card h2,
+html.dark .login-neumorphic-card label {
+  color: #e6efe9 !important;
+}
+
+html.dark .login-neumorphic-card a {
+  color: #7fe0ae !important;
+}
+
+html.dark .login-neumorphic-oauth {
+  color: #e2e8e3;
+}
+
 .login-error-enter {
   animation: login-error-enter 220ms ease-out both;
 }
@@ -602,12 +749,18 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
   }
 
   .login-input,
-  .login-submit {
+  .login-submit,
+  .login-neumorphic-oauth {
     transition-duration: 1ms;
   }
 
   .login-submit:not(:disabled):hover,
-  .login-submit:not(:disabled):active {
+  .login-submit:not(:disabled):active,
+  .login-neumorphic-oauth:hover {
+    transform: none;
+  }
+
+  .login-neumorphic-input:focus-visible {
     transform: none;
   }
 }

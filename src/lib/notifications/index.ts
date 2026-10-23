@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { deliverMessage } from "@/lib/communication/providers";
 
 export interface CreateNotificationParams {
   orgId: string;
@@ -11,6 +12,7 @@ export interface CreateNotificationParams {
   entityType?: string;
   entityId?: string | null;
   recipientContact?: string | null;
+  status?: string;
 }
 
 export async function createNotification(params: CreateNotificationParams) {
@@ -28,7 +30,7 @@ export async function createNotification(params: CreateNotificationParams) {
       entity_id: params.entityId ?? null,
       recipient_contact: params.recipientContact ?? null,
       is_read: false,
-      status: "delivered",
+      status: params.status ?? "delivered",
     }).select("id").single();
 
     if (error) {
@@ -81,15 +83,27 @@ export async function notifyNewCustomerOrder(params: {
 
   // 3. Customer notification: Order Received
   if (params.customerEmail && params.sendEmail !== false) {
+    const subject = `Order Received - ${params.orderNumber}`;
+    const message = `Hi ${params.customerName}, we received your order ${params.orderNumber}. Our team is reviewing it.`;
+    const result = await deliverMessage({
+      channel: "Email",
+      recipient: params.customerEmail,
+      subject,
+      content: message,
+    });
     await createNotification({
       orgId: params.orgId,
-      title: `Order Received - ${params.orderNumber}`,
-      message: `Hi ${params.customerName}, we received your order ${params.orderNumber}. Our team is reviewing it.`,
+      title: subject,
+      message,
       type: "order_received",
       channel: "email",
       entityId: params.orderId,
       recipientContact: params.customerEmail,
+      status: result.sent ? "sent" : "failed",
     });
+    if (!result.sent) {
+      console.error(`[customer-order-email] Failed to send order received email for order ${params.orderNumber} via ${result.provider}: ${result.reason ?? "unknown provider error"}`);
+    }
   }
 
   if (params.customerPhone && params.sendWhatsApp) {
@@ -136,6 +150,7 @@ export async function notifyCustomerOrderStatus(params: {
   notes?: string | null;
   sendEmail?: boolean;
   sendWhatsApp?: boolean;
+  trackingUrl?: string | null;
 }) {
   const statusTitles: Record<string, string> = {
     approved: "Order Approved",
@@ -157,7 +172,12 @@ export async function notifyCustomerOrderStatus(params: {
 
   const title = statusTitles[params.status] ?? `Order Status: ${params.status}`;
   const message = statusMessages[params.status] ?? `Status for order ${params.orderNumber} updated to ${params.status}.`;
-  const typeKey = params.status === "delivery" ? "out_for_delivery" : params.status === "completed" ? "delivered" : (`order_${params.status}` as any);
+  const typeKey: CreateNotificationParams["type"] =
+    params.status === "delivery" ? "out_for_delivery"
+      : params.status === "completed" ? "delivered"
+        : params.status === "approved" ? "order_approved"
+          : params.status === "rejected" ? "order_rejected"
+            : "general";
 
   // In-app log
   await createNotification({
@@ -172,15 +192,56 @@ export async function notifyCustomerOrderStatus(params: {
 
   // Email
   if (params.customerEmail && params.sendEmail !== false) {
+    const subject = `${title} - ${params.orderNumber}`;
+    let trackingUrl = params.trackingUrl;
+    if (!trackingUrl) {
+      const siteUrl = process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL;
+      if (!siteUrl) {
+        console.error("[customer-order-email] Tracking link omitted because SITE_URL is not configured.");
+      } else {
+        const supabase = await createClient();
+        const [{ data: organization, error: organizationError }, { data: order, error: orderError }] = await Promise.all([
+          supabase.from("organizations").select("slug").eq("id", params.orgId).maybeSingle(),
+          supabase.from("customer_orders").select("access_token").eq("id", params.orderId).eq("org_id", params.orgId).maybeSingle(),
+        ]);
+        if (organizationError || orderError) {
+          console.error("[customer-order-email] Could not load tracking link details:", organizationError?.message ?? orderError?.message);
+        } else if (!organization?.slug || !order?.access_token) {
+          console.error(`[customer-order-email] Tracking link details are unavailable for order ${params.orderNumber}.`);
+        } else {
+          try {
+            trackingUrl = new URL(
+              `/order/${encodeURIComponent(organization.slug)}/track/${encodeURIComponent(order.access_token)}`,
+              siteUrl
+            ).toString();
+          } catch (error) {
+            console.error("[customer-order-email] Could not construct the tracking URL:", error);
+          }
+        }
+      }
+    }
+    const content = trackingUrl
+      ? `${message}\n\nTrack your order: ${trackingUrl}`
+      : message;
+    const result = await deliverMessage({
+      channel: "Email",
+      recipient: params.customerEmail,
+      subject,
+      content,
+    });
     await createNotification({
       orgId: params.orgId,
-      title: `${title} - ${params.orderNumber}`,
+      title: subject,
       message,
       type: typeKey,
       channel: "email",
       entityId: params.orderId,
       recipientContact: params.customerEmail,
+      status: result.sent ? "sent" : "failed",
     });
+    if (!result.sent) {
+      console.error(`[customer-order-email] Failed to send ${params.status} email for order ${params.orderNumber} via ${result.provider}: ${result.reason ?? "unknown provider error"}`);
+    }
   }
 
   // WhatsApp

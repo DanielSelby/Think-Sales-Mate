@@ -84,6 +84,13 @@ Supabase project in the intended order using the Supabase CLI or your normal
 database deployment process. Do not assume that copying only the original core
 migration creates the full schema required by the current application.
 
+Customer order status emails use the configured Resend provider. Set
+`RESEND_API_KEY` and `RESEND_FROM_EMAIL` to enable delivery, and configure
+`SITE_URL` or `NEXT_PUBLIC_SITE_URL` so each email can include a customer order
+tracking link. The customer-ordering setting **Send Email Notifications**
+controls these messages. Delivery results are recorded with the order
+notifications; failed deliveries are logged and marked as failed.
+
 The AI Assistant migration adds metadata-only usage events and atomic database
 request limits (20 requests per user per hour and 300 requests per organization
 per day). It does not store chat messages. Chat context exists only in the

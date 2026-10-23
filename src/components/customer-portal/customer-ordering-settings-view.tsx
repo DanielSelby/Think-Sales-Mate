@@ -530,7 +530,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, currency, com
           <CardContent className="space-y-4 pt-0">
             <ToggleRow
               label="Send Email Notifications"
-              description="Send automated transactional emails for Order Received, Order Approved, Out for Delivery, and Delivered events."
+              description="Email customers when an order is received, approved, picking or packing starts/completes, dispatched, delivered, or rejected."
               checked={settings.sendEmailNotifications}
               onChange={(v) => patch("sendEmailNotifications", v)}
             />

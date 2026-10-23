@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LoaderCircle } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithIdentifier } from "./actions";
 import { Input } from "@/components/ui/input";
@@ -113,6 +113,8 @@ function ThemeSwitcher({ active, onChange }: { active: LoginThemeKey; onChange: 
       {(Object.values(LOGIN_THEMES) as typeof LOGIN_THEMES[LoginThemeKey][]).map(t => (
         <button
           key={t.key}
+          type="button"
+          aria-label={`Use ${t.label} login theme`}
           title={t.label}
           onClick={() => onChange(t.key as LoginThemeKey)}
           className="relative flex h-6 w-6 items-center justify-center rounded-full transition-all"
@@ -184,7 +186,17 @@ function LoginForm() {
   }
 
   return (
-    <main className="login-page-enter min-h-screen overflow-hidden" style={{ background: "#f7f8f6" }}>
+    <main
+      className="login-neumorphic-page login-page-enter min-h-screen overflow-x-hidden overflow-y-auto"
+      style={{
+        "--login-primary": theme.btn.bg,
+        "--login-primary-hover": theme.btn.hover,
+        "--login-input-border": theme.input.border,
+        "--login-card-surface": theme.card.bg,
+        "--login-card-border": theme.card.border,
+        "--login-page-surface": themeKey === "harvest" ? "#f5f1dc" : "#f1f4f1",
+      } as React.CSSProperties}
+    >
       <div className="grid min-h-screen lg:grid-cols-[50%_50%]">
 
         {/* ── LEFT PANEL ── */}
@@ -291,8 +303,7 @@ function LoginForm() {
         </section>
 
         {/* ── RIGHT LOGIN PANEL ── */}
-        <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-8 sm:px-8 lg:px-10 xl:px-16"
-          style={{ background: themeKey === "harvest" ? "#FEFAE0" : "#f7f8f6" }}>
+        <section className="login-neumorphic-panel relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
 
           {/* Decorative shapes */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -306,12 +317,12 @@ function LoginForm() {
           </div>
 
           {/* Mobile theme switcher */}
-          <div className="absolute top-5 right-5 lg:hidden z-10">
-            <div className="flex items-center gap-2 rounded-full border px-3 py-1.5"
+          <div className="absolute top-5 right-5 z-20 lg:hidden">
+            <div className="flex items-center gap-1.5 rounded-full border px-2 py-1.5"
               style={{ borderColor: theme.input.border, background: "white" }}>
               {(Object.values(LOGIN_THEMES) as typeof LOGIN_THEMES[LoginThemeKey][]).map(t => (
-                <button key={t.key} title={t.label} onClick={() => setThemeKey(t.key as LoginThemeKey)}
-                  className="h-5 w-5 rounded-full transition-all"
+                <button key={t.key} type="button" aria-label={`Use ${t.label} login theme`} title={t.label} onClick={() => setThemeKey(t.key as LoginThemeKey)}
+                  className="h-4 w-4 rounded-full transition-all"
                   style={{ background: t.dot, outline: themeKey === t.key ? `2px solid ${t.dot}` : "none", outlineOffset: 2 }} />
               ))}
             </div>
@@ -323,19 +334,18 @@ function LoginForm() {
               <div className="flex items-center gap-2.5">
                 <BrandMark size="sm" theme={theme} logoUrl={systemLogoUrl} />
                 <div>
-                  <div className="text-lg font-semibold tracking-tight" style={{ color: theme.btn.bg }}>
+                  <div className="text-base font-semibold tracking-tight" style={{ color: theme.btn.bg }}>
                     ThinkSales <span style={{ color: theme.link }}>Pro</span>
                   </div>
-                  <p className="text-[9px] text-gray-400">Sales Management System</p>
+                  <p className="text-[8px] text-gray-400">Sales Management System</p>
                 </div>
               </div>
             </div>
 
             {/* Card */}
-            <div className="login-card-enter rounded-[28px] p-7 sm:p-9"
-              style={{ background: theme.card.bg, border: `1px solid ${theme.card.border}`, boxShadow: theme.card.shadow }}>
+            <div className="login-card-enter login-neumorphic-card rounded-[28px] p-7 sm:p-9">
               <div className="text-center">
-                <div className="mx-auto mb-5 flex justify-center">
+                <div className="login-neumorphic-logo mx-auto mb-5 flex h-[76px] w-[76px] items-center justify-center rounded-[24px] p-2">
                   <BrandMark size="lg" theme={theme} logoUrl={systemLogoUrl} />
                 </div>
                 <h2 className="text-[27px] font-semibold tracking-[-0.8px]" style={{ color: theme.btn.bg }}>
@@ -351,15 +361,15 @@ function LoginForm() {
 
                 {/* Email or username */}
                 <div>
-                  <label className="mb-2 block text-[12px] font-semibold" style={{ color: theme.btn.bg }}>Email or Username</label>
+                  <label htmlFor="login-identifier" className="mb-2 block text-[12px] font-semibold" style={{ color: theme.btn.bg }}>Email or Username</label>
                   <div className="relative">
                     <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
                     </div>
-                    <Input type="text" autoComplete="username" required value={identifier} onChange={e => setIdentifier(e.target.value)} disabled={loading}
+                    <Input id="login-identifier" type="text" autoComplete="username" required value={identifier} onChange={e => setIdentifier(e.target.value)} disabled={loading}
                       aria-invalid={Boolean(error)}
                       placeholder="Enter your email or username"
-                      className="login-input h-12 rounded-xl pl-12 pr-4 text-sm shadow-none placeholder:text-slate-400"
+                      className="login-neumorphic-input login-input h-12 rounded-xl pl-12 pr-4 text-sm placeholder:text-slate-400"
                       style={{ borderColor: theme.input.border, "--login-focus-color": theme.input.focus, "--login-focus-ring": theme.input.ring } as React.CSSProperties} />
                   </div>
                 </div>
@@ -367,7 +377,7 @@ function LoginForm() {
                 {/* Password */}
                 <div className="mt-5">
                   <div className="mb-2 flex items-center justify-between">
-                    <label className="text-[12px] font-semibold" style={{ color: theme.btn.bg }}>Password</label>
+                    <label htmlFor="login-password" className="text-[12px] font-semibold" style={{ color: theme.btn.bg }}>Password</label>
                     <Link href="/forgot-password" className="text-[12px] font-medium" style={{ color: theme.link }}>
                       Forgot password?
                     </Link>
@@ -376,17 +386,17 @@ function LoginForm() {
                     <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
                     </div>
-                    <Input type={showPass ? "text" : "password"} autoComplete="current-password" required
+                    <Input id="login-password" type={showPass ? "text" : "password"} autoComplete="current-password" required
                       value={password} onChange={e => setPassword(e.target.value)} disabled={loading}
                       aria-invalid={Boolean(error)}
                       placeholder="Enter your password"
-                      className="login-input h-12 rounded-xl pl-12 pr-12 text-sm shadow-none placeholder:text-slate-400"
+                      className="login-neumorphic-input login-input h-12 rounded-xl pl-12 pr-12 text-sm placeholder:text-slate-400"
                       style={{ borderColor: theme.input.border, "--login-focus-color": theme.input.focus, "--login-focus-ring": theme.input.ring } as React.CSSProperties} />
                     <button type="button" onClick={() => setShowPass(v => !v)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors">
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
-                        <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.7 10.7 0 0 1 12 5c5 0 8.5 4.5 9.5 7-.4 1-1.4 2.5-2.9 3.8M6.3 6.3C4.1 7.8 2.9 10 2.5 12c1 2.5 4.5 7 9.5 7 1.2 0 2.3-.2 3.3-.6"/>
-                      </svg>
+                      aria-label={showPass ? "Hide password" : "Show password"}
+                      aria-pressed={showPass}
+                      className="login-neumorphic-control absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 transition-colors hover:text-slate-800">
+                      {showPass ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
                     </button>
                   </div>
                 </div>
@@ -394,7 +404,8 @@ function LoginForm() {
                 {/* Remember me */}
                 <div className="mt-5 flex items-center justify-between">
                   <button type="button" onClick={() => setRememberMe(v => !v)}
-                    className="flex items-center gap-2 text-[12px] text-slate-500">
+                    aria-pressed={rememberMe}
+                    className="login-neumorphic-control flex items-center gap-2 rounded-md text-[12px] text-slate-600">
                     <span className="flex h-[17px] w-[17px] items-center justify-center rounded-[4px] border transition"
                       style={rememberMe ? { background: theme.check.bg, borderColor: theme.check.border } : { borderColor: "#cfd2cd", background: "white" }}>
                       {rememberMe && (
@@ -412,8 +423,7 @@ function LoginForm() {
 
                 {/* Submit */}
                 <button type="submit" disabled={loading}
-                  className="login-submit mt-6 flex h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-80"
-                  style={{ background: theme.btn.bg, boxShadow: theme.btn.shadow }}>
+                  className="login-neumorphic-submit login-submit mt-6 flex h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-80">
                   {loading ? <><LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> Signing in securely…</> : "Sign In"}
                   {!loading && (
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -434,12 +444,12 @@ function LoginForm() {
               {/* OAuth */}
               <div className="grid grid-cols-2 gap-3">
                 <button type="button" disabled={loading} onClick={() => handleOAuth("google")}
-                  className="flex h-11 items-center justify-center gap-2.5 rounded-xl border text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                  className="login-neumorphic-oauth flex h-11 items-center justify-center gap-2.5 rounded-xl text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 disabled:opacity-60"
                   style={{ borderColor: theme.card.border }}>
                   <GoogleIcon /> Google
                 </button>
                 <button type="button" disabled={loading} onClick={() => handleOAuth("azure")}
-                  className="flex h-11 items-center justify-center gap-2.5 rounded-xl border text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                  className="login-neumorphic-oauth flex h-11 items-center justify-center gap-2.5 rounded-xl text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 disabled:opacity-60"
                   style={{ borderColor: theme.card.border }}>
                   <MicrosoftIcon /> Microsoft
                 </button>
