@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyNewCustomerOrder } from "@/lib/notifications";
 import { isPortalActive } from "@/lib/customer-portal/schedule";
+import { getStorefrontStockQuantity } from "@/lib/customer-portal/branch-catalog";
 import { getPlatformSystemLogo } from "@/lib/supabase/platform-admin";
 
 export interface PortalContext {
@@ -102,12 +103,14 @@ export interface StorefrontLocation {
 
 export async function getStorefrontLocations(orgId: string): Promise<StorefrontLocation[]> {
   const supabase = createAdminClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("business_locations")
     .select("id, name, city, region, address")
     .eq("org_id", orgId)
     .eq("is_active", true)
+    .eq("customer_portal_enabled", true)
     .order("name");
+  if (error) throw new Error(`Unable to load storefront branches: ${error.message}`);
 
   return (data ?? []).map((l) => ({
     id: l.id,
@@ -116,6 +119,46 @@ export async function getStorefrontLocations(orgId: string): Promise<StorefrontL
     region: l.region,
     address: l.address,
   }));
+}
+
+export interface BranchStorefront {
+  id: string;
+  slug: string;
+  name: string;
+  city: string | null;
+  region: string | null;
+  address: string | null;
+}
+
+export async function getBranchStorefront(orgSlug: string, branchSlug: string): Promise<BranchStorefront | null> {
+  const supabase = createAdminClient();
+  const { data: org, error: orgError } = await supabase
+    .from("organizations")
+    .select("id")
+    .eq("slug", orgSlug)
+    .maybeSingle();
+  if (orgError) throw new Error(`Unable to load organization: ${orgError.message}`);
+  if (!org) return null;
+
+  const { data: branch, error } = await supabase
+    .from("business_locations")
+    .select("id, customer_portal_slug, name, city, region, address")
+    .eq("org_id", org.id)
+    .eq("customer_portal_slug", branchSlug)
+    .eq("is_active", true)
+    .eq("customer_portal_enabled", true)
+    .maybeSingle();
+  if (error) throw new Error(`Unable to load branch storefront: ${error.message}`);
+  if (!branch?.customer_portal_slug) return null;
+
+  return {
+    id: branch.id,
+    slug: branch.customer_portal_slug,
+    name: branch.name,
+    city: branch.city,
+    region: branch.region,
+    address: branch.address,
+  };
 }
 
 export interface CatalogProduct {
@@ -128,24 +171,60 @@ export interface CatalogProduct {
   imageUrl: string | null;
 }
 
-export async function getCatalog(orgId: string): Promise<CatalogProduct[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
+export async function getCatalog(orgId: string, branchId?: string): Promise<CatalogProduct[]> {
+  const supabase = createAdminClient();
+  const { data: products, error: productsError } = await supabase
     .from("public_product_catalog")
     .select("id, name, category, brand, unit_price, stock_quantity, image_urls")
     .eq("org_id", orgId)
     .order("name");
+  if (productsError) throw new Error(`Unable to load storefront products: ${productsError.message}`);
 
-  return (data ?? []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    category: p.category,
-    brand: p.brand,
-    unitPrice: p.unit_price,
-    stockQuantity: p.stock_quantity,
-    imageUrl: p.image_urls?.[0] ?? null,
-  
-  }));
+  const { data: locations, error: locationsError } = await supabase
+    .from("business_locations")
+    .select("id, customer_portal_enabled")
+    .eq("org_id", orgId)
+    .eq("is_active", true);
+  if (locationsError) throw new Error(`Unable to load storefront branches: ${locationsError.message}`);
+
+  const activeLocations = locations ?? [];
+  const visibleLocationIds = branchId
+    ? [branchId]
+    : activeLocations.filter((location) => location.customer_portal_enabled).map((location) => location.id);
+  if (!branchId && activeLocations.length > 0 && visibleLocationIds.length === 0) return [];
+
+  const { data: stockLevels, error: stockError } = await supabase
+    .from("product_stock_levels")
+    .select("product_id, location_id, quantity")
+    .eq("org_id", orgId);
+  if (stockError) throw new Error(`Unable to load branch inventory: ${stockError.message}`);
+  const levelsByProduct = new Map<string, Array<{ locationId: string; quantity: number }>>();
+  for (const level of stockLevels ?? []) {
+    const levels = levelsByProduct.get(level.product_id) ?? [];
+    levels.push({ locationId: level.location_id, quantity: Number(level.quantity ?? 0) });
+    levelsByProduct.set(level.product_id, levels);
+  }
+
+  return (products ?? []).flatMap((p) => {
+    const levels = levelsByProduct.get(p.id) ?? [];
+    const stockQuantity = getStorefrontStockQuantity({
+      organizationStock: Number(p.stock_quantity ?? 0),
+      branchId,
+      activeLocationCount: activeLocations.length,
+      visibleLocationIds,
+      stockLevels: levels,
+    });
+    if (stockQuantity === null || ((branchId || activeLocations.length > 0) && stockQuantity <= 0)) return [];
+    return [{
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      brand: p.brand,
+      unitPrice: p.unit_price,
+      stockQuantity,
+      imageUrl: p.image_urls?.[0] ?? null,
+    }];
+  });
 }
 
 export interface UploadVoiceNoteResult {
@@ -205,6 +284,7 @@ export interface PlaceOrderInput {
   notes: string | null;
   voiceNoteUrl?: string | null;
   locationId?: string | null;
+  branchSlug?: string | null;
   items: CartLineInput[];
 }
 
@@ -259,18 +339,65 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     scheduleTimezone: settings.schedule_timezone ?? "UTC",
   })) return { ok: false, error: "Ordering is currently unavailable." };
 
-  const { data: orders, error } = await supabase.rpc("place_customer_portal_order", {
+  let branchStorefront = false;
+  let locationId = settings.allow_customer_location_selection ? input.locationId || null : null;
+  if (input.branchSlug) {
+    if (typeof input.branchSlug !== "string" || input.branchSlug.length > 100 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.branchSlug)) {
+      return { ok: false, error: "This branch storefront is unavailable." };
+    }
+    const { data: branch, error: branchError } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("org_id", input.orgId)
+      .eq("customer_portal_slug", input.branchSlug)
+      .eq("is_active", true)
+      .eq("customer_portal_enabled", true)
+      .maybeSingle();
+    if (branchError) return { ok: false, error: branchError.message };
+    if (!branch || (input.locationId && input.locationId !== branch.id)) {
+      return { ok: false, error: "This branch storefront is unavailable." };
+    }
+    branchStorefront = true;
+    locationId = branch.id;
+  } else if (locationId) {
+    const { data: branch, error: branchError } = await supabase
+      .from("business_locations")
+      .select("id")
+      .eq("id", locationId)
+      .eq("org_id", input.orgId)
+      .eq("is_active", true)
+      .eq("customer_portal_enabled", true)
+      .maybeSingle();
+    if (branchError) return { ok: false, error: branchError.message };
+    if (!branch) return { ok: false, error: "Choose an available branch location." };
+  }
+
+  const orderArgs = {
     p_org_id: input.orgId,
     p_guest_name: input.guestName.trim(),
     p_guest_phone: input.guestPhone.trim(),
     p_guest_email: input.guestEmail?.trim() || null,
     p_delivery_address: input.deliveryAddress.trim(),
     p_delivery_option: settings.allow_customer_select_delivery ? input.deliveryOption : null,
-    p_location_id: settings.allow_customer_location_selection ? input.locationId || null : null,
+    p_location_id: settings.allow_customer_location_selection ? locationId : null,
     p_notes: input.notes?.trim() || null,
     p_voice_note_url: input.voiceNoteUrl || null,
     p_items: input.items.map(({ productId, quantity }) => ({ product_id: productId, quantity })),
-  });
+  };
+  const { data: orders, error } = branchStorefront
+    ? await supabase.rpc("place_customer_portal_order_for_branch", {
+        p_org_id: input.orgId,
+        p_branch_slug: input.branchSlug ?? "",
+        p_guest_name: orderArgs.p_guest_name,
+        p_guest_phone: orderArgs.p_guest_phone,
+        p_guest_email: orderArgs.p_guest_email,
+        p_delivery_address: orderArgs.p_delivery_address,
+        p_delivery_option: orderArgs.p_delivery_option,
+        p_notes: orderArgs.p_notes,
+        p_voice_note_url: orderArgs.p_voice_note_url,
+        p_items: orderArgs.p_items,
+      })
+    : await supabase.rpc("place_customer_portal_order", orderArgs);
 
   const order = orders?.[0];
   if (error || !order) return { ok: false, error: error?.message ?? "Couldn't create order." };
@@ -282,7 +409,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     customerName: input.guestName.trim(),
     total: order.total,
     currency: org?.currency ?? "GHS",
-    locationId: settings.allow_customer_location_selection ? input.locationId || null : null,
+    locationId,
     branchName: order.branch_name,
     customerPhone: input.guestPhone.trim(),
     customerEmail: input.guestEmail?.trim() || null,

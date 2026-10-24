@@ -41,6 +41,8 @@ import { WhatsAppContactLink } from "@/components/customer-portal/whatsapp-conta
 
 interface BrowseViewProps {
   orgSlug: string;
+  storefrontPath: string;
+  branchName?: string;
   orgName: string;
   organizationPhone: string | null;
   whatsappBusinessNumber: string | null;
@@ -76,6 +78,8 @@ function getCategoryIcon(category: string) {
 
 export function BrowseView({
   orgSlug,
+  storefrontPath,
+  branchName,
   orgName,
   organizationPhone,
   whatsappBusinessNumber,
@@ -161,7 +165,7 @@ export function BrowseView({
 
           {/* Brand */}
           <Link
-            href={`/order/${orgSlug}`}
+            href={storefrontPath}
             className="flex items-center gap-3"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-1 shadow-sm ring-1 ring-ledger-200">
@@ -177,7 +181,7 @@ export function BrowseView({
                 </a>
               )}
               <p className="text-xs text-ledger-500">
-                Customer Ordering Portal
+                {branchName ? `${branchName} · Branch Storefront` : "Customer Ordering Portal"}
               </p>
             </div>
           </Link>
@@ -248,7 +252,7 @@ export function BrowseView({
 
           {/* Cart button */}
           <Link
-            href={`/order/${orgSlug}/cart`}
+            href={`${storefrontPath}/cart`}
             className="group flex items-center gap-2.5"
           >
             <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#b9e4ca] bg-[#e2f6e9] text-[#16734a] shadow-sm transition-transform group-hover:scale-105 dark:border-ledger-700 dark:bg-ink-800 dark:text-emerald-300">
@@ -818,7 +822,7 @@ export function BrowseView({
                 </div>
 
                 <Link
-                  href={`/order/${orgSlug}/cart`}
+                  href={`${storefrontPath}/cart`}
                   className={cn(
                     "mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg text-xs font-bold text-white transition",
                     cartItems.length > 0
@@ -864,7 +868,7 @@ export function BrowseView({
       {cart.itemCount > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-ledger-200 bg-white/95 p-3 shadow-2xl backdrop-blur xl:hidden dark:border-ledger-800 dark:bg-ink-950/95">
           <Link
-            href={`/order/${orgSlug}/cart`}
+            href={`${storefrontPath}/cart`}
             className="mx-auto flex max-w-xl items-center justify-between rounded-xl bg-signal px-4 py-3 text-white"
           >
             <div className="flex items-center gap-2">

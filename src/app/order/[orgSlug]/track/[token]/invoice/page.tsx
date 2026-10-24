@@ -2,9 +2,14 @@ import { trackOrder } from "@/app/order/[orgSlug]/track/[token]/actions";
 import { notFound } from "next/navigation";
 import { InvoicePrintButton } from "@/components/customer-portal/invoice-print-button";
 
+export const metadata = {
+  robots: { index: false, follow: false },
+  referrer: "no-referrer",
+};
+
 export default async function CustomerInvoicePage({ params }: { params: Promise<{ orgSlug: string; token: string }> }) {
-  const { token } = await params;
-  const order = await trackOrder(token);
+  const { orgSlug, token } = await params;
+  const order = await trackOrder(token, orgSlug);
   if (!order || !order.allowInvoiceDownload || order.status !== "completed") notFound();
   return (
     <main className="mx-auto max-w-3xl bg-white p-8 text-slate-900 print:max-w-none">

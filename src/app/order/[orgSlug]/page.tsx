@@ -18,6 +18,7 @@ export default async function BrowsePage({ params }: { params: Promise<{ orgSlug
   return (
     <BrowseView
       orgSlug={orgSlug}
+      storefrontPath={`/order/${orgSlug}`}
       orgName={context.orgName}
       organizationPhone={context.organizationPhone}
       whatsappBusinessNumber={context.whatsappBusinessNumber}

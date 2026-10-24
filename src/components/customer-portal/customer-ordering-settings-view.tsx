@@ -2,16 +2,26 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Copy, Check, MapPin, ShieldCheck, Bell, DollarSign, FileText, CheckCircle2, MessageSquare, Mail, Printer, Globe, Phone, Sun, Moon } from "lucide-react";
+import { Loader2, Copy, Check, MapPin, ShieldCheck, Bell, DollarSign, FileText, CheckCircle2, MessageSquare, Mail, Printer, Globe, Phone, Sun, Moon, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { updatePortalSettings, type PortalSettings } from "@/app/(dashboard)/settings/customer-ordering/actions";
+import { updateBranchPortalSettings, updatePortalSettings, type PortalSettings } from "@/app/(dashboard)/settings/customer-ordering/actions";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
+
+interface BranchPortalDraft {
+  id: string;
+  name: string;
+  slug: string;
+  enabled: boolean;
+  requiresApproval: boolean | null;
+  url: string;
+}
 
 interface SettingsViewProps {
   initial: PortalSettings;
   portalUrl: string;
+  branchPortals: BranchPortalDraft[];
   currency: string;
   companyProfile: {
     company_name: string | null;
@@ -25,9 +35,10 @@ interface SettingsViewProps {
   } | null;
 }
 
-export function CustomerOrderingSettingsView({ initial, portalUrl, currency, companyProfile }: SettingsViewProps) {
+export function CustomerOrderingSettingsView({ initial, portalUrl, branchPortals: initialBranchPortals, currency, companyProfile }: SettingsViewProps) {
   const router = useRouter();
   const [settings, setSettings] = React.useState<PortalSettings>(initial);
+  const [branchPortals, setBranchPortals] = React.useState(initialBranchPortals);
   const [deliveryFeeDrafts, setDeliveryFeeDrafts] = React.useState({
     standard: String(initial.standardDeliveryFee),
     express: String(initial.expressDeliveryFee),
@@ -36,6 +47,8 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, currency, com
   const [isPending, startTransition] = React.useTransition();
   const [notice, setNotice] = React.useState<{ text: string; type: "success" | "error" } | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [copiedBranchId, setCopiedBranchId] = React.useState<string | null>(null);
+  const [savingBranchId, setSavingBranchId] = React.useState<string | null>(null);
 
   function patch<K extends keyof PortalSettings>(key: K, value: PortalSettings[K]) {
     setSettings((prev) => {
@@ -80,6 +93,39 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, currency, com
     navigator.clipboard.writeText(portalUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function updateBranchDraft(branchId: string, patch: Partial<BranchPortalDraft>) {
+    setBranchPortals((branches) => branches.map((branch) => branch.id === branchId ? { ...branch, ...patch } : branch));
+  }
+
+  async function copyBranchUrl(branch: BranchPortalDraft) {
+    try {
+      await navigator.clipboard.writeText(branch.url);
+      setCopiedBranchId(branch.id);
+      setTimeout(() => setCopiedBranchId((id) => id === branch.id ? null : id), 2000);
+    } catch {
+      setNotice({ text: "Unable to copy the branch link. Please copy the URL manually.", type: "error" });
+    }
+  }
+
+  function saveBranch(branch: BranchPortalDraft) {
+    setSavingBranchId(branch.id);
+    setNotice(null);
+    startTransition(async () => {
+      const result = await updateBranchPortalSettings({
+        branchId: branch.id,
+        customerPortalEnabled: branch.enabled,
+        requiresApproval: branch.requiresApproval,
+      });
+      setSavingBranchId(null);
+      if (!result.ok) {
+        setNotice({ text: result.error ?? `Failed to save ${branch.name} settings.`, type: "error" });
+        return;
+      }
+      setNotice({ text: `${branch.name} storefront settings saved.`, type: "success" });
+      router.refresh();
+    });
   }
 
   function printBusinessCard() {
@@ -189,6 +235,81 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, currency, com
               Customer ordering is currently disabled. Toggle &quot;Enable Customer Ordering&quot; below to accept orders through this link.
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card accent="neutral" className="border-ledger-200/80 dark:border-ledger-700/80">
+        <CardHeader className="pb-2">
+          <CardTitle className="normal-case tracking-normal text-sm font-semibold text-ink-900 dark:text-white flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-signal" />
+            Branch Storefronts
+          </CardTitle>
+          <p className="text-xs leading-relaxed text-ledger-500 dark:text-ledger-400">
+            Choose which branches customers can browse and set whether orders from each branch link need approval. The organization storefront above remains available.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          {branchPortals.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-ledger-200 p-4 text-sm text-ledger-500 dark:border-ledger-700 dark:text-ledger-400">
+              No active branches are available to configure.
+            </p>
+          ) : branchPortals.map((branch) => (
+            <div key={branch.id} className="rounded-xl border border-ledger-200 bg-ledger-50/50 p-4 dark:border-ledger-700 dark:bg-white/[0.02]">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-ink-900 dark:text-white">{branch.name}</p>
+                  <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">
+                    {branch.enabled ? "Products stocked at this branch are included in the main storefront." : "This branch is hidden from the main storefront and its branch link is disabled."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={branch.enabled}
+                  aria-label={`Show ${branch.name} products in the customer portal`}
+                  onClick={() => updateBranchDraft(branch.id, { enabled: !branch.enabled })}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-signal/40",
+                    branch.enabled ? "bg-signal" : "bg-ledger-200 dark:bg-ledger-700"
+                  )}
+                >
+                  <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform", branch.enabled ? "translate-x-5" : "translate-x-0")} />
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label className="block text-xs font-medium text-ledger-600 dark:text-ledger-300">
+                  Orders from this branch
+                  <select
+                    value={branch.requiresApproval === null ? "inherit" : branch.requiresApproval ? "approval" : "direct"}
+                    onChange={(event) => updateBranchDraft(branch.id, {
+                      requiresApproval: event.target.value === "inherit" ? null : event.target.value === "approval",
+                    })}
+                    className="mt-1 block h-10 w-full rounded-md border border-ledger-200 bg-white px-3 text-sm text-ink-900 outline-none focus:border-signal dark:border-ledger-600 dark:bg-ink-800 dark:text-white"
+                  >
+                    <option value="inherit">Use organization approval setting</option>
+                    <option value="approval">Send to approval center first</option>
+                    <option value="direct">Send directly to branch</option>
+                  </select>
+                </label>
+                <Button variant="secondary" size="sm" disabled={isPending || savingBranchId === branch.id} onClick={() => saveBranch(branch)}>
+                  {savingBranchId === branch.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Check className="mr-1.5 h-4 w-4" />}
+                  Save Branch
+                </Button>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 rounded-lg border border-ledger-100 bg-white p-2 dark:border-ledger-700 dark:bg-ink-900 sm:flex-row sm:items-center">
+                <code className="min-w-0 flex-1 truncate px-2 font-mono text-xs text-ledger-700 dark:text-ledger-300">{branch.url}</code>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => copyBranchUrl(branch)} className="inline-flex items-center gap-1.5 rounded-md border border-ledger-200 px-3 py-1.5 text-xs font-medium text-ledger-700 hover:bg-ledger-50 dark:border-ledger-600 dark:text-ledger-200 dark:hover:bg-ink-800">
+                    {copiedBranchId === branch.id ? <Check className="h-3.5 w-3.5 text-signal" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedBranchId === branch.id ? "Copied" : "Copy link"}
+                  </button>
+                  <a href={branch.url} target="_blank" rel="noreferrer" aria-label={`Open ${branch.name} storefront`} className="inline-flex items-center gap-1.5 rounded-md bg-signal px-3 py-1.5 text-xs font-medium text-white hover:bg-signal/90">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
 

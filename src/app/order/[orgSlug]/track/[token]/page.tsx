@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { CheckCircle2, Package, MapPin, Clock, ArrowRight, Truck, Check, AlertCircle } from "lucide-react";
+import { CheckCircle2, Package, MapPin, ArrowRight, Check, AlertCircle, XCircle, RotateCcw } from "lucide-react";
 import { formatCurrency } from "@/lib/sales/format";
 import { trackOrder } from "@/app/order/[orgSlug]/track/[token]/actions";
 import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE } from "@/lib/customer-portal/format";
+import { buildOrderTrackingTimeline } from "@/lib/customer-portal/order-tracking-timeline";
 import { Badge } from "@/components/ui/badge";
 import type { CustomerOrderStatus } from "@/types/database";
 import { OrderTrackingActions } from "@/components/customer-portal/order-tracking-actions";
@@ -10,9 +11,14 @@ import { DownloadInvoiceButton } from "@/components/customer-portal/download-inv
 import { TrackingAutoRefresh } from "@/components/customer-portal/tracking-auto-refresh";
 import { RefreshButton } from "@/components/refresh-button";
 
+export const metadata = {
+  robots: { index: false, follow: false },
+  referrer: "no-referrer",
+};
+
 export default async function TrackOrderPage({ params }: { params: Promise<{ orgSlug: string; token: string }> }) {
   const { orgSlug, token } = await params;
-  const order = await trackOrder(token);
+  const order = await trackOrder(token, orgSlug);
 
   if (!order) {
     return (
@@ -31,46 +37,35 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
 
   const isCompleted = order.status === "completed";
   const isCancelled = order.status === "cancelled";
-  const stages = [
-    "Order Created",
-    "Payment Received",
-    "Order Approved",
-    "Inventory Reserved",
-    "Picking",
-    "Packing",
-    "Ready for Pickup",
-    "Dispatched",
-    "Out for Delivery",
-    "Delivered",
-    "Completed",
-  ];
-  const timelineTitles = order.timeline.map((item) => item.title.toLowerCase());
-  const hasTimeline = (...terms: string[]) => timelineTitles.some((title) => terms.some((term) => title.includes(term)));
-  const progressed = ["approved", "processing", "picking", "packing", "delivery", "completed"].includes(order.status);
-  const completedStages = [
-    true,
-    order.paymentStatus === "paid" || hasTimeline("payment received", "payment recorded"),
-    progressed || hasTimeline("order approved", "approved"),
-    ["processing", "picking", "packing", "delivery", "completed"].includes(order.status) || hasTimeline("stock reserved", "inventory reserved"),
-    ["picking", "packing", "delivery", "completed"].includes(order.status) || hasTimeline("picking"),
-    ["packing", "delivery", "completed"].includes(order.status) || hasTimeline("packing"),
-    hasTimeline("ready for pickup"),
-    ["delivery", "completed"].includes(order.status) || hasTimeline("dispatched"),
-    ["delivery", "completed"].includes(order.status) || order.deliveryStatus === "in_delivery" || hasTimeline("out for delivery"),
-    order.status === "completed" || order.deliveryStatus === "delivered" || hasTimeline("delivered"),
-    order.status === "completed" && hasTimeline("completed"),
-  ];
+  const isReturned = order.status === "returned";
+  const isTerminal = isCompleted || isCancelled || isReturned;
+  const timeline = buildOrderTrackingTimeline({
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    deliveryStatus: order.deliveryStatus,
+    deliveryOption: order.deliveryOption,
+    stockReserved: order.stockReserved,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    events: order.timeline,
+  });
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-20 pt-8">
-      <TrackingAutoRefresh />
+      <TrackingAutoRefresh enabled={!isTerminal} />
       {/* Top success / status card */}
       <div className="mb-6 flex flex-col items-center text-center">
         <div className="mb-3 flex w-full justify-end">
           <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
         </div>
         <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-signal-soft text-signal dark:bg-signal/15">
-          {isCompleted ? <Check className="h-7 w-7" /> : <CheckCircle2 className="h-7 w-7" />}
+          {isCancelled
+            ? <XCircle className="h-7 w-7 text-alert" />
+            : isReturned
+              ? <RotateCcw className="h-7 w-7 text-amber-600" />
+              : isCompleted
+                ? <Check className="h-7 w-7" />
+                : <CheckCircle2 className="h-7 w-7" />}
         </span>
         <div className="flex items-center gap-2">
           <h1 className="font-display text-xl font-bold text-ink-900 dark:text-white">Order {order.orderNumber}</h1>
@@ -81,6 +76,16 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
         <p className="mt-1 text-xs text-ledger-500">
           Placed on {new Date(order.createdAt).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
         </p>
+        {isCancelled && (
+          <p role="status" className="mt-3 max-w-lg rounded-lg border border-alert/20 bg-alert-soft px-4 py-3 text-xs font-medium text-alert">
+            This order was cancelled. No further fulfillment updates are expected.
+          </p>
+        )}
+        {isReturned && (
+          <p role="status" className="mt-3 max-w-lg rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            This order has been returned. Contact the organization if you need help with the return.
+          </p>
+        )}
         {order.branchName && (
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-ledger-100 px-3 py-1 text-xs font-medium text-ledger-700 dark:bg-ink-800 dark:text-ledger-300">
             <MapPin className="h-3.5 w-3.5 text-signal" />
@@ -90,38 +95,46 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ org
       </div>
 
       <div className="space-y-5">
-        {/* Timeline tracker */}
-        {(
-          <div className="rounded-xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
-            <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-ledger-400">Order Progress Timeline</h2>
-            <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-ledger-200 dark:before:bg-ledger-700">
-              {stages.map((title, idx) => {
-                const completed = completedStages[idx];
-                const current = !completed && idx === completedStages.findIndex((value) => !value);
-                const event = order.timeline.find((item) => item.title.toLowerCase().includes(title.toLowerCase().replace("order ", "")));
-                return (
-                <div key={title} className="relative">
-                  <span className={`absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900 ${completed || current ? "bg-signal text-white" : "bg-ledger-200 dark:bg-ledger-700"}`}>
-                    {(completed || current) && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+        <div className="rounded-xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
+          <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-ledger-400">
+            {isCancelled || isReturned ? "Order Activity" : "Order Progress"}
+          </h2>
+          <div className="relative space-y-5 pl-6 before:absolute before:bottom-2 before:left-2.5 before:top-2 before:w-0.5 before:bg-ledger-200 dark:before:bg-ledger-700">
+            {timeline.map(({ title, state, event }, index) => {
+              const completed = state === "completed";
+              const terminal = state === "terminal";
+              const current = state === "current";
+              const markerClass = terminal
+                ? "bg-alert text-white"
+                : completed || current
+                  ? "bg-signal text-white"
+                  : "bg-ledger-200 dark:bg-ledger-700";
+              return (
+                <div key={`${title}-${event?.createdAt ?? index}`} className="relative">
+                  <span className={`absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900 ${markerClass}`}>
+                    {(completed || current || terminal) && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                   </span>
                   <div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className={`text-xs font-semibold ${completed || current ? "text-ink-900 dark:text-white" : "text-ledger-400"}`}>{title}</p>
-                      {event && <span className="font-mono text-[10px] text-ledger-400">{new Date(event.createdAt).toLocaleTimeString("en-GH", { hour: "2-digit", minute: "2-digit" })}</span>}
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                      <p className={`text-xs font-semibold ${state === "upcoming" ? "text-ledger-400" : terminal ? "text-alert" : "text-ink-900 dark:text-white"}`}>
+                        {title}
+                        {current && <span className="ml-2 font-normal text-signal">Current step</span>}
+                        {state === "upcoming" && <span className="ml-2 font-normal text-ledger-400">Pending</span>}
+                      </p>
+                      {event && (
+                        <time dateTime={event.createdAt} className="font-mono text-[10px] text-ledger-400">
+                          {new Date(event.createdAt).toLocaleString("en-GH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </time>
+                      )}
                     </div>
-                    {event?.actorName && (
-                      <p className="text-[11px] text-ledger-500 dark:text-ledger-400">By {event.actorName}</p>
-                    )}
-                    {event?.notes && (
-                      <p className="mt-0.5 text-[11px] text-ledger-400 italic">{event.notes}</p>
-                    )}
+                    {event?.actorName && <p className="text-[11px] text-ledger-500 dark:text-ledger-400">By {event.actorName}</p>}
+                    {event?.notes && <p className="mt-0.5 text-[11px] text-ledger-500 italic dark:text-ledger-400">{event.notes}</p>}
                   </div>
                 </div>
-                );
-              })}
-            </div>
+              );
+            })}
           </div>
-        )}
+        </div>
         <OrderTrackingActions token={token} canConfirm={isCompleted} alreadyReceived={Boolean(order.customerReceivedAt)} />
         {isCompleted && order.allowInvoiceDownload && <DownloadInvoiceButton href={`/order/${orgSlug}/track/${token}/invoice`} />}
 

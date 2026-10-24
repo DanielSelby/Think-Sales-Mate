@@ -13,8 +13,12 @@ import { WhatsAppContactLink } from "@/components/customer-portal/whatsapp-conta
 
 interface CheckoutViewProps {
   orgSlug: string;
+  storefrontPath: string;
   orgId: string;
   orgName: string;
+  branchSlug?: string;
+  fixedBranchLocationId?: string;
+  branchName?: string;
   customerPortalHeroUrl: string | null;
   whatsappBusinessNumber: string | null;
   customerPortalWhatsAppMessage: string | null;
@@ -37,8 +41,12 @@ function formatSeconds(totalSeconds: number) {
 
 export function CheckoutView({
   orgSlug,
+  storefrontPath,
   orgId,
   orgName,
+  branchSlug,
+  fixedBranchLocationId,
+  branchName,
   customerPortalHeroUrl,
   whatsappBusinessNumber,
   customerPortalWhatsAppMessage,
@@ -215,7 +223,8 @@ export function CheckoutView({
         deliveryAddress: address,
         deliveryOption: allowSelectDelivery ? deliveryOption : null,
         notes: combinedNotes,voiceNoteUrl,
-        locationId: allowLocationSelection ? selectedLocationId || null : null,
+        locationId: branchSlug ? fixedBranchLocationId ?? null : allowLocationSelection ? selectedLocationId || null : null,
+        branchSlug: branchSlug ?? null,
         items: cart.items.map((i) => ({
           productId: i.productId,
           productName: i.name,
@@ -241,7 +250,7 @@ export function CheckoutView({
       <div className="pointer-events-none absolute -bottom-44 -right-36 h-[390px] w-[390px] rounded-full border-[26px] border-[#dff3e6] opacity-90 shadow-[inset_18px_12px_30px_rgba(255,255,255,0.8)] dark:border-emerald-950/60" />
       <div className="relative z-10 mx-auto max-w-6xl">
       <Link
-        href={`/order/${orgSlug}`}
+        href={storefrontPath}
         className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-ledger-600 hover:text-ink-900 dark:text-ledger-300 dark:hover:text-white"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Storefront
@@ -275,7 +284,7 @@ export function CheckoutView({
           <p className="mt-3 text-base font-semibold text-ink-900 dark:text-white">Your cart is currently empty</p>
           <p className="mt-1 text-xs text-ledger-400">Add products from our catalog to proceed with checkout.</p>
           <Link
-            href={`/order/${orgSlug}`}
+            href={storefrontPath}
             className="mt-5 inline-flex items-center justify-center rounded-lg bg-signal px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-signal/90"
           >
             Browse Products
@@ -285,6 +294,12 @@ export function CheckoutView({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Left / Main form column */}
           <div className="space-y-6 lg:col-span-7">
+            {branchName && (
+              <div className="flex items-center gap-2 rounded-xl border border-signal/20 bg-signal/5 px-4 py-3 text-sm text-ink-800 dark:text-white">
+                <MapPin className="h-4 w-4 text-signal" />
+                Your order will be fulfilled by <strong>{branchName}</strong>.
+              </div>
+            )}
             {/* 1. Branch / Location Selection (Shown only when enabled) */}
             {allowLocationSelection && (
               <div className="rounded-xl border border-ledger-200 bg-white p-5 shadow-sm dark:border-ledger-700 dark:bg-ink-900">

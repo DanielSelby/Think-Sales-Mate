@@ -23,6 +23,7 @@ export interface TrackedOrder {
   status: string;
   paymentStatus: string;
   deliveryStatus: string;
+  stockReserved: boolean;
   branchName: string | null;
   branchPhone: string | null;
   branchEmail: string | null;
@@ -35,6 +36,7 @@ export interface TrackedOrder {
   total: number;
   notes: string | null;
   createdAt: string;
+  updatedAt: string;
   items: TrackedOrderItem[];
   timeline: TrackedTimelineItem[];
   showPrices: boolean;
@@ -49,13 +51,13 @@ export interface TrackedOrder {
   showOrganizationContact: boolean;
 }
 
-export async function trackOrder(token: string): Promise<TrackedOrder | null> {
+export async function trackOrder(token: string, orgSlug?: string): Promise<TrackedOrder | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)) return null;
   const supabase = createAdminClient();
 
   const { data: order } = await supabase
     .from("customer_orders")
-    .select("id, org_id, order_number, status, payment_status, delivery_status, location_id, guest_name, guest_phone, delivery_address, delivery_option, delivery_fee, subtotal, total, notes, created_at, customer_received_at")
+    .select("id, org_id, order_number, status, payment_status, delivery_status, stock_reserved, location_id, guest_name, guest_phone, delivery_address, delivery_option, delivery_fee, subtotal, total, notes, created_at, updated_at, customer_received_at")
     .eq("access_token", token)
     .maybeSingle();
   if (!order) return null;
@@ -63,12 +65,13 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
   const [{ data: items }, { data: settings }, { data: org }, { data: loc }, { data: timeline }, { data: company }] = await Promise.all([
     supabase.from("customer_order_items").select("product_name, quantity, unit_price, line_total").eq("order_id", order.id),
     supabase.from("customer_portal_settings").select("show_prices_to_customers, allow_view_order_status, allow_customer_invoice_download").eq("org_id", order.org_id).maybeSingle(),
-    supabase.from("organizations").select("currency").eq("id", order.org_id).single(),
+    supabase.from("organizations").select("currency, slug").eq("id", order.org_id).single(),
     order.location_id ? supabase.from("business_locations").select("name, phone, email").eq("id", order.location_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("customer_order_timeline").select("title, actor_name, status, notes, created_at").eq("order_id", order.id).order("created_at", { ascending: true }),
     supabase.from("company_profile").select("company_name, logo_url, show_contact_on_invoices, business_phone, business_email, contact_phone, contact_email, website").eq("org_id", order.org_id).maybeSingle(),
   ]);
 
+  if (orgSlug && org?.slug !== orgSlug) return null;
   if (settings && !settings.allow_view_order_status) return null;
 
   return {
@@ -77,6 +80,7 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     status: order.status,
     paymentStatus: order.payment_status ?? "unpaid",
     deliveryStatus: order.delivery_status ?? "not_shipped",
+    stockReserved: order.stock_reserved ?? false,
     branchName: loc?.name ?? null,
     branchPhone: loc?.phone ?? null,
     branchEmail: loc?.email ?? null,
@@ -89,6 +93,7 @@ export async function trackOrder(token: string): Promise<TrackedOrder | null> {
     total: order.total,
     notes: order.notes,
     createdAt: order.created_at,
+    updatedAt: order.updated_at,
     items: (items ?? []).map((i) => ({ productName: i.product_name, quantity: i.quantity, unitPrice: i.unit_price, lineTotal: i.line_total })),
     timeline: (timeline ?? []).map((t) => ({
       title: t.title,

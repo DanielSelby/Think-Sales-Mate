@@ -21,10 +21,18 @@ export default async function CustomerOrderingSettingsPage() {
   if (!context) return null;
 
   const supabase = await createClient();
-  const [{ data: org }, { data: companyProfile }] = await Promise.all([
+  const [{ data: org, error: orgError }, { data: companyProfile }, { data: branches, error: branchesError }] = await Promise.all([
     supabase.from("organizations").select("slug, currency").eq("id", context.orgId).single(),
     supabase.from("company_profile").select("company_name, description, website, business_email, business_phone, contact_email, contact_phone, logo_url").eq("org_id", context.orgId).maybeSingle(),
+    supabase
+      .from("business_locations")
+      .select("id, name, customer_portal_enabled, customer_portal_slug, customer_portal_requires_approval")
+      .eq("org_id", context.orgId)
+      .eq("is_active", true)
+      .order("name"),
   ]);
+  if (orgError) throw new Error(`Unable to load organization settings: ${orgError.message}`);
+  if (branchesError) throw new Error(`Unable to load customer portal branches: ${branchesError.message}`);
 
   const settings = await getPortalSettings();
   const configuredSiteUrl = (process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
@@ -38,5 +46,18 @@ export default async function CustomerOrderingSettingsPage() {
   const siteUrl = (host ? `${protocol}://${host}` : configuredSiteUrl) || "https://yourapp.com";
   const portalUrl = `${siteUrl}/order/${org?.slug ?? context.orgId}`;
 
-  return <CustomerOrderingSettingsView initial={settings} portalUrl={portalUrl} currency={org?.currency ?? "GHS"} companyProfile={companyProfile} />;
+  const branchPortals = (branches ?? []).flatMap((branch) =>
+    branch.customer_portal_slug
+      ? [{
+          id: branch.id,
+          name: branch.name,
+          slug: branch.customer_portal_slug,
+          enabled: branch.customer_portal_enabled,
+          requiresApproval: branch.customer_portal_requires_approval,
+          url: `${portalUrl}/branch/${branch.customer_portal_slug}`,
+        }]
+      : []
+  );
+
+  return <CustomerOrderingSettingsView initial={settings} portalUrl={portalUrl} branchPortals={branchPortals} currency={org?.currency ?? "GHS"} companyProfile={companyProfile} />;
 }

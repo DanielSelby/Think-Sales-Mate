@@ -18,6 +18,7 @@ export default async function CartPage({ params }: { params: Promise<{ orgSlug: 
   return (
     <CheckoutView
       orgSlug={orgSlug}
+      storefrontPath={`/order/${orgSlug}`}
       orgId={context.orgId}
       orgName={context.orgName}
       customerPortalHeroUrl={context.customerPortalHeroUrl}

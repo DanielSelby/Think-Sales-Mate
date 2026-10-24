@@ -105,6 +105,53 @@ export interface SimpleResult {
   error?: string;
 }
 
+export interface BranchPortalSettingsInput {
+  branchId: string;
+  customerPortalEnabled: boolean;
+  requiresApproval: boolean | null;
+}
+
+export async function updateBranchPortalSettings(input: BranchPortalSettingsInput): Promise<SimpleResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "No active organization." };
+  if (!(await canPermission("customer_orders", "edit"))) {
+    return { ok: false, error: "You do not have permission to change customer ordering settings." };
+  }
+  if (
+    !input ||
+    !/^[0-9a-f-]{36}$/i.test(input.branchId) ||
+    typeof input.customerPortalEnabled !== "boolean" ||
+    (input.requiresApproval !== null && typeof input.requiresApproval !== "boolean")
+  ) {
+    return { ok: false, error: "Invalid branch storefront settings." };
+  }
+
+  const supabase = await createClient();
+  const { data: branch, error: branchError } = await supabase
+    .from("business_locations")
+    .select("id")
+    .eq("id", input.branchId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (branchError) return { ok: false, error: branchError.message };
+  if (!branch) return { ok: false, error: "Branch not found." };
+
+  const { error } = await supabase
+    .from("business_locations")
+    .update({
+      customer_portal_enabled: input.customerPortalEnabled,
+      customer_portal_requires_approval: input.requiresApproval,
+    })
+    .eq("id", input.branchId)
+    .eq("org_id", context.orgId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings/customer-ordering");
+  revalidatePath("/order/[orgSlug]", "page");
+  revalidatePath("/order/[orgSlug]/branch/[branchSlug]", "page");
+  return { ok: true };
+}
+
 export async function updatePortalSettings(settings: PortalSettings): Promise<SimpleResult> {
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };

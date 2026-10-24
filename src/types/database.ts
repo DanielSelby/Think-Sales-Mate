@@ -180,6 +180,9 @@ export interface Database {
           email: string | null;
           is_primary: boolean;
           is_active: boolean;
+          customer_portal_enabled: boolean;
+          customer_portal_slug: string;
+          customer_portal_requires_approval: boolean | null;
           created_by: string;
           created_at: string;
         };
@@ -198,6 +201,9 @@ export interface Database {
           email?: string | null;
           is_primary?: boolean;
           is_active?: boolean;
+          customer_portal_enabled?: boolean;
+          customer_portal_slug?: string | null;
+          customer_portal_requires_approval?: boolean | null;
           created_by: string;
           created_at?: string;
         };
@@ -3197,6 +3203,27 @@ export interface Database {
           p_delivery_address: string;
           p_delivery_option: string | null;
           p_location_id: string | null;
+          p_notes: string | null;
+          p_voice_note_url: string | null;
+          p_items: Json;
+        };
+        Returns: {
+          order_id: string;
+          order_number: string;
+          access_token: string;
+          branch_name: string | null;
+          total: number;
+        }[];
+      };
+      place_customer_portal_order_for_branch: {
+        Args: {
+          p_org_id: string;
+          p_branch_slug: string;
+          p_guest_name: string;
+          p_guest_phone: string;
+          p_guest_email: string | null;
+          p_delivery_address: string;
+          p_delivery_option: string | null;
           p_notes: string | null;
           p_voice_note_url: string | null;
           p_items: Json;
