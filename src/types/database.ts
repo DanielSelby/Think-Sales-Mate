@@ -2496,6 +2496,7 @@ export interface Database {
           portal_theme: "light" | "dark";
           portal_color_theme: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
           is_enabled: boolean;
+          branch_storefronts_enabled: boolean;
           schedule_enabled: boolean;
           active_from: string;
           active_until: string;
@@ -2527,6 +2528,7 @@ export interface Database {
           portal_theme?: "light" | "dark";
           portal_color_theme?: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
           is_enabled?: boolean;
+          branch_storefronts_enabled?: boolean;
           schedule_enabled?: boolean;
           active_from?: string;
           active_until?: string;

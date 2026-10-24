@@ -10,10 +10,10 @@ export default async function BranchBrowsePage({
   const context = await getPortalContext(orgSlug);
   const branch = await getBranchStorefront(orgSlug, branchSlug);
 
-  if (!context || !branch) return <BranchUnavailable />;
+  if (!context || !context.branchStorefrontsEnabled || !branch) return <BranchUnavailable />;
   if (!context.isEnabled) return <BranchUnavailable message="This store is not accepting online orders right now." />;
 
-  const products = await getCatalog(context.orgId, branch.id);
+  const products = await getCatalog(context.orgId, branch.id, true);
   return (
     <BrowseView
       orgSlug={orgSlug}

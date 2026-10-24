@@ -18,6 +18,7 @@ export interface PortalContext {
   systemLogoUrl: string | null;
   currency: string;
   isEnabled: boolean;
+  branchStorefrontsEnabled: boolean;
   portalTheme: "light" | "dark";
   portalColorTheme: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
   showPrices: boolean;
@@ -72,6 +73,7 @@ export async function getPortalContext(orgSlug: string): Promise<PortalContext |
       activeUntil: settings?.active_until?.slice(0, 5) ?? "23:59",
       scheduleTimezone: settings?.schedule_timezone ?? "UTC",
     }),
+    branchStorefrontsEnabled: settings?.branch_storefronts_enabled ?? false,
     portalTheme: settings?.portal_theme === "dark" ? "dark" : "light",
     portalColorTheme: ["green", "navy", "teal", "plum", "fintech", "royal", "harvest", "eclipse"].includes(settings?.portal_color_theme ?? "")
       ? settings?.portal_color_theme as PortalContext["portalColorTheme"]
@@ -108,7 +110,6 @@ export async function getStorefrontLocations(orgId: string): Promise<StorefrontL
     .select("id, name, city, region, address")
     .eq("org_id", orgId)
     .eq("is_active", true)
-    .eq("customer_portal_enabled", true)
     .order("name");
   if (error) throw new Error(`Unable to load storefront branches: ${error.message}`);
 
@@ -139,6 +140,14 @@ export async function getBranchStorefront(orgSlug: string, branchSlug: string): 
     .maybeSingle();
   if (orgError) throw new Error(`Unable to load organization: ${orgError.message}`);
   if (!org) return null;
+
+  const { data: settings, error: settingsError } = await supabase
+    .from("customer_portal_settings")
+    .select("branch_storefronts_enabled")
+    .eq("org_id", org.id)
+    .maybeSingle();
+  if (settingsError) throw new Error(`Unable to load branch storefront settings: ${settingsError.message}`);
+  if (!settings?.branch_storefronts_enabled) return null;
 
   const { data: branch, error } = await supabase
     .from("business_locations")
@@ -171,7 +180,11 @@ export interface CatalogProduct {
   imageUrl: string | null;
 }
 
-export async function getCatalog(orgId: string, branchId?: string): Promise<CatalogProduct[]> {
+export async function getCatalog(
+  orgId: string,
+  branchId?: string,
+  branchStorefrontsEnabled = false,
+): Promise<CatalogProduct[]> {
   const supabase = createAdminClient();
   const { data: products, error: productsError } = await supabase
     .from("public_product_catalog")
@@ -179,6 +192,18 @@ export async function getCatalog(orgId: string, branchId?: string): Promise<Cata
     .eq("org_id", orgId)
     .order("name");
   if (productsError) throw new Error(`Unable to load storefront products: ${productsError.message}`);
+
+  if (!branchId && !branchStorefrontsEnabled) {
+    return (products ?? []).map((product) => ({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      brand: product.brand,
+      unitPrice: product.unit_price,
+      stockQuantity: Number(product.stock_quantity ?? 0),
+      imageUrl: product.image_urls?.[0] ?? null,
+    }));
+  }
 
   const { data: locations, error: locationsError } = await supabase
     .from("business_locations")
@@ -342,6 +367,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   let branchStorefront = false;
   let locationId = settings.allow_customer_location_selection ? input.locationId || null : null;
   if (input.branchSlug) {
+    if (!settings.branch_storefronts_enabled) {
+      return { ok: false, error: "Branch storefronts are currently disabled." };
+    }
     if (typeof input.branchSlug !== "string" || input.branchSlug.length > 100 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.branchSlug)) {
       return { ok: false, error: "This branch storefront is unavailable." };
     }

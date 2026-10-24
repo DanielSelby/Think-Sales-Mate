@@ -10,6 +10,7 @@ export interface PortalSettings {
   portalTheme: "light" | "dark";
   portalColorTheme: "green" | "navy" | "teal" | "plum" | "fintech" | "royal" | "harvest" | "eclipse";
   isEnabled: boolean;
+  branchStorefrontsEnabled: boolean;
   scheduleEnabled: boolean;
   activeFrom: string;
   activeUntil: string;
@@ -40,6 +41,7 @@ export async function getPortalSettings(): Promise<PortalSettings> {
     portalTheme: "light",
     portalColorTheme: "fintech",
     isEnabled: false,
+    branchStorefrontsEnabled: false,
     scheduleEnabled: false,
     activeFrom: "00:00",
     activeUntil: "23:59",
@@ -75,6 +77,7 @@ export async function getPortalSettings(): Promise<PortalSettings> {
       ? data.portal_color_theme
       : defaults.portalColorTheme,
     isEnabled: data.is_enabled ?? defaults.isEnabled,
+    branchStorefrontsEnabled: data.branch_storefronts_enabled ?? defaults.branchStorefrontsEnabled,
     scheduleEnabled: data.schedule_enabled ?? defaults.scheduleEnabled,
     activeFrom: data.active_from?.slice(0, 5) ?? defaults.activeFrom,
     activeUntil: data.active_until?.slice(0, 5) ?? defaults.activeUntil,
@@ -193,6 +196,7 @@ export async function updatePortalSettings(settings: PortalSettings): Promise<Si
       portal_theme: settings.portalTheme,
       portal_color_theme: settings.portalColorTheme,
       is_enabled: settings.isEnabled,
+      branch_storefronts_enabled: settings.branchStorefrontsEnabled,
       schedule_enabled: settings.scheduleEnabled,
       active_from: settings.activeFrom,
       active_until: settings.activeUntil,

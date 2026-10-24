@@ -13,7 +13,7 @@ export default async function BrowsePage({ params }: { params: Promise<{ orgSlug
     return <UnavailableState orgName={context.orgName} />;
   }
 
-  const products = await getCatalog(context.orgId);
+  const products = await getCatalog(context.orgId, undefined, context.branchStorefrontsEnabled);
 
   return (
     <BrowseView

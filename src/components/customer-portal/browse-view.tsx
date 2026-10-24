@@ -161,32 +161,32 @@ export function BrowseView({
           TOP HEADER
       ========================================================= */}
       <header className="sticky top-0 z-40 border-b border-ledger-200 bg-white/95 backdrop-blur dark:border-ledger-800 dark:bg-ink-950/95">
-        <div className="mx-auto flex h-[74px] max-w-[1600px] items-center justify-between px-5 lg:px-7">
+        <div className="mx-auto grid min-h-[74px] max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-2 px-3 py-2 sm:flex sm:h-[74px] sm:justify-between sm:px-5 sm:py-0 lg:px-7">
 
           {/* Brand */}
           <Link
             href={storefrontPath}
-            className="flex items-center gap-3"
+            className="flex min-w-0 items-center gap-2 sm:gap-3"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-1 shadow-sm ring-1 ring-ledger-200">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white p-1 shadow-sm ring-1 ring-ledger-200 sm:h-11 sm:w-11">
               {companyLogoUrl ? <img src={companyLogoUrl} alt={`${orgName} logo`} className="h-full w-full rounded-full object-contain" /> : <span className="text-lg font-black tracking-tight text-signal">{orgName.slice(0, 2).toUpperCase()}</span>}
             </div>
-            <div>
-              <p className="text-[17px] font-extrabold uppercase tracking-tight text-ink-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-extrabold uppercase tracking-tight text-ink-900 dark:text-white sm:text-[17px]">
                 {orgName}
               </p>
               {organizationPhone && (
-                <a href={`tel:${organizationPhone}`} className="block text-[11px] font-medium leading-tight text-ledger-500 hover:text-signal dark:text-ledger-400">
+                <p className="hidden truncate text-[11px] font-medium leading-tight text-ledger-500 dark:text-ledger-400 sm:block">
                   {organizationPhone}
-                </a>
+                </p>
               )}
-              <p className="text-xs text-ledger-500">
+              <p className="truncate text-[10px] text-ledger-500 sm:text-xs">
                 {branchName ? `${branchName} · Branch Storefront` : "Customer Ordering Portal"}
               </p>
             </div>
           </Link>
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div className="col-span-2 row-start-2 flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1 sm:ml-auto sm:col-span-1 sm:row-auto sm:flex-nowrap sm:gap-2">
             <RefreshButton className="text-ledger-500 hover:bg-ledger-100 dark:text-ledger-300 dark:hover:bg-ink-800" />
             <TrackOrderLink orgSlug={orgSlug} />
             <WhatsAppContactLink
@@ -253,7 +253,7 @@ export function BrowseView({
           {/* Cart button */}
           <Link
             href={`${storefrontPath}/cart`}
-            className="group flex items-center gap-2.5"
+            className="group col-start-2 row-start-1 flex items-center justify-end gap-2.5 sm:col-auto sm:row-auto"
           >
             <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#b9e4ca] bg-[#e2f6e9] text-[#16734a] shadow-sm transition-transform group-hover:scale-105 dark:border-ledger-700 dark:bg-ink-800 dark:text-emerald-300">
               <ShoppingCart className="h-5 w-5" />

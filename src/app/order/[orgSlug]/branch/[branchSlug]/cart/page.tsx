@@ -10,7 +10,7 @@ export default async function BranchCartPage({
   const context = await getPortalContext(orgSlug);
   const branch = await getBranchStorefront(orgSlug, branchSlug);
 
-  if (!context || !context.isEnabled || !branch) {
+  if (!context || !context.isEnabled || !context.branchStorefrontsEnabled || !branch) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <p className="text-center text-sm text-ledger-500">This branch storefront is unavailable.</p>

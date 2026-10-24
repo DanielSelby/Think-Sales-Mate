@@ -240,6 +240,28 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, branchPortals
 
       <Card accent="neutral" className="border-ledger-200/80 dark:border-ledger-700/80">
         <CardHeader className="pb-2">
+          <CardTitle className="normal-case tracking-normal text-sm font-semibold text-ink-900 dark:text-white">
+            Branch Storefront Feature
+          </CardTitle>
+          <p className="text-xs leading-relaxed text-ledger-500 dark:text-ledger-400">
+            This feature is off by default. Enable it to publish separate storefront links for branches and configure branch-specific order routing. Your existing organization storefront stays available either way.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ToggleRow
+            label="Enable branch storefronts"
+            description={settings.branchStorefrontsEnabled
+              ? "Branch storefront links are available. Save changes to apply this setting."
+              : "Branch-specific storefront links are hidden and unavailable to customers."}
+            checked={settings.branchStorefrontsEnabled}
+            onChange={(enabled) => patch("branchStorefrontsEnabled", enabled)}
+          />
+        </CardContent>
+      </Card>
+
+      {settings.branchStorefrontsEnabled && (
+      <Card accent="neutral" className="border-ledger-200/80 dark:border-ledger-700/80">
+        <CardHeader className="pb-2">
           <CardTitle className="normal-case tracking-normal text-sm font-semibold text-ink-900 dark:text-white flex items-center gap-2">
             <MapPin className="h-4 w-4 text-signal" />
             Branch Storefronts
@@ -312,6 +334,7 @@ export function CustomerOrderingSettingsView({ initial, portalUrl, branchPortals
           ))}
         </CardContent>
       </Card>
+      )}
 
       <Card accent="signal" className="border-ledger-200/80 dark:border-ledger-700/80 print:shadow-none">
         <CardHeader className="flex-row items-center justify-end pb-3">
