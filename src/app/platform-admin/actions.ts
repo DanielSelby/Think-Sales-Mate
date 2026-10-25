@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
+import { platformRoleCan, requirePlatformAdminPage } from "@/lib/platform-auth";
+import type { PlatformAdminPage } from "@/lib/platform-admin-pages";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { PlatformModule } from "@/types/platform-database";
 
-async function requirePlatformManagement() {
-  const admin = await getPlatformAdmin();
+async function requirePlatformManagement(page: PlatformAdminPage = "Organizations") {
+  const admin = await requirePlatformAdminPage(page);
   if (!admin || !platformRoleCan(admin.role, "manage_platform")) {
     throw new Error("You do not have permission to manage platform data.");
   }
@@ -79,8 +80,12 @@ export async function updateOrganizationBusinessDetails(input: {
   return { success: true };
 }
 
-async function requirePlatformPermission(permission: "manage_platform" | "manage_billing" | "manage_support") {
-  const admin = await getPlatformAdmin();
+async function requirePlatformPermission(
+  permission: "manage_platform" | "manage_billing" | "manage_support",
+  page: PlatformAdminPage = permission === "manage_billing" ? "Billing & Subscriptions"
+    : permission === "manage_support" ? "Complaints & Support" : "Organizations"
+) {
+  const admin = await requirePlatformAdminPage(page);
   if (!admin || !platformRoleCan(admin.role, permission)) {
     throw new Error("You do not have permission to perform this platform action.");
   }
@@ -210,8 +215,7 @@ export async function deletePlatformOrganization(id: string) {
 }
 
 export async function markPlatformNotificationRead(id: string) {
-  const admin = await getPlatformAdmin();
-  if (!admin) throw new Error("You must be signed in as a Platform Admin.");
+  await requirePlatformAdminPage("Overview");
   if (!id) throw new Error("Notification ID is required.");
   const supabase = await createPlatformServerClient();
   const { error } = await supabase
@@ -224,8 +228,7 @@ export async function markPlatformNotificationRead(id: string) {
 }
 
 export async function markAllPlatformNotificationsRead() {
-  const admin = await getPlatformAdmin();
-  if (!admin) throw new Error("You must be signed in as a Platform Admin.");
+  await requirePlatformAdminPage("Overview");
   const supabase = await createPlatformServerClient();
   const { error } = await supabase
     .from("platform_notifications")
@@ -246,7 +249,7 @@ export async function createSubscriptionPlan(input: {
   apiAccess: boolean;
   includedModules?: string[];
 }) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Subscription Plans");
   const planValues = {
     name: input.name.trim(),
     max_users: input.maxUsers ?? null,
@@ -287,7 +290,7 @@ export async function updateSubscriptionPlan(id: string, input: {
   aiAccess?: boolean;
   apiAccess?: boolean;
 }) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Subscription Plans");
   const update = {
     ...(input.name === undefined ? {} : { name: input.name.trim() }),
     ...(input.monthlyPrice === undefined ? {} : { monthly_price: input.monthlyPrice }),
@@ -305,7 +308,7 @@ export async function updateSubscriptionPlan(id: string, input: {
 }
 
 export async function archiveSubscriptionPlan(id: string) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Subscription Plans");
   const { error } = await supabase.from("subscription_plans").update({ is_active: false, archived_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "subscription_plan_archived", module: "subscription_plans", metadata: { planId: id } });
@@ -317,7 +320,7 @@ export async function setOrganizationFeatureAccess(
   module: PlatformModule,
   accessMode: "enabled" | "disabled" | "read_only",
 ) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Feature Access");
   const { data: savedFeature, error } = await supabase.from("platform_organization_features").upsert({
     organization_id: organizationId,
     module,
@@ -335,7 +338,7 @@ export async function setOrganizationFeatureAccess(
 }
 
 export async function setFeatureFlag(id: string, enabled: boolean) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Feature Flags");
   const { error } = await supabase.from("platform_feature_flags").update({ enabled, updated_by: admin.id, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: enabled ? "feature_flag_enabled" : "feature_flag_disabled", module: "feature_flags", metadata: { flagId: id, enabled } });
@@ -343,7 +346,7 @@ export async function setFeatureFlag(id: string, enabled: boolean) {
 }
 
 export async function updatePlatformSetting(key: string, value: Record<string, unknown>) {
-  const { admin, supabase } = await requirePlatformPermission("manage_platform");
+  const { admin, supabase } = await requirePlatformPermission("manage_platform", "System Settings");
   const { error } = await supabase.from("platform_settings").upsert({ key, value, updated_by: admin.id, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "platform_setting_updated", module: "system_settings", metadata: { key } });
@@ -351,7 +354,7 @@ export async function updatePlatformSetting(key: string, value: Record<string, u
 }
 
 export async function setGlobalLoginTheme(themeId: string) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Login Experience");
   const { data: theme, error: themeError } = await supabase
     .from("login_themes")
     .select("id, name, is_active")
@@ -386,7 +389,7 @@ export async function setGlobalLoginTheme(themeId: string) {
 }
 
 export async function setOrganizationLoginTheme(organizationId: string, themeId: string | null) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Login Experience");
   if (themeId) {
     const { data: theme, error: themeError } = await supabase
       .from("login_themes")
@@ -434,7 +437,7 @@ export async function setOrganizationLoginTheme(organizationId: string, themeId:
 }
 
 export async function updateLoginTheme(themeId: string, name: string, description: string) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Login Experience");
   const cleanName = name.trim();
   if (!cleanName) throw new Error("Enter a theme name.");
   const { data: previous, error: previousError } = await supabase
@@ -459,7 +462,7 @@ export async function updateLoginTheme(themeId: string, name: string, descriptio
 }
 
 export async function updateLoginThemeFormSettings(themeId: string, loginFormTransparent: boolean, backgroundArtworkVisibility: number) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Login Experience");
   if (typeof loginFormTransparent !== "boolean") {
     throw new Error("Choose whether the login form background is transparent.");
   }
@@ -503,7 +506,7 @@ export async function updateLoginThemeFormSettings(themeId: string, loginFormTra
 }
 
 export async function duplicateLoginTheme(themeId: string, name: string) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Login Experience");
   const cleanName = name.trim();
   if (!cleanName) throw new Error("Enter a name for the duplicate theme.");
   const { data: source, error: sourceError } = await supabase
@@ -536,7 +539,7 @@ export async function duplicateLoginTheme(themeId: string, name: string) {
 }
 
 export async function setLoginThemeActive(themeId: string, isActive: boolean) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Login Experience");
   if (!isActive && themeId === "default-thinksales-login") {
     throw new Error("The system default login theme cannot be deactivated.");
   }
@@ -567,7 +570,7 @@ export async function setLoginThemeActive(themeId: string, isActive: boolean) {
 
 export async function uploadPlatformLogo(formData: FormData): Promise<{ logoUrl?: string; error?: string }> {
   try {
-    const { admin, supabase } = await requirePlatformPermission("manage_platform");
+    const { admin, supabase } = await requirePlatformPermission("manage_platform", "System Settings");
     const file = formData.get("logo");
     if (!(file instanceof File) || file.size === 0) return { error: "Choose a logo image first." };
     if (file.size > 2 * 1024 * 1024) return { error: "Logo must be under 2MB." };
@@ -594,7 +597,7 @@ export async function uploadPlatformLogo(formData: FormData): Promise<{ logoUrl?
 }
 
 export async function reviewPlatformApproval(id: string, status: "approved" | "rejected") {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Organizations");
   const { error } = await supabase.from("platform_approvals").update({ status, reviewed_by: admin.id, reviewed_at: new Date().toISOString() }).eq("id", id).eq("status", "pending");
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: `approval_${status}`, module: "approvals", metadata: { approvalId: id } });
@@ -602,7 +605,7 @@ export async function reviewPlatformApproval(id: string, status: "approved" | "r
 }
 
 export async function setOrganizationFeature(organizationId: string, module: PlatformModule, enabled: boolean) {
-  const { admin, supabase } = await requirePlatformManagement();
+  const { admin, supabase } = await requirePlatformManagement("Feature Access");
   const { error } = await supabase.from("platform_organization_features").upsert({
     organization_id: organizationId,
     module,
@@ -623,7 +626,7 @@ export async function setOrganizationFeature(organizationId: string, module: Pla
 }
 
 export async function getOrganizationFeatures(organizationId: string) {
-  const { supabase } = await requirePlatformManagement();
+  const { supabase } = await requirePlatformManagement("Feature Access");
   const { data, error } = await supabase
     .from("platform_organization_features")
     .select("module, enabled")
@@ -633,7 +636,7 @@ export async function getOrganizationFeatures(organizationId: string) {
 }
 
 export async function updateComplaintStatus(id: string, status: "new" | "open" | "assigned" | "in_progress" | "awaiting_customer" | "resolved" | "closed") {
-  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { admin, supabase } = await requirePlatformPermission("manage_support", "Complaints & Support");
   const update = { status, updated_at: new Date().toISOString(), ...(status === "resolved" ? { resolved_at: new Date().toISOString() } : {}) };
   const { data, error } = await supabase.from("platform_complaints").update(update).eq("id", id).select("organization_id").single();
   if (error) throw new Error(error.message);
@@ -643,7 +646,7 @@ export async function updateComplaintStatus(id: string, status: "new" | "open" |
 }
 
 export async function updateComplaintPriority(id: string, priority: "low" | "medium" | "high" | "critical") {
-  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { admin, supabase } = await requirePlatformPermission("manage_support", "Complaints & Support");
   const { data, error } = await supabase.from("platform_complaints").update({ priority, updated_at: new Date().toISOString() }).eq("id", id).select("organization_id").single();
   if (error) throw new Error(error.message);
   await supabase.from("platform_complaint_activity").insert({ complaint_id: id, action: `Priority changed to ${priority}`, actor_name: admin.display_name, metadata: { priority } });
@@ -664,7 +667,7 @@ export async function addSupportContact(input: {
   availabilityStatus?: string;
   assignedRegion?: string;
 }) {
-  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { admin, supabase } = await requirePlatformPermission("manage_support", "Complaints & Support");
   const { data, error } = await supabase.from("platform_support_contacts").insert({
     contact_type: input.contactType,
     name: input.name.trim(),
@@ -685,7 +688,7 @@ export async function addSupportContact(input: {
 }
 
 export async function setSupportContactActive(id: string, isActive: boolean) {
-  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { admin, supabase } = await requirePlatformPermission("manage_support", "Complaints & Support");
   const { error } = await supabase.from("platform_support_contacts").update({ is_active: isActive, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: isActive ? "support_contact_enabled" : "support_contact_disabled", module: "contact_directory", metadata: { contactId: id } });
@@ -705,7 +708,7 @@ export async function updateSupportContact(id: string, input: {
   availabilityStatus?: string;
   assignedRegion?: string;
 }) {
-  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { admin, supabase } = await requirePlatformPermission("manage_support", "Complaints & Support");
   const { data, error } = await supabase.from("platform_support_contacts").update({
     contact_type: input.contactType,
     name: input.name.trim(),
@@ -726,7 +729,7 @@ export async function updateSupportContact(id: string, input: {
 }
 
 export async function deleteSupportContact(id: string) {
-  const { admin, supabase } = await requirePlatformPermission("manage_support");
+  const { admin, supabase } = await requirePlatformPermission("manage_support", "Complaints & Support");
   const { error } = await supabase.from("platform_support_contacts").delete().eq("id", id);
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "support_contact_deleted", module: "contact_directory", metadata: { contactId: id } });

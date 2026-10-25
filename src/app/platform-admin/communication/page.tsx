@@ -4,11 +4,14 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import { getPlatformAdmin } from "@/lib/platform-auth";
+import { platformRoleCanAccessPage } from "@/lib/platform-admin-pages";
+import { redirect } from "next/navigation";
 import CommunicationManagementWorkspace from "./communication-management-workspace";
 
 export default async function PlatformCommunicationPage() {
   const admin = await getPlatformAdmin();
   if (!admin) return null;
+  if (!platformRoleCanAccessPage(admin.role, admin.page_permissions, "communication")) redirect("/platform-admin");
 
   const supabase = await createPlatformServerClient();
   const [{ data: organizations }, { data: usage }, { data: billing }, { data: logs }, { data: creditAccounts }, { data: creditTransactions }, { data: campaigns }, { data: providers }, { data: alerts }] = await Promise.all([

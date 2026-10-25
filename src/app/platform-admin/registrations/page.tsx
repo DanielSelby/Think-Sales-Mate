@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
+import { getPlatformAdmin } from "@/lib/platform-auth";
+import { platformRoleCanAccessPage } from "@/lib/platform-admin-pages";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import {
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function OrganizationRegistrationsPage() {
   const admin = await getPlatformAdmin();
   if (!admin) redirect("/platform-admin/login");
-  if (!platformRoleCan(admin.role, "manage_platform")) redirect("/platform-admin");
+  if (!platformRoleCanAccessPage(admin.role, admin.page_permissions, "registrations")) redirect("/platform-admin");
 
   const platform = createPlatformAdminClient();
   const [{ data: applications, error: applicationsError }, { data: setting, error: settingError }, { data: deliveries, error: deliveriesError }] = await Promise.all([

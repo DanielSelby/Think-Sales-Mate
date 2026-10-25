@@ -1,6 +1,7 @@
 import "server-only";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import type { PlatformRole } from "@/types/platform-database";
+import { platformRoleCanAccessPage, type PlatformAdminPage } from "@/lib/platform-admin-pages";
 
 export async function getPlatformAdmin() {
   const supabase = await createPlatformServerClient();
@@ -23,4 +24,12 @@ export function platformRoleCan(role: PlatformRole, permission: "manage_platform
     billing_administrator: ["manage_billing"],
     technical_administrator: ["manage_security"],
   }[role]?.includes(permission) ?? false;
+}
+
+export async function requirePlatformAdminPage(page: PlatformAdminPage) {
+  const admin = await getPlatformAdmin();
+  if (!admin || !platformRoleCanAccessPage(admin.role, admin.page_permissions, page)) {
+    throw new Error("You do not have access to this Platform Admin page.");
+  }
+  return admin;
 }

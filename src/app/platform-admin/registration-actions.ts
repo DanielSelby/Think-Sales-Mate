@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
+import { platformRoleCan, requirePlatformAdminPage } from "@/lib/platform-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
@@ -15,7 +15,7 @@ export type RegistrationReviewResult = {
 };
 
 async function requireRegistrationManager() {
-  const admin = await getPlatformAdmin();
+  const admin = await requirePlatformAdminPage("registrations");
   if (!admin || !platformRoleCan(admin.role, "manage_platform")) {
     throw new Error("You do not have permission to manage organization registrations.");
   }

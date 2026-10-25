@@ -26,6 +26,7 @@ import { formatMoney } from "@/lib/currency";
 import { LoginExperienceManager } from "./login-experience-manager";
 import OrganizationManagement, { type ManagedOrganization } from "./organization-management";
 import { THEMES, useAppStore } from "@/store/useAppStore";
+import type { PlatformAdminPage } from "@/lib/platform-admin-pages";
 
 type Organization = {
   id: string;
@@ -210,6 +211,7 @@ export default function PlatformAdminConsole({
   loginThemeAssignments,
   globalLoginThemeId,
   loginThemeAudit,
+  accessiblePages,
 }: {
   logoUrl: string;
   organizations: Organization[];
@@ -231,10 +233,15 @@ export default function PlatformAdminConsole({
   loginThemeAssignments: React.ComponentProps<typeof LoginExperienceManager>["organizations"];
   globalLoginThemeId: string;
   loginThemeAudit: React.ComponentProps<typeof LoginExperienceManager>["auditLogs"];
+  accessiblePages: PlatformAdminPage[];
 }) {
   const platformCurrency = String(settings.find((setting) => setting.key === "platform_currency")?.value?.code ?? "GHS");
   const formatPlatformMoney = (value: number) => formatMoney(value, platformCurrency);
-  const [tab, setTab] = useState<Tab>("Overview");
+  const visibleTabs = tabs.filter((item) => accessiblePages.includes(item.label));
+  const [selectedTab, setTab] = useState<Tab>(visibleTabs[0]?.label ?? "Overview");
+  const tab = accessiblePages.includes(selectedTab as PlatformAdminPage)
+    ? selectedTab
+    : visibleTabs[0]?.label ?? "Overview";
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(organizations[0]?.id ?? null);
   const [modal, setModal] = useState<"organization" | "plan" | null>(null);
@@ -507,16 +514,15 @@ export default function PlatformAdminConsole({
           </label>
         </div>
         <nav className="space-y-1 p-3">
-          <button type="button" onClick={() => setTab("Overview")} className="mb-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs text-white hover:bg-white/10">⌂ Dashboard</button>
           <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white">System Administration Platform</p>
-          <Link
+          {accessiblePages.includes("communication") && <Link
             href="/platform-admin/communication"
             className="mb-2 flex w-full items-center gap-3 rounded-lg bg-blue-900/50 px-3 py-2 text-left text-xs font-semibold text-white hover:bg-blue-600"
           >
             <span className="w-4 text-center">▣</span>
             Communication Management
-          </Link>
-          {tabs.slice(0, 9).map((item) => (
+          </Link>}
+          {visibleTabs.slice(0, 9).map((item) => (
             <button
               key={item.label}
               onClick={() => setTab(item.label)}
@@ -528,7 +534,7 @@ export default function PlatformAdminConsole({
             </button>
           ))}
           <div className="my-3 border-t border-white/10" />
-          {tabs.slice(9).map((item) => (
+          {visibleTabs.slice(9).map((item) => (
             <button key={item.label} onClick={() => setTab(item.label)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold ${tab === item.label ? "bg-blue-600 text-white" : "text-white hover:bg-white/10"}`}>
               <span className="w-4 text-center">{item.icon}</span>{item.label}
             </button>

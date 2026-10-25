@@ -2,11 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
-import { getPlatformAdmin } from "@/lib/platform-auth";
+import { requirePlatformAdminPage } from "@/lib/platform-auth";
 
 async function authorized() {
-  const admin = await getPlatformAdmin();
-  if (!admin) throw new Error("Platform administrator access required.");
+  await requirePlatformAdminPage("communication");
   return createPlatformServerClient();
 }
 

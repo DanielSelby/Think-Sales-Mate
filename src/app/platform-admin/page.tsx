@@ -5,17 +5,40 @@ import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
 import PlatformAdminConsole from "./platform-admin-console";
 import PlatformNotificationBell from "./notification-bell";
+import PlatformAdminSignOutButton from "./sign-out-button";
 import type { ManagedOrganization } from "./organization-management";
 import { syncAllOrganizationsToPlatform } from "@/lib/supabase/platform-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
+import { ALL_PLATFORM_ADMIN_PAGES, normalizePlatformAdminPages, type PlatformAdminPage } from "@/lib/platform-admin-pages";
 
 export default async function PlatformAdminPage() {
   const admin = await getPlatformAdmin();
   if (!admin) return null;
-  try {
-    await syncAllOrganizationsToPlatform();
-  } catch (error) {
-    console.error("Platform organization reconciliation failed:", error);
+  const accessiblePages = admin.role === "platform_owner"
+    ? [...ALL_PLATFORM_ADMIN_PAGES]
+    : normalizePlatformAdminPages(admin.page_permissions);
+  const hasPage = (page: PlatformAdminPage) => admin.role === "platform_owner" || accessiblePages.includes(page);
+  const hasConsolePage = accessiblePages.some((page) => page !== "registrations" && page !== "communication");
+  if (!hasConsolePage) {
+    if (hasPage("registrations")) redirect("/platform-admin/registrations");
+    if (hasPage("communication")) redirect("/platform-admin/communication");
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <section className="max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-lg font-bold text-slate-950">No Platform Admin pages assigned</h1>
+          <p className="mt-2 text-sm text-slate-600">Contact a Platform Owner to request access.</p>
+          <div className="mt-5 flex justify-center"><PlatformAdminSignOutButton /></div>
+        </section>
+      </main>
+    );
+  }
+  if (hasPage("Organizations")) {
+    try {
+      await syncAllOrganizationsToPlatform();
+    } catch (error) {
+      console.error("Platform organization reconciliation failed:", error);
+    }
   }
   const supabase = await createPlatformServerClient();
   const [{ data: organizations }, { data: plans }, { data: features }, { data: auditLogs }, { data: usage }, { data: billing }, { data: flags }, { data: approvals }, { data: notifications }, { data: settings }, { data: complaints }, { data: contacts }, { data: loginThemes, error: loginThemesError }, { data: loginThemeAssignments, error: loginThemeAssignmentsError }, { data: loginThemeAudit, error: loginThemeAuditError }] = await Promise.all([
@@ -151,5 +174,5 @@ export default async function PlatformAdminPage() {
   const globalLoginThemeId = typeof settings?.find((setting) => setting.key === "global_login_theme")?.value?.theme_id === "string"
     ? String(settings.find((setting) => setting.key === "global_login_theme")?.value?.theme_id)
     : "default-thinksales-login";
-  return <><header className="platform-admin-header sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><PlatformNotificationBell initialNotifications={notifications ?? []} /><Link href="/platform-admin/registrations" className="ml-auto rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Registration approvals</Link><div className="text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div></div></header><PlatformAdminConsole asOf={new Date().toISOString()} logoUrl={logoUrl} organizations={organizations ?? []} managedOrganizations={managedOrganizations} canManageOrganizations={platformRoleCan(admin.role, "manage_platform")} auditLogs={auditLogs ?? []} plans={plans ?? []} features={features ?? []} usage={usage ?? []} billing={billing ?? []} flags={flags ?? []} approvals={approvals ?? []} notifications={notifications ?? []} settings={settings ?? []} complaints={complaints ?? []} contacts={contacts ?? []} loginThemes={loginThemes ?? []} loginThemeAssignments={resolvedLoginOrganizations} globalLoginThemeId={globalLoginThemeId} loginThemeAudit={resolvedLoginThemeAudit} /></>;
+  return <><header className="platform-admin-header sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><PlatformNotificationBell initialNotifications={hasPage("Overview") ? notifications ?? [] : []} />{admin.role === "platform_owner" && <Link href="/platform-admin/users" className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Platform Admin Users</Link>}{hasPage("registrations") && <Link href="/platform-admin/registrations" className="ml-auto rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Registration approvals</Link>}<div className="text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div><PlatformAdminSignOutButton /></div></header><PlatformAdminConsole asOf={new Date().toISOString()} logoUrl={logoUrl} organizations={hasPage("Organizations") || hasPage("Organization Builder") || hasPage("Impersonation") || hasPage("Feature Access") ? organizations ?? [] : []} managedOrganizations={hasPage("Organizations") || hasPage("Organization Builder") || hasPage("Impersonation") ? managedOrganizations : []} canManageOrganizations={admin.role === "platform_owner" || (platformRoleCan(admin.role, "manage_platform") && hasPage("Organizations"))} auditLogs={hasPage("Activity Logs") || hasPage("Audit Logs") ? auditLogs ?? [] : []} plans={hasPage("Subscription Plans") ? plans ?? [] : []} features={hasPage("Feature Access") ? features ?? [] : []} usage={hasPage("Usage & Analytics") ? usage ?? [] : []} billing={hasPage("Billing & Subscriptions") ? billing ?? [] : []} flags={hasPage("Feature Flags") ? flags ?? [] : []} approvals={hasPage("Organizations") ? approvals ?? [] : []} notifications={hasPage("Overview") ? notifications ?? [] : []} settings={hasPage("System Settings") || hasPage("Login Experience") || hasPage("API & Integrations") || hasPage("Security Center") ? settings ?? [] : []} complaints={hasPage("Complaints & Support") ? complaints ?? [] : []} contacts={hasPage("Complaints & Support") ? contacts ?? [] : []} loginThemes={hasPage("Login Experience") ? loginThemes ?? [] : []} loginThemeAssignments={hasPage("Login Experience") ? resolvedLoginOrganizations : []} globalLoginThemeId={globalLoginThemeId} loginThemeAudit={hasPage("Login Experience") ? resolvedLoginThemeAudit : []} accessiblePages={accessiblePages} /></>;
 }

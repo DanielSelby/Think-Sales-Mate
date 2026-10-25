@@ -34,5 +34,7 @@ export async function loginPlatformAdmin(email: string, password: string) {
 
 export async function logoutPlatformAdmin() {
   const supabase = await createPlatformServerClient();
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+  if (error) return { error: "Could not sign out from Platform Admin. Please try again." };
+  return { success: true };
 }

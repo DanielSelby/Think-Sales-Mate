@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
+import { platformRoleCanAccessPage } from "@/lib/platform-admin-pages";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 
 const accessModes = new Set(["enabled", "disabled", "read_only"]);
 
 export async function POST(request: Request) {
   const admin = await getPlatformAdmin();
-  if (!admin || !platformRoleCan(admin.role, "manage_platform")) {
+  if (!admin || !platformRoleCan(admin.role, "manage_platform") || !platformRoleCanAccessPage(admin.role, admin.page_permissions, "Feature Access")) {
     return NextResponse.json({ error: "You do not have permission to manage feature access." }, { status: 403 });
   }
 

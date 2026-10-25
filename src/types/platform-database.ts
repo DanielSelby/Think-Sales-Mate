@@ -25,6 +25,7 @@ export interface PlatformDatabase {
           display_name: string;
           role: PlatformRole;
           is_active: boolean;
+          page_permissions: string[];
           mfa_required: boolean;
           last_login_at: string | null;
           created_at: string;
@@ -36,6 +37,7 @@ export interface PlatformDatabase {
           display_name?: string;
           role?: PlatformRole;
           is_active?: boolean;
+          page_permissions?: string[];
           mfa_required?: boolean;
           last_login_at?: string | null;
           created_at?: string;
