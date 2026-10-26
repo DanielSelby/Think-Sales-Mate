@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { platformRoleCan, requirePlatformAdminPage } from "@/lib/platform-auth";
-import type { PlatformAdminPage } from "@/lib/platform-admin-pages";
+import { getPlatformAdmin, platformRoleCan, requirePlatformAdminPage } from "@/lib/platform-auth";
+import { platformRoleCanAccessPage, type PlatformAdminPage } from "@/lib/platform-admin-pages";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { PlatformModule } from "@/types/platform-database";
@@ -81,9 +81,10 @@ export async function updateOrganizationBusinessDetails(input: {
 }
 
 async function requirePlatformPermission(
-  permission: "manage_platform" | "manage_billing" | "manage_support",
+  permission: "manage_platform" | "manage_billing" | "manage_support" | "manage_security",
   page: PlatformAdminPage = permission === "manage_billing" ? "Billing & Subscriptions"
-    : permission === "manage_support" ? "Complaints & Support" : "Organizations"
+    : permission === "manage_support" ? "Complaints & Support"
+      : permission === "manage_security" ? "Security Center" : "Organizations"
 ) {
   const admin = await requirePlatformAdminPage(page);
   if (!admin || !platformRoleCan(admin.role, permission)) {
@@ -346,10 +347,28 @@ export async function setFeatureFlag(id: string, enabled: boolean) {
 }
 
 export async function updatePlatformSetting(key: string, value: Record<string, unknown>) {
-  const { admin, supabase } = await requirePlatformPermission("manage_platform", "System Settings");
+  const settingAccess = {
+    platform_branding: { permission: "manage_platform", pages: ["System Settings"], module: "system_settings" },
+    notification_settings: { permission: "manage_platform", pages: ["System Settings"], module: "system_settings" },
+    storage_settings: { permission: "manage_platform", pages: ["System Settings"], module: "system_settings" },
+    email_provider: { permission: "manage_platform", pages: ["API & Integrations", "System Settings"], module: "integrations" },
+    sms_provider: { permission: "manage_platform", pages: ["API & Integrations", "System Settings"], module: "integrations" },
+    whatsapp_provider: { permission: "manage_platform", pages: ["API & Integrations", "System Settings"], module: "integrations" },
+    api_settings: { permission: "manage_security", pages: ["API & Integrations"], module: "integrations" },
+    security_settings: { permission: "manage_security", pages: ["Security Center"], module: "security" },
+  } as const;
+  const access = settingAccess[key as keyof typeof settingAccess];
+  if (!access) throw new Error("This platform setting cannot be updated here.");
+  const admin = await getPlatformAdmin();
+  if (!admin || !platformRoleCan(admin.role, access.permission) || !access.pages.some((page) =>
+    platformRoleCanAccessPage(admin.role, admin.page_permissions, page as PlatformAdminPage)
+  )) {
+    throw new Error("You do not have permission to update this platform setting.");
+  }
+  const supabase = await createPlatformServerClient();
   const { error } = await supabase.from("platform_settings").upsert({ key, value, updated_by: admin.id, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
-  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "platform_setting_updated", module: "system_settings", metadata: { key } });
+  await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "platform_setting_updated", module: access.module, metadata: { key } });
   revalidatePath("/platform-admin");
 }
 

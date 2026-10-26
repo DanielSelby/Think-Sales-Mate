@@ -41,7 +41,23 @@ export default async function PlatformAdminPage() {
     }
   }
   const supabase = await createPlatformServerClient();
-  const [{ data: organizations }, { data: plans }, { data: features }, { data: auditLogs }, { data: usage }, { data: billing }, { data: flags }, { data: approvals }, { data: notifications }, { data: settings }, { data: complaints }, { data: contacts }, { data: loginThemes, error: loginThemesError }, { data: loginThemeAssignments, error: loginThemeAssignmentsError }, { data: loginThemeAudit, error: loginThemeAuditError }] = await Promise.all([
+  const [
+    { data: organizations, error: organizationsError },
+    { data: plans, error: plansError },
+    { data: features, error: featuresError },
+    { data: auditLogs, error: auditLogsError },
+    { data: usage, error: usageError },
+    { data: billing, error: billingError },
+    { data: flags, error: flagsError },
+    { data: approvals, error: approvalsError },
+    { data: notifications, error: notificationsError },
+    { data: settings, error: settingsError },
+    { data: complaints, error: complaintsError },
+    { data: contacts, error: contactsError },
+    { data: loginThemes, error: loginThemesError },
+    { data: loginThemeAssignments, error: loginThemeAssignmentsError },
+    { data: loginThemeAudit, error: loginThemeAuditError },
+  ] = await Promise.all([
     supabase.from("platform_organizations").select("id, organization_id, name, plan_id, status, expires_at, created_at, updated_at, industry, suspended_at, suspension_reason, owner_user_id, owner_email, registration_state, registration_notes, max_users_override, max_branches_override").order("updated_at", { ascending: false }),
     supabase.from("subscription_plans").select("id, name, max_users, max_branches, storage_limit_gb, monthly_price, annual_price, ai_access, api_access, included_modules, is_active, archived_at").eq("is_active", true).order("monthly_price"),
     supabase.from("platform_organization_features").select("organization_id, module, enabled, access_mode, permission_options, updated_at"),
@@ -58,8 +74,13 @@ export default async function PlatformAdminPage() {
     supabase.from("platform_organizations").select("organization_id, name, use_global_login_theme, login_theme_id").order("name"),
     supabase.from("platform_audit_logs").select("id, admin_id, organization_id, action, metadata, created_at").eq("module", "login_experience").order("created_at", { ascending: false }).limit(100),
   ]);
-  if (loginThemesError || loginThemeAssignmentsError || loginThemeAuditError) {
-    throw new Error(`Could not load login experience settings: ${loginThemesError?.message ?? loginThemeAssignmentsError?.message ?? loginThemeAuditError?.message}`);
+  const platformDataError = [
+    organizationsError, plansError, featuresError, auditLogsError, usageError, billingError,
+    flagsError, approvalsError, notificationsError, settingsError, complaintsError, contactsError,
+    loginThemesError, loginThemeAssignmentsError, loginThemeAuditError,
+  ].find((error) => error);
+  if (platformDataError) {
+    throw new Error(`Could not load Platform Admin data: ${platformDataError.message}`);
   }
   const organizationIds = (loginThemeAssignments ?? []).map((organization) => organization.organization_id);
   const organizationClient = createAdminClient();
@@ -92,8 +113,8 @@ export default async function PlatformAdminPage() {
     ? await organizationClient.from("profiles").select("id, full_name").in("id", profileIds)
     : { data: [], error: null };
   if (resolvedMemberProfilesError) throw new Error(`Could not load organization user names: ${resolvedMemberProfilesError.message}`);
-  if (loginOrganizationsError) console.error("Could not resolve organization login URLs:", loginOrganizationsError);
-  if (loginAdminsError) console.error("Could not resolve login theme audit actors:", loginAdminsError);
+  if (loginOrganizationsError) throw new Error(`Could not resolve organization login URLs: ${loginOrganizationsError.message}`);
+  if (loginAdminsError) throw new Error(`Could not resolve login theme audit actors: ${loginAdminsError.message}`);
   const organizationSlugs = new Map((loginOrganizations ?? []).map((organization) => [organization.id, organization.slug]));
   const ownerByOrg = new Map((coreOrganizations ?? []).map((organization) => [organization.id, organization.created_by]));
   const companyByOrg = new Map((companyProfiles ?? []).map((profile) => [profile.org_id, profile]));
@@ -174,5 +195,5 @@ export default async function PlatformAdminPage() {
   const globalLoginThemeId = typeof settings?.find((setting) => setting.key === "global_login_theme")?.value?.theme_id === "string"
     ? String(settings.find((setting) => setting.key === "global_login_theme")?.value?.theme_id)
     : "default-thinksales-login";
-  return <><header className="platform-admin-header sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><PlatformNotificationBell initialNotifications={hasPage("Overview") ? notifications ?? [] : []} />{admin.role === "platform_owner" && <Link href="/platform-admin/users" className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Platform Admin Users</Link>}{hasPage("registrations") && <Link href="/platform-admin/registrations" className="ml-auto rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Registration approvals</Link>}<div className="text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div><PlatformAdminSignOutButton /></div></header><PlatformAdminConsole asOf={new Date().toISOString()} logoUrl={logoUrl} organizations={hasPage("Organizations") || hasPage("Organization Builder") || hasPage("Impersonation") || hasPage("Feature Access") ? organizations ?? [] : []} managedOrganizations={hasPage("Organizations") || hasPage("Organization Builder") || hasPage("Impersonation") ? managedOrganizations : []} canManageOrganizations={admin.role === "platform_owner" || (platformRoleCan(admin.role, "manage_platform") && hasPage("Organizations"))} auditLogs={hasPage("Activity Logs") || hasPage("Audit Logs") ? auditLogs ?? [] : []} plans={hasPage("Subscription Plans") ? plans ?? [] : []} features={hasPage("Feature Access") ? features ?? [] : []} usage={hasPage("Usage & Analytics") ? usage ?? [] : []} billing={hasPage("Billing & Subscriptions") ? billing ?? [] : []} flags={hasPage("Feature Flags") ? flags ?? [] : []} approvals={hasPage("Organizations") ? approvals ?? [] : []} notifications={hasPage("Overview") ? notifications ?? [] : []} settings={hasPage("System Settings") || hasPage("Login Experience") || hasPage("API & Integrations") || hasPage("Security Center") ? settings ?? [] : []} complaints={hasPage("Complaints & Support") ? complaints ?? [] : []} contacts={hasPage("Complaints & Support") ? contacts ?? [] : []} loginThemes={hasPage("Login Experience") ? loginThemes ?? [] : []} loginThemeAssignments={hasPage("Login Experience") ? resolvedLoginOrganizations : []} globalLoginThemeId={globalLoginThemeId} loginThemeAudit={hasPage("Login Experience") ? resolvedLoginThemeAudit : []} accessiblePages={accessiblePages} /></>;
+  return <><header className="platform-admin-header sticky top-0 z-40 border-b border-slate-200 bg-white px-6 py-4"><div className="mx-auto flex max-w-[1600px] items-center gap-4"><img src={logoUrl} alt="ThinkSales" className="h-10 w-10 rounded-xl object-contain" /><div><p className="text-xs font-semibold text-blue-600">ThinkSales Pro</p><h1 className="text-lg font-bold text-slate-950">System Administration Platform</h1></div><PlatformNotificationBell initialNotifications={hasPage("Overview") ? notifications ?? [] : []} />{admin.role === "platform_owner" && <Link href="/platform-admin/users" className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Platform Admin Users</Link>}{hasPage("registrations") && <Link href="/platform-admin/registrations" className="ml-auto rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">Registration approvals</Link>}<div className="text-right"><p className="text-sm font-semibold text-slate-900">{admin.display_name}</p><p className="text-xs text-slate-500">{admin.role.replaceAll("_", " ")}</p></div><PlatformAdminSignOutButton /></div></header><PlatformAdminConsole asOf={new Date().toISOString()} logoUrl={logoUrl} organizations={hasPage("Organizations") || hasPage("Organization Builder") || hasPage("Impersonation") || hasPage("Feature Access") ? organizations ?? [] : []} managedOrganizations={hasPage("Organizations") || hasPage("Organization Builder") || hasPage("Impersonation") ? managedOrganizations : []} canManageOrganizations={admin.role === "platform_owner" || (platformRoleCan(admin.role, "manage_platform") && hasPage("Organizations"))} auditLogs={hasPage("Activity Logs") || hasPage("Audit Logs") || hasPage("Security Center") ? auditLogs ?? [] : []} plans={hasPage("Subscription Plans") ? plans ?? [] : []} features={hasPage("Feature Access") ? features ?? [] : []} usage={hasPage("Usage & Analytics") ? usage ?? [] : []} billing={hasPage("Billing & Subscriptions") ? billing ?? [] : []} flags={hasPage("Feature Flags") ? flags ?? [] : []} approvals={hasPage("Organizations") ? approvals ?? [] : []} notifications={hasPage("Overview") ? notifications ?? [] : []} settings={hasPage("System Settings") || hasPage("Login Experience") || hasPage("API & Integrations") || hasPage("Security Center") ? settings ?? [] : []} complaints={hasPage("Complaints & Support") ? complaints ?? [] : []} contacts={hasPage("Complaints & Support") ? contacts ?? [] : []} loginThemes={hasPage("Login Experience") ? loginThemes ?? [] : []} loginThemeAssignments={hasPage("Login Experience") ? resolvedLoginOrganizations : []} globalLoginThemeId={globalLoginThemeId} loginThemeAudit={hasPage("Login Experience") ? resolvedLoginThemeAudit : []} accessiblePages={accessiblePages} /></>;
 }

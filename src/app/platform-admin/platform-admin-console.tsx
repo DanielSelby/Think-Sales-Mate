@@ -371,8 +371,11 @@ export default function PlatformAdminConsole({
     if (previous === 0) return current === 0 ? "0% vs previous period" : "New vs previous period";
     return `${current >= previous ? "+" : ""}${Math.round((current - previous) / previous * 100)}% vs previous period`;
   };
+  const trendArrow = (value: string) => value.startsWith("-") ? "↓ " : value.startsWith("+") || value.startsWith("New") ? "↑ " : "";
   const totalUsers = usage.reduce((sum, metric) => sum + Number(metric.active_users || 0), 0);
   const monthlyRevenue = overviewBilling.filter((record) => record.status === "paid").reduce((sum, record) => sum + Number(record.amount || 0), 0);
+  const previousPaidRevenue = previousBilling.filter((record) => record.status === "paid").reduce((sum, record) => sum + Number(record.amount || 0), 0);
+  const revenueTrend = trend(monthlyRevenue, previousPaidRevenue);
   const annualRevenue = organizations.reduce((sum, org) => sum + Number(plans.find((plan) => plan.id === org.plan_id)?.annual_price || 0), 0);
   const expiringOrganizations = organizations.filter((org) => org.expires_at && new Date(org.expires_at).getTime() <= now.getTime() + 30 * 24 * 60 * 60 * 1000);
   const expiringSubscriptions = expiringOrganizations.length;
@@ -406,9 +409,9 @@ export default function PlatformAdminConsole({
     { label: "Active Organizations", value: counts.active, trend: trend(overviewOrganizations.filter((org) => org.status === "active").length, previousOrganizations.filter((org) => org.status === "active").length), Icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
     { label: "Trial Organizations", value: counts.trial, trend: trend(overviewOrganizations.filter((org) => org.status === "trial").length, previousOrganizations.filter((org) => org.status === "trial").length), Icon: CalendarDays, color: "bg-violet-50 text-violet-600" },
     { label: "Suspended Organizations", value: counts.suspended, trend: "Review required", Icon: ShieldCheck, color: "bg-rose-50 text-rose-600" },
-    { label: "Total Active Users", value: totalUsers.toLocaleString(), trend: "18% vs last month", Icon: Users, color: "bg-cyan-50 text-cyan-600" },
-    { label: "Monthly Revenue", value: formatPlatformMoney(monthlyRevenue), trend: trend(overviewBilling.reduce((sum, record) => sum + Number(record.amount || 0), 0), previousBilling.reduce((sum, record) => sum + Number(record.amount || 0), 0)), Icon: CircleDollarSign, color: "bg-indigo-50 text-indigo-600" },
-    { label: "Total Branches", value: totalBranches, trend: "11% vs last month", Icon: BarChart3, color: "bg-amber-50 text-amber-600" },
+    { label: "Total Active Users", value: totalUsers.toLocaleString(), trend: "Current reported total", Icon: Users, color: "bg-cyan-50 text-cyan-600" },
+    { label: "Monthly Revenue", value: formatPlatformMoney(monthlyRevenue), trend: revenueTrend, Icon: CircleDollarSign, color: "bg-indigo-50 text-indigo-600" },
+    { label: "Total Branches", value: totalBranches, trend: "Current reported total", Icon: BarChart3, color: "bg-amber-50 text-amber-600" },
     { label: "Platform Health", value: platformHealth, trend: "Services operational", Icon: Gauge, color: "bg-emerald-50 text-emerald-600" },
   ];
   const rankedUsage = [...usage].sort((a, b) => Number(b.orders || 0) - Number(a.orders || 0));
@@ -443,6 +446,76 @@ export default function PlatformAdminConsole({
       setBusy(false);
     }
   };
+  if (tab === "API & Integrations" || tab === "Security Center") {
+    const settingKeys = tab === "API & Integrations"
+      ? ["api_settings", "email_provider", "sms_provider", "whatsapp_provider"]
+      : ["security_settings"];
+    const saveSetting = (key: string) => {
+      let value: Record<string, unknown>;
+      try {
+        value = JSON.parse(settingsForm[key] || "{}") as Record<string, unknown>;
+      } catch {
+        setMessage(`${key} must contain valid JSON.`);
+        return;
+      }
+      void run(() => updatePlatformSetting(key, value), `${key.replaceAll("_", " ")} saved.`);
+    };
+    const securityActivity = auditLogs.filter((log) => log.module.toLowerCase().includes("security"));
+    return (
+      <main className="min-h-[calc(100vh-74px)] bg-[#f5f8fc] p-4 md:p-6">
+        <div className="mx-auto max-w-6xl">
+          <nav aria-label="Platform Admin pages" className="mb-5 flex gap-2 overflow-x-auto rounded-xl border bg-white p-2">
+            {visibleTabs.map((item) => (
+              <button key={item.label} type="button" onClick={() => setTab(item.label)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold ${item.label === tab ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <h1 className="text-2xl font-bold text-slate-950">{tab}</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {tab === "API & Integrations"
+              ? "Configure the platform API and communication provider settings."
+              : "Review security-related platform activity and settings."}
+          </p>
+          {message && <p role="status" className="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">{message}</p>}
+          {tab === "Security Center" && (
+            <section className="mt-5 rounded-xl border bg-white p-5 shadow-sm">
+              <h2 className="font-semibold text-slate-950">Recent security activity</h2>
+              <div className="mt-3 divide-y">
+                {securityActivity.slice(0, 20).map((log) => (
+                  <div key={log.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm">
+                    <span className="font-medium text-slate-800">{log.action.replaceAll("_", " ")}</span>
+                    <span className="text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</span>
+                  </div>
+                ))}
+                {securityActivity.length === 0 && <p className="py-4 text-sm text-slate-500">No security activity is recorded yet.</p>}
+              </div>
+            </section>
+          )}
+          <section className="mt-5 rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="font-semibold text-slate-950">{tab === "API & Integrations" ? "Configuration" : "Security settings"}</h2>
+            <p className="mt-1 text-xs text-slate-500">Settings are stored as JSON. Do not enter credentials unless your deployment stores them securely.</p>
+            <div className="mt-4 space-y-4">
+              {settingKeys.map((key) => (
+                <div key={key} className="rounded-lg border p-4">
+                  <label htmlFor={`platform-setting-${key}`} className="text-sm font-semibold capitalize text-slate-800">{key.replaceAll("_", " ")}</label>
+                  <textarea
+                    id={`platform-setting-${key}`}
+                    value={settingsForm[key] ?? "{}"}
+                    onChange={(event) => setSettingsForm((current) => ({ ...current, [key]: event.target.value }))}
+                    rows={4}
+                    className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-mono text-xs"
+                    spellCheck={false}
+                  />
+                  <button type="button" disabled={busy} onClick={() => saveSetting(key)} className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Save settings</button>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
   const saveFeatureAccess = async (organizationId: string, module: PlatformModule, accessMode: "enabled" | "disabled" | "read_only") => {
     setBusy(true);
     setMessage(null);
@@ -589,11 +662,11 @@ export default function PlatformAdminConsole({
         ) : tab === "Overview" ? (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-blue-600">Platform Admin <span className="mx-1">›</span> Dashboard</p><h2 className="mt-1 text-2xl font-bold text-slate-950">Platform Administration</h2><p className="text-sm text-slate-500">Monitor and manage organizations, subscriptions, users, permissions and platform activities from one place.</p></div><div className="flex flex-wrap gap-2"><select value={overviewRange} onChange={(event) => setOverviewRange(event.target.value)} className="rounded-lg border bg-white px-3 py-2 text-xs"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option></select><button type="button" onClick={() => exportAuditLogs(auditLogs, "csv")} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-semibold"><Download className="h-3.5 w-3.5" /> Export</button><button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button></div></div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{overviewKpis.map(({ label, value, trend, Icon, color }) => <button type="button" key={label} onClick={() => setTab(label === "Total Organizations" || label === "Active Organizations" || label === "Suspended Organizations" ? "Organizations" : label === "Monthly Revenue" ? "Billing & Subscriptions" : "Usage & Analytics")} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between"><span className={`rounded-lg p-2 ${color}`}><Icon className="h-4 w-4" /></span><ChevronRight className="h-4 w-4 text-slate-300" /></div><p className="mt-3 text-xs text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p><p className="mt-1 text-[10px] text-emerald-600">↑ {trend}</p></button>)}</div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{overviewKpis.map(({ label, value, trend, Icon, color }) => <button type="button" key={label} onClick={() => setTab(label === "Total Organizations" || label === "Active Organizations" || label === "Suspended Organizations" ? "Organizations" : label === "Monthly Revenue" ? "Billing & Subscriptions" : "Usage & Analytics")} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between"><span className={`rounded-lg p-2 ${color}`}><Icon className="h-4 w-4" /></span><ChevronRight className="h-4 w-4 text-slate-300" /></div><p className="mt-3 text-xs text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p><p className={`mt-1 text-[10px] ${trend.startsWith("-") ? "text-rose-600" : trend.startsWith("Current") || trend.startsWith("Review") || trend.startsWith("Services") ? "text-slate-500" : "text-emerald-600"}`}>{trendArrow(trend)}{trend}</p></button>)}</div>
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)]">
               <Card title="Organization Growth"><div className="mt-1 flex items-center justify-between"><p className="text-xs text-slate-500">Total organizations over the selected period</p><span className="rounded border px-2 py-1 text-[10px]">{overviewRange === "365" ? "Last 12 months" : `Last ${overviewRange} days`}</span></div><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={growthSeries}><CartesianGrid stroke="#e2e8f0" vertical={false} /><XAxis dataKey="label" tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} tick={{ fontSize: 10 }} /><Tooltip /><Line type="monotone" dataKey="organizations" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div></Card>
               <Card title="Subscription Distribution"><p className="text-xs text-slate-500">Organizations by active plan</p><div className="mt-3 h-48"><ResponsiveContainer><PieChart><Pie data={planDistribution} dataKey="value" nameKey="name" innerRadius={48} outerRadius={72} paddingAngle={3}>{planDistribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div><div className="space-y-1">{planDistribution.map((item) => <p key={item.name} className="flex justify-between text-[11px]"><span>{item.name}</span><strong>{item.value}</strong></p>)}</div></Card>
-              <Card title="Revenue Summary"><div className="flex items-center justify-between"><p className="text-xs text-slate-500">Paid platform revenue</p><WalletCards className="h-4 w-4 text-blue-600" /></div><p className="mt-3 text-2xl font-bold">{formatPlatformMoney(monthlyRevenue)}</p><p className="text-xs text-emerald-600">↑ 22% vs last month</p><div className="mt-4 h-40"><ResponsiveContainer><BarChart data={revenueSeries}><XAxis dataKey="label" tick={{ fontSize: 10 }} /><YAxis hide /><Tooltip /><Bar dataKey="revenue" fill="#2563eb" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></Card>
+              <Card title="Revenue Summary"><div className="flex items-center justify-between"><p className="text-xs text-slate-500">Paid platform revenue</p><WalletCards className="h-4 w-4 text-blue-600" /></div><p className="mt-3 text-2xl font-bold">{formatPlatformMoney(monthlyRevenue)}</p><p className={`text-xs ${revenueTrend.startsWith("-") ? "text-rose-600" : "text-emerald-600"}`}>{trendArrow(revenueTrend)}{revenueTrend}</p><div className="mt-4 h-40"><ResponsiveContainer><BarChart data={revenueSeries}><XAxis dataKey="label" tick={{ fontSize: 10 }} /><YAxis hide /><Tooltip /><Bar dataKey="revenue" fill="#2563eb" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></Card>
             </div>
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
               <Card title="Recent Organizations"><div className="mt-3 divide-y">{organizations.slice(0, 6).map((org) => <button type="button" key={org.id} onClick={() => { setSelectedId(org.id); setTab("Organizations"); }} className="flex w-full items-center justify-between py-3 text-left text-xs hover:bg-slate-50"><span><span className="block font-semibold">{org.name}</span><span className="text-slate-400">{plans.find((plan) => plan.id === org.plan_id)?.name ?? "No plan"}</span></span><span className="text-right text-slate-500">{org.status}<br />{new Date(org.created_at).toLocaleDateString()}</span></button>)}</div>{!organizations.length && <p className="py-6 text-center text-xs text-slate-500">No organizations registered.</p>}</Card>

@@ -49,6 +49,7 @@ export default async function PlatformAdminUsersPage() {
       </header>
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <PlatformAdminUsersView
+          key={users.map((user) => `${user.id}:${user.role}:${user.isActive}:${user.pagePermissions.join(",")}`).join("|")}
           initialUsers={users}
           currentAdminId={currentAdmin.id}
           currentUserId={currentAdmin.userId}
