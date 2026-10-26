@@ -43,6 +43,16 @@ export function resolveTabRouteAccess(
   pathname: string,
   searchParams: URLSearchParams
 ): TabRouteAccess | null {
+  if (isPathOrChild(pathname, "/restaurant")) {
+    const selected = searchParams.get("view") ?? "orders";
+    const tabByView: Record<string, string> = {
+      orders: "orders",
+      menu: "menu",
+      tables: "tables",
+    };
+    const tab = tabByView[selected];
+    return tab ? { module: "restaurant", page: "operations", tab } : null;
+  }
   if (pathname === "/reports/sales") return { module: "sales", page: "sales", tab: "reports" };
   if (isPathOrChild(pathname, "/sales")) {
     if (pathname === "/sales/new") return { module: "sales", page: "sales", tab: "new_sales" };

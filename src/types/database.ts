@@ -164,6 +164,176 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organization_registration_messages"]["Row"]>;
         Relationships: [];
       };
+      restaurant_menu_categories: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_menu_categories"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_menu_items: {
+        Row: {
+          id: string;
+          org_id: string;
+          category_id: string | null;
+          name: string;
+          description: string | null;
+          price: number;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          category_id?: string | null;
+          name: string;
+          description?: string | null;
+          price: number;
+          sort_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_menu_items"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_tables: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          table_name: string;
+          seats: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          table_name: string;
+          seats?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_tables"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_orders: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          order_number: number;
+          order_type: "dine_in" | "takeaway" | "delivery";
+          table_id: string | null;
+          status: "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
+          payment_status: "unpaid" | "partial" | "paid";
+          customer_name: string | null;
+          customer_phone: string | null;
+          delivery_address: string | null;
+          notes: string | null;
+          subtotal: number;
+          total: number;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          order_number?: number;
+          order_type: "dine_in" | "takeaway" | "delivery";
+          table_id?: string | null;
+          status?: "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
+          payment_status?: "unpaid" | "partial" | "paid";
+          customer_name?: string | null;
+          customer_phone?: string | null;
+          delivery_address?: string | null;
+          notes?: string | null;
+          subtotal: number;
+          total: number;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_orders"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_order_items: {
+        Row: {
+          id: string;
+          org_id: string;
+          order_id: string;
+          menu_item_id: string | null;
+          item_name: string;
+          unit_price: number;
+          quantity: number;
+          line_total: number;
+          notes: string | null;
+          kitchen_status: "new" | "preparing" | "ready" | "served" | "cancelled";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          order_id: string;
+          menu_item_id?: string | null;
+          item_name: string;
+          unit_price: number;
+          quantity: number;
+          line_total: number;
+          notes?: string | null;
+          kitchen_status?: "new" | "preparing" | "ready" | "served" | "cancelled";
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_order_items"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_order_payments: {
+        Row: {
+          id: string;
+          org_id: string;
+          order_id: string;
+          amount: number;
+          payment_method: "cash" | "card" | "mobile_money" | "other";
+          received_by: string;
+          paid_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          order_id: string;
+          amount: number;
+          payment_method: "cash" | "card" | "mobile_money" | "other";
+          received_by: string;
+          paid_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_order_payments"]["Row"]>;
+        Relationships: [];
+      };
       business_locations: {
         Row: {
           id: string;
@@ -3398,6 +3568,31 @@ export interface Database {
           month_change: number;
           year_change: number;
         }[];
+      };
+      create_restaurant_order: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_order_type: string;
+          p_table_id: string | null;
+          p_customer_name: string | null;
+          p_customer_phone: string | null;
+          p_delivery_address: string | null;
+          p_notes: string | null;
+          p_items: Json;
+          p_created_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_orders"]["Row"];
+      };
+      record_restaurant_payment: {
+        Args: {
+          p_org_id: string;
+          p_order_id: string;
+          p_amount: number;
+          p_payment_method: string;
+          p_received_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_orders"]["Row"];
       };
     };
     Enums: {

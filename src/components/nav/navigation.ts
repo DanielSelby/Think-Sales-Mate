@@ -7,6 +7,7 @@ import {
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
   Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route, Barcode,
+  Utensils,
 } from "lucide-react";
 
 export interface NavChild {
@@ -26,6 +27,14 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "live" },
   { label: "Approval Center", href: "/approvals", icon: ClipboardCheck, status: "live" },
+  {
+    label: "Restaurant", href: "/restaurant", icon: Utensils, status: "live",
+    children: [
+      { label: "Orders & Kitchen", href: "/restaurant", icon: ClipboardCheck },
+      { label: "Menu Management", href: "/restaurant?view=menu", icon: List },
+      { label: "Dining Tables", href: "/restaurant?view=tables", icon: Building2 },
+    ],
+  },
   {
     label: "POS", href: "/pos", icon: ShoppingCart, status: "live",
     children: [

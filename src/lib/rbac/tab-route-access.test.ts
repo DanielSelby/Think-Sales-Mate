@@ -2,6 +2,25 @@ import { describe, expect, it } from "vitest";
 import { resolveTabRouteAccess } from "./tab-route-access";
 
 describe("configured tab route access", () => {
+  it("maps restaurant sections to their configured tabs", () => {
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams())).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "orders"
+    });
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=menu"))).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "menu"
+    });
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=tables"))).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "tables"
+    });
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=unknown"))).toBeNull();
+  });
+
   it("maps sales and inventory routes to their configured tabs", () => {
     expect(resolveTabRouteAccess("/sales/new", new URLSearchParams())).toEqual({
       module: "sales",

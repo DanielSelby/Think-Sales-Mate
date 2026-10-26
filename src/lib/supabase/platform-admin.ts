@@ -61,7 +61,7 @@ export async function syncOrganizationToPlatform(organization: {
   );
   if (error) throw new Error(`Could not synchronize organization with Platform Admin: ${error.message}`);
   const { error: featureError } = await platform.from("platform_organization_features").upsert(
-    PLATFORM_MODULES.map((module) => ({ organization_id: organization.id, module: module.key, enabled: true, access_mode: "enabled" as const })),
+    PLATFORM_MODULES.map((module) => ({ organization_id: organization.id, module: module.key, enabled: module.key !== "Restaurant", access_mode: module.key === "Restaurant" ? "disabled" as const : "enabled" as const })),
     { onConflict: "organization_id,module", ignoreDuplicates: true },
   );
   if (featureError) throw new Error(`Could not initialize organization feature access: ${featureError.message}`);
@@ -108,7 +108,7 @@ export async function syncAllOrganizationsToPlatform() {
   if (syncError) throw new Error(`Could not synchronize organizations with Platform Admin: ${syncError.message}`);
   const { error: featureError } = await platform.from("platform_organization_features").upsert(
     data.flatMap((organization) =>
-      PLATFORM_MODULES.map((module) => ({ organization_id: organization.id, module: module.key, enabled: true, access_mode: "enabled" as const })),
+      PLATFORM_MODULES.map((module) => ({ organization_id: organization.id, module: module.key, enabled: module.key !== "Restaurant", access_mode: module.key === "Restaurant" ? "disabled" as const : "enabled" as const })),
     ),
     { onConflict: "organization_id,module", ignoreDuplicates: true },
   );

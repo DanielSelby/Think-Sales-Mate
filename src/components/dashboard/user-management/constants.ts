@@ -33,6 +33,9 @@ const pages = (items: Array<[string, string, Array<[string, string]>]>): Permiss
 
 /** Hierarchical registry for the optional Module -> Page -> Tab -> Action layer. */
 export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
+  restaurant: pages([
+    ["operations", "Restaurant Operations", [["orders", "Orders & Kitchen"], ["menu", "Menu Management"], ["tables", "Dining Tables"]]]
+  ]),
   sales: pages([
     ["sales", "Sales", [["new_sales", "New Sales"], ["sales_history", "Sales History"], ["returns", "Returns"], ["reports", "Reports"], ["settings", "Settings"]]]
   ]),
@@ -76,6 +79,7 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "sales", name: "Sales", description: "Quotations, invoices, sales orders, and returns", iconName: "Receipt", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "sales_drafts", name: "Drafts & Quotations", description: "Sales drafts, quotations, conversion, and revision history", iconName: "Clock3", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "pos", name: "POS", description: "Point of sale register, cashier terminal, and till cashups", iconName: "ShoppingCart", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
+  { key: "restaurant", name: "Restaurant", description: "Restaurant menu, dining tables, orders, kitchen queue, and payments", iconName: "Utensils", supportedActions: ["view", "create", "edit", "delete", "approve", "print"] },
   { key: "orders", name: "Orders", description: "Customer order management, picking, delivery, and conversions", iconName: "Inbox", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
   { key: "customer_ordering", name: "Customer Ordering", description: "Customer portal ordering, order settings, and order conversion", iconName: "Inbox", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
   { key: "products", name: "Products", description: "Product catalog, pricing tiers, barcodes, and units", iconName: "Boxes", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
@@ -223,6 +227,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view", "export", "print"],
       sales: ["view", "create", "edit", "approve", "export", "print"],
       pos: ["view", "create", "edit", "export", "print"],
+      restaurant: ["view", "create", "edit", "delete", "approve", "print"],
       orders: ["view", "create", "edit", "approve", "export", "print"],
       products: ["view", "create", "edit", "export", "print"],
       inventory: ["view", "create", "edit", "approve", "export", "print"],
@@ -260,6 +265,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view"],
       sales: ["view", "create", "edit", "export", "print"],
       pos: ["view", "create", "print"],
+      restaurant: ["view", "create", "edit", "print"],
       orders: ["view", "create", "edit", "export", "print"],
       products: ["view", "export"],
       inventory: ["view"],
@@ -297,6 +303,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       dashboard: ["view"],
       sales: ["view", "create", "print"],
       pos: ["view", "create", "edit", "print"],
+      restaurant: ["view", "create", "edit", "print"],
       orders: ["view"],
       products: ["view"],
       inventory: ["view"],

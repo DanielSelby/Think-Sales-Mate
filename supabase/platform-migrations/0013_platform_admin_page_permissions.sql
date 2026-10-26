@@ -1,7 +1,11 @@
 alter table public.platform_admins
   add column if not exists page_permissions text[] not null default array[
     'Overview',
-rn     'Usage & Analytics',
+    'Organizations',
+    'Subscription Plans',
+    'Feature Access',
+    'Organization Builder',
+    'Usage & Analytics',
     'Activity Logs',
     'Impersonation',
     'Billing & Subscriptions',
