@@ -28,6 +28,7 @@ import {
   splitRestaurantBillByItems,
   splitRestaurantBillEqually,
 } from "./actions";
+import { RestaurantMenuImporter } from "@/components/restaurant/restaurant-menu-importer";
 
 type Category = Database["public"]["Tables"]["restaurant_menu_categories"]["Row"];
 type MenuItem = Database["public"]["Tables"]["restaurant_menu_items"]["Row"];
@@ -1431,6 +1432,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
   const [editingCategoryId, setEditingCategoryId] = useState<string | undefined>();
   const [itemId, setItemId] = useState<string | undefined>();
   const [itemName, setItemName] = useState("");
+  const [itemSku, setItemSku] = useState("");
   const [description, setDescription] = useState("");
   const [itemCategoryId, setItemCategoryId] = useState("");
   const [price, setPrice] = useState("");
@@ -1470,6 +1472,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
         id: itemId,
         categoryId: itemCategoryId || null,
         name: itemName,
+        sku: itemSku,
         description,
         imageUrl,
         price: Number(price),
@@ -1479,6 +1482,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
       });
       setItemId(undefined);
       setItemName("");
+      setItemSku("");
       setDescription("");
       setItemCategoryId("");
       setPrice("");
@@ -1495,10 +1499,10 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           <article key={item.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 ${!item.is_active ? "opacity-60" : ""}`}>
             <div className="flex min-w-0 items-center gap-3">
               {item.image_url ? <Image src={item.image_url} alt="" width={72} height={72} unoptimized className="h-[72px] w-[72px] shrink-0 rounded-lg object-cover" /> : <div className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />}
-              <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
+              <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}{item.sku ? ` · SKU ${item.sku}` : ""}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
             </div>
             {canEdit && <div className="flex gap-2">
-              <button type="button" onClick={() => { setItemId(item.id); setItemName(item.name); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); }} className="rounded border px-3 py-2 text-xs font-semibold">Edit</button>
+              <button type="button" onClick={() => { setItemId(item.id); setItemName(item.name); setItemSku(item.sku ?? ""); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); }} className="rounded border px-3 py-2 text-xs font-semibold">Edit</button>
               <button type="button" disabled={isPending} onClick={() => onAction(() => saveRestaurantMenuItem({ id: item.id, categoryId: item.category_id, name: item.name, description: item.description ?? "", price: Number(item.price), prepStation: item.prep_station, sortOrder: item.sort_order, isActive: !item.is_active }), item.is_active ? "Menu item marked unavailable." : "Menu item activated.")} className="rounded border px-3 py-2 text-xs font-semibold">{item.is_active ? "Unavailable" : "Activate"}</button>
             </div>}
           </article>
@@ -1507,6 +1511,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           <h3 className="font-bold text-slate-950">{itemId ? "Edit menu item" : "Add menu item"}</h3>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold">Name<input required maxLength={120} value={itemName} onChange={(event) => setItemName(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+            <label className="text-xs font-semibold">SKU (optional)<input maxLength={80} value={itemSku} onChange={(event) => setItemSku(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">Price<input required type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">Category<select value={itemCategoryId} onChange={(event) => setItemCategoryId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="">Uncategorized</option>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label className="text-xs font-semibold">Prep station<select value={prepStation} onChange={(event) => setPrepStation(event.target.value as PrepStation)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="kitchen">Kitchen</option><option value="bar">Bar</option><option value="dessert">Dessert</option></select></label>
@@ -1518,10 +1523,11 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           {imageUploading && <p role="status" className="mt-2 text-xs text-slate-500">Uploading image…</p>}
           {imageUploadError && <p role="alert" className="mt-2 text-xs text-red-700">{imageUploadError}</p>}
           {imageUrl && <div className="mt-3 flex items-center gap-3"><Image src={imageUrl} alt="Menu item preview" width={80} height={80} unoptimized className="h-20 w-20 rounded-lg object-cover" /><button type="button" onClick={() => setImageUrl(null)} className="rounded border px-3 py-2 text-xs">Remove image</button></div>}
-          <div className="mt-3 flex gap-2"><button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" onClick={() => { setItemId(undefined); setItemName(""); setDescription(""); setItemCategoryId(""); setPrice(""); setImageUrl(null); setPrepStation("kitchen"); }} className="rounded-lg border px-4 py-2 text-sm">Cancel edit</button>}</div>
+          <div className="mt-3 flex gap-2"><button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" onClick={() => { setItemId(undefined); setItemName(""); setItemSku(""); setDescription(""); setItemCategoryId(""); setPrice(""); setImageUrl(null); setPrepStation("kitchen"); }} className="rounded-lg border px-4 py-2 text-sm">Cancel edit</button>}</div>
         </form>}
       </section>
       <aside className="space-y-4">
+        {canCreate && <RestaurantMenuImporter categories={categories} menuItems={menuItems} />}
         <ModifierManagement
           menuItems={menuItems}
           groups={modifierGroups}

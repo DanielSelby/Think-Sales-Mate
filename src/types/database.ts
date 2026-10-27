@@ -192,6 +192,7 @@ export interface Database {
           org_id: string;
           category_id: string | null;
           name: string;
+          sku: string | null;
           description: string | null;
           image_url: string | null;
           price: number;
@@ -206,6 +207,7 @@ export interface Database {
           org_id: string;
           category_id?: string | null;
           name: string;
+          sku?: string | null;
           description?: string | null;
           image_url?: string | null;
           price: number;
