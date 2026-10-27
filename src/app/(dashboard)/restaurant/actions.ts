@@ -6,9 +6,10 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { sendRestaurantOrderEmail, type RestaurantEmailStatus } from "@/lib/restaurant/order-emails";
 import type { Json } from "@/types/database";
 
-type RestaurantTab = "orders" | "menu" | "tables";
+type RestaurantTab = "orders" | "menu" | "tables" | "reservations" | "ingredients";
 type OrderType = "dine_in" | "takeaway" | "delivery";
 type PaymentMethod = "cash" | "card" | "mobile_money" | "other";
 
@@ -34,6 +35,18 @@ function requiredText(value: string, label: string, maxLength: number) {
     throw new Error(`${label} is required and must be no more than ${maxLength} characters.`);
   }
   return normalized;
+}
+
+function validMoney(value: number, allowZero = false) {
+  return Number.isFinite(value)
+    && (allowZero ? value >= 0 : value > 0)
+    && Math.abs(value * 100 - Math.round(value * 100)) < 0.000001;
+}
+
+function validQuantity(value: number, allowZero = false) {
+  return Number.isFinite(value)
+    && (allowZero ? value >= 0 : value > 0)
+    && Math.abs(value * 1000 - Math.round(value * 1000)) < 0.000001;
 }
 
 export async function saveRestaurantCategory(input: { id?: string; name: string; sortOrder: number; isActive: boolean }) {
@@ -63,13 +76,15 @@ export async function saveRestaurantMenuItem(input: {
   name: string;
   description: string;
   price: number;
+  prepStation: "kitchen" | "bar" | "dessert";
   sortOrder: number;
   isActive: boolean;
 }) {
   const context = await restaurantContext("menu", input.id ? "edit" : "create");
   requireOrganizationWideAccess(context.isBranchScoped, "Menu items");
   const name = requiredText(input.name, "Menu item name", 120);
-  if (!Number.isFinite(input.price) || input.price < 0 || !Number.isInteger(input.sortOrder) || typeof input.isActive !== "boolean") {
+  if (!Number.isFinite(input.price) || input.price < 0 || !Number.isInteger(input.sortOrder)
+    || !["kitchen", "bar", "dessert"].includes(input.prepStation) || typeof input.isActive !== "boolean") {
     throw new Error("Enter a valid non-negative price and item position.");
   }
   const admin = createAdminClient();
@@ -90,6 +105,7 @@ export async function saveRestaurantMenuItem(input: {
     name,
     description: input.description.trim() || null,
     price: input.price,
+    prep_station: input.prepStation,
     sort_order: input.sortOrder,
     is_active: input.isActive,
     updated_at: new Date().toISOString(),
@@ -99,6 +115,146 @@ export async function saveRestaurantMenuItem(input: {
     : admin.from("restaurant_menu_items").insert({ ...payload, org_id: context.orgId });
   const { error } = await query;
   if (error) throw new Error(`Could not save menu item: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function saveRestaurantOnlineSettings(input: {
+  locationId: string;
+  isEnabled: boolean;
+  deliveryFee: number;
+  sendOrderEmails: boolean;
+  acceptsOnlineReservations: boolean;
+}) {
+  const context = await restaurantContext("menu", "edit");
+  requireOrganizationWideAccess(context.isBranchScoped, "Restaurant online ordering settings");
+  if (typeof input.isEnabled !== "boolean" || typeof input.sendOrderEmails !== "boolean"
+    || typeof input.acceptsOnlineReservations !== "boolean"
+    || !validMoney(input.deliveryFee, true)) {
+    throw new Error("Enter a valid online ordering status and delivery fee.");
+  }
+  const admin = createAdminClient();
+  const { data: location, error: locationError } = await admin.from("business_locations")
+    .select("id").eq("org_id", context.orgId).eq("id", input.locationId).eq("is_active", true).maybeSingle();
+  if (locationError) throw new Error(`Could not load restaurant branch: ${locationError.message}`);
+  if (!location || !canUseLocation(context, location.id)) throw new Error("Restaurant branch not found or not accessible.");
+  const { error } = await admin.from("restaurant_online_settings").upsert({
+    org_id: context.orgId,
+    location_id: location.id,
+    is_enabled: input.isEnabled,
+    accepts_pickup: true,
+    accepts_delivery: true,
+    delivery_fee: input.deliveryFee,
+    send_order_emails: input.sendOrderEmails,
+    accepts_online_reservations: input.acceptsOnlineReservations,
+    updated_by: context.userId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "org_id,location_id" });
+  if (error) throw new Error(`Could not save restaurant online ordering settings: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function saveRestaurantModifierGroup(input: {
+  id?: string;
+  menuItemId: string;
+  name: string;
+  minSelections: number;
+  maxSelections: number;
+  isActive: boolean;
+}) {
+  const context = await restaurantContext("menu", input.id ? "edit" : "create");
+  requireOrganizationWideAccess(context.isBranchScoped, "Menu modifiers");
+  const name = requiredText(input.name, "Modifier group name", 80);
+  if (!Number.isInteger(input.minSelections) || !Number.isInteger(input.maxSelections)
+    || input.minSelections < 0 || input.maxSelections < 1 || input.maxSelections > 20
+    || input.minSelections > input.maxSelections || typeof input.isActive !== "boolean") {
+    throw new Error("Modifier selections must be between 0 and 20, with the minimum no greater than the maximum.");
+  }
+  const admin = createAdminClient();
+  const { data: menuItem, error: menuError } = await admin.from("restaurant_menu_items")
+    .select("id").eq("org_id", context.orgId).eq("id", input.menuItemId).maybeSingle();
+  if (menuError) throw new Error(`Could not verify menu item: ${menuError.message}`);
+  if (!menuItem) throw new Error("Choose a menu item from this organization.");
+  if (input.id) {
+    const { data: existing, error } = await admin.from("restaurant_modifier_groups")
+      .select("id, menu_item_id").eq("org_id", context.orgId).eq("id", input.id).maybeSingle();
+    if (error) throw new Error(`Could not load modifier group: ${error.message}`);
+    if (!existing || existing.menu_item_id !== input.menuItemId) throw new Error("Modifier group not found for this menu item.");
+  }
+  if (input.isActive && input.id) {
+    const { count, error } = await admin.from("restaurant_modifier_options")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", context.orgId).eq("group_id", input.id).eq("is_active", true);
+    if (error) throw new Error(`Could not verify modifier options: ${error.message}`);
+    if ((count ?? 0) < input.minSelections) {
+      throw new Error("Add enough active options to satisfy the required minimum before activating this group.");
+    }
+  }
+  const payload = {
+    menu_item_id: input.menuItemId,
+    name,
+    min_selections: input.minSelections,
+    max_selections: input.maxSelections,
+    is_active: input.isActive,
+    updated_at: new Date().toISOString(),
+  };
+  const query = input.id
+    ? admin.from("restaurant_modifier_groups").update(payload).eq("org_id", context.orgId).eq("id", input.id)
+    : admin.from("restaurant_modifier_groups").insert({ ...payload, org_id: context.orgId });
+  const { error } = await query;
+  if (error) throw new Error(`Could not save modifier group: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function saveRestaurantModifierOption(input: {
+  id?: string;
+  groupId: string;
+  name: string;
+  priceDelta: number;
+  isActive: boolean;
+}) {
+  const context = await restaurantContext("menu", input.id ? "edit" : "create");
+  requireOrganizationWideAccess(context.isBranchScoped, "Menu modifiers");
+  const name = requiredText(input.name, "Modifier option name", 80);
+  if (!Number.isFinite(input.priceDelta) || input.priceDelta < 0 || typeof input.isActive !== "boolean") {
+    throw new Error("Modifier price adjustment must be a non-negative amount.");
+  }
+  const admin = createAdminClient();
+  const { data: group, error: groupError } = await admin.from("restaurant_modifier_groups")
+    .select("id").eq("org_id", context.orgId).eq("id", input.groupId).maybeSingle();
+  if (groupError) throw new Error(`Could not verify modifier group: ${groupError.message}`);
+  if (!group) throw new Error("Choose a modifier group from this organization.");
+  if (input.id) {
+    const { data: existing, error } = await admin.from("restaurant_modifier_options")
+      .select("id, group_id, is_active").eq("org_id", context.orgId).eq("id", input.id).maybeSingle();
+    if (error) throw new Error(`Could not load modifier option: ${error.message}`);
+    if (!existing || existing.group_id !== input.groupId) throw new Error("Modifier option not found in this group.");
+    if (existing.is_active && !input.isActive) {
+      const { data: modifierGroup, error: modifierGroupError } = await admin.from("restaurant_modifier_groups")
+        .select("min_selections, is_active").eq("org_id", context.orgId).eq("id", input.groupId).maybeSingle();
+      if (modifierGroupError) throw new Error(`Could not verify modifier group: ${modifierGroupError.message}`);
+      if (modifierGroup?.is_active) {
+        const { count, error: countError } = await admin.from("restaurant_modifier_options")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", context.orgId).eq("group_id", input.groupId).eq("is_active", true);
+        if (countError) throw new Error(`Could not count active modifier options: ${countError.message}`);
+        if ((count ?? 0) - 1 < modifierGroup.min_selections) {
+          throw new Error("This option is required by the active group minimum. Deactivate the group or add another active option first.");
+        }
+      }
+    }
+  }
+  const payload = {
+    group_id: input.groupId,
+    name,
+    price_delta: input.priceDelta,
+    is_active: input.isActive,
+    updated_at: new Date().toISOString(),
+  };
+  const query = input.id
+    ? admin.from("restaurant_modifier_options").update(payload).eq("org_id", context.orgId).eq("id", input.id)
+    : admin.from("restaurant_modifier_options").insert({ ...payload, org_id: context.orgId });
+  const { error } = await query;
+  if (error) throw new Error(`Could not save modifier option: ${error.message}`);
   revalidatePath("/restaurant");
 }
 
@@ -147,6 +303,99 @@ export async function saveRestaurantTable(input: {
   revalidatePath("/restaurant");
 }
 
+export async function createRestaurantReservation(input: {
+  locationId: string;
+  tableId: string | null;
+  guestName: string;
+  guestPhone: string;
+  partySize: number;
+  startsAt: string;
+  durationMinutes: number;
+  notes: string;
+  waitlist: boolean;
+}) {
+  const context = await restaurantContext("reservations", "create");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot manage reservations at that branch.");
+  const guestName = requiredText(input.guestName, "Guest name", 120);
+  const guestPhone = requiredText(input.guestPhone, "Guest phone", 40);
+  const startsAt = new Date(input.startsAt);
+  if (!Number.isInteger(input.partySize) || input.partySize < 1 || input.partySize > 100) {
+    throw new Error("Party size must be between 1 and 100.");
+  }
+  if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() < Date.now() - 5 * 60 * 1000) {
+    throw new Error("Choose a valid future reservation time.");
+  }
+  if (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 30 || input.durationMinutes > 240) {
+    throw new Error("Reservation duration must be between 30 and 240 minutes.");
+  }
+  if (typeof input.waitlist !== "boolean" || (input.waitlist && input.tableId)) {
+    throw new Error("Waitlist entries cannot be assigned a table.");
+  }
+  if (!input.waitlist && !input.tableId) {
+    throw new Error("Choose a table for the reservation or add the guest to the waitlist.");
+  }
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("create_restaurant_reservation", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_table_id: input.waitlist ? null : input.tableId,
+    p_guest_name: guestName,
+    p_guest_phone: guestPhone,
+    p_party_size: input.partySize,
+    p_starts_at: startsAt.toISOString(),
+    p_duration_minutes: input.durationMinutes,
+    p_notes: input.notes.trim() || null,
+    p_created_by: context.userId,
+    p_waitlist: input.waitlist,
+  });
+  if (error) throw new Error(`Could not create reservation: ${error.message}`);
+  revalidatePath("/restaurant");
+  return { id: data.id };
+}
+
+export async function updateRestaurantReservationStatus(
+  reservationId: string,
+  status: "confirmed" | "seated" | "completed" | "cancelled" | "no_show",
+) {
+  const context = await restaurantContext("reservations", "edit");
+  const admin = createAdminClient();
+  const { data: reservation, error: loadError } = await admin.from("restaurant_reservations")
+    .select("id, location_id, status").eq("org_id", context.orgId).eq("id", reservationId).maybeSingle();
+  if (loadError) throw new Error(`Could not load reservation: ${loadError.message}`);
+  if (!reservation || !canUseLocation(context, reservation.location_id)) throw new Error("Reservation not found or not accessible.");
+  const allowedNext: Partial<Record<typeof reservation.status, string[]>> = {
+    waitlisted: ["confirmed", "cancelled"],
+    confirmed: ["seated", "cancelled", "no_show"],
+    seated: ["completed", "cancelled"],
+  };
+  if (!allowedNext[reservation.status]?.includes(status)) {
+    throw new Error("This reservation cannot move to the selected status.");
+  }
+  const { error } = await admin.from("restaurant_reservations")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("org_id", context.orgId).eq("id", reservationId);
+  if (error) throw new Error(`Could not update reservation: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function assignRestaurantReservationTable(reservationId: string, tableId: string) {
+  const context = await restaurantContext("reservations", "edit");
+  if (!tableId) throw new Error("Choose a table to assign.");
+  const admin = createAdminClient();
+  const { data: reservation, error: loadError } = await admin.from("restaurant_reservations")
+    .select("location_id").eq("org_id", context.orgId).eq("id", reservationId).maybeSingle();
+  if (loadError) throw new Error(`Could not load reservation: ${loadError.message}`);
+  if (!reservation || !canUseLocation(context, reservation.location_id)) throw new Error("Reservation not found or not accessible.");
+  const { data, error } = await admin.rpc("assign_restaurant_reservation_table", {
+    p_org_id: context.orgId,
+    p_reservation_id: reservationId,
+    p_table_id: tableId,
+  });
+  if (error) throw new Error(`Could not assign reservation table: ${error.message}`);
+  revalidatePath("/restaurant");
+  return data;
+}
+
 export async function createRestaurantOrder(input: {
   locationId: string;
   orderType: OrderType;
@@ -155,7 +404,7 @@ export async function createRestaurantOrder(input: {
   customerPhone: string;
   deliveryAddress: string;
   notes: string;
-  items: Array<{ menuItemId: string; quantity: number; notes: string }>;
+  items: Array<{ menuItemId: string; quantity: number; notes: string; modifierOptionIds: string[] }>;
 }) {
   const context = await restaurantContext("orders", "create");
   if (!canUseLocation(context, input.locationId)) throw new Error("You cannot take restaurant orders at that branch.");
@@ -170,7 +419,16 @@ export async function createRestaurantOrder(input: {
     if (!Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 999) {
       throw new Error("Order quantities must be whole numbers between 1 and 999.");
     }
-    return { menu_item_id: item.menuItemId, quantity: item.quantity, notes: item.notes.trim() };
+    if (!Array.isArray(item.modifierOptionIds) || item.modifierOptionIds.length > 100
+      || item.modifierOptionIds.some((id) => typeof id !== "string")) {
+      throw new Error("Invalid menu modifier selections.");
+    }
+    return {
+      menu_item_id: item.menuItemId,
+      quantity: item.quantity,
+      notes: item.notes.trim(),
+      modifier_option_ids: item.modifierOptionIds,
+    };
   });
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("create_restaurant_order", {
@@ -196,9 +454,11 @@ export async function updateRestaurantOrderStatus(orderId: string, status: strin
   if (!allowed.includes(status)) throw new Error("Choose a valid restaurant order status.");
   const admin = createAdminClient();
   const { data: order, error: loadError } = await admin.from("restaurant_orders")
-    .select("id, location_id, status, order_type").eq("org_id", context.orgId).eq("id", orderId).maybeSingle();
+    .select("id, location_id, status, order_type, order_number, order_source, customer_email, customer_tracking_token")
+    .eq("org_id", context.orgId).eq("id", orderId).maybeSingle();
   if (loadError) throw new Error(`Could not load restaurant order: ${loadError.message}`);
   if (!order || !canUseLocation(context, order.location_id)) throw new Error("Restaurant order not found or not accessible.");
+  if (order.status === "pending_payment") throw new Error("This order is waiting for online payment confirmation.");
   if (order.status === "completed" || order.status === "cancelled") throw new Error("This restaurant order is already closed.");
   const nextStatus: Partial<Record<typeof order.status, string>> = {
     new: "confirmed",
@@ -227,11 +487,35 @@ export async function updateRestaurantOrderStatus(orderId: string, status: strin
     if (paymentError) throw new Error(`Could not verify order payment: ${paymentError.message}`);
     if (payment.payment_status !== "paid") throw new Error("Record full payment before completing an order.");
   }
-  const { error } = await admin.from("restaurant_orders")
+  const { data: updatedOrder, error } = await admin.from("restaurant_orders")
     .update({ status: status as "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled", updated_at: new Date().toISOString() })
-    .eq("org_id", context.orgId).eq("id", orderId);
+    .eq("org_id", context.orgId).eq("id", orderId).eq("status", order.status).select("id").maybeSingle();
   if (error) throw new Error(`Could not update restaurant order: ${error.message}`);
+  if (!updatedOrder) throw new Error("This order was updated by someone else. Refresh and try again.");
+  let emailNotification: { sent: boolean; reason?: string } | null = null;
+  if (order.order_source === "online" && order.customer_email) {
+    const [{ data: settings, error: settingsError }, { data: location, error: locationError }] = await Promise.all([
+      admin.from("restaurant_online_settings").select("send_order_emails")
+        .eq("org_id", context.orgId).eq("location_id", order.location_id).maybeSingle(),
+      admin.from("business_locations").select("name")
+        .eq("org_id", context.orgId).eq("id", order.location_id).maybeSingle(),
+    ]);
+    if (settingsError || locationError) {
+      console.error("[restaurant-order-email] Could not load notification settings:", settingsError?.message ?? locationError?.message);
+      emailNotification = { sent: false, reason: "Could not load email settings." };
+    } else if (settings?.send_order_emails !== false && location) {
+      const emailResult = await sendRestaurantOrderEmail({
+        email: order.customer_email,
+        orderNumber: order.order_number,
+        branchName: location.name,
+        status: status as RestaurantEmailStatus,
+        trackingToken: order.customer_tracking_token,
+      });
+      emailNotification = { sent: emailResult.sent, reason: emailResult.reason };
+    }
+  }
   revalidatePath("/restaurant");
+  return { emailNotification };
 }
 
 export async function updateRestaurantKitchenStatus(itemId: string, status: string) {
@@ -254,6 +538,7 @@ export async function updateRestaurantKitchenStatus(itemId: string, status: stri
     .select("location_id, status").eq("org_id", context.orgId).eq("id", item.order_id).maybeSingle();
   if (orderError) throw new Error(`Could not load kitchen order: ${orderError.message}`);
   if (!order || !canUseLocation(context, order.location_id)) throw new Error("Kitchen order not found or not accessible.");
+  if (order.status === "pending_payment") throw new Error("Kitchen work cannot start until the online payment is confirmed.");
   if (order.status === "completed" || order.status === "cancelled") throw new Error("Closed orders cannot be changed in the kitchen.");
   if (status === "served" && !["ready", "served"].includes(order.status)) {
     throw new Error("Kitchen items can only be marked served after the order is ready.");
@@ -265,23 +550,246 @@ export async function updateRestaurantKitchenStatus(itemId: string, status: stri
   revalidatePath("/restaurant");
 }
 
-export async function recordRestaurantPayment(input: { orderId: string; amount: number; method: PaymentMethod }) {
-  const context = await restaurantContext("orders", "create");
-  if (!Number.isFinite(input.amount) || input.amount <= 0 || !["cash", "card", "mobile_money", "other"].includes(input.method)) {
-    throw new Error("Enter a valid payment amount and method.");
+export async function splitRestaurantBillByItems(input: {
+  orderId: string;
+  bills: Array<{ name: string; items: Array<{ orderItemId: string; quantity: number }> }>;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!Array.isArray(input.bills) || input.bills.length < 2 || input.bills.length > 20) {
+    throw new Error("Create between 2 and 20 guest checks.");
+  }
+  const bills: Json[] = input.bills.map((bill) => {
+    const name = requiredText(bill.name, "Guest check name", 80);
+    if (!Array.isArray(bill.items) || bill.items.length > 100) {
+      throw new Error("Each guest check must contain valid item assignments.");
+    }
+    return {
+      name,
+      items: bill.items.map((item) => {
+        if (typeof item.orderItemId !== "string" || !validMoney(item.quantity)) {
+          throw new Error("Assigned item quantities must be positive, with no more than two decimal places.");
+        }
+        return { order_item_id: item.orderItemId, quantity: item.quantity };
+      }),
+    };
+  });
+  const admin = createAdminClient();
+  const { data: order, error: orderError } = await admin.from("restaurant_orders")
+    .select("location_id, delivery_fee, status").eq("org_id", context.orgId).eq("id", input.orderId).maybeSingle();
+  if (orderError) throw new Error(`Could not verify restaurant order: ${orderError.message}`);
+  if (!order || !canUseLocation(context, order.location_id)) throw new Error("Restaurant order not found or not accessible.");
+  if (order.status === "pending_payment") throw new Error("This order is waiting for online payment confirmation.");
+  if (Number(order.delivery_fee) > 0) throw new Error("Delivery orders with a delivery fee can only be split into equal shares.");
+  const { error } = await admin.rpc("split_restaurant_bill_by_items", {
+    p_org_id: context.orgId,
+    p_order_id: input.orderId,
+    p_bills: bills,
+  });
+  if (error) throw new Error(`Could not split restaurant bill: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function splitRestaurantBillEqually(input: { orderId: string; shareCount: number }) {
+  const context = await restaurantContext("orders", "edit");
+  if (!Number.isInteger(input.shareCount) || input.shareCount < 2 || input.shareCount > 20) {
+    throw new Error("Choose between 2 and 20 equal shares.");
   }
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin.from("restaurant_orders")
-    .select("location_id").eq("org_id", context.orgId).eq("id", input.orderId).maybeSingle();
+    .select("location_id, status").eq("org_id", context.orgId).eq("id", input.orderId).maybeSingle();
   if (orderError) throw new Error(`Could not verify restaurant order: ${orderError.message}`);
   if (!order || !canUseLocation(context, order.location_id)) throw new Error("Restaurant order not found or not accessible.");
-  const { error } = await admin.rpc("record_restaurant_payment", {
+  if (order.status === "pending_payment") throw new Error("This order is waiting for online payment confirmation.");
+  const { error } = await admin.rpc("split_restaurant_bill_equally", {
     p_org_id: context.orgId,
     p_order_id: input.orderId,
+    p_share_count: input.shareCount,
+  });
+  if (error) throw new Error(`Could not split restaurant bill: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function recordRestaurantPayment(input: {
+  orderId: string;
+  billId: string;
+  amount: number;
+  tipAmount: number;
+  method: PaymentMethod;
+}) {
+  const context = await restaurantContext("orders", "create");
+  if (!validMoney(input.amount, true) || !validMoney(input.tipAmount, true)
+    || input.amount + input.tipAmount <= 0
+    || !["cash", "card", "mobile_money", "other"].includes(input.method)) {
+    throw new Error("Enter a valid payment amount, tip, and method.");
+  }
+  const admin = createAdminClient();
+  const { data: order, error: orderError } = await admin.from("restaurant_orders")
+    .select("location_id, status").eq("org_id", context.orgId).eq("id", input.orderId).maybeSingle();
+  if (orderError) throw new Error(`Could not verify restaurant order: ${orderError.message}`);
+  if (!order || !canUseLocation(context, order.location_id)) throw new Error("Restaurant order not found or not accessible.");
+  if (order.status === "pending_payment") throw new Error("This order is waiting for online payment confirmation.");
+  const { error } = await admin.rpc("record_restaurant_bill_payment", {
+    p_org_id: context.orgId,
+    p_order_id: input.orderId,
+    p_bill_id: input.billId,
     p_amount: input.amount,
+    p_tip_amount: input.tipAmount,
     p_payment_method: input.method,
     p_received_by: context.userId,
   });
   if (error) throw new Error(`Could not record restaurant payment: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function refundRestaurantPayment(input: {
+  orderId: string;
+  paymentId: string;
+  amount: number;
+  tipAmount: number;
+  method: PaymentMethod;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!validMoney(input.amount, true) || !validMoney(input.tipAmount, true)
+    || input.amount + input.tipAmount <= 0
+    || !["cash", "card", "mobile_money", "other"].includes(input.method)) {
+    throw new Error("Enter a valid refund amount, tip refund, and method.");
+  }
+  const admin = createAdminClient();
+  const { data: order, error: orderError } = await admin.from("restaurant_orders")
+    .select("location_id, status").eq("org_id", context.orgId).eq("id", input.orderId).maybeSingle();
+  if (orderError) throw new Error(`Could not verify restaurant order: ${orderError.message}`);
+  if (!order || !canUseLocation(context, order.location_id)) throw new Error("Restaurant order not found or not accessible.");
+  if (order.status === "pending_payment") throw new Error("A pending online payment cannot be refunded.");
+  const { data: payment, error: paymentError } = await admin.from("restaurant_order_payments")
+    .select("payment_provider").eq("org_id", context.orgId).eq("order_id", input.orderId)
+    .eq("id", input.paymentId).eq("payment_type", "payment").maybeSingle();
+  if (paymentError) throw new Error(`Could not load original restaurant payment: ${paymentError.message}`);
+  if (!payment) throw new Error("Original restaurant payment not found.");
+  if (payment.payment_provider === "paystack") {
+    throw new Error("Refund this Paystack transaction in the Paystack dashboard. This app does not submit provider refunds.");
+  }
+  const { error } = await admin.rpc("refund_restaurant_payment", {
+    p_org_id: context.orgId,
+    p_order_id: input.orderId,
+    p_payment_id: input.paymentId,
+    p_amount: input.amount,
+    p_tip_amount: input.tipAmount,
+    p_payment_method: input.method,
+    p_received_by: context.userId,
+  });
+  if (error) throw new Error(`Could not refund restaurant payment: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function saveRestaurantIngredient(input: {
+  id?: string;
+  name: string;
+  unit: string;
+  costPerUnit: number;
+  isActive: boolean;
+}) {
+  const context = await restaurantContext("ingredients", input.id ? "edit" : "create");
+  requireOrganizationWideAccess(context.isBranchScoped, "Restaurant ingredients");
+  const name = requiredText(input.name, "Ingredient name", 120);
+  const unit = requiredText(input.unit, "Ingredient unit", 20);
+  if (!Number.isFinite(input.costPerUnit) || input.costPerUnit < 0
+    || Math.abs(input.costPerUnit * 10000 - Math.round(input.costPerUnit * 10000)) > 0.000001
+    || typeof input.isActive !== "boolean") {
+    throw new Error("Enter a non-negative ingredient cost to four decimal places.");
+  }
+  const admin = createAdminClient();
+  const payload = {
+    name,
+    unit,
+    cost_per_unit: input.costPerUnit,
+    is_active: input.isActive,
+    updated_at: new Date().toISOString(),
+  };
+  if (input.id) {
+    const { data: existing, error: loadError } = await admin.from("restaurant_ingredients")
+      .select("id, unit").eq("org_id", context.orgId).eq("id", input.id).maybeSingle();
+    if (loadError) throw new Error(`Could not load restaurant ingredient: ${loadError.message}`);
+    if (!existing) throw new Error("Restaurant ingredient not found.");
+    if (existing.unit !== unit) {
+      const [
+        { data: stock, error: stockError },
+        { data: recipe, error: recipeError },
+        { data: movements, error: movementsError },
+      ] = await Promise.all([
+        admin.from("restaurant_ingredient_stock").select("ingredient_id").eq("org_id", context.orgId).eq("ingredient_id", input.id).limit(1),
+        admin.from("restaurant_recipe_ingredients").select("ingredient_id").eq("org_id", context.orgId).eq("ingredient_id", input.id).limit(1),
+        admin.from("restaurant_ingredient_movements").select("ingredient_id").eq("org_id", context.orgId).eq("ingredient_id", input.id).limit(1),
+      ]);
+      const referenceError = stockError ?? recipeError ?? movementsError;
+      if (referenceError) throw new Error(`Could not verify ingredient usage: ${referenceError.message}`);
+      if (stock?.length || recipe?.length || movements?.length) {
+        throw new Error("The stock unit cannot be changed after this ingredient has stock, recipes, or movement history. Create a new ingredient instead.");
+      }
+    }
+  }
+  const query = input.id
+    ? admin.from("restaurant_ingredients").update(payload).eq("org_id", context.orgId).eq("id", input.id)
+    : admin.from("restaurant_ingredients").insert({ ...payload, org_id: context.orgId });
+  const { error } = await query;
+  if (error) throw new Error(`Could not save restaurant ingredient: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function saveRestaurantRecipe(input: {
+  menuItemId: string;
+  ingredients: Array<{ ingredientId: string; quantity: number }>;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  requireOrganizationWideAccess(context.isBranchScoped, "Restaurant recipes");
+  if (!Array.isArray(input.ingredients) || input.ingredients.length > 100) {
+    throw new Error("A recipe can contain no more than 100 ingredients.");
+  }
+  const seen = new Set<string>();
+  const ingredients: Json[] = input.ingredients.map((line) => {
+    if (typeof line.ingredientId !== "string" || !validQuantity(line.quantity)) {
+      throw new Error("Recipe quantities must be positive and no more than three decimal places.");
+    }
+    if (seen.has(line.ingredientId)) throw new Error("Each ingredient can appear only once in a recipe.");
+    seen.add(line.ingredientId);
+    return { ingredient_id: line.ingredientId, quantity: line.quantity };
+  });
+  const admin = createAdminClient();
+  const { data: menuItem, error: menuError } = await admin.from("restaurant_menu_items")
+    .select("id").eq("org_id", context.orgId).eq("id", input.menuItemId).maybeSingle();
+  if (menuError) throw new Error(`Could not verify menu item: ${menuError.message}`);
+  if (!menuItem) throw new Error("Choose a menu item from this organization.");
+  const { error } = await admin.rpc("replace_restaurant_recipe", {
+    p_org_id: context.orgId,
+    p_menu_item_id: input.menuItemId,
+    p_ingredients: ingredients,
+  });
+  if (error) throw new Error(`Could not save restaurant recipe: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function adjustRestaurantIngredientStock(input: {
+  locationId: string;
+  ingredientId: string;
+  quantityDelta: number;
+  reason: string;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.locationId)) {
+    throw new Error("You cannot adjust restaurant ingredient stock at that branch.");
+  }
+  if (!validQuantity(Math.abs(input.quantityDelta)) || input.quantityDelta === 0) {
+    throw new Error("Enter a non-zero stock change to three decimal places.");
+  }
+  const reason = requiredText(input.reason, "Adjustment reason", 200);
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("adjust_restaurant_ingredient_stock", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_ingredient_id: input.ingredientId,
+    p_quantity_delta: input.quantityDelta,
+    p_reason: reason,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not adjust restaurant ingredient stock: ${error.message}`);
   revalidatePath("/restaurant");
 }

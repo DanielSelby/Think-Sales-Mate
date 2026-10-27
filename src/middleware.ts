@@ -4,7 +4,7 @@ import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-acces
 import { canonicalRoleKey, isTabVisible, resolveMemberPermissionMatrix } from "@/lib/rbac/permission-matrix";
 import { resolveTabRouteAccess } from "@/lib/rbac/tab-route-access";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/api/system-logo", "/mobile-scan/pair"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/api/restaurant-order/", "/api/system-logo", "/mobile-scan/pair"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });

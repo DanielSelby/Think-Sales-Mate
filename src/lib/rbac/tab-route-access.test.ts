@@ -8,6 +8,11 @@ describe("configured tab route access", () => {
       page: "operations",
       tab: "orders"
     });
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=kitchen"))).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "kitchen"
+    });
     expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=menu"))).toEqual({
       module: "restaurant",
       page: "operations",
@@ -18,7 +23,27 @@ describe("configured tab route access", () => {
       page: "operations",
       tab: "tables"
     });
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=reservations"))).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "reservations"
+    });
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=reports"))).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "reports"
+    });
+    expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=ingredients"))).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "ingredients"
+    });
     expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=unknown"))).toBeNull();
+    expect(resolveTabRouteAccess("/restaurant/receipt", new URLSearchParams())).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "orders"
+    });
   });
 
   it("maps sales and inventory routes to their configured tabs", () => {

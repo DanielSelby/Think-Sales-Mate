@@ -47,8 +47,12 @@ export function resolveTabRouteAccess(
     const selected = searchParams.get("view") ?? "orders";
     const tabByView: Record<string, string> = {
       orders: "orders",
+      kitchen: "kitchen",
       menu: "menu",
       tables: "tables",
+      reservations: "reservations",
+      reports: "reports",
+      ingredients: "ingredients",
     };
     const tab = tabByView[selected];
     return tab ? { module: "restaurant", page: "operations", tab } : null;

@@ -117,6 +117,31 @@ create index if not exists restaurant_order_items_org_order_idx
 create index if not exists restaurant_order_payments_org_order_idx
   on public.restaurant_order_payments(org_id, order_id, paid_at desc);
 
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'restaurant_menu_categories') then
+      alter publication supabase_realtime add table public.restaurant_menu_categories;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'restaurant_menu_items') then
+      alter publication supabase_realtime add table public.restaurant_menu_items;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'restaurant_tables') then
+      alter publication supabase_realtime add table public.restaurant_tables;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'restaurant_orders') then
+      alter publication supabase_realtime add table public.restaurant_orders;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'restaurant_order_items') then
+      alter publication supabase_realtime add table public.restaurant_order_items;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'restaurant_order_payments') then
+      alter publication supabase_realtime add table public.restaurant_order_payments;
+    end if;
+  end if;
+end
+$$;
+
 alter table public.restaurant_menu_categories enable row level security;
 alter table public.restaurant_menu_items enable row level security;
 alter table public.restaurant_tables enable row level security;
