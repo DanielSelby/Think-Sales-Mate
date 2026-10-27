@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type OrderStatus = "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
 
@@ -33,6 +34,7 @@ export default function RestaurantOrderTrackingView({
   createdAt,
   branchName,
   currency,
+  orderingUrl,
 }: {
   orderNumber: number;
   orderType: "dine_in" | "takeaway" | "delivery";
@@ -44,6 +46,7 @@ export default function RestaurantOrderTrackingView({
   createdAt: string;
   branchName: string;
   currency: string;
+  orderingUrl: string;
 }) {
   const router = useRouter();
   const isClosed = status === "cancelled" || status === "completed";
@@ -59,6 +62,9 @@ export default function RestaurantOrderTrackingView({
   const currentStep = progress.indexOf(activeProgressStatus);
 
   return <main className="mx-auto max-w-xl space-y-5 px-4 py-12">
+    <Link href={orderingUrl} className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+      Back to restaurant menu
+    </Link>
     <header className="rounded-2xl bg-slate-950 p-6 text-white">
       <p className="text-sm font-semibold text-orange-300">{branchName}</p>
       <h1 className="mt-1 text-2xl font-bold">Track order #{orderNumber}</h1>

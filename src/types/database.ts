@@ -596,6 +596,7 @@ export interface Database {
           location_id: string;
           ingredient_id: string;
           quantity: number;
+          minimum_quantity: number;
           updated_at: string;
         };
         Insert: {
@@ -603,6 +604,7 @@ export interface Database {
           location_id: string;
           ingredient_id: string;
           quantity?: number;
+          minimum_quantity?: number;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"]>;

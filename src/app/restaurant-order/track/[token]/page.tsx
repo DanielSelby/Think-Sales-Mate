@@ -22,8 +22,8 @@ export default async function RestaurantOrderTrackingPage({
   if (!order) notFound();
 
   const [{ data: location, error: locationError }, { data: organization, error: organizationError }] = await Promise.all([
-    admin.from("business_locations").select("name").eq("org_id", order.org_id).eq("id", order.location_id).maybeSingle(),
-    admin.from("organizations").select("currency").eq("id", order.org_id).maybeSingle(),
+    admin.from("business_locations").select("name, customer_portal_slug").eq("org_id", order.org_id).eq("id", order.location_id).maybeSingle(),
+    admin.from("organizations").select("currency, slug").eq("id", order.org_id).maybeSingle(),
   ]);
   if (locationError || organizationError) {
     throw new Error(`Could not load restaurant order details: ${locationError?.message ?? organizationError?.message}`);
@@ -41,5 +41,6 @@ export default async function RestaurantOrderTrackingPage({
     createdAt={order.created_at}
     branchName={location.name}
     currency={organization.currency}
+    orderingUrl={`/restaurant-order/${encodeURIComponent(organization.slug)}/branch/${encodeURIComponent(location.customer_portal_slug)}`}
   />;
 }

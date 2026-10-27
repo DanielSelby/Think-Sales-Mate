@@ -173,7 +173,7 @@ export default function OnlineOrderingView({
     </main>;
   }
 
-  return <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+  return <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
     <header className="rounded-2xl bg-slate-950 p-6 text-white">
       <p className="text-sm font-semibold text-orange-300">{branchName}</p>
       <h1 className="mt-1 text-3xl font-bold">{organizationName}</h1>
@@ -189,11 +189,12 @@ export default function OnlineOrderingView({
             if (!categoryItems.length) return null;
             return <section key={category.id} className="space-y-3">
               <h2 className="text-xl font-bold text-slate-950">{category.name}</h2>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {categoryItems.map((item) => {
                 const itemGroups = modifierGroups.filter((group) => group.menu_item_id === item.id);
                 return <article key={item.id} className="overflow-hidden rounded-xl border bg-white">
                   {item.image_url && <div className="relative h-44 w-full bg-slate-100">
-                    <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 1024px) 100vw, 60vw" className="object-cover" />
+                    <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 1024px) 100vw, 60vw" className="bg-slate-100 object-contain" />
                   </div>}
                   <div className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-4">
@@ -212,6 +213,7 @@ export default function OnlineOrderingView({
                   </div>
                 </article>;
               })}
+              </div>
             </section>;
           })}
       </section>

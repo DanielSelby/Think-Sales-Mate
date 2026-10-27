@@ -178,7 +178,7 @@ export default function RestaurantPosView({
             const groups = modifierGroups.filter((group) => group.menu_item_id === item.id);
             return <article key={item.id} className="overflow-hidden rounded-xl border bg-white shadow-sm">
               <div className="relative h-40 bg-slate-100">
-                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw" className="object-cover" /> : <div className="flex h-full items-center justify-center text-sm text-slate-400">No image</div>}
+                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw" className="bg-slate-100 object-contain" /> : <div className="flex h-full items-center justify-center text-sm text-slate-400">No image</div>}
               </div>
               <div className="space-y-2 p-3">
                 <div className="flex items-start justify-between gap-2">

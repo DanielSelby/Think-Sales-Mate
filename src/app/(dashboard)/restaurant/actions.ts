@@ -1009,3 +1009,27 @@ export async function adjustRestaurantIngredientStock(input: {
   if (error) throw new Error(`Could not adjust restaurant ingredient stock: ${error.message}`);
   revalidatePath("/restaurant");
 }
+
+export async function saveRestaurantIngredientMinimumStock(input: {
+  locationId: string;
+  ingredientId: string;
+  minimumQuantity: number;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.locationId)) {
+    throw new Error("You cannot manage restaurant ingredient stock at that branch.");
+  }
+  if (!validQuantity(input.minimumQuantity, true) || input.minimumQuantity > 99_999_999_999.999) {
+    throw new Error("The low-stock threshold must be a non-negative quantity within the supported range, with up to three decimal places.");
+  }
+  const admin = createAdminClient();
+  const { error } = await admin.from("restaurant_ingredient_stock").upsert({
+    org_id: context.orgId,
+    location_id: input.locationId,
+    ingredient_id: input.ingredientId,
+    minimum_quantity: input.minimumQuantity,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "org_id,location_id,ingredient_id" });
+  if (error) throw new Error(`Could not save ingredient low-stock threshold: ${error.message}`);
+  revalidatePath("/restaurant");
+}

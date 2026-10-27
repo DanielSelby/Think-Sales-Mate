@@ -11,6 +11,7 @@ import {
   createRestaurantReservation,
   assignRestaurantReservationTable,
   adjustRestaurantIngredientStock,
+  saveRestaurantIngredientMinimumStock,
   recordRestaurantPayment,
   refundRestaurantPayment,
   saveRestaurantCategory,
@@ -877,6 +878,12 @@ function RestaurantIngredientManagement({
     return sum + Number(line.quantity) * Number(ingredient?.cost_per_unit ?? 0);
   }, 0);
   const stockAtLocation = stocks.filter((stock) => stock.location_id === locationId);
+  const lowStockIngredients = ingredients.filter((ingredient) => {
+    if (!ingredient.is_active) return false;
+    const stock = stockAtLocation.find((entry) => entry.ingredient_id === ingredient.id);
+    return Number(stock?.minimum_quantity ?? 0) > 0
+      && Number(stock?.quantity ?? 0) <= Number(stock?.minimum_quantity ?? 0);
+  });
   const recentMovements = movements.filter((movement) => movement.location_id === locationId);
 
   async function submitIngredient(event: React.FormEvent<HTMLFormElement>) {
@@ -1009,6 +1016,29 @@ function RestaurantIngredientManagement({
           </section>
         </div>
 
+        <section aria-live="polite" className={`rounded-xl border p-4 ${lowStockIngredients.length ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30" : "bg-white dark:bg-slate-900"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-bold text-slate-950 dark:text-white">Low-stock alerts · {locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}</h3>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${lowStockIngredients.length ? "bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"}`}>
+              {lowStockIngredients.length ? `${lowStockIngredients.length} need attention` : "All stocked"}
+            </span>
+          </div>
+          {lowStockIngredients.length === 0
+            ? <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">No active ingredients are at or below their configured minimum. Set a minimum quantity in the stock controls to enable alerts.</p>
+            : <ul className="mt-2 divide-y divide-amber-200 dark:divide-amber-800">
+              {lowStockIngredients.map((ingredient) => {
+                const stock = stockAtLocation.find((entry) => entry.ingredient_id === ingredient.id);
+                return <li key={ingredient.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                  <span className="font-semibold text-amber-950 dark:text-amber-100">{ingredient.name}</span>
+                  <span className="text-amber-900 dark:text-amber-200">
+                    {Number(stock?.quantity ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {ingredient.unit} available
+                    {" · "}minimum {Number(stock?.minimum_quantity ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {ingredient.unit}
+                  </span>
+                </li>;
+              })}
+            </ul>}
+        </section>
+
         <section className="space-y-3 rounded-xl border bg-white p-4">
           <div>
             <h3 className="font-bold text-slate-950">Branch stock adjustments</h3>
@@ -1017,17 +1047,20 @@ function RestaurantIngredientManagement({
           {ingredients.filter((ingredient) => ingredient.is_active).length === 0
             ? <p className="text-sm text-slate-500">Add and activate ingredients before adjusting stock.</p>
             : <div className="grid gap-3 md:grid-cols-2">
-              {ingredients.filter((ingredient) => ingredient.is_active).map((ingredient) => (
-                <IngredientStockAdjustmentForm
-                  key={ingredient.id}
+              {ingredients.filter((ingredient) => ingredient.is_active).map((ingredient) => {
+                const stock = stockAtLocation.find((entry) => entry.ingredient_id === ingredient.id);
+                const minimumQuantity = Number(stock?.minimum_quantity ?? 0);
+                return <IngredientStockAdjustmentForm
+                  key={`${locationId}:${ingredient.id}:${minimumQuantity}`}
                   ingredient={ingredient}
-                  quantity={Number(stockAtLocation.find((stock) => stock.ingredient_id === ingredient.id)?.quantity ?? 0)}
+                  quantity={Number(stock?.quantity ?? 0)}
+                  minimumQuantity={minimumQuantity}
                   locationId={locationId}
                   canEdit={canEdit}
                   isPending={isPending}
                   onAction={onAction}
-                />
-              ))}
+                />;
+              })}
             </div>}
         </section>
 
@@ -1052,6 +1085,7 @@ function RestaurantIngredientManagement({
 function IngredientStockAdjustmentForm({
   ingredient,
   quantity,
+  minimumQuantity,
   locationId,
   canEdit,
   isPending,
@@ -1059,6 +1093,7 @@ function IngredientStockAdjustmentForm({
 }: {
   ingredient: RestaurantIngredient;
   quantity: number;
+  minimumQuantity: number;
   locationId: string;
   canEdit: boolean;
   isPending: boolean;
@@ -1067,6 +1102,8 @@ function IngredientStockAdjustmentForm({
   const [direction, setDirection] = useState<"add" | "remove">("add");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [minimum, setMinimum] = useState(String(minimumQuantity));
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const quantityDelta = Number(amount) * (direction === "add" ? 1 : -1);
@@ -1084,11 +1121,23 @@ function IngredientStockAdjustmentForm({
 
   return <form onSubmit={submit} className="rounded-lg border p-3">
     <div className="flex items-center justify-between gap-2">
-      <div><p className="text-sm font-semibold">{ingredient.name}</p><p className="text-xs text-slate-500">Available: {quantity.toLocaleString(undefined, { maximumFractionDigits: 3 })} {ingredient.unit}</p></div>
+      <div>
+        <p className="text-sm font-semibold">{ingredient.name}</p>
+        <p className="text-xs text-slate-500">Available: {quantity.toLocaleString(undefined, { maximumFractionDigits: 3 })} {ingredient.unit}</p>
+        {minimumQuantity > 0 && <p className={`text-xs font-semibold ${quantity <= minimumQuantity ? "text-amber-700 dark:text-amber-400" : "text-slate-500"}`}>
+          {quantity <= minimumQuantity ? "Low stock" : "Alert at"} {minimumQuantity.toLocaleString(undefined, { maximumFractionDigits: 3 })} {ingredient.unit}
+        </p>}
+      </div>
       {canEdit && <label className="text-[10px] font-semibold">Change<select value={direction} onChange={(event) => setDirection(event.target.value as typeof direction)} className="mt-1 block h-8 rounded border px-2 text-xs">
         <option value="add">Add stock</option><option value="remove">Remove stock</option>
       </select></label>}
     </div>
+    {canEdit && <div className="mt-3 flex flex-wrap items-end gap-2 border-t pt-3">
+      <label className="text-[10px] font-semibold">Low-stock alert at<input aria-label={`${ingredient.name} low-stock threshold`} required type="number" min="0" step="0.001" value={minimum} onChange={(event) => setMinimum(event.target.value)} className="mt-1 block h-9 w-36 rounded border px-2 text-xs" /></label>
+      <button type="button" disabled={isPending || !minimum.trim() || !Number.isFinite(Number(minimum)) || Number(minimum) < 0 || Number(minimum) > 99_999_999_999.999 || Math.abs(Number(minimum) * 1000 - Math.round(Number(minimum) * 1000)) > 0.000001}
+        onClick={() => onAction(() => saveRestaurantIngredientMinimumStock({ locationId, ingredientId: ingredient.id, minimumQuantity: Number(minimum) }), "Low-stock threshold saved.")}
+        className="h-9 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50">Save alert</button>
+    </div>}
     {canEdit && <div className="mt-2 grid grid-cols-[6rem_minmax(0,1fr)_auto] items-end gap-2">
       <label className="text-[10px] font-semibold">Quantity<input required type="number" min="0.001" max={direction === "remove" ? quantity : undefined} step="0.001" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-xs" /></label>
       <label className="text-[10px] font-semibold">Reason<input required maxLength={200} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Delivery, waste, count..." className="mt-1 h-9 w-full rounded border px-2 text-xs" /></label>
@@ -1498,7 +1547,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
         {menuItems.length === 0 ? <EmptyState title="Your menu is empty" message="Add a menu item to use it in restaurant orders." /> : menuItems.map((item) => (
           <article key={item.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 ${!item.is_active ? "opacity-60" : ""}`}>
             <div className="flex min-w-0 items-center gap-3">
-              {item.image_url ? <Image src={item.image_url} alt="" width={72} height={72} unoptimized className="h-[72px] w-[72px] shrink-0 rounded-lg object-cover" /> : <div className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />}
+              {item.image_url ? <Image src={item.image_url} alt="" width={72} height={72} unoptimized className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 object-contain dark:bg-slate-800" /> : <div className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />}
               <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}{item.sku ? ` · SKU ${item.sku}` : ""}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
             </div>
             {canEdit && <div className="flex gap-2">
@@ -1522,7 +1571,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           </div>
           {imageUploading && <p role="status" className="mt-2 text-xs text-slate-500">Uploading image…</p>}
           {imageUploadError && <p role="alert" className="mt-2 text-xs text-red-700">{imageUploadError}</p>}
-          {imageUrl && <div className="mt-3 flex items-center gap-3"><Image src={imageUrl} alt="Menu item preview" width={80} height={80} unoptimized className="h-20 w-20 rounded-lg object-cover" /><button type="button" onClick={() => setImageUrl(null)} className="rounded border px-3 py-2 text-xs">Remove image</button></div>}
+          {imageUrl && <div className="mt-3 flex items-center gap-3"><Image src={imageUrl} alt="Menu item preview" width={80} height={80} unoptimized className="h-20 w-20 rounded-lg bg-slate-100 object-contain dark:bg-slate-800" /><button type="button" onClick={() => setImageUrl(null)} className="rounded border px-3 py-2 text-xs">Remove image</button></div>}
           <div className="mt-3 flex gap-2"><button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" onClick={() => { setItemId(undefined); setItemName(""); setItemSku(""); setDescription(""); setItemCategoryId(""); setPrice(""); setImageUrl(null); setPrepStation("kitchen"); }} className="rounded-lg border px-4 py-2 text-sm">Cancel edit</button>}</div>
         </form>}
       </section>
