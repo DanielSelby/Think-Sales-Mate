@@ -303,6 +303,7 @@ export interface Database {
           ends_at: string;
           status: "waitlisted" | "confirmed" | "seated" | "completed" | "cancelled" | "no_show";
           notes: string | null;
+          customer_email: string | null;
           created_by: string | null;
           reservation_source: "staff" | "online";
           customer_confirmation_token: string | null;
@@ -321,6 +322,7 @@ export interface Database {
           ends_at: string;
           status?: "waitlisted" | "confirmed" | "seated" | "completed" | "cancelled" | "no_show";
           notes?: string | null;
+          customer_email?: string | null;
           created_by?: string | null;
           reservation_source?: "staff" | "online";
           customer_confirmation_token?: string | null;
@@ -462,6 +464,10 @@ export interface Database {
           delivery_fee: number;
           send_order_emails: boolean;
           accepts_online_reservations: boolean;
+          reservation_timezone: string;
+          reservation_hours: Json;
+          reservation_duration_minutes: number;
+          reservation_slot_interval_minutes: number;
           updated_by: string | null;
           updated_at: string;
         };
@@ -474,6 +480,10 @@ export interface Database {
           delivery_fee?: number;
           send_order_emails?: boolean;
           accepts_online_reservations?: boolean;
+          reservation_timezone?: string;
+          reservation_hours?: Json;
+          reservation_duration_minutes?: number;
+          reservation_slot_interval_minutes?: number;
           updated_by?: string | null;
           updated_at?: string;
         };
@@ -3906,6 +3916,7 @@ export interface Database {
           p_branch_slug: string;
           p_guest_name: string;
           p_guest_phone: string;
+          p_guest_email: string;
           p_party_size: number;
           p_starts_at: string;
           p_notes: string;
@@ -3917,6 +3928,15 @@ export interface Database {
           ends_at: string;
         }[];
       };
+      get_restaurant_online_reservation_slots: {
+        Args: {
+          p_org_id: string;
+          p_branch_slug: string;
+          p_date: string;
+          p_party_size: number;
+        };
+        Returns: { slot_starts_at: string }[];
+      };
       get_restaurant_online_reservation_confirmation: {
         Args: { p_token: string };
         Returns: {
@@ -3927,6 +3947,10 @@ export interface Database {
           status: string;
           branch_name: string;
         }[];
+      };
+      cancel_restaurant_online_reservation: {
+        Args: { p_token: string };
+        Returns: boolean;
       };
       create_restaurant_online_order: {
         Args: {

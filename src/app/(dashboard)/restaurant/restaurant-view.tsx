@@ -40,6 +40,24 @@ type RestaurantBill = Database["public"]["Tables"]["restaurant_bills"]["Row"];
 type RestaurantBillItem = Database["public"]["Tables"]["restaurant_bill_items"]["Row"];
 type Location = { id: string; name: string; storefrontSlug: string };
 type OnlineSetting = Database["public"]["Tables"]["restaurant_online_settings"]["Row"];
+type ReservationDayHours = { closed: boolean; open: string; close: string };
+const reservationDayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function getReservationHours(value: Json | undefined): ReservationDayHours[] {
+  if (!Array.isArray(value) || value.length !== 7) {
+    return reservationDayLabels.map(() => ({ closed: false, open: "09:00", close: "21:00" }));
+  }
+  return value.map((day) => {
+    if (typeof day !== "object" || day === null || Array.isArray(day)) {
+      return { closed: true, open: "09:00", close: "21:00" };
+    }
+    return {
+      closed: day.closed === true,
+      open: typeof day.open === "string" ? day.open : "09:00",
+      close: typeof day.close === "string" ? day.close : "21:00",
+    };
+  });
+}
 type PrepStation = "kitchen" | "bar" | "dessert";
 type ViewKey = "orders" | "kitchen" | "menu" | "tables" | "reservations" | "reports" | "ingredients";
 const prepStationLabels: Record<PrepStation, string> = { kitchen: "Kitchen", bar: "Bar", dessert: "Dessert" };
@@ -733,6 +751,10 @@ function RestaurantOnlineLocationSettings({
   const [deliveryFee, setDeliveryFee] = useState(String(setting?.delivery_fee ?? 0));
   const [sendOrderEmails, setSendOrderEmails] = useState(setting?.send_order_emails ?? true);
   const [acceptsOnlineReservations, setAcceptsOnlineReservations] = useState(setting?.accepts_online_reservations ?? false);
+  const [reservationTimezone, setReservationTimezone] = useState(setting?.reservation_timezone ?? "UTC");
+  const [reservationHours, setReservationHours] = useState(() => getReservationHours(setting?.reservation_hours));
+  const [reservationDurationMinutes, setReservationDurationMinutes] = useState(String(setting?.reservation_duration_minutes ?? 90));
+  const [reservationSlotIntervalMinutes, setReservationSlotIntervalMinutes] = useState(String(setting?.reservation_slot_interval_minutes ?? 30));
   const storefrontPath = `/restaurant-order/${encodeURIComponent(orgSlug)}/branch/${encodeURIComponent(location.storefrontSlug)}`;
   const reservationPath = `/restaurant-reservation/${encodeURIComponent(orgSlug)}/branch/${encodeURIComponent(location.storefrontSlug)}`;
 
@@ -748,6 +770,10 @@ function RestaurantOnlineLocationSettings({
           deliveryFee: Number(deliveryFee),
           sendOrderEmails,
           acceptsOnlineReservations,
+          reservationTimezone,
+          reservationHours,
+          reservationDurationMinutes: Number(reservationDurationMinutes),
+          reservationSlotIntervalMinutes: Number(reservationSlotIntervalMinutes),
         }),
         "Online ordering settings saved.",
       )} className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50">Save settings</button>}
@@ -760,9 +786,38 @@ function RestaurantOnlineLocationSettings({
       <input type="checkbox" checked={acceptsOnlineReservations} onChange={(event) => setAcceptsOnlineReservations(event.target.checked)} disabled={!canEdit} className="h-4 w-4 rounded border-slate-300" />
       Accept online table reservations
     </label>
+    <div className="space-y-3 rounded-xl border bg-slate-50 p-4">
+      <h3 className="text-sm font-bold text-slate-800">Reservation hours and slots</h3>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="text-xs font-semibold text-slate-600">Timezone (IANA)
+          <input value={reservationTimezone} onChange={(event) => setReservationTimezone(event.target.value)} disabled={!canEdit} placeholder="Africa/Accra" className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm disabled:bg-slate-100" />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Reservation duration (minutes)
+          <input type="number" min={30} max={240} step={15} value={reservationDurationMinutes} onChange={(event) => setReservationDurationMinutes(event.target.value)} disabled={!canEdit} className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm disabled:bg-slate-100" />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Booking interval (minutes)
+          <input type="number" min={15} max={120} step={15} value={reservationSlotIntervalMinutes} onChange={(event) => setReservationSlotIntervalMinutes(event.target.value)} disabled={!canEdit} className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm disabled:bg-slate-100" />
+        </label>
+      </div>
+      <div className="space-y-2">
+        <div className="grid grid-cols-[7rem_5rem_1fr_1fr] gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          <span>Day</span><span>Closed</span><span>Opens</span><span>Closes</span>
+        </div>
+        {reservationHours.map((day, index) => <div key={reservationDayLabels[index]} className="grid grid-cols-[7rem_5rem_1fr_1fr] items-center gap-2">
+          <span className="text-xs font-medium text-slate-700">{reservationDayLabels[index]}</span>
+          <label className="flex items-center gap-1 text-xs text-slate-600">
+            <input type="checkbox" checked={day.closed} onChange={(event) => setReservationHours((current) => current.map((entry, dayIndex) => dayIndex === index ? { ...entry, closed: event.target.checked } : entry))} disabled={!canEdit} />
+            Closed
+          </label>
+          <input aria-label={`${reservationDayLabels[index]} opening time`} type="time" value={day.open} onChange={(event) => setReservationHours((current) => current.map((entry, dayIndex) => dayIndex === index ? { ...entry, open: event.target.value } : entry))} disabled={!canEdit || day.closed} className="h-9 rounded-lg border bg-white px-2 text-xs disabled:bg-slate-100" />
+          <input aria-label={`${reservationDayLabels[index]} closing time`} type="time" value={day.close} onChange={(event) => setReservationHours((current) => current.map((entry, dayIndex) => dayIndex === index ? { ...entry, close: event.target.value } : entry))} disabled={!canEdit || day.closed} className="h-9 rounded-lg border bg-white px-2 text-xs disabled:bg-slate-100" />
+        </div>)}
+      </div>
+      <p className="text-xs text-slate-500">Guests will only see slots that fit the reservation duration and have a suitable free table. Times use this branch timezone.</p>
+    </div>
     <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
       <input type="checkbox" checked={sendOrderEmails} onChange={(event) => setSendOrderEmails(event.target.checked)} disabled={!canEdit} className="h-4 w-4 rounded border-slate-300" />
-      Email customers when online orders are received or updated
+      Email customers about online orders and reservations
     </label>
     <p className="text-xs text-slate-500">Requires RESEND_API_KEY and RESEND_FROM_EMAIL to be configured on the server.</p>
     {!canEdit && <p className="text-xs text-amber-800">You have view-only menu access.</p>}

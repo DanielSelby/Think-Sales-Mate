@@ -6,7 +6,7 @@ vi.mock("@/lib/communication/providers", () => ({
 }));
 
 import { deliverMessage } from "@/lib/communication/providers";
-import { sendRestaurantOrderEmail } from "@/lib/restaurant/order-emails";
+import { sendRestaurantOrderEmail, sendRestaurantReservationEmail } from "@/lib/restaurant/order-emails";
 
 describe("sendRestaurantOrderEmail", () => {
   beforeEach(() => {
@@ -55,5 +55,27 @@ describe("sendRestaurantOrderEmail", () => {
       sent: false,
       reason: "No email provider is configured.",
     });
+  });
+
+  it("includes the private reservation link in customer confirmation emails", async () => {
+    vi.stubEnv("SITE_URL", "https://restaurant.example");
+    vi.mocked(deliverMessage).mockResolvedValue({ sent: true, provider: "resend" });
+
+    await sendRestaurantReservationEmail({
+      email: "guest@example.com",
+      guestName: "Guest",
+      partySize: 4,
+      startsAt: "2026-10-28T18:00:00.000Z",
+      branchName: "Central Branch",
+      confirmationToken: "reservation-token",
+      status: "confirmed",
+    });
+
+    expect(deliverMessage).toHaveBeenCalledWith(expect.objectContaining({
+      channel: "Email",
+      recipient: "guest@example.com",
+      subject: "Reservation confirmed",
+      content: expect.stringContaining("https://restaurant.example/restaurant-reservation/confirmation/reservation-token"),
+    }));
   });
 });

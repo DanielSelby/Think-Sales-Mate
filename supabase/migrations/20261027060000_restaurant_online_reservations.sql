@@ -176,9 +176,37 @@ as $$
     and reservation.reservation_source = 'online';
 $$;
 
+create or replace function public.cancel_restaurant_online_reservation(p_token uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  cancelled boolean;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Only the service role can cancel public restaurant reservations.';
+  end if;
+
+  update public.restaurant_reservations
+  set status = 'cancelled', updated_at = now()
+  where customer_confirmation_token = p_token
+    and reservation_source = 'online'
+    and (
+      status = 'cancelled'
+      or (status = 'confirmed' and starts_at > now())
+    );
+  cancelled := found;
+  return cancelled;
+end;
+$$;
+
 revoke all on function public.create_restaurant_online_reservation(uuid, text, text, text, integer, timestamptz, text) from public, anon, authenticated;
 revoke all on function public.get_restaurant_online_reservation_confirmation(uuid) from public, anon, authenticated;
+revoke all on function public.cancel_restaurant_online_reservation(uuid) from public, anon, authenticated;
 grant execute on function public.create_restaurant_online_reservation(uuid, text, text, text, integer, timestamptz, text) to service_role;
 grant execute on function public.get_restaurant_online_reservation_confirmation(uuid) to service_role;
+grant execute on function public.cancel_restaurant_online_reservation(uuid) to service_role;
 
 commit;

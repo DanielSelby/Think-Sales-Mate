@@ -25,7 +25,8 @@ export default async function RestaurantOnlineReservationPage({
   if (!location) return <ReservationUnavailable />;
 
   const { data: setting, error: settingError } = await admin.from("restaurant_online_settings")
-    .select("accepts_online_reservations").eq("org_id", organization.id)
+    .select("accepts_online_reservations, reservation_timezone, reservation_hours, reservation_duration_minutes, reservation_slot_interval_minutes")
+    .eq("org_id", organization.id)
     .eq("location_id", location.id).maybeSingle();
   if (settingError) throw new Error(`Could not load reservation settings: ${settingError.message}`);
   if (!setting?.accepts_online_reservations) return <ReservationUnavailable organizationName={organization.name} />;
@@ -42,6 +43,9 @@ export default async function RestaurantOnlineReservationPage({
     branchName={location.name}
     maximumPartySize={maximumPartySize}
     bookingNow={Date.now()}
+    reservationTimezone={setting.reservation_timezone}
+    reservationDurationMinutes={setting.reservation_duration_minutes}
+    reservationSlotIntervalMinutes={setting.reservation_slot_interval_minutes}
   />;
 }
 

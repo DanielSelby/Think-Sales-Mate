@@ -6,7 +6,12 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
-import { sendRestaurantOrderEmail, type RestaurantEmailStatus } from "@/lib/restaurant/order-emails";
+import {
+  sendRestaurantOrderEmail,
+  sendRestaurantReservationEmail,
+  type RestaurantEmailStatus,
+  type RestaurantReservationEmailStatus,
+} from "@/lib/restaurant/order-emails";
 import type { Json } from "@/types/database";
 
 type RestaurantTab = "orders" | "menu" | "tables" | "reservations" | "ingredients";
@@ -124,13 +129,34 @@ export async function saveRestaurantOnlineSettings(input: {
   deliveryFee: number;
   sendOrderEmails: boolean;
   acceptsOnlineReservations: boolean;
+  reservationTimezone: string;
+  reservationHours: Array<{ closed: boolean; open: string; close: string }>;
+  reservationDurationMinutes: number;
+  reservationSlotIntervalMinutes: number;
 }) {
   const context = await restaurantContext("menu", "edit");
   requireOrganizationWideAccess(context.isBranchScoped, "Restaurant online ordering settings");
   if (typeof input.isEnabled !== "boolean" || typeof input.sendOrderEmails !== "boolean"
     || typeof input.acceptsOnlineReservations !== "boolean"
+    || typeof input.reservationTimezone !== "string"
+    || !Array.isArray(input.reservationHours) || input.reservationHours.length !== 7
+    || !Number.isInteger(input.reservationDurationMinutes) || input.reservationDurationMinutes < 30 || input.reservationDurationMinutes > 240
+    || !Number.isInteger(input.reservationSlotIntervalMinutes) || input.reservationSlotIntervalMinutes < 15 || input.reservationSlotIntervalMinutes > 120
     || !validMoney(input.deliveryFee, true)) {
     throw new Error("Enter a valid online ordering status and delivery fee.");
+  }
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: input.reservationTimezone }).format(new Date(0));
+  } catch {
+    throw new Error("Enter a valid IANA timezone, such as Africa/Accra.");
+  }
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  for (const day of input.reservationHours) {
+    if (!day || typeof day.closed !== "boolean"
+      || typeof day.open !== "string" || typeof day.close !== "string"
+      || (!day.closed && (!timePattern.test(day.open) || !timePattern.test(day.close) || day.close <= day.open))) {
+      throw new Error("Set valid opening and closing times for each day, or mark the day closed.");
+    }
   }
   const admin = createAdminClient();
   const { data: location, error: locationError } = await admin.from("business_locations")
@@ -146,6 +172,10 @@ export async function saveRestaurantOnlineSettings(input: {
     delivery_fee: input.deliveryFee,
     send_order_emails: input.sendOrderEmails,
     accepts_online_reservations: input.acceptsOnlineReservations,
+    reservation_timezone: input.reservationTimezone,
+    reservation_hours: input.reservationHours,
+    reservation_duration_minutes: input.reservationDurationMinutes,
+    reservation_slot_interval_minutes: input.reservationSlotIntervalMinutes,
     updated_by: context.userId,
     updated_at: new Date().toISOString(),
   }, { onConflict: "org_id,location_id" });
@@ -360,7 +390,8 @@ export async function updateRestaurantReservationStatus(
   const context = await restaurantContext("reservations", "edit");
   const admin = createAdminClient();
   const { data: reservation, error: loadError } = await admin.from("restaurant_reservations")
-    .select("id, location_id, status").eq("org_id", context.orgId).eq("id", reservationId).maybeSingle();
+    .select("id, location_id, status, reservation_source, customer_email, guest_name, party_size, starts_at, customer_confirmation_token")
+    .eq("org_id", context.orgId).eq("id", reservationId).maybeSingle();
   if (loadError) throw new Error(`Could not load reservation: ${loadError.message}`);
   if (!reservation || !canUseLocation(context, reservation.location_id)) throw new Error("Reservation not found or not accessible.");
   const allowedNext: Partial<Record<typeof reservation.status, string[]>> = {
@@ -371,11 +402,37 @@ export async function updateRestaurantReservationStatus(
   if (!allowedNext[reservation.status]?.includes(status)) {
     throw new Error("This reservation cannot move to the selected status.");
   }
-  const { error } = await admin.from("restaurant_reservations")
+  const { data: updatedReservation, error } = await admin.from("restaurant_reservations")
     .update({ status, updated_at: new Date().toISOString() })
-    .eq("org_id", context.orgId).eq("id", reservationId);
+    .eq("org_id", context.orgId).eq("id", reservationId).eq("status", reservation.status).select("id").maybeSingle();
   if (error) throw new Error(`Could not update reservation: ${error.message}`);
+  if (!updatedReservation) throw new Error("This reservation was updated by someone else. Refresh and try again.");
+  let emailNotification: { sent: boolean; reason?: string } | null = null;
+  if (reservation.reservation_source === "online" && reservation.customer_email) {
+    const [{ data: settings, error: settingsError }, { data: location, error: locationError }] = await Promise.all([
+      admin.from("restaurant_online_settings").select("send_order_emails")
+        .eq("org_id", context.orgId).eq("location_id", reservation.location_id).maybeSingle(),
+      admin.from("business_locations").select("name")
+        .eq("org_id", context.orgId).eq("id", reservation.location_id).maybeSingle(),
+    ]);
+    if (settingsError || locationError) {
+      console.error("[restaurant-reservation-email] Could not load status email settings:", settingsError?.message ?? locationError?.message);
+      emailNotification = { sent: false, reason: "Could not load email settings." };
+    } else if (settings?.send_order_emails !== false && location) {
+      const emailResult = await sendRestaurantReservationEmail({
+        email: reservation.customer_email,
+        guestName: reservation.guest_name,
+        partySize: reservation.party_size,
+        startsAt: reservation.starts_at,
+        branchName: location.name,
+        confirmationToken: reservation.customer_confirmation_token,
+        status: status as RestaurantReservationEmailStatus,
+      });
+      emailNotification = { sent: emailResult.sent, reason: emailResult.reason };
+    }
+  }
   revalidatePath("/restaurant");
+  return { emailNotification };
 }
 
 export async function assignRestaurantReservationTable(reservationId: string, tableId: string) {
