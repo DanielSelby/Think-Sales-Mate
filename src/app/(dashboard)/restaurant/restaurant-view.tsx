@@ -294,7 +294,7 @@ export default function RestaurantView({
   const branchActiveOrders = branchOrders.filter((order) => !["completed", "cancelled"].includes(order.status));
 
   return (
-    <div className="space-y-5">
+    <div className="restaurant-management-page space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Restaurant operations</p>

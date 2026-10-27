@@ -132,6 +132,142 @@ html.dark .platform-admin-console main table thead {
   background-color: #111c2d;
 }
 
+html.dark .restaurant-management-page {
+  color: #f1f5f9;
+}
+
+html.dark .restaurant-management-page [class~="bg-white"] {
+  background-color: #0f172a !important;
+}
+
+html.dark .restaurant-management-page [class~="bg-slate-50"],
+html.dark .restaurant-management-page [class~="bg-slate-50/50"] {
+  background-color: #111c2d !important;
+}
+
+html.dark .restaurant-management-page [class~="bg-slate-100"] {
+  background-color: #1e293b !important;
+}
+
+html.dark .restaurant-management-page [class~="bg-slate-900"] {
+  background-color: #334155 !important;
+}
+
+html.dark .restaurant-management-page [class*="hover:bg-slate-"]:hover {
+  background-color: #1e293b !important;
+}
+
+html.dark .restaurant-management-page [class~="bg-orange-50"],
+html.dark .restaurant-management-page [class~="bg-orange-50/50"] {
+  background-color: #302316 !important;
+}
+
+html.dark .restaurant-management-page [class~="bg-amber-50"] {
+  background-color: #302916 !important;
+}
+
+html.dark .restaurant-management-page [class~="bg-red-50"] {
+  background-color: #321b22 !important;
+}
+
+html.dark .restaurant-management-page [class~="bg-emerald-50"] {
+  background-color: #132a21 !important;
+}
+
+html.dark .restaurant-management-page [class~="text-slate-950"],
+html.dark .restaurant-management-page [class~="text-slate-900"],
+html.dark .restaurant-management-page [class~="text-slate-800"] {
+  color: #f1f5f9 !important;
+}
+
+html.dark .restaurant-management-page [class~="text-slate-700"],
+html.dark .restaurant-management-page [class~="text-slate-600"] {
+  color: #cbd5e1 !important;
+}
+
+html.dark .restaurant-management-page [class~="text-slate-500"],
+html.dark .restaurant-management-page [class~="text-slate-400"] {
+  color: #94a3b8 !important;
+}
+
+html.dark .restaurant-management-page [class~="text-orange-600"],
+html.dark .restaurant-management-page [class~="text-orange-700"] {
+  color: #fdba74 !important;
+}
+
+html.dark .restaurant-management-page [class~="text-amber-700"],
+html.dark .restaurant-management-page [class~="text-amber-800"],
+html.dark .restaurant-management-page [class~="text-amber-900"] {
+  color: #fcd34d !important;
+}
+
+html.dark .restaurant-management-page [class~="text-emerald-700"],
+html.dark .restaurant-management-page [class~="text-emerald-800"] {
+  color: #6ee7b7 !important;
+}
+
+html.dark .restaurant-management-page [class~="text-red-700"],
+html.dark .restaurant-management-page [class~="text-red-800"] {
+  color: #fca5a5 !important;
+}
+
+html.dark .restaurant-management-page [class~="border"]:not([class*="border-orange-"]):not([class*="border-amber-"]):not([class*="border-red-"]):not([class*="border-emerald-"]) {
+  border-color: #475569 !important;
+}
+
+html.dark .restaurant-management-page [class~="border-slate-100"],
+html.dark .restaurant-management-page [class~="border-slate-200"],
+html.dark .restaurant-management-page [class~="border-slate-300"],
+html.dark .restaurant-management-page [class~="border-gray-100"],
+html.dark .restaurant-management-page [class~="border-gray-200"] {
+  border-color: #475569 !important;
+}
+
+html.dark .restaurant-management-page [class~="border-orange-200"] {
+  border-color: #9a5b24 !important;
+}
+
+html.dark .restaurant-management-page [class~="border-amber-200"] {
+  border-color: #854d0e !important;
+}
+
+html.dark .restaurant-management-page [class~="border-red-200"] {
+  border-color: #991b1b !important;
+}
+
+html.dark .restaurant-management-page [class~="border-emerald-200"] {
+  border-color: #166534 !important;
+}
+
+html.dark .restaurant-management-page [class~="border-t"],
+html.dark .restaurant-management-page [class~="border-b"],
+html.dark .restaurant-management-page [class~="divide-y"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155 !important;
+}
+
+html.dark .restaurant-management-page input:not([type="checkbox"]),
+html.dark .restaurant-management-page select,
+html.dark .restaurant-management-page textarea {
+  border-color: #475569 !important;
+  background-color: #0b1220 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .restaurant-management-page input:disabled,
+html.dark .restaurant-management-page select:disabled,
+html.dark .restaurant-management-page textarea:disabled {
+  background-color: #1e293b !important;
+}
+
+html.dark .restaurant-management-page input::placeholder,
+html.dark .restaurant-management-page textarea::placeholder {
+  color: #94a3b8;
+}
+
+html.dark .restaurant-management-page table thead {
+  background-color: #111c2d;
+}
+
 html:not(.dark) .border-ledger-50,
 html:not(.dark) .border-ledger-100,
 html:not(.dark) .border-ledger-200,

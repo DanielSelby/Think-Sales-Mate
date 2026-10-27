@@ -1021,7 +1021,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
               type="button"
               aria-pressed={mobileRegisterView === "products"}
               onClick={() => setMobileRegisterView("products")}
-              className={cn("rounded-md px-3 py-1.5 text-xs font-semibold", mobileRegisterView === "products" ? "bg-orange-600 text-white" : "text-ledger-500")}
+              className={cn("rounded-md px-3 py-1.5 text-xs font-semibold", mobileRegisterView !== "products" && "text-ledger-500")}
+              style={mobileRegisterView === "products" ? { background: theme.colors.primary, color: "#fff" } : undefined}
             >
               Products
             </button>
@@ -1029,7 +1030,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
               type="button"
               aria-pressed={mobileRegisterView === "cart"}
               onClick={() => setMobileRegisterView("cart")}
-              className={cn("flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold", mobileRegisterView === "cart" ? "bg-orange-600 text-white" : "text-ledger-500")}
+              className={cn("flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold", mobileRegisterView !== "cart" && "text-ledger-500")}
+              style={mobileRegisterView === "cart" ? { background: theme.colors.primary, color: "#fff" } : undefined}
             >
               <ShoppingCart className="h-3.5 w-3.5" /> Cart ({cart.length})
             </button>
@@ -1090,7 +1092,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
               type="button"
               aria-pressed={stockFilter === filter}
               onClick={() => setStockFilter(filter)}
-              className={cn("h-full rounded px-2.5 text-xs font-semibold transition-colors", stockFilter === filter ? "bg-orange-600 text-white" : "text-ledger-500 hover:bg-ledger-50 dark:hover:bg-white/[0.06]")}
+              className={cn("h-full rounded px-2.5 text-xs font-semibold transition-colors", stockFilter !== filter && "text-ledger-500 hover:bg-ledger-50 dark:hover:bg-white/[0.06]")}
+              style={stockFilter === filter ? { background: theme.colors.primary, color: "#fff" } : undefined}
             >
               {filter === "all" ? "Show All" : "Show Available"}
             </button>
@@ -1098,7 +1101,7 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
         </div>
         <span className="flex h-10 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:w-auto" style={{ background: theme.colors.primary }}>{dateLabel}</span>
         <div className="flex items-center gap-1 rounded-md border border-ledger-200 p-1 dark:border-ledger-700">
-          {(["retail", "wholesale", "vip", "special"] as const).filter((tier) => allowedPriceGroups.includes(tier)).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => changePriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier === tier ? "bg-orange-600 text-white" : "text-ledger-500")}>{tier === "special" ? "S.P" : tier}</button>)}
+          {(["retail", "wholesale", "vip", "special"] as const).filter((tier) => allowedPriceGroups.includes(tier)).map((tier) => <button key={tier} type="button" disabled={!canChoosePriceTier} onClick={() => changePriceTier(tier)} className={cn("rounded px-2.5 py-1.5 text-xs font-semibold capitalize", priceTier !== tier && "text-ledger-500")} style={priceTier === tier ? { background: theme.colors.primary, color: "#fff" } : undefined}>{tier === "special" ? "S.P" : tier}</button>)}
         </div>
 
         <div className="hidden min-w-0 items-center justify-around gap-4 px-3 xl:ml-auto xl:flex xl:flex-1">
@@ -1124,7 +1127,10 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
           <Link href="/accounting/expenses/new">
             <Button
               size="sm"
-              className="bg-orange-600 text-white transition-colors hover:bg-orange-700"
+              className="text-white transition-colors"
+              style={{ background: theme.colors.primary }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primaryMid; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = theme.colors.primary; }}
             >
               <PlusCircle className="h-3.5 w-3.5" /> Add Expense
             </Button>
@@ -1143,13 +1149,15 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
           <div className="pos-category-switch flex gap-2">
             <button
               onClick={() => setBrowseTab("category")}
-              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab === "category" ? "bg-orange-600" : "bg-ledger-300 dark:bg-ledger-700")}
+              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab !== "category" && "bg-ledger-300 dark:bg-ledger-700")}
+              style={browseTab === "category" ? { background: theme.colors.primary } : undefined}
             >
               <Layers className="h-4 w-4" /> Category
             </button>
             <button
               onClick={() => setBrowseTab("brands")}
-              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab === "brands" ? "bg-orange-600" : "bg-ledger-300 dark:bg-ledger-700")}
+              className={cn("flex flex-1 items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold text-white", browseTab !== "brands" && "bg-ledger-300 dark:bg-ledger-700")}
+              style={browseTab === "brands" ? { background: theme.colors.primary } : undefined}
             >
               <Tag className="h-4 w-4" /> Brands
             </button>
@@ -1159,7 +1167,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
             <div className="pos-category-filters flex flex-wrap gap-2">
               <button
                 onClick={() => setActiveCategory("all")}
-                className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory === "all" ? "bg-orange-600 text-white" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory !== "all" && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                style={activeCategory === "all" ? { background: theme.colors.primary, color: "#fff" } : undefined}
               >
                 All
               </button>
@@ -1167,7 +1176,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                 <button
                   key={c}
                   onClick={() => setActiveCategory(c)}
-                  className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory === c ? "bg-orange-600 text-white" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                  className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeCategory !== c && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                  style={activeCategory === c ? { background: theme.colors.primary, color: "#fff" } : undefined}
                 >
                   {c}
                 </button>
@@ -1178,7 +1188,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
             <div className="pos-category-filters flex flex-wrap gap-2">
               <button
                 onClick={() => setActiveBrand("all")}
-                className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeBrand === "all" ? "bg-orange-600 text-white" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeBrand !== "all" && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                style={activeBrand === "all" ? { background: theme.colors.primary, color: "#fff" } : undefined}
               >
                 All
               </button>
@@ -1186,7 +1197,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                 <button
                   key={brand}
                   onClick={() => setActiveBrand(brand)}
-                  className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeBrand === brand ? "bg-orange-600 text-white" : "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                  className={cn("rounded-full px-3 py-1.5 text-xs font-medium", activeBrand !== brand && "border border-ledger-200 text-ledger-600 dark:border-ledger-700")}
+                  style={activeBrand === brand ? { background: theme.colors.primary, color: "#fff" } : undefined}
                 >
                   {brand}
                 </button>
@@ -1278,7 +1290,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                       size="md"
                       onClick={() => setAddContactOpen(true)}
                       title="Add a new contact"
-                      className="border-0 bg-orange-600 text-white shadow-sm transition-transform hover:scale-105 hover:bg-orange-700 active:scale-95"
+                      className="border-0 text-white shadow-sm transition-transform hover:scale-105 active:scale-95"
+                      style={{ background: theme.colors.primary }}
                     >
                       <UserPlus className="h-4 w-4" />
                     </Button>
@@ -1334,7 +1347,7 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                             }
                           }}
                           onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = p.stockQuantity > 0 ? "rgba(234, 88, 12, 0.12)" : "#f1f5f9";
+                            (e.currentTarget as HTMLElement).style.background = p.stockQuantity > 0 ? theme.colors.primary + "20" : "#f1f5f9";
                           }}
                           onMouseLeave={(e) => {
                             (e.currentTarget as HTMLElement).style.background = p.stockQuantity > 0 ? "transparent" : "";
@@ -1357,7 +1370,8 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
                   type="button"
                   onClick={handleGoAddProduct}
                   title="Add new product"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-600 text-white transition-transform hover:scale-105 hover:bg-orange-700 active:scale-95"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition-transform hover:scale-105 active:scale-95"
+                  style={{ background: theme.colors.primary }}
                 >
                   <Plus className="h-5 w-5" />
                 </button>
@@ -1530,7 +1544,10 @@ export function PosView({ orgId, userId, mobileScannerEnabled, invoiceTemplate, 
             variant="outline"
             size="sm"
             onClick={openRecentTransactions}
-            className="border-transparent !bg-orange-600 !text-white transition-colors hover:!bg-orange-700 hover:!text-white"
+            className="border-transparent !text-white transition-colors hover:!text-white"
+            style={{ background: theme.colors.primary }}
+            onMouseEnter={(event) => { event.currentTarget.style.background = theme.colors.primaryMid; }}
+            onMouseLeave={(event) => { event.currentTarget.style.background = theme.colors.primary; }}
           >
             <History className="h-3.5 w-3.5" /> Recent Transactions
           </Button>
