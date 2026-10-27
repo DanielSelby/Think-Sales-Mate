@@ -193,6 +193,7 @@ export interface Database {
           category_id: string | null;
           name: string;
           description: string | null;
+          image_url: string | null;
           price: number;
           prep_station: "kitchen" | "bar" | "dessert";
           sort_order: number;
@@ -206,6 +207,7 @@ export interface Database {
           category_id?: string | null;
           name: string;
           description?: string | null;
+          image_url?: string | null;
           price: number;
           prep_station?: "kitchen" | "bar" | "dessert";
           sort_order?: number;

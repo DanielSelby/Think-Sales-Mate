@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { canUseLocation } from "@/lib/organizations/location-access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -80,6 +81,7 @@ export async function saveRestaurantMenuItem(input: {
   categoryId: string | null;
   name: string;
   description: string;
+  imageUrl?: string | null;
   price: number;
   prepStation: "kitchen" | "bar" | "dessert";
   sortOrder: number;
@@ -93,6 +95,16 @@ export async function saveRestaurantMenuItem(input: {
     throw new Error("Enter a valid non-negative price and item position.");
   }
   const admin = createAdminClient();
+  if (input.imageUrl !== undefined && input.imageUrl !== null) {
+    if (typeof input.imageUrl !== "string" || input.imageUrl.length > 2000) {
+      throw new Error("Choose a valid restaurant menu image.");
+    }
+    const publicImagePrefix = admin.storage.from("restaurant-menu-images")
+      .getPublicUrl(`${context.orgId}/`).data.publicUrl;
+    if (!input.imageUrl.startsWith(publicImagePrefix)) {
+      throw new Error("Menu images must be uploaded to this organization's restaurant image library.");
+    }
+  }
   if (input.categoryId) {
     const { data: category, error } = await admin.from("restaurant_menu_categories")
       .select("id").eq("org_id", context.orgId).eq("id", input.categoryId).maybeSingle();
@@ -109,6 +121,7 @@ export async function saveRestaurantMenuItem(input: {
     category_id: input.categoryId,
     name,
     description: input.description.trim() || null,
+    ...(input.imageUrl !== undefined ? { image_url: input.imageUrl } : {}),
     price: input.price,
     prep_station: input.prepStation,
     sort_order: input.sortOrder,
@@ -121,6 +134,42 @@ export async function saveRestaurantMenuItem(input: {
   const { error } = await query;
   if (error) throw new Error(`Could not save menu item: ${error.message}`);
   revalidatePath("/restaurant");
+  revalidatePath("/restaurant/pos");
+  revalidatePath("/restaurant-order/[orgSlug]/branch/[branchSlug]", "page");
+}
+
+export async function uploadRestaurantMenuImage(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) throw new Error("Your session expired. Sign in again to continue.");
+  if (!(await getEnabledOrganizationModules(context.orgId)).includes("Restaurant")) {
+    throw new Error("Restaurant Management is not enabled for this organization.");
+  }
+  const canCreate = await canTabPermission("restaurant", "operations", "menu", "create");
+  const canEdit = await canTabPermission("restaurant", "operations", "menu", "edit");
+  if (context.isBranchScoped || (!canCreate && !canEdit)) {
+    throw new Error("You do not have permission to upload restaurant menu images.");
+  }
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size < 1 || file.size > 5 * 1024 * 1024) {
+    throw new Error("Choose an image no larger than 5 MB.");
+  }
+  const extensions: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  };
+  const extension = extensions[file.type];
+  if (!extension) throw new Error("Choose a JPEG, PNG, or WebP image.");
+
+  const admin = createAdminClient();
+  const path = `${context.orgId}/${randomUUID()}.${extension}`;
+  const { error: uploadError } = await admin.storage.from("restaurant-menu-images").upload(path, file, {
+    contentType: file.type,
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (uploadError) throw new Error(`Could not upload menu image: ${uploadError.message}`);
+  return admin.storage.from("restaurant-menu-images").getPublicUrl(path).data.publicUrl;
 }
 
 export async function saveRestaurantOnlineSettings(input: {

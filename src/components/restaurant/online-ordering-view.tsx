@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { submitRestaurantOnlineOrder } from "@/app/restaurant-order/[orgSlug]/branch/[branchSlug]/actions";
 
@@ -9,6 +10,7 @@ type OnlineMenuItem = {
   id: string;
   name: string;
   description: string | null;
+  image_url: string | null;
   price: number;
   category_id: string | null;
 };
@@ -189,7 +191,11 @@ export default function OnlineOrderingView({
               <h2 className="text-xl font-bold text-slate-950">{category.name}</h2>
               {categoryItems.map((item) => {
                 const itemGroups = modifierGroups.filter((group) => group.menu_item_id === item.id);
-                return <article key={item.id} className="space-y-3 rounded-xl border bg-white p-4">
+                return <article key={item.id} className="overflow-hidden rounded-xl border bg-white">
+                  {item.image_url && <div className="relative h-44 w-full bg-slate-100">
+                    <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 1024px) 100vw, 60vw" className="object-cover" />
+                  </div>}
+                  <div className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div><h3 className="font-semibold text-slate-950">{item.name}</h3>{item.description && <p className="mt-1 text-sm text-slate-600">{item.description}</p>}<p className="mt-2 text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</p></div>
                     <label className="text-xs font-medium text-slate-600">Quantity
@@ -203,6 +209,7 @@ export default function OnlineOrderingView({
                       <span className="text-xs text-slate-500">{Number(option.price_delta) ? `+${money(Number(option.price_delta), currency)}` : "Included"}</span>
                     </label>)}</div>
                   </fieldset>)}
+                  </div>
                 </article>;
               })}
             </section>;

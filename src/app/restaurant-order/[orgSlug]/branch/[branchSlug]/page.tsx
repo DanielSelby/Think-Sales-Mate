@@ -36,7 +36,7 @@ export default async function RestaurantOnlineOrderingPage({
     { data: modifierOptions, error: modifierOptionsError },
   ] = await Promise.all([
     admin.from("restaurant_menu_categories").select("id, name").eq("org_id", organization.id).eq("is_active", true).order("sort_order").order("name"),
-    admin.from("restaurant_menu_items").select("id, category_id, name, description, price").eq("org_id", organization.id).eq("is_active", true).order("sort_order").order("name"),
+    admin.from("restaurant_menu_items").select("id, category_id, name, description, image_url, price").eq("org_id", organization.id).eq("is_active", true).order("sort_order").order("name"),
     admin.from("restaurant_modifier_groups").select("id, menu_item_id, name, min_selections, max_selections").eq("org_id", organization.id).eq("is_active", true).order("created_at"),
     admin.from("restaurant_modifier_options").select("id, group_id, name, price_delta").eq("org_id", organization.id).eq("is_active", true).order("created_at"),
   ]);

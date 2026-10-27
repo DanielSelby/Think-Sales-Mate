@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -14,6 +15,7 @@ import {
   refundRestaurantPayment,
   saveRestaurantCategory,
   saveRestaurantMenuItem,
+  uploadRestaurantMenuImage,
   saveRestaurantOnlineSettings,
   saveRestaurantIngredient,
   saveRestaurantRecipe,
@@ -309,6 +311,7 @@ export default function RestaurantView({
             </select>
           </label>
         )}
+        {canCreateOrders && <Link href="/restaurant/pos" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Open Restaurant POS</Link>}
       </header>
 
       <nav aria-label="Restaurant sections" className="flex gap-2 overflow-x-auto rounded-xl border bg-white p-2">
@@ -1431,7 +1434,26 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
   const [description, setDescription] = useState("");
   const [itemCategoryId, setItemCategoryId] = useState("");
   const [price, setPrice] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState("");
   const [prepStation, setPrepStation] = useState<PrepStation>("kitchen");
+
+  async function handleMenuImageUpload(file: File | undefined) {
+    if (!file) return;
+    setImageUploadError("");
+    setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      setImageUrl(await uploadRestaurantMenuImage(formData));
+    } catch (error) {
+      setImageUploadError(error instanceof Error ? error.message : "Could not upload the menu image.");
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
   function submitCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onAction(async () => {
@@ -1449,6 +1471,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
         categoryId: itemCategoryId || null,
         name: itemName,
         description,
+        imageUrl,
         price: Number(price),
         prepStation,
         sortOrder: menuItems.find((item) => item.id === itemId)?.sort_order ?? menuItems.length,
@@ -1459,6 +1482,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
       setDescription("");
       setItemCategoryId("");
       setPrice("");
+      setImageUrl(null);
       setPrepStation("kitchen");
     }, "Menu item saved.");
   }
@@ -1469,9 +1493,12 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
         <div><h2 className="text-lg font-bold text-slate-950">Menu items</h2><p className="text-xs text-slate-500">Menu entries and prices are isolated from the inventory product catalog.</p></div>
         {menuItems.length === 0 ? <EmptyState title="Your menu is empty" message="Add a menu item to use it in restaurant orders." /> : menuItems.map((item) => (
           <article key={item.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 ${!item.is_active ? "opacity-60" : ""}`}>
-            <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
+            <div className="flex min-w-0 items-center gap-3">
+              {item.image_url ? <Image src={item.image_url} alt="" width={72} height={72} unoptimized className="h-[72px] w-[72px] shrink-0 rounded-lg object-cover" /> : <div className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />}
+              <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
+            </div>
             {canEdit && <div className="flex gap-2">
-              <button type="button" onClick={() => { setItemId(item.id); setItemName(item.name); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setPrepStation(item.prep_station); }} className="rounded border px-3 py-2 text-xs font-semibold">Edit</button>
+              <button type="button" onClick={() => { setItemId(item.id); setItemName(item.name); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); }} className="rounded border px-3 py-2 text-xs font-semibold">Edit</button>
               <button type="button" disabled={isPending} onClick={() => onAction(() => saveRestaurantMenuItem({ id: item.id, categoryId: item.category_id, name: item.name, description: item.description ?? "", price: Number(item.price), prepStation: item.prep_station, sortOrder: item.sort_order, isActive: !item.is_active }), item.is_active ? "Menu item marked unavailable." : "Menu item activated.")} className="rounded border px-3 py-2 text-xs font-semibold">{item.is_active ? "Unavailable" : "Activate"}</button>
             </div>}
           </article>
@@ -1484,8 +1511,14 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
             <label className="text-xs font-semibold">Category<select value={itemCategoryId} onChange={(event) => setItemCategoryId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="">Uncategorized</option>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label className="text-xs font-semibold">Prep station<select value={prepStation} onChange={(event) => setPrepStation(event.target.value as PrepStation)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="kitchen">Kitchen</option><option value="bar">Bar</option><option value="dessert">Dessert</option></select></label>
             <label className="text-xs font-semibold">Description<input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+            <label className="text-xs font-semibold">Menu image (JPEG, PNG, or WebP; up to 5 MB)
+              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={imageUploading} onChange={(event) => { void handleMenuImageUpload(event.target.files?.[0]); event.currentTarget.value = ""; }} className="mt-1 block w-full rounded-lg border px-3 py-2 text-sm" />
+            </label>
           </div>
-          <div className="mt-3 flex gap-2"><button disabled={isPending} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" onClick={() => { setItemId(undefined); setItemName(""); setDescription(""); setItemCategoryId(""); setPrice(""); setPrepStation("kitchen"); }} className="rounded-lg border px-4 py-2 text-sm">Cancel edit</button>}</div>
+          {imageUploading && <p role="status" className="mt-2 text-xs text-slate-500">Uploading image…</p>}
+          {imageUploadError && <p role="alert" className="mt-2 text-xs text-red-700">{imageUploadError}</p>}
+          {imageUrl && <div className="mt-3 flex items-center gap-3"><Image src={imageUrl} alt="Menu item preview" width={80} height={80} unoptimized className="h-20 w-20 rounded-lg object-cover" /><button type="button" onClick={() => setImageUrl(null)} className="rounded border px-3 py-2 text-xs">Remove image</button></div>}
+          <div className="mt-3 flex gap-2"><button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" onClick={() => { setItemId(undefined); setItemName(""); setDescription(""); setItemCategoryId(""); setPrice(""); setImageUrl(null); setPrepStation("kitchen"); }} className="rounded-lg border px-4 py-2 text-sm">Cancel edit</button>}</div>
         </form>}
       </section>
       <aside className="space-y-4">
