@@ -172,22 +172,23 @@ export default function RestaurantPosView({
         </nav>
         {locations.length === 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">There are no branches available to your account.</p>}
         {menuItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">Add active menu items before taking restaurant orders.</p>}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
           {visibleItems.map((item) => {
             const quantity = quantities[item.id] ?? 0;
             const groups = modifierGroups.filter((group) => group.menu_item_id === item.id);
-            return <article key={item.id} className="overflow-hidden rounded-xl border bg-white shadow-sm">
-              <div className="relative h-40 bg-slate-100">
-                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw" className="bg-slate-100 object-contain" /> : <div className="flex h-full items-center justify-center text-sm text-slate-400">No image</div>}
+            return <article key={item.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm">
+              <div className="relative h-32 bg-slate-100 sm:h-40">
+                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw" className="bg-slate-100 object-contain" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400">No image</div>}
               </div>
-              <div className="space-y-2 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0"><h2 className="font-semibold text-slate-950">{item.name}</h2>{item.description && <p className="line-clamp-2 text-xs text-slate-500">{item.description}</p>}</div>
-                  <span className="shrink-0 text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</span>
+              <div className="flex flex-1 flex-col gap-2 p-3">
+                <div className="min-w-0">
+                  <h2 className="break-words text-sm font-semibold leading-snug text-slate-950 sm:text-base">{item.name}</h2>
+                  {item.description && <p className="mt-1 break-words whitespace-normal text-xs leading-relaxed text-slate-500">{item.description}</p>}
+                  <span className="mt-2 block text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</span>
                 </div>
                 {quantity === 0
-                  ? <button type="button" onClick={() => changeQuantity(item.id, 1)} className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white">Add to order</button>
-                  : <div className="flex items-center justify-between rounded-lg bg-slate-50 p-1">
+                  ? <button type="button" onClick={() => changeQuantity(item.id, 1)} className="mt-auto w-full rounded-lg bg-orange-600 px-2 py-2 text-xs font-semibold text-white sm:text-sm">Add to order</button>
+                  : <div className="mt-auto flex items-center justify-between rounded-lg bg-slate-50 p-1">
                     <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-9 w-10 rounded-md border text-lg">−</button>
                     <span className="text-sm font-bold">{quantity}</span>
                     <button type="button" aria-label={`Add one ${item.name}`} onClick={() => changeQuantity(item.id, 1)} className="h-9 w-10 rounded-md border text-lg">+</button>

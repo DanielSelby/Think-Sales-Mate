@@ -10,9 +10,14 @@ import type { LiveFinancialSnapshot } from "@/components/accounting/financial-re
 import type { AccountingAccount, JournalEntry } from "@/types/accounting";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import type { CurrencyConfig } from "@/lib/currency";
-import { isTabVisible, loadPermissionMatrix } from "@/lib/rbac/permissions";
+import { canTabPermission, isTabVisible, loadPermissionMatrix } from "@/lib/rbac/permissions";
+import { canPermission } from "@/lib/rbac/permissions";
 import { calculateCustomerOutstandingBalances } from "@/lib/sales/customer-outstanding";
 import { can } from "@/lib/rbac";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
+import type { RestaurantAccountMapping } from "@/components/restaurant/restaurant-account-mapping";
 
 export const metadata = {
   title: "Accounting & Financial Management",
@@ -49,6 +54,10 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
   let liveTaxRates: import("@/types/accounting").TaxRateConfig[] = [];
   let liveTaxFilings: import("@/types/accounting").TaxFilingSummary[] = [];
   let liveCurrencyConfig: CurrencyConfig | undefined;
+  let restaurantSummary: RestaurantFinancialSummaryData | undefined;
+  let restaurantAccountMapping: RestaurantAccountMapping | null = null;
+  let canEditRestaurantAccountMapping = false;
+  let canEditRestaurantBankMapping = false;
   let visibleAccountingTabs = ["overview", "coa", "journal", "reconciliation", "receivables", "payables", "fixed_assets", "reports", "tax", "settings"];
   if (context) {
     const permissionMatrix = await loadPermissionMatrix(context.orgId, context.role, context.accessPermissions);
@@ -161,6 +170,38 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     initialBranchOptions = (locationRowsForAccounting.data ?? [])
       .filter((location: any) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
       .map((location: any) => ({ id: location.id, name: location.name }));
+    const restaurantEnabled = (await getEnabledOrganizationModules(context.orgId)).includes("Restaurant");
+    if (restaurantEnabled && await canTabPermission("restaurant", "operations", "reports", "view")) {
+      const accountingLocationIds = (locationRowsForAccounting.data ?? [])
+        .filter((location: any) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
+        .filter((location: any) => !context.masterLocationId || location.id === context.masterLocationId)
+        .map((location: any) => location.id);
+      if (accountingLocationIds.length > 0) {
+        const periodStart = new Date(`${dateFrom}T00:00:00.000Z`);
+        const periodEnd = new Date(`${dateTo}T00:00:00.000Z`);
+        periodEnd.setUTCDate(periodEnd.getUTCDate() + 1);
+        const { data: summaryData, error: summaryError } = await createAdminClient().rpc("get_restaurant_financial_summary", {
+          p_org_id: context.orgId,
+          p_location_ids: accountingLocationIds,
+          p_start_at: periodStart.toISOString(),
+          p_end_at: periodEnd.toISOString(),
+          p_user_id: null,
+        });
+        if (summaryError) throw new Error(`Could not load Restaurant accounting summary: ${summaryError.message}`);
+        restaurantSummary = summaryData as RestaurantFinancialSummaryData;
+      }
+    }
+    if (restaurantEnabled) {
+      const { data: mapping, error: mappingError } = await accountingDb.from("restaurant_account_mappings")
+        .select("cash_account_id, card_account_id, mobile_money_account_id, other_account_id, sales_revenue_account_id, refunds_account_id, tips_liability_account_id, cash_bank_account_id, card_bank_account_id, mobile_money_bank_account_id, other_bank_account_id")
+        .eq("org_id", context.orgId).maybeSingle();
+      if (mappingError) throw new Error(`Could not load Restaurant account mappings: ${mappingError.message}`);
+      restaurantAccountMapping = mapping ?? null;
+      canEditRestaurantAccountMapping = await canPermission("accounting", "edit")
+        && await canTabPermission("accounting", "accounting", "settings", "edit");
+      canEditRestaurantBankMapping = await canPermission("banking", "edit")
+        && await canTabPermission("banking", "banking", "accounts", "edit");
+    }
     liveAccounts = scopedAccountRows.map((account: any) => ({
       id: account.id,
       code: account.code,
@@ -373,7 +414,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
         </div>
       }
     >
-      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveBookTransactions={liveBookTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} />
+      <AccountingDashboard orgName={context?.orgName ?? "Organization"} visibleTabKeys={visibleAccountingTabs} initialPayables={initialPayables} initialBranches={initialBranches} initialBranchOptions={initialBranchOptions} initialReceivables={initialReceivables} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} liveFinancialSnapshot={liveFinancialSnapshot} liveAccounts={liveAccounts} liveJournalEntries={liveJournalEntries} liveTaxSummary={liveTaxSummary} liveTaxRates={liveTaxRates} liveTaxFilings={liveTaxFilings} liveBankAccounts={liveBankAccounts} liveBankTransactions={liveBankTransactions} liveBookTransactions={liveBookTransactions} liveFixedAssets={liveFixedAssets} liveAccountingSettings={liveAccountingSettings} initialDateFrom={dateFrom} initialDateTo={dateTo} liveCurrencyConfig={liveCurrencyConfig} restaurantSummary={restaurantSummary} restaurantAccountMapping={restaurantAccountMapping} canEditRestaurantAccountMapping={canEditRestaurantAccountMapping} canEditRestaurantBankMapping={canEditRestaurantBankMapping} />
     </Suspense>
   );
 }

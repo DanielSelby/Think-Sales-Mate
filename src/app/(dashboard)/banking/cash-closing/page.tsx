@@ -16,7 +16,10 @@ import { UserSelector } from "./user-selector";
 import { businessDateForSchedule, businessDateInTimeZone, findMissedCashClosings, getCashClosingPeriod } from "./shift-time";
 import { getCurrencyConfigFromSettings, type CurrencyConfig, formatCurrencyAmount } from "@/lib/currency";
 import { CashClosingAnalytics } from "./analytics";
-import { canPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { RestaurantFinancialSummary, type RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
 
 export const metadata = { title: "Cash Closing · SalesMate ERP" };
 
@@ -176,6 +179,26 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
   const memberProfileNames = new Map<string, string | null>((memberProfilesResult.data ?? []).map((profile: { id: string; full_name: string | null }) => [profile.id, profile.full_name]));
   const summary = summaryResult.data ?? { opening: 0, sales: 0, totalSales: 0, discounts: 0, creditSales: 0, customerPayments: 0, customerElectronicPayments: 0, electronic: 0, electronicBreakdown: {}, refunds: 0, expenses: 0, deposits: 0, withdrawals: 0, posCashIn: 0, posCashOut: 0, posRegisterSessionCount: 0, expected: 0 };
   const statusLocations = scopedLocations(locations);
+  let restaurantSummary: RestaurantFinancialSummaryData | undefined;
+  let restaurantSummaryError: string | null = null;
+  if (tab === "today"
+    && (await getEnabledOrganizationModules(ctx.orgId)).includes("Restaurant")
+    && await canTabPermission("restaurant", "operations", "reports", "view")) {
+    const restaurantLocationIds = statusLocations
+      .filter((location) => !selectedLocationId || location.id === selectedLocationId)
+      .map((location) => location.id);
+    if (restaurantLocationIds.length > 0) {
+      const { data: restaurantData, error: restaurantError } = await createAdminClient().rpc("get_restaurant_financial_summary", {
+        p_org_id: ctx.orgId,
+        p_location_ids: restaurantLocationIds,
+        p_start_at: selectedClosingPeriod.start.toISOString(),
+        p_end_at: selectedClosingPeriod.end.toISOString(),
+        p_user_id: effectiveUserId,
+      });
+      if (restaurantError) restaurantSummaryError = restaurantError.message;
+      else restaurantSummary = restaurantData as RestaurantFinancialSummaryData;
+    }
+  }
   const branchScheduleResult = statusLocations.length
     ? await db.from("cash_closing_branch_schedules")
       .select("location_id, required_shifts, shift_windows, time_zone, tracking_started_on")
@@ -704,6 +727,13 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
         {reportLinesError && (tab === "history" || tab === "today") && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Report denomination details could not be loaded: {reportLinesError}</div>}
         {analyticsResult.error && tab === "analytics" && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Analytics could not be loaded: {analyticsResult.error.message}</div>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">{cards.map(([label, value, tone, Icon]) => <div key={label} title={label === "E-cash / MoMo Sales" ? (Object.entries(summary.electronicBreakdown).length ? Object.entries(summary.electronicBreakdown).map(([method, amount]) => `${method}: ${formatCurrencyAmount(amount, currencyConfig)}`).join("\n") : "No electronic sales recorded today.") : undefined} className={`rounded-xl border border-[#dce8f2] p-4 shadow-sm dark:border-ledger-700 ${label === "Total Sales" ? "bg-signal-soft" : "bg-white dark:bg-ink-900"}`}><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full ${tone}`}><Icon className="h-4 w-4" /></div><p className={`text-[11px] font-medium text-ledger-500 ${label === "E-cash / MoMo Sales" ? "cursor-help" : ""}`}>{label}</p><p className={`mt-1 text-lg font-bold ${label === "Total Sales" ? "text-signal" : "text-[#17385d] dark:text-white"}`}>{formatCurrencyAmount(Number(value), currencyConfig)}</p></div>)}</div>
+        {tab === "today" && restaurantSummaryError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Restaurant reconciliation totals could not be loaded: {restaurantSummaryError}</p>}
+        {tab === "today" && restaurantSummary && <RestaurantFinancialSummary
+          summary={restaurantSummary}
+          currency={currencyConfig.code}
+          periodLabel={`${selectedBusinessDate} · ${selectedCloseShift.replaceAll("_", " ")}${selectedLocationId ? ` · ${statusLocations.find((location) => location.id === selectedLocationId)?.name ?? "Selected branch"}` : " · All accessible branches"}`}
+          href="/restaurant?view=reports"
+        />}
         {tab === "today" && ctx.canViewOtherTransactions && !branchClosingError && !acknowledgementError && !branchScheduleResult.error && !branchActivityError && <BranchClosingStatusPanel summary={`Current business date · ${branchClosingStatuses.filter((branch) => branch.state === "closed").length} closed · ${branchClosingStatuses.filter((branch) => branch.state === "partial" || branch.state === "in_progress").length} in progress · ${branchClosingStatuses.filter((branch) => branch.state === "not_closed" || branch.state === "reopened" || branch.state === "rejected").length} need attention · ${branchClosingStatuses.reduce((count, branch) => count + branch.missedClosings.length, 0)} past-due closings outstanding`}>
           <p className="px-4 pt-3 text-[11px] text-ledger-500">Past-due shifts stay listed until a closing is recorded or a manager explicitly acknowledges the miss. Overnight closings use the date the shift started.</p>
           {branchClosingStatuses.length ? <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">

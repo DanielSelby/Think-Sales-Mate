@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { canAccessLocation } from "@/lib/organizations/location-access";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
 export async function recordCustomerCreditPayment(input: {
   invoiceId: string; customerId?: string | null; amount: number; paymentMethod: string;
@@ -120,6 +122,116 @@ export async function saveAccountingAccount(input: {
     : supabase.from("accounting_accounts").insert(payload);
   const { error } = await query;
   if (error) return { ok: false, error: error.message };
+  revalidatePath("/accounting");
+  return { ok: true };
+}
+
+export async function saveRestaurantAccountMappings(input: {
+  cashAccountId: string;
+  cardAccountId: string;
+  mobileMoneyAccountId: string;
+  otherAccountId: string;
+  salesRevenueAccountId: string;
+  refundsAccountId: string;
+  tipsLiabilityAccountId: string;
+  cashBankAccountId?: string | null;
+  cardBankAccountId?: string | null;
+  mobileMoneyBankAccountId?: string | null;
+  otherBankAccountId?: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const context = await getCurrentOrgContext();
+  if (!context
+    || !(await canPermission("accounting", "edit"))
+    || !(await canTabPermission("accounting", "accounting", "settings", "edit"))) {
+    return { ok: false, error: "You do not have permission to configure Restaurant accounting." };
+  }
+  if (!(await getEnabledOrganizationModules(context.orgId)).includes("Restaurant")) {
+    return { ok: false, error: "Restaurant Management is not enabled for this organization." };
+  }
+  const accountIds = [
+    input.cashAccountId,
+    input.cardAccountId,
+    input.mobileMoneyAccountId,
+    input.otherAccountId,
+    input.salesRevenueAccountId,
+    input.refundsAccountId,
+    input.tipsLiabilityAccountId,
+  ];
+  if (accountIds.some((id) => !id)) {
+    return { ok: false, error: "Select a valid account for every mapping." };
+  }
+  const admin = createAdminClient() as any;
+  const { data: accounts, error: accountError } = await admin.from("accounting_accounts")
+    .select("id, type, is_active, location_id")
+    .eq("org_id", context.orgId)
+    .in("id", accountIds);
+  if (accountError) return { ok: false, error: `Could not verify selected accounts: ${accountError.message}` };
+  const accountRows = (accounts ?? []) as Array<{ id: string; type: string; is_active: boolean; location_id: string | null }>;
+  if (accountRows.length !== new Set(accountIds).size || accountRows.some((account) => !account.is_active)) {
+    return { ok: false, error: "All mapped accounts must be active accounts in this organization." };
+  }
+  const byId = new Map(accountRows.map((account) => [account.id, account]));
+  const expectedTypes = [
+    ["cashAccountId", "asset"],
+    ["cardAccountId", "asset"],
+    ["mobileMoneyAccountId", "asset"],
+    ["otherAccountId", "asset"],
+    ["salesRevenueAccountId", "revenue"],
+    ["refundsAccountId", "revenue"],
+    ["tipsLiabilityAccountId", "liability"],
+  ] as const;
+  for (const [field, expectedType] of expectedTypes) {
+    if (byId.get(input[field])?.type !== expectedType) {
+      return { ok: false, error: `Choose an ${expectedType} account for ${field.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`)}.` };
+    }
+  }
+  if (accountRows.some((account) => account.location_id)) {
+    return { ok: false, error: "Restaurant mappings require organization-wide accounts, not accounts assigned to a single branch." };
+  }
+  const canEditBankMappings = await canPermission("banking", "edit")
+    && await canTabPermission("banking", "banking", "accounts", "edit");
+  let bankMappings = {
+    cash_bank_account_id: input.cashBankAccountId || null,
+    card_bank_account_id: input.cardBankAccountId || null,
+    mobile_money_bank_account_id: input.mobileMoneyBankAccountId || null,
+    other_bank_account_id: input.otherBankAccountId || null,
+  };
+  if (canEditBankMappings) {
+    const bankAccountIds = Object.values(bankMappings).filter((id): id is string => Boolean(id));
+    if (bankAccountIds.length > 0) {
+      const { data: bankRows, error: bankError } = await admin.from("bank_accounts")
+        .select("id").eq("org_id", context.orgId).in("id", bankAccountIds);
+      if (bankError) return { ok: false, error: `Could not verify Restaurant Bank Accounts: ${bankError.message}` };
+      if ((bankRows ?? []).length !== new Set(bankAccountIds).size) {
+        return { ok: false, error: "Choose only Bank Accounts belonging to this organization." };
+      }
+    }
+  } else {
+    const { data: existingMappings, error: mappingError } = await admin.from("restaurant_account_mappings")
+      .select("cash_bank_account_id, card_bank_account_id, mobile_money_bank_account_id, other_bank_account_id")
+      .eq("org_id", context.orgId).maybeSingle();
+    if (mappingError) return { ok: false, error: `Could not preserve existing Restaurant Bank Account mappings: ${mappingError.message}` };
+    bankMappings = {
+      cash_bank_account_id: existingMappings?.cash_bank_account_id ?? null,
+      card_bank_account_id: existingMappings?.card_bank_account_id ?? null,
+      mobile_money_bank_account_id: existingMappings?.mobile_money_bank_account_id ?? null,
+      other_bank_account_id: existingMappings?.other_bank_account_id ?? null,
+    };
+  }
+  const { error } = await admin.from("restaurant_account_mappings").upsert({
+    org_id: context.orgId,
+    cash_account_id: input.cashAccountId,
+    card_account_id: input.cardAccountId,
+    mobile_money_account_id: input.mobileMoneyAccountId,
+    other_account_id: input.otherAccountId,
+    sales_revenue_account_id: input.salesRevenueAccountId,
+    refunds_account_id: input.refundsAccountId,
+    tips_liability_account_id: input.tipsLiabilityAccountId,
+    ...bankMappings,
+    updated_by: context.userId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "org_id" });
+  if (error) return { ok: false, error: `Could not save Restaurant account mappings: ${error.message}` };
   revalidatePath("/accounting");
   return { ok: true };
 }

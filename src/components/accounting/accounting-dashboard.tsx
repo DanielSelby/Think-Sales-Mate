@@ -34,6 +34,8 @@ import { TaxManagementTab } from "./tax-management-tab";
 import { AccountingSettingsTab } from "./accounting-settings-tab";
 import { AccountingSearchModal } from "./accounting-search-modal";
 import { AuditLogDrawer } from "./audit-log-drawer";
+import { RestaurantFinancialSummary, type RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
+import { RestaurantAccountMappingPanel, type RestaurantAccountMapping } from "@/components/restaurant/restaurant-account-mapping";
 import type { AccountsPayableItem } from "@/types/accounting";
 import type { AccountsReceivableItem } from "@/types/accounting";
 import type { LiveFinancialSnapshot } from "./financial-reports-tab";
@@ -54,11 +56,12 @@ const TABS = [
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
-export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {}, initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveBookTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig }: { orgName: string; visibleTabKeys?: string[]; initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number>; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string; receivingBranch: string; invoiceBranch: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, import("@/types/accounting").BankStatementTransaction[]>; liveBookTransactions?: Record<string, import("@/types/accounting").BankBookTransaction[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig }) {
+export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {}, initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveBookTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig, restaurantSummary, restaurantAccountMapping = null, canEditRestaurantAccountMapping = false, canEditRestaurantBankMapping = false }: { orgName: string; visibleTabKeys?: string[]; initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number>; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string; receivingBranch: string; invoiceBranch: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, import("@/types/accounting").BankStatementTransaction[]>; liveBookTransactions?: Record<string, import("@/types/accounting").BankBookTransaction[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig; restaurantSummary?: RestaurantFinancialSummaryData; restaurantAccountMapping?: RestaurantAccountMapping | null; canEditRestaurantAccountMapping?: boolean; canEditRestaurantBankMapping?: boolean }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, setCurrencyConfig } = useAccountingStore();
   const currentCurrency = useAccountingStore((state) => state.currentCurrency);
+  const currentCurrencyCode = useAccountingStore((state) => state.currentCurrencyCode);
 
   const formatDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const [dateRangeText, setDateRangeText] = useState(() => `${formatDate(initialDateFrom ?? new Date().toISOString().slice(0, 10))} - ${formatDate(initialDateTo ?? new Date().toISOString().slice(0, 10))}`);
@@ -233,6 +236,20 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
       {/* ── Active Tab View ── */}
       <div>
         {effectiveActiveTab === "overview" && (
+          <div className="space-y-5">
+          {restaurantSummary && <RestaurantFinancialSummary
+            summary={restaurantSummary}
+            currency={liveCurrencyConfig?.code ?? currentCurrencyCode}
+            periodLabel={`${initialDateFrom ?? ""} to ${initialDateTo ?? ""}`}
+            href="/restaurant?view=reports"
+          />}
+          {(restaurantAccountMapping || canEditRestaurantAccountMapping) && <RestaurantAccountMappingPanel
+            accounts={liveAccounts}
+            mapping={restaurantAccountMapping}
+            canEdit={canEditRestaurantAccountMapping}
+            bankAccounts={liveBankAccounts}
+            canEditBankMappings={canEditRestaurantBankMapping}
+          />}
           <OverviewTab
             liveSnapshot={liveFinancialSnapshot}
             liveAccounts={liveAccounts}
@@ -259,6 +276,7 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
               router.push("/accounting/invoices/new");
             }}
           />
+          </div>
         )}
 
         {effectiveActiveTab === "coa" && <ChartOfAccountsTab initialAccounts={liveAccounts} initialBranches={initialBranchOptions} />}

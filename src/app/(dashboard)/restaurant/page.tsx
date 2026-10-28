@@ -2,11 +2,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canTabPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
-import type { Json } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 import RestaurantView from "./restaurant-view";
 
 type RestaurantViewKey = "orders" | "kitchen" | "menu" | "tables" | "reservations" | "reports" | "ingredients";
@@ -60,7 +60,8 @@ export default async function RestaurantPage({
   const { view: requestedView, from, to, locationId: requestedLocationId } = await searchParams;
   const validViews: RestaurantViewKey[] = ["orders", "kitchen", "menu", "tables", "reservations", "reports", "ingredients"];
   const view: RestaurantViewKey = requestedView && validViews.includes(requestedView as RestaurantViewKey) ? requestedView as RestaurantViewKey : "orders";
-  if (!(await getEnabledOrganizationModules(context.orgId)).includes("Restaurant")) {
+  const enabledModules = await getEnabledOrganizationModules(context.orgId);
+  if (!enabledModules.includes("Restaurant")) {
     redirect("/dashboard?moduleDisabled=Restaurant");
   }
   if (!(await canTabPermission("restaurant", "operations", view, "view"))) {
@@ -140,6 +141,7 @@ export default async function RestaurantPage({
     ? requestedLocationId
     : "all";
   let reportData: RestaurantReport | null = null;
+  let attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null = null;
   if (view === "reports") {
     const reportAdmin = createAdminClient();
     const { data: reportResult, error: reportError } = await reportAdmin.rpc("get_restaurant_report", {
@@ -151,6 +153,51 @@ export default async function RestaurantPage({
     if (reportError) throw new Error(`Could not load restaurant report: ${reportError.message}`);
     if (!isRestaurantReport(reportResult)) throw new Error("The restaurant report returned invalid data.");
     reportData = reportResult;
+    if (enabledModules.includes("HRM") && await canPermission("hrm", "view")) {
+      const { data: attendanceResult, error: attendanceError } = await reportAdmin.rpc("get_restaurant_attendance_hours", {
+        p_org_id: context.orgId,
+        p_start_date: reportFrom,
+        p_end_date: reportTo,
+      });
+      if (attendanceError) throw new Error(`Could not load general staff attendance summary: ${attendanceError.message}`);
+      if (!isRecord(attendanceResult)
+        || typeof attendanceResult.total_hours !== "number"
+        || typeof attendanceResult.staff_count !== "number"
+        || typeof attendanceResult.record_count !== "number") {
+        throw new Error("The attendance summary returned invalid data.");
+      }
+      attendanceSummary = {
+        total_hours: attendanceResult.total_hours,
+        staff_count: attendanceResult.staff_count,
+        record_count: attendanceResult.record_count,
+      };
+    }
+  }
+  let ingredientSuppliers: Array<{ id: string; name: string }> = [];
+  let purchaseOrders: Database["public"]["Tables"]["restaurant_ingredient_purchase_orders"]["Row"][] = [];
+  let purchaseItems: Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"][] = [];
+  if (view === "ingredients" && locationIds.length > 0) {
+    const restaurantAdmin = createAdminClient();
+    const [
+      { data: supplierRows, error: supplierError },
+      { data: purchaseRows, error: purchaseError },
+    ] = await Promise.all([
+      restaurantAdmin.from("suppliers").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
+      restaurantAdmin.from("restaurant_ingredient_purchase_orders").select("*")
+        .eq("org_id", context.orgId).in("location_id", locationIds)
+        .order("created_at", { ascending: false }).limit(100),
+    ]);
+    if (supplierError) throw new Error(`Could not load Restaurant suppliers: ${supplierError.message}`);
+    if (purchaseError) throw new Error(`Could not load Restaurant ingredient purchase orders: ${purchaseError.message}`);
+    ingredientSuppliers = supplierRows ?? [];
+    purchaseOrders = purchaseRows ?? [];
+    const purchaseOrderIds = purchaseOrders.map((order) => order.id);
+    if (purchaseOrderIds.length > 0) {
+      const { data: itemRows, error: itemError } = await restaurantAdmin.from("restaurant_ingredient_purchase_items")
+        .select("*").eq("org_id", context.orgId).in("purchase_order_id", purchaseOrderIds);
+      if (itemError) throw new Error(`Could not load Restaurant purchase order lines: ${itemError.message}`);
+      purchaseItems = itemRows ?? [];
+    }
   }
   const accessibleTables = (tables ?? []).filter((table) => locationIds.includes(table.location_id));
   const accessibleOrders = Array.from(new Map([...(orders ?? []), ...(openOrders ?? [])]
@@ -203,6 +250,7 @@ export default async function RestaurantPage({
       canCreateReservations={await canTabPermission("restaurant", "operations", "reservations", "create")}
       canEditReservations={await canTabPermission("restaurant", "operations", "reservations", "edit")}
       canCreateIngredients={!context.isBranchScoped && await canTabPermission("restaurant", "operations", "ingredients", "create")}
+      canCreateIngredientPurchases={await canTabPermission("restaurant", "operations", "ingredients", "create")}
       canEditIngredients={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
       locations={accessibleLocations.map((location) => ({
         id: location.id,
@@ -224,6 +272,10 @@ export default async function RestaurantPage({
       ingredientStocks={(ingredientStocks ?? []).filter((stock) => locationIds.includes(stock.location_id))}
       recipeIngredients={recipeIngredients ?? []}
       ingredientMovements={(ingredientMovements ?? []).filter((movement) => locationIds.includes(movement.location_id))}
+      suppliers={ingredientSuppliers}
+      purchaseOrders={purchaseOrders}
+      purchaseItems={purchaseItems}
+      attendanceSummary={attendanceSummary}
     />
   );
 }

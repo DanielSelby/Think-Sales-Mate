@@ -4,6 +4,10 @@ import { getFinancialSummary, getRecentActivity, defaultDateRange, type DateRang
 import { createClient } from "@/lib/supabase/server";
 import { DashboardContent } from "@/components/charts/dashboard-content";
 import type { FilterOption } from "@/components/charts/dashboard-filters";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { canTabPermission } from "@/lib/rbac/permissions";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +62,28 @@ export default async function DashboardPage({
   const categories: FilterOption[] = [...new Set((categoryRows ?? []).map((p) => p.category as string))]
     .sort()
     .map((c) => ({ id: c, name: c }));
+  let restaurantSummary: RestaurantFinancialSummaryData | undefined;
+  const enabledModules = await getEnabledOrganizationModules(context.orgId);
+  if (enabledModules.includes("Restaurant") && await canTabPermission("restaurant", "operations", "reports", "view")) {
+    const accessibleLocationIds = (locationRows ?? [])
+      .filter((location) => !context.isBranchScoped || context.allowedLocationIds.includes(location.id))
+      .filter((location) => !locationId || location.id === locationId)
+      .map((location) => location.id);
+    if (accessibleLocationIds.length > 0) {
+      const start = new Date(`${range.from}T00:00:00.000Z`);
+      const end = new Date(`${range.to}T00:00:00.000Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      const { data, error } = await createAdminClient().rpc("get_restaurant_financial_summary", {
+        p_org_id: context.orgId,
+        p_location_ids: accessibleLocationIds,
+        p_start_at: start.toISOString(),
+        p_end_at: end.toISOString(),
+        p_user_id: null,
+      });
+      if (error) throw new Error(`Could not load Restaurant dashboard summary: ${error.message}`);
+      restaurantSummary = data as RestaurantFinancialSummaryData;
+    }
+  }
   return (
     <DashboardContent
       summary={summary}
@@ -68,6 +94,7 @@ export default async function DashboardPage({
       branches={branches}
       categories={categories}
       currentRange={range}
+      restaurantSummary={restaurantSummary}
     />
   );
 }

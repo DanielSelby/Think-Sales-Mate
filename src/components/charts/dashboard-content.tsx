@@ -28,6 +28,7 @@ import { DateRangeFilter } from "@/components/charts/date-range-filter";
 import { DashboardFilters, type FilterOption } from "@/components/charts/dashboard-filters";
 import { formatMoney } from "@/lib/currency";
 import { DashboardMotionItem } from "@/components/charts/dashboard-motion-item";
+import { RestaurantFinancialSummary, type RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
 
 interface Kpi {
   label: string;
@@ -47,7 +48,8 @@ export function DashboardContent({
   recentActivity,
   branches,
   categories,
-  currentRange
+  currentRange,
+  restaurantSummary,
 }: {
   summary: FinancialSummary;
   orgName: string;
@@ -57,6 +59,7 @@ export function DashboardContent({
   branches: FilterOption[];
   categories: FilterOption[];
   currentRange: DateRange;
+  restaurantSummary?: RestaurantFinancialSummaryData;
 }) {
   const insightLines = latestInsight
     ? latestInsight.content
@@ -169,6 +172,15 @@ export function DashboardContent({
           </DashboardMotionItem>
         ))}
       </div>
+
+      {restaurantSummary && <DashboardMotionItem delay={0.1}>
+        <RestaurantFinancialSummary
+          summary={restaurantSummary}
+          currency={currency}
+          periodLabel={`${currentRange.from} to ${currentRange.to}`}
+          href="/restaurant?view=reports"
+        />
+      </DashboardMotionItem>}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <DashboardMotionItem className="h-full lg:col-span-1" delay={0.12} hover>

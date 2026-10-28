@@ -19,6 +19,8 @@ import {
   uploadRestaurantMenuImage,
   saveRestaurantOnlineSettings,
   saveRestaurantIngredient,
+  createRestaurantIngredientPurchaseOrder,
+  receiveRestaurantIngredientPurchase,
   saveRestaurantRecipe,
   saveRestaurantModifierGroup,
   saveRestaurantModifierOption,
@@ -69,6 +71,8 @@ type RestaurantIngredient = Database["public"]["Tables"]["restaurant_ingredients
 type RestaurantIngredientStock = Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"];
 type RestaurantRecipeIngredient = Database["public"]["Tables"]["restaurant_recipe_ingredients"]["Row"];
 type RestaurantIngredientMovement = Database["public"]["Tables"]["restaurant_ingredient_movements"]["Row"];
+type RestaurantIngredientPurchaseOrder = Database["public"]["Tables"]["restaurant_ingredient_purchase_orders"]["Row"];
+type RestaurantIngredientPurchaseItem = Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"];
 type RestaurantReport = {
   summary: {
     order_count: number;
@@ -154,6 +158,7 @@ export default function RestaurantView({
   canCreateReservations,
   canEditReservations,
   canCreateIngredients,
+  canCreateIngredientPurchases,
   canEditIngredients,
   locations,
   categories,
@@ -171,6 +176,10 @@ export default function RestaurantView({
   ingredientStocks,
   recipeIngredients,
   ingredientMovements,
+  suppliers,
+  purchaseOrders,
+  purchaseItems,
+  attendanceSummary,
 }: {
   view: ViewKey;
   orgId: string;
@@ -191,6 +200,7 @@ export default function RestaurantView({
   canCreateReservations: boolean;
   canEditReservations: boolean;
   canCreateIngredients: boolean;
+  canCreateIngredientPurchases: boolean;
   canEditIngredients: boolean;
   locations: Location[];
   categories: Category[];
@@ -208,6 +218,10 @@ export default function RestaurantView({
   ingredientStocks: RestaurantIngredientStock[];
   recipeIngredients: RestaurantRecipeIngredient[];
   ingredientMovements: RestaurantIngredientMovement[];
+  suppliers: Array<{ id: string; name: string }>;
+  purchaseOrders: RestaurantIngredientPurchaseOrder[];
+  purchaseItems: RestaurantIngredientPurchaseItem[];
+  attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null;
 }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -545,6 +559,7 @@ export default function RestaurantView({
         from={reportFrom}
         to={reportTo}
         locationId={reportLocationId}
+        attendanceSummary={attendanceSummary}
       />}
       {view === "ingredients" && <RestaurantIngredientManagement
         currency={currency}
@@ -555,8 +570,12 @@ export default function RestaurantView({
         stocks={ingredientStocks}
         recipes={recipeIngredients}
         movements={ingredientMovements}
+        suppliers={suppliers}
+        purchaseOrders={purchaseOrders}
+        purchaseItems={purchaseItems}
         branchScoped={branchScoped}
         canCreate={canCreateIngredients}
+        canCreatePurchases={canCreateIngredientPurchases}
         canEdit={canEditIngredients}
         isPending={isPending}
         onAction={runAction}
@@ -845,8 +864,12 @@ function RestaurantIngredientManagement({
   stocks,
   recipes,
   movements,
+  suppliers,
+  purchaseOrders,
+  purchaseItems,
   branchScoped,
   canCreate,
+  canCreatePurchases,
   canEdit,
   isPending,
   onAction,
@@ -859,8 +882,12 @@ function RestaurantIngredientManagement({
   stocks: RestaurantIngredientStock[];
   recipes: RestaurantRecipeIngredient[];
   movements: RestaurantIngredientMovement[];
+  suppliers: Array<{ id: string; name: string }>;
+  purchaseOrders: RestaurantIngredientPurchaseOrder[];
+  purchaseItems: RestaurantIngredientPurchaseItem[];
   branchScoped: boolean;
   canCreate: boolean;
+  canCreatePurchases: boolean;
   canEdit: boolean;
   isPending: boolean;
   onAction: (work: () => Promise<unknown>, success: string) => Promise<boolean>;
@@ -871,6 +898,9 @@ function RestaurantIngredientManagement({
   const [costPerUnit, setCostPerUnit] = useState("");
   const [menuItemId, setMenuItemId] = useState(menuItems[0]?.id ?? "");
   const [recipeLines, setRecipeLines] = useState<Array<{ ingredientId: string; quantity: string }>>([]);
+  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
+  const [purchaseReference, setPurchaseReference] = useState("");
+  const [purchaseLines, setPurchaseLines] = useState<Array<{ ingredientId: string; quantity: string; unitCost: string }>>([{ ingredientId: "", quantity: "1", unitCost: "0" }]);
   const selectedMenuItem = menuItems.find((item) => item.id === menuItemId);
   const selectedRecipe = recipes.filter((recipe) => recipe.menu_item_id === menuItemId);
   const recipeCost = selectedRecipe.reduce((sum, line) => {
@@ -912,6 +942,24 @@ function RestaurantIngredientManagement({
     if (saved) setRecipeLines([]);
   }
 
+  async function submitPurchaseOrder(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const saved = await onAction(() => createRestaurantIngredientPurchaseOrder({
+      locationId,
+      supplierId,
+      reference: purchaseReference,
+      items: purchaseLines.map((line) => ({
+        ingredientId: line.ingredientId,
+        quantity: Number(line.quantity),
+        unitCost: Number(line.unitCost),
+      })),
+    }), "Restaurant ingredient purchase order created.");
+    if (saved) {
+      setPurchaseReference("");
+      setPurchaseLines([{ ingredientId: "", quantity: "1", unitCost: "0" }]);
+    }
+  }
+
   return <section className="space-y-5">
     <div>
       <h2 className="text-lg font-bold text-slate-950">Restaurant ingredients & recipes</h2>
@@ -927,6 +975,52 @@ function RestaurantIngredientManagement({
               <h3 className="font-bold text-slate-950">Ingredient catalog</h3>
               <p className="text-xs text-slate-500">Set your purchase cost per stock unit. Recipe costs use this value.</p>
             </div>
+
+            <section className="space-y-4 rounded-xl border bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-950 dark:text-white">Ingredient purchasing</h3>
+                  <p className="text-xs text-slate-500">Uses the existing supplier directory. Receipts increase Restaurant branch stock only; ERP product inventory is not changed.</p>
+                </div>
+                <Link href="/purchases/suppliers" className="text-xs font-semibold text-orange-700">Supplier directory</Link>
+              </div>
+              {canCreatePurchases && <form onSubmit={submitPurchaseOrder} className="space-y-3 rounded-lg border p-3 dark:border-slate-700">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <label className="text-xs font-semibold">Supplier<select required value={supplierId} onChange={(event) => setSupplierId(event.target.value)} className="mt-1 h-9 w-full rounded border bg-white px-2 text-sm dark:bg-slate-900"><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+                  <label className="text-xs font-semibold">Reference<input required maxLength={80} value={purchaseReference} onChange={(event) => setPurchaseReference(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm" placeholder="Supplier order reference" /></label>
+                  <p className="self-end text-xs text-slate-500">Branch: {locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}</p>
+                </div>
+                <div className="hidden grid-cols-[minmax(0,1.4fr)_1fr_1fr_auto] gap-2 text-[10px] font-semibold text-slate-500 sm:grid">
+                  <span>Ingredient</span><span>Order quantity</span><span>Unit cost ({currency})</span><span />
+                </div>
+                {purchaseLines.map((line, index) => <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_1fr_1fr_auto]">
+                  <select required aria-label="Purchase ingredient" value={line.ingredientId} onChange={(event) => setPurchaseLines((current) => current.map((entry, row) => row === index ? { ...entry, ingredientId: event.target.value } : entry))} className="h-9 min-w-0 rounded border bg-white px-2 text-xs dark:bg-slate-900"><option value="">Select ingredient</option>{ingredients.filter((ingredient) => ingredient.is_active).map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</select>
+                  <input aria-label="Ordered quantity" required type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => setPurchaseLines((current) => current.map((entry, row) => row === index ? { ...entry, quantity: event.target.value } : entry))} className="h-9 rounded border px-2 text-xs" />
+                  <input aria-label="Purchase unit cost" required type="number" min="0" step="0.0001" value={line.unitCost} onChange={(event) => setPurchaseLines((current) => current.map((entry, row) => row === index ? { ...entry, unitCost: event.target.value } : entry))} className="h-9 rounded border px-2 text-xs" />
+                  <button type="button" disabled={purchaseLines.length < 2} onClick={() => setPurchaseLines((current) => current.filter((_, row) => row !== index))} className="rounded border px-2 text-xs disabled:opacity-40">Remove</button>
+                </div>)}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={purchaseLines.length >= 100 || ingredients.every((ingredient) => !ingredient.is_active)} onClick={() => setPurchaseLines((current) => [...current, { ingredientId: "", quantity: "1", unitCost: "0" }])} className="rounded border px-3 py-2 text-xs font-semibold disabled:opacity-50">Add ingredient line</button>
+                  <button disabled={isPending || !supplierId || ingredients.every((ingredient) => !ingredient.is_active)} className="rounded-lg bg-orange-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Create purchase order</button>
+                </div>
+                {suppliers.length === 0 && <p className="text-xs text-amber-700">Add an active supplier in the Supplier directory before creating a purchase order.</p>}
+              </form>}
+              <div className="space-y-3">
+                {purchaseOrders.filter((order) => order.location_id === locationId).length === 0
+                  ? <p className="text-sm text-slate-500">No ingredient purchase orders for this branch yet.</p>
+                  : purchaseOrders.filter((order) => order.location_id === locationId).map((order) => <IngredientPurchaseOrderCard
+                      key={order.id}
+                      order={order}
+                      currency={currency}
+                      supplierName={suppliers.find((supplier) => supplier.id === order.supplier_id)?.name ?? "Supplier"}
+                      items={purchaseItems.filter((item) => item.purchase_order_id === order.id)}
+                      ingredients={ingredients}
+                      canReceive={canEdit}
+                      isPending={isPending}
+                      onReceive={(items) => onAction(() => receiveRestaurantIngredientPurchase({ purchaseOrderId: order.id, items }), "Restaurant ingredients received into branch stock.")}
+                    />)}
+              </div>
+            </section>
             {ingredients.length === 0
               ? <EmptyState title="No ingredients yet" message="Add ingredients such as flour, milk, or cooking oil." />
               : <ul className="divide-y">
@@ -1827,13 +1921,14 @@ function csvCell(value: string | number) {
   return `"${safeText.replaceAll('"', '""')}"`;
 }
 
-function RestaurantReports({ currency, locations, report, from, to, locationId }: {
+function RestaurantReports({ currency, locations, report, from, to, locationId, attendanceSummary }: {
   currency: string;
   locations: Location[];
   report: RestaurantReport | null;
   from: string;
   to: string;
   locationId: string;
+  attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null;
 }) {
   function exportReport() {
     if (!report) return;
@@ -1891,6 +1986,12 @@ function RestaurantReports({ currency, locations, report, from, to, locationId }
     {!report ? <EmptyState title="Report unavailable" message="The report data could not be loaded." /> : <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {summaryCards.map(([label, value]) => <article key={label} className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p></article>)}
+        {attendanceSummary && <article className="rounded-xl border bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs text-slate-500">General staff attendance · organization-wide</p>
+          <p className="mt-1 text-xl font-bold text-slate-950 dark:text-white">{attendanceSummary.total_hours.toLocaleString(undefined, { maximumFractionDigits: 2 })} hours</p>
+          <p className="mt-1 text-xs text-slate-500">{attendanceSummary.staff_count} staff with recorded hours · {attendanceSummary.record_count} records</p>
+          <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">Attendance has no branch assignment, so these hours are not allocated to the selected Restaurant branch or treated as Restaurant labor cost.</p>
+        </article>}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="rounded-xl border bg-white p-4">
@@ -1908,6 +2009,54 @@ function RestaurantReports({ currency, locations, report, from, to, locationId }
       </div>
     </>}
   </section>;
+}
+
+function IngredientPurchaseOrderCard({
+  order,
+  currency,
+  supplierName,
+  items,
+  ingredients,
+  canReceive,
+  isPending,
+  onReceive,
+}: {
+  order: RestaurantIngredientPurchaseOrder;
+  currency: string;
+  supplierName: string;
+  items: RestaurantIngredientPurchaseItem[];
+  ingredients: RestaurantIngredient[];
+  canReceive: boolean;
+  isPending: boolean;
+  onReceive: (items: Array<{ itemId: string; quantity: number }>) => Promise<boolean>;
+}) {
+  const [quantities, setQuantities] = useState<Record<string, string>>(() =>
+    Object.fromEntries(items.map((item) => [item.id, String(Number(item.ordered_quantity) - Number(item.quantity_received))])),
+  );
+  return <article className="rounded-lg border p-3 dark:border-slate-700">
+    <div className="flex flex-wrap justify-between gap-2">
+      <div><p className="text-sm font-semibold text-slate-900 dark:text-white">{order.reference} · {supplierName}</p><p className="text-xs capitalize text-slate-500">{order.status.replace("_", " ")} · {new Date(order.created_at).toLocaleDateString()}</p></div>
+      <span className="text-xs text-slate-500">{items.length} lines</span>
+    </div>
+    <form onSubmit={(event) => {
+      event.preventDefault();
+      const receiveLines = items
+        .map((item) => ({ itemId: item.id, quantity: Number(quantities[item.id] ?? 0) }))
+        .filter((item) => item.quantity > 0);
+      if (receiveLines.length) void onReceive(receiveLines);
+    }} className="mt-2 space-y-2">
+      {items.map((item) => {
+        const remaining = Number(item.ordered_quantity) - Number(item.quantity_received);
+        const ingredient = ingredients.find((entry) => entry.id === item.ingredient_id);
+        return <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_6rem_6rem] items-center gap-2 text-xs">
+          <span className="truncate">{ingredient?.name ?? "Ingredient"} · {Number(item.quantity_received)} / {Number(item.ordered_quantity)} {ingredient?.unit ?? ""}</span>
+          <span className="text-right text-slate-500">{money(Number(item.unit_cost) * Number(item.ordered_quantity), currency)}</span>
+          {canReceive && remaining > 0 ? <input aria-label={`Receive quantity for ${ingredient?.name ?? "ingredient"}`} type="number" min="0" max={remaining} step="0.001" value={quantities[item.id] ?? "0"} onChange={(event) => setQuantities((current) => ({ ...current, [item.id]: event.target.value }))} className="h-8 rounded border px-2 text-xs" /> : <span className="text-right">{remaining > 0 ? `${remaining} remaining` : "Received"}</span>}
+        </div>;
+      })}
+      {canReceive && order.status !== "received" && <button disabled={isPending || items.every((item) => Number(quantities[item.id] ?? 0) <= 0)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Receive selected quantities</button>}
+    </form>
+  </article>;
 }
 
 function AssignReservationTable({ reservation, tables, isPending, onAssign }: {

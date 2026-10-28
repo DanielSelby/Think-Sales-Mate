@@ -347,6 +347,7 @@ export interface Database {
           status: "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
           payment_status: "unpaid" | "partial" | "paid";
           customer_email: string | null;
+          customer_id: string | null;
           customer_tracking_token: string | null;
           customer_name: string | null;
           customer_phone: string | null;
@@ -371,6 +372,7 @@ export interface Database {
           status?: "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
           payment_status?: "unpaid" | "partial" | "paid";
           customer_email?: string | null;
+          customer_id?: string | null;
           customer_tracking_token?: string | null;
           customer_name?: string | null;
           customer_phone?: string | null;
@@ -639,7 +641,8 @@ export interface Database {
           location_id: string;
           ingredient_id: string;
           order_id: string | null;
-          movement_type: "adjustment" | "consumption";
+          movement_type: "adjustment" | "consumption" | "purchase_receipt";
+          purchase_order_id: string | null;
           quantity_delta: number;
           balance_after: number;
           reason: string;
@@ -652,7 +655,8 @@ export interface Database {
           location_id: string;
           ingredient_id: string;
           order_id?: string | null;
-          movement_type: "adjustment" | "consumption";
+          movement_type: "adjustment" | "consumption" | "purchase_receipt";
+          purchase_order_id?: string | null;
           quantity_delta: number;
           balance_after: number;
           reason: string;
@@ -660,6 +664,94 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_movements"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_ingredient_purchase_orders: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          supplier_id: string;
+          status: "ordered" | "partially_received" | "received";
+          reference: string;
+          created_by: string | null;
+          received_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          supplier_id: string;
+          status?: "ordered" | "partially_received" | "received";
+          reference: string;
+          created_by?: string | null;
+          received_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_purchase_orders"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_ingredient_purchase_items: {
+        Row: {
+          id: string;
+          org_id: string;
+          purchase_order_id: string;
+          ingredient_id: string;
+          ordered_quantity: number;
+          quantity_received: number;
+          unit_cost: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          purchase_order_id: string;
+          ingredient_id: string;
+          ordered_quantity: number;
+          quantity_received?: number;
+          unit_cost: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_account_mappings: {
+        Row: {
+          org_id: string;
+          cash_account_id: string | null;
+          card_account_id: string | null;
+          mobile_money_account_id: string | null;
+          other_account_id: string | null;
+          sales_revenue_account_id: string | null;
+          refunds_account_id: string | null;
+          tips_liability_account_id: string | null;
+          cash_bank_account_id: string | null;
+          card_bank_account_id: string | null;
+          mobile_money_bank_account_id: string | null;
+          other_bank_account_id: string | null;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          cash_account_id?: string | null;
+          card_account_id?: string | null;
+          mobile_money_account_id?: string | null;
+          other_account_id?: string | null;
+          sales_revenue_account_id?: string | null;
+          refunds_account_id?: string | null;
+          tips_liability_account_id?: string | null;
+          cash_bank_account_id?: string | null;
+          card_bank_account_id?: string | null;
+          mobile_money_bank_account_id?: string | null;
+          other_bank_account_id?: string | null;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_account_mappings"]["Row"]>;
         Relationships: [];
       };
       business_locations: {
@@ -3318,6 +3410,7 @@ export interface Database {
           transaction_date: string;
           recorded_by: string;
           source_expense_id: string | null;
+          source_restaurant_payment_id: string | null;
           location_id: string | null;
           created_at: string;
         };
@@ -3333,6 +3426,7 @@ export interface Database {
           transaction_date?: string;
           recorded_by: string;
           source_expense_id?: string | null;
+          source_restaurant_payment_id?: string | null;
           location_id?: string | null;
           created_at?: string;
         };
@@ -4030,6 +4124,35 @@ export interface Database {
         };
         Returns: Json;
       };
+      get_restaurant_attendance_hours: {
+        Args: {
+          p_org_id: string;
+          p_start_date: string;
+          p_end_date: string;
+        };
+        Returns: Json;
+      };
+      get_restaurant_customer_history: {
+        Args: {
+          p_org_id: string;
+          p_location_ids?: string[] | null;
+        };
+        Returns: Array<{
+          customer_id: string;
+          visits: number;
+          net_spend: number;
+          last_activity: string;
+        }>;
+      };
+      receive_restaurant_ingredient_purchase: {
+        Args: {
+          p_org_id: string;
+          p_purchase_order_id: string;
+          p_lines: Json;
+          p_received_by: string;
+        };
+        Returns: undefined;
+      };
       record_restaurant_payment: {
         Args: {
           p_org_id: string;
@@ -4098,6 +4221,16 @@ export interface Database {
           p_created_by: string;
         };
         Returns: Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"];
+      };
+      get_restaurant_financial_summary: {
+        Args: {
+          p_org_id: string;
+          p_location_ids: string[];
+          p_start_at: string;
+          p_end_at: string;
+          p_user_id?: string | null;
+        };
+        Returns: Json;
       };
     };
     Enums: {

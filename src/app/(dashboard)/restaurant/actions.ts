@@ -951,6 +951,104 @@ export async function saveRestaurantIngredient(input: {
   revalidatePath("/restaurant");
 }
 
+export async function createRestaurantIngredientPurchaseOrder(input: {
+  locationId: string;
+  supplierId: string;
+  reference: string;
+  items: Array<{ ingredientId: string; quantity: number; unitCost: number }>;
+}) {
+  const context = await restaurantContext("ingredients", "create");
+  if (!canUseLocation(context, input.locationId)) {
+    throw new Error("You cannot create a Restaurant purchase order for that branch.");
+  }
+  const reference = requiredText(input.reference, "Purchase reference", 80);
+  if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
+    throw new Error("A purchase order must contain between 1 and 100 ingredient lines.");
+  }
+  const seen = new Set<string>();
+  for (const item of input.items) {
+    if (typeof item.ingredientId !== "string" || seen.has(item.ingredientId)
+      || !validQuantity(item.quantity) || !validMoney(item.unitCost, true)
+      || Math.abs(item.unitCost * 10000 - Math.round(item.unitCost * 10000)) > 0.000001) {
+      throw new Error("Check that each purchase line has a unique ingredient, valid quantity, and non-negative unit cost.");
+    }
+    seen.add(item.ingredientId);
+  }
+
+  const admin = createAdminClient();
+  const [{ data: supplier, error: supplierError }, { data: ingredients, error: ingredientsError }] = await Promise.all([
+    admin.from("suppliers").select("id").eq("org_id", context.orgId).eq("id", input.supplierId).eq("is_active", true).maybeSingle(),
+    admin.from("restaurant_ingredients").select("id").eq("org_id", context.orgId).in("id", [...seen]).eq("is_active", true),
+  ]);
+  if (supplierError) throw new Error(`Could not verify purchase supplier: ${supplierError.message}`);
+  if (ingredientsError) throw new Error(`Could not verify purchase ingredients: ${ingredientsError.message}`);
+  if (!supplier) throw new Error("Choose an active supplier from this organization.");
+  if (ingredients?.length !== seen.size) throw new Error("Choose active ingredients from this organization.");
+
+  const { data: purchaseOrder, error: orderError } = await admin.from("restaurant_ingredient_purchase_orders")
+    .insert({
+      org_id: context.orgId,
+      location_id: input.locationId,
+      supplier_id: input.supplierId,
+      reference,
+      created_by: context.userId,
+    })
+    .select("id")
+    .single();
+  if (orderError || !purchaseOrder) {
+    throw new Error(`Could not create Restaurant purchase order: ${orderError?.message ?? "No purchase order was returned."}`);
+  }
+  const { error: itemsError } = await admin.from("restaurant_ingredient_purchase_items").insert(
+    input.items.map((item) => ({
+      org_id: context.orgId,
+      purchase_order_id: purchaseOrder.id,
+      ingredient_id: item.ingredientId,
+      ordered_quantity: item.quantity,
+      unit_cost: item.unitCost,
+    })),
+  );
+  if (itemsError) {
+    const { error: rollbackError } = await admin.from("restaurant_ingredient_purchase_orders")
+      .delete().eq("org_id", context.orgId).eq("id", purchaseOrder.id);
+    if (rollbackError) throw new Error(`Could not save purchase lines (${itemsError.message}); cleanup failed (${rollbackError.message}).`);
+    throw new Error(`Could not save Restaurant purchase lines: ${itemsError.message}`);
+  }
+  revalidatePath("/restaurant");
+}
+
+export async function receiveRestaurantIngredientPurchase(input: {
+  purchaseOrderId: string;
+  items: Array<{ itemId: string; quantity: number }>;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
+    throw new Error("Choose one or more valid purchase lines to receive.");
+  }
+  const seen = new Set<string>();
+  const lines: Json[] = input.items.map((item) => {
+    if (typeof item.itemId !== "string" || seen.has(item.itemId) || !validQuantity(item.quantity)) {
+      throw new Error("Each received line must have a unique item and positive quantity to three decimal places.");
+    }
+    seen.add(item.itemId);
+    return { item_id: item.itemId, quantity: item.quantity };
+  });
+  const admin = createAdminClient();
+  const { data: purchaseOrder, error: orderError } = await admin.from("restaurant_ingredient_purchase_orders")
+    .select("id, location_id").eq("org_id", context.orgId).eq("id", input.purchaseOrderId).maybeSingle();
+  if (orderError) throw new Error(`Could not verify Restaurant purchase order: ${orderError.message}`);
+  if (!purchaseOrder || !canUseLocation(context, purchaseOrder.location_id)) {
+    throw new Error("Restaurant purchase order not found or not accessible.");
+  }
+  const { error } = await admin.rpc("receive_restaurant_ingredient_purchase", {
+    p_org_id: context.orgId,
+    p_purchase_order_id: input.purchaseOrderId,
+    p_lines: lines,
+    p_received_by: context.userId,
+  });
+  if (error) throw new Error(`Could not receive Restaurant ingredient purchase: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
 export async function saveRestaurantRecipe(input: {
   menuItemId: string;
   ingredients: Array<{ ingredientId: string; quantity: number }>;

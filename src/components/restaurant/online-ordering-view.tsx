@@ -58,6 +58,7 @@ export default function OnlineOrderingView({
   paystackEnabled: boolean;
 }) {
   const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">(acceptsPickup ? "pickup" : "delivery");
+  const [activeCategoryId, setActiveCategoryId] = useState("all");
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [modifierSelections, setModifierSelections] = useState<Record<string, string[]>>({});
   const [customerName, setCustomerName] = useState("");
@@ -98,6 +99,23 @@ export default function OnlineOrderingView({
       ? [{ id: "uncategorized", name: "Other items" }]
       : [])]
     : [{ id: "uncategorized", name: "Menu" }];
+  const menuSectionsWithItems = menuSections.flatMap((category) => {
+    const items = menuItems.filter((item) => category.id === "uncategorized"
+      ? item.category_id === null || !categories.some((entry) => entry.id === item.category_id)
+      : item.category_id === category.id);
+    return items.length ? [{ ...category, items }] : [];
+  });
+  const visibleMenuSections = activeCategoryId === "all"
+    ? menuSectionsWithItems
+    : menuSectionsWithItems.filter((category) => category.id === activeCategoryId);
+
+  function changeQuantity(itemId: string, delta: number) {
+    setQuantities((current) => {
+      const quantity = Number(current[itemId] ?? 0);
+      const next = Math.max(0, Math.min(999, quantity + delta));
+      return { ...current, [itemId]: next ? String(next) : "" };
+    });
+  }
 
   function toggleModifier(group: OnlineModifierGroup, optionId: string) {
     setModifierSelections((current) => {
@@ -182,40 +200,55 @@ export default function OnlineOrderingView({
     <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="space-y-4">
         {menuIsEmpty ? <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No menu items are available right now.</p>
-          : menuSections.map((category) => {
-            const categoryItems = menuItems.filter((item) => category.id === "uncategorized"
-              ? item.category_id === null || !categories.some((entry) => entry.id === item.category_id)
-              : item.category_id === category.id);
-            if (!categoryItems.length) return null;
-            return <section key={category.id} className="space-y-3">
-              <h2 className="text-xl font-bold text-slate-950">{category.name}</h2>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {categoryItems.map((item) => {
+          : <div className="grid gap-4 lg:grid-cols-[12rem_minmax(0,1fr)]">
+            <nav aria-label="Product categories" className="flex gap-2 overflow-x-auto lg:sticky lg:top-4 lg:h-fit lg:flex-col lg:overflow-visible lg:rounded-xl lg:border lg:bg-white lg:p-3">
+              <button type="button" onClick={() => setActiveCategoryId("all")} aria-pressed={activeCategoryId === "all"} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === "all" ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 lg:border-transparent"}`}>
+                All items <span className="ml-1 text-xs opacity-75">({menuItems.length})</span>
+              </button>
+              {menuSectionsWithItems.map((category) => <button key={category.id} type="button" onClick={() => setActiveCategoryId(category.id)} aria-pressed={activeCategoryId === category.id} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === category.id ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 lg:border-transparent"}`}>
+                <span className="break-words">{category.name}</span> <span className="text-xs opacity-75">({category.items.length})</span>
+              </button>)}
+            </nav>
+            <div className="min-w-0 space-y-5">
+              {visibleMenuSections.map((category) => <section key={category.id} className="min-w-0 space-y-3">
+                {activeCategoryId === "all" && <h2 className="text-xl font-bold text-slate-950">{category.name}</h2>}
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+              {category.items.map((item) => {
                 const itemGroups = modifierGroups.filter((group) => group.menu_item_id === item.id);
-                return <article key={item.id} className="overflow-hidden rounded-xl border bg-white">
+                const quantity = Number(quantities[item.id] ?? 0);
+                return <article key={item.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white">
                   {item.image_url && <div className="relative h-44 w-full bg-slate-100">
                     <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 1024px) 100vw, 60vw" className="bg-slate-100 object-contain" />
                   </div>}
-                  <div className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div><h3 className="font-semibold text-slate-950">{item.name}</h3>{item.description && <p className="mt-1 text-sm text-slate-600">{item.description}</p>}<p className="mt-2 text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</p></div>
-                    <label className="text-xs font-medium text-slate-600">Quantity
-                      <input aria-label={`Quantity for ${item.name}`} type="number" min="0" max="999" step="1" value={quantities[item.id] ?? ""} onChange={(event) => setQuantities((current) => ({ ...current, [item.id]: event.target.value }))} className="mt-1 block h-10 w-24 rounded-lg border px-3 text-sm" />
-                    </label>
-                  </div>
-                  {Number(quantities[item.id] ?? 0) > 0 && itemGroups.map((group) => <fieldset key={group.id} className="border-t pt-3">
-                    <legend className="text-sm font-semibold text-slate-800">{group.name} <span className="text-xs font-normal text-slate-500">(choose {group.min_selections}–{group.max_selections})</span></legend>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">{modifierOptions.filter((option) => option.group_id === group.id).map((option) => <label key={option.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 text-sm">
-                      <span className="flex items-center gap-2"><input type="checkbox" checked={(modifierSelections[group.id] ?? []).includes(option.id)} onChange={() => toggleModifier(group, option.id)} />{option.name}</span>
-                      <span className="text-xs text-slate-500">{Number(option.price_delta) ? `+${money(Number(option.price_delta), currency)}` : "Included"}</span>
-                    </label>)}</div>
-                  </fieldset>)}
+                  <div className="flex flex-1 flex-col gap-3 p-3 sm:p-4">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-sm font-semibold leading-snug text-slate-950 sm:text-base">{item.name}</h3>
+                      {item.description && <p className="mt-1 break-words whitespace-normal text-xs leading-relaxed text-slate-600 sm:text-sm">{item.description}</p>}
+                      <p className="mt-2 text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</p>
+                    </div>
+                    <div className="mt-auto">
+                      {quantity === 0
+                        ? <button type="button" onClick={() => changeQuantity(item.id, 1)} className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white">Add to order</button>
+                        : <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-1">
+                          <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-9 w-10 rounded-md border bg-white text-lg text-slate-800">−</button>
+                          <span className="text-sm font-bold text-slate-900">{quantity}</span>
+                          <button type="button" aria-label={`Add one ${item.name}`} onClick={() => changeQuantity(item.id, 1)} className="h-9 w-10 rounded-md border bg-white text-lg text-slate-800">+</button>
+                        </div>}
+                    </div>
+                    {quantity > 0 && itemGroups.map((group) => <fieldset key={group.id} className="border-t pt-3">
+                      <legend className="text-sm font-semibold text-slate-800">{group.name} <span className="text-xs font-normal text-slate-500">(choose {group.min_selections}–{group.max_selections})</span></legend>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">{modifierOptions.filter((option) => option.group_id === group.id).map((option) => <label key={option.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 text-sm">
+                        <span className="flex items-center gap-2"><input type="checkbox" checked={(modifierSelections[group.id] ?? []).includes(option.id)} onChange={() => toggleModifier(group, option.id)} />{option.name}</span>
+                        <span className="text-xs text-slate-500">{Number(option.price_delta) ? `+${money(Number(option.price_delta), currency)}` : "Included"}</span>
+                      </label>)}</div>
+                    </fieldset>)}
                   </div>
                 </article>;
               })}
-              </div>
-            </section>;
-          })}
+                </div>
+              </section>)}
+            </div>
+          </div>}
       </section>
       <aside className="h-fit space-y-4 rounded-xl border bg-white p-4 lg:sticky lg:top-4">
         <h2 className="text-lg font-bold text-slate-950">Checkout</h2>
