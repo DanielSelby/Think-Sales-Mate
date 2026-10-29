@@ -36,12 +36,18 @@ export default async function RestaurantOnlineOrderingPage({
     { data: modifierOptions, error: modifierOptionsError },
   ] = await Promise.all([
     admin.from("restaurant_menu_categories").select("id, name").eq("org_id", organization.id).eq("is_active", true).order("sort_order").order("name"),
-    admin.from("restaurant_menu_items").select("id, category_id, name, description, image_url, price").eq("org_id", organization.id).eq("is_active", true).order("sort_order").order("name"),
+    admin.from("restaurant_menu_items").select("id, category_id, name, description, image_url, price, item_type").eq("org_id", organization.id).eq("is_active", true).order("sort_order").order("name"),
     admin.from("restaurant_modifier_groups").select("id, menu_item_id, name, min_selections, max_selections").eq("org_id", organization.id).eq("is_active", true).order("created_at"),
     admin.from("restaurant_modifier_options").select("id, group_id, name, price_delta").eq("org_id", organization.id).eq("is_active", true).order("created_at"),
   ]);
   const menuError = [categoriesError, menuItemsError, modifierGroupsError, modifierOptionsError].find((error) => error);
   if (menuError) throw new Error(`Could not load restaurant menu: ${menuError.message}`);
+  const packagedItemIds = (menuItems ?? []).filter((item) => item.item_type === "packaged").map((item) => item.id);
+  const { data: packagedStock, error: packagedStockError } = packagedItemIds.length
+    ? await admin.from("restaurant_packaged_item_stock").select("menu_item_id, quantity")
+      .eq("org_id", organization.id).eq("location_id", location.id).in("menu_item_id", packagedItemIds)
+    : { data: [], error: null };
+  if (packagedStockError) throw new Error(`Could not load restaurant packaged stock: ${packagedStockError.message}`);
 
   return <OnlineOrderingView
     orgSlug={orgSlug}
@@ -51,6 +57,7 @@ export default async function RestaurantOnlineOrderingPage({
     currency={organization.currency}
     categories={categories ?? []}
     menuItems={menuItems ?? []}
+    packagedStock={Object.fromEntries((packagedStock ?? []).map((stock) => [stock.menu_item_id, Number(stock.quantity)]))}
     modifierGroups={modifierGroups ?? []}
     modifierOptions={modifierOptions ?? []}
     acceptsPickup={settings.accepts_pickup}

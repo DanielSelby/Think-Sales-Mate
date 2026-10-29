@@ -13,6 +13,7 @@ type OnlineMenuItem = {
   image_url: string | null;
   price: number;
   category_id: string | null;
+  item_type: "prepared" | "packaged";
 };
 type OnlineModifierGroup = {
   id: string;
@@ -36,6 +37,7 @@ export default function OnlineOrderingView({
   currency,
   categories,
   menuItems,
+  packagedStock,
   modifierGroups,
   modifierOptions,
   acceptsPickup,
@@ -50,6 +52,7 @@ export default function OnlineOrderingView({
   currency: string;
   categories: OnlineCategory[];
   menuItems: OnlineMenuItem[];
+  packagedStock: Record<string, number>;
   modifierGroups: OnlineModifierGroup[];
   modifierOptions: OnlineModifierOption[];
   acceptsPickup: boolean;
@@ -112,7 +115,9 @@ export default function OnlineOrderingView({
   function changeQuantity(itemId: string, delta: number) {
     setQuantities((current) => {
       const quantity = Number(current[itemId] ?? 0);
-      const next = Math.max(0, Math.min(999, quantity + delta));
+      const item = menuItems.find((entry) => entry.id === itemId);
+      const maximum = item?.item_type === "packaged" ? Math.min(999, packagedStock[itemId] ?? 0) : 999;
+      const next = Math.max(0, Math.min(maximum, quantity + delta));
       return { ...current, [itemId]: next ? String(next) : "" };
     });
   }
@@ -216,6 +221,7 @@ export default function OnlineOrderingView({
               {category.items.map((item) => {
                 const itemGroups = modifierGroups.filter((group) => group.menu_item_id === item.id);
                 const quantity = Number(quantities[item.id] ?? 0);
+                const outOfStock = item.item_type === "packaged" && (packagedStock[item.id] ?? 0) <= 0;
                 return <article key={item.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white">
                   {item.image_url && <div className="relative h-44 w-full bg-slate-100">
                     <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 1024px) 100vw, 60vw" className="bg-slate-100 object-contain" />
@@ -225,14 +231,15 @@ export default function OnlineOrderingView({
                       <h3 className="break-words text-sm font-semibold leading-snug text-slate-950 sm:text-base">{item.name}</h3>
                       {item.description && <p className="mt-1 break-words whitespace-normal text-xs leading-relaxed text-slate-600 sm:text-sm">{item.description}</p>}
                       <p className="mt-2 text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</p>
+                      {item.item_type === "packaged" && <p className={`mt-1 text-xs font-medium ${outOfStock ? "text-red-700" : "text-slate-500"}`}>{outOfStock ? "Out of stock" : `${packagedStock[item.id] ?? 0} available`}</p>}
                     </div>
                     <div className="mt-auto">
                       {quantity === 0
-                        ? <button type="button" onClick={() => changeQuantity(item.id, 1)} className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white">Add to order</button>
+                        ? <button type="button" disabled={outOfStock} onClick={() => changeQuantity(item.id, 1)} className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400">{outOfStock ? "Unavailable" : "Add to order"}</button>
                         : <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-1">
                           <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-9 w-10 rounded-md border bg-white text-lg text-slate-800">−</button>
                           <span className="text-sm font-bold text-slate-900">{quantity}</span>
-                          <button type="button" aria-label={`Add one ${item.name}`} onClick={() => changeQuantity(item.id, 1)} className="h-9 w-10 rounded-md border bg-white text-lg text-slate-800">+</button>
+                          <button type="button" aria-label={`Add one ${item.name}`} disabled={item.item_type === "packaged" && quantity >= (packagedStock[item.id] ?? 0)} onClick={() => changeQuantity(item.id, 1)} className="h-9 w-10 rounded-md border bg-white text-lg text-slate-800 disabled:opacity-40">+</button>
                         </div>}
                     </div>
                     {quantity > 0 && itemGroups.map((group) => <fieldset key={group.id} className="border-t pt-3">

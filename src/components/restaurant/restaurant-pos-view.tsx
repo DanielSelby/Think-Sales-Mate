@@ -12,6 +12,7 @@ type ModifierGroup = Database["public"]["Tables"]["restaurant_modifier_groups"][
 type ModifierOption = Database["public"]["Tables"]["restaurant_modifier_options"]["Row"];
 type DiningTable = Database["public"]["Tables"]["restaurant_tables"]["Row"];
 type Location = { id: string; name: string };
+type PackagedStock = Pick<Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"], "location_id" | "menu_item_id" | "quantity">;
 type OrderType = "dine_in" | "takeaway" | "delivery";
 
 function money(amount: number, currency: string) {
@@ -22,6 +23,7 @@ export default function RestaurantPosView({
   locations,
   categories,
   menuItems,
+  packagedStock,
   modifierGroups,
   modifierOptions,
   tables,
@@ -30,6 +32,7 @@ export default function RestaurantPosView({
   locations: Location[];
   categories: MenuCategory[];
   menuItems: MenuItem[];
+  packagedStock: PackagedStock[];
   modifierGroups: ModifierGroup[];
   modifierOptions: ModifierOption[];
   tables: DiningTable[];
@@ -59,7 +62,10 @@ export default function RestaurantPosView({
   const availableTables = tables.filter((table) => table.location_id === locationId);
 
   function changeQuantity(itemId: string, delta: number) {
-    setQuantities((current) => ({ ...current, [itemId]: Math.max(0, Math.min(999, (current[itemId] ?? 0) + delta)) }));
+    const item = menuItems.find((entry) => entry.id === itemId);
+    const currentStock = packagedStock.find((stock) => stock.location_id === locationId && stock.menu_item_id === itemId)?.quantity ?? 0;
+    const maximum = item?.item_type === "packaged" ? Math.min(999, currentStock) : 999;
+    setQuantities((current) => ({ ...current, [itemId]: Math.max(0, Math.min(maximum, (current[itemId] ?? 0) + delta)) }));
   }
 
   function toggleOption(group: ModifierGroup, itemId: string, optionId: string) {
@@ -176,6 +182,8 @@ export default function RestaurantPosView({
           {visibleItems.map((item) => {
             const quantity = quantities[item.id] ?? 0;
             const groups = modifierGroups.filter((group) => group.menu_item_id === item.id);
+            const packagedQuantity = packagedStock.find((stock) => stock.location_id === locationId && stock.menu_item_id === item.id)?.quantity ?? 0;
+            const outOfStock = item.item_type === "packaged" && packagedQuantity <= 0;
             return <article key={item.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm">
               <div className="relative h-32 bg-slate-100 sm:h-40">
                 {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw" className="bg-slate-100 object-contain" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400">No image</div>}
@@ -185,13 +193,14 @@ export default function RestaurantPosView({
                   <h2 className="break-words text-sm font-semibold leading-snug text-slate-950 sm:text-base">{item.name}</h2>
                   {item.description && <p className="mt-1 break-words whitespace-normal text-xs leading-relaxed text-slate-500">{item.description}</p>}
                   <span className="mt-2 block text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</span>
+                  {item.item_type === "packaged" && <span className={`mt-1 block text-xs font-medium ${outOfStock ? "text-red-700" : "text-slate-500"}`}>{outOfStock ? "Out of stock" : `${packagedQuantity} available`}</span>}
                 </div>
                 {quantity === 0
-                  ? <button type="button" onClick={() => changeQuantity(item.id, 1)} className="mt-auto w-full rounded-lg bg-orange-600 px-2 py-2 text-xs font-semibold text-white sm:text-sm">Add to order</button>
+                  ? <button type="button" disabled={outOfStock} onClick={() => changeQuantity(item.id, 1)} className="mt-auto w-full rounded-lg bg-orange-600 px-2 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400 sm:text-sm">{outOfStock ? "Unavailable" : "Add to order"}</button>
                   : <div className="mt-auto flex items-center justify-between rounded-lg bg-slate-50 p-1">
                     <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-9 w-10 rounded-md border text-lg">−</button>
                     <span className="text-sm font-bold">{quantity}</span>
-                    <button type="button" aria-label={`Add one ${item.name}`} onClick={() => changeQuantity(item.id, 1)} className="h-9 w-10 rounded-md border text-lg">+</button>
+                    <button type="button" aria-label={`Add one ${item.name}`} disabled={item.item_type === "packaged" && quantity >= packagedQuantity} onClick={() => changeQuantity(item.id, 1)} className="h-9 w-10 rounded-md border text-lg disabled:opacity-40">+</button>
                   </div>}
                 {quantity > 0 && groups.map((group) => {
                   const key = `${item.id}:${group.id}`;

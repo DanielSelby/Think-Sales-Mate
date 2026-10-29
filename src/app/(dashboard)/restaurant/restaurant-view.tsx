@@ -1583,6 +1583,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState("");
   const [prepStation, setPrepStation] = useState<PrepStation>("kitchen");
+  const [itemType, setItemType] = useState<"prepared" | "packaged">("prepared");
 
   async function handleMenuImageUpload(file: File | undefined) {
     if (!file) return;
@@ -1619,6 +1620,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
         description,
         imageUrl,
         price: Number(price),
+        itemType,
         prepStation,
         sortOrder: menuItems.find((item) => item.id === itemId)?.sort_order ?? menuItems.length,
         isActive: menuItems.find((item) => item.id === itemId)?.is_active ?? true,
@@ -1631,6 +1633,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
       setPrice("");
       setImageUrl(null);
       setPrepStation("kitchen");
+      setItemType("prepared");
     }, "Menu item saved.");
   }
 
@@ -1642,10 +1645,10 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           <article key={item.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 ${!item.is_active ? "opacity-60" : ""}`}>
             <div className="flex min-w-0 items-center gap-3">
               {item.image_url ? <Image src={item.image_url} alt="" width={72} height={72} unoptimized className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 object-contain dark:bg-slate-800" /> : <div className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />}
-              <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}{item.sku ? ` · SKU ${item.sku}` : ""}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
+              <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{item.item_type === "packaged" ? "Packaged resale" : "Prepared"} · {categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}{item.sku ? ` · SKU ${item.sku}` : ""}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
             </div>
             {canEdit && <div className="flex gap-2">
-              <button type="button" onClick={() => { setItemId(item.id); setItemName(item.name); setItemSku(item.sku ?? ""); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); }} className="rounded border px-3 py-2 text-xs font-semibold">Edit</button>
+              <button type="button" onClick={() => { setItemId(item.id); setItemName(item.name); setItemSku(item.sku ?? ""); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); setItemType(item.item_type); }} className="rounded border px-3 py-2 text-xs font-semibold">Edit</button>
               <button type="button" disabled={isPending} onClick={() => onAction(() => saveRestaurantMenuItem({ id: item.id, categoryId: item.category_id, name: item.name, description: item.description ?? "", price: Number(item.price), prepStation: item.prep_station, sortOrder: item.sort_order, isActive: !item.is_active }), item.is_active ? "Menu item marked unavailable." : "Menu item activated.")} className="rounded border px-3 py-2 text-xs font-semibold">{item.is_active ? "Unavailable" : "Activate"}</button>
             </div>}
           </article>
@@ -1657,6 +1660,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
             <label className="text-xs font-semibold">SKU (optional)<input maxLength={80} value={itemSku} onChange={(event) => setItemSku(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">Price<input required type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">Category<select value={itemCategoryId} onChange={(event) => setItemCategoryId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="">Uncategorized</option>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+            <label className="text-xs font-semibold">Item type<select value={itemType} onChange={(event) => setItemType(event.target.value as "prepared" | "packaged")} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="prepared">Prepared menu item</option><option value="packaged">Packaged item for resale</option></select></label>
             <label className="text-xs font-semibold">Prep station<select value={prepStation} onChange={(event) => setPrepStation(event.target.value as PrepStation)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="kitchen">Kitchen</option><option value="bar">Bar</option><option value="dessert">Dessert</option></select></label>
             <label className="text-xs font-semibold">Description<input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">Menu image (JPEG, PNG, or WebP; up to 5 MB)

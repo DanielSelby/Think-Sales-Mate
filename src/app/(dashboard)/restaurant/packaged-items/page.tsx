@@ -1,0 +1,52 @@
+import { redirect } from "next/navigation";
+import { canAccessLocation } from "@/lib/organizations/location-access";
+import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canTabPermission } from "@/lib/rbac/permissions";
+import { createClient } from "@/lib/supabase/server";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { PackagedStockManagement } from "@/components/restaurant/packaged-stock-management";
+
+export default async function RestaurantPackagedItemsPage() {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!(await getEnabledOrganizationModules(context.orgId)).includes("Restaurant")) {
+    redirect("/dashboard?moduleDisabled=Restaurant");
+  }
+  if (!(await canTabPermission("restaurant", "operations", "ingredients", "view"))) {
+    redirect("/dashboard?accessDenied=restaurant.operations");
+  }
+
+  const supabase = await createClient();
+  const { data: locations, error: locationsError } = await supabase.from("business_locations")
+    .select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name");
+  if (locationsError) throw new Error(`Could not load Restaurant branches: ${locationsError.message}`);
+  const accessibleLocations = (locations ?? []).filter((location) => canAccessLocation(context, location.id));
+  const locationIds = accessibleLocations.map(({ id }) => id);
+  const [
+    { data: items, error: itemsError },
+    stockResult,
+    movementResult,
+  ] = await Promise.all([
+    supabase.from("restaurant_menu_items").select("*").eq("org_id", context.orgId)
+      .eq("item_type", "packaged").order("name"),
+    locationIds.length
+      ? supabase.from("restaurant_packaged_item_stock").select("*").eq("org_id", context.orgId).in("location_id", locationIds)
+      : Promise.resolve({ data: [], error: null }),
+    locationIds.length
+      ? supabase.from("restaurant_packaged_item_movements").select("*").eq("org_id", context.orgId)
+        .in("location_id", locationIds).order("created_at", { ascending: false }).limit(200)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (itemsError) throw new Error(`Could not load packaged menu items: ${itemsError.message}`);
+  if (stockResult.error) throw new Error(`Could not load packaged stock balances: ${stockResult.error.message}`);
+  if (movementResult.error) throw new Error(`Could not load packaged stock movements: ${movementResult.error.message}`);
+  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
+    <PackagedStockManagement
+      items={items ?? []}
+      locations={accessibleLocations}
+      stocks={stockResult.data ?? []}
+      movements={movementResult.data ?? []}
+      canAdjust={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
+    />
+  </main>;
+}

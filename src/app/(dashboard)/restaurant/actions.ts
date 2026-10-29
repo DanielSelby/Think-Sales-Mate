@@ -7,6 +7,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { assertRestaurantPackagedStockAvailable } from "@/lib/restaurant/packaged-stock";
 import {
   sendRestaurantOrderEmail,
   sendRestaurantReservationEmail,
@@ -84,6 +85,7 @@ export async function saveRestaurantMenuItem(input: {
   description: string;
   imageUrl?: string | null;
   price: number;
+  itemType?: "prepared" | "packaged";
   prepStation: "kitchen" | "bar" | "dessert";
   sortOrder: number;
   isActive: boolean;
@@ -97,7 +99,9 @@ export async function saveRestaurantMenuItem(input: {
   const sku = input.sku?.trim() || null;
   if (sku && sku.length > 80) throw new Error("SKU must be no more than 80 characters.");
   if (!Number.isFinite(input.price) || input.price < 0 || !Number.isInteger(input.sortOrder)
-    || !["kitchen", "bar", "dessert"].includes(input.prepStation) || typeof input.isActive !== "boolean") {
+    || !["kitchen", "bar", "dessert"].includes(input.prepStation)
+    || (input.itemType !== undefined && !["prepared", "packaged"].includes(input.itemType))
+    || typeof input.isActive !== "boolean") {
     throw new Error("Enter a valid non-negative price and item position.");
   }
   const admin = createAdminClient();
@@ -130,6 +134,7 @@ export async function saveRestaurantMenuItem(input: {
     description: input.description.trim() || null,
     ...(input.imageUrl !== undefined ? { image_url: input.imageUrl } : {}),
     price: input.price,
+    ...(input.itemType !== undefined ? { item_type: input.itemType } : {}),
     prep_station: input.prepStation,
     sort_order: input.sortOrder,
     is_active: input.isActive,
@@ -141,8 +146,41 @@ export async function saveRestaurantMenuItem(input: {
   const { error } = await query;
   if (error) throw new Error(`Could not save menu item: ${error.message}`);
   revalidatePath("/restaurant");
+  revalidatePath("/restaurant/packaged-items");
   revalidatePath("/restaurant/pos");
   revalidatePath("/restaurant-order/[orgSlug]/branch/[branchSlug]", "page");
+}
+
+export async function adjustRestaurantPackagedItemStock(input: {
+  locationId: string;
+  menuItemId: string;
+  quantityDelta: number;
+  reason: string;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot adjust packaged stock at that branch.");
+  if (!Number.isFinite(input.quantityDelta) || input.quantityDelta === 0
+    || Math.abs(input.quantityDelta * 1000 - Math.round(input.quantityDelta * 1000)) > 0.000001) {
+    throw new Error("Enter a non-zero stock change with up to three decimal places.");
+  }
+  const reason = requiredText(input.reason, "Adjustment reason", 200);
+  const admin = createAdminClient();
+  const { data: item, error: itemError } = await admin.from("restaurant_menu_items")
+    .select("id, item_type").eq("org_id", context.orgId).eq("id", input.menuItemId).maybeSingle();
+  if (itemError) throw new Error(`Could not verify packaged item: ${itemError.message}`);
+  if (!item || item.item_type !== "packaged") throw new Error("Choose a packaged restaurant menu item.");
+  const { error } = await admin.rpc("adjust_restaurant_packaged_item_stock", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_menu_item_id: input.menuItemId,
+    p_quantity_delta: input.quantityDelta,
+    p_reason: reason,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not adjust packaged item stock: ${error.message}`);
+  revalidatePath("/restaurant/packaged-items");
+  revalidatePath("/restaurant/dashboard");
+  revalidatePath("/restaurant/pos");
 }
 
 export type RestaurantMenuImportRow = {
@@ -647,6 +685,7 @@ export async function createRestaurantOrder(input: {
     };
   });
   const admin = createAdminClient();
+  await assertRestaurantPackagedStockAvailable(admin, context.orgId, input.locationId, input.items);
   const { data, error } = await admin.rpc("create_restaurant_order", {
     p_org_id: context.orgId,
     p_location_id: input.locationId,

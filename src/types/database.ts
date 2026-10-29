@@ -196,6 +196,7 @@ export interface Database {
           description: string | null;
           image_url: string | null;
           price: number;
+          item_type: "prepared" | "packaged";
           prep_station: "kitchen" | "bar" | "dessert";
           sort_order: number;
           is_active: boolean;
@@ -211,6 +212,7 @@ export interface Database {
           description?: string | null;
           image_url?: string | null;
           price: number;
+          item_type?: "prepared" | "packaged";
           prep_station?: "kitchen" | "bar" | "dessert";
           sort_order?: number;
           is_active?: boolean;
@@ -664,6 +666,54 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_movements"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_packaged_item_stock: {
+        Row: {
+          org_id: string;
+          location_id: string;
+          menu_item_id: string;
+          quantity: number;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          location_id: string;
+          menu_item_id: string;
+          quantity?: number;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_packaged_item_movements: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          menu_item_id: string;
+          order_id: string | null;
+          movement_type: "adjustment" | "sale";
+          quantity_delta: number;
+          balance_after: number;
+          reason: string;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          menu_item_id: string;
+          order_id?: string | null;
+          movement_type: "adjustment" | "sale";
+          quantity_delta: number;
+          balance_after: number;
+          reason: string;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_packaged_item_movements"]["Row"]>;
         Relationships: [];
       };
       restaurant_ingredient_purchase_orders: {
@@ -4221,6 +4271,17 @@ export interface Database {
           p_created_by: string;
         };
         Returns: Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"];
+      };
+      adjust_restaurant_packaged_item_stock: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_menu_item_id: string;
+          p_quantity_delta: number;
+          p_reason: string;
+          p_created_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"];
       };
       get_restaurant_financial_summary: {
         Args: {

@@ -30,9 +30,12 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Restaurant", href: "/restaurant", icon: Utensils, status: "live",
     children: [
+      { label: "Restaurant Dashboard", href: "/restaurant/dashboard", icon: LayoutDashboard },
       { label: "Orders & Kitchen", href: "/restaurant", icon: ClipboardCheck },
       { label: "Kitchen Display", href: "/restaurant?view=kitchen", icon: Utensils },
+      { label: "Restaurant POS", href: "/restaurant/pos", icon: ShoppingCart },
       { label: "Menu Management", href: "/restaurant?view=menu", icon: List },
+      { label: "Packaged Item Stock", href: "/restaurant/packaged-items", icon: Package },
       { label: "Dining Tables", href: "/restaurant?view=tables", icon: Building2 },
     ],
   },

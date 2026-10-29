@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { getRegistrationIpHash } from "@/lib/organizations/registration-rate-limit";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { assertRestaurantPackagedStockAvailable } from "@/lib/restaurant/packaged-stock";
 import { getRestaurantOnlineBaseUrl, isRestaurantPaystackAvailable } from "@/lib/restaurant/online-ordering";
 import { sendRestaurantOrderEmail } from "@/lib/restaurant/order-emails";
 import type { Json } from "@/types/database";
@@ -126,6 +127,7 @@ export async function submitRestaurantOnlineOrder(
   if (!withinLimit) throw new Error("Too many order attempts. Please wait before trying again.");
 
   const reference = input.paymentOption === "paystack" ? randomUUID() : null;
+  await assertRestaurantPackagedStockAvailable(admin, organization.id, location.id, input.items);
   const { data: result, error: orderError } = await admin.rpc("create_restaurant_online_order", {
     p_org_id: organization.id,
     p_branch_slug: branchSlug,
