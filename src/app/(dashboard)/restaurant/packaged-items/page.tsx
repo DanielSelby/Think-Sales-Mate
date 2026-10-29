@@ -28,6 +28,7 @@ export default async function RestaurantPackagedItemsPage() {
     movementResult,
     supplierResult,
     purchaseOrderResult,
+    outstandingPurchaseOrderResult,
   ] = await Promise.all([
     supabase.from("restaurant_menu_items").select("*").eq("org_id", context.orgId)
       .eq("item_type", "packaged").order("name"),
@@ -43,13 +44,23 @@ export default async function RestaurantPackagedItemsPage() {
       ? supabase.from("restaurant_packaged_purchase_orders").select("*").eq("org_id", context.orgId)
         .in("location_id", locationIds).order("created_at", { ascending: false }).limit(100)
       : Promise.resolve({ data: [], error: null }),
+    locationIds.length
+      ? supabase.from("restaurant_packaged_purchase_orders").select("id, location_id, status")
+        .eq("org_id", context.orgId).in("location_id", locationIds).in("status", ["ordered", "partially_received"])
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (itemsError) throw new Error(`Could not load packaged menu items: ${itemsError.message}`);
   if (stockResult.error) throw new Error(`Could not load packaged stock balances: ${stockResult.error.message}`);
   if (movementResult.error) throw new Error(`Could not load packaged stock movements: ${movementResult.error.message}`);
   if (supplierResult.error) throw new Error(`Could not load packaged goods suppliers: ${supplierResult.error.message}`);
   if (purchaseOrderResult.error) throw new Error(`Could not load packaged purchase orders: ${purchaseOrderResult.error.message}`);
-  const purchaseOrderIds = (purchaseOrderResult.data ?? []).map((order) => order.id);
+  if (outstandingPurchaseOrderResult.error) {
+    throw new Error(`Could not load outstanding packaged purchase orders: ${outstandingPurchaseOrderResult.error.message}`);
+  }
+  const purchaseOrderIds = [...new Set([
+    ...(purchaseOrderResult.data ?? []).map((order) => order.id),
+    ...(outstandingPurchaseOrderResult.data ?? []).map((order) => order.id),
+  ])];
   const { data: purchaseLines, error: purchaseLinesError } = purchaseOrderIds.length
     ? await supabase.from("restaurant_packaged_purchase_items").select("*").eq("org_id", context.orgId)
       .in("purchase_order_id", purchaseOrderIds)
@@ -65,6 +76,9 @@ export default async function RestaurantPackagedItemsPage() {
       suppliers={supplierResult.data ?? []}
       purchaseOrders={purchaseOrderResult.data ?? []}
       purchaseLines={purchaseLines ?? []}
+      outstandingPurchaseOrders={outstandingPurchaseOrderResult.data ?? []}
+      outstandingPurchaseLines={(purchaseLines ?? []).filter((line) =>
+        (outstandingPurchaseOrderResult.data ?? []).some((order) => order.id === line.purchase_order_id))}
       canCreatePurchases={await canTabPermission("restaurant", "operations", "ingredients", "create")}
       canReceivePurchases={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
     />

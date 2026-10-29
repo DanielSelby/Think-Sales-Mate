@@ -211,6 +211,10 @@ html.dark .restaurant-management-page [class~="text-red-800"] {
   color: #fca5a5 !important;
 }
 
+html.dark .restaurant-management-page [class~="text-orange-950"] {
+  color: #fed7aa !important;
+}
+
 html.dark .restaurant-management-page [class~="border"]:not([class*="border-orange-"]):not([class*="border-amber-"]):not([class*="border-red-"]):not([class*="border-emerald-"]) {
   border-color: #475569 !important;
 }

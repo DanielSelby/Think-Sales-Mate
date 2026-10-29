@@ -674,6 +674,7 @@ export interface Database {
           location_id: string;
           menu_item_id: string;
           quantity: number;
+          minimum_quantity: number;
           updated_at: string;
         };
         Insert: {
@@ -681,6 +682,7 @@ export interface Database {
           location_id: string;
           menu_item_id: string;
           quantity?: number;
+          minimum_quantity?: number;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"]>;
@@ -4388,6 +4390,15 @@ export interface Database {
           p_quantity_delta: number;
           p_reason: string;
           p_created_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"];
+      };
+      set_restaurant_packaged_item_minimum_stock: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_menu_item_id: string;
+          p_minimum_quantity: number;
         };
         Returns: Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"];
       };

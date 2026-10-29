@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { X } from "lucide-react";
 import { useState } from "react";
 import { createRestaurantOrder } from "@/app/(dashboard)/restaurant/actions";
 import type { Database } from "@/types/database";
@@ -66,6 +67,20 @@ export default function RestaurantPosView({
     const currentStock = packagedStock.find((stock) => stock.location_id === locationId && stock.menu_item_id === itemId)?.quantity ?? 0;
     const maximum = item?.item_type === "packaged" ? Math.min(999, currentStock) : 999;
     setQuantities((current) => ({ ...current, [itemId]: Math.max(0, Math.min(maximum, (current[itemId] ?? 0) + delta)) }));
+  }
+
+  function removeFromOrder(itemId: string) {
+    setQuantities((current) => ({ ...current, [itemId]: 0 }));
+    setSelectedOptions((current) => Object.fromEntries(
+      Object.entries(current).filter(([key]) => !key.startsWith(`${itemId}:`)),
+    ));
+  }
+
+  function clearOrder() {
+    setQuantities({});
+    setSelectedOptions({});
+    setError("");
+    setSuccess("");
   }
 
   function toggleOption(group: ModifierGroup, itemId: string, optionId: string) {
@@ -144,7 +159,7 @@ export default function RestaurantPosView({
     }
   }
 
-  return <main className="restaurant-management-page mx-auto max-w-[1600px] space-y-4">
+  return <main className="restaurant-management-page mx-auto w-full min-w-0 max-w-[1600px] space-y-4 overflow-x-clip">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Restaurant</p>
@@ -152,8 +167,8 @@ export default function RestaurantPosView({
       </div>
       <Link href="/restaurant" className="rounded-lg border px-4 py-2 text-sm font-semibold">Restaurant management</Link>
     </header>
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-      <section className="space-y-4">
+    <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <section className="min-w-0 space-y-4">
         <div className="flex flex-wrap gap-3 rounded-xl border bg-white p-3">
           <label className="min-w-48 flex-1 text-xs font-semibold text-slate-600">Branch
             <select value={locationId} onChange={(event) => { setLocationId(event.target.value); setTableId(""); }} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm">
@@ -178,7 +193,7 @@ export default function RestaurantPosView({
         </nav>
         {locations.length === 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">There are no branches available to your account.</p>}
         {menuItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">Add active menu items before taking restaurant orders.</p>}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visibleItems.map((item) => {
             const quantity = quantities[item.id] ?? 0;
             const groups = modifierGroups.filter((group) => group.menu_item_id === item.id);
@@ -220,10 +235,20 @@ export default function RestaurantPosView({
           })}
         </div>
       </section>
-      <aside className="h-fit space-y-3 rounded-xl border bg-white p-4 xl:sticky xl:top-4">
-        <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-950">Current order</h2><span className="text-xs text-slate-500">{cartItems.reduce((sum, item) => sum + quantities[item.id], 0)} items</span></div>
+      <aside className="h-fit min-w-0 space-y-3 rounded-xl border bg-white p-4 xl:sticky xl:top-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-bold text-slate-950">Current order</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">{cartItems.reduce((sum, item) => sum + quantities[item.id], 0)} items</span>
+            {cartItems.length > 0 && <button type="button" onClick={clearOrder} disabled={isSubmitting} aria-label="Clear current order" title="Clear current order" className="flex h-8 w-8 items-center justify-center rounded-full border text-slate-600 disabled:opacity-50"><X aria-hidden="true" className="h-4 w-4" /></button>}
+          </div>
+        </div>
         {cartItems.length === 0 ? <p className="py-4 text-sm text-slate-500">Choose menu items to start an order.</p> : <ul className="divide-y">
-          {cartItems.map((item) => <li key={item.id} className="flex justify-between gap-3 py-2 text-sm"><span>{quantities[item.id]} × {item.name}</span><strong>{money((Number(item.price) + selectedOptionIds(item.id).reduce((sum, id) => sum + Number(modifierOptions.find((option) => option.id === id)?.price_delta ?? 0), 0)) * quantities[item.id], currency)}</strong></li>)}
+          {cartItems.map((item) => <li key={item.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+            <span className="min-w-0 flex-1 break-words">{quantities[item.id]} × {item.name}</span>
+            <strong className="shrink-0">{money((Number(item.price) + selectedOptionIds(item.id).reduce((sum, id) => sum + Number(modifierOptions.find((option) => option.id === id)?.price_delta ?? 0), 0)) * quantities[item.id], currency)}</strong>
+            <button type="button" onClick={() => removeFromOrder(item.id)} disabled={isSubmitting} aria-label={`Remove ${item.name} from order`} title={`Remove ${item.name}`} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-slate-600 disabled:opacity-50"><X aria-hidden="true" className="h-3.5 w-3.5" /></button>
+          </li>)}
         </ul>}
         <label className="block text-xs font-semibold text-slate-600">Customer name (optional)<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} maxLength={120} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         <label className="block text-xs font-semibold text-slate-600">Phone (optional)<input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} maxLength={40} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>

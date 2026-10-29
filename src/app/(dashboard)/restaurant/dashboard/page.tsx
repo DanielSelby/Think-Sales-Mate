@@ -77,10 +77,10 @@ export default async function RestaurantDashboardPage() {
       : Promise.resolve({ data: [], error: null }),
     supabase.from("restaurant_menu_items").select("id", { count: "exact", head: true })
       .eq("org_id", context.orgId).eq("is_active", true),
-    supabase.from("restaurant_menu_items").select("id").eq("org_id", context.orgId)
+    supabase.from("restaurant_menu_items").select("id, name").eq("org_id", context.orgId)
       .eq("is_active", true).eq("item_type", "packaged"),
     locationIds.length
-      ? supabase.from("restaurant_packaged_item_stock").select("location_id, menu_item_id, quantity")
+      ? supabase.from("restaurant_packaged_item_stock").select("location_id, menu_item_id, quantity, minimum_quantity")
         .eq("org_id", context.orgId).in("location_id", locationIds)
       : Promise.resolve({ data: [], error: null }),
     locationIds.length
@@ -92,10 +92,12 @@ export default async function RestaurantDashboardPage() {
   if (queryError) throw new Error(`Could not load Restaurant dashboard: ${queryError.message}`);
   if (!isSummary(reportResult)) throw new Error("The Restaurant dashboard report returned invalid data.");
 
-  const packagedLowStock = locations.reduce((count, location) => count + (packagedItems ?? []).filter((item) => {
-    const balance = packagedStock?.find((stock) => stock.location_id === location.id && stock.menu_item_id === item.id)?.quantity ?? 0;
-    return Number(balance) <= 0;
-  }).length, 0);
+  const packagedLowStock = locations.flatMap((location) => (packagedItems ?? []).flatMap((item) => {
+    const stock = packagedStock?.find((entry) => entry.location_id === location.id && entry.menu_item_id === item.id);
+    const quantity = Number(stock?.quantity ?? 0);
+    const minimum = Number(stock?.minimum_quantity ?? 0);
+    return quantity <= minimum ? [{ location, item, quantity, minimum }] : [];
+  }));
   const ingredientLowStock = (ingredientStock ?? []).filter((stock) => Number(stock.quantity) <= Number(stock.minimum_quantity)).length;
   const summary = reportResult.summary;
   const cards = [
@@ -107,7 +109,7 @@ export default async function RestaurantDashboardPage() {
     { label: "Open orders", value: String(activeOrders?.length ?? 0) },
   ];
 
-  return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
+  return <main className="restaurant-management-page mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Restaurant operations</p>
@@ -145,9 +147,15 @@ export default async function RestaurantDashboardPage() {
       <aside className="space-y-3">
         <h2 className="text-lg font-bold text-slate-950">Stock alerts</h2>
         <article className="rounded-xl border bg-white p-4">
-          <p className="text-sm text-slate-500">Packaged items out of stock</p>
-          <p className="mt-1 text-2xl font-bold text-slate-950">{packagedLowStock}</p>
-          <Link href="/restaurant/packaged-items" className="mt-3 inline-block text-sm font-semibold text-orange-700">Manage packaged stock</Link>
+          <p className="text-sm text-slate-500">Packaged items at or below minimum stock</p>
+          <p className="mt-1 text-2xl font-bold text-slate-950">{packagedLowStock.length}</p>
+          {packagedLowStock.length > 0 && <ul className="mt-3 divide-y">
+            {packagedLowStock.slice(0, 5).map(({ location, item, quantity, minimum }) => <li key={`${location.id}:${item.id}`} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <span className="min-w-0"><strong className="block truncate">{item.name}</strong><span className="text-xs text-slate-500">{location.name}</span></span>
+              <span className="shrink-0 text-right text-xs font-semibold text-amber-700">{quantity} / {minimum} min</span>
+            </li>)}
+          </ul>}
+          <Link href="/restaurant/packaged-items" className="mt-3 inline-block text-sm font-semibold text-orange-700">Review stock and reorder</Link>
         </article>
         <article className="rounded-xl border bg-white p-4">
           <p className="text-sm text-slate-500">Ingredients at or below minimum</p>

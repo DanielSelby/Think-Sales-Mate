@@ -49,6 +49,7 @@ export function resolveTabRouteAccess(
       orders: "orders",
       kitchen: "kitchen",
       menu: "menu",
+      "online-ordering": "menu",
       tables: "tables",
       reservations: "reservations",
       reports: "reports",

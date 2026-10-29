@@ -183,6 +183,28 @@ export async function adjustRestaurantPackagedItemStock(input: {
   revalidatePath("/restaurant/pos");
 }
 
+export async function saveRestaurantPackagedItemMinimumStock(input: {
+  locationId: string;
+  menuItemId: string;
+  minimumQuantity: number;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot configure packaged stock alerts at that branch.");
+  if (!Number.isFinite(input.minimumQuantity) || input.minimumQuantity < 0
+    || Math.abs(input.minimumQuantity * 1000 - Math.round(input.minimumQuantity * 1000)) > 0.000001) {
+    throw new Error("Minimum stock must be non-negative with up to three decimal places.");
+  }
+  const { error } = await createAdminClient().rpc("set_restaurant_packaged_item_minimum_stock", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_menu_item_id: input.menuItemId,
+    p_minimum_quantity: input.minimumQuantity,
+  });
+  if (error) throw new Error(`Could not save packaged stock threshold: ${error.message}`);
+  revalidatePath("/restaurant/packaged-items");
+  revalidatePath("/restaurant/dashboard");
+}
+
 export async function createRestaurantPackagedPurchaseOrder(input: {
   locationId: string;
   supplierId: string;

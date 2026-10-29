@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import {
   adjustRestaurantPackagedItemStock,
   createRestaurantPackagedPurchaseOrder,
   recordRestaurantPackagedWaste,
   receiveRestaurantPackagedPurchase,
+  saveRestaurantPackagedItemMinimumStock,
   transferRestaurantPackagedStock,
 } from "@/app/(dashboard)/restaurant/actions";
 import type { Database } from "@/types/database";
@@ -32,6 +33,8 @@ export function PackagedStockManagement({
   suppliers,
   purchaseOrders,
   purchaseLines,
+  outstandingPurchaseOrders,
+  outstandingPurchaseLines,
   canCreatePurchases,
   canReceivePurchases,
 }: {
@@ -43,6 +46,8 @@ export function PackagedStockManagement({
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
   purchaseLines: PurchaseLine[];
+  outstandingPurchaseOrders: Array<Pick<PurchaseOrder, "id" | "location_id" | "status">>;
+  outstandingPurchaseLines: PurchaseLine[];
   canCreatePurchases: boolean;
   canReceivePurchases: boolean;
 }) {
@@ -64,9 +69,78 @@ export function PackagedStockManagement({
   const [wasteReason, setWasteReason] = useState("");
   const [transferQuantity, setTransferQuantity] = useState("");
   const [transferReason, setTransferReason] = useState("");
+  const [minimumQuantities, setMinimumQuantities] = useState<Record<string, string>>({});
+  const [savingThresholdKey, setSavingThresholdKey] = useState<string | null>(null);
+  const purchaseFormRef = useRef<HTMLFormElement>(null);
   const location = locations.find((entry) => entry.id === locationId);
   const item = items.find((entry) => entry.id === menuItemId);
   const selectedStock = stocks.find((entry) => entry.location_id === locationId && entry.menu_item_id === menuItemId);
+  const outstandingLocationByOrderId = new Map(
+    outstandingPurchaseOrders.map((order) => [order.id, order.location_id]),
+  );
+  const outstandingQuantityByStockKey = new Map<string, number>();
+  for (const line of outstandingPurchaseLines) {
+    const outstandingLocationId = outstandingLocationByOrderId.get(line.purchase_order_id);
+    if (!outstandingLocationId) continue;
+    const key = thresholdKey(outstandingLocationId, line.menu_item_id);
+    outstandingQuantityByStockKey.set(
+      key,
+      (outstandingQuantityByStockKey.get(key) ?? 0)
+        + Number(line.ordered_quantity) - Number(line.quantity_received),
+    );
+  }
+  const reorderSuggestions = locations.flatMap((branch) => items.flatMap((entry) => {
+    if (!entry.is_active) return [];
+    const stock = stocks.find((row) => row.location_id === branch.id && row.menu_item_id === entry.id);
+    const balance = Number(stock?.quantity ?? 0);
+    const minimum = Number(stock?.minimum_quantity ?? 0);
+    if (minimum <= 0 || balance >= minimum) return [];
+    const outstandingQuantity = outstandingQuantityByStockKey.get(thresholdKey(branch.id, entry.id)) ?? 0;
+    return [{
+      locationId: branch.id,
+      locationName: branch.name,
+      menuItemId: entry.id,
+      itemName: entry.name,
+      balance,
+      minimum,
+      outstandingQuantity,
+      suggestedQuantity: Math.max(0, minimum - balance - outstandingQuantity),
+    }];
+  }));
+
+  function handleReorderSuggestion(suggestion: (typeof reorderSuggestions)[number]) {
+    setLocationId(suggestion.locationId);
+    setPurchaseItemId(suggestion.menuItemId);
+    setPurchaseQuantity(String(Number(suggestion.suggestedQuantity.toFixed(3))));
+    purchaseFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function thresholdKey(locationIdValue: string, menuItemIdValue: string) {
+    return `${locationIdValue}:${menuItemIdValue}`;
+  }
+
+  function saveThreshold(branchId: string, itemId: string, currentMinimum: number) {
+    const key = thresholdKey(branchId, itemId);
+    const value = Number(minimumQuantities[key] ?? currentMinimum);
+    setError("");
+    setMessage("");
+    setSavingThresholdKey(key);
+    startTransition(async () => {
+      try {
+        await saveRestaurantPackagedItemMinimumStock({
+          locationId: branchId,
+          menuItemId: itemId,
+          minimumQuantity: value,
+        });
+        setMessage("Packaged item minimum stock saved.");
+        window.location.reload();
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : "Could not save the packaged stock threshold.");
+      } finally {
+        setSavingThresholdKey(null);
+      }
+    });
+  }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -204,8 +278,31 @@ export function PackagedStockManagement({
               <h3 className="font-semibold">{branch.name}</h3>
               <ul className="mt-2 divide-y">
                 {items.map((entry) => {
-                  const balance = stocks.find((stock) => stock.location_id === branch.id && stock.menu_item_id === entry.id)?.quantity ?? 0;
-                  return <li key={entry.id} className="flex items-center justify-between gap-3 py-2 text-sm"><span>{entry.name}</span><strong className={Number(balance) <= 0 ? "text-red-700" : "text-slate-900"}>{Number(balance)}</strong></li>;
+                  const stock = stocks.find((row) => row.location_id === branch.id && row.menu_item_id === entry.id);
+                  const balance = Number(stock?.quantity ?? 0);
+                  const minimum = Number(stock?.minimum_quantity ?? 0);
+                  const isLow = balance <= minimum;
+                  const key = thresholdKey(branch.id, entry.id);
+                  return <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+                    <span className="min-w-32 flex-1">{entry.name}</span>
+                    <span className={`font-semibold ${isLow ? "text-amber-700" : "text-slate-900"}`}>{balance} on hand{isLow ? " · Reorder" : ""}</span>
+                    {canAdjust && <label className="flex items-center gap-2 text-xs text-slate-500">
+                      Min
+                      <input
+                        aria-label={`Minimum stock for ${entry.name} at ${branch.name}`}
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={minimumQuantities[key] ?? String(minimum)}
+                        onChange={(event) => setMinimumQuantities((current) => ({ ...current, [key]: event.target.value }))}
+                        className="h-8 w-20 rounded border px-2 text-sm"
+                      />
+                      <button type="button" disabled={isPending || savingThresholdKey === key} onClick={() => saveThreshold(branch.id, entry.id, minimum)} className="rounded border px-2 py-1 text-xs font-semibold disabled:opacity-50">
+                        {savingThresholdKey === key ? "Saving" : "Save"}
+                      </button>
+                    </label>}
+                    {!canAdjust && <span className="text-xs text-slate-500">Minimum {minimum}</span>}
+                  </li>;
                 })}
               </ul>
             </article>
@@ -235,7 +332,39 @@ export function PackagedStockManagement({
         <button type="submit" disabled={isPending || !locationId || !destinationLocationId} className="rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50">Transfer stock</button>
       </form>}
     </div>}
-    {canCreatePurchases && items.length > 0 && <form onSubmit={submitPurchase} className="space-y-3 rounded-xl border bg-white p-4">
+    <section className="space-y-3">
+      <div>
+        <h2 className="font-bold text-slate-950">Reorder suggestions</h2>
+        <p className="text-xs text-slate-500">Suggested quantities bring stock back to its minimum, after subtracting quantities already on open purchase orders.</p>
+      </div>
+      {reorderSuggestions.length === 0
+        ? <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">No positive minimum-stock thresholds currently need reordering. Set a minimum above zero to receive quantity suggestions.</p>
+        : <div className="overflow-x-auto rounded-xl border bg-white">
+          <table className="w-full min-w-[620px] text-left text-sm">
+            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Branch</th><th className="p-3">Item</th><th className="p-3">On hand / minimum</th><th className="p-3">Already on order</th><th className="p-3">Suggested quantity</th>{canCreatePurchases && <th className="p-3">Action</th>}</tr></thead>
+            <tbody className="divide-y">{reorderSuggestions.map((suggestion) => (
+              <tr key={`${suggestion.locationId}:${suggestion.menuItemId}`}>
+                <td className="p-3">{suggestion.locationName}</td>
+                <td className="p-3 font-medium">{suggestion.itemName}</td>
+                <td className="p-3">{suggestion.balance} / {suggestion.minimum}</td>
+                <td className="p-3">{suggestion.outstandingQuantity}</td>
+                <td className="p-3 font-semibold">{suggestion.suggestedQuantity}</td>
+                {canCreatePurchases && <td className="p-3">
+                  <button
+                    type="button"
+                    disabled={suggestion.suggestedQuantity <= 0}
+                    onClick={() => handleReorderSuggestion(suggestion)}
+                    className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {suggestion.suggestedQuantity > 0 ? "Prepare order" : "Covered by open order"}
+                  </button>
+                </td>}
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>}
+    </section>
+    {canCreatePurchases && items.length > 0 && <form ref={purchaseFormRef} onSubmit={submitPurchase} className="space-y-3 rounded-xl border bg-white p-4">
       <div><h2 className="font-bold text-slate-950">Order packaged goods from a supplier</h2><p className="text-xs text-slate-500">Receiving updates Restaurant branch stock only; it does not change ERP product inventory.</p></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <label className="text-xs font-semibold text-slate-600">Branch<select required value={locationId} onChange={(event) => setLocationId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm">{locations.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></label>

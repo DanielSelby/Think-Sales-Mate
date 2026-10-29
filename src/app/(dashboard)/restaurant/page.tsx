@@ -9,7 +9,7 @@ import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import type { Database, Json } from "@/types/database";
 import RestaurantView from "./restaurant-view";
 
-type RestaurantViewKey = "orders" | "kitchen" | "menu" | "tables" | "reservations" | "reports" | "ingredients";
+type RestaurantViewKey = "orders" | "kitchen" | "menu" | "online-ordering" | "tables" | "reservations" | "reports" | "ingredients";
 type RestaurantReport = {
   summary: {
     order_count: number;
@@ -58,13 +58,14 @@ export default async function RestaurantPage({
   if (!context) redirect("/login");
 
   const { view: requestedView, from, to, locationId: requestedLocationId } = await searchParams;
-  const validViews: RestaurantViewKey[] = ["orders", "kitchen", "menu", "tables", "reservations", "reports", "ingredients"];
+  const validViews: RestaurantViewKey[] = ["orders", "kitchen", "menu", "online-ordering", "tables", "reservations", "reports", "ingredients"];
   const view: RestaurantViewKey = requestedView && validViews.includes(requestedView as RestaurantViewKey) ? requestedView as RestaurantViewKey : "orders";
   const enabledModules = await getEnabledOrganizationModules(context.orgId);
   if (!enabledModules.includes("Restaurant")) {
     redirect("/dashboard?moduleDisabled=Restaurant");
   }
-  if (!(await canTabPermission("restaurant", "operations", view, "view"))) {
+  const permissionTab = view === "online-ordering" ? "menu" : view;
+  if (!(await canTabPermission("restaurant", "operations", permissionTab, "view"))) {
     redirect("/dashboard?accessDenied=restaurant.operations");
   }
 
@@ -99,7 +100,7 @@ export default async function RestaurantPage({
 
   const accessibleLocations = (locations ?? []).filter((location) => canAccessLocation(context, location.id));
   const locationIds = accessibleLocations.map(({ id }) => id);
-  const { data: onlineSettings, error: onlineSettingsError } = view === "menu" && locationIds.length > 0
+  const { data: onlineSettings, error: onlineSettingsError } = view === "online-ordering" && locationIds.length > 0
     ? await createAdminClient().from("restaurant_online_settings").select("*").eq("org_id", context.orgId).in("location_id", locationIds)
     : { data: [], error: null };
   if (onlineSettingsError) throw new Error(`Could not load restaurant online ordering settings: ${onlineSettingsError.message}`);

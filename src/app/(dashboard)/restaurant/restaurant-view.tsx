@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Database, Json } from "@/types/database";
 import {
@@ -66,7 +66,7 @@ function getReservationHours(value: Json | undefined): ReservationDayHours[] {
   });
 }
 type PrepStation = "kitchen" | "bar" | "dessert";
-type ViewKey = "orders" | "kitchen" | "menu" | "tables" | "reservations" | "reports" | "ingredients";
+type ViewKey = "orders" | "kitchen" | "menu" | "online-ordering" | "tables" | "reservations" | "reports" | "ingredients";
 const prepStationLabels: Record<PrepStation, string> = { kitchen: "Kitchen", bar: "Bar", dessert: "Dessert" };
 type RestaurantIngredient = Database["public"]["Tables"]["restaurant_ingredients"]["Row"];
 type RestaurantIngredientStock = Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"];
@@ -320,7 +320,7 @@ export default function RestaurantView({
           <h1 className="mt-1 text-2xl font-bold text-slate-950">Restaurant Management</h1>
           <p className="mt-1 text-sm text-slate-600">Manage your menu, tables, service orders, kitchen queue, and payments separately from product sales.</p>
         </div>
-        {view !== "menu" && view !== "reports" && locations.length > 0 && (
+        {view !== "menu" && view !== "online-ordering" && view !== "reports" && locations.length > 0 && (
           <label className="text-xs font-semibold text-slate-600">
             Branch
             <select value={locationId} onChange={(event) => setLocationId(event.target.value)} className="ml-2 h-10 min-w-48 rounded-lg border bg-white px-3 text-sm">
@@ -338,6 +338,7 @@ export default function RestaurantView({
           ["orders", "Orders & Kitchen"],
           ["kitchen", "Kitchen Display"],
           ["menu", "Menu Management"],
+          ["online-ordering", "Online Ordering"],
           ["tables", "Dining Tables"],
           ["reservations", "Reservations & Waitlist"],
           ["reports", "Reports & Analytics"],
@@ -533,15 +534,15 @@ export default function RestaurantView({
         </section>
       )}
 
+      {view === "online-ordering" && <RestaurantOnlineSettingsPanel
+        orgSlug={orgSlug}
+        locations={locations}
+        settings={onlineSettings}
+        canEdit={canEditMenu}
+        isPending={isPending}
+        onAction={runAction}
+      />}
       {view === "menu" && <>
-        <RestaurantOnlineSettingsPanel
-          orgSlug={orgSlug}
-          locations={locations}
-          settings={onlineSettings}
-          canEdit={canEditMenu}
-          isPending={isPending}
-          onAction={runAction}
-        />
         <MenuManagement currency={currency} categories={categories} menuItems={menuItems} modifierGroups={modifierGroups} modifierOptions={modifierOptions} canCreate={canCreateMenu} canEdit={canEditMenu} isPending={isPending} onAction={runAction} />
       </>}
       {view === "tables" && <TableManagement locations={locations} tables={tables} orders={orders} selectedLocationId={locationId} branchScoped={branchScoped} canCreate={canCreateTables} canEdit={canEditTables} isPending={isPending} onAction={runAction} />}
@@ -1587,6 +1588,24 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
   const [imageUploadError, setImageUploadError] = useState("");
   const [prepStation, setPrepStation] = useState<PrepStation>("kitchen");
   const [itemType, setItemType] = useState<"prepared" | "packaged">("prepared");
+  const menuItemFormRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (itemId) menuItemFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [itemId]);
+
+  function resetMenuItemForm() {
+    setItemId(undefined);
+    setItemName("");
+    setItemSku("");
+    setDescription("");
+    setItemCategoryId("");
+    setPrice("");
+    setImageUrl(null);
+    setPrepStation("kitchen");
+    setItemType("prepared");
+    setImageUploadError("");
+  }
 
   async function handleMenuImageUpload(file: File | undefined) {
     if (!file) return;
@@ -1628,15 +1647,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
         sortOrder: menuItems.find((item) => item.id === itemId)?.sort_order ?? menuItems.length,
         isActive: menuItems.find((item) => item.id === itemId)?.is_active ?? true,
       });
-      setItemId(undefined);
-      setItemName("");
-      setItemSku("");
-      setDescription("");
-      setItemCategoryId("");
-      setPrice("");
-      setImageUrl(null);
-      setPrepStation("kitchen");
-      setItemType("prepared");
+      resetMenuItemForm();
     }, "Menu item saved.");
   }
 
@@ -1651,12 +1662,12 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
               <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{item.item_type === "packaged" ? "Packaged resale" : "Prepared"} · {categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}{item.sku ? ` · SKU ${item.sku}` : ""}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
             </div>
             {canEdit && <div className="flex gap-2">
-              <button type="button" onClick={() => { setItemId(item.id); setItemName(item.name); setItemSku(item.sku ?? ""); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); setItemType(item.item_type); }} className="rounded border px-3 py-2 text-xs font-semibold">Edit</button>
+              <button type="button" disabled={isPending} onClick={() => { setItemId(item.id); setItemName(item.name); setItemSku(item.sku ?? ""); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); setItemType(item.item_type); setImageUploadError(""); }} className="rounded border px-3 py-2 text-xs font-semibold disabled:opacity-50">Edit</button>
               <button type="button" disabled={isPending} onClick={() => onAction(() => saveRestaurantMenuItem({ id: item.id, categoryId: item.category_id, name: item.name, description: item.description ?? "", price: Number(item.price), prepStation: item.prep_station, sortOrder: item.sort_order, isActive: !item.is_active }), item.is_active ? "Menu item marked unavailable." : "Menu item activated.")} className="rounded border px-3 py-2 text-xs font-semibold">{item.is_active ? "Unavailable" : "Activate"}</button>
             </div>}
           </article>
         ))}
-        {(canCreate || (itemId && canEdit)) && <form onSubmit={submitItem} className="rounded-xl border bg-white p-4">
+        {(canCreate || (itemId && canEdit)) && <form ref={menuItemFormRef} onSubmit={submitItem} className="rounded-xl border bg-white p-4">
           <h3 className="font-bold text-slate-950">{itemId ? "Edit menu item" : "Add menu item"}</h3>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold">Name<input required maxLength={120} value={itemName} onChange={(event) => setItemName(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
@@ -1673,7 +1684,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           {imageUploading && <p role="status" className="mt-2 text-xs text-slate-500">Uploading image…</p>}
           {imageUploadError && <p role="alert" className="mt-2 text-xs text-red-700">{imageUploadError}</p>}
           {imageUrl && <div className="mt-3 flex items-center gap-3"><Image src={imageUrl} alt="Menu item preview" width={80} height={80} unoptimized className="h-20 w-20 rounded-lg bg-slate-100 object-contain dark:bg-slate-800" /><button type="button" onClick={() => setImageUrl(null)} className="rounded border px-3 py-2 text-xs">Remove image</button></div>}
-          <div className="mt-3 flex gap-2"><button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" onClick={() => { setItemId(undefined); setItemName(""); setItemSku(""); setDescription(""); setItemCategoryId(""); setPrice(""); setImageUrl(null); setPrepStation("kitchen"); }} className="rounded-lg border px-4 py-2 text-sm">Cancel edit</button>}</div>
+          <div className="mt-3 flex gap-2"><button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" disabled={isPending} onClick={resetMenuItemForm} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">Cancel edit</button>}</div>
         </form>}
       </section>
       <aside className="space-y-4">
