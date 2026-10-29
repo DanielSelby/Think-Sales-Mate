@@ -183,6 +183,192 @@ export async function adjustRestaurantPackagedItemStock(input: {
   revalidatePath("/restaurant/pos");
 }
 
+export async function createRestaurantPackagedPurchaseOrder(input: {
+  locationId: string;
+  supplierId: string;
+  reference: string;
+  items: Array<{ menuItemId: string; quantity: number; unitCost: number }>;
+}) {
+  const context = await restaurantContext("ingredients", "create");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot create a packaged purchase order for that branch.");
+  const reference = requiredText(input.reference, "Purchase reference", 80);
+  if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
+    throw new Error("A purchase order must contain between 1 and 100 packaged items.");
+  }
+  const seen = new Set<string>();
+  for (const item of input.items) {
+    if (typeof item.menuItemId !== "string" || seen.has(item.menuItemId)
+      || !validQuantity(item.quantity) || !validMoney(item.unitCost, true)
+      || Math.abs(item.unitCost * 10000 - Math.round(item.unitCost * 10000)) > 0.000001) {
+      throw new Error("Check each unique packaged item has a valid quantity and non-negative unit cost.");
+    }
+    seen.add(item.menuItemId);
+  }
+  const admin = createAdminClient();
+  const [{ data: supplier, error: supplierError }, { data: menuItems, error: itemsError }] = await Promise.all([
+    admin.from("suppliers").select("id").eq("org_id", context.orgId).eq("id", input.supplierId).eq("is_active", true).maybeSingle(),
+    admin.from("restaurant_menu_items").select("id, item_type").eq("org_id", context.orgId)
+      .in("id", [...seen]).eq("is_active", true),
+  ]);
+  if (supplierError) throw new Error(`Could not verify purchase supplier: ${supplierError.message}`);
+  if (itemsError) throw new Error(`Could not verify packaged items: ${itemsError.message}`);
+  if (!supplier) throw new Error("Choose an active supplier from this organization.");
+  if (menuItems?.length !== seen.size || menuItems.some((item) => item.item_type !== "packaged")) {
+    throw new Error("Choose active packaged resale items from this organization.");
+  }
+  const { data: purchaseOrder, error: orderError } = await admin.from("restaurant_packaged_purchase_orders")
+    .insert({
+      org_id: context.orgId,
+      location_id: input.locationId,
+      supplier_id: input.supplierId,
+      reference,
+      created_by: context.userId,
+    })
+    .select("id")
+    .single();
+  if (orderError || !purchaseOrder) {
+    throw new Error(`Could not create packaged purchase order: ${orderError?.message ?? "No purchase order was returned."}`);
+  }
+  const { error: lineError } = await admin.from("restaurant_packaged_purchase_items").insert(
+    input.items.map((item) => ({
+      org_id: context.orgId,
+      purchase_order_id: purchaseOrder.id,
+      menu_item_id: item.menuItemId,
+      ordered_quantity: item.quantity,
+      unit_cost: item.unitCost,
+    })),
+  );
+  if (lineError) {
+    const { error: rollbackError } = await admin.from("restaurant_packaged_purchase_orders")
+      .delete().eq("org_id", context.orgId).eq("id", purchaseOrder.id);
+    if (rollbackError) throw new Error(`Could not save purchase lines (${lineError.message}); cleanup failed (${rollbackError.message}).`);
+    throw new Error(`Could not save packaged purchase lines: ${lineError.message}`);
+  }
+  revalidatePath("/restaurant/packaged-items");
+}
+
+export async function receiveRestaurantPackagedPurchase(input: {
+  purchaseOrderId: string;
+  items: Array<{ itemId: string; quantity: number }>;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
+    throw new Error("Choose one or more valid purchase lines to receive.");
+  }
+  const seen = new Set<string>();
+  const lines: Json[] = input.items.map((item) => {
+    if (typeof item.itemId !== "string" || seen.has(item.itemId) || !validQuantity(item.quantity)) {
+      throw new Error("Each received line must have a unique item and positive quantity up to three decimals.");
+    }
+    seen.add(item.itemId);
+    return { item_id: item.itemId, quantity: item.quantity };
+  });
+  const admin = createAdminClient();
+  const { data: purchaseOrder, error: orderError } = await admin.from("restaurant_packaged_purchase_orders")
+    .select("id, location_id").eq("org_id", context.orgId).eq("id", input.purchaseOrderId).maybeSingle();
+  if (orderError) throw new Error(`Could not verify packaged purchase order: ${orderError.message}`);
+  if (!purchaseOrder || !canUseLocation(context, purchaseOrder.location_id)) {
+    throw new Error("Packaged purchase order not found or not accessible.");
+  }
+  const { error } = await admin.rpc("receive_restaurant_packaged_purchase", {
+    p_org_id: context.orgId,
+    p_purchase_order_id: input.purchaseOrderId,
+    p_lines: lines,
+    p_received_by: context.userId,
+  });
+  if (error) throw new Error(`Could not receive packaged purchase: ${error.message}`);
+  revalidatePath("/restaurant/packaged-items");
+  revalidatePath("/restaurant/dashboard");
+  revalidatePath("/restaurant/pos");
+}
+
+export async function closeRestaurantBusinessDay(input: {
+  locationId: string;
+  businessDate: string;
+  countedByMethod: { cash: number; card: number; mobile_money: number; other: number };
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot close the Restaurant day at that branch.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.businessDate)
+    || !Number.isFinite(Date.parse(`${input.businessDate}T00:00:00.000Z`))
+    || new Date(`${input.businessDate}T00:00:00.000Z`).toISOString().slice(0, 10) !== input.businessDate
+    || input.businessDate > new Date().toISOString().slice(0, 10)) {
+    throw new Error("Choose a valid business date that is not in the future.");
+  }
+  const methods = ["cash", "card", "mobile_money", "other"] as const;
+  for (const method of methods) {
+    if (!Number.isFinite(input.countedByMethod[method]) || input.countedByMethod[method] < 0
+      || Math.abs(input.countedByMethod[method] * 100 - Math.round(input.countedByMethod[method] * 100)) > 0.000001) {
+      throw new Error("Counted tender totals must be non-negative amounts with up to two decimals.");
+    }
+  }
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("close_restaurant_business_day", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_business_date: input.businessDate,
+    p_counted_by_method: input.countedByMethod,
+    p_closed_by: context.userId,
+  });
+  if (error) throw new Error(`Could not close the Restaurant business day: ${error.message}`);
+  revalidatePath("/restaurant/close-day");
+  revalidatePath("/restaurant/dashboard");
+  return data;
+}
+
+export async function transferRestaurantPackagedStock(input: {
+  sourceLocationId: string;
+  destinationLocationId: string;
+  menuItemId: string;
+  quantity: number;
+  reason: string;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.sourceLocationId) || !canUseLocation(context, input.destinationLocationId)) {
+    throw new Error("You need access to both branches to transfer packaged stock.");
+  }
+  if (!validQuantity(input.quantity)) throw new Error("Transfer quantity must be positive with up to three decimals.");
+  const reason = requiredText(input.reason, "Transfer reason", 200);
+  const { data, error } = await createAdminClient().rpc("transfer_restaurant_packaged_stock", {
+    p_org_id: context.orgId,
+    p_source_location_id: input.sourceLocationId,
+    p_destination_location_id: input.destinationLocationId,
+    p_menu_item_id: input.menuItemId,
+    p_quantity: input.quantity,
+    p_reason: reason,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not transfer packaged stock: ${error.message}`);
+  revalidatePath("/restaurant/packaged-items");
+  revalidatePath("/restaurant/dashboard");
+  revalidatePath("/restaurant/pos");
+  return data;
+}
+
+export async function recordRestaurantPackagedWaste(input: {
+  locationId: string;
+  menuItemId: string;
+  quantity: number;
+  reason: string;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot record packaged waste at that branch.");
+  if (!validQuantity(input.quantity)) throw new Error("Waste quantity must be positive with up to three decimals.");
+  const reason = requiredText(input.reason, "Waste reason", 200);
+  const { error } = await createAdminClient().rpc("record_restaurant_packaged_waste", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_menu_item_id: input.menuItemId,
+    p_quantity: input.quantity,
+    p_reason: reason,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not record packaged item waste: ${error.message}`);
+  revalidatePath("/restaurant/packaged-items");
+  revalidatePath("/restaurant/dashboard");
+  revalidatePath("/restaurant/pos");
+}
+
 export type RestaurantMenuImportRow = {
   name: string;
   sku: string;

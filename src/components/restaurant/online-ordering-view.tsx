@@ -196,28 +196,28 @@ export default function OnlineOrderingView({
     </main>;
   }
 
-  return <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+  return <main className="w-full max-w-none space-y-6 px-3 py-5 sm:px-5 sm:py-6 lg:px-8">
     <header className="rounded-2xl bg-slate-950 p-6 text-white">
       <p className="text-sm font-semibold text-orange-300">{branchName}</p>
       <h1 className="mt-1 text-3xl font-bold">{organizationName}</h1>
       <p className="mt-2 text-sm text-slate-300">Restaurant menu · Order for pickup or delivery</p>
     </header>
-    <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <form onSubmit={submit} className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="space-y-4">
         {menuIsEmpty ? <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No menu items are available right now.</p>
-          : <div className="grid gap-4 lg:grid-cols-[12rem_minmax(0,1fr)]">
-            <nav aria-label="Product categories" className="flex gap-2 overflow-x-auto lg:sticky lg:top-4 lg:h-fit lg:flex-col lg:overflow-visible lg:rounded-xl lg:border lg:bg-white lg:p-3">
-              <button type="button" onClick={() => setActiveCategoryId("all")} aria-pressed={activeCategoryId === "all"} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === "all" ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 lg:border-transparent"}`}>
+          : <div className="grid min-w-0 gap-4 xl:grid-cols-[10rem_minmax(0,1fr)]">
+            <nav aria-label="Product categories" className="flex gap-2 overflow-x-auto xl:sticky xl:top-4 xl:h-fit xl:flex-col xl:overflow-visible xl:rounded-xl xl:border xl:bg-white xl:p-3">
+              <button type="button" onClick={() => setActiveCategoryId("all")} aria-pressed={activeCategoryId === "all"} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === "all" ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 xl:border-transparent"}`}>
                 All items <span className="ml-1 text-xs opacity-75">({menuItems.length})</span>
               </button>
-              {menuSectionsWithItems.map((category) => <button key={category.id} type="button" onClick={() => setActiveCategoryId(category.id)} aria-pressed={activeCategoryId === category.id} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === category.id ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 lg:border-transparent"}`}>
+              {menuSectionsWithItems.map((category) => <button key={category.id} type="button" onClick={() => setActiveCategoryId(category.id)} aria-pressed={activeCategoryId === category.id} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === category.id ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 xl:border-transparent"}`}>
                 <span className="break-words">{category.name}</span> <span className="text-xs opacity-75">({category.items.length})</span>
               </button>)}
             </nav>
             <div className="min-w-0 space-y-5">
               {visibleMenuSections.map((category) => <section key={category.id} className="min-w-0 space-y-3">
                 {activeCategoryId === "all" && <h2 className="text-xl font-bold text-slate-950">{category.name}</h2>}
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4 min-[1800px]:grid-cols-5">
               {category.items.map((item) => {
                 const itemGroups = modifierGroups.filter((group) => group.menu_item_id === item.id);
                 const quantity = Number(quantities[item.id] ?? 0);
@@ -257,7 +257,7 @@ export default function OnlineOrderingView({
             </div>
           </div>}
       </section>
-      <aside className="h-fit space-y-4 rounded-xl border bg-white p-4 lg:sticky lg:top-4">
+      <aside className="h-fit space-y-4 rounded-xl border bg-white p-4 xl:sticky xl:top-4">
         <h2 className="text-lg font-bold text-slate-950">Checkout</h2>
         <div className="grid grid-cols-2 gap-2">
           {acceptsPickup && <button type="button" onClick={() => setFulfillment("pickup")} className={`rounded-lg border p-2 text-sm font-semibold ${fulfillment === "pickup" ? "border-orange-600 bg-orange-50 text-orange-800" : "text-slate-600"}`}>Pickup</button>}

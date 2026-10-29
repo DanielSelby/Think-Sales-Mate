@@ -693,7 +693,9 @@ export interface Database {
           location_id: string;
           menu_item_id: string;
           order_id: string | null;
-          movement_type: "adjustment" | "sale";
+          purchase_order_id: string | null;
+          transfer_id: string | null;
+          movement_type: "adjustment" | "sale" | "purchase_receipt" | "waste" | "transfer_in" | "transfer_out";
           quantity_delta: number;
           balance_after: number;
           reason: string;
@@ -706,7 +708,9 @@ export interface Database {
           location_id: string;
           menu_item_id: string;
           order_id?: string | null;
-          movement_type: "adjustment" | "sale";
+          purchase_order_id?: string | null;
+          transfer_id?: string | null;
+          movement_type: "adjustment" | "sale" | "purchase_receipt" | "waste" | "transfer_in" | "transfer_out";
           quantity_delta: number;
           balance_after: number;
           reason: string;
@@ -714,6 +718,110 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_packaged_item_movements"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_packaged_purchase_orders: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          supplier_id: string;
+          status: "ordered" | "partially_received" | "received";
+          reference: string;
+          created_by: string | null;
+          received_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          supplier_id: string;
+          status?: "ordered" | "partially_received" | "received";
+          reference: string;
+          created_by?: string | null;
+          received_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_packaged_purchase_orders"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_packaged_purchase_items: {
+        Row: {
+          id: string;
+          org_id: string;
+          purchase_order_id: string;
+          menu_item_id: string;
+          ordered_quantity: number;
+          quantity_received: number;
+          unit_cost: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          purchase_order_id: string;
+          menu_item_id: string;
+          ordered_quantity: number;
+          quantity_received?: number;
+          unit_cost: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_packaged_purchase_items"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_day_closings: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          business_date: string;
+          expected_by_method: Json;
+          counted_by_method: Json;
+          variance_by_method: Json;
+          closed_by: string;
+          closed_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          business_date: string;
+          expected_by_method: Json;
+          counted_by_method: Json;
+          variance_by_method: Json;
+          closed_by: string;
+          closed_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_day_closings"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_packaged_stock_transfers: {
+        Row: {
+          id: string;
+          org_id: string;
+          source_location_id: string;
+          destination_location_id: string;
+          menu_item_id: string;
+          quantity: number;
+          reason: string;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          source_location_id: string;
+          destination_location_id: string;
+          menu_item_id: string;
+          quantity: number;
+          reason: string;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_packaged_stock_transfers"]["Row"]>;
         Relationships: [];
       };
       restaurant_ingredient_purchase_orders: {
@@ -4278,6 +4386,67 @@ export interface Database {
           p_location_id: string;
           p_menu_item_id: string;
           p_quantity_delta: number;
+          p_reason: string;
+          p_created_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"];
+      };
+      receive_restaurant_packaged_purchase: {
+        Args: {
+          p_org_id: string;
+          p_purchase_order_id: string;
+          p_lines: Json;
+          p_received_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_packaged_purchase_orders"]["Row"];
+      };
+      close_restaurant_business_day: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_business_date: string;
+          p_counted_by_method: Json;
+          p_closed_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_day_closings"]["Row"];
+      };
+      get_restaurant_item_margins: {
+        Args: {
+          p_org_id: string;
+          p_location_ids: string[];
+          p_start_at: string;
+          p_end_at: string;
+        };
+        Returns: Array<{
+          menu_item_id: string;
+          item_name: string;
+          item_type: string;
+          quantity_sold: number;
+          sales: number;
+          estimated_unit_cost: number;
+          estimated_cost: number;
+          gross_profit: number;
+          margin_percent: number;
+        }>;
+      };
+      transfer_restaurant_packaged_stock: {
+        Args: {
+          p_org_id: string;
+          p_source_location_id: string;
+          p_destination_location_id: string;
+          p_menu_item_id: string;
+          p_quantity: number;
+          p_reason: string;
+          p_created_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_packaged_stock_transfers"]["Row"];
+      };
+      record_restaurant_packaged_waste: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_menu_item_id: string;
+          p_quantity: number;
           p_reason: string;
           p_created_by: string;
         };

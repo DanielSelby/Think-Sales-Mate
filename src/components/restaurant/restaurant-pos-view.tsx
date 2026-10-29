@@ -178,29 +178,31 @@ export default function RestaurantPosView({
         </nav>
         {locations.length === 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">There are no branches available to your account.</p>}
         {menuItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">Add active menu items before taking restaurant orders.</p>}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visibleItems.map((item) => {
             const quantity = quantities[item.id] ?? 0;
             const groups = modifierGroups.filter((group) => group.menu_item_id === item.id);
             const packagedQuantity = packagedStock.find((stock) => stock.location_id === locationId && stock.menu_item_id === item.id)?.quantity ?? 0;
             const outOfStock = item.item_type === "packaged" && packagedQuantity <= 0;
-            return <article key={item.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm">
-              <div className="relative h-32 bg-slate-100 sm:h-40">
-                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw" className="bg-slate-100 object-contain" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400">No image</div>}
+            return <article key={item.id} className="group flex min-w-0 flex-col items-center overflow-hidden rounded-md bg-gradient-to-br from-white via-white to-slate-50 p-2.5 text-center shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5">
+              <div className="relative mb-2 h-28 w-full overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-inner">
+                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-contain transition-transform duration-200 group-hover:scale-[1.025]" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400">No image</div>}
               </div>
-              <div className="flex flex-1 flex-col gap-2 p-3">
-                <div className="min-w-0">
-                  <h2 className="break-words text-sm font-semibold leading-snug text-slate-950 sm:text-base">{item.name}</h2>
-                  {item.description && <p className="mt-1 break-words whitespace-normal text-xs leading-relaxed text-slate-500">{item.description}</p>}
-                  <span className="mt-2 block text-sm font-bold text-orange-700">{money(Number(item.price), currency)}</span>
-                  {item.item_type === "packaged" && <span className={`mt-1 block text-xs font-medium ${outOfStock ? "text-red-700" : "text-slate-500"}`}>{outOfStock ? "Out of stock" : `${packagedQuantity} available`}</span>}
+              <div className="flex w-full flex-1 flex-col">
+                <div className="w-full min-w-0 rounded-md px-1.5 pb-1 pt-0.5">
+                  <h2 className="line-clamp-2 break-words text-[11px] font-semibold leading-tight text-slate-950">{item.name}</h2>
+                  {item.description && <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500">{item.description}</p>}
+                  <div className="mt-1 flex w-full items-center justify-between gap-1">
+                    <span className="truncate text-xs font-bold text-orange-700 sm:text-sm">{money(Number(item.price), currency)}</span>
+                    {item.item_type === "packaged" && <span className={`shrink-0 text-[10px] font-semibold ${outOfStock ? "text-red-700" : "text-slate-500"}`}>{outOfStock ? "Out" : `(${packagedQuantity})`}</span>}
+                  </div>
                 </div>
                 {quantity === 0
-                  ? <button type="button" disabled={outOfStock} onClick={() => changeQuantity(item.id, 1)} className="mt-auto w-full rounded-lg bg-orange-600 px-2 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400 sm:text-sm">{outOfStock ? "Unavailable" : "Add to order"}</button>
-                  : <div className="mt-auto flex items-center justify-between rounded-lg bg-slate-50 p-1">
-                    <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-9 w-10 rounded-md border text-lg">−</button>
+                  ? <button type="button" disabled={outOfStock} onClick={() => changeQuantity(item.id, 1)} className="mt-1 w-full rounded-md bg-orange-600 px-2 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400">{outOfStock ? "Unavailable" : "Add to order"}</button>
+                  : <div className="mt-1 flex w-full items-center justify-between rounded-md bg-slate-50 p-1">
+                    <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-8 w-9 rounded-md border bg-white text-lg">−</button>
                     <span className="text-sm font-bold">{quantity}</span>
-                    <button type="button" aria-label={`Add one ${item.name}`} disabled={item.item_type === "packaged" && quantity >= packagedQuantity} onClick={() => changeQuantity(item.id, 1)} className="h-9 w-10 rounded-md border text-lg disabled:opacity-40">+</button>
+                    <button type="button" aria-label={`Add one ${item.name}`} disabled={item.item_type === "packaged" && quantity >= packagedQuantity} onClick={() => changeQuantity(item.id, 1)} className="h-8 w-9 rounded-md border bg-white text-lg disabled:opacity-40">+</button>
                   </div>}
                 {quantity > 0 && groups.map((group) => {
                   const key = `${item.id}:${group.id}`;

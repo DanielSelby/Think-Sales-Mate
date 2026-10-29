@@ -50,6 +50,7 @@ export default async function RestaurantDashboardPage() {
   const admin = createAdminClient();
   const [
     { data: reportResult, error: reportError },
+    { data: marginRows, error: marginError },
     { data: activeOrders, error: ordersError },
     { count: activeMenuCount, error: menuError },
     { data: packagedItems, error: packagedItemsError },
@@ -57,6 +58,12 @@ export default async function RestaurantDashboardPage() {
     { data: ingredientStock, error: ingredientStockError },
   ] = await Promise.all([
     admin.rpc("get_restaurant_report", {
+      p_org_id: context.orgId,
+      p_location_ids: locationIds,
+      p_start_at: start.toISOString(),
+      p_end_at: end.toISOString(),
+    }),
+    admin.rpc("get_restaurant_item_margins", {
       p_org_id: context.orgId,
       p_location_ids: locationIds,
       p_start_at: start.toISOString(),
@@ -81,7 +88,7 @@ export default async function RestaurantDashboardPage() {
         .eq("org_id", context.orgId).in("location_id", locationIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  const queryError = reportError ?? ordersError ?? menuError ?? packagedItemsError ?? packagedStockError ?? ingredientStockError;
+  const queryError = reportError ?? marginError ?? ordersError ?? menuError ?? packagedItemsError ?? packagedStockError ?? ingredientStockError;
   if (queryError) throw new Error(`Could not load Restaurant dashboard: ${queryError.message}`);
   if (!isSummary(reportResult)) throw new Error("The Restaurant dashboard report returned invalid data.");
 
@@ -109,6 +116,7 @@ export default async function RestaurantDashboardPage() {
       </div>
       <nav aria-label="Restaurant dashboard actions" className="flex flex-wrap gap-2">
         <Link href="/restaurant/pos" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white">Open POS</Link>
+        <Link href="/restaurant/close-day" className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold">Close of day</Link>
         <Link href="/restaurant?view=reports" className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold">Restaurant reports</Link>
         <Link href="/restaurant/packaged-items" className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold">Packaged stock</Link>
       </nav>
@@ -151,6 +159,20 @@ export default async function RestaurantDashboardPage() {
           <p className="mt-1">Restaurant sales remain separate from ERP sales and inventory. Financial postings continue to follow the configured accounting mappings.</p>
         </article>
       </aside>
+    </section>
+    <section className="space-y-3">
+      <div><h2 className="text-lg font-bold text-slate-950">Menu item margin · last 30 days</h2><p className="text-xs text-slate-500">Estimates use received packaged purchase costs and current recipe ingredient costs. Review cost setup before using this for accounting decisions.</p></div>
+      {(marginRows ?? []).length === 0 ? <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">No Restaurant item sales in this period.</p> : <div className="overflow-x-auto rounded-xl border bg-white">
+        <table className="w-full min-w-[700px] text-left text-sm">
+          <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Item</th><th className="p-3">Type</th><th className="p-3 text-right">Qty</th><th className="p-3 text-right">Sales</th><th className="p-3 text-right">Est. cost</th><th className="p-3 text-right">Gross profit</th><th className="p-3 text-right">Margin</th></tr></thead>
+          <tbody className="divide-y">{(marginRows ?? []).map((row) => <tr key={row.menu_item_id ?? row.item_name}>
+            <td className="p-3 font-medium">{row.item_name}</td><td className="p-3 capitalize">{row.item_type ?? "unknown"}</td>
+            <td className="p-3 text-right">{Number(row.quantity_sold)}</td><td className="p-3 text-right">{money(Number(row.sales), context.currency)}</td>
+            <td className="p-3 text-right">{money(Number(row.estimated_cost), context.currency)}</td>
+            <td className="p-3 text-right font-semibold">{money(Number(row.gross_profit), context.currency)}</td><td className="p-3 text-right">{Number(row.margin_percent).toFixed(1)}%</td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
     </section>
   </main>;
 }

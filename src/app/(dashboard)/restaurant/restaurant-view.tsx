@@ -32,6 +32,7 @@ import {
   splitRestaurantBillEqually,
 } from "./actions";
 import { RestaurantMenuImporter } from "@/components/restaurant/restaurant-menu-importer";
+import { IncomingOrderAlerts } from "@/components/restaurant/incoming-order-alerts";
 
 type Category = Database["public"]["Tables"]["restaurant_menu_categories"]["Row"];
 type MenuItem = Database["public"]["Tables"]["restaurant_menu_items"]["Row"];
@@ -329,6 +330,8 @@ export default function RestaurantView({
         )}
         {canCreateOrders && <Link href="/restaurant/pos" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Open Restaurant POS</Link>}
       </header>
+
+      {(view === "orders" || view === "kitchen") && <IncomingOrderAlerts orgId={orgId} locationIds={locations.map((location) => location.id)} />}
 
       <nav aria-label="Restaurant sections" className="flex gap-2 overflow-x-auto rounded-xl border bg-white p-2">
         {([

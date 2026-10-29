@@ -26,6 +26,8 @@ export default async function RestaurantPackagedItemsPage() {
     { data: items, error: itemsError },
     stockResult,
     movementResult,
+    supplierResult,
+    purchaseOrderResult,
   ] = await Promise.all([
     supabase.from("restaurant_menu_items").select("*").eq("org_id", context.orgId)
       .eq("item_type", "packaged").order("name"),
@@ -36,10 +38,23 @@ export default async function RestaurantPackagedItemsPage() {
       ? supabase.from("restaurant_packaged_item_movements").select("*").eq("org_id", context.orgId)
         .in("location_id", locationIds).order("created_at", { ascending: false }).limit(200)
       : Promise.resolve({ data: [], error: null }),
+    supabase.from("suppliers").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
+    locationIds.length
+      ? supabase.from("restaurant_packaged_purchase_orders").select("*").eq("org_id", context.orgId)
+        .in("location_id", locationIds).order("created_at", { ascending: false }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (itemsError) throw new Error(`Could not load packaged menu items: ${itemsError.message}`);
   if (stockResult.error) throw new Error(`Could not load packaged stock balances: ${stockResult.error.message}`);
   if (movementResult.error) throw new Error(`Could not load packaged stock movements: ${movementResult.error.message}`);
+  if (supplierResult.error) throw new Error(`Could not load packaged goods suppliers: ${supplierResult.error.message}`);
+  if (purchaseOrderResult.error) throw new Error(`Could not load packaged purchase orders: ${purchaseOrderResult.error.message}`);
+  const purchaseOrderIds = (purchaseOrderResult.data ?? []).map((order) => order.id);
+  const { data: purchaseLines, error: purchaseLinesError } = purchaseOrderIds.length
+    ? await supabase.from("restaurant_packaged_purchase_items").select("*").eq("org_id", context.orgId)
+      .in("purchase_order_id", purchaseOrderIds)
+    : { data: [], error: null };
+  if (purchaseLinesError) throw new Error(`Could not load packaged purchase order lines: ${purchaseLinesError.message}`);
   return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
     <PackagedStockManagement
       items={items ?? []}
@@ -47,6 +62,11 @@ export default async function RestaurantPackagedItemsPage() {
       stocks={stockResult.data ?? []}
       movements={movementResult.data ?? []}
       canAdjust={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
+      suppliers={supplierResult.data ?? []}
+      purchaseOrders={purchaseOrderResult.data ?? []}
+      purchaseLines={purchaseLines ?? []}
+      canCreatePurchases={await canTabPermission("restaurant", "operations", "ingredients", "create")}
+      canReceivePurchases={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
     />
   </main>;
 }
