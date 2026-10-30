@@ -4166,6 +4166,29 @@ export interface Database {
         };
         Returns: Database["public"]["Tables"]["restaurant_orders"]["Row"];
       };
+      create_restaurant_order_with_payment: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_order_type: string;
+          p_table_id: string | null;
+          p_customer_name: string | null;
+          p_customer_phone: string | null;
+          p_delivery_address: string | null;
+          p_notes: string | null;
+          p_items: Json;
+          p_created_by: string;
+          p_request_key: string;
+          p_payment_method: string;
+          p_tip_amount: number;
+        };
+        Returns: {
+          order_id: string;
+          order_number: number;
+          bill_id: string;
+          payment_status: string;
+        }[];
+      };
       consume_restaurant_online_order_rate_limit: {
         Args: { p_location_id: string; p_ip_hash: string };
         Returns: boolean;

@@ -867,6 +867,11 @@ export async function createRestaurantOrder(input: {
   deliveryAddress: string;
   notes: string;
   items: Array<{ menuItemId: string; quantity: number; notes: string; modifierOptionIds: string[] }>;
+  payment?: {
+    requestKey: string;
+    method: PaymentMethod;
+    tipAmount: number;
+  };
 }) {
   const context = await restaurantContext("orders", "create");
   if (!canUseLocation(context, input.locationId)) throw new Error("You cannot take restaurant orders at that branch.");
@@ -894,7 +899,7 @@ export async function createRestaurantOrder(input: {
   });
   const admin = createAdminClient();
   await assertRestaurantPackagedStockAvailable(admin, context.orgId, input.locationId, input.items);
-  const { data, error } = await admin.rpc("create_restaurant_order", {
+  const orderInput = {
     p_org_id: context.orgId,
     p_location_id: input.locationId,
     p_order_type: input.orderType,
@@ -905,10 +910,36 @@ export async function createRestaurantOrder(input: {
     p_notes: input.notes.trim() || null,
     p_items: items,
     p_created_by: context.userId,
-  });
+  };
+  if (input.payment) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.payment.requestKey)
+      || !["cash", "card", "mobile_money", "other"].includes(input.payment.method)
+      || !validMoney(input.payment.tipAmount, true)) {
+      throw new Error("Enter a valid payment method and tip amount.");
+    }
+    const { data, error } = await admin.rpc("create_restaurant_order_with_payment", {
+      ...orderInput,
+      p_request_key: input.payment.requestKey,
+      p_payment_method: input.payment.method,
+      p_tip_amount: input.payment.tipAmount,
+    });
+    if (error) throw new Error(`Could not create and pay for restaurant order: ${error.message}`);
+    const result = data?.[0];
+    if (!result) throw new Error("Could not confirm the paid restaurant order.");
+    revalidatePath("/restaurant");
+    revalidatePath("/restaurant/pos");
+    return {
+      orderId: result.order_id,
+      orderNumber: result.order_number,
+      billId: result.bill_id,
+      paymentStatus: result.payment_status,
+    };
+  }
+  const { data, error } = await admin.rpc("create_restaurant_order", orderInput);
   if (error) throw new Error(`Could not create restaurant order: ${error.message}`);
   revalidatePath("/restaurant");
-  return { orderNumber: data.order_number };
+  revalidatePath("/restaurant/pos");
+  return { orderId: data.id, orderNumber: data.order_number, billId: null, paymentStatus: data.payment_status };
 }
 
 export async function updateRestaurantOrderStatus(orderId: string, status: string) {

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createRestaurantOrder } from "@/app/(dashboard)/restaurant/actions";
 import type { Database } from "@/types/database";
 
@@ -15,6 +15,7 @@ type DiningTable = Database["public"]["Tables"]["restaurant_tables"]["Row"];
 type Location = { id: string; name: string };
 type PackagedStock = Pick<Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"], "location_id" | "menu_item_id" | "quantity">;
 type OrderType = "dine_in" | "takeaway" | "delivery";
+type PaymentMethod = "cash" | "card" | "mobile_money" | "other";
 
 function money(amount: number, currency: string) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
@@ -41,6 +42,9 @@ export default function RestaurantPosView({
 }) {
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [orderType, setOrderType] = useState<OrderType>("takeaway");
+  const [paymentTiming, setPaymentTiming] = useState<"pay_now" | "pay_later">("pay_later");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [tipAmountInput, setTipAmountInput] = useState("0");
   const [tableId, setTableId] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
@@ -52,6 +56,8 @@ export default function RestaurantPosView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [receiptHref, setReceiptHref] = useState("");
+  const pendingRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const visibleItems = categoryId === "all" ? menuItems : menuItems.filter((item) => item.category_id === categoryId);
   const cartItems = menuItems.filter((item) => (quantities[item.id] ?? 0) > 0);
@@ -115,6 +121,12 @@ export default function RestaurantPosView({
       setError("Enter the delivery address.");
       return;
     }
+    const tipAmount = Number(tipAmountInput);
+    if (paymentTiming === "pay_now"
+      && (!/^\d+(\.\d{1,2})?$/.test(tipAmountInput) || !Number.isFinite(tipAmount) || tipAmount < 0)) {
+      setError("Enter a valid tip amount with no more than two decimal places.");
+      return;
+    }
     for (const item of cartItems) {
       for (const group of modifierGroups.filter((entry) => entry.menu_item_id === item.id)) {
         const selected = selectedOptions[`${item.id}:${group.id}`] ?? [];
@@ -127,7 +139,7 @@ export default function RestaurantPosView({
 
     setIsSubmitting(true);
     try {
-      const result = await createRestaurantOrder({
+      const orderInput = {
         locationId,
         orderType,
         tableId: orderType === "dine_in" ? tableId : null,
@@ -143,8 +155,28 @@ export default function RestaurantPosView({
             .filter((group) => group.menu_item_id === item.id)
             .flatMap((group) => selectedOptions[`${item.id}:${group.id}`] ?? []),
         })),
-      });
-      setSuccess(`Order #${result.orderNumber} created. Complete payment from Restaurant Orders.`);
+      };
+      const fingerprint = JSON.stringify({ ...orderInput, paymentMethod, tipAmount });
+      let payment: { requestKey: string; method: PaymentMethod; tipAmount: number } | undefined;
+      if (paymentTiming === "pay_now") {
+        if (!pendingRequestRef.current || pendingRequestRef.current.fingerprint !== fingerprint) {
+          pendingRequestRef.current = { fingerprint, key: crypto.randomUUID() };
+        }
+        payment = {
+          requestKey: pendingRequestRef.current.key,
+          method: paymentMethod,
+          tipAmount,
+        };
+      }
+      const result = await createRestaurantOrder({ ...orderInput, payment });
+      if (payment && result.billId) {
+        setSuccess(`Order #${result.orderNumber} created and paid.`);
+        setReceiptHref(`/restaurant/receipt?orderId=${encodeURIComponent(result.orderId)}&billId=${encodeURIComponent(result.billId)}`);
+      } else {
+        setSuccess(`Order #${result.orderNumber} created. Complete payment from Restaurant Orders.`);
+        setReceiptHref("");
+      }
+      pendingRequestRef.current = null;
       setQuantities({});
       setSelectedOptions({});
       setTableId("");
@@ -255,9 +287,33 @@ export default function RestaurantPosView({
         {orderType === "delivery" && <label className="block text-xs font-semibold text-slate-600">Delivery address<input required value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} maxLength={300} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>}
         <label className="block text-xs font-semibold text-slate-600">Order notes<input value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         <p className="flex justify-between border-t pt-3 font-bold"><span>Total</span><span>{money(total, currency)}</span></p>
+        <fieldset className="space-y-2 rounded-lg border p-3">
+          <legend className="px-1 text-xs font-semibold text-slate-600">Payment</legend>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="paymentTiming" value="pay_later" checked={paymentTiming === "pay_later"} onChange={() => setPaymentTiming("pay_later")} />
+            <span>Pay later</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="paymentTiming" value="pay_now" checked={paymentTiming === "pay_now"} onChange={() => setPaymentTiming("pay_now")} />
+            <span>Pay now</span>
+          </label>
+          {paymentTiming === "pay_now" && <div className="grid grid-cols-2 gap-2 pt-1">
+            <label className="text-xs font-semibold text-slate-600">Payment method
+              <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm">
+                <option value="cash">Cash</option><option value="card">Card</option><option value="mobile_money">Mobile money</option><option value="other">Other</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">Tip (optional)
+              <input type="number" min="0" step="0.01" value={tipAmountInput} onChange={(event) => setTipAmountInput(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm" />
+            </label>
+          </div>}
+        </fieldset>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-800">{error}</p>}
-        {success && <p role="status" className="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800">{success}</p>}
-        <button type="button" disabled={isSubmitting || !cartItems.length} onClick={() => void submitOrder()} className="w-full rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{isSubmitting ? "Creating order..." : "Create restaurant order"}</button>
+        {success && <div role="status" className="space-y-2 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800">
+          <p>{success}</p>
+          {receiptHref && <Link href={receiptHref} target="_blank" rel="noreferrer" className="inline-flex rounded border border-emerald-700 px-3 py-2 font-semibold">Print receipt</Link>}
+        </div>}
+        <button type="button" disabled={isSubmitting || !cartItems.length} onClick={() => void submitOrder()} className="w-full rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{isSubmitting ? "Processing order..." : paymentTiming === "pay_now" ? "Create order & pay" : "Create order (pay later)"}</button>
       </aside>
     </div>
   </main>;
