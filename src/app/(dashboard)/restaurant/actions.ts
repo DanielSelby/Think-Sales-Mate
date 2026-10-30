@@ -31,6 +31,7 @@ type RestaurantPosDraftPayload = {
   notes: string;
   paymentTiming: "pay_now" | "pay_later";
   paymentMethod: PaymentMethod;
+  splitPayments?: Array<{ method: PaymentMethod; amount: string }>;
   tipAmountInput: string;
 };
 
@@ -909,6 +910,7 @@ export async function createRestaurantOrder(input: {
     requestKey: string;
     method: PaymentMethod;
     tipAmount: number;
+    payments?: Array<{ method: PaymentMethod; amount: number }>;
   };
 }) {
   const context = await restaurantContext("orders", "create");
@@ -958,12 +960,27 @@ export async function createRestaurantOrder(input: {
       || !validMoney(input.payment.tipAmount, true)) {
       throw new Error("Enter a valid payment method and tip amount.");
     }
-    const { data, error } = await admin.rpc("create_restaurant_order_with_payment", {
-      ...orderInput,
-      p_request_key: input.payment.requestKey,
-      p_payment_method: input.payment.method,
-      p_tip_amount: input.payment.tipAmount,
-    });
+    const splitPayments = input.payment.payments;
+    if (splitPayments && (splitPayments.length < 2 || splitPayments.length > 4
+      || splitPayments.some((payment) => !["cash", "card", "mobile_money", "other"].includes(payment.method)
+        || !validMoney(payment.amount, true))
+      || new Set(splitPayments.map((payment) => payment.method)).size !== splitPayments.length)) {
+      throw new Error("Enter two to four valid split payments with different payment methods.");
+    }
+    const paymentRequest = splitPayments
+      ? await admin.rpc("create_restaurant_order_with_split_payment", {
+        ...orderInput,
+        p_request_key: input.payment.requestKey,
+        p_payments: splitPayments.map((payment) => ({ method: payment.method, amount: payment.amount })),
+        p_tip_amount: input.payment.tipAmount,
+      })
+      : await admin.rpc("create_restaurant_order_with_payment", {
+        ...orderInput,
+        p_request_key: input.payment.requestKey,
+        p_payment_method: input.payment.method,
+        p_tip_amount: input.payment.tipAmount,
+      });
+    const { data, error } = paymentRequest;
     if (error) throw new Error(`Could not create and pay for restaurant order: ${error.message}`);
     const result = data?.[0];
     if (!result) throw new Error("Could not confirm the paid restaurant order.");
@@ -1016,6 +1033,16 @@ export async function saveRestaurantPosDraft(input: {
       || optionIds.some((id) => typeof id !== "string" || !uuidPattern.test(id)))
     || Object.values(draft.selectedOptions).reduce((total, optionIds) =>
       total + (Array.isArray(optionIds) ? optionIds.length : 501), 0) > 500
+    || (draft.splitPayments !== undefined
+      && (!Array.isArray(draft.splitPayments)
+        || draft.splitPayments.length < 2
+        || draft.splitPayments.length > 4
+        || draft.splitPayments.some((payment) =>
+          !isRecord(payment)
+          || !["cash", "card", "mobile_money", "other"].includes(String(payment.method))
+          || typeof payment.amount !== "string"
+          || !/^\d+(\.\d{1,2})?$/.test(payment.amount))
+        || new Set(draft.splitPayments.map((payment) => isRecord(payment) ? payment.method : null)).size !== draft.splitPayments.length))
     || (draft.itemNotes !== undefined
       && (!isRecord(draft.itemNotes)
         || Object.keys(draft.itemNotes).length > 100
@@ -1047,6 +1074,7 @@ export async function saveRestaurantPosDraft(input: {
       notes: draft.notes,
       paymentTiming: draft.paymentTiming,
       paymentMethod: draft.paymentMethod,
+      ...(draft.splitPayments ? { splitPayments: draft.splitPayments } : {}),
       tipAmountInput: draft.tipAmountInput,
     } satisfies Json,
     updated_at: new Date().toISOString(),

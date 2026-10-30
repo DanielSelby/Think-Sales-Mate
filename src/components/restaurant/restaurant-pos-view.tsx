@@ -22,6 +22,7 @@ type Location = { id: string; name: string };
 type PackagedStock = Pick<Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"], "location_id" | "menu_item_id" | "quantity">;
 type OrderType = "dine_in" | "takeaway" | "delivery";
 type PaymentMethod = "cash" | "card" | "mobile_money" | "other";
+type SplitPaymentDraft = { method: PaymentMethod; amount: string };
 type PosDraftPayload = {
   orderType: OrderType;
   tableId: string | null;
@@ -34,6 +35,7 @@ type PosDraftPayload = {
   notes: string;
   paymentTiming: "pay_now" | "pay_later";
   paymentMethod: PaymentMethod;
+  splitPayments?: SplitPaymentDraft[];
   tipAmountInput: string;
 };
 type HeldDraft = Pick<Database["public"]["Tables"]["restaurant_pos_drafts"]["Row"], "id" | "location_id" | "draft" | "created_at" | "updated_at">;
@@ -43,22 +45,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isPosDraftPayload(value: unknown): value is PosDraftPayload {
-  if (!isRecord(value) || !isRecord(value.quantities) || !isRecord(value.selectedOptions)) return false;
+  if (!isRecord(value)) return false;
+  const quantities = value.quantities;
+  const selectedOptions = value.selectedOptions;
+  if (!isRecord(quantities) || !isRecord(selectedOptions)) return false;
   return (value.orderType === "dine_in" || value.orderType === "takeaway" || value.orderType === "delivery")
     && (value.tableId === null || typeof value.tableId === "string")
-    && Object.values(value.quantities).every((quantity) => typeof quantity === "number" && Number.isInteger(quantity) && quantity > 0)
-    && Object.values(value.selectedOptions).every((optionIds) =>
+    && Object.values(quantities).every((quantity) => typeof quantity === "number" && Number.isInteger(quantity) && quantity > 0)
+    && Object.values(selectedOptions).every((optionIds) =>
       Array.isArray(optionIds) && optionIds.every((optionId) => typeof optionId === "string"))
     && (value.itemNotes === undefined
       || (isRecord(value.itemNotes)
         && Object.entries(value.itemNotes).every(([itemId, note]) =>
-          Object.hasOwn(value.quantities, itemId) && typeof note === "string" && note.length <= 500)))
+          Object.prototype.hasOwnProperty.call(quantities, itemId) && typeof note === "string" && note.length <= 500)))
     && typeof value.customerName === "string"
     && typeof value.customerPhone === "string"
     && typeof value.deliveryAddress === "string"
     && typeof value.notes === "string"
     && (value.paymentTiming === "pay_now" || value.paymentTiming === "pay_later")
     && (value.paymentMethod === "cash" || value.paymentMethod === "card" || value.paymentMethod === "mobile_money" || value.paymentMethod === "other")
+    && (value.splitPayments === undefined
+      || (Array.isArray(value.splitPayments) && value.splitPayments.length >= 2 && value.splitPayments.length <= 4
+        && value.splitPayments.every((payment) => isRecord(payment)
+          && ["cash", "card", "mobile_money", "other"].includes(String(payment.method))
+          && typeof payment.amount === "string"
+          && /^\d+(\.\d{1,2})?$/.test(payment.amount))))
     && typeof value.tipAmountInput === "string";
 }
 
@@ -91,6 +102,7 @@ export default function RestaurantPosView({
   const [orderType, setOrderType] = useState<OrderType>("takeaway");
   const [paymentTiming, setPaymentTiming] = useState<"pay_now" | "pay_later">("pay_later");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [splitPayments, setSplitPayments] = useState<SplitPaymentDraft[]>([]);
   const [tipAmountInput, setTipAmountInput] = useState("0");
   const [tableId, setTableId] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -139,6 +151,10 @@ export default function RestaurantPosView({
         || item.barcode?.toLocaleLowerCase().includes(normalizedMenuQuery)),
   );
   const cartItems = menuItems.filter((item) => (quantities[item.id] ?? 0) > 0);
+  const splitPaymentTotal = splitPayments.reduce((sum, payment) => {
+    const amount = Number(payment.amount);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
   const total = cartItems.reduce((sum, item) => {
     const extras = selectedOptionIds(item.id).reduce((value, optionId) =>
       value + Number(modifierOptions.find((option) => option.id === optionId)?.price_delta ?? 0), 0);
@@ -169,6 +185,7 @@ export default function RestaurantPosView({
     setQuantities({});
     setSelectedOptions({});
     setItemNotes({});
+    setSplitPayments([]);
     setActiveDraftId(null);
     setError("");
     setSuccess("");
@@ -178,6 +195,7 @@ export default function RestaurantPosView({
     setOrderType("takeaway");
     setPaymentTiming("pay_later");
     setPaymentMethod("cash");
+    setSplitPayments([]);
     setTipAmountInput("0");
     setTableId("");
     setQuantities({});
@@ -222,6 +240,7 @@ export default function RestaurantPosView({
           notes,
           paymentTiming,
           paymentMethod,
+          splitPayments,
           tipAmountInput,
         },
       });
@@ -273,6 +292,7 @@ export default function RestaurantPosView({
     setOrderType(draft.orderType);
     setPaymentTiming(draft.paymentTiming);
     setPaymentMethod(draft.paymentMethod);
+    setSplitPayments(draft.splitPayments ?? []);
     setTipAmountInput(draft.tipAmountInput);
     setTableId(restoredTableId);
     setQuantities(draft.quantities);
@@ -340,6 +360,24 @@ export default function RestaurantPosView({
       setError("Enter a valid tip amount with no more than two decimal places.");
       return;
     }
+    const splitPaymentAmounts = splitPayments.map((payment) => Number(payment.amount));
+    if (paymentTiming === "pay_now" && splitPayments.length > 0) {
+      if (splitPayments.length < 2 || splitPayments.length > 4
+        || splitPayments.some((payment, index) =>
+          !["cash", "card", "mobile_money", "other"].includes(payment.method)
+          || !/^\d+(\.\d{1,2})?$/.test(payment.amount)
+          || !Number.isFinite(splitPaymentAmounts[index])
+          || splitPaymentAmounts[index] < 0)
+        || new Set(splitPayments.map((payment) => payment.method)).size !== splitPayments.length) {
+        setError("Enter two to four valid split payments with different payment methods.");
+        return;
+      }
+      const splitTotalCents = splitPaymentAmounts.reduce((sum, amount) => sum + Math.round(amount * 100), 0);
+      if (splitTotalCents !== Math.round(total * 100)) {
+        setError(`Split payments must add up to the order total of ${money(total, currency)}.`);
+        return;
+      }
+    }
     for (const item of cartItems) {
       for (const group of modifierGroups.filter((entry) => entry.menu_item_id === item.id)) {
         const selected = selectedOptions[`${item.id}:${group.id}`] ?? [];
@@ -369,8 +407,13 @@ export default function RestaurantPosView({
             .flatMap((group) => selectedOptions[`${item.id}:${group.id}`] ?? []),
         })),
       };
-      const fingerprint = JSON.stringify({ ...orderInput, paymentMethod, tipAmount });
-      let payment: { requestKey: string; method: PaymentMethod; tipAmount: number } | undefined;
+      const fingerprint = JSON.stringify({ ...orderInput, paymentMethod, splitPayments, tipAmount });
+      let payment: {
+        requestKey: string;
+        method: PaymentMethod;
+        tipAmount: number;
+        payments?: Array<{ method: PaymentMethod; amount: number }>;
+      } | undefined;
       if (paymentTiming === "pay_now") {
         if (!pendingRequestRef.current || pendingRequestRef.current.fingerprint !== fingerprint) {
           pendingRequestRef.current = { fingerprint, key: crypto.randomUUID() };
@@ -379,6 +422,9 @@ export default function RestaurantPosView({
           requestKey: pendingRequestRef.current.key,
           method: paymentMethod,
           tipAmount,
+          ...(splitPayments.length > 0
+            ? { payments: splitPayments.map((splitPayment) => ({ method: splitPayment.method, amount: Number(splitPayment.amount) })) }
+            : {}),
         };
       }
       const result = await createRestaurantOrder({ ...orderInput, payment });
@@ -404,6 +450,7 @@ export default function RestaurantPosView({
       setQuantities({});
       setSelectedOptions({});
       setItemNotes({});
+      setSplitPayments([]);
       setTableId("");
       setCustomerName("");
       setCustomerPhone("");
@@ -661,6 +708,43 @@ export default function RestaurantPosView({
             <span>Pay now</span>
           </label>
           {paymentTiming === "pay_now" && <div className="grid grid-cols-2 gap-2 pt-1">
+            <label className="col-span-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+              <input type="checkbox" checked={splitPayments.length > 0} onChange={(event) => {
+                if (event.target.checked) {
+                  setSplitPayments([
+                    { method: paymentMethod, amount: total.toFixed(2) },
+                    { method: paymentMethod === "cash" ? "card" : "cash", amount: "0" },
+                  ]);
+                } else {
+                  setSplitPayments([]);
+                }
+              }} />
+              Split payment across methods
+            </label>
+            {splitPayments.length > 0 ? <div className="col-span-2 space-y-2">
+              <p className="text-xs text-slate-500">Allocate the full order total across two to four payment methods.</p>
+              {splitPayments.map((splitPayment, index) => <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+                <label className="text-xs font-semibold text-slate-600">Method
+                  <select value={splitPayment.method} onChange={(event) => setSplitPayments((current) => current.map((paymentEntry, entryIndex) =>
+                    entryIndex === index ? { ...paymentEntry, method: event.target.value as PaymentMethod } : paymentEntry))}
+                    className="mt-1 h-10 w-full rounded-lg border px-2 text-sm">
+                    <option value="cash">Cash</option><option value="card">Card</option><option value="mobile_money">Mobile money</option><option value="other">Other</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">Amount
+                  <input type="number" min="0" step="0.01" value={splitPayment.amount} onChange={(event) => setSplitPayments((current) => current.map((paymentEntry, entryIndex) =>
+                    entryIndex === index ? { ...paymentEntry, amount: event.target.value } : paymentEntry))}
+                    className="mt-1 h-10 w-full rounded-lg border px-2 text-sm" />
+                </label>
+                <button type="button" disabled={splitPayments.length <= 2} onClick={() => setSplitPayments((current) => current.filter((_, entryIndex) => entryIndex !== index))}
+                  aria-label={`Remove split payment ${index + 1}`} className="h-10 rounded-lg border px-3 text-sm text-slate-600 disabled:opacity-40">×</button>
+              </div>)}
+              {splitPayments.length < 4 && <button type="button" onClick={() => setSplitPayments((current) => [...current, {
+                method: (["cash", "card", "mobile_money", "other"] as const).find((method) => !current.some((entry) => entry.method === method)) ?? "other",
+                amount: "0",
+              }])} className="rounded-lg border px-3 py-2 text-xs font-semibold">Add payment method</button>}
+              <p className="text-xs font-semibold text-slate-600">Allocated: {money(splitPaymentTotal, currency)} / {money(total, currency)}</p>
+            </div> : <>
             <label className="text-xs font-semibold text-slate-600">Payment method
               <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm">
                 <option value="cash">Cash</option><option value="card">Card</option><option value="mobile_money">Mobile money</option><option value="other">Other</option>
@@ -669,6 +753,10 @@ export default function RestaurantPosView({
             <label className="text-xs font-semibold text-slate-600">Tip (optional)
               <input type="number" min="0" step="0.01" value={tipAmountInput} onChange={(event) => setTipAmountInput(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm" />
             </label>
+            </>}
+            {splitPayments.length > 0 && <label className="col-span-2 text-xs font-semibold text-slate-600">Tip (optional)
+              <input type="number" min="0" step="0.01" value={tipAmountInput} onChange={(event) => setTipAmountInput(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm" />
+            </label>}
           </div>}
         </fieldset>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-800">{error}</p>}
