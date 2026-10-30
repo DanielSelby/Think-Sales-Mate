@@ -23,6 +23,9 @@ type RestaurantReport = {
   by_type: Array<{ order_type: "dine_in" | "takeaway" | "delivery"; order_count: number; gross_sales: number }>;
   top_items: Array<{ item_name: string; quantity_sold: number; sales: number }>;
 };
+type RestaurantInvoiceReconciliationHistory = Database["public"]["Functions"]["get_restaurant_invoice_reconciliation_history"]["Returns"][number] & {
+  recorded_by_name: string;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -179,6 +182,7 @@ export default async function RestaurantPage({
   let purchaseItems: Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"][] = [];
   let ingredientReceipts: Database["public"]["Tables"]["restaurant_ingredient_receipts"]["Row"][] = [];
   let ingredientPayments: Database["public"]["Tables"]["restaurant_ingredient_payments"]["Row"][] = [];
+  let invoiceReconciliationHistory: RestaurantInvoiceReconciliationHistory[] = [];
   let ingredientBankAccounts: Array<{ id: string; name: string }> = [];
   let supplierInvoiceAging: Database["public"]["Functions"]["get_restaurant_supplier_invoice_aging"]["Returns"] = [];
   if (view === "ingredients" && locationIds.length > 0) {
@@ -202,6 +206,7 @@ export default async function RestaurantPage({
         { data: itemRows, error: itemError },
         { data: receiptRows, error: receiptError },
         { data: paymentRows, error: paymentError },
+        { data: historyRows, error: historyError },
       ] = await Promise.all([
         restaurantAdmin.from("restaurant_ingredient_purchase_items")
           .select("*").eq("org_id", context.orgId).in("purchase_order_id", purchaseOrderIds),
@@ -210,13 +215,33 @@ export default async function RestaurantPage({
         restaurantAdmin.from("restaurant_ingredient_payments")
           .select("*").eq("org_id", context.orgId).in("purchase_order_id", purchaseOrderIds)
           .order("payment_date", { ascending: false }),
+        restaurantAdmin.rpc("get_restaurant_invoice_reconciliation_history", {
+          p_org_id: context.orgId,
+          p_purchase_order_ids: purchaseOrderIds,
+          p_per_order_limit: 11,
+        }),
       ]);
       if (itemError) throw new Error(`Could not load Restaurant purchase order lines: ${itemError.message}`);
       if (receiptError) throw new Error(`Could not load Restaurant purchase receipts: ${receiptError.message}`);
       if (paymentError) throw new Error(`Could not load Restaurant supplier payments: ${paymentError.message}`);
+      if (historyError) throw new Error(`Could not load Restaurant invoice reconciliation history: ${historyError.message}`);
       purchaseItems = itemRows ?? [];
       ingredientReceipts = receiptRows ?? [];
       ingredientPayments = paymentRows ?? [];
+      const history = historyRows ?? [];
+      const recorderIds = Array.from(new Set(history.map((entry) => entry.recorded_by)));
+      const { data: recorderProfiles, error: recorderProfilesError } = recorderIds.length
+        ? await restaurantAdmin.from("profiles").select("id, full_name").in("id", recorderIds)
+        : { data: [], error: null };
+      if (recorderProfilesError) throw new Error(`Could not load invoice reconciliation recorders: ${recorderProfilesError.message}`);
+      const recorderNames = new Map((recorderProfiles ?? []).map((profile) => [
+        profile.id,
+        profile.full_name?.trim() || "Unknown user",
+      ]));
+      invoiceReconciliationHistory = history.map((entry) => ({
+        ...entry,
+        recorded_by_name: recorderNames.get(entry.recorded_by) ?? "Unknown user",
+      }));
     }
     if (await canPermission("banking", "edit")
       && await canTabPermission("banking", "banking", "accounts", "edit")) {
@@ -311,6 +336,7 @@ export default async function RestaurantPage({
       purchaseItems={purchaseItems}
       ingredientReceipts={ingredientReceipts}
       ingredientPayments={ingredientPayments}
+      invoiceReconciliationHistory={invoiceReconciliationHistory}
       ingredientBankAccounts={ingredientBankAccounts}
       supplierInvoiceAging={supplierInvoiceAging}
       attendanceSummary={attendanceSummary}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { submitRestaurantOnlineOrder } from "@/app/restaurant-order/[orgSlug]/branch/[branchSlug]/actions";
+import { formatMoney } from "@/lib/currency";
 
 type OnlineCategory = { id: string; name: string };
 type OnlineMenuItem = {
@@ -26,7 +27,7 @@ type OnlineModifierOption = { id: string; group_id: string; name: string; price_
 type Selection = { menuItemId: string; quantity: number; modifierOptionIds: string[]; notes: string };
 
 function money(amount: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  return formatMoney(amount, currency);
 }
 
 export default function OnlineOrderingView({

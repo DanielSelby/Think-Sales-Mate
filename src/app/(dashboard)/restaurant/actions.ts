@@ -19,6 +19,26 @@ import type { Json } from "@/types/database";
 type RestaurantTab = "orders" | "menu" | "tables" | "reservations" | "ingredients";
 type OrderType = "dine_in" | "takeaway" | "delivery";
 type PaymentMethod = "cash" | "card" | "mobile_money" | "other";
+type RestaurantPosDraftPayload = {
+  orderType: OrderType;
+  tableId: string | null;
+  quantities: Record<string, number>;
+  selectedOptions: Record<string, string[]>;
+  itemNotes?: Record<string, string>;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  notes: string;
+  paymentTiming: "pay_now" | "pay_later";
+  paymentMethod: PaymentMethod;
+  tipAmountInput: string;
+};
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 async function restaurantContext(tab: RestaurantTab, action: "view" | "create" | "edit" | "delete") {
   const context = await getCurrentOrgContext();
@@ -886,6 +906,9 @@ export async function createRestaurantOrder(input: {
     if (!Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 999) {
       throw new Error("Order quantities must be whole numbers between 1 and 999.");
     }
+    if (typeof item.notes !== "string" || item.notes.length > 500) {
+      throw new Error("Item instructions must be no more than 500 characters.");
+    }
     if (!Array.isArray(item.modifierOptionIds) || item.modifierOptionIds.length > 100
       || item.modifierOptionIds.some((id) => typeof id !== "string")) {
       throw new Error("Invalid menu modifier selections.");
@@ -940,6 +963,106 @@ export async function createRestaurantOrder(input: {
   revalidatePath("/restaurant");
   revalidatePath("/restaurant/pos");
   return { orderId: data.id, orderNumber: data.order_number, billId: null, paymentStatus: data.payment_status };
+}
+
+export async function saveRestaurantPosDraft(input: {
+  draftId: string | null;
+  locationId: string;
+  draft: RestaurantPosDraftPayload;
+}) {
+  const context = await restaurantContext("orders", "create");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot hold restaurant orders at that branch.");
+  if (input.draftId !== null && !uuidPattern.test(input.draftId)) throw new Error("Invalid held order.");
+  const draft = input.draft;
+  if (!isRecord(draft)
+    || !["dine_in", "takeaway", "delivery"].includes(draft.orderType)
+    || (draft.tableId !== null && (typeof draft.tableId !== "string" || !uuidPattern.test(draft.tableId)))
+    || !["pay_now", "pay_later"].includes(draft.paymentTiming)
+    || !["cash", "card", "mobile_money", "other"].includes(draft.paymentMethod)
+    || typeof draft.tipAmountInput !== "string" || draft.tipAmountInput.length > 20
+    || (draft.paymentTiming === "pay_now"
+      && (!/^\d+(\.\d{1,2})?$/.test(draft.tipAmountInput)
+        || !Number.isFinite(Number(draft.tipAmountInput)) || Number(draft.tipAmountInput) < 0))
+    || typeof draft.customerName !== "string" || draft.customerName.length > 120
+    || typeof draft.customerPhone !== "string" || draft.customerPhone.length > 40
+    || typeof draft.deliveryAddress !== "string" || draft.deliveryAddress.length > 300
+    || typeof draft.notes !== "string" || draft.notes.length > 500
+    || !isRecord(draft.quantities) || Object.keys(draft.quantities).length < 1
+    || Object.keys(draft.quantities).length > 100
+    || Object.entries(draft.quantities).some(([menuItemId, quantity]) =>
+      !uuidPattern.test(menuItemId) || !Number.isInteger(quantity) || Number(quantity) < 1 || Number(quantity) > 999)
+    || !isRecord(draft.selectedOptions) || Object.keys(draft.selectedOptions).length > 500
+    || Object.entries(draft.selectedOptions).some(([key, optionIds]) =>
+      !/^[0-9a-f-]{36}:[0-9a-f-]{36}$/i.test(key)
+      || !Array.isArray(optionIds) || optionIds.length > 100
+      || optionIds.some((id) => typeof id !== "string" || !uuidPattern.test(id)))
+    || Object.values(draft.selectedOptions).reduce((total, optionIds) =>
+      total + (Array.isArray(optionIds) ? optionIds.length : 501), 0) > 500
+    || (draft.itemNotes !== undefined
+      && (!isRecord(draft.itemNotes)
+        || Object.keys(draft.itemNotes).length > 100
+        || Object.entries(draft.itemNotes).some(([menuItemId, note]) =>
+          !uuidPattern.test(menuItemId)
+          || !Object.hasOwn(draft.quantities, menuItemId)
+          || typeof note !== "string"
+          || note.length > 500)))) {
+    throw new Error("Check the held order details and try again.");
+  }
+  if ((draft.orderType === "dine_in") !== Boolean(draft.tableId)) {
+    throw new Error("Select a table for dine-in held orders only.");
+  }
+
+  const admin = createAdminClient();
+  const payload = {
+    org_id: context.orgId,
+    location_id: input.locationId,
+    created_by: context.userId,
+    draft: {
+      orderType: draft.orderType,
+      tableId: draft.tableId,
+      quantities: draft.quantities,
+      selectedOptions: draft.selectedOptions,
+      itemNotes: draft.itemNotes ?? {},
+      customerName: draft.customerName,
+      customerPhone: draft.customerPhone,
+      deliveryAddress: draft.deliveryAddress,
+      notes: draft.notes,
+      paymentTiming: draft.paymentTiming,
+      paymentMethod: draft.paymentMethod,
+      tipAmountInput: draft.tipAmountInput,
+    } satisfies Json,
+    updated_at: new Date().toISOString(),
+  };
+  const result = input.draftId
+    ? await admin.from("restaurant_pos_drafts").update({
+        location_id: payload.location_id,
+        draft: payload.draft,
+        updated_at: payload.updated_at,
+      }).eq("org_id", context.orgId).eq("created_by", context.userId).eq("id", input.draftId)
+      .select("id, location_id, draft, created_at, updated_at").maybeSingle()
+    : await admin.from("restaurant_pos_drafts").insert(payload)
+      .select("id, location_id, draft, created_at, updated_at").single();
+  if (result.error) throw new Error(`Could not save held restaurant order: ${result.error.message}`);
+  if (!result.data) throw new Error("Held restaurant order was not found or could not be updated.");
+  revalidatePath("/restaurant/pos");
+  return result.data;
+}
+
+export async function deleteRestaurantPosDraft(draftId: string) {
+  const context = await restaurantContext("orders", "create");
+  if (!uuidPattern.test(draftId)) throw new Error("Invalid held order.");
+  const admin = createAdminClient();
+  const { data: draft, error: loadError } = await admin.from("restaurant_pos_drafts")
+    .select("id, location_id").eq("org_id", context.orgId)
+    .eq("created_by", context.userId).eq("id", draftId).maybeSingle();
+  if (loadError) throw new Error(`Could not load held restaurant order: ${loadError.message}`);
+  if (!draft || !canUseLocation(context, draft.location_id)) {
+    throw new Error("Held restaurant order not found or not accessible.");
+  }
+  const { error } = await admin.from("restaurant_pos_drafts").delete()
+    .eq("org_id", context.orgId).eq("created_by", context.userId).eq("id", draftId);
+  if (error) throw new Error(`Could not delete held restaurant order: ${error.message}`);
+  revalidatePath("/restaurant/pos");
 }
 
 export async function updateRestaurantOrderStatus(orderId: string, status: string) {
@@ -1305,6 +1428,51 @@ export async function createRestaurantIngredientPurchaseOrder(input: {
     throw new Error(`Could not save Restaurant purchase lines: ${itemsError.message}`);
   }
   revalidatePath("/restaurant");
+}
+
+export async function reconcileRestaurantIngredientInvoice(input: {
+  purchaseOrderId: string;
+  invoiceReference: string;
+  dueDate: string;
+  invoiceAmount: number | null;
+  notes: string;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  const invoiceReference = input.invoiceReference.trim();
+  const notes = input.notes.trim();
+  if (invoiceReference.length > 80 || notes.length > 1000
+    || (input.invoiceAmount !== null && !validMoney(input.invoiceAmount))) {
+    throw new Error("Enter a valid invoice number, invoice amount, and reconciliation note.");
+  }
+  if (input.dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)
+    || !Number.isFinite(Date.parse(`${input.dueDate}T00:00:00.000Z`))
+    || new Date(`${input.dueDate}T00:00:00.000Z`).toISOString().slice(0, 10) !== input.dueDate)) {
+    throw new Error("Enter a valid supplier invoice due date.");
+  }
+
+  const admin = createAdminClient();
+  const { data: purchaseOrder, error: orderError } = await admin.from("restaurant_ingredient_purchase_orders")
+    .select("id, location_id").eq("org_id", context.orgId).eq("id", input.purchaseOrderId).maybeSingle();
+  if (orderError) throw new Error(`Could not verify Restaurant supplier invoice: ${orderError.message}`);
+  if (!purchaseOrder || !canUseLocation(context, purchaseOrder.location_id)) {
+    throw new Error("Restaurant supplier invoice not found or not accessible.");
+  }
+  const { data, error } = await admin.rpc("reconcile_restaurant_ingredient_invoice", {
+    p_org_id: context.orgId,
+    p_purchase_order_id: input.purchaseOrderId,
+    p_invoice_reference: invoiceReference || null,
+    p_due_date: input.dueDate || null,
+    p_invoice_amount: input.invoiceAmount,
+    p_reconciliation_notes: notes || null,
+    p_recorded_by: context.userId,
+  });
+  if (error) throw new Error(`Could not reconcile Restaurant supplier invoice: ${error.message}`);
+  const reconciliation = data?.[0];
+  if (!reconciliation) throw new Error("Restaurant supplier invoice reconciliation was not confirmed.");
+  revalidatePath("/restaurant");
+  revalidatePath("/accounting");
+  revalidatePath("/dashboard");
+  return reconciliation;
 }
 
 export async function recordRestaurantIngredientSupplierPayment(input: {

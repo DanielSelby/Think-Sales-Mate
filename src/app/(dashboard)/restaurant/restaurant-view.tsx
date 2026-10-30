@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { formatMoney } from "@/lib/currency";
 import type { Database, Json } from "@/types/database";
 import {
   createRestaurantOrder,
@@ -20,6 +21,7 @@ import {
   saveRestaurantOnlineSettings,
   saveRestaurantIngredient,
   createRestaurantIngredientPurchaseOrder,
+  reconcileRestaurantIngredientInvoice,
   recordRestaurantIngredientSupplierPayment,
   receiveRestaurantIngredientPurchase,
   saveRestaurantRecipe,
@@ -79,6 +81,9 @@ type RestaurantIngredientPurchaseItem = Database["public"]["Tables"]["restaurant
 type RestaurantIngredientReceipt = Database["public"]["Tables"]["restaurant_ingredient_receipts"]["Row"];
 type RestaurantIngredientPayment = Database["public"]["Tables"]["restaurant_ingredient_payments"]["Row"];
 type RestaurantSupplierInvoiceAging = RestaurantSupplierInvoiceAgingRow;
+type RestaurantInvoiceReconciliationHistory = Database["public"]["Functions"]["get_restaurant_invoice_reconciliation_history"]["Returns"][number] & {
+  recorded_by_name: string;
+};
 type RestaurantReport = {
   summary: {
     order_count: number;
@@ -128,7 +133,7 @@ const nextKitchenStatus: Partial<Record<OrderItem["kitchen_status"], OrderItem["
 };
 
 function money(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 function localDateKey(value: string | Date) {
@@ -188,6 +193,7 @@ export default function RestaurantView({
   purchaseItems,
   ingredientReceipts,
   ingredientPayments,
+  invoiceReconciliationHistory,
   ingredientBankAccounts,
   supplierInvoiceAging,
   attendanceSummary,
@@ -235,6 +241,7 @@ export default function RestaurantView({
   purchaseItems: RestaurantIngredientPurchaseItem[];
   ingredientReceipts: RestaurantIngredientReceipt[];
   ingredientPayments: RestaurantIngredientPayment[];
+  invoiceReconciliationHistory: RestaurantInvoiceReconciliationHistory[];
   ingredientBankAccounts: Array<{ id: string; name: string }>;
   supplierInvoiceAging: RestaurantSupplierInvoiceAging[];
   attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null;
@@ -598,6 +605,7 @@ export default function RestaurantView({
         purchaseItems={purchaseItems}
         receipts={ingredientReceipts}
         supplierPayments={ingredientPayments}
+        invoiceReconciliationHistory={invoiceReconciliationHistory}
         bankAccounts={ingredientBankAccounts}
         supplierInvoiceAging={supplierInvoiceAging}
         branchScoped={branchScoped}
@@ -897,6 +905,7 @@ function RestaurantIngredientManagement({
   purchaseItems,
   receipts,
   supplierPayments,
+  invoiceReconciliationHistory,
   bankAccounts,
   supplierInvoiceAging,
   branchScoped,
@@ -920,6 +929,7 @@ function RestaurantIngredientManagement({
   purchaseItems: RestaurantIngredientPurchaseItem[];
   receipts: RestaurantIngredientReceipt[];
   supplierPayments: RestaurantIngredientPayment[];
+  invoiceReconciliationHistory: RestaurantInvoiceReconciliationHistory[];
   bankAccounts: Array<{ id: string; name: string }>;
   supplierInvoiceAging: RestaurantSupplierInvoiceAging[];
   branchScoped: boolean;
@@ -1068,9 +1078,18 @@ function RestaurantIngredientManagement({
                       canReceive={canEdit}
                       receipts={receipts.filter((receipt) => receipt.purchase_order_id === order.id)}
                       supplierPayments={supplierPayments.filter((payment) => payment.purchase_order_id === order.id)}
+                      reconciliationHistory={invoiceReconciliationHistory.filter((entry) => entry.purchase_order_id === order.id)}
                       bankAccounts={bankAccounts}
+                      canReconcile={canEdit}
                       canPay={canPayInvoices}
                       isPending={isPending}
+                      onReconcile={(invoice) => onAction(
+                        () => reconcileRestaurantIngredientInvoice({
+                          purchaseOrderId: order.id,
+                          ...invoice,
+                        }),
+                        "Restaurant supplier invoice reconciled.",
+                      )}
                       onReceive={(items, requestKey) => onAction(() => receiveRestaurantIngredientPurchase({ purchaseOrderId: order.id, requestKey, items }), "Restaurant ingredients received into branch stock.")}
                       onPay={(amount, paymentDate, paymentMethod, bankAccountId, requestKey) => onAction(
                         () => recordRestaurantIngredientSupplierPayment({
@@ -2098,10 +2117,13 @@ function IngredientPurchaseOrderCard({
   ingredients,
   receipts,
   supplierPayments,
+  reconciliationHistory,
   bankAccounts,
+  canReconcile,
   canReceive,
   canPay,
   isPending,
+  onReconcile,
   onReceive,
   onPay,
 }: {
@@ -2112,10 +2134,18 @@ function IngredientPurchaseOrderCard({
   ingredients: RestaurantIngredient[];
   receipts: RestaurantIngredientReceipt[];
   supplierPayments: RestaurantIngredientPayment[];
+  reconciliationHistory: RestaurantInvoiceReconciliationHistory[];
   bankAccounts: Array<{ id: string; name: string }>;
+  canReconcile: boolean;
   canReceive: boolean;
   canPay: boolean;
   isPending: boolean;
+  onReconcile: (invoice: {
+    invoiceReference: string;
+    dueDate: string;
+    invoiceAmount: number | null;
+    notes: string;
+  }) => Promise<boolean>;
   onReceive: (items: Array<{ itemId: string; quantity: number }>, requestKey: string) => Promise<boolean>;
   onPay: (amount: number, paymentDate: string, method: "cash" | "bank", bankAccountId: string | null, requestKey: string) => Promise<boolean>;
 }) {
@@ -2126,12 +2156,20 @@ function IngredientPurchaseOrderCard({
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bank">("cash");
   const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? "");
+  const [invoiceReference, setInvoiceReference] = useState(order.invoice_reference ?? "");
+  const [invoiceDueDate, setInvoiceDueDate] = useState(order.due_date ?? "");
+  const [invoiceAmount, setInvoiceAmount] = useState(order.invoice_amount?.toString() ?? "");
+  const [reconciliationNotes, setReconciliationNotes] = useState(order.invoice_reconciliation_notes ?? "");
   const receiptRequestKey = useRef<string | null>(null);
   const paymentRequestKey = useRef<string | null>(null);
   const postedReceipts = receipts.filter((receipt) => receipt.accounting_status === "posted");
   const invoiceTotal = postedReceipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
+  const receivedTotal = receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
   const paidTotal = supplierPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
   const balanceDue = Math.max(0, invoiceTotal - paidTotal);
+  const reconciliationVariance = order.invoice_amount === null
+    ? null
+    : Number(order.invoice_amount) - receivedTotal;
   const hasUnpostedReceipt = receipts.some((receipt) => receipt.accounting_status === "not_configured");
   const paymentIsValid = Number(paymentAmount) > 0
     && Number(paymentAmount) <= balanceDue
@@ -2145,11 +2183,60 @@ function IngredientPurchaseOrderCard({
         {order.invoice_reference && <p className="text-xs text-slate-500">Order ref: {order.reference}</p>}
       </div>
       <div className="text-right text-xs">
-        <p className="text-slate-500">{items.length} lines · Invoice {money(invoiceTotal, currency)}</p>
+        <p className="text-slate-500">{items.length} lines · Posted payable {money(invoiceTotal, currency)}{order.invoice_amount !== null ? ` · Supplier invoice ${money(Number(order.invoice_amount), currency)}` : ""}</p>
         <p className={`font-semibold ${balanceDue > 0 || hasUnpostedReceipt ? "text-amber-700" : "text-emerald-700"}`}>{balanceDue > 0 ? `${money(balanceDue, currency)} due` : hasUnpostedReceipt ? "Receipt accounting needs setup" : invoiceTotal > 0 ? "Paid" : "No posted receipts"}</p>
       </div>
     </div>
     <form onSubmit={(event) => {
+      event.preventDefault();
+      void onReconcile({
+        invoiceReference,
+        dueDate: invoiceDueDate,
+        invoiceAmount: invoiceAmount.trim() ? Number(invoiceAmount) : null,
+        notes: reconciliationNotes,
+      });
+    }} className="mt-3 space-y-2 border-t pt-3">
+      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Supplier invoice reconciliation</p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="text-xs font-semibold text-slate-600">Invoice number
+          <input disabled={!canReconcile} maxLength={80} value={invoiceReference} onChange={(event) => setInvoiceReference(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm disabled:bg-slate-50 disabled:text-slate-500" />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Due date
+          <input disabled={!canReconcile} type="date" value={invoiceDueDate} onChange={(event) => setInvoiceDueDate(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm disabled:bg-slate-50 disabled:text-slate-500" />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Supplier invoice amount ({currency})
+          <input disabled={!canReconcile} type="number" min="0.01" step="0.01" value={invoiceAmount} onChange={(event) => setInvoiceAmount(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm disabled:bg-slate-50 disabled:text-slate-500" />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Reconciliation note
+          <input disabled={!canReconcile} maxLength={1000} value={reconciliationNotes} onChange={(event) => setReconciliationNotes(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm disabled:bg-slate-50 disabled:text-slate-500" />
+        </label>
+      </div>
+      {reconciliationVariance !== null && reconciliationVariance !== 0 && <p className="text-xs text-amber-700 dark:text-amber-300">
+        Invoice amount differs from ingredients received by {money(Math.abs(reconciliationVariance), currency)}. Payments are blocked until these totals match.
+      </p>}
+      {canReconcile && <button type="submit" disabled={isPending} className="rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200">
+        Save invoice reconciliation
+      </button>}
+    </form>
+      {reconciliationHistory.length > 0 && <details className="mt-3 border-t pt-3">
+        <summary className="cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200">
+          Invoice reconciliation history ({Math.min(reconciliationHistory.length, 10)}{reconciliationHistory.length > 10 ? "+" : ""})
+        </summary>
+        <ol className="mt-2 space-y-2">
+          {reconciliationHistory.slice(0, 10).map((entry) => <li key={entry.id} className="rounded border bg-slate-50 p-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              {new Date(entry.created_at).toLocaleString()} · {entry.invoice_reference || "No invoice number"}
+            </p>
+            <p className="mt-1 text-slate-500">Recorded by {entry.recorded_by_name}</p>
+            <p className="mt-1 text-slate-600 dark:text-slate-300">
+              {entry.invoice_amount === null ? "Invoice amount not recorded" : `Invoice ${money(Number(entry.invoice_amount), currency)}`}
+              {entry.due_date ? ` · Due ${entry.due_date}` : ""}
+            </p>
+            {entry.reconciliation_notes && <p className="mt-1 whitespace-pre-wrap text-slate-500">{entry.reconciliation_notes}</p>}
+          </li>)}
+        </ol>
+      </details>}
+      <form onSubmit={(event) => {
       event.preventDefault();
       const receiveLines = items
         .map((item) => ({ itemId: item.id, quantity: Number(quantities[item.id] ?? 0) }))

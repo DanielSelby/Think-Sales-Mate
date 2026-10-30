@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { formatMoney } from "@/lib/currency";
 
 type OrderStatus = "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
 
@@ -20,7 +21,7 @@ const statusLabels: Record<OrderStatus, string> = {
 const progress: OrderStatus[] = ["new", "confirmed", "preparing", "ready", "completed"];
 
 function money(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 export default function RestaurantOrderTrackingView({

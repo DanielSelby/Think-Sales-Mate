@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import RestaurantPosView from "@/components/restaurant/restaurant-pos-view";
@@ -38,6 +39,14 @@ export default async function RestaurantPosPage() {
   if (error) throw new Error(`Could not load restaurant POS: ${error.message}`);
 
   const accessibleLocations = (locations ?? []).filter((location) => canAccessLocation(context, location.id));
+  const accessibleLocationIds = accessibleLocations.map((location) => location.id);
+  const { data: heldDrafts, error: heldDraftsError } = accessibleLocationIds.length > 0
+    ? await createAdminClient().from("restaurant_pos_drafts").select("id, location_id, draft, created_at, updated_at")
+      .eq("org_id", context.orgId).eq("created_by", context.userId)
+      .in("location_id", accessibleLocationIds)
+      .order("updated_at", { ascending: false }).limit(25)
+    : { data: [], error: null };
+  if (heldDraftsError) throw new Error(`Could not load held restaurant orders: ${heldDraftsError.message}`);
   return <RestaurantPosView
     locations={accessibleLocations}
     categories={categories ?? []}
@@ -47,5 +56,6 @@ export default async function RestaurantPosPage() {
     modifierOptions={modifierOptions ?? []}
     tables={(tables ?? []).filter((table) => accessibleLocations.some((location) => location.id === table.location_id))}
     currency={context.currency}
+    heldDrafts={heldDrafts ?? []}
   />;
 }

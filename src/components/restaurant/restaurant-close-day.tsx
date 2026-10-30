@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { closeRestaurantBusinessDay } from "@/app/(dashboard)/restaurant/actions";
+import { formatMoney } from "@/lib/currency";
 import type { Database, Json } from "@/types/database";
 
 type Closing = Database["public"]["Tables"]["restaurant_day_closings"]["Row"];
@@ -22,7 +23,7 @@ function amountFromJson(value: Json, method: Method) {
 }
 
 function money(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 export function RestaurantCloseDay({

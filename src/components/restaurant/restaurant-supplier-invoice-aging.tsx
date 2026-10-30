@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatMoney } from "@/lib/currency";
 
 export type RestaurantSupplierInvoiceAgingRow = {
   purchase_order_id: string;
@@ -16,7 +17,7 @@ export type RestaurantSupplierInvoiceAgingRow = {
 };
 
 function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 function csvCell(value: string | number) {
@@ -79,7 +80,7 @@ export function RestaurantSupplierInvoiceAging({
         </button>
       </div>
     </div>
-    <p className="text-[11px] text-slate-500">Aging is based on receipts posted to Restaurant supplier payables. Receipts without a payable journal must be reconciled separately.</p>
+    <p className="text-[11px] text-slate-500">Aging uses the reconciled supplier invoice amount when available; otherwise it uses receipts posted to Restaurant supplier payables. Receipts without a payable journal must be reconciled separately.</p>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
       {[
         { label: "Not yet due", rows: notDue },

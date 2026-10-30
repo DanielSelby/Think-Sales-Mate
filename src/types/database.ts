@@ -392,6 +392,28 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["restaurant_orders"]["Row"]>;
         Relationships: [];
       };
+      restaurant_pos_drafts: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          created_by: string;
+          draft: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          created_by: string;
+          draft: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_pos_drafts"]["Row"]>;
+        Relationships: [];
+      };
       restaurant_order_items: {
         Row: {
           id: string;
@@ -838,6 +860,8 @@ export interface Database {
           reference: string;
           invoice_reference: string | null;
           due_date: string | null;
+          invoice_amount: number | null;
+          invoice_reconciliation_notes: string | null;
           created_by: string | null;
           received_at: string | null;
           created_at: string;
@@ -852,6 +876,8 @@ export interface Database {
           reference: string;
           invoice_reference?: string | null;
           due_date?: string | null;
+          invoice_amount?: number | null;
+          invoice_reconciliation_notes?: string | null;
           created_by?: string | null;
           received_at?: string | null;
           created_at?: string;
@@ -940,6 +966,32 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_payments"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_ingredient_invoice_reconciliation_history: {
+        Row: {
+          id: string;
+          org_id: string;
+          purchase_order_id: string;
+          invoice_reference: string | null;
+          due_date: string | null;
+          invoice_amount: number | null;
+          reconciliation_notes: string | null;
+          recorded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          purchase_order_id: string;
+          invoice_reference?: string | null;
+          due_date?: string | null;
+          invoice_amount?: number | null;
+          reconciliation_notes?: string | null;
+          recorded_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_invoice_reconciliation_history"]["Row"]>;
         Relationships: [];
       };
       restaurant_account_mappings: {
@@ -4567,6 +4619,41 @@ export interface Database {
           paid_total: number;
           outstanding: number;
           overdue_days: number;
+        }>;
+      };
+      reconcile_restaurant_ingredient_invoice: {
+        Args: {
+          p_org_id: string;
+          p_purchase_order_id: string;
+          p_invoice_reference: string | null;
+          p_due_date: string | null;
+          p_invoice_amount: number | null;
+          p_reconciliation_notes: string | null;
+          p_recorded_by: string;
+        };
+        Returns: Array<{
+          invoice_amount: number | null;
+          received_total: number;
+          posted_total: number;
+          paid_total: number;
+          variance: number | null;
+        }>;
+      };
+      get_restaurant_invoice_reconciliation_history: {
+        Args: {
+          p_org_id: string;
+          p_purchase_order_ids: string[];
+          p_per_order_limit?: number;
+        };
+        Returns: Array<{
+          id: string;
+          purchase_order_id: string;
+          invoice_reference: string | null;
+          due_date: string | null;
+          invoice_amount: number | null;
+          reconciliation_notes: string | null;
+          recorded_by: string;
+          created_at: string;
         }>;
       };
       get_restaurant_item_margins: {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatMoney } from "@/lib/currency";
 
 export type RestaurantFinancialSummaryData = {
   order_count: number;
@@ -23,7 +24,7 @@ export type RestaurantFinancialSummaryData = {
 };
 
 function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 function methodLabel(value: string) {

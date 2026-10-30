@@ -5,10 +5,11 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { formatMoney } from "@/lib/currency";
 import PrintReceiptButton from "./print-receipt-button";
 
 function money(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 export default async function RestaurantReceiptPage({

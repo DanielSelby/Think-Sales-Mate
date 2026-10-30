@@ -6,6 +6,7 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { formatMoney } from "@/lib/currency";
 import type { Json } from "@/types/database";
 
 type Summary = {
@@ -26,7 +27,7 @@ function isSummary(value: Json): value is Json & { summary: Summary } {
 }
 
 function money(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 export default async function RestaurantDashboardPage() {

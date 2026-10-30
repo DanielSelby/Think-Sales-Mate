@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { AlertTriangle, CalendarClock } from "lucide-react";
+import { formatMoney } from "@/lib/currency";
 import type { RestaurantSupplierInvoiceAgingRow } from "./restaurant-supplier-invoice-aging";
 
 function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  return formatMoney(value, currency);
 }
 
 export function RestaurantSupplierInvoiceAlert({
