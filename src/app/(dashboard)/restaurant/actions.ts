@@ -102,6 +102,7 @@ export async function saveRestaurantMenuItem(input: {
   categoryId: string | null;
   name: string;
   sku?: string | null;
+  barcode?: string | null;
   description: string;
   imageUrl?: string | null;
   price: number;
@@ -118,6 +119,11 @@ export async function saveRestaurantMenuItem(input: {
   }
   const sku = input.sku?.trim() || null;
   if (sku && sku.length > 80) throw new Error("SKU must be no more than 80 characters.");
+  if (input.barcode !== undefined && input.barcode !== null && typeof input.barcode !== "string") {
+    throw new Error("Enter a valid menu item barcode.");
+  }
+  const barcode = input.barcode?.trim() || null;
+  if (barcode && barcode.length > 120) throw new Error("Barcode must be no more than 120 characters.");
   if (!Number.isFinite(input.price) || input.price < 0 || !Number.isInteger(input.sortOrder)
     || !["kitchen", "bar", "dessert"].includes(input.prepStation)
     || (input.itemType !== undefined && !["prepared", "packaged"].includes(input.itemType))
@@ -151,6 +157,7 @@ export async function saveRestaurantMenuItem(input: {
     category_id: input.categoryId,
     name,
     ...(input.sku !== undefined ? { sku } : {}),
+    ...(input.barcode !== undefined ? { barcode } : {}),
     description: input.description.trim() || null,
     ...(input.imageUrl !== undefined ? { image_url: input.imageUrl } : {}),
     price: input.price,
@@ -164,6 +171,7 @@ export async function saveRestaurantMenuItem(input: {
     ? admin.from("restaurant_menu_items").update(payload).eq("org_id", context.orgId).eq("id", input.id)
     : admin.from("restaurant_menu_items").insert({ ...payload, org_id: context.orgId });
   const { error } = await query;
+  if (error?.code === "23505") throw new Error("This menu item barcode is already assigned to another item in this organization.");
   if (error) throw new Error(`Could not save menu item: ${error.message}`);
   revalidatePath("/restaurant");
   revalidatePath("/restaurant/packaged-items");
@@ -414,6 +422,7 @@ export async function recordRestaurantPackagedWaste(input: {
 export type RestaurantMenuImportRow = {
   name: string;
   sku: string;
+  barcode: string;
   category: string;
   description: string;
   price: number;
@@ -432,6 +441,7 @@ export async function importRestaurantMenuItems(rows: RestaurantMenuImportRow[])
     if (!row || typeof row !== "object"
       || typeof row.name !== "string"
       || typeof row.sku !== "string"
+      || typeof row.barcode !== "string"
       || typeof row.category !== "string"
       || typeof row.description !== "string"
       || typeof row.price !== "number"
@@ -441,9 +451,11 @@ export async function importRestaurantMenuItems(rows: RestaurantMenuImportRow[])
     }
     const name = requiredText(row.name, "Menu item name", 120);
     const sku = row.sku.trim() || null;
+    const barcode = row.barcode.trim() || null;
     const category = row.category.trim();
     const description = row.description.trim();
     if (sku && sku.length > 80) throw new Error(`SKU for "${name}" must be no more than 80 characters.`);
+    if (barcode && barcode.length > 120) throw new Error(`Barcode for "${name}" must be no more than 120 characters.`);
     if (category.length > 100) throw new Error(`Category for "${name}" must be no more than 100 characters.`);
     if (description.length > 2000) throw new Error(`Description for "${name}" must be no more than 2,000 characters.`);
     if (!validMoney(row.price, true)) throw new Error(`Price for "${name}" must be a non-negative amount with up to 2 decimal places.`);
@@ -463,16 +475,18 @@ export async function importRestaurantMenuItems(rows: RestaurantMenuImportRow[])
         throw new Error(`Image URL for "${name}" must be a valid HTTPS URL.`);
       }
     }
-    return { name, sku, category, description: description || null, price: row.price, prepStation: row.prepStation as "kitchen" | "bar" | "dessert", imageUrl: imageUrl || null };
+    return { name, sku, barcode, category, description: description || null, price: row.price, prepStation: row.prepStation as "kitchen" | "bar" | "dessert", imageUrl: imageUrl || null };
   });
 
   const skus = normalizedRows.flatMap((row) => row.sku ? [row.sku.toLowerCase()] : []);
   if (new Set(skus).size !== skus.length) throw new Error("The import contains duplicate SKUs. SKUs must be unique within the file.");
+  const barcodes = normalizedRows.flatMap((row) => row.barcode ? [row.barcode.toLowerCase()] : []);
+  if (new Set(barcodes).size !== barcodes.length) throw new Error("The import contains duplicate barcodes. Barcodes must be unique within the file.");
 
   const admin = createAdminClient();
   const [{ data: categories, error: categoryError }, { data: existingItems, error: itemsError }] = await Promise.all([
     admin.from("restaurant_menu_categories").select("id, name, is_active").eq("org_id", context.orgId),
-    admin.from("restaurant_menu_items").select("sku, sort_order").eq("org_id", context.orgId),
+    admin.from("restaurant_menu_items").select("sku, barcode, sort_order").eq("org_id", context.orgId),
   ]);
   if (categoryError) throw new Error(`Could not load restaurant menu categories: ${categoryError.message}`);
   if (itemsError) throw new Error(`Could not check existing restaurant menu items: ${itemsError.message}`);
@@ -486,6 +500,9 @@ export async function importRestaurantMenuItems(rows: RestaurantMenuImportRow[])
   const existingSkus = new Set((existingItems ?? []).flatMap((item) => item.sku ? [item.sku.trim().toLowerCase()] : []));
   const existingSku = normalizedRows.find((row) => row.sku && existingSkus.has(row.sku.toLowerCase()));
   if (existingSku) throw new Error(`SKU "${existingSku.sku}" already exists in this restaurant menu.`);
+  const existingBarcodes = new Set((existingItems ?? []).flatMap((item) => item.barcode ? [item.barcode.trim().toLowerCase()] : []));
+  const existingBarcode = normalizedRows.find((row) => row.barcode && existingBarcodes.has(row.barcode.toLowerCase()));
+  if (existingBarcode) throw new Error(`Barcode "${existingBarcode.barcode}" already exists in this restaurant menu.`);
 
   const nextSortOrder = Math.max(-1, ...(existingItems ?? []).map((item) => item.sort_order)) + 1;
   const timestamp = new Date().toISOString();
@@ -494,6 +511,7 @@ export async function importRestaurantMenuItems(rows: RestaurantMenuImportRow[])
     category_id: row.category ? categoryIds.get(row.category.toLowerCase()) ?? null : null,
     name: row.name,
     sku: row.sku,
+    barcode: row.barcode,
     description: row.description,
     image_url: row.imageUrl,
     price: row.price,
@@ -504,7 +522,7 @@ export async function importRestaurantMenuItems(rows: RestaurantMenuImportRow[])
     updated_at: timestamp,
   })));
   if (insertError) {
-    if (insertError.code === "23505") throw new Error("A menu item with one of these SKUs already exists. Refresh the menu and remove duplicates before importing.");
+    if (insertError.code === "23505") throw new Error("A menu item with one of these SKUs or barcodes already exists. Refresh the menu and remove duplicates before importing.");
     throw new Error(`Could not import restaurant menu items: ${insertError.message}`);
   }
 

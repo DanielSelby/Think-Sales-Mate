@@ -13,6 +13,7 @@ type PreviewRow = { rowNumber: number; value: RestaurantMenuImportRow; issues: s
 const aliases: Record<keyof RestaurantMenuImportRow, string[]> = {
   name: ["name", "item name", "menu item", "menu item name"],
   sku: ["sku", "item sku", "code"],
+  barcode: ["barcode", "bar code", "upc", "ean"],
   category: ["category", "menu category"],
   description: ["description", "details"],
   price: ["price", "selling price", "unit price"],
@@ -32,6 +33,7 @@ function mapRawRow(row: Record<string, unknown>): RestaurantMenuImportRow {
   return {
     name: readCell(row, "name"),
     sku: readCell(row, "sku"),
+    barcode: readCell(row, "barcode"),
     category: readCell(row, "category"),
     description: readCell(row, "description"),
     price: rawPrice ? Number(rawPrice) : Number.NaN,
@@ -41,8 +43,8 @@ function mapRawRow(row: Record<string, unknown>): RestaurantMenuImportRow {
 }
 
 function createTemplate() {
-  const csv = "name,price,sku,category,description,prep station,image url\n" +
-    "Margherita Pizza,12.5,PIZZA-001,Pizza,Tomato mozzarella basil,kitchen,\n";
+  const csv = "name,price,sku,barcode,category,description,prep station,image url\n" +
+    "Margherita Pizza,12.5,PIZZA-001,0123456789012,Pizza,Tomato mozzarella basil,kitchen,\n";
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -53,7 +55,7 @@ function createTemplate() {
 
 export function RestaurantMenuImporter({ categories, menuItems }: {
   categories: ImportCategory[];
-  menuItems: { sku: string | null }[];
+  menuItems: { sku: string | null; barcode: string | null }[];
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -112,7 +114,9 @@ export function RestaurantMenuImporter({ categories, menuItems }: {
       }
       const activeCategories = new Set(categories.filter((category) => category.is_active).map((category) => category.name.trim().toLowerCase()));
       const knownSkus = new Set(menuItems.flatMap((item) => item.sku ? [item.sku.trim().toLowerCase()] : []));
+      const knownBarcodes = new Set(menuItems.flatMap((item) => item.barcode ? [item.barcode.trim().toLowerCase()] : []));
       const fileSkus = new Set<string>();
+      const fileBarcodes = new Set<string>();
       const preview = rawRows.map((raw, index) => {
         const value = mapRawRow(raw);
         const issues: string[] = [];
@@ -127,6 +131,13 @@ export function RestaurantMenuImporter({ categories, menuItems }: {
           if (knownSkus.has(normalizedSku)) issues.push("SKU already exists in this menu");
           if (fileSkus.has(normalizedSku)) issues.push("Duplicate SKU in this file");
           fileSkus.add(normalizedSku);
+        }
+        if (value.barcode.length > 120) issues.push("Barcode exceeds 120 characters");
+        if (value.barcode) {
+          const normalizedBarcode = value.barcode.toLowerCase();
+          if (knownBarcodes.has(normalizedBarcode)) issues.push("Barcode already exists in this menu");
+          if (fileBarcodes.has(normalizedBarcode)) issues.push("Duplicate barcode in this file");
+          fileBarcodes.add(normalizedBarcode);
         }
         if (value.category && !activeCategories.has(value.category.toLowerCase())) issues.push("Category must match an active menu category");
         if (!["kitchen", "bar", "dessert"].includes(value.prepStation)) issues.push("Prep station must be kitchen, bar, or dessert");
@@ -196,7 +207,7 @@ export function RestaurantMenuImporter({ categories, menuItems }: {
       {rows.length > 0 && <div className="mt-3 max-h-72 overflow-auto rounded-lg border dark:border-slate-700">
         <table className="w-full text-left text-xs">
           <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
-            <tr>{["Row", "Name", "Price", "SKU", "Category", "Prep station", "Validation"].map((heading) => <th key={heading} className="px-2 py-2 font-semibold">{heading}</th>)}</tr>
+            <tr>{["Row", "Name", "Price", "SKU", "Barcode", "Category", "Prep station", "Validation"].map((heading) => <th key={heading} className="px-2 py-2 font-semibold">{heading}</th>)}</tr>
           </thead>
           <tbody className="divide-y dark:divide-slate-700">
             {rows.map((row) => <tr key={row.rowNumber}>
@@ -204,6 +215,7 @@ export function RestaurantMenuImporter({ categories, menuItems }: {
               <td className="px-2 py-2">{row.value.name || "—"}</td>
               <td className="px-2 py-2">{Number.isFinite(row.value.price) ? row.value.price : "—"}</td>
               <td className="px-2 py-2">{row.value.sku || "—"}</td>
+              <td className="px-2 py-2">{row.value.barcode || "—"}</td>
               <td className="px-2 py-2">{row.value.category || "—"}</td>
               <td className="px-2 py-2">{row.value.prepStation}</td>
               <td className={`px-2 py-2 ${row.issues.length ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"}`}>{row.issues.join("; ") || "Ready"}</td>

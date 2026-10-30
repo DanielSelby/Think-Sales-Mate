@@ -1660,6 +1660,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
   const [itemId, setItemId] = useState<string | undefined>();
   const [itemName, setItemName] = useState("");
   const [itemSku, setItemSku] = useState("");
+  const [itemBarcode, setItemBarcode] = useState("");
   const [description, setDescription] = useState("");
   const [itemCategoryId, setItemCategoryId] = useState("");
   const [price, setPrice] = useState("");
@@ -1678,6 +1679,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
     setItemId(undefined);
     setItemName("");
     setItemSku("");
+    setItemBarcode("");
     setDescription("");
     setItemCategoryId("");
     setPrice("");
@@ -1719,6 +1721,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
         categoryId: itemCategoryId || null,
         name: itemName,
         sku: itemSku,
+        barcode: itemBarcode,
         description,
         imageUrl,
         price: Number(price),
@@ -1739,10 +1742,10 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           <article key={item.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 ${!item.is_active ? "opacity-60" : ""}`}>
             <div className="flex min-w-0 items-center gap-3">
               {item.image_url ? <Image src={item.image_url} alt="" width={72} height={72} unoptimized className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 object-contain dark:bg-slate-800" /> : <div className="h-[72px] w-[72px] shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />}
-              <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{item.item_type === "packaged" ? "Packaged resale" : "Prepared"} · {categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}{item.sku ? ` · SKU ${item.sku}` : ""}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
+              <div><h3 className="font-semibold text-slate-950">{item.name} {!item.is_active && <span className="text-xs text-slate-500">(Unavailable)</span>}</h3><p className="text-xs text-slate-500">{item.item_type === "packaged" ? "Packaged resale" : "Prepared"} · {categories.find((category) => category.id === item.category_id)?.name ?? "Uncategorized"} · {money(Number(item.price), currency)} · {prepStationLabels[item.prep_station]}{item.sku ? ` · SKU ${item.sku}` : ""}{item.barcode ? ` · Barcode ${item.barcode}` : ""}</p>{item.description && <p className="mt-1 text-xs text-slate-600">{item.description}</p>}</div>
             </div>
             {canEdit && <div className="flex gap-2">
-              <button type="button" disabled={isPending} onClick={() => { setItemId(item.id); setItemName(item.name); setItemSku(item.sku ?? ""); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); setItemType(item.item_type); setImageUploadError(""); }} className="rounded border px-3 py-2 text-xs font-semibold disabled:opacity-50">Edit</button>
+              <button type="button" disabled={isPending} onClick={() => { setItemId(item.id); setItemName(item.name); setItemSku(item.sku ?? ""); setItemBarcode(item.barcode ?? ""); setDescription(item.description ?? ""); setItemCategoryId(item.category_id ?? ""); setPrice(String(item.price)); setImageUrl(item.image_url); setPrepStation(item.prep_station); setItemType(item.item_type); setImageUploadError(""); }} className="rounded border px-3 py-2 text-xs font-semibold disabled:opacity-50">Edit</button>
               <button type="button" disabled={isPending} onClick={() => onAction(() => saveRestaurantMenuItem({ id: item.id, categoryId: item.category_id, name: item.name, description: item.description ?? "", price: Number(item.price), prepStation: item.prep_station, sortOrder: item.sort_order, isActive: !item.is_active }), item.is_active ? "Menu item marked unavailable." : "Menu item activated.")} className="rounded border px-3 py-2 text-xs font-semibold">{item.is_active ? "Unavailable" : "Activate"}</button>
             </div>}
           </article>
@@ -1752,6 +1755,7 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold">Name<input required maxLength={120} value={itemName} onChange={(event) => setItemName(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">SKU (optional)<input maxLength={80} value={itemSku} onChange={(event) => setItemSku(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+            <label className="text-xs font-semibold">Barcode (optional)<input maxLength={120} value={itemBarcode} onChange={(event) => setItemBarcode(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">Price<input required type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
             <label className="text-xs font-semibold">Category<select value={itemCategoryId} onChange={(event) => setItemCategoryId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="">Uncategorized</option>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label className="text-xs font-semibold">Item type<select value={itemType} onChange={(event) => setItemType(event.target.value as "prepared" | "packaged")} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="prepared">Prepared menu item</option><option value="packaged">Packaged item for resale</option></select></label>

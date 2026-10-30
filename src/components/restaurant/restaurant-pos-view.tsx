@@ -3,8 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Trash2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatMoney } from "@/lib/currency";
+import { searchCustomers, type CustomerOption } from "@/app/(dashboard)/pos/actions";
 import {
   createRestaurantOrder,
   deleteRestaurantPosDraft,
@@ -97,6 +98,10 @@ export default function RestaurantPosView({
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [categoryId, setCategoryId] = useState("all");
@@ -109,12 +114,29 @@ export default function RestaurantPosView({
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const pendingRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
+  useEffect(() => {
+    if (!customerSearchOpen) return;
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      searchCustomers(customerQuery).then((results) => {
+        if (active) setCustomerResults(results);
+      }).catch((searchError: unknown) => {
+        if (active) setError(searchError instanceof Error ? searchError.message : "Could not search customers.");
+      });
+    }, 200);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [customerQuery, customerSearchOpen]);
+
   const normalizedMenuQuery = menuQuery.trim().toLocaleLowerCase();
   const visibleItems = menuItems.filter((item) =>
     (categoryId === "all" || item.category_id === categoryId)
       && (!normalizedMenuQuery
         || item.name.toLocaleLowerCase().includes(normalizedMenuQuery)
-        || item.sku?.toLocaleLowerCase().includes(normalizedMenuQuery)),
+        || item.sku?.toLocaleLowerCase().includes(normalizedMenuQuery)
+        || item.barcode?.toLocaleLowerCase().includes(normalizedMenuQuery)),
   );
   const cartItems = menuItems.filter((item) => (quantities[item.id] ?? 0) > 0);
   const total = cartItems.reduce((sum, item) => {
@@ -163,6 +185,10 @@ export default function RestaurantPosView({
     setItemNotes({});
     setCustomerName("");
     setCustomerPhone("");
+    setCustomerQuery("");
+    setCustomerResults([]);
+    setSelectedCustomer(null);
+    setCustomerSearchOpen(false);
     setDeliveryAddress("");
     setNotes("");
     setActiveDraftId(null);
@@ -381,6 +407,10 @@ export default function RestaurantPosView({
       setTableId("");
       setCustomerName("");
       setCustomerPhone("");
+      setCustomerQuery("");
+      setCustomerResults([]);
+      setSelectedCustomer(null);
+      setCustomerSearchOpen(false);
       setDeliveryAddress("");
       setNotes("");
     } catch (submitError) {
@@ -467,8 +497,13 @@ export default function RestaurantPosView({
               event.preventDefault();
               const scannedSku = event.currentTarget.value.trim().toLocaleLowerCase();
               if (!scannedSku) return;
-              const scannedItem = menuItems.find((item) => item.sku?.trim().toLocaleLowerCase() === scannedSku);
-              if (!scannedItem) return;
+              const scannedItem = menuItems.find((item) =>
+                item.sku?.trim().toLocaleLowerCase() === scannedSku
+                || item.barcode?.trim().toLocaleLowerCase() === scannedSku);
+              if (!scannedItem) {
+                setError(`No menu item matches SKU or barcode "${event.currentTarget.value.trim()}".`);
+                return;
+              }
               const currentQuantity = quantities[scannedItem.id] ?? 0;
               const availableQuantity = packagedStock.find(
                 (stock) => stock.location_id === locationId && stock.menu_item_id === scannedItem.id,
@@ -566,8 +601,52 @@ export default function RestaurantPosView({
             </label>
           </li>)}
         </ul>}
-        <label className="block text-xs font-semibold text-slate-600">Customer name (optional)<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} maxLength={120} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-        <label className="block text-xs font-semibold text-slate-600">Phone (optional)<input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} maxLength={40} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <div className="relative">
+          <label className="block text-xs font-semibold text-slate-600">Find existing customer
+            <input
+              value={customerQuery}
+              onFocus={() => setCustomerSearchOpen(true)}
+              onChange={(event) => {
+                setCustomerQuery(event.target.value);
+                setSelectedCustomer(null);
+                setCustomerSearchOpen(true);
+              }}
+              placeholder="Search name, phone, or email"
+              autoComplete="off"
+              className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"
+            />
+          </label>
+          {customerSearchOpen && !selectedCustomer && customerResults.length > 0 && <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-48 overflow-auto rounded-lg border bg-white shadow-lg" aria-label="Customer search results">
+            {customerResults.map((customer) => <li key={customer.id}>
+              <button type="button" onClick={() => {
+                setSelectedCustomer(customer);
+                setCustomerName(customer.name);
+                setCustomerPhone(customer.phone ?? "");
+                setCustomerQuery("");
+                setCustomerResults([]);
+                setCustomerSearchOpen(false);
+              }} className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50">
+                <span className="block font-semibold text-slate-800">{customer.name}</span>
+                <span className="block text-xs text-slate-500">{[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact details"}</span>
+              </button>
+            </li>)}
+          </ul>}
+          {selectedCustomer && <p className="mt-1 text-xs text-emerald-700">Selected: {selectedCustomer.name} · <button type="button" onClick={() => {
+            setSelectedCustomer(null);
+            setCustomerName("");
+            setCustomerPhone("");
+            setCustomerSearchOpen(true);
+          }} className="font-semibold underline">Change</button></p>}
+          {customerSearchOpen && customerQuery.trim().length > 0 && customerResults.length === 0 && <p className="mt-1 text-xs text-slate-500">No matching customers found. You can enter the customer details below.</p>}
+        </div>
+        <label className="block text-xs font-semibold text-slate-600">Customer name (optional)<input value={customerName} onChange={(event) => {
+          setCustomerName(event.target.value);
+          setSelectedCustomer(null);
+        }} maxLength={120} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Phone (optional)<input value={customerPhone} onChange={(event) => {
+          setCustomerPhone(event.target.value);
+          setSelectedCustomer(null);
+        }} maxLength={40} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         {orderType === "delivery" && <label className="block text-xs font-semibold text-slate-600">Delivery address<input required value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} maxLength={300} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>}
         <label className="block text-xs font-semibold text-slate-600">Order notes<input value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         <p className="flex justify-between border-t pt-3 font-bold"><span>Total</span><span>{money(total, currency)}</span></p>
