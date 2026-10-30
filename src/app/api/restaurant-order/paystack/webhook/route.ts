@@ -28,7 +28,9 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Invalid webhook payload.", { status: 400 });
   }
   const parsedEvent = event as { event?: unknown; data?: unknown };
-  if (parsedEvent.event !== "charge.success") return NextResponse.json({ received: true });
+  if (parsedEvent.event !== "charge.success" && parsedEvent.event !== "charge.failed") {
+    return NextResponse.json({ received: true });
+  }
   const eventData = parsedEvent.data;
   const reference = typeof eventData === "object" && eventData !== null && !Array.isArray(eventData)
     ? (eventData as { reference?: unknown }).reference
@@ -45,6 +47,15 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Could not check restaurant payment.", { status: 500 });
   }
   if (!attempt) return NextResponse.json({ received: true });
+
+  if (parsedEvent.event === "charge.failed") {
+    const { error } = await admin.rpc("cancel_restaurant_online_payment_attempt", { p_reference: reference });
+    if (error) {
+      console.error("Could not cancel failed Paystack Restaurant attempt:", error.message);
+      return new NextResponse("Could not update restaurant payment status.", { status: 500 });
+    }
+    return NextResponse.json({ received: true });
+  }
 
   let transaction;
   try {

@@ -14,6 +14,8 @@ export type RestaurantAccountMapping = {
   sales_revenue_account_id: string | null;
   refunds_account_id: string | null;
   tips_liability_account_id: string | null;
+  ingredient_inventory_account_id: string | null;
+  ingredient_payable_account_id: string | null;
   cash_bank_account_id: string | null;
   card_bank_account_id: string | null;
   mobile_money_bank_account_id: string | null;
@@ -51,6 +53,8 @@ export function RestaurantAccountMappingPanel({
     salesRevenueAccountId: mapping?.sales_revenue_account_id ?? "",
     refundsAccountId: mapping?.refunds_account_id ?? "",
     tipsLiabilityAccountId: mapping?.tips_liability_account_id ?? "",
+    ingredientInventoryAccountId: mapping?.ingredient_inventory_account_id ?? "",
+    ingredientPayableAccountId: mapping?.ingredient_payable_account_id ?? "",
     cashBankAccountId: mapping?.cash_bank_account_id ?? "",
     cardBankAccountId: mapping?.card_bank_account_id ?? "",
     mobileMoneyBankAccountId: mapping?.mobile_money_bank_account_id ?? "",
@@ -72,6 +76,28 @@ export function RestaurantAccountMappingPanel({
     <div>
       <h2 className="font-bold text-slate-900 dark:text-white">Restaurant General Ledger mappings</h2>
       <p className="mt-1 text-xs text-slate-500">When configured, new Restaurant payments and refunds post balanced journals. Existing payments are not backfilled. Use organization-wide accounts. There are no separate tax or processor-fee lines; amounts post to the selected sales and tender accounts.</p>
+    </div>
+    <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Restaurant ingredient purchasing</h3>
+      <p className="mt-1 text-xs text-slate-500">Optional. When both accounts are assigned, received ingredient purchases post inventory debit and supplier payable credit. Restaurant ingredient stock remains separate from ERP product inventory.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {([
+          ["ingredientInventoryAccountId", "Ingredient inventory", "asset"],
+          ["ingredientPayableAccountId", "Ingredient supplier payable", "liability"],
+        ] as const).map(([key, label, type]) => <label key={key} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          {label}
+          <select
+            disabled={!canEdit || isPending}
+            value={values[key]}
+            onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}
+            className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:opacity-60 dark:border-slate-600 dark:bg-ink-800 dark:text-white"
+          >
+            <option value="">Not configured</option>
+            {accounts.filter((account) => account.type === type && account.status === "active" && account.branch === "All Locations")
+              .map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}
+          </select>
+        </label>)}
+      </div>
     </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {fields.map(([key, label, type]) => {

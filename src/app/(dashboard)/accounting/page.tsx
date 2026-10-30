@@ -193,7 +193,7 @@ export default async function AccountingPage({ searchParams }: { searchParams?: 
     }
     if (restaurantEnabled) {
       const { data: mapping, error: mappingError } = await accountingDb.from("restaurant_account_mappings")
-        .select("cash_account_id, card_account_id, mobile_money_account_id, other_account_id, sales_revenue_account_id, refunds_account_id, tips_liability_account_id, cash_bank_account_id, card_bank_account_id, mobile_money_bank_account_id, other_bank_account_id")
+        .select("cash_account_id, card_account_id, mobile_money_account_id, other_account_id, sales_revenue_account_id, refunds_account_id, tips_liability_account_id, ingredient_inventory_account_id, ingredient_payable_account_id, cash_bank_account_id, card_bank_account_id, mobile_money_bank_account_id, other_bank_account_id")
         .eq("org_id", context.orgId).maybeSingle();
       if (mappingError) throw new Error(`Could not load Restaurant account mappings: ${mappingError.message}`);
       restaurantAccountMapping = mapping ?? null;

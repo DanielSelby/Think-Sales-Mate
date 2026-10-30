@@ -1296,9 +1296,13 @@ export async function createRestaurantIngredientPurchaseOrder(input: {
 
 export async function receiveRestaurantIngredientPurchase(input: {
   purchaseOrderId: string;
+  requestKey: string;
   items: Array<{ itemId: string; quantity: number }>;
 }) {
   const context = await restaurantContext("ingredients", "edit");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestKey)) {
+    throw new Error("Invalid Restaurant receipt request.");
+  }
   if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
     throw new Error("Choose one or more valid purchase lines to receive.");
   }
@@ -1317,14 +1321,23 @@ export async function receiveRestaurantIngredientPurchase(input: {
   if (!purchaseOrder || !canUseLocation(context, purchaseOrder.location_id)) {
     throw new Error("Restaurant purchase order not found or not accessible.");
   }
-  const { error } = await admin.rpc("receive_restaurant_ingredient_purchase", {
+  const { data, error } = await admin.rpc("receive_restaurant_ingredient_purchase_with_accounting", {
     p_org_id: context.orgId,
     p_purchase_order_id: input.purchaseOrderId,
     p_lines: lines,
     p_received_by: context.userId,
+    p_request_key: input.requestKey,
   });
   if (error) throw new Error(`Could not receive Restaurant ingredient purchase: ${error.message}`);
+  const receipt = data?.[0];
+  if (!receipt) throw new Error("Restaurant ingredient receipt was not confirmed.");
   revalidatePath("/restaurant");
+  revalidatePath("/accounting");
+  return {
+    accountingPosted: receipt.accounting_status !== "not_configured",
+    receiptId: receipt.receipt_id,
+    journalId: receipt.journal_id,
+  };
 }
 
 export async function saveRestaurantRecipe(input: {

@@ -134,6 +134,8 @@ export async function saveRestaurantAccountMappings(input: {
   salesRevenueAccountId: string;
   refundsAccountId: string;
   tipsLiabilityAccountId: string;
+  ingredientInventoryAccountId?: string;
+  ingredientPayableAccountId?: string;
   cashBankAccountId?: string | null;
   cardBankAccountId?: string | null;
   mobileMoneyBankAccountId?: string | null;
@@ -156,6 +158,8 @@ export async function saveRestaurantAccountMappings(input: {
     input.salesRevenueAccountId,
     input.refundsAccountId,
     input.tipsLiabilityAccountId,
+    ...(input.ingredientInventoryAccountId ? [input.ingredientInventoryAccountId] : []),
+    ...(input.ingredientPayableAccountId ? [input.ingredientPayableAccountId] : []),
   ];
   if (accountIds.some((id) => !id)) {
     return { ok: false, error: "Select a valid account for every mapping." };
@@ -184,6 +188,15 @@ export async function saveRestaurantAccountMappings(input: {
     if (byId.get(input[field])?.type !== expectedType) {
       return { ok: false, error: `Choose an ${expectedType} account for ${field.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`)}.` };
     }
+  }
+  if (Boolean(input.ingredientInventoryAccountId) !== Boolean(input.ingredientPayableAccountId)) {
+    return { ok: false, error: "Select both Restaurant ingredient inventory and payable accounts, or leave both unassigned." };
+  }
+  if (input.ingredientInventoryAccountId && byId.get(input.ingredientInventoryAccountId)?.type !== "asset") {
+    return { ok: false, error: "Choose an asset account for Restaurant ingredient inventory." };
+  }
+  if (input.ingredientPayableAccountId && byId.get(input.ingredientPayableAccountId)?.type !== "liability") {
+    return { ok: false, error: "Choose a liability account for Restaurant ingredient payables." };
   }
   if (accountRows.some((account) => account.location_id)) {
     return { ok: false, error: "Restaurant mappings require organization-wide accounts, not accounts assigned to a single branch." };
@@ -227,6 +240,8 @@ export async function saveRestaurantAccountMappings(input: {
     sales_revenue_account_id: input.salesRevenueAccountId,
     refunds_account_id: input.refundsAccountId,
     tips_liability_account_id: input.tipsLiabilityAccountId,
+    ingredient_inventory_account_id: input.ingredientInventoryAccountId || null,
+    ingredient_payable_account_id: input.ingredientPayableAccountId || null,
     ...bankMappings,
     updated_by: context.userId,
     updated_at: new Date().toISOString(),

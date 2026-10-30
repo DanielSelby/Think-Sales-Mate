@@ -275,6 +275,10 @@ export default function RestaurantView({
         && "emailNotification" in result
         ? result.emailNotification
         : null;
+      const accountingWarning = typeof result === "object" && result !== null
+        && "accountingPosted" in result && result.accountingPosted === false
+        ? " Ingredient stock was received, but no accounting journal was posted. Configure both Restaurant ingredient accounts in Accounting."
+        : "";
       let emailNotice = "";
       if (typeof emailNotification === "object" && emailNotification !== null
         && "sent" in emailNotification && emailNotification.sent === false) {
@@ -283,7 +287,7 @@ export default function RestaurantView({
           : "";
         emailNotice = ` Order status was updated, but the customer email could not be sent.${reason}`;
       }
-      setNotice({ type: "success", text: `${success}${emailNotice}` });
+      setNotice({ type: "success", text: `${success}${emailNotice}${accountingWarning}` });
       router.refresh();
       return true;
     } catch (error) {
@@ -1021,7 +1025,7 @@ function RestaurantIngredientManagement({
                       ingredients={ingredients}
                       canReceive={canEdit}
                       isPending={isPending}
-                      onReceive={(items) => onAction(() => receiveRestaurantIngredientPurchase({ purchaseOrderId: order.id, items }), "Restaurant ingredients received into branch stock.")}
+                      onReceive={(items, requestKey) => onAction(() => receiveRestaurantIngredientPurchase({ purchaseOrderId: order.id, requestKey, items }), "Restaurant ingredients received into branch stock.")}
                     />)}
               </div>
             </section>
@@ -2046,11 +2050,12 @@ function IngredientPurchaseOrderCard({
   ingredients: RestaurantIngredient[];
   canReceive: boolean;
   isPending: boolean;
-  onReceive: (items: Array<{ itemId: string; quantity: number }>) => Promise<boolean>;
+  onReceive: (items: Array<{ itemId: string; quantity: number }>, requestKey: string) => Promise<boolean>;
 }) {
   const [quantities, setQuantities] = useState<Record<string, string>>(() =>
     Object.fromEntries(items.map((item) => [item.id, String(Number(item.ordered_quantity) - Number(item.quantity_received))])),
   );
+  const receiptRequestKey = useRef<string | null>(null);
   return <article className="rounded-lg border p-3 dark:border-slate-700">
     <div className="flex flex-wrap justify-between gap-2">
       <div><p className="text-sm font-semibold text-slate-900 dark:text-white">{order.reference} · {supplierName}</p><p className="text-xs capitalize text-slate-500">{order.status.replace("_", " ")} · {new Date(order.created_at).toLocaleDateString()}</p></div>
@@ -2061,7 +2066,12 @@ function IngredientPurchaseOrderCard({
       const receiveLines = items
         .map((item) => ({ itemId: item.id, quantity: Number(quantities[item.id] ?? 0) }))
         .filter((item) => item.quantity > 0);
-      if (receiveLines.length) void onReceive(receiveLines);
+      if (receiveLines.length) {
+        receiptRequestKey.current ??= crypto.randomUUID();
+        void onReceive(receiveLines, receiptRequestKey.current).then((succeeded) => {
+          if (succeeded) receiptRequestKey.current = null;
+        });
+      }
     }} className="mt-2 space-y-2">
       {items.map((item) => {
         const remaining = Number(item.ordered_quantity) - Number(item.quantity_received);

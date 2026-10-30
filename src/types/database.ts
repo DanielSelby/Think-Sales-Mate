@@ -402,6 +402,7 @@ export interface Database {
           unit_price: number;
           quantity: number;
           line_total: number;
+          cost_per_unit_snapshot: number | null;
           prep_station: "kitchen" | "bar" | "dessert";
           notes: string | null;
           kitchen_status: "new" | "preparing" | "ready" | "served" | "cancelled";
@@ -417,6 +418,7 @@ export interface Database {
           unit_price: number;
           quantity: number;
           line_total: number;
+          cost_per_unit_snapshot?: number | null;
           prep_station?: "kitchen" | "bar" | "dessert";
           notes?: string | null;
           kitchen_status?: "new" | "preparing" | "ready" | "served" | "cancelled";
@@ -878,6 +880,32 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"]>;
         Relationships: [];
       };
+      restaurant_ingredient_receipts: {
+        Row: {
+          id: string;
+          org_id: string;
+          request_key: string;
+          purchase_order_id: string;
+          amount: number;
+          accounting_status: "posted" | "not_configured" | "zero_value";
+          journal_id: string | null;
+          received_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          request_key: string;
+          purchase_order_id: string;
+          amount: number;
+          accounting_status: "posted" | "not_configured" | "zero_value";
+          journal_id?: string | null;
+          received_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_receipts"]["Row"]>;
+        Relationships: [];
+      };
       restaurant_account_mappings: {
         Row: {
           org_id: string;
@@ -888,6 +916,8 @@ export interface Database {
           sales_revenue_account_id: string | null;
           refunds_account_id: string | null;
           tips_liability_account_id: string | null;
+          ingredient_inventory_account_id: string | null;
+          ingredient_payable_account_id: string | null;
           cash_bank_account_id: string | null;
           card_bank_account_id: string | null;
           mobile_money_bank_account_id: string | null;
@@ -904,6 +934,8 @@ export interface Database {
           sales_revenue_account_id?: string | null;
           refunds_account_id?: string | null;
           tips_liability_account_id?: string | null;
+          ingredient_inventory_account_id?: string | null;
+          ingredient_payable_account_id?: string | null;
           cash_bank_account_id?: string | null;
           card_bank_account_id?: string | null;
           mobile_money_bank_account_id?: string | null;
@@ -4335,6 +4367,21 @@ export interface Database {
           p_received_by: string;
         };
         Returns: undefined;
+      };
+      receive_restaurant_ingredient_purchase_with_accounting: {
+        Args: {
+          p_org_id: string;
+          p_purchase_order_id: string;
+          p_lines: Json;
+          p_received_by: string;
+          p_request_key: string;
+        };
+        Returns: Array<{
+          receipt_id: string;
+          amount: number;
+          accounting_status: "posted" | "not_configured";
+          journal_id: string | null;
+        }>;
       };
       record_restaurant_payment: {
         Args: {
