@@ -836,6 +836,8 @@ export interface Database {
           supplier_id: string;
           status: "ordered" | "partially_received" | "received";
           reference: string;
+          invoice_reference: string | null;
+          due_date: string | null;
           created_by: string | null;
           received_at: string | null;
           created_at: string;
@@ -848,6 +850,8 @@ export interface Database {
           supplier_id: string;
           status?: "ordered" | "partially_received" | "received";
           reference: string;
+          invoice_reference?: string | null;
+          due_date?: string | null;
           created_by?: string | null;
           received_at?: string | null;
           created_at?: string;
@@ -906,6 +910,38 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_receipts"]["Row"]>;
         Relationships: [];
       };
+      restaurant_ingredient_payments: {
+        Row: {
+          id: string;
+          org_id: string;
+          request_key: string;
+          purchase_order_id: string;
+          amount: number;
+          payment_date: string;
+          payment_method: "cash" | "bank";
+          bank_account_id: string | null;
+          bank_transaction_id: string | null;
+          journal_id: string | null;
+          recorded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          request_key: string;
+          purchase_order_id: string;
+          amount: number;
+          payment_date?: string;
+          payment_method: "cash" | "bank";
+          bank_account_id?: string | null;
+          bank_transaction_id?: string | null;
+          journal_id?: string | null;
+          recorded_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_ingredient_payments"]["Row"]>;
+        Relationships: [];
+      };
       restaurant_account_mappings: {
         Row: {
           org_id: string;
@@ -918,6 +954,7 @@ export interface Database {
           tips_liability_account_id: string | null;
           ingredient_inventory_account_id: string | null;
           ingredient_payable_account_id: string | null;
+          ingredient_payment_account_id: string | null;
           cash_bank_account_id: string | null;
           card_bank_account_id: string | null;
           mobile_money_bank_account_id: string | null;
@@ -936,6 +973,7 @@ export interface Database {
           tips_liability_account_id?: string | null;
           ingredient_inventory_account_id?: string | null;
           ingredient_payable_account_id?: string | null;
+          ingredient_payment_account_id?: string | null;
           cash_bank_account_id?: string | null;
           card_bank_account_id?: string | null;
           mobile_money_bank_account_id?: string | null;
@@ -3603,6 +3641,7 @@ export interface Database {
           recorded_by: string;
           source_expense_id: string | null;
           source_restaurant_payment_id: string | null;
+          source_restaurant_ingredient_payment_id: string | null;
           location_id: string | null;
           created_at: string;
         };
@@ -3619,6 +3658,7 @@ export interface Database {
           recorded_by: string;
           source_expense_id?: string | null;
           source_restaurant_payment_id?: string | null;
+          source_restaurant_ingredient_payment_id?: string | null;
           location_id?: string | null;
           created_at?: string;
         };
@@ -4383,6 +4423,24 @@ export interface Database {
           journal_id: string | null;
         }>;
       };
+      record_restaurant_ingredient_supplier_payment: {
+        Args: {
+          p_org_id: string;
+          p_purchase_order_id: string;
+          p_amount: number;
+          p_payment_date: string;
+          p_payment_method: "cash" | "bank";
+          p_bank_account_id: string | null;
+          p_recorded_by: string;
+          p_request_key: string;
+        };
+        Returns: Array<{
+          payment_id: string;
+          paid_total: number;
+          outstanding: number;
+          journal_id: string;
+        }>;
+      };
       record_restaurant_payment: {
         Args: {
           p_org_id: string;
@@ -4490,6 +4548,26 @@ export interface Database {
           p_closed_by: string;
         };
         Returns: Database["public"]["Tables"]["restaurant_day_closings"]["Row"];
+      };
+      get_restaurant_supplier_invoice_aging: {
+        Args: {
+          p_org_id: string;
+          p_location_ids: string[];
+        };
+        Returns: Array<{
+          purchase_order_id: string;
+          location_id: string;
+          location_name: string;
+          supplier_name: string;
+          reference: string;
+          invoice_reference: string | null;
+          due_date: string | null;
+          invoice_date: string;
+          invoiced_total: number;
+          paid_total: number;
+          outstanding: number;
+          overdue_days: number;
+        }>;
       };
       get_restaurant_item_margins: {
         Args: {

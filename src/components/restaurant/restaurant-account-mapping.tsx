@@ -16,6 +16,7 @@ export type RestaurantAccountMapping = {
   tips_liability_account_id: string | null;
   ingredient_inventory_account_id: string | null;
   ingredient_payable_account_id: string | null;
+  ingredient_payment_account_id: string | null;
   cash_bank_account_id: string | null;
   card_bank_account_id: string | null;
   mobile_money_bank_account_id: string | null;
@@ -55,6 +56,7 @@ export function RestaurantAccountMappingPanel({
     tipsLiabilityAccountId: mapping?.tips_liability_account_id ?? "",
     ingredientInventoryAccountId: mapping?.ingredient_inventory_account_id ?? "",
     ingredientPayableAccountId: mapping?.ingredient_payable_account_id ?? "",
+    ingredientPaymentAccountId: mapping?.ingredient_payment_account_id ?? "",
     cashBankAccountId: mapping?.cash_bank_account_id ?? "",
     cardBankAccountId: mapping?.card_bank_account_id ?? "",
     mobileMoneyBankAccountId: mapping?.mobile_money_bank_account_id ?? "",
@@ -79,7 +81,7 @@ export function RestaurantAccountMappingPanel({
     </div>
     <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
       <h3 className="text-sm font-bold text-slate-900 dark:text-white">Restaurant ingredient purchasing</h3>
-      <p className="mt-1 text-xs text-slate-500">Optional. When both accounts are assigned, received ingredient purchases post inventory debit and supplier payable credit. Restaurant ingredient stock remains separate from ERP product inventory.</p>
+      <p className="mt-1 text-xs text-slate-500">Optional. Configure inventory and payable accounts to post received purchases, and a payment account to record settlements. Restaurant ingredient stock remains separate from ERP product inventory.</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {([
           ["ingredientInventoryAccountId", "Ingredient inventory", "asset"],
@@ -98,6 +100,19 @@ export function RestaurantAccountMappingPanel({
           </select>
         </label>)}
       </div>
+      <label className="mt-3 block max-w-xl text-xs font-semibold text-slate-700 dark:text-slate-300">
+        Supplier payment account
+        <select
+          disabled={!canEdit || isPending}
+          value={values.ingredientPaymentAccountId}
+          onChange={(event) => setValues((current) => ({ ...current, ingredientPaymentAccountId: event.target.value }))}
+          className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:opacity-60 dark:border-slate-600 dark:bg-ink-800 dark:text-white"
+        >
+          <option value="">Not configured</option>
+          {accounts.filter((account) => account.type === "asset" && account.status === "active" && account.branch === "All Locations")
+            .map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}
+        </select>
+      </label>
     </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {fields.map(([key, label, type]) => {

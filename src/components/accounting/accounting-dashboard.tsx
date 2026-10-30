@@ -36,6 +36,7 @@ import { AccountingSearchModal } from "./accounting-search-modal";
 import { AuditLogDrawer } from "./audit-log-drawer";
 import { RestaurantFinancialSummary, type RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
 import { RestaurantAccountMappingPanel, type RestaurantAccountMapping } from "@/components/restaurant/restaurant-account-mapping";
+import { RestaurantSupplierInvoiceAging, type RestaurantSupplierInvoiceAgingRow } from "@/components/restaurant/restaurant-supplier-invoice-aging";
 import type { AccountsPayableItem } from "@/types/accounting";
 import type { AccountsReceivableItem } from "@/types/accounting";
 import type { LiveFinancialSnapshot } from "./financial-reports-tab";
@@ -56,7 +57,7 @@ const TABS = [
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
-export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {}, initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveBookTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig, restaurantSummary, restaurantAccountMapping = null, canEditRestaurantAccountMapping = false, canEditRestaurantBankMapping = false }: { orgName: string; visibleTabKeys?: string[]; initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number>; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string; receivingBranch: string; invoiceBranch: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, import("@/types/accounting").BankStatementTransaction[]>; liveBookTransactions?: Record<string, import("@/types/accounting").BankBookTransaction[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig; restaurantSummary?: RestaurantFinancialSummaryData; restaurantAccountMapping?: RestaurantAccountMapping | null; canEditRestaurantAccountMapping?: boolean; canEditRestaurantBankMapping?: boolean }) {
+export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables = [], initialBranches = [], initialBranchOptions = [], initialReceivables = [], customerCreditLimits = [], customerOutstandingById = {}, customerOutstandingByName = {}, initialAuditLogs = [], initialPayments = [], liveFinancialSnapshot, liveAccounts = [], liveJournalEntries = [], liveTaxSummary, liveTaxRates = [], liveTaxFilings = [], liveBankAccounts = [], liveBankTransactions = {}, liveBookTransactions = {}, liveFixedAssets = [], liveAccountingSettings, initialDateFrom, initialDateTo, liveCurrencyConfig, restaurantSummary, restaurantSupplierInvoices = [], restaurantAccountMapping = null, canEditRestaurantAccountMapping = false, canEditRestaurantBankMapping = false }: { orgName: string; visibleTabKeys?: string[]; initialPayables?: AccountsPayableItem[]; initialBranches?: string[]; initialBranchOptions?: { id: string; name: string }[]; initialReceivables?: AccountsReceivableItem[]; customerCreditLimits?: { customerName: string; creditLimit: number | null }[]; customerOutstandingById?: Record<string, number>; customerOutstandingByName?: Record<string, number>; initialAuditLogs?: { userName: string; action: string; module: string; createdAt: string }[]; initialPayments?: { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentDate: string; recordedBy: string; receivingBranch: string; invoiceBranch: string }[]; liveFinancialSnapshot?: LiveFinancialSnapshot; liveAccounts?: AccountingAccount[]; liveJournalEntries?: JournalEntry[]; liveTaxSummary?: { periodLabel: string; grossSales: number; outputTax: number; inputTax: number }; liveTaxRates?: TaxRateConfig[]; liveTaxFilings?: TaxFilingSummary[]; liveBankAccounts?: import("@/types/accounting").BankAccountItem[]; liveBankTransactions?: Record<string, import("@/types/accounting").BankStatementTransaction[]>; liveBookTransactions?: Record<string, import("@/types/accounting").BankBookTransaction[]>; liveFixedAssets?: FixedAsset[]; liveAccountingSettings?: AccountingSettings; initialDateFrom?: string; initialDateTo?: string; liveCurrencyConfig?: CurrencyConfig; restaurantSummary?: RestaurantFinancialSummaryData; restaurantSupplierInvoices?: RestaurantSupplierInvoiceAgingRow[]; restaurantAccountMapping?: RestaurantAccountMapping | null; canEditRestaurantAccountMapping?: boolean; canEditRestaurantBankMapping?: boolean }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { activeTab, setActiveTab, setCurrencyConfig } = useAccountingStore();
@@ -243,6 +244,10 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
             periodLabel={`${initialDateFrom ?? ""} to ${initialDateTo ?? ""}`}
             href="/restaurant?view=reports"
           />}
+          {restaurantSupplierInvoices.length > 0 && <RestaurantSupplierInvoiceAging
+            invoices={restaurantSupplierInvoices}
+            currency={liveCurrencyConfig?.code ?? currentCurrencyCode}
+          />}
           {(restaurantAccountMapping || canEditRestaurantAccountMapping) && <RestaurantAccountMappingPanel
             accounts={liveAccounts}
             mapping={restaurantAccountMapping}
@@ -300,11 +305,24 @@ export function AccountingDashboard({ orgName, visibleTabKeys, initialPayables =
         {effectiveActiveTab === "receivables" && <CustomerCreditWorkspace initialReceivables={initialReceivables} initialBranchOptions={initialBranchOptions} initialBankAccounts={liveBankAccounts} customerCreditLimits={customerCreditLimits} customerOutstandingById={customerOutstandingById} customerOutstandingByName={customerOutstandingByName} initialAuditLogs={initialAuditLogs} initialPayments={initialPayments} />}
 
         {effectiveActiveTab === "payables" && (
-          <AccountsPayableTab
-            initialPayables={initialPayables}
-            initialBankAccounts={liveBankAccounts}
-            initialBranches={initialBranches}
-          />
+          <div className="space-y-5">
+            {restaurantSupplierInvoices.length > 0 && <>
+              <div>
+                <h2 className="text-lg font-bold text-slate-950 dark:text-white">Restaurant ingredient payables</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tracked separately from ERP product supplier invoices; payments and balances are posted to the configured Restaurant payable account.</p>
+              </div>
+              <RestaurantSupplierInvoiceAging
+                invoices={restaurantSupplierInvoices}
+                currency={liveCurrencyConfig?.code ?? currentCurrencyCode}
+                showManageLink
+              />
+            </>}
+            <AccountsPayableTab
+              initialPayables={initialPayables}
+              initialBankAccounts={liveBankAccounts}
+              initialBranches={initialBranches}
+            />
+          </div>
         )}
 
         {effectiveActiveTab === "fixed_assets" && <FixedAssetsTab initialFixedAssets={liveFixedAssets} />}

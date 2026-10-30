@@ -177,6 +177,10 @@ export default async function RestaurantPage({
   let ingredientSuppliers: Array<{ id: string; name: string }> = [];
   let purchaseOrders: Database["public"]["Tables"]["restaurant_ingredient_purchase_orders"]["Row"][] = [];
   let purchaseItems: Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"][] = [];
+  let ingredientReceipts: Database["public"]["Tables"]["restaurant_ingredient_receipts"]["Row"][] = [];
+  let ingredientPayments: Database["public"]["Tables"]["restaurant_ingredient_payments"]["Row"][] = [];
+  let ingredientBankAccounts: Array<{ id: string; name: string }> = [];
+  let supplierInvoiceAging: Database["public"]["Functions"]["get_restaurant_supplier_invoice_aging"]["Returns"] = [];
   if (view === "ingredients" && locationIds.length > 0) {
     const restaurantAdmin = createAdminClient();
     const [
@@ -194,11 +198,39 @@ export default async function RestaurantPage({
     purchaseOrders = purchaseRows ?? [];
     const purchaseOrderIds = purchaseOrders.map((order) => order.id);
     if (purchaseOrderIds.length > 0) {
-      const { data: itemRows, error: itemError } = await restaurantAdmin.from("restaurant_ingredient_purchase_items")
-        .select("*").eq("org_id", context.orgId).in("purchase_order_id", purchaseOrderIds);
+      const [
+        { data: itemRows, error: itemError },
+        { data: receiptRows, error: receiptError },
+        { data: paymentRows, error: paymentError },
+      ] = await Promise.all([
+        restaurantAdmin.from("restaurant_ingredient_purchase_items")
+          .select("*").eq("org_id", context.orgId).in("purchase_order_id", purchaseOrderIds),
+        restaurantAdmin.from("restaurant_ingredient_receipts")
+          .select("*").eq("org_id", context.orgId).in("purchase_order_id", purchaseOrderIds),
+        restaurantAdmin.from("restaurant_ingredient_payments")
+          .select("*").eq("org_id", context.orgId).in("purchase_order_id", purchaseOrderIds)
+          .order("payment_date", { ascending: false }),
+      ]);
       if (itemError) throw new Error(`Could not load Restaurant purchase order lines: ${itemError.message}`);
+      if (receiptError) throw new Error(`Could not load Restaurant purchase receipts: ${receiptError.message}`);
+      if (paymentError) throw new Error(`Could not load Restaurant supplier payments: ${paymentError.message}`);
       purchaseItems = itemRows ?? [];
+      ingredientReceipts = receiptRows ?? [];
+      ingredientPayments = paymentRows ?? [];
     }
+    if (await canPermission("banking", "edit")
+      && await canTabPermission("banking", "banking", "accounts", "edit")) {
+      const { data: bankRows, error: bankError } = await restaurantAdmin.from("bank_accounts")
+        .select("id, name").eq("org_id", context.orgId).order("name");
+      if (bankError) throw new Error(`Could not load Bank Accounts for Restaurant supplier payments: ${bankError.message}`);
+      ingredientBankAccounts = bankRows ?? [];
+    }
+    const { data: invoiceRows, error: invoiceError } = await restaurantAdmin.rpc("get_restaurant_supplier_invoice_aging", {
+      p_org_id: context.orgId,
+      p_location_ids: locationIds,
+    });
+    if (invoiceError) throw new Error(`Could not load Restaurant supplier invoice aging: ${invoiceError.message}`);
+    supplierInvoiceAging = invoiceRows ?? [];
   }
   const accessibleTables = (tables ?? []).filter((table) => locationIds.includes(table.location_id));
   const accessibleOrders = Array.from(new Map([...(orders ?? []), ...(openOrders ?? [])]
@@ -253,6 +285,7 @@ export default async function RestaurantPage({
       canCreateIngredients={!context.isBranchScoped && await canTabPermission("restaurant", "operations", "ingredients", "create")}
       canCreateIngredientPurchases={await canTabPermission("restaurant", "operations", "ingredients", "create")}
       canEditIngredients={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
+      canPayIngredientInvoices={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
       locations={accessibleLocations.map((location) => ({
         id: location.id,
         name: location.name,
@@ -276,6 +309,10 @@ export default async function RestaurantPage({
       suppliers={ingredientSuppliers}
       purchaseOrders={purchaseOrders}
       purchaseItems={purchaseItems}
+      ingredientReceipts={ingredientReceipts}
+      ingredientPayments={ingredientPayments}
+      ingredientBankAccounts={ingredientBankAccounts}
+      supplierInvoiceAging={supplierInvoiceAging}
       attendanceSummary={attendanceSummary}
     />
   );

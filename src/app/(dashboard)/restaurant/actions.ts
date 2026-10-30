@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { canUseLocation } from "@/lib/organizations/location-access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canTabPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { assertRestaurantPackagedStockAvailable } from "@/lib/restaurant/packaged-stock";
@@ -1233,6 +1233,8 @@ export async function createRestaurantIngredientPurchaseOrder(input: {
   locationId: string;
   supplierId: string;
   reference: string;
+  invoiceReference?: string;
+  dueDate?: string;
   items: Array<{ ingredientId: string; quantity: number; unitCost: number }>;
 }) {
   const context = await restaurantContext("ingredients", "create");
@@ -1240,6 +1242,15 @@ export async function createRestaurantIngredientPurchaseOrder(input: {
     throw new Error("You cannot create a Restaurant purchase order for that branch.");
   }
   const reference = requiredText(input.reference, "Purchase reference", 80);
+  const invoiceReference = input.invoiceReference?.trim() || null;
+  if (invoiceReference && invoiceReference.length > 80) {
+    throw new Error("Supplier invoice reference must be no more than 80 characters.");
+  }
+  if (input.dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)
+    || !Number.isFinite(Date.parse(`${input.dueDate}T00:00:00.000Z`))
+    || new Date(`${input.dueDate}T00:00:00.000Z`).toISOString().slice(0, 10) !== input.dueDate)) {
+    throw new Error("Enter a valid supplier invoice due date.");
+  }
   if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
     throw new Error("A purchase order must contain between 1 and 100 ingredient lines.");
   }
@@ -1269,6 +1280,8 @@ export async function createRestaurantIngredientPurchaseOrder(input: {
       location_id: input.locationId,
       supplier_id: input.supplierId,
       reference,
+      invoice_reference: invoiceReference,
+      due_date: input.dueDate || null,
       created_by: context.userId,
     })
     .select("id")
@@ -1292,6 +1305,60 @@ export async function createRestaurantIngredientPurchaseOrder(input: {
     throw new Error(`Could not save Restaurant purchase lines: ${itemsError.message}`);
   }
   revalidatePath("/restaurant");
+}
+
+export async function recordRestaurantIngredientSupplierPayment(input: {
+  purchaseOrderId: string;
+  requestKey: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: "cash" | "bank";
+  bankAccountId: string | null;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestKey)
+    || !validMoney(input.amount)
+    || !["cash", "bank"].includes(input.paymentMethod)
+    || (input.paymentMethod === "bank" && !input.bankAccountId)
+    || (input.paymentMethod === "cash" && input.bankAccountId !== null)) {
+    throw new Error("Enter a valid supplier payment amount and method.");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.paymentDate)
+    || !Number.isFinite(Date.parse(`${input.paymentDate}T00:00:00.000Z`))
+    || new Date(`${input.paymentDate}T00:00:00.000Z`).toISOString().slice(0, 10) !== input.paymentDate
+    || input.paymentDate > new Date().toISOString().slice(0, 10)) {
+    throw new Error("Enter a valid payment date that is not in the future.");
+  }
+  if (input.paymentMethod === "bank"
+    && (!await canPermission("banking", "edit")
+      || !await canTabPermission("banking", "banking", "accounts", "edit"))) {
+    throw new Error("You do not have permission to pay from a Bank Account.");
+  }
+
+  const admin = createAdminClient();
+  const { data: purchaseOrder, error: orderError } = await admin.from("restaurant_ingredient_purchase_orders")
+    .select("id, location_id").eq("org_id", context.orgId).eq("id", input.purchaseOrderId).maybeSingle();
+  if (orderError) throw new Error(`Could not verify Restaurant supplier invoice: ${orderError.message}`);
+  if (!purchaseOrder || !canUseLocation(context, purchaseOrder.location_id)) {
+    throw new Error("Restaurant supplier invoice not found or not accessible.");
+  }
+  const { data, error } = await admin.rpc("record_restaurant_ingredient_supplier_payment", {
+    p_org_id: context.orgId,
+    p_purchase_order_id: input.purchaseOrderId,
+    p_amount: input.amount,
+    p_payment_date: input.paymentDate,
+    p_payment_method: input.paymentMethod,
+    p_bank_account_id: input.bankAccountId,
+    p_recorded_by: context.userId,
+    p_request_key: input.requestKey,
+  });
+  if (error) throw new Error(`Could not record Restaurant supplier payment: ${error.message}`);
+  const payment = data?.[0];
+  if (!payment) throw new Error("Restaurant supplier payment was not confirmed.");
+  revalidatePath("/restaurant");
+  revalidatePath("/accounting");
+  revalidatePath("/banking");
+  return { paidTotal: payment.paid_total, outstanding: payment.outstanding };
 }
 
 export async function receiveRestaurantIngredientPurchase(input: {

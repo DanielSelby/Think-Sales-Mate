@@ -20,6 +20,7 @@ import {
   saveRestaurantOnlineSettings,
   saveRestaurantIngredient,
   createRestaurantIngredientPurchaseOrder,
+  recordRestaurantIngredientSupplierPayment,
   receiveRestaurantIngredientPurchase,
   saveRestaurantRecipe,
   saveRestaurantModifierGroup,
@@ -33,6 +34,7 @@ import {
 } from "./actions";
 import { RestaurantMenuImporter } from "@/components/restaurant/restaurant-menu-importer";
 import { IncomingOrderAlerts } from "@/components/restaurant/incoming-order-alerts";
+import { RestaurantSupplierInvoiceAging, type RestaurantSupplierInvoiceAgingRow } from "@/components/restaurant/restaurant-supplier-invoice-aging";
 
 type Category = Database["public"]["Tables"]["restaurant_menu_categories"]["Row"];
 type MenuItem = Database["public"]["Tables"]["restaurant_menu_items"]["Row"];
@@ -74,6 +76,9 @@ type RestaurantRecipeIngredient = Database["public"]["Tables"]["restaurant_recip
 type RestaurantIngredientMovement = Database["public"]["Tables"]["restaurant_ingredient_movements"]["Row"];
 type RestaurantIngredientPurchaseOrder = Database["public"]["Tables"]["restaurant_ingredient_purchase_orders"]["Row"];
 type RestaurantIngredientPurchaseItem = Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"];
+type RestaurantIngredientReceipt = Database["public"]["Tables"]["restaurant_ingredient_receipts"]["Row"];
+type RestaurantIngredientPayment = Database["public"]["Tables"]["restaurant_ingredient_payments"]["Row"];
+type RestaurantSupplierInvoiceAging = RestaurantSupplierInvoiceAgingRow;
 type RestaurantReport = {
   summary: {
     order_count: number;
@@ -161,6 +166,7 @@ export default function RestaurantView({
   canCreateIngredients,
   canCreateIngredientPurchases,
   canEditIngredients,
+  canPayIngredientInvoices,
   locations,
   categories,
   menuItems,
@@ -180,6 +186,10 @@ export default function RestaurantView({
   suppliers,
   purchaseOrders,
   purchaseItems,
+  ingredientReceipts,
+  ingredientPayments,
+  ingredientBankAccounts,
+  supplierInvoiceAging,
   attendanceSummary,
 }: {
   view: ViewKey;
@@ -203,6 +213,7 @@ export default function RestaurantView({
   canCreateIngredients: boolean;
   canCreateIngredientPurchases: boolean;
   canEditIngredients: boolean;
+  canPayIngredientInvoices: boolean;
   locations: Location[];
   categories: Category[];
   menuItems: MenuItem[];
@@ -222,6 +233,10 @@ export default function RestaurantView({
   suppliers: Array<{ id: string; name: string }>;
   purchaseOrders: RestaurantIngredientPurchaseOrder[];
   purchaseItems: RestaurantIngredientPurchaseItem[];
+  ingredientReceipts: RestaurantIngredientReceipt[];
+  ingredientPayments: RestaurantIngredientPayment[];
+  ingredientBankAccounts: Array<{ id: string; name: string }>;
+  supplierInvoiceAging: RestaurantSupplierInvoiceAging[];
   attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null;
 }) {
   const router = useRouter();
@@ -581,10 +596,15 @@ export default function RestaurantView({
         suppliers={suppliers}
         purchaseOrders={purchaseOrders}
         purchaseItems={purchaseItems}
+        receipts={ingredientReceipts}
+        supplierPayments={ingredientPayments}
+        bankAccounts={ingredientBankAccounts}
+        supplierInvoiceAging={supplierInvoiceAging}
         branchScoped={branchScoped}
         canCreate={canCreateIngredients}
         canCreatePurchases={canCreateIngredientPurchases}
         canEdit={canEditIngredients}
+        canPayInvoices={canPayIngredientInvoices}
         isPending={isPending}
         onAction={runAction}
       />}
@@ -875,10 +895,15 @@ function RestaurantIngredientManagement({
   suppliers,
   purchaseOrders,
   purchaseItems,
+  receipts,
+  supplierPayments,
+  bankAccounts,
+  supplierInvoiceAging,
   branchScoped,
   canCreate,
   canCreatePurchases,
   canEdit,
+  canPayInvoices,
   isPending,
   onAction,
 }: {
@@ -893,10 +918,15 @@ function RestaurantIngredientManagement({
   suppliers: Array<{ id: string; name: string }>;
   purchaseOrders: RestaurantIngredientPurchaseOrder[];
   purchaseItems: RestaurantIngredientPurchaseItem[];
+  receipts: RestaurantIngredientReceipt[];
+  supplierPayments: RestaurantIngredientPayment[];
+  bankAccounts: Array<{ id: string; name: string }>;
+  supplierInvoiceAging: RestaurantSupplierInvoiceAging[];
   branchScoped: boolean;
   canCreate: boolean;
   canCreatePurchases: boolean;
   canEdit: boolean;
+  canPayInvoices: boolean;
   isPending: boolean;
   onAction: (work: () => Promise<unknown>, success: string) => Promise<boolean>;
 }) {
@@ -908,6 +938,8 @@ function RestaurantIngredientManagement({
   const [recipeLines, setRecipeLines] = useState<Array<{ ingredientId: string; quantity: string }>>([]);
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
   const [purchaseReference, setPurchaseReference] = useState("");
+  const [invoiceReference, setInvoiceReference] = useState("");
+  const [invoiceDueDate, setInvoiceDueDate] = useState("");
   const [purchaseLines, setPurchaseLines] = useState<Array<{ ingredientId: string; quantity: string; unitCost: string }>>([{ ingredientId: "", quantity: "1", unitCost: "0" }]);
   const selectedMenuItem = menuItems.find((item) => item.id === menuItemId);
   const selectedRecipe = recipes.filter((recipe) => recipe.menu_item_id === menuItemId);
@@ -956,6 +988,8 @@ function RestaurantIngredientManagement({
       locationId,
       supplierId,
       reference: purchaseReference,
+      invoiceReference,
+      dueDate: invoiceDueDate || undefined,
       items: purchaseLines.map((line) => ({
         ingredientId: line.ingredientId,
         quantity: Number(line.quantity),
@@ -964,6 +998,8 @@ function RestaurantIngredientManagement({
     }), "Restaurant ingredient purchase order created.");
     if (saved) {
       setPurchaseReference("");
+      setInvoiceReference("");
+      setInvoiceDueDate("");
       setPurchaseLines([{ ingredientId: "", quantity: "1", unitCost: "0" }]);
     }
   }
@@ -988,14 +1024,20 @@ function RestaurantIngredientManagement({
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="font-bold text-slate-950 dark:text-white">Ingredient purchasing</h3>
-                  <p className="text-xs text-slate-500">Uses the existing supplier directory. Receipts increase Restaurant branch stock only; ERP product inventory is not changed.</p>
+                  <p className="text-xs text-slate-500">Uses the existing supplier directory. Receipts increase Restaurant branch stock only; ERP product inventory is not changed. Record invoice details and settle supplier balances here.</p>
                 </div>
                 <Link href="/purchases/suppliers" className="text-xs font-semibold text-orange-700">Supplier directory</Link>
               </div>
+              <RestaurantSupplierInvoiceAging
+                invoices={supplierInvoiceAging.filter((invoice) => invoice.location_id === locationId)}
+                currency={currency}
+              />
               {canCreatePurchases && <form onSubmit={submitPurchaseOrder} className="space-y-3 rounded-lg border p-3 dark:border-slate-700">
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                   <label className="text-xs font-semibold">Supplier<select required value={supplierId} onChange={(event) => setSupplierId(event.target.value)} className="mt-1 h-9 w-full rounded border bg-white px-2 text-sm dark:bg-slate-900"><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
                   <label className="text-xs font-semibold">Reference<input required maxLength={80} value={purchaseReference} onChange={(event) => setPurchaseReference(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm" placeholder="Supplier order reference" /></label>
+                  <label className="text-xs font-semibold">Invoice number<input maxLength={80} value={invoiceReference} onChange={(event) => setInvoiceReference(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm" /></label>
+                  <label className="text-xs font-semibold">Due date<input type="date" value={invoiceDueDate} onChange={(event) => setInvoiceDueDate(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm" /></label>
                   <p className="self-end text-xs text-slate-500">Branch: {locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}</p>
                 </div>
                 <div className="hidden grid-cols-[minmax(0,1.4fr)_1fr_1fr_auto] gap-2 text-[10px] font-semibold text-slate-500 sm:grid">
@@ -1024,8 +1066,23 @@ function RestaurantIngredientManagement({
                       items={purchaseItems.filter((item) => item.purchase_order_id === order.id)}
                       ingredients={ingredients}
                       canReceive={canEdit}
+                      receipts={receipts.filter((receipt) => receipt.purchase_order_id === order.id)}
+                      supplierPayments={supplierPayments.filter((payment) => payment.purchase_order_id === order.id)}
+                      bankAccounts={bankAccounts}
+                      canPay={canPayInvoices}
                       isPending={isPending}
                       onReceive={(items, requestKey) => onAction(() => receiveRestaurantIngredientPurchase({ purchaseOrderId: order.id, requestKey, items }), "Restaurant ingredients received into branch stock.")}
+                      onPay={(amount, paymentDate, paymentMethod, bankAccountId, requestKey) => onAction(
+                        () => recordRestaurantIngredientSupplierPayment({
+                          purchaseOrderId: order.id,
+                          requestKey,
+                          amount,
+                          paymentDate,
+                          paymentMethod,
+                          bankAccountId,
+                        }),
+                        "Restaurant supplier payment recorded.",
+                      )}
                     />)}
               </div>
             </section>
@@ -2039,27 +2096,58 @@ function IngredientPurchaseOrderCard({
   supplierName,
   items,
   ingredients,
+  receipts,
+  supplierPayments,
+  bankAccounts,
   canReceive,
+  canPay,
   isPending,
   onReceive,
+  onPay,
 }: {
   order: RestaurantIngredientPurchaseOrder;
   currency: string;
   supplierName: string;
   items: RestaurantIngredientPurchaseItem[];
   ingredients: RestaurantIngredient[];
+  receipts: RestaurantIngredientReceipt[];
+  supplierPayments: RestaurantIngredientPayment[];
+  bankAccounts: Array<{ id: string; name: string }>;
   canReceive: boolean;
+  canPay: boolean;
   isPending: boolean;
   onReceive: (items: Array<{ itemId: string; quantity: number }>, requestKey: string) => Promise<boolean>;
+  onPay: (amount: number, paymentDate: string, method: "cash" | "bank", bankAccountId: string | null, requestKey: string) => Promise<boolean>;
 }) {
   const [quantities, setQuantities] = useState<Record<string, string>>(() =>
     Object.fromEntries(items.map((item) => [item.id, String(Number(item.ordered_quantity) - Number(item.quantity_received))])),
   );
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "bank">("cash");
+  const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? "");
   const receiptRequestKey = useRef<string | null>(null);
+  const paymentRequestKey = useRef<string | null>(null);
+  const postedReceipts = receipts.filter((receipt) => receipt.accounting_status === "posted");
+  const invoiceTotal = postedReceipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
+  const paidTotal = supplierPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const balanceDue = Math.max(0, invoiceTotal - paidTotal);
+  const hasUnpostedReceipt = receipts.some((receipt) => receipt.accounting_status === "not_configured");
+  const paymentIsValid = Number(paymentAmount) > 0
+    && Number(paymentAmount) <= balanceDue
+    && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
+    && (paymentMethod !== "bank" || Boolean(bankAccountId));
   return <article className="rounded-lg border p-3 dark:border-slate-700">
     <div className="flex flex-wrap justify-between gap-2">
-      <div><p className="text-sm font-semibold text-slate-900 dark:text-white">{order.reference} · {supplierName}</p><p className="text-xs capitalize text-slate-500">{order.status.replace("_", " ")} · {new Date(order.created_at).toLocaleDateString()}</p></div>
-      <span className="text-xs text-slate-500">{items.length} lines</span>
+      <div>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{order.invoice_reference || order.reference} · {supplierName}</p>
+        <p className="text-xs capitalize text-slate-500">{order.status.replace("_", " ")} · {new Date(order.created_at).toLocaleDateString()}{order.due_date ? ` · Due ${order.due_date}` : ""}</p>
+        {order.invoice_reference && <p className="text-xs text-slate-500">Order ref: {order.reference}</p>}
+      </div>
+      <div className="text-right text-xs">
+        <p className="text-slate-500">{items.length} lines · Invoice {money(invoiceTotal, currency)}</p>
+        <p className={`font-semibold ${balanceDue > 0 || hasUnpostedReceipt ? "text-amber-700" : "text-emerald-700"}`}>{balanceDue > 0 ? `${money(balanceDue, currency)} due` : hasUnpostedReceipt ? "Receipt accounting needs setup" : invoiceTotal > 0 ? "Paid" : "No posted receipts"}</p>
+      </div>
     </div>
     <form onSubmit={(event) => {
       event.preventDefault();
@@ -2084,6 +2172,49 @@ function IngredientPurchaseOrderCard({
       })}
       {canReceive && order.status !== "received" && <button disabled={isPending || items.every((item) => Number(quantities[item.id] ?? 0) <= 0)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Receive selected quantities</button>}
     </form>
+    {supplierPayments.length > 0 && <ul className="mt-3 space-y-1 border-t pt-2 text-xs text-slate-600 dark:text-slate-300">
+      {supplierPayments.map((payment) => <li key={payment.id} className="flex justify-between gap-2">
+        <span>{payment.payment_method === "bank" ? bankAccounts.find((account) => account.id === payment.bank_account_id)?.name ?? "Bank payment" : "Cash"} · {payment.payment_date}</span>
+        <strong>{money(Number(payment.amount), currency)}</strong>
+      </li>)}
+    </ul>}
+    {canPay && hasUnpostedReceipt && <p className="mt-3 border-t pt-2 text-xs text-amber-700">A receipt has no payable journal. Configure the Restaurant ingredient accounts and reconcile it before paying this invoice.</p>}
+    {canPay && balanceDue > 0 && <form onSubmit={(event) => {
+      event.preventDefault();
+      if (!paymentIsValid) return;
+      paymentRequestKey.current ??= crypto.randomUUID();
+      void onPay(
+        Number(paymentAmount),
+        paymentDate,
+        paymentMethod,
+        paymentMethod === "bank" ? bankAccountId : null,
+        paymentRequestKey.current,
+      ).then((succeeded) => {
+        if (succeeded) {
+          paymentRequestKey.current = null;
+          setPaymentAmount("");
+        }
+      });
+    }} className="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-2 lg:grid-cols-5">
+      <label className="text-xs font-semibold text-slate-600">Pay amount
+        <input required type="number" min="0.01" max={balanceDue} step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm" />
+      </label>
+      <label className="text-xs font-semibold text-slate-600">Payment date
+        <input required type="date" max={new Date().toISOString().slice(0, 10)} value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} className="mt-1 h-9 w-full rounded border px-2 text-sm" />
+      </label>
+      <label className="text-xs font-semibold text-slate-600">Method
+        <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "cash" | "bank")} className="mt-1 h-9 w-full rounded border bg-white px-2 text-sm dark:bg-slate-900">
+          <option value="cash">Cash</option><option value="bank" disabled={!bankAccounts.length}>Bank</option>
+        </select>
+      </label>
+      {paymentMethod === "bank" && <label className="text-xs font-semibold text-slate-600">Bank Account
+        <select required value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)} className="mt-1 h-9 w-full rounded border bg-white px-2 text-sm dark:bg-slate-900">
+          <option value="">Select account</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+        </select>
+      </label>}
+      <button type="submit" disabled={isPending || !paymentIsValid || hasUnpostedReceipt} className="self-end rounded-lg bg-orange-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Record payment</button>
+      {!bankAccounts.length && <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-5">Bank payment requires Bank Accounts edit access. Cash payment remains available.</p>}
+    </form>}
   </article>;
 }
 

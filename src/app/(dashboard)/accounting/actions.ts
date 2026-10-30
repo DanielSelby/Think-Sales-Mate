@@ -136,6 +136,7 @@ export async function saveRestaurantAccountMappings(input: {
   tipsLiabilityAccountId: string;
   ingredientInventoryAccountId?: string;
   ingredientPayableAccountId?: string;
+  ingredientPaymentAccountId?: string;
   cashBankAccountId?: string | null;
   cardBankAccountId?: string | null;
   mobileMoneyBankAccountId?: string | null;
@@ -160,6 +161,7 @@ export async function saveRestaurantAccountMappings(input: {
     input.tipsLiabilityAccountId,
     ...(input.ingredientInventoryAccountId ? [input.ingredientInventoryAccountId] : []),
     ...(input.ingredientPayableAccountId ? [input.ingredientPayableAccountId] : []),
+    ...(input.ingredientPaymentAccountId ? [input.ingredientPaymentAccountId] : []),
   ];
   if (accountIds.some((id) => !id)) {
     return { ok: false, error: "Select a valid account for every mapping." };
@@ -197,6 +199,9 @@ export async function saveRestaurantAccountMappings(input: {
   }
   if (input.ingredientPayableAccountId && byId.get(input.ingredientPayableAccountId)?.type !== "liability") {
     return { ok: false, error: "Choose a liability account for Restaurant ingredient payables." };
+  }
+  if (input.ingredientPaymentAccountId && byId.get(input.ingredientPaymentAccountId)?.type !== "asset") {
+    return { ok: false, error: "Choose an asset account for Restaurant supplier payments." };
   }
   if (accountRows.some((account) => account.location_id)) {
     return { ok: false, error: "Restaurant mappings require organization-wide accounts, not accounts assigned to a single branch." };
@@ -242,6 +247,7 @@ export async function saveRestaurantAccountMappings(input: {
     tips_liability_account_id: input.tipsLiabilityAccountId,
     ingredient_inventory_account_id: input.ingredientInventoryAccountId || null,
     ingredient_payable_account_id: input.ingredientPayableAccountId || null,
+    ingredient_payment_account_id: input.ingredientPaymentAccountId || null,
     ...bankMappings,
     updated_by: context.userId,
     updated_at: new Date().toISOString(),
