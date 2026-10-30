@@ -107,14 +107,18 @@ export default async function RestaurantPage({
     ? await supabase.from("restaurant_catering_events").select("*").eq("org_id", context.orgId)
       .in("location_id", locationIds).order("starts_at", { ascending: true }).limit(300)
     : { data: [], error: null };
-  if (cateringEventsError) throw new Error(`Could not load restaurant catering events: ${cateringEventsError.message}`);
   const cateringEventIds = (cateringEvents ?? []).map((event) => event.id);
-  const { data: cateringEventHistory, error: cateringEventHistoryError } = cateringEventIds.length > 0
+  const { data: cateringEventHistory, error: cateringEventHistoryError } = !cateringEventsError && cateringEventIds.length > 0
     ? await supabase.from("restaurant_catering_event_status_history").select("*")
       .eq("org_id", context.orgId).in("event_id", cateringEventIds)
       .order("changed_at", { ascending: false }).limit(1000)
     : { data: [], error: null };
-  if (cateringEventHistoryError) throw new Error(`Could not load catering event history: ${cateringEventHistoryError.message}`);
+  const cateringDataError = cateringEventsError ?? cateringEventHistoryError;
+  const cateringDataErrorMessage = cateringDataError
+    ? cateringDataError.code === "42P01" || cateringDataError.code === "PGRST205"
+      ? "The catering database tables are not available yet. Apply the restaurant catering event intake migration, then reload this page."
+      : `Could not load catering event data: ${cateringDataError.message}`
+    : null;
   const { data: onlineSettings, error: onlineSettingsError } = view === "online-ordering" && locationIds.length > 0
     ? await createAdminClient().from("restaurant_online_settings").select("*").eq("org_id", context.orgId).in("location_id", locationIds)
     : { data: [], error: null };
@@ -304,6 +308,7 @@ export default async function RestaurantPage({
       view={view}
       cateringEvents={cateringEvents ?? []}
       cateringEventHistory={cateringEventHistory ?? []}
+      cateringDataError={cateringDataErrorMessage}
       reportData={reportData}
       reportFrom={reportFrom}
       reportTo={reportTo}

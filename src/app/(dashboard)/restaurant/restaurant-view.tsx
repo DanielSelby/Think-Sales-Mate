@@ -156,6 +156,7 @@ export default function RestaurantView({
   view,
   cateringEvents,
   cateringEventHistory,
+  cateringDataError,
   orgId,
   reportData,
   reportFrom,
@@ -206,6 +207,7 @@ export default function RestaurantView({
   view: ViewKey;
   cateringEvents: RestaurantCateringEvent[];
   cateringEventHistory: Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"][];
+  cateringDataError: string | null;
   orgId: string;
   reportData: RestaurantReport | null;
   reportFrom: string;
@@ -596,6 +598,7 @@ export default function RestaurantView({
         locations={locations}
         events={cateringEvents}
         statusHistory={cateringEventHistory}
+        dataError={cateringDataError}
         canCreate={canCreateOrders}
         canEdit={canEditOrders}
         isPending={isPending}
@@ -1956,11 +1959,18 @@ function toLocalDateTimeInput(value: Date) {
   return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-function CateringEventsManagement({ locationId, locations, events, statusHistory, canCreate, canEdit, isPending, onAction }: {
+const cateringEventDateFormatter = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "UTC",
+});
+
+function CateringEventsManagement({ locationId, locations, events, statusHistory, dataError, canCreate, canEdit, isPending, onAction }: {
   locationId: string;
   locations: Location[];
   events: RestaurantCateringEvent[];
   statusHistory: Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"][];
+  dataError: string | null;
   canCreate: boolean;
   canEdit: boolean;
   isPending: boolean;
@@ -1971,13 +1981,20 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
   const [customerOrganization, setCustomerOrganization] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
-  const [startsAt, setStartsAt] = useState(() => toLocalDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)));
+  const [startsAt, setStartsAt] = useState("");
+  const [minimumStartsAt, setMinimumStartsAt] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [guestCount, setGuestCount] = useState("25");
   const [customMenu, setCustomMenu] = useState("");
   const [setupRequirements, setSetupRequirements] = useState("");
   const [notes, setNotes] = useState("");
   const visibleEvents = events.filter((event) => event.location_id === locationId);
+
+  useEffect(() => {
+    const now = new Date();
+    setMinimumStartsAt(toLocalDateTimeInput(now));
+    setStartsAt((current) => current || toLocalDateTimeInput(new Date(now.getTime() + 24 * 60 * 60 * 1000)));
+  }, []);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2013,6 +2030,7 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
 
   return <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
     <section className="space-y-3">
+      {dataError && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{dataError}</p>}
       <header>
         <h2 className="text-lg font-bold text-slate-950">Catering & event pipeline</h2>
         <p className="text-sm text-slate-500">Capture event requirements and move each inquiry through its booking and preparation status.</p>
@@ -2037,7 +2055,7 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{cateringEventStatusLabels[cateringEvent.status]}</span>
           </div>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div><dt className="text-xs text-slate-500">Date & time</dt><dd className="font-medium text-slate-800">{new Date(cateringEvent.starts_at).toLocaleString()}</dd></div>
+            <div><dt className="text-xs text-slate-500">Date & time (UTC)</dt><dd className="font-medium text-slate-800">{cateringEventDateFormatter.format(new Date(cateringEvent.starts_at))}</dd></div>
             <div><dt className="text-xs text-slate-500">Event location</dt><dd className="break-words font-medium text-slate-800">{cateringEvent.event_location}</dd></div>
             <div><dt className="text-xs text-slate-500">Contact</dt><dd className="break-words font-medium text-slate-800">{cateringEvent.customer_phone}{cateringEvent.customer_email ? ` · ${cateringEvent.customer_email}` : ""}</dd></div>
           </dl>
@@ -2048,7 +2066,7 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
             <summary className="cursor-pointer text-xs font-semibold text-slate-600">Status history</summary>
             <ol className="mt-2 space-y-1">
               {statusHistory.filter((entry) => entry.event_id === cateringEvent.id).map((entry) => <li key={entry.id} className="text-xs text-slate-500">
-                {entry.previous_status ? `${cateringEventStatusLabels[entry.previous_status]} → ` : ""}{cateringEventStatusLabels[entry.new_status]} · {new Date(entry.changed_at).toLocaleString()}
+                {entry.previous_status ? `${cateringEventStatusLabels[entry.previous_status]} → ` : ""}{cateringEventStatusLabels[entry.new_status]} · {cateringEventDateFormatter.format(new Date(entry.changed_at))}
               </li>)}
             </ol>
           </details>}
@@ -2085,7 +2103,7 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
         <label className="block text-xs font-semibold text-slate-600">Email (optional)<input type="email" maxLength={254} value={customerEmail} onChange={(change) => setCustomerEmail(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs font-semibold text-slate-600">Event date & time<input required type="datetime-local" min={toLocalDateTimeInput(new Date())} value={startsAt} onChange={(change) => setStartsAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Event date & time (your local time)<input required type="datetime-local" min={minimumStartsAt} value={startsAt} onChange={(change) => setStartsAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         <label className="block text-xs font-semibold text-slate-600">Guest count<input required type="number" min="1" max="10000" step="1" value={guestCount} onChange={(change) => setGuestCount(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
       </div>
       <label className="block text-xs font-semibold text-slate-600">Event venue<input required maxLength={300} value={eventLocation} onChange={(change) => setEventLocation(change.target.value)} placeholder="Address or venue" className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
