@@ -29,6 +29,8 @@ import { DashboardFilters, type FilterOption } from "@/components/charts/dashboa
 import { formatMoney } from "@/lib/currency";
 import { DashboardMotionItem } from "@/components/charts/dashboard-motion-item";
 import { RestaurantFinancialSummary, type RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
+import { RestaurantSupplierInvoiceAlert } from "@/components/restaurant/restaurant-supplier-invoice-alert";
+import type { RestaurantSupplierInvoiceAgingRow } from "@/components/restaurant/restaurant-supplier-invoice-aging";
 
 interface Kpi {
   label: string;
@@ -50,6 +52,7 @@ export function DashboardContent({
   categories,
   currentRange,
   restaurantSummary,
+  restaurantSupplierInvoices = [],
 }: {
   summary: FinancialSummary;
   orgName: string;
@@ -60,6 +63,7 @@ export function DashboardContent({
   categories: FilterOption[];
   currentRange: DateRange;
   restaurantSummary?: RestaurantFinancialSummaryData;
+  restaurantSupplierInvoices?: RestaurantSupplierInvoiceAgingRow[];
 }) {
   const insightLines = latestInsight
     ? latestInsight.content
@@ -180,6 +184,9 @@ export function DashboardContent({
           periodLabel={`${currentRange.from} to ${currentRange.to}`}
           href="/restaurant?view=reports"
         />
+      </DashboardMotionItem>}
+      {restaurantSupplierInvoices.length > 0 && <DashboardMotionItem delay={0.14}>
+        <RestaurantSupplierInvoiceAlert invoices={restaurantSupplierInvoices} currency={currency} />
       </DashboardMotionItem>}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

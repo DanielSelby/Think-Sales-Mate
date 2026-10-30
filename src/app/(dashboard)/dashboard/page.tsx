@@ -8,6 +8,7 @@ import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
+import type { RestaurantSupplierInvoiceAgingRow } from "@/components/restaurant/restaurant-supplier-invoice-aging";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,7 @@ export default async function DashboardPage({
     .sort()
     .map((c) => ({ id: c, name: c }));
   let restaurantSummary: RestaurantFinancialSummaryData | undefined;
+  let restaurantSupplierInvoices: RestaurantSupplierInvoiceAgingRow[] = [];
   const enabledModules = await getEnabledOrganizationModules(context.orgId);
   if (enabledModules.includes("Restaurant") && await canTabPermission("restaurant", "operations", "reports", "view")) {
     const accessibleLocationIds = (locationRows ?? [])
@@ -73,15 +75,27 @@ export default async function DashboardPage({
       const start = new Date(`${range.from}T00:00:00.000Z`);
       const end = new Date(`${range.to}T00:00:00.000Z`);
       end.setUTCDate(end.getUTCDate() + 1);
-      const { data, error } = await createAdminClient().rpc("get_restaurant_financial_summary", {
-        p_org_id: context.orgId,
-        p_location_ids: accessibleLocationIds,
-        p_start_at: start.toISOString(),
-        p_end_at: end.toISOString(),
-        p_user_id: null,
-      });
-      if (error) throw new Error(`Could not load Restaurant dashboard summary: ${error.message}`);
-      restaurantSummary = data as RestaurantFinancialSummaryData;
+      const admin = createAdminClient();
+      const [
+        { data: summaryData, error: summaryError },
+        { data: invoiceRows, error: invoiceError },
+      ] = await Promise.all([
+        admin.rpc("get_restaurant_financial_summary", {
+          p_org_id: context.orgId,
+          p_location_ids: accessibleLocationIds,
+          p_start_at: start.toISOString(),
+          p_end_at: end.toISOString(),
+          p_user_id: null,
+        }),
+        admin.rpc("get_restaurant_supplier_invoice_aging", {
+          p_org_id: context.orgId,
+          p_location_ids: accessibleLocationIds,
+        }),
+      ]);
+      if (summaryError) throw new Error(`Could not load Restaurant dashboard summary: ${summaryError.message}`);
+      if (invoiceError) throw new Error(`Could not load Restaurant invoice reminders: ${invoiceError.message}`);
+      restaurantSummary = summaryData as RestaurantFinancialSummaryData;
+      restaurantSupplierInvoices = invoiceRows ?? [];
     }
   }
   return (
@@ -95,6 +109,7 @@ export default async function DashboardPage({
       categories={categories}
       currentRange={range}
       restaurantSummary={restaurantSummary}
+      restaurantSupplierInvoices={restaurantSupplierInvoices}
     />
   );
 }
