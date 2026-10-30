@@ -340,13 +340,83 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["restaurant_reservations"]["Row"]>;
         Relationships: [];
       };
+      restaurant_catering_events: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          event_number: number;
+          event_name: string;
+          customer_name: string;
+          customer_organization: string | null;
+          customer_phone: string;
+          customer_email: string | null;
+          starts_at: string;
+          event_location: string;
+          guest_count: number;
+          custom_menu: string;
+          setup_requirements: string;
+          notes: string;
+          status: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled";
+          created_by: string;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          event_number?: number;
+          event_name: string;
+          customer_name: string;
+          customer_organization?: string | null;
+          customer_phone: string;
+          customer_email?: string | null;
+          starts_at: string;
+          event_location: string;
+          guest_count: number;
+          custom_menu?: string;
+          setup_requirements?: string;
+          notes?: string;
+          status?: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled";
+          created_by: string;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_catering_events"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_catering_event_status_history: {
+        Row: {
+          id: string;
+          org_id: string;
+          event_id: string;
+          previous_status: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled" | null;
+          new_status: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled";
+          changed_by: string | null;
+          changed_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          event_id: string;
+          previous_status?: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled" | null;
+          new_status: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled";
+          changed_by?: string | null;
+          changed_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"]>;
+        Relationships: [];
+      };
       restaurant_orders: {
         Row: {
           id: string;
           org_id: string;
           location_id: string;
           order_number: number;
-          order_type: "dine_in" | "takeaway" | "delivery";
+          order_type: "dine_in" | "takeaway" | "pickup" | "delivery";
           table_id: string | null;
           status: "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
           payment_status: "unpaid" | "partial" | "paid";
@@ -371,7 +441,7 @@ export interface Database {
           org_id: string;
           location_id: string;
           order_number?: number;
-          order_type: "dine_in" | "takeaway" | "delivery";
+          order_type: "dine_in" | "takeaway" | "pickup" | "delivery";
           table_id?: string | null;
           status?: "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
           payment_status?: "unpaid" | "partial" | "paid";

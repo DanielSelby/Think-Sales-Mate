@@ -38,7 +38,7 @@ export default function RestaurantOrderTrackingView({
   orderingUrl,
 }: {
   orderNumber: number;
-  orderType: "dine_in" | "takeaway" | "delivery";
+  orderType: "dine_in" | "takeaway" | "pickup" | "delivery";
   status: OrderStatus;
   paymentStatus: "unpaid" | "partial" | "paid";
   paymentOption: "pay_at_fulfillment" | "paystack";
@@ -95,7 +95,7 @@ export default function RestaurantOrderTrackingView({
             })}
           </ol>}
       <div className="border-t pt-4 text-sm">
-        <p className="flex justify-between"><span>Fulfillment</span><span>{orderType === "delivery" ? "Delivery" : orderType === "takeaway" ? "Pickup" : "Dine-in"}</span></p>
+        <p className="flex justify-between"><span>Fulfillment</span><span>{orderType === "delivery" ? "Delivery" : orderType === "pickup" || orderType === "takeaway" ? "Pickup" : "Dine-in"}</span></p>
         {deliveryFee > 0 && <p className="mt-1 flex justify-between"><span>Delivery fee</span><span>{money(deliveryFee, currency)}</span></p>}
         <p className="mt-1 flex justify-between font-semibold"><span>Total</span><span>{money(total, currency)}</span></p>
         <p className="mt-2 flex justify-between"><span>Payment</span><span>{paymentStatus === "paid" ? "Paid" : paymentOption === "paystack" ? "Online payment pending" : "Pay at fulfillment"}</span></p>

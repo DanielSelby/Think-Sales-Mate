@@ -8,7 +8,7 @@ type IncomingOrder = {
   id: string;
   order_number: number;
   location_id: string;
-  order_type: "dine_in" | "takeaway" | "delivery";
+  order_type: "dine_in" | "takeaway" | "pickup" | "delivery";
   status: string;
 };
 

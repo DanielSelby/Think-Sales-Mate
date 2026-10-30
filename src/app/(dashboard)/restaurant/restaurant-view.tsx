@@ -11,6 +11,7 @@ import {
   createRestaurantOrder,
   createRestaurantReservation,
   assignRestaurantReservationTable,
+  createRestaurantCateringEvent,
   adjustRestaurantIngredientStock,
   saveRestaurantIngredientMinimumStock,
   recordRestaurantPayment,
@@ -31,6 +32,7 @@ import {
   updateRestaurantKitchenStatus,
   updateRestaurantOrderStatus,
   updateRestaurantReservationStatus,
+  updateRestaurantCateringEventStatus,
   splitRestaurantBillByItems,
   splitRestaurantBillEqually,
 } from "./actions";
@@ -44,6 +46,7 @@ type ModifierGroup = Database["public"]["Tables"]["restaurant_modifier_groups"][
 type ModifierOption = Database["public"]["Tables"]["restaurant_modifier_options"]["Row"];
 type DiningTable = Database["public"]["Tables"]["restaurant_tables"]["Row"];
 type RestaurantReservation = Database["public"]["Tables"]["restaurant_reservations"]["Row"];
+type RestaurantCateringEvent = Database["public"]["Tables"]["restaurant_catering_events"]["Row"];
 type RestaurantOrder = Database["public"]["Tables"]["restaurant_orders"]["Row"];
 type OrderItem = Database["public"]["Tables"]["restaurant_order_items"]["Row"];
 type OrderPayment = Database["public"]["Tables"]["restaurant_order_payments"]["Row"];
@@ -70,7 +73,7 @@ function getReservationHours(value: Json | undefined): ReservationDayHours[] {
   });
 }
 type PrepStation = "kitchen" | "bar" | "dessert";
-type ViewKey = "orders" | "kitchen" | "menu" | "online-ordering" | "tables" | "reservations" | "reports" | "ingredients";
+type ViewKey = "orders" | "kitchen" | "menu" | "online-ordering" | "tables" | "reservations" | "catering" | "reports" | "ingredients";
 const prepStationLabels: Record<PrepStation, string> = { kitchen: "Kitchen", bar: "Bar", dessert: "Dessert" };
 type RestaurantIngredient = Database["public"]["Tables"]["restaurant_ingredients"]["Row"];
 type RestaurantIngredientStock = Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"];
@@ -94,7 +97,7 @@ type RestaurantReport = {
     average_order: number;
   };
   daily: Array<{ date: string; order_count: number; gross_sales: number }>;
-  by_type: Array<{ order_type: "dine_in" | "takeaway" | "delivery"; order_count: number; gross_sales: number }>;
+  by_type: Array<{ order_type: "dine_in" | "takeaway" | "pickup" | "delivery"; order_count: number; gross_sales: number }>;
   top_items: Array<{ item_name: string; quantity_sold: number; sales: number }>;
 };
 
@@ -151,6 +154,8 @@ function selectedModifierNames(selections: Json) {
 
 export default function RestaurantView({
   view,
+  cateringEvents,
+  cateringEventHistory,
   orgId,
   reportData,
   reportFrom,
@@ -199,6 +204,8 @@ export default function RestaurantView({
   attendanceSummary,
 }: {
   view: ViewKey;
+  cateringEvents: RestaurantCateringEvent[];
+  cateringEventHistory: Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"][];
   orgId: string;
   reportData: RestaurantReport | null;
   reportFrom: string;
@@ -267,6 +274,7 @@ export default function RestaurantView({
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_modifier_options", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_tables", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_reservations", filter: `org_id=eq.${orgId}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_catering_events", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_orders", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_order_items", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_order_payments", filter: `org_id=eq.${orgId}` }, refresh)
@@ -367,6 +375,7 @@ export default function RestaurantView({
           ["online-ordering", "Online Ordering"],
           ["tables", "Dining Tables"],
           ["reservations", "Reservations & Waitlist"],
+          ["catering", "Catering & Events"],
           ["reports", "Reports & Analytics"],
           ["ingredients", "Ingredients & Recipes"],
         ] as const).map(([key, label]) => (
@@ -579,6 +588,16 @@ export default function RestaurantView({
         reservations={reservations.filter((reservation) => reservation.location_id === locationId)}
         canCreate={canCreateReservations}
         canEdit={canEditReservations}
+        isPending={isPending}
+        onAction={runAction}
+      />}
+      {view === "catering" && <CateringEventsManagement
+        locationId={locationId}
+        locations={locations}
+        events={cateringEvents}
+        statusHistory={cateringEventHistory}
+        canCreate={canCreateOrders}
+        canEdit={canEditOrders}
         isPending={isPending}
         onAction={runAction}
       />}
@@ -1345,7 +1364,7 @@ function CreateOrderForm({
   isPending: boolean;
   onCreate: (input: Parameters<typeof createRestaurantOrder>[0]) => Promise<boolean>;
 }) {
-  const [orderType, setOrderType] = useState<"dine_in" | "takeaway" | "delivery">("dine_in");
+  const [orderType, setOrderType] = useState<"dine_in" | "takeaway" | "pickup" | "delivery">("dine_in");
   const [tableId, setTableId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -1415,7 +1434,7 @@ function CreateOrderForm({
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <label className="text-xs font-semibold text-slate-600">Service type
                   <select value={orderType} onChange={(event) => setOrderType(event.target.value as typeof orderType)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm">
-                    <option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option><option value="delivery">Delivery</option>
+                    <option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option>
                   </select>
                 </label>
                 {orderType === "dine_in" && <label className="text-xs font-semibold text-slate-600">Dining table
@@ -1913,6 +1932,169 @@ function ModifierManagement({ menuItems, groups, options, canCreate, canEdit, is
     </>}
     {!canCreate && !canEdit && <p className="mt-3 text-xs text-slate-500">You can view configured options but cannot change them.</p>}
   </section>;
+}
+
+const cateringEventStatusLabels: Record<RestaurantCateringEvent["status"], string> = {
+  inquiry: "Inquiry",
+  quoted: "Quoted",
+  confirmed: "Confirmed",
+  preparing: "Preparing",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+const cateringEventStatusTransitions: Record<RestaurantCateringEvent["status"], Array<Exclude<RestaurantCateringEvent["status"], "inquiry">>> = {
+  inquiry: ["quoted", "cancelled"],
+  quoted: ["confirmed", "cancelled"],
+  confirmed: ["preparing", "cancelled"],
+  preparing: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+};
+
+function toLocalDateTimeInput(value: Date) {
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function CateringEventsManagement({ locationId, locations, events, statusHistory, canCreate, canEdit, isPending, onAction }: {
+  locationId: string;
+  locations: Location[];
+  events: RestaurantCateringEvent[];
+  statusHistory: Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"][];
+  canCreate: boolean;
+  canEdit: boolean;
+  isPending: boolean;
+  onAction: (work: () => Promise<unknown>, success: string) => Promise<boolean>;
+}) {
+  const [eventName, setEventName] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerOrganization, setCustomerOrganization] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [startsAt, setStartsAt] = useState(() => toLocalDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)));
+  const [eventLocation, setEventLocation] = useState("");
+  const [guestCount, setGuestCount] = useState("25");
+  const [customMenu, setCustomMenu] = useState("");
+  const [setupRequirements, setSetupRequirements] = useState("");
+  const [notes, setNotes] = useState("");
+  const visibleEvents = events.filter((event) => event.location_id === locationId);
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void onAction(async () => {
+      const eventDate = new Date(startsAt);
+      if (!Number.isFinite(eventDate.getTime())) throw new Error("Choose a valid event date and time.");
+      await createRestaurantCateringEvent({
+        locationId,
+        eventName,
+        customerName,
+        customerOrganization,
+        customerPhone,
+        customerEmail,
+        startsAt: eventDate.toISOString(),
+        eventLocation,
+        guestCount: Number(guestCount),
+        customMenu,
+        setupRequirements,
+        notes,
+      });
+      setEventName("");
+      setCustomerName("");
+      setCustomerOrganization("");
+      setCustomerPhone("");
+      setCustomerEmail("");
+      setEventLocation("");
+      setGuestCount("25");
+      setCustomMenu("");
+      setSetupRequirements("");
+      setNotes("");
+    }, "Catering inquiry created.");
+  }
+
+  return <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+    <section className="space-y-3">
+      <header>
+        <h2 className="text-lg font-bold text-slate-950">Catering & event pipeline</h2>
+        <p className="text-sm text-slate-500">Capture event requirements and move each inquiry through its booking and preparation status.</p>
+      </header>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          ["Inquiries", visibleEvents.filter((item) => item.status === "inquiry").length],
+          ["Booked / preparing", visibleEvents.filter((item) => item.status === "confirmed" || item.status === "preparing").length],
+          ["Quoted proposals", visibleEvents.filter((item) => item.status === "quoted").length],
+        ].map(([label, count]) => <div key={String(label)} className="rounded-xl border bg-white p-4">
+          <p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{count}</p>
+        </div>)}
+      </div>
+      {visibleEvents.length === 0 ? <EmptyState title="No catering events yet" message="Create an inquiry to record the customer, event schedule, guest count, and service requirements." /> : (
+        <div className="space-y-3">{visibleEvents.map((cateringEvent) => <article key={cateringEvent.id} className="rounded-xl border bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Event #{cateringEvent.event_number} · {cateringEvent.guest_count} guests</p>
+              <h3 className="mt-1 break-words text-base font-bold text-slate-950">{cateringEvent.event_name}</h3>
+              <p className="mt-1 text-sm text-slate-600">{cateringEvent.customer_name}{cateringEvent.customer_organization ? ` · ${cateringEvent.customer_organization}` : ""}</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{cateringEventStatusLabels[cateringEvent.status]}</span>
+          </div>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <div><dt className="text-xs text-slate-500">Date & time</dt><dd className="font-medium text-slate-800">{new Date(cateringEvent.starts_at).toLocaleString()}</dd></div>
+            <div><dt className="text-xs text-slate-500">Event location</dt><dd className="break-words font-medium text-slate-800">{cateringEvent.event_location}</dd></div>
+            <div><dt className="text-xs text-slate-500">Contact</dt><dd className="break-words font-medium text-slate-800">{cateringEvent.customer_phone}{cateringEvent.customer_email ? ` · ${cateringEvent.customer_email}` : ""}</dd></div>
+          </dl>
+          {cateringEvent.custom_menu && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Menu requirements</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{cateringEvent.custom_menu}</p></div>}
+          {cateringEvent.setup_requirements && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Delivery & setup</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{cateringEvent.setup_requirements}</p></div>}
+          {cateringEvent.notes && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{cateringEvent.notes}</p>}
+          {statusHistory.some((entry) => entry.event_id === cateringEvent.id) && <details className="mt-3 border-t pt-3">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-600">Status history</summary>
+            <ol className="mt-2 space-y-1">
+              {statusHistory.filter((entry) => entry.event_id === cateringEvent.id).map((entry) => <li key={entry.id} className="text-xs text-slate-500">
+                {entry.previous_status ? `${cateringEventStatusLabels[entry.previous_status]} → ` : ""}{cateringEventStatusLabels[entry.new_status]} · {new Date(entry.changed_at).toLocaleString()}
+              </li>)}
+            </ol>
+          </details>}
+          {canEdit && cateringEventStatusTransitions[cateringEvent.status].length > 0 && <label className="mt-4 block max-w-xs text-xs font-semibold text-slate-600">
+            Update event status
+            <select
+              value=""
+              disabled={isPending}
+              onChange={(change) => {
+                const nextStatus = cateringEventStatusTransitions[cateringEvent.status].find((status) => status === change.target.value);
+                if (nextStatus) void onAction(
+                  () => updateRestaurantCateringEventStatus(cateringEvent.id, nextStatus),
+                  `Event #${cateringEvent.event_number} marked ${cateringEventStatusLabels[nextStatus].toLowerCase()}.`,
+                );
+              }}
+              className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm"
+            >
+              <option value="">Choose next status</option>
+              {cateringEventStatusTransitions[cateringEvent.status].map((status) => <option key={status} value={status}>{cateringEventStatusLabels[status]}</option>)}
+            </select>
+          </label>}
+        </article>)}</div>
+      )}
+    </section>
+    {canCreate ? <form onSubmit={submit} className="h-fit space-y-3 rounded-xl border bg-white p-4">
+      <div><h2 className="font-bold text-slate-950">New event inquiry</h2><p className="mt-1 text-xs text-slate-500">Branch: {locations.find((location) => location.id === locationId)?.name ?? "Unavailable"}</p></div>
+      <label className="block text-xs font-semibold text-slate-600">Event name<input required maxLength={120} value={eventName} onChange={(change) => setEventName(change.target.value)} placeholder="e.g. Annual staff celebration" className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs font-semibold text-slate-600">Customer name<input required maxLength={120} value={customerName} onChange={(change) => setCustomerName(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Organization (optional)<input maxLength={160} value={customerOrganization} onChange={(change) => setCustomerOrganization(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs font-semibold text-slate-600">Phone<input required type="tel" maxLength={40} value={customerPhone} onChange={(change) => setCustomerPhone(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Email (optional)<input type="email" maxLength={254} value={customerEmail} onChange={(change) => setCustomerEmail(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs font-semibold text-slate-600">Event date & time<input required type="datetime-local" min={toLocalDateTimeInput(new Date())} value={startsAt} onChange={(change) => setStartsAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Guest count<input required type="number" min="1" max="10000" step="1" value={guestCount} onChange={(change) => setGuestCount(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      </div>
+      <label className="block text-xs font-semibold text-slate-600">Event venue<input required maxLength={300} value={eventLocation} onChange={(change) => setEventLocation(change.target.value)} placeholder="Address or venue" className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      <label className="block text-xs font-semibold text-slate-600">Custom menu requirements<textarea maxLength={5000} rows={3} value={customMenu} onChange={(change) => setCustomMenu(change.target.value)} placeholder="Menu ideas, dietary needs, quantities" className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+      <label className="block text-xs font-semibold text-slate-600">Delivery & setup requirements<textarea maxLength={2000} rows={2} value={setupRequirements} onChange={(change) => setSetupRequirements(change.target.value)} placeholder="Delivery window, equipment, setup or staffing needs" className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+      <label className="block text-xs font-semibold text-slate-600">Internal notes<textarea maxLength={2000} rows={2} value={notes} onChange={(change) => setNotes(change.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+      <button type="submit" disabled={isPending || !locationId} className="rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : "Create inquiry"}</button>
+    </form> : <p className="h-fit rounded-lg bg-slate-100 p-3 text-xs text-slate-600">You can review events but do not have permission to create catering inquiries.</p>}
+  </div>;
 }
 
 function ReservationsManagement({ locationId, locations, tables, reservations, canCreate, canEdit, isPending, onAction }: {

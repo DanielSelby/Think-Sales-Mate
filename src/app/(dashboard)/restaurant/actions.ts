@@ -17,7 +17,7 @@ import {
 import type { Json } from "@/types/database";
 
 type RestaurantTab = "orders" | "menu" | "tables" | "reservations" | "ingredients";
-type OrderType = "dine_in" | "takeaway" | "delivery";
+type OrderType = "dine_in" | "takeaway" | "pickup" | "delivery";
 type PaymentMethod = "cash" | "card" | "mobile_money" | "other";
 type RestaurantPosDraftPayload = {
   orderType: OrderType;
@@ -827,6 +827,91 @@ export async function createRestaurantReservation(input: {
   return { id: data.id };
 }
 
+export async function createRestaurantCateringEvent(input: {
+  locationId: string;
+  eventName: string;
+  customerName: string;
+  customerOrganization: string;
+  customerPhone: string;
+  customerEmail: string;
+  startsAt: string;
+  eventLocation: string;
+  guestCount: number;
+  customMenu: string;
+  setupRequirements: string;
+  notes: string;
+}) {
+  const context = await restaurantContext("orders", "create");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot manage catering events at that branch.");
+  const startsAt = new Date(input.startsAt);
+  if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() <= Date.now()) {
+    throw new Error("Choose a valid future event date and time.");
+  }
+  if (!Number.isInteger(input.guestCount) || input.guestCount < 1 || input.guestCount > 10000) {
+    throw new Error("Guest count must be between 1 and 10,000.");
+  }
+  const customerEmail = input.customerEmail.trim().toLocaleLowerCase();
+  if (customerEmail && (customerEmail.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail))) {
+    throw new Error("Enter a valid customer email address.");
+  }
+  const customerPhone = requiredText(input.customerPhone, "Customer phone", 40);
+  if (customerPhone.length < 7) throw new Error("Customer phone must contain at least 7 characters.");
+  const customerOrganization = input.customerOrganization.trim();
+  if (customerOrganization.length > 160) throw new Error("Customer organization must be no more than 160 characters.");
+  if (input.customMenu.length > 5000 || input.setupRequirements.length > 2000 || input.notes.length > 2000) {
+    throw new Error("Menu requirements, setup requirements, and notes exceed their allowed lengths.");
+  }
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("restaurant_catering_events").insert({
+    org_id: context.orgId,
+    location_id: input.locationId,
+    event_name: requiredText(input.eventName, "Event name", 120),
+    customer_name: requiredText(input.customerName, "Customer name", 120),
+    customer_organization: customerOrganization || null,
+    customer_phone: customerPhone,
+    customer_email: customerEmail || null,
+    starts_at: startsAt.toISOString(),
+    event_location: requiredText(input.eventLocation, "Event location", 300),
+    guest_count: input.guestCount,
+    custom_menu: input.customMenu.trim(),
+    setup_requirements: input.setupRequirements.trim(),
+    notes: input.notes.trim(),
+    created_by: context.userId,
+    updated_by: context.userId,
+  }).select("id, event_number").single();
+  if (error) throw new Error(`Could not create catering inquiry: ${error.message}`);
+  revalidatePath("/restaurant");
+  return { id: data.id, eventNumber: data.event_number };
+}
+
+export async function updateRestaurantCateringEventStatus(
+  eventId: string,
+  status: "quoted" | "confirmed" | "preparing" | "completed" | "cancelled",
+) {
+  const context = await restaurantContext("orders", "edit");
+  const admin = createAdminClient();
+  const { data: event, error: loadError } = await admin.from("restaurant_catering_events")
+    .select("id, location_id, status")
+    .eq("org_id", context.orgId).eq("id", eventId).maybeSingle();
+  if (loadError) throw new Error(`Could not load catering event: ${loadError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering event not found or not accessible.");
+  const allowedNext: Partial<Record<typeof event.status, string[]>> = {
+    inquiry: ["quoted", "cancelled"],
+    quoted: ["confirmed", "cancelled"],
+    confirmed: ["preparing", "cancelled"],
+    preparing: ["completed", "cancelled"],
+  };
+  if (!allowedNext[event.status]?.includes(status)) {
+    throw new Error("This catering event cannot move to the selected status.");
+  }
+  const { data: updatedEvent, error } = await admin.from("restaurant_catering_events")
+    .update({ status, updated_by: context.userId, updated_at: new Date().toISOString() })
+    .eq("org_id", context.orgId).eq("id", eventId).eq("status", event.status).select("id").maybeSingle();
+  if (error) throw new Error(`Could not update catering event: ${error.message}`);
+  if (!updatedEvent) throw new Error("This catering event was updated by someone else. Refresh and try again.");
+  revalidatePath("/restaurant");
+}
+
 export async function updateRestaurantReservationStatus(
   reservationId: string,
   status: "confirmed" | "seated" | "completed" | "cancelled" | "no_show",
@@ -915,7 +1000,7 @@ export async function createRestaurantOrder(input: {
 }) {
   const context = await restaurantContext("orders", "create");
   if (!canUseLocation(context, input.locationId)) throw new Error("You cannot take restaurant orders at that branch.");
-  if (!["dine_in", "takeaway", "delivery"].includes(input.orderType)) throw new Error("Choose a valid order type.");
+  if (!["dine_in", "takeaway", "pickup", "delivery"].includes(input.orderType)) throw new Error("Choose a valid order type.");
   if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
     throw new Error("Add between 1 and 100 items to the order.");
   }
@@ -1010,7 +1095,7 @@ export async function saveRestaurantPosDraft(input: {
   if (input.draftId !== null && !uuidPattern.test(input.draftId)) throw new Error("Invalid held order.");
   const draft = input.draft;
   if (!isRecord(draft)
-    || !["dine_in", "takeaway", "delivery"].includes(draft.orderType)
+    || !["dine_in", "takeaway", "pickup", "delivery"].includes(draft.orderType)
     || (draft.tableId !== null && (typeof draft.tableId !== "string" || !uuidPattern.test(draft.tableId)))
     || !["pay_now", "pay_later"].includes(draft.paymentTiming)
     || !["cash", "card", "mobile_money", "other"].includes(draft.paymentMethod)

@@ -20,7 +20,7 @@ type ModifierOption = Database["public"]["Tables"]["restaurant_modifier_options"
 type DiningTable = Database["public"]["Tables"]["restaurant_tables"]["Row"];
 type Location = { id: string; name: string };
 type PackagedStock = Pick<Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"], "location_id" | "menu_item_id" | "quantity">;
-type OrderType = "dine_in" | "takeaway" | "delivery";
+type OrderType = "dine_in" | "takeaway" | "pickup" | "delivery";
 type PaymentMethod = "cash" | "card" | "mobile_money" | "other";
 type SplitPaymentDraft = { method: PaymentMethod; amount: string };
 type PosDraftPayload = {
@@ -49,7 +49,7 @@ function isPosDraftPayload(value: unknown): value is PosDraftPayload {
   const quantities = value.quantities;
   const selectedOptions = value.selectedOptions;
   if (!isRecord(quantities) || !isRecord(selectedOptions)) return false;
-  return (value.orderType === "dine_in" || value.orderType === "takeaway" || value.orderType === "delivery")
+  return (value.orderType === "dine_in" || value.orderType === "takeaway" || value.orderType === "pickup" || value.orderType === "delivery")
     && (value.tableId === null || typeof value.tableId === "string")
     && Object.values(quantities).every((quantity) => typeof quantity === "number" && Number.isInteger(quantity) && quantity > 0)
     && Object.values(selectedOptions).every((optionIds) =>
@@ -523,7 +523,7 @@ export default function RestaurantPosView({
           </label>
           <label className="min-w-40 flex-1 text-xs font-semibold text-slate-600">Order type
             <select value={orderType} onChange={(event) => setOrderType(event.target.value as OrderType)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm">
-              <option value="takeaway">Takeaway</option><option value="dine_in">Dine-in</option><option value="delivery">Delivery</option>
+              <option value="takeaway">Takeaway</option><option value="pickup">Pickup</option><option value="dine_in">Dine-in</option><option value="delivery">Delivery</option>
             </select>
           </label>
           {orderType === "dine_in" && <label className="min-w-40 flex-1 text-xs font-semibold text-slate-600">Dining table
@@ -572,44 +572,44 @@ export default function RestaurantPosView({
           />
         </label>
         <nav aria-label="Menu categories" className="flex gap-2 overflow-x-auto">
-          <button type="button" onClick={() => setCategoryId("all")} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === "all" ? "bg-orange-600 text-white" : "border"}`}>All items</button>
-          {categories.map((category) => <button key={category.id} type="button" onClick={() => setCategoryId(category.id)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === category.id ? "bg-orange-600 text-white" : "border"}`}>{category.name}</button>)}
+          <button type="button" onClick={() => setCategoryId("all")} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === "all" ? "bg-orange-600 text-white" : "border border-slate-300 text-slate-700 dark:border-ledger-700 dark:text-ledger-200"}`}>All items</button>
+          {categories.map((category) => <button key={category.id} type="button" onClick={() => setCategoryId(category.id)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === category.id ? "bg-orange-600 text-white" : "border border-slate-300 text-slate-700 dark:border-ledger-700 dark:text-ledger-200"}`}>{category.name}</button>)}
         </nav>
         {locations.length === 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">There are no branches available to your account.</p>}
-        {menuItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">Add active menu items before taking restaurant orders.</p>}
-        {menuItems.length > 0 && visibleItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">No menu items match this search and category.</p>}
+        {menuItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300">Add active menu items before taking restaurant orders.</p>}
+        {menuItems.length > 0 && visibleItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300">No menu items match this search and category.</p>}
         <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visibleItems.map((item) => {
             const quantity = quantities[item.id] ?? 0;
             const groups = modifierGroups.filter((group) => group.menu_item_id === item.id);
             const packagedQuantity = packagedStock.find((stock) => stock.location_id === locationId && stock.menu_item_id === item.id)?.quantity ?? 0;
             const outOfStock = item.item_type === "packaged" && packagedQuantity <= 0;
-            return <article key={item.id} className="group flex min-w-0 flex-col items-center overflow-hidden rounded-md bg-gradient-to-br from-white via-white to-slate-50 p-2.5 text-center shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5">
-              <div className="relative mb-2 h-28 w-full overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-inner">
-                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-contain transition-transform duration-200 group-hover:scale-[1.025]" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400">No image</div>}
+            return <article key={item.id} className="group flex min-w-0 flex-col items-center overflow-hidden rounded-md bg-gradient-to-br from-white via-white to-slate-50 p-2.5 text-center shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 dark:from-ink-900 dark:via-ink-900 dark:to-ink-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(15,23,42,0.35),0_2px_4px_rgba(0,0,0,0.2),0_8px_18px_rgba(0,0,0,0.3)]">
+              <div className="relative mb-2 h-28 w-full overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-inner dark:from-ink-800 dark:to-ink-950">
+                {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-contain transition-transform duration-200 group-hover:scale-[1.025]" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400 dark:text-ledger-500">No image</div>}
               </div>
               <div className="flex w-full flex-1 flex-col">
                 <div className="w-full min-w-0 rounded-md px-1.5 pb-1 pt-0.5">
-                  <h2 className="line-clamp-2 break-words text-[11px] font-semibold leading-tight text-slate-950">{item.name}</h2>
-                  {item.description && <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500">{item.description}</p>}
+                  <h2 className="line-clamp-2 break-words text-[11px] font-semibold leading-tight text-slate-950 dark:text-white">{item.name}</h2>
+                  {item.description && <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500 dark:text-ledger-400">{item.description}</p>}
                   <div className="mt-1 flex w-full items-center justify-between gap-1">
                     <span className="truncate text-xs font-bold text-orange-700 sm:text-sm">{money(Number(item.price), currency)}</span>
-                    {item.item_type === "packaged" && <span className={`shrink-0 text-[10px] font-semibold ${outOfStock ? "text-red-700" : "text-slate-500"}`}>{outOfStock ? "Out" : `(${packagedQuantity})`}</span>}
+                    {item.item_type === "packaged" && <span className={`shrink-0 text-[10px] font-semibold ${outOfStock ? "text-red-700 dark:text-red-400" : "text-slate-500 dark:text-ledger-400"}`}>{outOfStock ? "Out" : `(${packagedQuantity})`}</span>}
                   </div>
                 </div>
                 {quantity === 0
                   ? <button type="button" disabled={outOfStock} onClick={() => changeQuantity(item.id, 1)} style={{ backgroundColor: outOfStock ? "#94a3b8" : "var(--theme-primary)" }} className="mt-1 w-full rounded-md px-2 py-2 text-xs font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed">{outOfStock ? "Unavailable" : "Add to order"}</button>
-                  : <div className="mt-1 flex w-full items-center justify-between rounded-md bg-slate-50 p-1">
-                    <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-8 w-9 rounded-md border bg-white text-lg">−</button>
-                    <span className="text-sm font-bold">{quantity}</span>
-                    <button type="button" aria-label={`Add one ${item.name}`} disabled={item.item_type === "packaged" && quantity >= packagedQuantity} onClick={() => changeQuantity(item.id, 1)} className="h-8 w-9 rounded-md border bg-white text-lg disabled:opacity-40">+</button>
+                  : <div className="mt-1 flex w-full items-center justify-between rounded-md bg-slate-50 p-1 dark:bg-ink-800">
+                    <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => changeQuantity(item.id, -1)} className="h-8 w-9 rounded-md border border-slate-300 bg-white text-lg dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-100">−</button>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">{quantity}</span>
+                    <button type="button" aria-label={`Add one ${item.name}`} disabled={item.item_type === "packaged" && quantity >= packagedQuantity} onClick={() => changeQuantity(item.id, 1)} className="h-8 w-9 rounded-md border border-slate-300 bg-white text-lg dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-100 disabled:opacity-40">+</button>
                   </div>}
                 {quantity > 0 && groups.map((group) => {
                   const key = `${item.id}:${group.id}`;
                   const selected = selectedOptions[key] ?? [];
-                  return <fieldset key={group.id} className="border-t pt-2">
-                    <legend className="text-xs font-semibold">{group.name} ({group.min_selections}–{group.max_selections})</legend>
-                    {modifierOptions.filter((option) => option.group_id === group.id).map((option) => <label key={option.id} className="flex items-center gap-2 py-1 text-xs">
+                  return <fieldset key={group.id} className="border-t border-slate-200 pt-2 dark:border-ledger-700">
+                    <legend className="text-xs font-semibold text-slate-800 dark:text-ledger-100">{group.name} ({group.min_selections}–{group.max_selections})</legend>
+                    {modifierOptions.filter((option) => option.group_id === group.id).map((option) => <label key={option.id} className="flex items-center gap-2 py-1 text-xs text-slate-700 dark:text-ledger-300">
                       <input type="checkbox" checked={selected.includes(option.id)} disabled={!selected.includes(option.id) && selected.length >= group.max_selections} onChange={() => toggleOption(group, item.id, option.id)} />
                       <span className="flex-1">{option.name}</span><span>{Number(option.price_delta) ? `+${money(Number(option.price_delta), currency)}` : "Included"}</span>
                     </label>)}

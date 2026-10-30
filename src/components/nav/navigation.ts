@@ -38,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Menu Management", href: "/restaurant?view=menu", icon: List },
       { label: "Online Ordering", href: "/restaurant?view=online-ordering", icon: ShoppingBag },
       { label: "Reservations", href: "/restaurant?view=reservations", icon: CalendarClock },
+      { label: "Catering & Events", href: "/restaurant?view=catering", icon: CalendarClock },
       { label: "Reports & Analytics", href: "/restaurant?view=reports", icon: BarChart3 },
       { label: "Ingredients & Recipes", href: "/restaurant?view=ingredients", icon: Layers },
       { label: "Packaged Item Stock", href: "/restaurant/packaged-items", icon: Package },

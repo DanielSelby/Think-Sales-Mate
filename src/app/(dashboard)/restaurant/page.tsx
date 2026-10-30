@@ -9,7 +9,7 @@ import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import type { Database, Json } from "@/types/database";
 import RestaurantView from "./restaurant-view";
 
-type RestaurantViewKey = "orders" | "kitchen" | "menu" | "online-ordering" | "tables" | "reservations" | "reports" | "ingredients";
+type RestaurantViewKey = "orders" | "kitchen" | "menu" | "online-ordering" | "tables" | "reservations" | "catering" | "reports" | "ingredients";
 type RestaurantReport = {
   summary: {
     order_count: number;
@@ -20,7 +20,7 @@ type RestaurantReport = {
     average_order: number;
   };
   daily: Array<{ date: string; order_count: number; gross_sales: number }>;
-  by_type: Array<{ order_type: "dine_in" | "takeaway" | "delivery"; order_count: number; gross_sales: number }>;
+  by_type: Array<{ order_type: "dine_in" | "takeaway" | "pickup" | "delivery"; order_count: number; gross_sales: number }>;
   top_items: Array<{ item_name: string; quantity_sold: number; sales: number }>;
 };
 type RestaurantInvoiceReconciliationHistory = Database["public"]["Functions"]["get_restaurant_invoice_reconciliation_history"]["Returns"][number] & {
@@ -40,7 +40,7 @@ function isRestaurantReport(value: unknown): value is RestaurantReport {
   if (!Array.isArray(value.daily) || !Array.isArray(value.by_type) || !Array.isArray(value.top_items)) return false;
   return value.daily.every((row: unknown) => isRecord(row) && typeof row.date === "string" && typeof row.order_count === "number" && typeof row.gross_sales === "number")
     && value.by_type.every((row: unknown) => isRecord(row)
-      && (row.order_type === "dine_in" || row.order_type === "takeaway" || row.order_type === "delivery")
+      && (row.order_type === "dine_in" || row.order_type === "takeaway" || row.order_type === "pickup" || row.order_type === "delivery")
       && typeof row.order_count === "number" && typeof row.gross_sales === "number")
     && value.top_items.every((row: unknown) => isRecord(row) && typeof row.item_name === "string" && typeof row.quantity_sold === "number" && typeof row.sales === "number");
 }
@@ -61,13 +61,13 @@ export default async function RestaurantPage({
   if (!context) redirect("/login");
 
   const { view: requestedView, from, to, locationId: requestedLocationId } = await searchParams;
-  const validViews: RestaurantViewKey[] = ["orders", "kitchen", "menu", "online-ordering", "tables", "reservations", "reports", "ingredients"];
+  const validViews: RestaurantViewKey[] = ["orders", "kitchen", "menu", "online-ordering", "tables", "reservations", "catering", "reports", "ingredients"];
   const view: RestaurantViewKey = requestedView && validViews.includes(requestedView as RestaurantViewKey) ? requestedView as RestaurantViewKey : "orders";
   const enabledModules = await getEnabledOrganizationModules(context.orgId);
   if (!enabledModules.includes("Restaurant")) {
     redirect("/dashboard?moduleDisabled=Restaurant");
   }
-  const permissionTab = view === "online-ordering" ? "menu" : view;
+  const permissionTab = view === "online-ordering" ? "menu" : view === "catering" ? "orders" : view;
   if (!(await canTabPermission("restaurant", "operations", permissionTab, "view"))) {
     redirect("/dashboard?accessDenied=restaurant.operations");
   }
@@ -103,6 +103,18 @@ export default async function RestaurantPage({
 
   const accessibleLocations = (locations ?? []).filter((location) => canAccessLocation(context, location.id));
   const locationIds = accessibleLocations.map(({ id }) => id);
+  const { data: cateringEvents, error: cateringEventsError } = view === "catering" && locationIds.length > 0
+    ? await supabase.from("restaurant_catering_events").select("*").eq("org_id", context.orgId)
+      .in("location_id", locationIds).order("starts_at", { ascending: true }).limit(300)
+    : { data: [], error: null };
+  if (cateringEventsError) throw new Error(`Could not load restaurant catering events: ${cateringEventsError.message}`);
+  const cateringEventIds = (cateringEvents ?? []).map((event) => event.id);
+  const { data: cateringEventHistory, error: cateringEventHistoryError } = cateringEventIds.length > 0
+    ? await supabase.from("restaurant_catering_event_status_history").select("*")
+      .eq("org_id", context.orgId).in("event_id", cateringEventIds)
+      .order("changed_at", { ascending: false }).limit(1000)
+    : { data: [], error: null };
+  if (cateringEventHistoryError) throw new Error(`Could not load catering event history: ${cateringEventHistoryError.message}`);
   const { data: onlineSettings, error: onlineSettingsError } = view === "online-ordering" && locationIds.length > 0
     ? await createAdminClient().from("restaurant_online_settings").select("*").eq("org_id", context.orgId).in("location_id", locationIds)
     : { data: [], error: null };
@@ -290,6 +302,8 @@ export default async function RestaurantPage({
   return (
     <RestaurantView
       view={view}
+      cateringEvents={cateringEvents ?? []}
+      cateringEventHistory={cateringEventHistory ?? []}
       reportData={reportData}
       reportFrom={reportFrom}
       reportTo={reportTo}
