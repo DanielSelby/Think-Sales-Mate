@@ -113,10 +113,65 @@ export default async function RestaurantPage({
       .eq("org_id", context.orgId).in("event_id", cateringEventIds)
       .order("changed_at", { ascending: false }).limit(1000)
     : { data: [], error: null };
-  const cateringDataError = cateringEventsError ?? cateringEventHistoryError;
+  const { data: cateringQuotes, error: cateringQuotesError } = !cateringEventsError && cateringEventIds.length > 0
+    ? await supabase.from("restaurant_catering_quotes").select("*")
+      .eq("org_id", context.orgId).in("event_id", cateringEventIds)
+      .order("version", { ascending: false })
+    : { data: [], error: null };
+  const cateringQuoteIds = (cateringQuotes ?? []).map((quote) => quote.id);
+  const { data: cateringPayments, error: cateringPaymentsError } = cateringQuoteIds.length > 0
+    ? await supabase.from("restaurant_catering_payments").select("*")
+      .eq("org_id", context.orgId).in("quote_id", cateringQuoteIds)
+      .order("paid_at", { ascending: false })
+    : { data: [], error: null };
+  const { data: cateringInvoices, error: cateringInvoicesError } = cateringEventIds.length > 0
+    ? await supabase.from("invoices").select("*")
+      .eq("org_id", context.orgId).in("source_catering_event_id", cateringEventIds)
+    : { data: [], error: null };
+  const { data: cateringPrepTasks, error: cateringPrepTasksError } = !cateringEventsError && cateringEventIds.length > 0
+    ? await supabase.from("restaurant_catering_prep_tasks").select("*")
+      .eq("org_id", context.orgId).in("event_id", cateringEventIds)
+      .order("due_at", { ascending: true })
+    : { data: [], error: null };
+  const { data: cateringMenuPlans, error: cateringMenuPlansError } = !cateringEventsError && cateringEventIds.length > 0
+    ? await supabase.from("restaurant_catering_menu_items").select("*")
+      .eq("org_id", context.orgId).in("event_id", cateringEventIds)
+      .order("created_at", { ascending: true })
+    : { data: [], error: null };
+  const { data: cateringMembers, error: cateringMembersError } = view === "catering"
+    ? await supabase.from("organization_members")
+      .select("user_id, branch_scope, location_id, secondary_location_ids")
+      .eq("org_id", context.orgId).eq("status", "active").not("user_id", "is", null)
+    : { data: [], error: null };
+  const cateringMemberIds = Array.from(new Set((cateringMembers ?? [])
+    .map((member) => member.user_id)
+    .filter((userId): userId is string => Boolean(userId))));
+  const { data: cateringProfiles, error: cateringProfilesError } = cateringMemberIds.length > 0
+    ? await supabase.from("profiles").select("id, full_name").in("id", cateringMemberIds)
+    : { data: [], error: null };
+  const cateringProfileNames = new Map((cateringProfiles ?? []).map((profile) => [
+    profile.id,
+    profile.full_name?.trim() || "Restaurant staff",
+  ]));
+  const cateringStaff = (cateringMembers ?? []).flatMap((member) => {
+    if (!member.user_id || !cateringProfileNames.has(member.user_id)) return [];
+    const assignedLocationIds = member.branch_scope === "all"
+      ? locationIds
+      : [member.location_id, ...(member.secondary_location_ids ?? [])]
+        .filter((memberLocationId): memberLocationId is string => typeof memberLocationId === "string" && locationIds.includes(memberLocationId));
+    if (assignedLocationIds.length === 0) return [];
+    return [{
+      userId: member.user_id,
+      fullName: cateringProfileNames.get(member.user_id) ?? "Restaurant staff",
+      locationIds: assignedLocationIds,
+    }];
+  });
+  const cateringDataError = cateringEventsError ?? cateringEventHistoryError ?? cateringQuotesError
+    ?? cateringPaymentsError ?? cateringInvoicesError ?? cateringPrepTasksError ?? cateringMenuPlansError
+    ?? cateringMembersError ?? cateringProfilesError;
   const cateringDataErrorMessage = cateringDataError
-    ? cateringDataError.code === "42P01" || cateringDataError.code === "PGRST205"
-      ? "The catering database tables are not available yet. Apply the restaurant catering event intake migration, then reload this page."
+    ? ["42P01", "42703", "PGRST205", "PGRST204"].includes(cateringDataError.code ?? "")
+      ? "The catering database schema is not up to date. Apply the restaurant catering event, quotation/payment, preparation-task, ingredient-plan, and final-invoice migrations, then reload this page."
       : `Could not load catering event data: ${cateringDataError.message}`
     : null;
   const { data: onlineSettings, error: onlineSettingsError } = view === "online-ordering" && locationIds.length > 0
@@ -128,7 +183,7 @@ export default async function RestaurantPage({
     { data: ingredientStocks, error: ingredientStocksError },
     { data: recipeIngredients, error: recipeIngredientsError },
     { data: ingredientMovements, error: ingredientMovementsError },
-  ] = view === "ingredients"
+  ] = view === "ingredients" || view === "catering"
     ? await Promise.all([
         supabase.from("restaurant_ingredients").select("*").eq("org_id", context.orgId).order("name"),
         supabase.from("restaurant_ingredient_stock").select("*").eq("org_id", context.orgId).in("location_id", locationIds),
@@ -308,7 +363,15 @@ export default async function RestaurantPage({
       view={view}
       cateringEvents={cateringEvents ?? []}
       cateringEventHistory={cateringEventHistory ?? []}
+      cateringQuotes={cateringQuotes ?? []}
+      cateringPayments={cateringPayments ?? []}
+      cateringInvoices={cateringInvoices ?? []}
+      cateringPrepTasks={cateringPrepTasks ?? []}
+      cateringMenuPlans={cateringMenuPlans ?? []}
+      cateringStaff={cateringStaff}
       cateringDataError={cateringDataErrorMessage}
+      canIssueCateringInvoices={await canPermission("accounting", "create")
+        && await canTabPermission("accounting", "accounting", "receivables", "create")}
       reportData={reportData}
       reportFrom={reportFrom}
       reportTo={reportTo}

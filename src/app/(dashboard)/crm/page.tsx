@@ -27,7 +27,7 @@ export default async function CrmPage() {
   const [{ data: rows }, { data: sales }, { data: invoices }, balances] = await Promise.all([
     supabase.from("customers").select("id, name, email, phone, company, created_at").eq("org_id", context.orgId).order("name"),
     (() => { let q = supabase.from("sales").select("customer_id, customer_name, total, created_at, status, location_id").eq("org_id", context.orgId); return context.isBranchScoped ? q.in("location_id", context.allowedLocationIds).order("created_at", { ascending: false }) : q.order("created_at", { ascending: false }); })(),
-    supabase.from("invoices").select("customer_name, amount, status, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }),
+    supabase.from("invoices").select("customer_name, amount, amount_paid, status, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }),
     getCustomerOutstandingBalances(
       supabase,
       context.orgId,

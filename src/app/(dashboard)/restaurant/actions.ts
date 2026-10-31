@@ -884,6 +884,283 @@ export async function createRestaurantCateringEvent(input: {
   return { id: data.id, eventNumber: data.event_number };
 }
 
+export async function createRestaurantCateringQuote(input: {
+  eventId: string;
+  description: string;
+  total: number;
+  depositDue: number;
+  expiresOn: string;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!uuidPattern.test(input.eventId)) throw new Error("Invalid catering event.");
+  if (!validMoney(input.total) || !validMoney(input.depositDue, true) || input.depositDue > input.total) {
+    throw new Error("Enter a valid quote total and deposit no greater than the total.");
+  }
+  const description = requiredText(input.description, "Quotation details", 5000);
+  const expiresOn = input.expiresOn || null;
+  if (expiresOn && (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)
+    || !Number.isFinite(new Date(`${expiresOn}T00:00:00Z`).getTime())
+    || expiresOn < new Date().toISOString().slice(0, 10))) {
+    throw new Error("Choose a quotation expiry date that is today or later.");
+  }
+
+  const admin = createAdminClient();
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events")
+    .select("id, location_id").eq("org_id", context.orgId).eq("id", input.eventId).maybeSingle();
+  if (eventError) throw new Error(`Could not load catering event: ${eventError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering event not found or not accessible.");
+
+  const { data, error } = await admin.rpc("create_restaurant_catering_quote", {
+    p_org_id: context.orgId,
+    p_event_id: input.eventId,
+    p_currency: context.currency,
+    p_description: description,
+    p_total: input.total,
+    p_deposit_due: input.depositDue,
+    p_expires_on: expiresOn,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not issue catering quotation: ${error.message}`);
+  const quote = data?.[0];
+  if (!quote) throw new Error("Could not confirm the catering quotation.");
+  revalidatePath("/restaurant");
+  return quote;
+}
+
+export async function recordRestaurantCateringPayment(input: {
+  eventId: string;
+  quoteId: string;
+  requestKey: string;
+  amount: number;
+  paymentMethod: "cash" | "card" | "bank_transfer" | "mobile_money" | "other";
+  reference: string;
+  paidAt: string;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!uuidPattern.test(input.eventId) || !uuidPattern.test(input.quoteId)
+    || !uuidPattern.test(input.requestKey)) throw new Error("Invalid catering payment request.");
+  if (!validMoney(input.amount)) throw new Error("Enter a valid payment amount.");
+  if (!["cash", "card", "bank_transfer", "mobile_money", "other"].includes(input.paymentMethod)) {
+    throw new Error("Choose a valid catering payment method.");
+  }
+  const reference = input.reference.trim();
+  if (reference.length > 120) throw new Error("Payment reference must be no more than 120 characters.");
+  const paidAt = new Date(input.paidAt);
+  if (!Number.isFinite(paidAt.getTime()) || paidAt.getTime() > Date.now() + 5 * 60 * 1000) {
+    throw new Error("Choose a valid payment date and time.");
+  }
+
+  const admin = createAdminClient();
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events")
+    .select("id, location_id").eq("org_id", context.orgId).eq("id", input.eventId).maybeSingle();
+  if (eventError) throw new Error(`Could not load catering event: ${eventError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering event not found or not accessible.");
+
+  const { data, error } = await admin.rpc("record_restaurant_catering_payment", {
+    p_org_id: context.orgId,
+    p_event_id: input.eventId,
+    p_quote_id: input.quoteId,
+    p_request_key: input.requestKey,
+    p_amount: input.amount,
+    p_payment_method: input.paymentMethod,
+    p_reference: reference || null,
+    p_paid_at: paidAt.toISOString(),
+    p_recorded_by: context.userId,
+  });
+  if (error) throw new Error(`Could not record catering payment: ${error.message}`);
+  const result = data?.[0];
+  if (!result) throw new Error("Could not confirm the catering payment.");
+  revalidatePath("/restaurant");
+  revalidatePath("/accounting");
+  revalidatePath("/accounting/invoices");
+  revalidatePath("/dashboard");
+  return result;
+}
+
+export async function issueRestaurantCateringFinalInvoice(input: {
+  eventId: string;
+  dueDate: string;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!await canPermission("accounting", "create")
+    || !await canTabPermission("accounting", "accounting", "receivables", "create")) {
+    throw new Error("You do not have permission to create Accounts Receivable invoices.");
+  }
+  const parsedDueDate = /^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)
+    ? new Date(`${input.dueDate}T00:00:00.000Z`)
+    : null;
+  if (!uuidPattern.test(input.eventId) || !parsedDueDate
+    || !Number.isFinite(parsedDueDate.getTime())
+    || parsedDueDate.toISOString().slice(0, 10) !== input.dueDate
+    || input.dueDate < new Date().toISOString().slice(0, 10)) {
+    throw new Error("Enter a valid invoice due date.");
+  }
+
+  const admin = createAdminClient();
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events")
+    .select("id, location_id, status").eq("org_id", context.orgId).eq("id", input.eventId).maybeSingle();
+  if (eventError) throw new Error(`Could not load catering event: ${eventError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering event not found or not accessible.");
+  if (event.status !== "completed") throw new Error("A final invoice can only be issued after the event is completed.");
+
+  const { data, error } = await admin.rpc("issue_restaurant_catering_final_invoice", {
+    p_org_id: context.orgId,
+    p_event_id: input.eventId,
+    p_due_date: input.dueDate,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not issue catering final invoice: ${error.message}`);
+  const invoice = data?.[0];
+  if (!invoice) throw new Error("Could not confirm the catering final invoice.");
+  revalidatePath("/restaurant");
+  revalidatePath("/accounting");
+  revalidatePath("/accounting/invoices");
+  revalidatePath("/dashboard");
+  return invoice;
+}
+
+export async function createRestaurantCateringPrepTask(input: {
+  eventId: string;
+  title: string;
+  notes: string;
+  dueAt: string;
+  assignedTo: string | null;
+  checklistItems: string[];
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!uuidPattern.test(input.eventId)) throw new Error("Invalid catering event.");
+  if (!Array.isArray(input.checklistItems) || input.checklistItems.length > 30
+    || input.checklistItems.some((item) => typeof item !== "string" || !item.trim() || item.trim().length > 200)) {
+    throw new Error("Enter up to 30 checklist items, each no more than 200 characters.");
+  }
+  if (input.assignedTo !== null && !uuidPattern.test(input.assignedTo)) {
+    throw new Error("Choose a valid staff member.");
+  }
+  const dueAt = new Date(input.dueAt);
+  if (!Number.isFinite(dueAt.getTime())) throw new Error("Choose a valid preparation due date and time.");
+  const title = requiredText(input.title, "Task title", 160);
+  if (input.notes.length > 2000) throw new Error("Task notes must be no more than 2,000 characters.");
+
+  const admin = createAdminClient();
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events")
+    .select("id, location_id").eq("org_id", context.orgId).eq("id", input.eventId).maybeSingle();
+  if (eventError) throw new Error(`Could not load catering event: ${eventError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering event not found or not accessible.");
+
+  const checklist: Json = input.checklistItems.map((item) => ({ title: item.trim(), completed: false }));
+  const { data, error } = await admin.rpc("create_restaurant_catering_prep_task", {
+    p_org_id: context.orgId,
+    p_event_id: input.eventId,
+    p_title: title,
+    p_notes: input.notes.trim(),
+    p_due_at: dueAt.toISOString(),
+    p_assigned_to: input.assignedTo,
+    p_checklist: checklist,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not create catering preparation task: ${error.message}`);
+  revalidatePath("/restaurant");
+  return { id: data.id };
+}
+
+export async function updateRestaurantCateringPrepTask(input: {
+  taskId: string;
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  assignedTo: string | null;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!uuidPattern.test(input.taskId)
+    || !["pending", "in_progress", "completed", "cancelled"].includes(input.status)
+    || (input.assignedTo !== null && !uuidPattern.test(input.assignedTo))) {
+    throw new Error("Enter valid preparation task details.");
+  }
+  const admin = createAdminClient();
+  const { data: task, error: taskError } = await admin.from("restaurant_catering_prep_tasks")
+    .select("id, event_id").eq("org_id", context.orgId).eq("id", input.taskId).maybeSingle();
+  if (taskError) throw new Error(`Could not load catering preparation task: ${taskError.message}`);
+  if (!task) throw new Error("Catering preparation task not found.");
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events")
+    .select("location_id").eq("org_id", context.orgId).eq("id", task.event_id).maybeSingle();
+  if (eventError) throw new Error(`Could not load catering event: ${eventError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering preparation task not found or not accessible.");
+
+  const { error } = await admin.rpc("update_restaurant_catering_prep_task", {
+    p_org_id: context.orgId,
+    p_task_id: input.taskId,
+    p_status: input.status,
+    p_assigned_to: input.assignedTo,
+    p_updated_by: context.userId,
+  });
+  if (error) throw new Error(`Could not update catering preparation task: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function updateRestaurantCateringPrepChecklistItem(input: {
+  taskId: string;
+  itemIndex: number;
+  completed: boolean;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!uuidPattern.test(input.taskId) || !Number.isInteger(input.itemIndex)
+    || input.itemIndex < 0 || input.itemIndex >= 30 || typeof input.completed !== "boolean") {
+    throw new Error("Choose a valid checklist item and completion state.");
+  }
+  const admin = createAdminClient();
+  const { data: task, error: taskError } = await admin.from("restaurant_catering_prep_tasks")
+    .select("id, event_id").eq("org_id", context.orgId).eq("id", input.taskId).maybeSingle();
+  if (taskError) throw new Error(`Could not load catering preparation task: ${taskError.message}`);
+  if (!task) throw new Error("Catering preparation task not found.");
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events")
+    .select("location_id").eq("org_id", context.orgId).eq("id", task.event_id).maybeSingle();
+  if (eventError) throw new Error(`Could not load catering event: ${eventError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering preparation task not found or not accessible.");
+
+  const { error } = await admin.rpc("update_restaurant_catering_prep_checklist_item", {
+    p_org_id: context.orgId,
+    p_task_id: input.taskId,
+    p_item_index: input.itemIndex,
+    p_completed: input.completed,
+    p_updated_by: context.userId,
+  });
+  if (error) throw new Error(`Could not update catering preparation checklist: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
+export async function saveRestaurantCateringMenuPlan(input: {
+  eventId: string;
+  items: Array<{ menuItemId: string; quantity: number }>;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!uuidPattern.test(input.eventId) || !Array.isArray(input.items) || input.items.length > 100
+    || input.items.some((item) => !item || !uuidPattern.test(item.menuItemId)
+      || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10000)) {
+    throw new Error("Enter a valid catering menu plan with up to 100 items.");
+  }
+  const menuItemIds = input.items.map((item) => item.menuItemId);
+  if (new Set(menuItemIds).size !== menuItemIds.length) {
+    throw new Error("Each menu item may only appear once in the catering plan.");
+  }
+
+  const admin = createAdminClient();
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events")
+    .select("id, location_id, status").eq("org_id", context.orgId).eq("id", input.eventId).maybeSingle();
+  if (eventError) throw new Error(`Could not load catering event: ${eventError.message}`);
+  if (!event || !canUseLocation(context, event.location_id)) throw new Error("Catering event not found or not accessible.");
+  if (["completed", "cancelled"].includes(event.status)) throw new Error("This catering event can no longer be edited.");
+
+  const { error } = await admin.rpc("replace_restaurant_catering_menu_plan", {
+    p_org_id: context.orgId,
+    p_event_id: input.eventId,
+    p_menu_items: input.items.map(({ menuItemId, quantity }) => ({
+      menu_item_id: menuItemId,
+      quantity,
+    })),
+    p_updated_by: context.userId,
+  });
+  if (error) throw new Error(`Could not save catering menu plan: ${error.message}`);
+  revalidatePath("/restaurant");
+}
+
 export async function updateRestaurantCateringEventStatus(
   eventId: string,
   status: "quoted" | "confirmed" | "preparing" | "completed" | "cancelled",

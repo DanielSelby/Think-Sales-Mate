@@ -250,10 +250,11 @@ export async function getBalanceSheet(filters: ReportFilters): Promise<BalanceSh
 
   const { data: invoices } = await supabase
     .from("invoices")
-    .select("amount, status")
+    .select("amount, amount_paid, status")
     .eq("org_id", orgId)
     .in("status", ["sent", "overdue"]);
-  const accountsReceivable = (invoices ?? []).reduce((s, i) => s + i.amount, 0);
+  const accountsReceivable = (invoices ?? []).reduce((sum, invoice) =>
+    sum + Math.max(0, invoice.amount - invoice.amount_paid), 0);
 
   let assetsQuery = supabase.from("assets").select("current_value").eq("org_id", orgId).eq("status", "in_use");
   if (locationId) assetsQuery = assetsQuery.eq("location", locationId);
@@ -745,7 +746,7 @@ export async function getOperationalReportData(filters: ReportFilters): Promise<
     balancePaymentsQuery,
     locationId || allowedLocationIds
       ? Promise.resolve({ data: [] })
-      : supabase.from("invoices").select("customer_name, amount").eq("org_id", orgId).in("status", ["sent", "overdue"]).lte("created_at", dateToExclusive(dateTo))
+      : supabase.from("invoices").select("customer_name, amount, amount_paid").eq("org_id", orgId).in("status", ["sent", "overdue"]).lte("created_at", dateToExclusive(dateTo))
   ]);
   const customerBalances = calculateCustomerOutstandingBalances(balanceSales ?? [], balancePayments ?? [], legacyInvoices ?? []);
   const balanceCustomerIds = [...customerBalances.byCustomerId.keys()];

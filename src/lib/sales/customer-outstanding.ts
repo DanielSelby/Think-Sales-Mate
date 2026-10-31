@@ -15,7 +15,7 @@ type OutstandingSale = {
 };
 
 type OutstandingPayment = { invoice_id: string; amount: number; invoice_location_id?: string | null };
-type OutstandingInvoice = { customer_name: string; amount: number };
+type OutstandingInvoice = { customer_name: string; amount: number; amount_paid?: number | null };
 
 export function calculateCustomerOutstandingBalances(
   sales: OutstandingSale[],
@@ -47,7 +47,10 @@ export function calculateCustomerOutstandingBalances(
   }
 
   for (const invoice of invoices) {
-    addBalance(byCustomerName, invoice.customer_name.trim().toLocaleLowerCase(), Number(invoice.amount));
+    const balance = Math.max(0, Number(invoice.amount) - Number(invoice.amount_paid ?? 0));
+    if (balance > 0) {
+      addBalance(byCustomerName, invoice.customer_name.trim().toLocaleLowerCase(), balance);
+    }
   }
 
   return { byCustomerId, byCustomerName };
@@ -134,7 +137,7 @@ export async function getCustomerOutstandingBalances(
     includeLegacyInvoices && !allowedLocationIds
       ? supabase
           .from("invoices")
-          .select("customer_name, amount")
+          .select("customer_name, amount, amount_paid")
           .eq("org_id", orgId)
           .in("status", ["sent", "overdue"])
       : Promise.resolve({ data: [], error: null }),

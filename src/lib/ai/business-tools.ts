@@ -378,7 +378,7 @@ export async function createAuthorizedBusinessTools(
           accountingAccess && !context.isBranchScoped
             ? collectRows(async (from, to) => supabase
                 .from("invoices")
-                .select("customer_name, amount", { count: "exact" })
+                .select("customer_name, amount, amount_paid", { count: "exact" })
                 .eq("org_id", context.orgId)
                 .in("status", ["sent", "overdue"])
                 .range(from, to))
@@ -402,7 +402,10 @@ export async function createAuthorizedBusinessTools(
           addBalance(customerName, balance);
         }
         for (const invoice of invoices.rows) {
-          addBalance(String(invoice.customer_name || "Unspecified customer"), Number(invoice.amount ?? 0));
+          addBalance(
+            String(invoice.customer_name || "Unspecified customer"),
+            Math.max(0, Number(invoice.amount ?? 0) - Number(invoice.amount_paid ?? 0)),
+          );
         }
 
         const customersWithBalances = [...byCustomer.values()]

@@ -410,6 +410,128 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"]>;
         Relationships: [];
       };
+      restaurant_catering_quotes: {
+        Row: {
+          id: string;
+          org_id: string;
+          event_id: string;
+          version: number;
+          currency: string;
+          description: string;
+          total: number;
+          deposit_due: number;
+          expires_on: string | null;
+          status: "issued" | "accepted" | "rejected" | "superseded";
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          event_id: string;
+          version: number;
+          currency: string;
+          description: string;
+          total: number;
+          deposit_due?: number;
+          expires_on?: string | null;
+          status?: "issued" | "accepted" | "rejected" | "superseded";
+          created_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_catering_quotes"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_catering_payments: {
+        Row: {
+          id: string;
+          org_id: string;
+          event_id: string;
+          quote_id: string;
+          request_key: string;
+          amount: number;
+          payment_method: "cash" | "card" | "bank_transfer" | "mobile_money" | "other";
+          reference: string | null;
+          paid_at: string;
+          recorded_by: string;
+          invoice_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          event_id: string;
+          quote_id: string;
+          request_key: string;
+          amount: number;
+          payment_method: "cash" | "card" | "bank_transfer" | "mobile_money" | "other";
+          reference?: string | null;
+          paid_at?: string;
+          recorded_by: string;
+          invoice_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_catering_payments"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_catering_prep_tasks: {
+        Row: {
+          id: string;
+          org_id: string;
+          event_id: string;
+          title: string;
+          notes: string;
+          due_at: string;
+          assigned_to: string | null;
+          status: "pending" | "in_progress" | "completed" | "cancelled";
+          checklist: Json;
+          created_by: string;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          event_id: string;
+          title: string;
+          notes?: string;
+          due_at: string;
+          assigned_to?: string | null;
+          status?: "pending" | "in_progress" | "completed" | "cancelled";
+          checklist?: Json;
+          created_by: string;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_catering_prep_tasks"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_catering_menu_items: {
+        Row: {
+          id: string;
+          org_id: string;
+          event_id: string;
+          menu_item_id: string;
+          quantity: number;
+          updated_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          event_id: string;
+          menu_item_id: string;
+          quantity: number;
+          updated_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_catering_menu_items"]["Row"]>;
+        Relationships: [];
+      };
       restaurant_orders: {
         Row: {
           id: string;
@@ -2784,9 +2906,12 @@ export interface Database {
           invoice_number: number;
           customer_name: string;
           amount: number;
+          amount_paid: number;
           status: InvoiceStatus;
           due_date: string;
           paid_at: string | null;
+          source_catering_event_id: string | null;
+          source_catering_quote_id: string | null;
           created_by: string;
           created_at: string;
         };
@@ -2796,9 +2921,12 @@ export interface Database {
           invoice_number?: number;
           customer_name: string;
           amount: number;
+          amount_paid?: number;
           status?: InvoiceStatus;
           due_date: string;
           paid_at?: string | null;
+          source_catering_event_id?: string | null;
+          source_catering_quote_id?: string | null;
           created_by: string;
           created_at?: string;
         };
@@ -4407,6 +4535,90 @@ export interface Database {
           bill_id: string;
           payment_status: string;
         }[];
+      };
+      create_restaurant_catering_quote: {
+        Args: {
+          p_org_id: string;
+          p_event_id: string;
+          p_currency: string;
+          p_description: string;
+          p_total: number;
+          p_deposit_due: number;
+          p_expires_on: string | null;
+          p_created_by: string;
+        };
+        Returns: { quote_id: string; quote_version: number }[];
+      };
+      record_restaurant_catering_payment: {
+        Args: {
+          p_org_id: string;
+          p_event_id: string;
+          p_quote_id: string;
+          p_request_key: string;
+          p_amount: number;
+          p_payment_method: string;
+          p_reference: string | null;
+          p_paid_at: string;
+          p_recorded_by: string;
+        };
+        Returns: { payment_id: string; total_paid: number; balance_due: number }[];
+      };
+      issue_restaurant_catering_final_invoice: {
+        Args: {
+          p_org_id: string;
+          p_event_id: string;
+          p_due_date: string;
+          p_created_by: string;
+        };
+        Returns: {
+          invoice_id: string;
+          invoice_number: number;
+          amount: number;
+          amount_paid: number;
+          balance_due: number;
+        }[];
+      };
+      create_restaurant_catering_prep_task: {
+        Args: {
+          p_org_id: string;
+          p_event_id: string;
+          p_title: string;
+          p_notes: string;
+          p_due_at: string;
+          p_assigned_to: string | null;
+          p_checklist: Json;
+          p_created_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_catering_prep_tasks"]["Row"];
+      };
+      update_restaurant_catering_prep_task: {
+        Args: {
+          p_org_id: string;
+          p_task_id: string;
+          p_status: string;
+          p_assigned_to: string | null;
+          p_updated_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_catering_prep_tasks"]["Row"];
+      };
+      update_restaurant_catering_prep_checklist_item: {
+        Args: {
+          p_org_id: string;
+          p_task_id: string;
+          p_item_index: number;
+          p_completed: boolean;
+          p_updated_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_catering_prep_tasks"]["Row"];
+      };
+      replace_restaurant_catering_menu_plan: {
+        Args: {
+          p_org_id: string;
+          p_event_id: string;
+          p_menu_items: Json;
+          p_updated_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_catering_menu_items"]["Row"][];
       };
       consume_restaurant_online_order_rate_limit: {
         Args: { p_location_id: string; p_ip_hash: string };

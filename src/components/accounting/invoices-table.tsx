@@ -8,6 +8,8 @@ export interface InvoiceRow {
   invoiceNumber: number;
   customerName: string;
   amount: number;
+  amountPaid: number;
+  sourceCateringEventId: string | null;
   status: "draft" | "sent" | "paid" | "overdue" | "void";
   dueDate: string;
 }
@@ -62,7 +64,9 @@ export function InvoicesTable({ invoices, canManage, currencyConfig }: { invoice
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Due</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Amount</th>
+              <th className="px-4 py-3 text-right">Invoice total</th>
+              <th className="px-4 py-3 text-right">Paid</th>
+              <th className="px-4 py-3 text-right">Balance due</th>
               {canManage && <th className="px-4 py-3" />}
             </tr>
           </thead>
@@ -71,6 +75,7 @@ export function InvoicesTable({ invoices, canManage, currencyConfig }: { invoice
               <tr key={invoice.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
                 <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
                   #{String(invoice.invoiceNumber).padStart(4, "0")}
+                  {invoice.sourceCateringEventId && <span className="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">Catering</span>}
                 </td>
                 <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{invoice.customerName}</td>
                 <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">
@@ -82,9 +87,11 @@ export function InvoicesTable({ invoices, canManage, currencyConfig }: { invoice
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right figure text-ink-900 dark:text-white">{formatCurrencyAmount(invoice.amount, currencyConfig)}</td>
+                <td className="px-4 py-3 text-right figure text-ledger-600 dark:text-ledger-300">{formatCurrencyAmount(invoice.amountPaid, currencyConfig)}</td>
+                <td className="px-4 py-3 text-right figure font-semibold text-ink-900 dark:text-white">{formatCurrencyAmount(Math.max(0, invoice.amount - invoice.amountPaid), currencyConfig)}</td>
                 {canManage && (
                   <td className="px-4 py-3">
-                    {(invoice.status === "sent" || invoice.status === "overdue") && (
+                    {(invoice.status === "sent" || invoice.status === "overdue") && !invoice.sourceCateringEventId && (
                       <div className="flex justify-end gap-3">
                         <button
                           onClick={() => handleMarkPaid(invoice.id)}

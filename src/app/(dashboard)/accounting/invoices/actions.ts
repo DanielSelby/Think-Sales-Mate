@@ -52,11 +52,24 @@ export async function markInvoicePaid(invoiceId: string) {
   }
 
   const supabase = await createClient();
+  const { data: invoice, error: loadError } = await supabase
+    .from("invoices")
+    .select("amount, source_catering_event_id")
+    .eq("id", invoiceId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (loadError) return { error: loadError.message };
+  if (!invoice) return { error: "Invoice not found." };
+  if (invoice.source_catering_event_id) {
+    return { error: "Record payments through the linked catering event so its payment history stays accurate." };
+  }
+
   const { error } = await supabase
     .from("invoices")
-    .update({ status: "paid", paid_at: new Date().toISOString() })
+    .update({ status: "paid", amount_paid: invoice.amount, paid_at: new Date().toISOString() })
     .eq("id", invoiceId)
-    .eq("org_id", context.orgId);
+    .eq("org_id", context.orgId)
+    .in("status", ["sent", "overdue"]);
 
   if (error) return { error: error.message };
 
@@ -73,6 +86,18 @@ export async function voidInvoice(invoiceId: string) {
   }
 
   const supabase = await createClient();
+  const { data: invoice, error: loadError } = await supabase
+    .from("invoices")
+    .select("source_catering_event_id")
+    .eq("id", invoiceId)
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (loadError) return { error: loadError.message };
+  if (!invoice) return { error: "Invoice not found." };
+  if (invoice.source_catering_event_id) {
+    return { error: "Catering final invoices cannot be voided from Accounts Receivable." };
+  }
+
   const { error } = await supabase
     .from("invoices")
     .update({ status: "void" })

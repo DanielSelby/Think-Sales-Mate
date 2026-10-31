@@ -253,6 +253,7 @@ export async function getFinancialSummary(
     { data: expenseRowsPrev },
     { data: paidInvoiceRows },
     { data: outstandingInvoiceRows },
+    { data: cateringInvoicePaymentRows },
     { data: locationRows }
   ] = await Promise.all([
     salesQuery,
@@ -267,8 +268,11 @@ export async function getFinancialSummary(
     locationId ? stockLevelsQuery : Promise.resolve({ data: [], error: null }),
     expenseQuery,
     expensePrevQuery,
-    supabase.from("invoices").select("amount, paid_at").eq("org_id", orgId).eq("status", "paid").gte("paid_at", periodStart).lt("paid_at", periodEndExclusive),
-    supabase.from("invoices").select("amount").eq("org_id", orgId).in("status", ["sent", "overdue"]),
+    supabase.from("invoices").select("amount, amount_paid, paid_at, source_catering_event_id").eq("org_id", orgId).eq("status", "paid").gte("paid_at", periodStart).lt("paid_at", periodEndExclusive),
+    supabase.from("invoices").select("amount, amount_paid").eq("org_id", orgId).in("status", ["sent", "overdue"]),
+    supabase.from("restaurant_catering_payments").select("amount, paid_at")
+      .eq("org_id", orgId).not("invoice_id", "is", null)
+      .gte("paid_at", periodStart).lt("paid_at", periodEndExclusive),
     supabase.from("business_locations").select("id, name, is_primary").eq("org_id", orgId).eq("is_active", true)
   ]);
 
@@ -357,12 +361,18 @@ export async function getFinancialSummary(
 
   // invoices has no location_id or category column, so receivables figures
   // stay org-wide even when a branch/category filter is active.
-  const invoicePayments30d = (paidInvoiceRows ?? []).reduce((sum, i) => sum + Number(i.amount), 0);
+  const invoicePayments30d = (paidInvoiceRows ?? [])
+    .filter((invoice) => !invoice.source_catering_event_id)
+    .reduce((sum, invoice) => sum + Number(invoice.amount_paid), 0)
+    + (cateringInvoicePaymentRows ?? []).reduce((sum, payment) => sum + Number(payment.amount), 0);
   const cashIn30d = revenue30d + invoicePayments30d;
   const cashOut30d = expenses30d;
   const cashFlow30d = cashIn30d - cashOut30d;
 
-  const outstandingInvoicesTotal = (outstandingInvoiceRows ?? []).reduce((sum, i) => sum + Number(i.amount), 0);
+  const outstandingInvoicesTotal = (outstandingInvoiceRows ?? []).reduce(
+    (sum, invoice) => sum + Math.max(0, Number(invoice.amount) - Number(invoice.amount_paid)),
+    0,
+  );
 
   const activeProducts = (products ?? []).filter((product) => product.is_active).map((product) => ({
     ...product,
@@ -498,7 +508,8 @@ export async function getFinancialSummary(
     cashIn30d,
     cashOut30d,
     outstandingInvoicesTotal,
-    outstandingInvoicesCount: outstandingInvoiceRows?.length ?? 0,
+    outstandingInvoicesCount: (outstandingInvoiceRows ?? [])
+      .filter((invoice) => Number(invoice.amount) > Number(invoice.amount_paid)).length,
     inventoryValue,
     totalActiveProducts: activeProducts.length,
     lowStockCount,
@@ -557,10 +568,17 @@ export async function getRecentActivity(
     .limit(limit);
   const invoicesQuery = supabase
     .from("invoices")
-    .select("id, amount, customer_name, paid_at")
+    .select("id, amount_paid, customer_name, paid_at, source_catering_event_id")
     .eq("org_id", orgId)
     .eq("status", "paid")
     .not("paid_at", "is", null)
+    .order("paid_at", { ascending: false })
+    .limit(limit);
+  const cateringInvoicePaymentsQuery = supabase
+    .from("restaurant_catering_payments")
+    .select("id, amount, paid_at")
+    .eq("org_id", orgId)
+    .not("invoice_id", "is", null)
     .order("paid_at", { ascending: false })
     .limit(limit);
 
@@ -571,14 +589,21 @@ export async function getRecentActivity(
   // A category filter only narrows line items, and this feed shows
   // whole sales/expenses/customers/invoices — there's no clean "this sale
   // touched category X" story for an activity row, so category doesn't
-  // apply here. New customers and paid invoices aren't branch- or
-  // category-scoped in the schema either, so they're always shown as-is.
+  // apply here. Invoice records are organization-wide, while catering receipts
+  // follow the user's event-branch access.
 
-  const [{ data: sales }, { data: expenses }, { data: customers }, { data: paidInvoices }] = await Promise.all([
+  const [
+    { data: sales },
+    { data: expenses },
+    { data: customers },
+    { data: paidInvoices },
+    { data: cateringInvoicePayments },
+  ] = await Promise.all([
     salesQuery,
     expensesQuery,
     customersQuery,
-    invoicesQuery
+    invoicesQuery,
+    cateringInvoicePaymentsQuery
   ]);
 
   const items: ActivityItem[] = [
@@ -603,12 +628,19 @@ export async function getRecentActivity(
       amount: null,
       createdAt: c.created_at
     })),
-    ...(paidInvoices ?? []).map((i) => ({
+    ...(paidInvoices ?? []).filter((invoice) => !invoice.source_catering_event_id).map((i) => ({
       id: `invoice-${i.id}`,
       type: "invoice_paid" as const,
       description: `Invoice paid by ${i.customer_name}`,
-      amount: Number(i.amount),
+      amount: Number(i.amount_paid),
       createdAt: i.paid_at as string
+    })),
+    ...(cateringInvoicePayments ?? []).map((payment) => ({
+      id: `catering-invoice-payment-${payment.id}`,
+      type: "invoice_paid" as const,
+      description: "Catering invoice payment received",
+      amount: Number(payment.amount),
+      createdAt: payment.paid_at
     }))
   ];
 

@@ -12,6 +12,11 @@ import {
   createRestaurantReservation,
   assignRestaurantReservationTable,
   createRestaurantCateringEvent,
+  createRestaurantCateringQuote,
+  issueRestaurantCateringFinalInvoice,
+  saveRestaurantCateringMenuPlan,
+  createRestaurantCateringPrepTask,
+  recordRestaurantCateringPayment,
   adjustRestaurantIngredientStock,
   saveRestaurantIngredientMinimumStock,
   recordRestaurantPayment,
@@ -33,6 +38,8 @@ import {
   updateRestaurantOrderStatus,
   updateRestaurantReservationStatus,
   updateRestaurantCateringEventStatus,
+  updateRestaurantCateringPrepTask,
+  updateRestaurantCateringPrepChecklistItem,
   splitRestaurantBillByItems,
   splitRestaurantBillEqually,
 } from "./actions";
@@ -47,6 +54,12 @@ type ModifierOption = Database["public"]["Tables"]["restaurant_modifier_options"
 type DiningTable = Database["public"]["Tables"]["restaurant_tables"]["Row"];
 type RestaurantReservation = Database["public"]["Tables"]["restaurant_reservations"]["Row"];
 type RestaurantCateringEvent = Database["public"]["Tables"]["restaurant_catering_events"]["Row"];
+type RestaurantCateringQuote = Database["public"]["Tables"]["restaurant_catering_quotes"]["Row"];
+type RestaurantCateringPayment = Database["public"]["Tables"]["restaurant_catering_payments"]["Row"];
+type RestaurantCateringInvoice = Database["public"]["Tables"]["invoices"]["Row"];
+type RestaurantCateringPrepTask = Database["public"]["Tables"]["restaurant_catering_prep_tasks"]["Row"];
+type RestaurantCateringMenuPlanItem = Database["public"]["Tables"]["restaurant_catering_menu_items"]["Row"];
+type RestaurantCateringStaff = { userId: string; fullName: string; locationIds: string[] };
 type RestaurantOrder = Database["public"]["Tables"]["restaurant_orders"]["Row"];
 type OrderItem = Database["public"]["Tables"]["restaurant_order_items"]["Row"];
 type OrderPayment = Database["public"]["Tables"]["restaurant_order_payments"]["Row"];
@@ -156,7 +169,14 @@ export default function RestaurantView({
   view,
   cateringEvents,
   cateringEventHistory,
+  cateringQuotes,
+  cateringPayments,
+  cateringInvoices,
+  cateringPrepTasks,
+  cateringMenuPlans,
+  cateringStaff,
   cateringDataError,
+  canIssueCateringInvoices,
   orgId,
   reportData,
   reportFrom,
@@ -207,7 +227,14 @@ export default function RestaurantView({
   view: ViewKey;
   cateringEvents: RestaurantCateringEvent[];
   cateringEventHistory: Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"][];
+  cateringQuotes: RestaurantCateringQuote[];
+  cateringPayments: RestaurantCateringPayment[];
+  cateringInvoices: RestaurantCateringInvoice[];
+  cateringPrepTasks: RestaurantCateringPrepTask[];
+  cateringMenuPlans: RestaurantCateringMenuPlanItem[];
+  cateringStaff: RestaurantCateringStaff[];
   cateringDataError: string | null;
+  canIssueCateringInvoices: boolean;
   orgId: string;
   reportData: RestaurantReport | null;
   reportFrom: string;
@@ -277,6 +304,7 @@ export default function RestaurantView({
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_tables", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_reservations", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_catering_events", filter: `org_id=eq.${orgId}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_catering_menu_items", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_orders", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_order_items", filter: `org_id=eq.${orgId}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_order_payments", filter: `org_id=eq.${orgId}` }, refresh)
@@ -598,7 +626,19 @@ export default function RestaurantView({
         locations={locations}
         events={cateringEvents}
         statusHistory={cateringEventHistory}
+        quotes={cateringQuotes}
+        payments={cateringPayments}
+        invoices={cateringInvoices}
+        prepTasks={cateringPrepTasks}
+        menuPlans={cateringMenuPlans}
+        menuItems={menuItems}
+        ingredients={ingredients}
+        ingredientStocks={ingredientStocks}
+        recipeIngredients={recipeIngredients}
+        staff={cateringStaff}
+        currency={currency}
         dataError={cateringDataError}
+        canIssueInvoice={canIssueCateringInvoices}
         canCreate={canCreateOrders}
         canEdit={canEditOrders}
         isPending={isPending}
@@ -1965,12 +2005,33 @@ const cateringEventDateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-function CateringEventsManagement({ locationId, locations, events, statusHistory, dataError, canCreate, canEdit, isPending, onAction }: {
+function cateringChecklistItems(value: Json): Array<{ title: string; completed: boolean }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) return [];
+    if (typeof item.title !== "string" || typeof item.completed !== "boolean") return [];
+    return [{ title: item.title, completed: item.completed }];
+  });
+}
+
+function CateringEventsManagement({ locationId, locations, events, statusHistory, quotes, payments, invoices, prepTasks, menuPlans, menuItems, ingredients, ingredientStocks, recipeIngredients, staff, currency, dataError, canIssueInvoice, canCreate, canEdit, isPending, onAction }: {
   locationId: string;
   locations: Location[];
   events: RestaurantCateringEvent[];
   statusHistory: Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"][];
+  quotes: RestaurantCateringQuote[];
+  payments: RestaurantCateringPayment[];
+  invoices: RestaurantCateringInvoice[];
+  prepTasks: RestaurantCateringPrepTask[];
+  menuPlans: RestaurantCateringMenuPlanItem[];
+  menuItems: MenuItem[];
+  ingredients: RestaurantIngredient[];
+  ingredientStocks: RestaurantIngredientStock[];
+  recipeIngredients: RestaurantRecipeIngredient[];
+  staff: RestaurantCateringStaff[];
+  currency: string;
   dataError: string | null;
+  canIssueInvoice: boolean;
   canCreate: boolean;
   canEdit: boolean;
   isPending: boolean;
@@ -1990,11 +2051,12 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
   const [notes, setNotes] = useState("");
   const visibleEvents = events.filter((event) => event.location_id === locationId);
 
-  useEffect(() => {
+  function initializeEventDate() {
+    if (startsAt) return;
     const now = new Date();
     setMinimumStartsAt(toLocalDateTimeInput(now));
-    setStartsAt((current) => current || toLocalDateTimeInput(new Date(now.getTime() + 24 * 60 * 60 * 1000)));
-  }, []);
+    setStartsAt(toLocalDateTimeInput(new Date(now.getTime() + 24 * 60 * 60 * 1000)));
+  }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2045,50 +2107,27 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
         </div>)}
       </div>
       {visibleEvents.length === 0 ? <EmptyState title="No catering events yet" message="Create an inquiry to record the customer, event schedule, guest count, and service requirements." /> : (
-        <div className="space-y-3">{visibleEvents.map((cateringEvent) => <article key={cateringEvent.id} className="rounded-xl border bg-white p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Event #{cateringEvent.event_number} · {cateringEvent.guest_count} guests</p>
-              <h3 className="mt-1 break-words text-base font-bold text-slate-950">{cateringEvent.event_name}</h3>
-              <p className="mt-1 text-sm text-slate-600">{cateringEvent.customer_name}{cateringEvent.customer_organization ? ` · ${cateringEvent.customer_organization}` : ""}</p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{cateringEventStatusLabels[cateringEvent.status]}</span>
-          </div>
-          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div><dt className="text-xs text-slate-500">Date & time (UTC)</dt><dd className="font-medium text-slate-800">{cateringEventDateFormatter.format(new Date(cateringEvent.starts_at))}</dd></div>
-            <div><dt className="text-xs text-slate-500">Event location</dt><dd className="break-words font-medium text-slate-800">{cateringEvent.event_location}</dd></div>
-            <div><dt className="text-xs text-slate-500">Contact</dt><dd className="break-words font-medium text-slate-800">{cateringEvent.customer_phone}{cateringEvent.customer_email ? ` · ${cateringEvent.customer_email}` : ""}</dd></div>
-          </dl>
-          {cateringEvent.custom_menu && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Menu requirements</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{cateringEvent.custom_menu}</p></div>}
-          {cateringEvent.setup_requirements && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Delivery & setup</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{cateringEvent.setup_requirements}</p></div>}
-          {cateringEvent.notes && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{cateringEvent.notes}</p>}
-          {statusHistory.some((entry) => entry.event_id === cateringEvent.id) && <details className="mt-3 border-t pt-3">
-            <summary className="cursor-pointer text-xs font-semibold text-slate-600">Status history</summary>
-            <ol className="mt-2 space-y-1">
-              {statusHistory.filter((entry) => entry.event_id === cateringEvent.id).map((entry) => <li key={entry.id} className="text-xs text-slate-500">
-                {entry.previous_status ? `${cateringEventStatusLabels[entry.previous_status]} → ` : ""}{cateringEventStatusLabels[entry.new_status]} · {cateringEventDateFormatter.format(new Date(entry.changed_at))}
-              </li>)}
-            </ol>
-          </details>}
-          {canEdit && cateringEventStatusTransitions[cateringEvent.status].length > 0 && <label className="mt-4 block max-w-xs text-xs font-semibold text-slate-600">
-            Update event status
-            <select
-              value=""
-              disabled={isPending}
-              onChange={(change) => {
-                const nextStatus = cateringEventStatusTransitions[cateringEvent.status].find((status) => status === change.target.value);
-                if (nextStatus) void onAction(
-                  () => updateRestaurantCateringEventStatus(cateringEvent.id, nextStatus),
-                  `Event #${cateringEvent.event_number} marked ${cateringEventStatusLabels[nextStatus].toLowerCase()}.`,
-                );
-              }}
-              className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm"
-            >
-              <option value="">Choose next status</option>
-              {cateringEventStatusTransitions[cateringEvent.status].map((status) => <option key={status} value={status}>{cateringEventStatusLabels[status]}</option>)}
-            </select>
-          </label>}
-        </article>)}</div>
+        <div className="space-y-3">{visibleEvents.map((cateringEvent) => <CateringEventCard
+          key={cateringEvent.id}
+          event={cateringEvent}
+          history={statusHistory.filter((entry) => entry.event_id === cateringEvent.id)}
+          quotes={quotes.filter((quote) => quote.event_id === cateringEvent.id)}
+          payments={payments.filter((payment) => payment.event_id === cateringEvent.id)}
+          finalInvoice={invoices.find((invoice) => invoice.source_catering_event_id === cateringEvent.id) ?? null}
+          prepTasks={prepTasks.filter((task) => task.event_id === cateringEvent.id)}
+          menuPlans={menuPlans.filter((item) => item.event_id === cateringEvent.id)}
+          menuItems={menuItems}
+          ingredients={ingredients}
+          ingredientStocks={ingredientStocks}
+          recipeIngredients={recipeIngredients}
+          staff={staff.filter((member) => member.locationIds.includes(cateringEvent.location_id))}
+          currency={currency}
+          dataError={dataError !== null}
+          canIssueInvoice={canIssueInvoice}
+          canEdit={canEdit}
+          isPending={isPending}
+          onAction={onAction}
+        />)}</div>
       )}
     </section>
     {canCreate ? <form onSubmit={submit} className="h-fit space-y-3 rounded-xl border bg-white p-4">
@@ -2103,7 +2142,7 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
         <label className="block text-xs font-semibold text-slate-600">Email (optional)<input type="email" maxLength={254} value={customerEmail} onChange={(change) => setCustomerEmail(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs font-semibold text-slate-600">Event date & time (your local time)<input required type="datetime-local" min={minimumStartsAt} value={startsAt} onChange={(change) => setStartsAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Event date & time (your local time)<input required type="datetime-local" min={minimumStartsAt} value={startsAt} onFocus={initializeEventDate} onChange={(change) => setStartsAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         <label className="block text-xs font-semibold text-slate-600">Guest count<input required type="number" min="1" max="10000" step="1" value={guestCount} onChange={(change) => setGuestCount(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
       </div>
       <label className="block text-xs font-semibold text-slate-600">Event venue<input required maxLength={300} value={eventLocation} onChange={(change) => setEventLocation(change.target.value)} placeholder="Address or venue" className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
@@ -2113,6 +2152,434 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
       <button type="submit" disabled={isPending || !locationId} className="rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : "Create inquiry"}</button>
     </form> : <p className="h-fit rounded-lg bg-slate-100 p-3 text-xs text-slate-600">You can review events but do not have permission to create catering inquiries.</p>}
   </div>;
+}
+
+function CateringEventCard({ event, history, quotes, payments, finalInvoice, prepTasks, menuPlans, menuItems, ingredients, ingredientStocks, recipeIngredients, staff, currency, dataError, canIssueInvoice, canEdit, isPending, onAction }: {
+  event: RestaurantCateringEvent;
+  history: Database["public"]["Tables"]["restaurant_catering_event_status_history"]["Row"][];
+  quotes: RestaurantCateringQuote[];
+  payments: RestaurantCateringPayment[];
+  finalInvoice: RestaurantCateringInvoice | null;
+  prepTasks: RestaurantCateringPrepTask[];
+  menuPlans: RestaurantCateringMenuPlanItem[];
+  menuItems: MenuItem[];
+  ingredients: RestaurantIngredient[];
+  ingredientStocks: RestaurantIngredientStock[];
+  recipeIngredients: RestaurantRecipeIngredient[];
+  staff: RestaurantCateringStaff[];
+  currency: string;
+  dataError: boolean;
+  canIssueInvoice: boolean;
+  canEdit: boolean;
+  isPending: boolean;
+  onAction: (work: () => Promise<unknown>, success: string) => Promise<boolean>;
+}) {
+  const [quoteDescription, setQuoteDescription] = useState(event.custom_menu || `Catering service for ${event.guest_count} guests.`);
+  const [quoteTotal, setQuoteTotal] = useState("");
+  const [depositDue, setDepositDue] = useState("");
+  const [quoteExpiry, setQuoteExpiry] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<RestaurantCateringPayment["payment_method"]>("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paidAt, setPaidAt] = useState("");
+  const [paymentRequestKey, setPaymentRequestKey] = useState("");
+  const [invoiceDueDate, setInvoiceDueDate] = useState("");
+  const [prepTitle, setPrepTitle] = useState("");
+  const [prepNotes, setPrepNotes] = useState("");
+  const [prepDueAt, setPrepDueAt] = useState("");
+  const [prepAssignedTo, setPrepAssignedTo] = useState("");
+  const [prepChecklistText, setPrepChecklistText] = useState("");
+  const [plannedMenuItems, setPlannedMenuItems] = useState(() => menuPlans.map((item) => ({
+    menuItemId: item.menu_item_id,
+    quantity: item.quantity,
+  })));
+  const [menuItemChoice, setMenuItemChoice] = useState("");
+  const [menuItemQuantity, setMenuItemQuantity] = useState("1");
+  const activeQuote = quotes.find((quote) => quote.status === "issued") ?? null;
+  const activeQuotePayments = activeQuote ? payments.filter((payment) => payment.quote_id === activeQuote.id) : [];
+  const activeQuotePaidCents = activeQuotePayments.reduce((sum, payment) => sum + Math.round(Number(payment.amount) * 100), 0);
+  const activeQuotePaid = activeQuotePaidCents / 100;
+  const activeQuoteBalance = activeQuote
+    ? Math.max(0, Math.round(Number(activeQuote.total) * 100) - activeQuotePaidCents) / 100
+    : 0;
+  const canReviseQuote = activeQuote ? activeQuotePayments.length === 0 : true;
+  const menuItemById = new Map(menuItems.map((item) => [item.id, item]));
+  const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
+  const requiredIngredients = new Map<string, number>();
+  const menuItemsMissingRecipes: string[] = [];
+  for (const plannedItem of plannedMenuItems) {
+    const itemRecipes = recipeIngredients.filter((recipe) => recipe.menu_item_id === plannedItem.menuItemId);
+    if (itemRecipes.length === 0) {
+      menuItemsMissingRecipes.push(menuItemById.get(plannedItem.menuItemId)?.name ?? "Unavailable menu item");
+    }
+    for (const recipe of itemRecipes) {
+      requiredIngredients.set(
+        recipe.ingredient_id,
+        (requiredIngredients.get(recipe.ingredient_id) ?? 0) + Number(recipe.quantity) * plannedItem.quantity,
+      );
+    }
+  }
+  const ingredientRequirements = Array.from(requiredIngredients, ([ingredientId, quantity]) => {
+    const ingredient = ingredientById.get(ingredientId);
+    const onHand = Number(ingredientStocks.find((stock) =>
+      stock.location_id === event.location_id && stock.ingredient_id === ingredientId)?.quantity ?? 0);
+    return {
+      ingredientId,
+      name: ingredient?.name ?? "Unavailable ingredient",
+      unit: ingredient?.unit ?? "",
+      required: quantity,
+      onHand,
+      shortage: Math.max(0, quantity - onHand),
+      estimatedCost: quantity * Number(ingredient?.cost_per_unit ?? 0),
+    };
+  }).sort((first, second) => first.name.localeCompare(second.name));
+  const estimatedIngredientCost = ingredientRequirements.reduce((total, item) => total + item.estimatedCost, 0);
+  const planIsValid = plannedMenuItems.length <= 100 && plannedMenuItems.every((item) =>
+    Number.isInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 10000
+      && menuItemById.get(item.menuItemId)?.is_active);
+
+  function submitMenuPlan(formEvent: React.FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    void onAction(() => saveRestaurantCateringMenuPlan({
+      eventId: event.id,
+      items: plannedMenuItems,
+    }), `Ingredient plan saved for event #${event.event_number}.`);
+  }
+
+  function addMenuItemToPlan() {
+    const quantity = Number(menuItemQuantity);
+    if (!menuItemChoice || !Number.isInteger(quantity) || quantity < 1 || quantity > 10000) return;
+    setPlannedMenuItems((current) => {
+      const existing = current.find((item) => item.menuItemId === menuItemChoice);
+      if (!existing) return [...current, { menuItemId: menuItemChoice, quantity }];
+      return current.map((item) => item.menuItemId === menuItemChoice
+        ? { ...item, quantity: Math.min(10000, item.quantity + quantity) }
+        : item);
+    });
+    setMenuItemChoice("");
+    setMenuItemQuantity("1");
+  }
+
+  function submitQuote(formEvent: React.FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    void onAction(async () => {
+      await createRestaurantCateringQuote({
+        eventId: event.id,
+        description: quoteDescription,
+        total: Number(quoteTotal),
+        depositDue: Number(depositDue || "0"),
+        expiresOn: quoteExpiry,
+      });
+      setQuoteTotal("");
+      setDepositDue("");
+      setQuoteExpiry("");
+    }, `Quotation issued for event #${event.event_number}.`);
+  }
+
+  function submitPayment(formEvent: React.FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    if (!activeQuote) return;
+    const requestKey = paymentRequestKey || crypto.randomUUID();
+    setPaymentRequestKey(requestKey);
+    void onAction(async () => {
+      const paymentDate = new Date(paidAt);
+      if (!Number.isFinite(paymentDate.getTime())) throw new Error("Choose a valid payment date and time.");
+      await recordRestaurantCateringPayment({
+        eventId: event.id,
+        quoteId: activeQuote.id,
+        requestKey,
+        amount: Number(paymentAmount),
+        paymentMethod,
+        reference: paymentReference,
+        paidAt: paymentDate.toISOString(),
+      });
+      setPaymentAmount("");
+      setPaymentReference("");
+      setPaidAt("");
+      setPaymentRequestKey("");
+    }, "Catering payment recorded.");
+  }
+
+  function submitFinalInvoice(formEvent: React.FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    void onAction(() => issueRestaurantCateringFinalInvoice({
+      eventId: event.id,
+      dueDate: invoiceDueDate,
+    }), `Final invoice issued for event #${event.event_number}.`);
+  }
+
+  function submitPrepTask(formEvent: React.FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    void onAction(async () => {
+      const dueDate = new Date(prepDueAt);
+      if (!Number.isFinite(dueDate.getTime())) throw new Error("Choose a valid preparation due date and time.");
+      const checklistItems = prepChecklistText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+      await createRestaurantCateringPrepTask({
+        eventId: event.id,
+        title: prepTitle,
+        notes: prepNotes,
+        dueAt: dueDate.toISOString(),
+        assignedTo: prepAssignedTo || null,
+        checklistItems,
+      });
+      setPrepTitle("");
+      setPrepNotes("");
+      setPrepDueAt("");
+      setPrepAssignedTo("");
+      setPrepChecklistText("");
+    }, "Preparation task scheduled.");
+  }
+
+  return <article className="rounded-xl border bg-white p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Event #{event.event_number} · {event.guest_count} guests</p>
+        <h3 className="mt-1 break-words text-base font-bold text-slate-950">{event.event_name}</h3>
+        <p className="mt-1 text-sm text-slate-600">{event.customer_name}{event.customer_organization ? ` · ${event.customer_organization}` : ""}</p>
+      </div>
+      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{cateringEventStatusLabels[event.status]}</span>
+    </div>
+    <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+      <div><dt className="text-xs text-slate-500">Date & time (UTC)</dt><dd className="font-medium text-slate-800">{cateringEventDateFormatter.format(new Date(event.starts_at))}</dd></div>
+      <div><dt className="text-xs text-slate-500">Event location</dt><dd className="break-words font-medium text-slate-800">{event.event_location}</dd></div>
+      <div><dt className="text-xs text-slate-500">Contact</dt><dd className="break-words font-medium text-slate-800">{event.customer_phone}{event.customer_email ? ` · ${event.customer_email}` : ""}</dd></div>
+    </dl>
+    {event.custom_menu && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Menu requirements</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{event.custom_menu}</p></div>}
+    {event.setup_requirements && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Delivery & setup</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{event.setup_requirements}</p></div>}
+    {event.notes && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{event.notes}</p>}
+
+    <section className="mt-4 space-y-3 rounded-lg border bg-slate-50 p-3">
+      <div>
+        <h4 className="font-semibold text-slate-900">Event menu & ingredient plan</h4>
+        <p className="mt-1 text-xs text-slate-500">Scale recipe ingredients by planned servings and compare with this branch’s current stock. This estimate does not reserve or consume inventory.</p>
+      </div>
+      {canEdit && !["completed", "cancelled"].includes(event.status) && <form onSubmit={submitMenuPlan} className="space-y-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-52 flex-1 text-xs font-semibold text-slate-600">Menu item<select value={menuItemChoice} onChange={(change) => setMenuItemChoice(change.target.value)} className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm">
+            <option value="">Select a menu item</option>
+            {menuItems.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select></label>
+          <label className="w-28 text-xs font-semibold text-slate-600">Servings<input type="number" min="1" max="10000" step="1" value={menuItemQuantity} onChange={(change) => setMenuItemQuantity(change.target.value)} className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm" /></label>
+          <button type="button" onClick={addMenuItemToPlan} disabled={!menuItemChoice || !Number.isInteger(Number(menuItemQuantity)) || Number(menuItemQuantity) < 1 || Number(menuItemQuantity) > 10000} className="h-10 rounded-lg border bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50">Add item</button>
+        </div>
+        {plannedMenuItems.length > 0 && <ul className="space-y-2">
+          {plannedMenuItems.map((item) => <li key={item.menuItemId} className="flex flex-wrap items-center gap-2 rounded-lg border bg-white p-2">
+            <span className="min-w-40 flex-1 text-sm font-medium text-slate-800">{menuItemById.get(item.menuItemId)?.name ?? "Unavailable menu item"}</span>
+            <label className="flex items-center gap-2 text-xs text-slate-600">Servings<input type="number" min="1" max="10000" step="1" value={item.quantity} onChange={(change) => {
+              const quantity = Number(change.target.value);
+              setPlannedMenuItems((current) => current.map((planned) => planned.menuItemId === item.menuItemId
+                ? { ...planned, quantity }
+                : planned));
+            }} className="h-9 w-24 rounded-lg border px-2 text-sm" /></label>
+            <button type="button" onClick={() => setPlannedMenuItems((current) => current.filter((planned) => planned.menuItemId !== item.menuItemId))} className="rounded-lg border px-3 py-2 text-xs font-semibold text-slate-600">Remove</button>
+          </li>)}
+        </ul>}
+        <button type="submit" disabled={isPending || !planIsValid || dataError} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : "Save menu & ingredient plan"}</button>
+      </form>}
+      {!canEdit && plannedMenuItems.length > 0 && <ul className="space-y-1 text-sm text-slate-700">
+        {plannedMenuItems.map((item) => <li key={item.menuItemId}>{menuItemById.get(item.menuItemId)?.name ?? "Unavailable menu item"} · {item.quantity} servings</li>)}
+      </ul>}
+      {plannedMenuItems.length === 0 && <p className="text-sm text-slate-500">No menu items planned yet.</p>}
+      {plannedMenuItems.length > 0 && <>
+        {menuItemsMissingRecipes.length > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">Add ingredient recipes for: {Array.from(new Set(menuItemsMissingRecipes)).join(", ")}. These items are excluded from ingredient estimates.</p>}
+        {ingredientRequirements.length > 0 && <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-xs">
+            <thead><tr className="border-b text-slate-500"><th className="py-2 pr-3">Ingredient</th><th className="py-2 pr-3">Required</th><th className="py-2 pr-3">On hand</th><th className="py-2">Shortage</th></tr></thead>
+            <tbody>{ingredientRequirements.map((item) => <tr key={item.ingredientId} className="border-b last:border-0">
+              <td className="py-2 pr-3 font-medium text-slate-800">{item.name}</td>
+              <td className="py-2 pr-3">{item.required.toLocaleString(undefined, { maximumFractionDigits: 3 })} {item.unit}</td>
+              <td className="py-2 pr-3">{item.onHand.toLocaleString(undefined, { maximumFractionDigits: 3 })} {item.unit}</td>
+              <td className={`py-2 font-semibold ${item.shortage > 0 ? "text-red-700" : "text-emerald-700"}`}>{item.shortage.toLocaleString(undefined, { maximumFractionDigits: 3 })} {item.unit}</td>
+            </tr>)}</tbody>
+          </table>
+          <p className="mt-2 text-xs font-semibold text-slate-700">Estimated ingredient cost: {money(estimatedIngredientCost, currency)}</p>
+        </div>}
+      </>}
+    </section>
+
+    {quotes.length > 0 && <section className="mt-4 rounded-lg border bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="font-semibold text-slate-900">Quotation{quotes.length > 1 ? "s" : ""}</h4>
+        {quotes.map((quote) => <span key={quote.id} className="text-xs text-slate-500">v{quote.version} · {quote.status}</span>)}
+      </div>
+      {activeQuote && <>
+        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{activeQuote.description}</p>
+        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+          <div><dt className="text-xs text-slate-500">Quote total</dt><dd className="font-semibold">{money(Number(activeQuote.total), activeQuote.currency)}</dd></div>
+          <div><dt className="text-xs text-slate-500">Deposit required</dt><dd className="font-semibold">{money(Number(activeQuote.deposit_due), activeQuote.currency)}</dd></div>
+          <div><dt className="text-xs text-slate-500">Paid · balance</dt><dd className="font-semibold">{money(activeQuotePaid, activeQuote.currency)} · {money(activeQuoteBalance, activeQuote.currency)}</dd></div>
+        </dl>
+        <p className="mt-2 text-xs text-slate-500">Issued {cateringEventDateFormatter.format(new Date(activeQuote.created_at))}{activeQuote.expires_on ? ` · Expires ${activeQuote.expires_on}` : ""}</p>
+        <button type="button" onClick={() => window.print()} className="mt-3 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700">Print quotation</button>
+      </>}
+      {quotes.filter((quote) => quote.status === "superseded").map((quote) => <p key={quote.id} className="mt-2 text-xs text-slate-500">Quotation v{quote.version} was superseded · {money(Number(quote.total), quote.currency)}</p>)}
+    </section>}
+
+    {(finalInvoice || (canEdit && event.status === "completed" && activeQuote)) && <section className="mt-4 rounded-lg border bg-slate-50 p-3">
+      <h4 className="font-semibold text-slate-900">Final invoice & outstanding balance</h4>
+      {finalInvoice ? <>
+        <p className="mt-1 text-sm text-slate-600">Invoice #{String(finalInvoice.invoice_number).padStart(4, "0")} · {finalInvoice.status}</p>
+        <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+          <div><dt className="text-xs text-slate-500">Invoice total</dt><dd className="font-semibold">{money(Number(finalInvoice.amount), currency)}</dd></div>
+          <div><dt className="text-xs text-slate-500">Payments received</dt><dd className="font-semibold">{money(Number(finalInvoice.amount_paid), currency)}</dd></div>
+          <div><dt className="text-xs text-slate-500">Outstanding</dt><dd className="font-semibold">{money(Number(finalInvoice.amount) - Number(finalInvoice.amount_paid), currency)}</dd></div>
+        </dl>
+        <Link href="/accounting/invoices" className="mt-3 inline-block text-xs font-semibold text-orange-700 hover:underline">View Accounts Receivable invoices</Link>
+      </> : canIssueInvoice ? <form onSubmit={submitFinalInvoice} className="mt-2 flex flex-wrap items-end gap-3">
+        <label className="text-xs font-semibold text-slate-600">Payment due date<input required type="date" value={invoiceDueDate} onChange={(change) => setInvoiceDueDate(change.target.value)} className="mt-1 h-10 rounded-lg border bg-white px-3 text-sm" /></label>
+        <button type="submit" disabled={isPending || dataError} className="h-10 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Issuing..." : "Issue final invoice"}</button>
+      </form> : <p className="mt-1 text-xs text-slate-500">Accounts Receivable invoice creation permission is required to issue the final invoice.</p>}
+      <p className="mt-2 text-xs text-slate-500">Recorded deposits and installments are credited against the invoice total and its Accounts Receivable balance.</p>
+    </section>}
+
+    {canEdit && canReviseQuote && ["inquiry", "quoted"].includes(event.status) && <form onSubmit={submitQuote} className="mt-4 space-y-3 rounded-lg border p-3">
+      <h4 className="font-semibold text-slate-900">{activeQuote ? "Revise quotation" : "Prepare quotation"}</h4>
+      <label className="block text-xs font-semibold text-slate-600">Quotation scope and terms<textarea required maxLength={5000} rows={3} value={quoteDescription} onChange={(change) => setQuoteDescription(change.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="block text-xs font-semibold text-slate-600">Total ({currency})<input required type="number" min="0.01" step="0.01" value={quoteTotal} onChange={(change) => setQuoteTotal(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Deposit required<input required type="number" min="0" step="0.01" value={depositDue} onChange={(change) => setDepositDue(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Valid through<input type="date" value={quoteExpiry} onChange={(change) => setQuoteExpiry(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      </div>
+      <button type="submit" disabled={isPending} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : "Issue quotation"}</button>
+    </form>}
+
+    {canEdit && activeQuote && activeQuoteBalance > 0 && event.status !== "cancelled" && <form onSubmit={submitPayment} className="mt-4 space-y-3 rounded-lg border p-3">
+      <h4 className="font-semibold text-slate-900">Record deposit, installment or balance payment</h4>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs font-semibold text-slate-600">Amount<input required type="number" min="0.01" max={activeQuoteBalance} step="0.01" value={paymentAmount} onChange={(change) => setPaymentAmount(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Payment method<select value={paymentMethod} onChange={(change) => setPaymentMethod(change.target.value as RestaurantCateringPayment["payment_method"])} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm">
+          <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option><option value="mobile_money">Mobile money</option><option value="other">Other</option>
+        </select></label>
+        <label className="block text-xs font-semibold text-slate-600">Payment date & time<input required type="datetime-local" value={paidAt} onChange={(change) => setPaidAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Reference (optional)<input maxLength={120} value={paymentReference} onChange={(change) => setPaymentReference(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      </div>
+      <button type="submit" disabled={isPending} className="rounded-lg border px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">Record payment</button>
+      {activeQuotePaidCents < Math.round(Number(activeQuote.deposit_due) * 100) && <p className="text-xs text-amber-800">{money(Math.round(Number(activeQuote.deposit_due) * 100 - activeQuotePaidCents) / 100, activeQuote.currency)} remains due before event confirmation.</p>}
+    </form>}
+
+    <section className="mt-4 space-y-3 rounded-lg border p-3">
+      <div>
+        <h4 className="font-semibold text-slate-900">Preparation schedule & checklist</h4>
+        <p className="mt-1 text-xs text-slate-500">Schedule work before the event; tasks can be assigned to staff at this branch.</p>
+      </div>
+      {prepTasks.length === 0 ? <p className="text-sm text-slate-500">No preparation tasks scheduled.</p> : <ul className="space-y-3">
+        {prepTasks.map((task) => {
+          const checklist = cateringChecklistItems(task.checklist);
+          const assignedStaff = staff.find((member) => member.userId === task.assigned_to);
+          const allowedTaskStatuses: RestaurantCateringPrepTask["status"][] = ["pending", "in_progress", "completed", "cancelled"];
+          return <li key={task.id} className="rounded-lg border bg-slate-50 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-slate-900">{task.title}</p>
+                <p className="mt-1 text-xs text-slate-500">Due {cateringEventDateFormatter.format(new Date(task.due_at))} UTC · {assignedStaff?.fullName ?? (task.assigned_to ? "Assigned staff" : "Unassigned")}</p>
+              </div>
+              <span className="rounded-full bg-white px-2 py-1 text-xs font-medium capitalize text-slate-600">{task.status.replace("_", " ")}</span>
+            </div>
+            {task.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{task.notes}</p>}
+            {checklist.length > 0 && <ul className="mt-2 space-y-1">
+              {checklist.map((item, index) => <li key={`${task.id}:${index}`}>
+                <label className={`flex items-start gap-2 text-sm ${item.completed ? "text-slate-400 line-through" : "text-slate-700"}`}>
+                  <input
+                    type="checkbox"
+                    checked={item.completed}
+                    disabled={!canEdit || isPending || ["completed", "cancelled"].includes(event.status) || task.status === "cancelled"}
+                    onChange={(change) => void onAction(
+                      () => updateRestaurantCateringPrepChecklistItem({ taskId: task.id, itemIndex: index, completed: change.target.checked }),
+                      "Preparation checklist updated.",
+                    )}
+                    className="mt-0.5"
+                  />
+                  <span>{item.title}</span>
+                </label>
+              </li>)}
+            </ul>}
+            {canEdit && !["completed", "cancelled"].includes(event.status) && <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-slate-600">Assigned staff
+                <select
+                  value={task.assigned_to ?? ""}
+                  disabled={isPending}
+                  onChange={(change) => void onAction(
+                    () => updateRestaurantCateringPrepTask({
+                      taskId: task.id,
+                      status: task.status,
+                      assignedTo: change.target.value || null,
+                    }),
+                    "Preparation task assignment updated.",
+                  )}
+                  className="mt-1 h-9 w-full rounded-lg border bg-white px-2 text-sm"
+                >
+                  <option value="">Unassigned</option>
+                  {staff.map((member) => <option key={member.userId} value={member.userId}>{member.fullName}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">Task status
+                <select
+                  value={task.status}
+                  disabled={isPending}
+                  onChange={(change) => {
+                    if (allowedTaskStatuses.includes(change.target.value as RestaurantCateringPrepTask["status"])) {
+                      void onAction(
+                        () => updateRestaurantCateringPrepTask({
+                          taskId: task.id,
+                          status: change.target.value as RestaurantCateringPrepTask["status"],
+                          assignedTo: task.assigned_to,
+                        }),
+                        "Preparation task status updated.",
+                      );
+                    }
+                  }}
+                  className="mt-1 h-9 w-full rounded-lg border bg-white px-2 text-sm"
+                >
+                  {allowedTaskStatuses.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}
+                </select>
+              </label>
+            </div>}
+          </li>;
+        })}
+      </ul>}
+      {canEdit && !["completed", "cancelled"].includes(event.status) && <form onSubmit={submitPrepTask} className="space-y-3 border-t pt-3">
+        <p className="text-sm font-semibold text-slate-800">Schedule a preparation task</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-slate-600">Task title<input required maxLength={160} value={prepTitle} onChange={(change) => setPrepTitle(change.target.value)} placeholder="e.g. Prepare sauces" className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+          <label className="text-xs font-semibold text-slate-600">Due date & time (your local time)<input required type="datetime-local" value={prepDueAt} onChange={(change) => setPrepDueAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        </div>
+        <label className="block text-xs font-semibold text-slate-600">Assign to (optional)<select value={prepAssignedTo} onChange={(change) => setPrepAssignedTo(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm">
+          <option value="">Unassigned</option>
+          {staff.map((member) => <option key={member.userId} value={member.userId}>{member.fullName}</option>)}
+        </select></label>
+        <label className="block text-xs font-semibold text-slate-600">Task notes<textarea maxLength={2000} rows={2} value={prepNotes} onChange={(change) => setPrepNotes(change.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Checklist (one item per line, up to 30)<textarea maxLength={6000} rows={3} value={prepChecklistText} onChange={(change) => setPrepChecklistText(change.target.value)} placeholder={"Confirm quantities\nPrepare ingredients\nPack equipment"} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+        <button type="submit" disabled={isPending} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : "Add preparation task"}</button>
+      </form>}
+    </section>
+
+    {payments.length > 0 && <details className="mt-3">
+      <summary className="cursor-pointer text-xs font-semibold text-slate-600">Payment history ({payments.length})</summary>
+      <ul className="mt-2 space-y-1">{payments.map((payment) => <li key={payment.id} className="text-xs text-slate-600">
+        {money(Number(payment.amount), quotes.find((quote) => quote.id === payment.quote_id)?.currency ?? currency)} · {payment.payment_method.replace("_", " ")} · {cateringEventDateFormatter.format(new Date(payment.paid_at))}{payment.reference ? ` · ${payment.reference}` : ""}
+      </li>)}</ul>
+    </details>}
+
+    {history.length > 0 && <details className="mt-3 border-t pt-3">
+      <summary className="cursor-pointer text-xs font-semibold text-slate-600">Status history</summary>
+      <ol className="mt-2 space-y-1">{history.map((entry) => <li key={entry.id} className="text-xs text-slate-500">
+        {entry.previous_status ? `${cateringEventStatusLabels[entry.previous_status]} → ` : ""}{cateringEventStatusLabels[entry.new_status]} · {cateringEventDateFormatter.format(new Date(entry.changed_at))}
+      </li>)}</ol>
+    </details>}
+    {canEdit && cateringEventStatusTransitions[event.status].length > 0 && <label className="mt-4 block max-w-xs text-xs font-semibold text-slate-600">
+      Update event status
+      <select value="" disabled={isPending} onChange={(change) => {
+        const nextStatus = cateringEventStatusTransitions[event.status].find((status) => status === change.target.value);
+        if (nextStatus) void onAction(
+          () => updateRestaurantCateringEventStatus(event.id, nextStatus),
+          `Event #${event.event_number} marked ${cateringEventStatusLabels[nextStatus].toLowerCase()}.`,
+        );
+      }} className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm">
+        <option value="">Choose next status</option>
+        {cateringEventStatusTransitions[event.status].map((status) => <option key={status} value={status}>{cateringEventStatusLabels[status]}</option>)}
+      </select>
+    </label>}
+  </article>;
 }
 
 function ReservationsManagement({ locationId, locations, tables, reservations, canCreate, canEdit, isPending, onAction }: {
