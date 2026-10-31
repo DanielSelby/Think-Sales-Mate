@@ -345,6 +345,7 @@ export interface Database {
           id: string;
           org_id: string;
           location_id: string;
+          customer_id: string | null;
           event_number: number;
           event_name: string;
           customer_name: string;
@@ -367,6 +368,7 @@ export interface Database {
           id?: string;
           org_id: string;
           location_id: string;
+          customer_id?: string | null;
           event_number?: number;
           event_name: string;
           customer_name: string;
@@ -386,7 +388,15 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_catering_events"]["Row"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_catering_events_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       restaurant_catering_event_status_history: {
         Row: {

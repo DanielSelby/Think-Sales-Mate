@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatMoney } from "@/lib/currency";
+import { searchCustomers, type CustomerOption } from "@/app/(dashboard)/pos/actions";
 import type { Database, Json } from "@/types/database";
 import {
   createRestaurantOrder,
@@ -2039,6 +2040,11 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
 }) {
   const [eventName, setEventName] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerSearchError, setCustomerSearchError] = useState("");
   const [customerOrganization, setCustomerOrganization] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -2050,6 +2056,28 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
   const [setupRequirements, setSetupRequirements] = useState("");
   const [notes, setNotes] = useState("");
   const visibleEvents = events.filter((event) => event.location_id === locationId);
+
+  useEffect(() => {
+    if (!customerSearchOpen) return;
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      searchCustomers(customerSearch).then((results) => {
+        if (active) {
+          setCustomerResults(results);
+          setCustomerSearchError("");
+        }
+      }).catch((error: unknown) => {
+        if (active) {
+          setCustomerSearchError(error instanceof Error ? error.message : "Could not search CRM customers.");
+          setCustomerResults([]);
+        }
+      });
+    }, 200);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [customerSearch, customerSearchOpen]);
 
   function initializeEventDate() {
     if (startsAt) return;
@@ -2065,6 +2093,7 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
       if (!Number.isFinite(eventDate.getTime())) throw new Error("Choose a valid event date and time.");
       await createRestaurantCateringEvent({
         locationId,
+        customerId: selectedCustomer?.id ?? null,
         eventName,
         customerName,
         customerOrganization,
@@ -2079,6 +2108,10 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
       });
       setEventName("");
       setCustomerName("");
+      setCustomerSearch("");
+      setCustomerResults([]);
+      setSelectedCustomer(null);
+      setCustomerSearchOpen(false);
       setCustomerOrganization("");
       setCustomerPhone("");
       setCustomerEmail("");
@@ -2133,13 +2166,55 @@ function CateringEventsManagement({ locationId, locations, events, statusHistory
     {canCreate ? <form onSubmit={submit} className="h-fit space-y-3 rounded-xl border bg-white p-4">
       <div><h2 className="font-bold text-slate-950">New event inquiry</h2><p className="mt-1 text-xs text-slate-500">Branch: {locations.find((location) => location.id === locationId)?.name ?? "Unavailable"}</p></div>
       <label className="block text-xs font-semibold text-slate-600">Event name<input required maxLength={120} value={eventName} onChange={(change) => setEventName(change.target.value)} placeholder="e.g. Annual staff celebration" className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+      <div className="relative">
+        <label className="block text-xs font-semibold text-slate-600">Link CRM customer (optional)
+          <input
+            value={customerSearch}
+            onFocus={() => setCustomerSearchOpen(true)}
+            onChange={(change) => {
+              setCustomerSearch(change.target.value);
+              setSelectedCustomer(null);
+              setCustomerSearchOpen(true);
+            }}
+            placeholder="Search name, phone, or email"
+            autoComplete="off"
+            className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"
+          />
+        </label>
+        {customerSearchOpen && !selectedCustomer && customerResults.length > 0 && <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-48 overflow-auto rounded-lg border bg-white shadow-lg" aria-label="CRM customer search results">
+          {customerResults.map((customer) => <li key={customer.id}>
+            <button type="button" onClick={() => {
+              setSelectedCustomer(customer);
+              setCustomerName(customer.name);
+              setCustomerPhone(customer.phone ?? "");
+              setCustomerEmail(customer.email ?? "");
+              setCustomerSearch("");
+              setCustomerResults([]);
+              setCustomerSearchOpen(false);
+            }} className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50">
+              <span className="block font-semibold text-slate-800">{customer.name}</span>
+              <span className="block text-xs text-slate-500">{[customer.phone, customer.email].filter(Boolean).join(" · ") || "No contact details"}</span>
+            </button>
+          </li>)}
+        </ul>}
+        {selectedCustomer && <p className="mt-1 text-xs text-emerald-700">Linked to CRM: {selectedCustomer.name} · <button type="button" onClick={() => {
+          setSelectedCustomer(null);
+          setCustomerName("");
+          setCustomerPhone("");
+          setCustomerEmail("");
+          setCustomerSearchOpen(true);
+        }} className="font-semibold underline">Change</button></p>}
+        {customerSearchError && <p role="alert" className="mt-1 text-xs text-red-700">{customerSearchError}</p>}
+        {customerSearchOpen && customerSearch.trim().length > 0 && customerResults.length === 0 && !customerSearchError
+          && <p className="mt-1 text-xs text-slate-500">No matching CRM customer. You can continue with manual customer details.</p>}
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs font-semibold text-slate-600">Customer name<input required maxLength={120} value={customerName} onChange={(change) => setCustomerName(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Customer name<input required maxLength={120} value={customerName} onChange={(change) => { setCustomerName(change.target.value); setSelectedCustomer(null); }} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         <label className="block text-xs font-semibold text-slate-600">Organization (optional)<input maxLength={160} value={customerOrganization} onChange={(change) => setCustomerOrganization(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs font-semibold text-slate-600">Phone<input required type="tel" maxLength={40} value={customerPhone} onChange={(change) => setCustomerPhone(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-        <label className="block text-xs font-semibold text-slate-600">Email (optional)<input type="email" maxLength={254} value={customerEmail} onChange={(change) => setCustomerEmail(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Phone<input required type="tel" maxLength={40} value={customerPhone} onChange={(change) => { setCustomerPhone(change.target.value); setSelectedCustomer(null); }} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="block text-xs font-semibold text-slate-600">Email (optional)<input type="email" maxLength={254} value={customerEmail} onChange={(change) => { setCustomerEmail(change.target.value); setSelectedCustomer(null); }} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-xs font-semibold text-slate-600">Event date & time (your local time)<input required type="datetime-local" min={minimumStartsAt} value={startsAt} onFocus={initializeEventDate} onChange={(change) => setStartsAt(change.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>

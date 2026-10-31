@@ -829,6 +829,7 @@ export async function createRestaurantReservation(input: {
 
 export async function createRestaurantCateringEvent(input: {
   locationId: string;
+  customerId: string | null;
   eventName: string;
   customerName: string;
   customerOrganization: string;
@@ -856,15 +857,25 @@ export async function createRestaurantCateringEvent(input: {
   }
   const customerPhone = requiredText(input.customerPhone, "Customer phone", 40);
   if (customerPhone.length < 7) throw new Error("Customer phone must contain at least 7 characters.");
+  if (input.customerId !== null && !uuidPattern.test(input.customerId)) {
+    throw new Error("Choose a valid CRM customer.");
+  }
   const customerOrganization = input.customerOrganization.trim();
   if (customerOrganization.length > 160) throw new Error("Customer organization must be no more than 160 characters.");
   if (input.customMenu.length > 5000 || input.setupRequirements.length > 2000 || input.notes.length > 2000) {
     throw new Error("Menu requirements, setup requirements, and notes exceed their allowed lengths.");
   }
   const admin = createAdminClient();
+  if (input.customerId) {
+    const { data: customer, error: customerError } = await admin.from("customers")
+      .select("id").eq("org_id", context.orgId).eq("id", input.customerId).maybeSingle();
+    if (customerError) throw new Error(`Could not verify CRM customer: ${customerError.message}`);
+    if (!customer) throw new Error("Choose a CRM customer from this organization.");
+  }
   const { data, error } = await admin.from("restaurant_catering_events").insert({
     org_id: context.orgId,
     location_id: input.locationId,
+    customer_id: input.customerId,
     event_name: requiredText(input.eventName, "Event name", 120),
     customer_name: requiredText(input.customerName, "Customer name", 120),
     customer_organization: customerOrganization || null,
