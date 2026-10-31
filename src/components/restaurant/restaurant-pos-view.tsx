@@ -439,10 +439,10 @@ export default function RestaurantPosView({
         }
       }
       if (payment && result.billId) {
-        setSuccess(`Order #${result.orderNumber} created and paid.${heldDraftWarning}`);
+        setSuccess(`Order #${result.orderNumber} · Cue No. ${result.cueNumber} created and paid.${heldDraftWarning}`);
         setReceiptHref(`/restaurant/receipt?orderId=${encodeURIComponent(result.orderId)}&billId=${encodeURIComponent(result.billId)}`);
       } else {
-        setSuccess(`Order #${result.orderNumber} created. Complete payment from Restaurant Orders.${heldDraftWarning}`);
+        setSuccess(`Order #${result.orderNumber} · Cue No. ${result.cueNumber} created. Complete payment from Restaurant Orders.${heldDraftWarning}`);
         setReceiptHref("");
       }
       pendingRequestRef.current = null;

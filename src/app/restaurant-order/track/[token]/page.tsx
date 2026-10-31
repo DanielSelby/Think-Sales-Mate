@@ -14,7 +14,7 @@ export default async function RestaurantOrderTrackingPage({
 
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin.from("restaurant_orders")
-    .select("org_id, order_number, order_type, status, payment_status, payment_option, total, delivery_fee, created_at, location_id")
+    .select("org_id, order_number, cue_number, order_type, status, payment_status, payment_option, total, delivery_fee, created_at, location_id")
     .eq("customer_tracking_token", token)
     .eq("order_source", "online")
     .maybeSingle();
@@ -32,6 +32,7 @@ export default async function RestaurantOrderTrackingPage({
 
   return <RestaurantOrderTrackingView
     orderNumber={order.order_number}
+    cueNumber={order.cue_number}
     orderType={order.order_type}
     status={order.status}
     paymentStatus={order.payment_status}

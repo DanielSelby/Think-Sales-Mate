@@ -21,7 +21,7 @@ export default async function RestaurantOrderConfirmationPage({
   const confirmation = confirmations?.[0];
   if (!confirmation) notFound();
   const { data: trackedOrder, error: trackedOrderError } = attempt
-    ? await admin.from("restaurant_orders").select("customer_tracking_token").eq("id", attempt.order_id).maybeSingle()
+    ? await admin.from("restaurant_orders").select("customer_tracking_token, cue_number").eq("id", attempt.order_id).maybeSingle()
     : { data: null, error: null };
   if (trackedOrderError) throw new Error(`Could not load restaurant order tracking: ${trackedOrderError.message}`);
 
@@ -41,6 +41,7 @@ export default async function RestaurantOrderConfirmationPage({
     <section className="w-full max-w-lg rounded-2xl border bg-white p-8 text-center shadow-sm">
       <p className={`text-sm font-bold uppercase tracking-wide ${isPaid ? "text-emerald-700" : isFailed ? "text-red-700" : "text-amber-700"}`}>{title}</p>
       <h1 className="mt-2 text-2xl font-bold text-slate-950">Restaurant order #{confirmation.order_number}</h1>
+      {trackedOrder && <p className="mt-1 text-sm font-semibold text-slate-700">Cue No. {trackedOrder.cue_number}</p>}
       <p className="mt-3 text-sm text-slate-600">{message}</p>
       {isPending && <PaymentStatusRefresh />}
       {trackedOrder?.customer_tracking_token && <Link href={`/restaurant-order/track/${encodeURIComponent(trackedOrder.customer_tracking_token)}`} className="mt-5 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Track your order</Link>}

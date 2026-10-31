@@ -548,7 +548,15 @@ export interface Database {
           org_id: string;
           location_id: string;
           order_number: number;
+          cue_date: string;
+          cue_number: string;
           order_type: "dine_in" | "takeaway" | "pickup" | "delivery";
+          delivery_status: "not_applicable" | "unassigned" | "assigned" | "picked_up" | "in_transit" | "delivered" | "failed";
+          delivery_assigned_employee_id: string | null;
+          delivery_assigned_at: string | null;
+          delivery_picked_up_at: string | null;
+          delivery_delivered_at: string | null;
+          delivery_failure_note: string | null;
           table_id: string | null;
           status: "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
           payment_status: "unpaid" | "partial" | "paid";
@@ -573,7 +581,15 @@ export interface Database {
           org_id: string;
           location_id: string;
           order_number?: number;
+          cue_date?: string;
+          cue_number?: string;
           order_type: "dine_in" | "takeaway" | "pickup" | "delivery";
+          delivery_status?: "not_applicable" | "unassigned" | "assigned" | "picked_up" | "in_transit" | "delivered" | "failed";
+          delivery_assigned_employee_id?: string | null;
+          delivery_assigned_at?: string | null;
+          delivery_picked_up_at?: string | null;
+          delivery_delivered_at?: string | null;
+          delivery_failure_note?: string | null;
           table_id?: string | null;
           status?: "pending_payment" | "new" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled";
           payment_status?: "unpaid" | "partial" | "paid";
@@ -3261,6 +3277,7 @@ export interface Database {
           id: string;
           org_id: string;
           employee_id: string;
+          location_id: string | null;
           work_date: string;
           check_in: string | null;
           check_out: string | null;
@@ -3277,6 +3294,7 @@ export interface Database {
           id?: string;
           org_id: string;
           employee_id: string;
+          location_id?: string | null;
           work_date: string;
           check_in?: string | null;
           check_out?: string | null;
@@ -4753,6 +4771,15 @@ export interface Database {
           p_org_id: string;
           p_start_date: string;
           p_end_date: string;
+        };
+        Returns: Json;
+      };
+      get_restaurant_labor_hours: {
+        Args: {
+          p_org_id: string;
+          p_start_date: string;
+          p_end_date: string;
+          p_location_ids: string[];
         };
         Returns: Json;
       };

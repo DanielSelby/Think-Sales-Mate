@@ -11,10 +11,11 @@ import { ATTENDANCE_STATUS_LABEL, WORK_TYPES } from "@/lib/hrm/attendance";
 import { markAttendance } from "@/app/(dashboard)/hrm/attendance/actions";
 import type { AttendanceStatus } from "@/types/database";
 
-export interface EmployeeOption { id: string; name: string; }
+export interface EmployeeOption { id: string; name: string; locationId?: string | null; }
 
 export interface EditingAttendance {
   employeeId: string;
+  locationId: string | null;
   workDate: string;
   status: AttendanceStatus;
   checkIn: string | null;
@@ -27,6 +28,7 @@ interface MarkAttendanceDialogProps {
   open: boolean;
   onClose: () => void;
   employees: EmployeeOption[];
+  locations: Array<{ id: string; name: string }>;
   selectedDate: string;
   editing: EditingAttendance | null;
   onSaved: () => void;
@@ -40,12 +42,17 @@ function toTimeInput(iso: string | null): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-export function MarkAttendanceDialog({ open, onClose, employees, selectedDate, editing, onSaved }: MarkAttendanceDialogProps) {
+export function MarkAttendanceDialog({ open, onClose, employees, locations, selectedDate, editing, onSaved }: MarkAttendanceDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
 
-  const [employeeId, setEmployeeId] = React.useState(editing?.employeeId ?? employees[0]?.id ?? "");
+  const initialEmployeeId = editing?.employeeId ?? employees[0]?.id ?? "";
+  const initialLocationId = editing
+    ? editing.locationId ?? ""
+    : employees.find((employee) => employee.id === initialEmployeeId)?.locationId ?? "";
+  const [employeeId, setEmployeeId] = React.useState(initialEmployeeId);
+  const [locationId, setLocationId] = React.useState(initialLocationId);
   const [status, setStatus] = React.useState<AttendanceStatus>(editing?.status ?? "present");
   const [checkInTime, setCheckInTime] = React.useState(toTimeInput(editing?.checkIn ?? null));
   const [checkOutTime, setCheckOutTime] = React.useState(toTimeInput(editing?.checkOut ?? null));
@@ -59,7 +66,7 @@ export function MarkAttendanceDialog({ open, onClose, employees, selectedDate, e
     }
     startTransition(async () => {
       const result = await markAttendance({
-        employeeId, workDate: editing?.workDate ?? selectedDate, status,
+        employeeId, locationId: locationId || null, workDate: editing?.workDate ?? selectedDate, status,
         checkIn: checkInTime || null, checkOut: checkOutTime || null, workType, notes: notes || null,
       });
       if (!result.ok) {
@@ -78,6 +85,14 @@ export function MarkAttendanceDialog({ open, onClose, employees, selectedDate, e
         <Field label="Employee" required>
           <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} disabled={!!editing}>
             {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Branch">
+          <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            <option value="">Unassigned / organization-wide</option>
+            {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            {editing?.locationId && !locations.some((location) => location.id === editing.locationId)
+              && <option value={editing.locationId}>Inactive or inaccessible branch</option>}
           </Select>
         </Field>
         <Field label="Status">

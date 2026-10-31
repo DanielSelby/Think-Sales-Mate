@@ -26,6 +26,7 @@ function money(value: number, currency: string) {
 
 export default function RestaurantOrderTrackingView({
   orderNumber,
+  cueNumber,
   orderType,
   status,
   paymentStatus,
@@ -38,6 +39,7 @@ export default function RestaurantOrderTrackingView({
   orderingUrl,
 }: {
   orderNumber: number;
+  cueNumber: string;
   orderType: "dine_in" | "takeaway" | "pickup" | "delivery";
   status: OrderStatus;
   paymentStatus: "unpaid" | "partial" | "paid";
@@ -69,6 +71,7 @@ export default function RestaurantOrderTrackingView({
     <header className="rounded-2xl bg-slate-950 p-6 text-white">
       <p className="text-sm font-semibold text-orange-300">{branchName}</p>
       <h1 className="mt-1 text-2xl font-bold">Track order #{orderNumber}</h1>
+      <p className="mt-1 text-sm font-semibold text-white">Cue No. {cueNumber}</p>
       <p className="mt-2 text-sm text-slate-300">Updates refresh automatically while this page is open.</p>
     </header>
     <section className="space-y-5 rounded-2xl border bg-white p-6 shadow-sm">

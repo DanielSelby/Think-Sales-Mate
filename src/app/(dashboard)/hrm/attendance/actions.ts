@@ -5,6 +5,7 @@ import { requireTabPermission } from "@/lib/rbac/permissions";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canUseLocation } from "@/lib/organizations/location-access";
 import { computeHours, isLateCheckIn } from "@/lib/hrm/attendance";
 import type { AttendanceStatus } from "@/types/database";
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
@@ -24,6 +25,7 @@ export interface SimpleResult {
 export interface CurrentEmployeeMatch {
   id: string;
   name: string;
+  locationId: string | null;
 }
 
 export async function getCurrentEmployeeMatch(): Promise<CurrentEmployeeMatch | null> {
@@ -33,18 +35,28 @@ export async function getCurrentEmployeeMatch(): Promise<CurrentEmployeeMatch | 
   const supabase = await createClient();
   const { data } = await supabase
     .from("employees")
-    .select("id, full_name")
+    .select("id, full_name, location_id")
     .eq("org_id", context.orgId)
     .eq("email", context.userEmail)
     .maybeSingle();
-  return data ? { id: data.id, name: data.full_name } : null;
+  return data ? { id: data.id, name: data.full_name, locationId: data.location_id } : null;
 }
 
-export async function checkIn(employeeId: string, workType: string): Promise<SimpleResult> {
+export async function checkIn(employeeId: string, workType: string, locationId: string | null): Promise<SimpleResult> {
   await requireTabPermission("hrm_payroll", "hrm", "attendance", "create");
   const context = await getCurrentOrgContext();
   if (!context) return { ok: false, error: "No active organization." };
   const supabase = await createClient();
+  const { data: employee, error: employeeError } = await supabase.from("employees")
+    .select("id").eq("org_id", context.orgId).eq("id", employeeId).eq("status", "active").maybeSingle();
+  if (employeeError || !employee) return { ok: false, error: "Employee not found or inactive." };
+  if (locationId) {
+    const { data: location, error: locationError } = await supabase.from("business_locations")
+      .select("id").eq("org_id", context.orgId).eq("id", locationId).eq("is_active", true).maybeSingle();
+    if (locationError || !location || !canUseLocation(context, locationId)) {
+      return { ok: false, error: "Choose an active branch you can access." };
+    }
+  }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -55,7 +67,7 @@ export async function checkIn(employeeId: string, workType: string): Promise<Sim
   const { error } = await supabase
     .from("attendance_records")
     .upsert(
-      { org_id: context.orgId, employee_id: employeeId, work_date: today, check_in: now, status, work_type: workType, created_by: user.id },
+      { org_id: context.orgId, employee_id: employeeId, work_date: today, check_in: now, status, work_type: workType, location_id: locationId, created_by: user.id },
       { onConflict: "employee_id,work_date" }
     );
   if (error) return { ok: false, error: error.message };
@@ -98,6 +110,7 @@ export async function checkOut(recordId: string): Promise<SimpleResult> {
 
 export interface MarkAttendanceInput {
   employeeId: string;
+  locationId: string | null;
   workDate: string;
   status: AttendanceStatus;
   checkIn: string | null;
@@ -113,6 +126,16 @@ export async function markAttendance(input: MarkAttendanceInput): Promise<Simple
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  const { data: employee, error: employeeError } = await supabase.from("employees")
+    .select("id").eq("org_id", context.orgId).eq("id", input.employeeId).maybeSingle();
+  if (employeeError || !employee) return { ok: false, error: "Employee not found in this organization." };
+  if (input.locationId) {
+    const { data: location, error: locationError } = await supabase.from("business_locations")
+      .select("id").eq("org_id", context.orgId).eq("id", input.locationId).maybeSingle();
+    if (locationError || !location || !canUseLocation(context, input.locationId)) {
+      return { ok: false, error: "Choose a branch belonging to this organization that you can access." };
+    }
+  }
 
   const checkInIso = input.checkIn ? new Date(`${input.workDate}T${input.checkIn}`).toISOString() : null;
   const checkOutIso = input.checkOut ? new Date(`${input.workDate}T${input.checkOut}`).toISOString() : null;
@@ -124,6 +147,7 @@ export async function markAttendance(input: MarkAttendanceInput): Promise<Simple
       {
         org_id: context.orgId,
         employee_id: input.employeeId,
+        location_id: input.locationId,
         work_date: input.workDate,
         check_in: checkInIso,
         check_out: checkOutIso,

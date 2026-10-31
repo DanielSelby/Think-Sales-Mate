@@ -37,6 +37,7 @@ import {
   saveRestaurantTable,
   updateRestaurantKitchenStatus,
   updateRestaurantOrderStatus,
+  updateRestaurantDeliveryDispatch,
   updateRestaurantReservationStatus,
   updateRestaurantCateringEventStatus,
   updateRestaurantCateringPrepTask,
@@ -61,6 +62,7 @@ type RestaurantCateringInvoice = Database["public"]["Tables"]["invoices"]["Row"]
 type RestaurantCateringPrepTask = Database["public"]["Tables"]["restaurant_catering_prep_tasks"]["Row"];
 type RestaurantCateringMenuPlanItem = Database["public"]["Tables"]["restaurant_catering_menu_items"]["Row"];
 type RestaurantCateringStaff = { userId: string; fullName: string; locationIds: string[] };
+type RestaurantDeliveryEmployee = { id: string; fullName: string; locationId: string | null };
 type RestaurantOrder = Database["public"]["Tables"]["restaurant_orders"]["Row"];
 type OrderItem = Database["public"]["Tables"]["restaurant_order_items"]["Row"];
 type OrderPayment = Database["public"]["Tables"]["restaurant_order_payments"]["Row"];
@@ -113,6 +115,18 @@ type RestaurantReport = {
   daily: Array<{ date: string; order_count: number; gross_sales: number }>;
   by_type: Array<{ order_type: "dine_in" | "takeaway" | "pickup" | "delivery"; order_count: number; gross_sales: number }>;
   top_items: Array<{ item_name: string; quantity_sold: number; sales: number }>;
+};
+type RestaurantLaborSummary = {
+  total_hours: number;
+  staff_count: number;
+  record_count: number;
+  by_branch: Array<{
+    location_id: string;
+    location_name: string;
+    total_hours: number;
+    staff_count: number;
+    record_count: number;
+  }>;
 };
 
 const statusLabels: Record<RestaurantOrder["status"], string> = {
@@ -224,6 +238,7 @@ export default function RestaurantView({
   ingredientBankAccounts,
   supplierInvoiceAging,
   attendanceSummary,
+  deliveryEmployees,
 }: {
   view: ViewKey;
   cateringEvents: RestaurantCateringEvent[];
@@ -281,7 +296,8 @@ export default function RestaurantView({
   invoiceReconciliationHistory: RestaurantInvoiceReconciliationHistory[];
   ingredientBankAccounts: Array<{ id: string; name: string }>;
   supplierInvoiceAging: RestaurantSupplierInvoiceAging[];
-  attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null;
+  attendanceSummary: RestaurantLaborSummary | null;
+  deliveryEmployees: RestaurantDeliveryEmployee[];
 }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -480,6 +496,7 @@ export default function RestaurantView({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-bold text-slate-950">Order #{order.order_number}</h3>
+                        <span className="rounded-full bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-800">Cue No. {order.cue_number}</span>
                         <span className="rounded-full bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700">{statusLabels[order.status]}</span>
                         <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] capitalize text-slate-600">{order.order_type.replace("_", " ")}</span>
                       </div>
@@ -493,6 +510,16 @@ export default function RestaurantView({
                       <p className={`text-xs ${balance > 0 ? "text-amber-700" : "text-emerald-700"}`}>{balance > 0 ? `${money(balance, currency)} due` : "Paid"}</p>
                     </div>
                   </div>
+                  {order.order_type === "delivery" && <DeliveryDispatchControls
+                    order={order}
+                    employees={deliveryEmployees.filter((employee) => employee.locationId === null || employee.locationId === order.location_id)}
+                    canEdit={canEditOrders}
+                    isPending={isPending}
+                    onUpdate={(employeeId, status, failureNote) => runAction(
+                      () => updateRestaurantDeliveryDispatch({ orderId: order.id, employeeId, status, failureNote }),
+                      status === "delivered" ? "Delivery marked delivered." : status === "failed" ? "Delivery failure recorded." : `Delivery dispatch marked ${status.replace("_", " ")}.`,
+                    )}
+                  />}
                   <ul className="mt-3 divide-y rounded-lg bg-slate-50 px-3">
                     {orderLines.map((item) => {
                       const nextStatus = item.kitchen_status === "ready" && !["ready", "served"].includes(order.status)
@@ -763,7 +790,7 @@ function KitchenDisplay({
             ? orderItemsForProgress.length > 0 && orderItemsForProgress.every((item) => ["served", "cancelled"].includes(item.kitchen_status))
             : true;
         return <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-2">
-          <span className="text-xs font-semibold text-slate-700">Order #{order.order_number} · {statusLabels[order.status]}</span>
+          <span className="text-xs font-semibold text-slate-700">Cue No. {order.cue_number} · Order #{order.order_number} · {statusLabels[order.status]}</span>
           <OrderStatusControls
             order={order}
             isPending={isPending}
@@ -785,8 +812,8 @@ function KitchenDisplay({
           return <article key={item.id} className={`rounded-xl border-l-4 bg-white p-4 shadow-sm ${ageMinutes >= 15 ? "border-red-500" : item.kitchen_status === "ready" ? "border-emerald-500" : "border-orange-500"}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-lg font-bold text-slate-950">Order #{order.order_number}</p>
-                <p className="text-xs capitalize text-slate-500">{order.order_type.replace("_", " ")}{table ? ` · Table ${table}` : ""} · {new Date(order.created_at).toLocaleTimeString()}</p>
+                <p className="text-lg font-bold text-slate-950">Cue No. {order.cue_number}</p>
+                <p className="text-xs capitalize text-slate-500">Order #{order.order_number} · {order.order_type.replace("_", " ")}{table ? ` · Table ${table}` : ""} · {new Date(order.created_at).toLocaleTimeString()}</p>
               </div>
               <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${ageMinutes >= 15 ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>{ageMinutes} min</span>
             </div>
@@ -1686,6 +1713,77 @@ function RefundForm({ amount, tipAmount, isPending, onSubmit }: {
   </form>;
 }
 
+function DeliveryDispatchControls({ order, employees, canEdit, isPending, onUpdate }: {
+  order: RestaurantOrder;
+  employees: RestaurantDeliveryEmployee[];
+  canEdit: boolean;
+  isPending: boolean;
+  onUpdate: (
+    employeeId: string | null,
+    status: Exclude<RestaurantOrder["delivery_status"], "not_applicable">,
+    failureNote?: string,
+  ) => Promise<boolean>;
+}) {
+  const [selection, setSelection] = useState<{ assignedId: string | null; employeeId: string }>({
+    assignedId: order.delivery_assigned_employee_id,
+    employeeId: order.delivery_assigned_employee_id ?? "",
+  });
+  const [failureNote, setFailureNote] = useState("");
+  const employeeId = selection.assignedId === order.delivery_assigned_employee_id
+    ? selection.employeeId
+    : order.delivery_assigned_employee_id ?? "";
+  const currentEmployee = employees.find((employee) => employee.id === order.delivery_assigned_employee_id);
+  const isClosed = ["completed", "cancelled", "pending_payment"].includes(order.status);
+  const driverChanged = employeeId !== (order.delivery_assigned_employee_id ?? "");
+
+  return <section className="mt-3 rounded-lg border border-sky-200 bg-sky-50/60 p-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Delivery dispatch</p>
+        <p className="mt-1 text-xs text-slate-600">
+          Status: <span className="font-semibold capitalize">{order.delivery_status.replace("_", " ")}</span>
+          {currentEmployee ? ` · ${currentEmployee.fullName}` : ""}
+        </p>
+      </div>
+      {order.delivery_status === "delivered" && order.delivery_delivered_at
+        && <p className="text-xs text-slate-500">Delivered {new Date(order.delivery_delivered_at).toLocaleString()}</p>}
+    </div>
+    {order.delivery_failure_note && <p className="mt-2 text-xs text-red-700">Last failure: {order.delivery_failure_note}</p>}
+    {canEdit && !isClosed && order.delivery_status !== "delivered" && <>
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="min-w-52 flex-1 text-xs font-semibold text-slate-600">Delivery staff
+          <select value={employeeId} onChange={(event) => setSelection({ assignedId: order.delivery_assigned_employee_id, employeeId: event.target.value })} className="mt-1 h-9 w-full rounded border bg-white px-2 text-xs">
+            <option value="">Select staff member</option>
+            {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+          </select>
+        </label>
+        {(order.delivery_status === "unassigned" || order.delivery_status === "failed") && <button
+          type="button"
+          disabled={isPending || !employeeId}
+          onClick={() => void onUpdate(employeeId, "assigned")}
+          className="h-9 rounded-lg bg-sky-800 px-3 text-xs font-semibold text-white disabled:opacity-50"
+        >{order.delivery_status === "failed" ? "Retry dispatch" : "Assign driver"}</button>}
+        {order.delivery_status === "assigned" && <>
+          {driverChanged && <button type="button" disabled={isPending || !employeeId} onClick={() => void onUpdate(employeeId, "assigned")} className="h-9 rounded-lg border bg-white px-3 text-xs font-semibold disabled:opacity-50">Save driver</button>}
+          <button type="button" disabled={isPending} onClick={() => void onUpdate(null, "unassigned")} className="h-9 rounded-lg border bg-white px-3 text-xs font-semibold text-slate-700 disabled:opacity-50">Unassign</button>
+          <button type="button" disabled={isPending} onClick={() => void onUpdate(order.delivery_assigned_employee_id, "picked_up")} className="h-9 rounded-lg bg-sky-800 px-3 text-xs font-semibold text-white disabled:opacity-50">Mark picked up</button>
+        </>}
+        {order.delivery_status === "picked_up" && <button type="button" disabled={isPending} onClick={() => void onUpdate(order.delivery_assigned_employee_id, "in_transit")} className="h-9 rounded-lg bg-sky-800 px-3 text-xs font-semibold text-white disabled:opacity-50">Start delivery</button>}
+        {order.delivery_status === "in_transit" && <button type="button" disabled={isPending} onClick={() => void onUpdate(order.delivery_assigned_employee_id, "delivered")} className="h-9 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white disabled:opacity-50">Mark delivered</button>}
+      </div>
+      {["assigned", "picked_up", "in_transit"].includes(order.delivery_status) && <form onSubmit={(event) => {
+        event.preventDefault();
+        void onUpdate(order.delivery_assigned_employee_id, "failed", failureNote);
+      }} className="mt-2 flex flex-wrap gap-2">
+        <input aria-label="Delivery failure reason" value={failureNote} onChange={(event) => setFailureNote(event.target.value)} maxLength={500} placeholder="Reason if delivery fails" className="h-9 min-w-48 flex-1 rounded border bg-white px-2 text-xs" />
+        <button type="submit" disabled={isPending || !failureNote.trim()} className="h-9 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 disabled:opacity-50">Record failed delivery</button>
+      </form>}
+    </>}
+    {canEdit && isClosed && order.delivery_status !== "delivered"
+      && <p className="mt-2 text-xs text-slate-500">Dispatch controls are closed for this order.</p>}
+  </section>;
+}
+
 function OrderStatusControls({ order, isPending, canAdvance = true, onUpdate }: {
   order: RestaurantOrder;
   isPending: boolean;
@@ -1700,8 +1798,9 @@ function OrderStatusControls({ order, isPending, canAdvance = true, onUpdate }: 
     served: "completed",
   };
   const nextStatus = next[order.status];
+  const deliveryNotDelivered = order.order_type === "delivery" && order.delivery_status !== "delivered";
   return <div className="flex gap-2">
-    {nextStatus && <button type="button" disabled={isPending || !canAdvance || (nextStatus === "completed" && order.payment_status !== "paid")} onClick={() => onUpdate(nextStatus)} title={!canAdvance ? "Update every order item before advancing this order" : nextStatus === "completed" && order.payment_status !== "paid" ? "Record full payment first" : undefined} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Mark {statusLabels[nextStatus]}</button>}
+    {nextStatus && <button type="button" disabled={isPending || !canAdvance || (nextStatus === "completed" && order.payment_status !== "paid") || (nextStatus === "completed" && deliveryNotDelivered)} onClick={() => onUpdate(nextStatus)} title={!canAdvance ? "Update every order item before advancing this order" : nextStatus === "completed" && deliveryNotDelivered ? "Mark the delivery delivered first" : nextStatus === "completed" && order.payment_status !== "paid" ? "Record full payment first" : undefined} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Mark {statusLabels[nextStatus]}</button>}
     {order.status !== "cancelled" && order.status !== "completed" && <button type="button" disabled={isPending} onClick={() => onUpdate("cancelled")} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Cancel</button>}
   </div>;
 }
@@ -2772,7 +2871,7 @@ function RestaurantReports({ currency, locations, report, from, to, locationId, 
   from: string;
   to: string;
   locationId: string;
-  attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null;
+  attendanceSummary: RestaurantLaborSummary | null;
 }) {
   function exportReport() {
     if (!report) return;
@@ -2831,10 +2930,16 @@ function RestaurantReports({ currency, locations, report, from, to, locationId, 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {summaryCards.map(([label, value]) => <article key={label} className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p></article>)}
         {attendanceSummary && <article className="rounded-xl border bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <p className="text-xs text-slate-500">General staff attendance · organization-wide</p>
+          <p className="text-xs text-slate-500">Restaurant labor · branch-attributed attendance</p>
           <p className="mt-1 text-xl font-bold text-slate-950 dark:text-white">{attendanceSummary.total_hours.toLocaleString(undefined, { maximumFractionDigits: 2 })} hours</p>
-          <p className="mt-1 text-xs text-slate-500">{attendanceSummary.staff_count} staff with recorded hours · {attendanceSummary.record_count} records</p>
-          <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">Attendance has no branch assignment, so these hours are not allocated to the selected Restaurant branch or treated as Restaurant labor cost.</p>
+          <p className="mt-1 text-xs text-slate-500">{attendanceSummary.staff_count} staff · {attendanceSummary.record_count} attendance records</p>
+          {attendanceSummary.by_branch.length > 0 && <ul className="mt-3 space-y-1 border-t pt-2">
+            {attendanceSummary.by_branch.map((branch) => <li key={branch.location_id} className="flex justify-between gap-2 text-xs">
+              <span className="truncate text-slate-600 dark:text-slate-300">{branch.location_name}</span>
+              <span className="shrink-0 font-semibold text-slate-800 dark:text-white">{branch.total_hours.toLocaleString(undefined, { maximumFractionDigits: 2 })} h · {branch.staff_count} staff</span>
+            </li>)}
+          </ul>}
+          <p className="mt-2 text-[11px] text-slate-500">Only attendance records explicitly assigned to the selected Restaurant branch(es) are included. Unassigned attendance is excluded.</p>
         </article>}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">

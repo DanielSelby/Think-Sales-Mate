@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 type IncomingOrder = {
   id: string;
   order_number: number;
+  cue_number: string;
   location_id: string;
   order_type: "dine_in" | "takeaway" | "pickup" | "delivery";
   status: string;
@@ -93,7 +94,7 @@ export function IncomingOrderAlerts({
         }
         if (typeof window.Notification !== "undefined" && window.Notification.permission === "granted") {
           new window.Notification("New restaurant order", {
-            body: `Order #${order.order_number} · ${order.order_type.replace("_", " ")}`,
+            body: `Cue No. ${order.cue_number} · Order #${order.order_number} · ${order.order_type.replace("_", " ")}`,
             tag: `restaurant-order-${order.id}`,
           });
         }
@@ -150,7 +151,8 @@ export function IncomingOrderAlerts({
     {soundError && <p role="alert" className="text-xs text-red-700">{soundError}</p>}
     {alerts.map((order) => <article key={order.id} role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-orange-300 bg-orange-50 p-3 text-orange-950">
       <a href="/restaurant" className="min-w-0 flex-1">
-        <strong className="block">New order #{order.order_number}</strong>
+        <strong className="block">New order · Cue No. {order.cue_number}</strong>
+        <span className="text-xs">Order #{order.order_number}</span>
         <span className="text-xs capitalize">{order.order_type.replace("_", " ")} · {order.status.replace("_", " ")}</span>
       </a>
       <button type="button" onClick={() => setAlerts((current) => current.filter((entry) => entry.id !== order.id))} aria-label={`Dismiss order ${order.order_number} alert`} className="rounded p-1 hover:bg-orange-100"><X className="h-4 w-4" /></button>

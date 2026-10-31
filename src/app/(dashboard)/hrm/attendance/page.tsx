@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canAccessLocation } from "@/lib/organizations/location-access";
 import { AttendanceListView, type AttendanceRow, type AttendanceKpis, type LateArrival, type AttendanceActivity } from "@/components/hrm/attendance/attendance-list-view";
 import { getCurrentEmployeeMatch } from "@/app/(dashboard)/hrm/attendance/actions";
 import { isLateCheckIn } from "@/lib/hrm/attendance";
@@ -21,10 +22,15 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const supabase = await createClient();
 
   const [{ data: employees }, { data: records }, currentEmployee] = await Promise.all([
-    supabase.from("employees").select("id, full_name, department, job_title, status").eq("org_id", orgId).eq("status", "active").order("full_name"),
+    supabase.from("employees").select("id, full_name, department, job_title, status, location_id").eq("org_id", orgId).eq("status", "active").order("full_name"),
     supabase.from("attendance_records").select("*").eq("org_id", orgId).eq("work_date", date),
     getCurrentEmployeeMatch(),
   ]);
+  const { data: locationRows, error: locationsError } = await supabase.from("business_locations")
+    .select("id, name").eq("org_id", orgId).eq("is_active", true).order("name");
+  if (locationsError) throw new Error(`Could not load attendance branches: ${locationsError.message}`);
+  const locations = (locationRows ?? []).filter((location) => canAccessLocation(context, location.id));
+  const locationNames = new Map((locationRows ?? []).map((location) => [location.id, location.name]));
 
   const rawEmployees = employees ?? [];
   const recordByEmployee = new Map((records ?? []).map((r) => [r.employee_id, r]));
@@ -41,6 +47,8 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       totalHours: record?.total_hours ?? 0,
       status: record?.status ?? "absent",
       workType: record?.work_type ?? "Office",
+      locationId: record?.location_id ?? null,
+      locationName: record?.location_id ? locationNames.get(record.location_id) ?? "Inactive branch" : null,
     };
   });
 
@@ -84,8 +92,9 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       rows={rows}
       kpis={kpis}
       departments={departments}
-      employeeOptions={rawEmployees.map((e) => ({ id: e.id, name: e.full_name }))}
+      employeeOptions={rawEmployees.map((e) => ({ id: e.id, name: e.full_name, locationId: e.location_id }))}
       currentEmployee={currentEmployee}
+      locations={locations}
       lateArrivals={lateArrivals}
       recentActivity={recentActivity}
     />

@@ -1357,11 +1357,16 @@ export async function createRestaurantOrder(input: {
     if (error) throw new Error(`Could not create and pay for restaurant order: ${error.message}`);
     const result = data?.[0];
     if (!result) throw new Error("Could not confirm the paid restaurant order.");
+    const { data: createdOrder, error: cueError } = await admin.from("restaurant_orders")
+      .select("cue_number").eq("org_id", context.orgId).eq("id", result.order_id).maybeSingle();
+    if (cueError) throw new Error(`Order was created, but its cue number could not be loaded: ${cueError.message}`);
+    if (!createdOrder) throw new Error("Order was created, but its cue number could not be found.");
     revalidatePath("/restaurant");
     revalidatePath("/restaurant/pos");
     return {
       orderId: result.order_id,
       orderNumber: result.order_number,
+      cueNumber: createdOrder.cue_number,
       billId: result.bill_id,
       paymentStatus: result.payment_status,
     };
@@ -1370,7 +1375,7 @@ export async function createRestaurantOrder(input: {
   if (error) throw new Error(`Could not create restaurant order: ${error.message}`);
   revalidatePath("/restaurant");
   revalidatePath("/restaurant/pos");
-  return { orderId: data.id, orderNumber: data.order_number, billId: null, paymentStatus: data.payment_status };
+  return { orderId: data.id, orderNumber: data.order_number, cueNumber: data.cue_number, billId: null, paymentStatus: data.payment_status };
 }
 
 export async function saveRestaurantPosDraft(input: {
@@ -1490,7 +1495,7 @@ export async function updateRestaurantOrderStatus(orderId: string, status: strin
   if (!allowed.includes(status)) throw new Error("Choose a valid restaurant order status.");
   const admin = createAdminClient();
   const { data: order, error: loadError } = await admin.from("restaurant_orders")
-    .select("id, location_id, status, order_type, order_number, order_source, customer_email, customer_tracking_token")
+    .select("id, location_id, status, order_type, delivery_status, order_number, order_source, customer_email, customer_tracking_token")
     .eq("org_id", context.orgId).eq("id", orderId).maybeSingle();
   if (loadError) throw new Error(`Could not load restaurant order: ${loadError.message}`);
   if (!order || !canUseLocation(context, order.location_id)) throw new Error("Restaurant order not found or not accessible.");
@@ -1518,6 +1523,9 @@ export async function updateRestaurantOrderStatus(orderId: string, status: strin
     }
   }
   if (status === "completed") {
+    if (order.order_type === "delivery" && order.delivery_status !== "delivered") {
+      throw new Error("Mark the delivery delivered before completing this order.");
+    }
     const { data: payment, error: paymentError } = await admin.from("restaurant_orders")
       .select("payment_status").eq("org_id", context.orgId).eq("id", orderId).single();
     if (paymentError) throw new Error(`Could not verify order payment: ${paymentError.message}`);
@@ -1552,6 +1560,83 @@ export async function updateRestaurantOrderStatus(orderId: string, status: strin
   }
   revalidatePath("/restaurant");
   return { emailNotification };
+}
+
+export async function updateRestaurantDeliveryDispatch(input: {
+  orderId: string;
+  employeeId: string | null;
+  status: "unassigned" | "assigned" | "picked_up" | "in_transit" | "delivered" | "failed";
+  failureNote?: string;
+}) {
+  const context = await restaurantContext("orders", "edit");
+  if (!uuidPattern.test(input.orderId)
+    || (input.employeeId !== null && !uuidPattern.test(input.employeeId))
+    || !["unassigned", "assigned", "picked_up", "in_transit", "delivered", "failed"].includes(input.status)) {
+    throw new Error("Choose valid delivery assignment details.");
+  }
+  const failureNote = input.failureNote?.trim() ?? "";
+  if (input.status === "failed" && (!failureNote || failureNote.length > 500)) {
+    throw new Error("Enter a delivery failure reason of no more than 500 characters.");
+  }
+  if (input.status !== "failed" && failureNote) {
+    throw new Error("A delivery failure reason is only allowed when marking a delivery failed.");
+  }
+  const admin = createAdminClient();
+  const { data: order, error: loadError } = await admin.from("restaurant_orders")
+    .select("id, org_id, location_id, order_type, status, delivery_status, delivery_assigned_employee_id")
+    .eq("org_id", context.orgId).eq("id", input.orderId).maybeSingle();
+  if (loadError) throw new Error(`Could not load delivery order: ${loadError.message}`);
+  if (!order || order.order_type !== "delivery" || !canUseLocation(context, order.location_id)) {
+    throw new Error("Delivery order not found or not accessible.");
+  }
+  if (order.status === "pending_payment" || order.status === "completed" || order.status === "cancelled") {
+    throw new Error("This order is not open for delivery dispatch.");
+  }
+
+  const allowedNext: Record<typeof order.delivery_status, string[]> = {
+    not_applicable: [],
+    unassigned: ["assigned"],
+    assigned: ["assigned", "unassigned", "picked_up", "failed"],
+    picked_up: ["in_transit", "failed"],
+    in_transit: ["delivered", "failed"],
+    delivered: [],
+    failed: ["assigned"],
+  };
+  if (!allowedNext[order.delivery_status].includes(input.status)) {
+    throw new Error("Delivery status must follow the dispatch steps in order.");
+  }
+  const assignedEmployeeId = input.status === "unassigned" ? null : input.employeeId ?? order.delivery_assigned_employee_id;
+  if (input.status !== "unassigned" && !assignedEmployeeId) {
+    throw new Error("Assign an active delivery staff member before advancing this delivery.");
+  }
+  if (assignedEmployeeId) {
+    const { data: employee, error: employeeError } = await admin.from("employees")
+      .select("id").eq("org_id", context.orgId).eq("id", assignedEmployeeId).eq("status", "active")
+      .or(`location_id.is.null,location_id.eq.${order.location_id}`).maybeSingle();
+    if (employeeError) throw new Error(`Could not verify delivery staff member: ${employeeError.message}`);
+    if (!employee) throw new Error("Choose an active staff member assigned to this branch or organization-wide.");
+  }
+  if (["picked_up", "in_transit", "delivered", "failed"].includes(input.status)
+    && assignedEmployeeId !== order.delivery_assigned_employee_id) {
+    throw new Error("The assigned delivery staff member cannot be changed after pickup.");
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    delivery_status: input.status,
+    delivery_assigned_employee_id: assignedEmployeeId,
+    delivery_assigned_at: input.status === "assigned" ? now : input.status === "unassigned" ? null : undefined,
+    delivery_picked_up_at: input.status === "picked_up" ? now : ["assigned", "unassigned"].includes(input.status) ? null : undefined,
+    delivery_delivered_at: input.status === "delivered" ? now : ["assigned", "unassigned"].includes(input.status) ? null : undefined,
+    delivery_failure_note: input.status === "failed" ? failureNote : null,
+    updated_at: now,
+  };
+  const { data: updated, error } = await admin.from("restaurant_orders").update(payload)
+    .eq("org_id", context.orgId).eq("id", order.id).eq("delivery_status", order.delivery_status)
+    .select("id").maybeSingle();
+  if (error) throw new Error(`Could not update delivery dispatch: ${error.message}`);
+  if (!updated) throw new Error("Delivery dispatch changed in another session. Refresh and retry.");
+  revalidatePath("/restaurant");
 }
 
 export async function updateRestaurantKitchenStatus(itemId: string, status: string) {

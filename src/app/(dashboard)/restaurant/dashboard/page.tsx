@@ -71,7 +71,7 @@ export default async function RestaurantDashboardPage() {
       p_end_at: end.toISOString(),
     }),
     locationIds.length
-      ? supabase.from("restaurant_orders").select("id, order_number, status, order_type, created_at, location_id")
+      ? supabase.from("restaurant_orders").select("id, order_number, cue_number, status, order_type, created_at, location_id")
         .eq("org_id", context.orgId).in("location_id", locationIds)
         .in("status", ["pending_payment", "new", "confirmed", "preparing", "ready", "served"])
         .order("created_at", { ascending: false }).limit(12)
@@ -134,9 +134,10 @@ export default async function RestaurantDashboardPage() {
         <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-950">Orders needing attention</h2><Link href="/restaurant" className="text-sm font-semibold text-orange-700">View all</Link></div>
         {(activeOrders ?? []).length === 0 ? <p className="rounded-xl border bg-white p-5 text-sm text-slate-600">No active orders right now.</p> : <div className="overflow-x-auto rounded-xl border bg-white">
           <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Order</th><th className="p-3">Branch</th><th className="p-3">Type</th><th className="p-3">Status</th><th className="p-3">Started</th></tr></thead>
+            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Order</th><th className="p-3">Cue No.</th><th className="p-3">Branch</th><th className="p-3">Type</th><th className="p-3">Status</th><th className="p-3">Started</th></tr></thead>
             <tbody className="divide-y">{(activeOrders ?? []).map((order) => <tr key={order.id}>
               <td className="p-3"><Link href="/restaurant" className="font-semibold text-orange-700">#{order.order_number}</Link></td>
+              <td className="p-3 font-semibold">{order.cue_number}</td>
               <td className="p-3">{locations.find((location) => location.id === order.location_id)?.name ?? "Branch"}</td>
               <td className="p-3">{order.order_type.replace("_", " ")}</td>
               <td className="p-3 capitalize">{order.status.replace("_", " ")}</td>

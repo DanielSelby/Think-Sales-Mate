@@ -26,9 +26,30 @@ type RestaurantReport = {
 type RestaurantInvoiceReconciliationHistory = Database["public"]["Functions"]["get_restaurant_invoice_reconciliation_history"]["Returns"][number] & {
   recorded_by_name: string;
 };
+type RestaurantLaborSummary = {
+  total_hours: number;
+  staff_count: number;
+  record_count: number;
+  by_branch: Array<{
+    location_id: string;
+    location_name: string;
+    total_hours: number;
+    staff_count: number;
+    record_count: number;
+  }>;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRestaurantLaborBranch(value: unknown): value is RestaurantLaborSummary["by_branch"][number] {
+  return isRecord(value)
+    && typeof value.location_id === "string"
+    && typeof value.location_name === "string"
+    && typeof value.total_hours === "number"
+    && typeof value.staff_count === "number"
+    && typeof value.record_count === "number";
 }
 
 function isRestaurantReport(value: unknown): value is RestaurantReport {
@@ -103,6 +124,15 @@ export default async function RestaurantPage({
 
   const accessibleLocations = (locations ?? []).filter((location) => canAccessLocation(context, location.id));
   const locationIds = accessibleLocations.map(({ id }) => id);
+  let deliveryEmployees: Array<{ id: string; fullName: string; locationId: string | null }> = [];
+  if (view === "orders") {
+    const { data: employeeRows, error: employeeError } = await supabase.from("employees")
+      .select("id, full_name, location_id").eq("org_id", context.orgId).eq("status", "active").order("full_name");
+    if (employeeError) throw new Error(`Could not load Restaurant delivery staff: ${employeeError.message}`);
+    deliveryEmployees = (employeeRows ?? [])
+      .filter((employee) => employee.location_id === null || locationIds.includes(employee.location_id))
+      .map((employee) => ({ id: employee.id, fullName: employee.full_name, locationId: employee.location_id }));
+  }
   const { data: cateringEvents, error: cateringEventsError } = view === "catering" && locationIds.length > 0
     ? await supabase.from("restaurant_catering_events").select("*").eq("org_id", context.orgId)
       .in("location_id", locationIds).order("starts_at", { ascending: true }).limit(300)
@@ -216,7 +246,7 @@ export default async function RestaurantPage({
     ? requestedLocationId
     : "all";
   let reportData: RestaurantReport | null = null;
-  let attendanceSummary: { total_hours: number; staff_count: number; record_count: number } | null = null;
+  let attendanceSummary: RestaurantLaborSummary | null = null;
   if (view === "reports") {
     const reportAdmin = createAdminClient();
     const { data: reportResult, error: reportError } = await reportAdmin.rpc("get_restaurant_report", {
@@ -228,23 +258,30 @@ export default async function RestaurantPage({
     if (reportError) throw new Error(`Could not load restaurant report: ${reportError.message}`);
     if (!isRestaurantReport(reportResult)) throw new Error("The restaurant report returned invalid data.");
     reportData = reportResult;
-    if (enabledModules.includes("HRM") && await canPermission("hrm", "view")) {
-      const { data: attendanceResult, error: attendanceError } = await reportAdmin.rpc("get_restaurant_attendance_hours", {
+    if (enabledModules.includes("HRM") && locationIds.length > 0 && await canPermission("hrm", "view")) {
+      const { data: attendanceResult, error: attendanceError } = await reportAdmin.rpc("get_restaurant_labor_hours", {
         p_org_id: context.orgId,
         p_start_date: reportFrom,
         p_end_date: reportTo,
+        p_location_ids: selectedReportLocationId === "all" ? locationIds : [selectedReportLocationId],
       });
-      if (attendanceError) throw new Error(`Could not load general staff attendance summary: ${attendanceError.message}`);
+      if (attendanceError) throw new Error(`Could not load Restaurant labor summary: ${attendanceError.message}`);
       if (!isRecord(attendanceResult)
         || typeof attendanceResult.total_hours !== "number"
         || typeof attendanceResult.staff_count !== "number"
-        || typeof attendanceResult.record_count !== "number") {
-        throw new Error("The attendance summary returned invalid data.");
+        || typeof attendanceResult.record_count !== "number"
+        || !Array.isArray(attendanceResult.by_branch)) {
+        throw new Error("The Restaurant labor summary returned invalid data.");
       }
+      const byBranch = attendanceResult.by_branch.map((branch: unknown) => {
+        if (!isRestaurantLaborBranch(branch)) throw new Error("The Restaurant labor summary returned invalid data.");
+        return branch;
+      });
       attendanceSummary = {
         total_hours: attendanceResult.total_hours,
         staff_count: attendanceResult.staff_count,
         record_count: attendanceResult.record_count,
+        by_branch: byBranch,
       };
     }
   }
@@ -422,6 +459,7 @@ export default async function RestaurantPage({
       ingredientBankAccounts={ingredientBankAccounts}
       supplierInvoiceAging={supplierInvoiceAging}
       attendanceSummary={attendanceSummary}
+      deliveryEmployees={deliveryEmployees}
     />
   );
 }

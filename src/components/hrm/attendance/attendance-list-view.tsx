@@ -31,6 +31,8 @@ export interface AttendanceRow {
   totalHours: number;
   status: AttendanceStatus;
   workType: string;
+  locationId: string | null;
+  locationName: string | null;
 }
 
 export interface AttendanceKpis {
@@ -51,6 +53,7 @@ interface AttendanceListViewProps {
   departments: string[];
   employeeOptions: EmployeeOption[];
   currentEmployee: EmployeeOption | null;
+  locations: Array<{ id: string; name: string }>;
   lateArrivals: LateArrival[];
   recentActivity: AttendanceActivity[];
 }
@@ -65,7 +68,7 @@ const STATUS_COLORS: Record<AttendanceStatus, string> = {
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
-export function AttendanceListView({ date, rows, kpis, departments, employeeOptions, currentEmployee, lateArrivals, recentActivity }: AttendanceListViewProps) {
+export function AttendanceListView({ date, rows, kpis, departments, employeeOptions, currentEmployee, locations, lateArrivals, recentActivity }: AttendanceListViewProps) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [department, setDepartment] = React.useState("all");
@@ -76,6 +79,11 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<EditingAttendance | null>(null);
   const [checkInWorkType, setCheckInWorkType] = React.useState<string>(WORK_TYPES[0]);
+  const [checkInLocationId, setCheckInLocationId] = React.useState(
+    currentEmployee?.locationId && locations.some((location) => location.id === currentEmployee.locationId)
+      ? currentEmployee.locationId
+      : "",
+  );
   const [isPending, startTransition] = React.useTransition();
 
   function showNotice(message: string, tone: "success" | "error" = "success") {
@@ -94,7 +102,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
   function handleSelfCheckIn() {
     if (!currentEmployee) return;
     startTransition(async () => {
-      const result = await checkIn(currentEmployee.id, checkInWorkType);
+      const result = await checkIn(currentEmployee.id, checkInWorkType, checkInLocationId || null);
       if (!result.ok) return showNotice(result.error ?? "Something went wrong.", "error");
       showNotice("Checked in");
       router.refresh();
@@ -114,6 +122,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
     setEditing({
       employeeId: row.employeeId, workDate: date, status: row.status,
       checkIn: row.checkIn, checkOut: row.checkOut, workType: row.workType, notes: null,
+      locationId: row.locationId,
     });
     setDialogOpen(true);
   }
@@ -146,8 +155,8 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
   const pageRows = filtered.slice((clampedPage - 1) * rowsPerPage, clampedPage * rowsPerPage);
 
   function exportCsv() {
-    const header = ["Employee", "Department", "Check In", "Check Out", "Total Hours", "Status", "Work Type"];
-    const csvRows = filtered.map((r) => [r.employeeName, r.department ?? "", formatTime(r.checkIn), formatTime(r.checkOut), r.totalHours, ATTENDANCE_STATUS_LABEL[r.status], r.workType]);
+    const header = ["Employee", "Department", "Branch", "Check In", "Check Out", "Total Hours", "Status", "Work Type"];
+    const csvRows = filtered.map((r) => [r.employeeName, r.department ?? "", r.locationName ?? "Unassigned", formatTime(r.checkIn), formatTime(r.checkOut), r.totalHours, ATTENDANCE_STATUS_LABEL[r.status], r.workType]);
     const csv = [header, ...csvRows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -184,9 +193,15 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
           <button onClick={() => shiftDate(1)} className="rounded-md border border-ledger-200 p-2 text-ledger-500 hover:bg-ledger-50 dark:border-ledger-700"><ChevronRight className="h-4 w-4" /></button>
           <Button variant="outline" size="md" onClick={() => goToDate(new Date().toISOString().slice(0, 10))}>Today</Button>
           {currentEmployee ? (
-            <Button variant="primary" size="md" onClick={handleSelfCheckIn} disabled={alreadyCheckedIn || isPending}>
-              <LogIn className="h-4 w-4" /> {alreadyCheckedIn ? "Checked In" : "Check In"}
-            </Button>
+            <>
+              <Select aria-label="Attendance branch" value={checkInLocationId} onChange={(event) => setCheckInLocationId(event.target.value)} className="max-w-48">
+                <option value="">Unassigned / organization-wide</option>
+                {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </Select>
+              <Button variant="primary" size="md" onClick={handleSelfCheckIn} disabled={alreadyCheckedIn || isPending}>
+                <LogIn className="h-4 w-4" /> {alreadyCheckedIn ? "Checked In" : "Check In"}
+              </Button>
+            </>
           ) : (
             <Button variant="outline" size="md" disabled title="No employee record matches your account email">
               <LogIn className="h-4 w-4" /> Check In
@@ -251,6 +266,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
                     <th className="w-8 px-3 py-3 font-medium">#</th>
                     <th className="px-3 py-3 font-medium">Employee</th>
                     <th className="px-3 py-3 font-medium">Department</th>
+                    <th className="px-3 py-3 font-medium">Branch</th>
                     <th className="px-3 py-3 font-medium">Check In</th>
                     <th className="px-3 py-3 font-medium">Check Out</th>
                     <th className="px-3 py-3 font-medium">Total Hours</th>
@@ -261,13 +277,14 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
                 </thead>
                 <tbody className="divide-y divide-ledger-100 dark:divide-ledger-700">
                   {pageRows.length === 0 && (
-                    <tr><td colSpan={9} className="px-4 py-12 text-center text-ledger-400">No employees match your filters.</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-12 text-center text-ledger-400">No employees match your filters.</td></tr>
                   )}
                   {pageRows.map((r, i) => (
                     <tr key={r.employeeId} className="hover:bg-ledger-50/60 dark:hover:bg-white/[0.03]">
                       <td className="px-3 py-3 text-ledger-400">{(clampedPage - 1) * rowsPerPage + i + 1}</td>
                       <td className="px-3 py-3 text-ink-900 dark:text-white">{r.employeeName}</td>
                       <td className="px-3 py-3">{r.department ? <Badge tone="neutral">{r.department}</Badge> : "—"}</td>
+                      <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{r.locationName ?? "Unassigned"}</td>
                       <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{formatTime(r.checkIn)}</td>
                       <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{formatTime(r.checkOut)}</td>
                       <td className="px-3 py-3 text-ledger-600 dark:text-ledger-300">{r.totalHours > 0 ? `${Math.floor(r.totalHours)}h ${Math.round((r.totalHours % 1) * 60)}m` : "0h 00m"}</td>
@@ -379,6 +396,7 @@ export function AttendanceListView({ date, rows, kpis, departments, employeeOpti
           open
           onClose={() => setDialogOpen(false)}
           employees={employeeOptions}
+          locations={locations}
           selectedDate={date}
           editing={editing}
           onSaved={() => showNotice("Attendance saved")}

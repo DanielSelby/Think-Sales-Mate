@@ -46,7 +46,7 @@ export default async function RestaurantReceiptPage({
     supabase.from("restaurant_order_items").select("*").eq("org_id", context.orgId).eq("order_id", order.id).order("created_at"),
     supabase.from("restaurant_bill_items").select("*").eq("org_id", context.orgId).eq("bill_id", bill.id),
     supabase.from("restaurant_order_payments").select("*").eq("org_id", context.orgId).eq("bill_id", bill.id).order("paid_at"),
-    supabase.from("business_locations").select("name").eq("org_id", context.orgId).eq("id", order.location_id).maybeSingle(),
+    supabase.from("business_locations").select("name, code").eq("org_id", context.orgId).eq("id", order.location_id).maybeSingle(),
   ]);
   const detailError = [itemsError, allocationsError, paymentsError, locationError].find((error) => error);
   if (detailError) throw new Error(`Could not load receipt details: ${detailError.message}`);
@@ -60,12 +60,24 @@ export default async function RestaurantReceiptPage({
   const balanceDue = Math.max(0, Number(bill.amount) - netPaid);
 
   return (
-    <main className="mx-auto max-w-xl p-4 sm:p-8">
+    <main id="restaurant-receipt-page" className="mx-auto max-w-xl p-4 sm:p-8">
       <style>{`
         @media print {
+          @page { margin: 12mm; }
+          html, body { width: 100%; min-height: 0; background: #fff !important; }
           body * { visibility: hidden !important; }
           #restaurant-receipt, #restaurant-receipt * { visibility: visible !important; }
-          #restaurant-receipt { position: absolute; inset: 0; width: 100%; max-width: none; padding: 1rem; }
+          #restaurant-receipt-page { width: 100%; max-width: none; padding: 0; }
+          #restaurant-receipt {
+            position: static !important;
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+          }
+          #restaurant-receipt > header { display: block !important; }
           .no-print { display: none !important; }
         }
       `}</style>
@@ -73,8 +85,9 @@ export default async function RestaurantReceiptPage({
       <article id="restaurant-receipt" className="rounded-xl border bg-white p-6 text-slate-950 shadow-sm print:border-0 print:shadow-none">
         <header className="border-b pb-4 text-center">
           <p className="text-sm font-bold uppercase tracking-wide">Restaurant receipt</p>
-          <h1 className="mt-2 text-xl font-bold">{location?.name ?? "Restaurant"}</h1>
-          <p className="mt-1 text-sm">Order #{order.order_number} · {bill.name}</p>
+          <h1 className="mt-2 text-xl font-bold">{context.orgName}</h1>
+          <p className="mt-1 text-sm">{location?.name ?? "Branch"}{location?.code ? ` · Branch No. ${location.code}` : ""}</p>
+          <p className="mt-1 text-sm">Order #{order.order_number} · Cue No. {order.cue_number} · {bill.name}</p>
           <p className="mt-1 text-xs text-slate-500">{new Date(order.created_at).toLocaleString()}</p>
           {order.customer_name && <p className="mt-1 text-sm">{order.customer_name}</p>}
         </header>
