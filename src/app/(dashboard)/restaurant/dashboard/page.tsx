@@ -129,6 +129,30 @@ export default async function RestaurantDashboardPage() {
         <p className="text-sm text-slate-500">{card.label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{card.value}</p>
       </article>)}
     </section>
+    <section aria-labelledby="restaurant-connected-tools" className="space-y-3">
+      <div>
+        <h2 id="restaurant-connected-tools" className="text-lg font-bold text-slate-950">Connected business tools</h2>
+        <p className="text-sm text-slate-600">Restaurant workflows alongside shared finance, staffing, and organization tools.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "End of Day Accounts", description: "Reconcile daily sales, cash, and Restaurant payments.", href: "/banking/cash-closing?tab=today" },
+          { label: "Expenses", description: "Review and record branch operating costs.", href: "/expenses" },
+          { label: "Restaurant General Ledger", description: "Configure Restaurant tender, revenue, and bank mappings.", href: "/accounting/restaurant-ledger" },
+          { label: "Ingredient Purchases", description: "Receive supplier stock and reconcile Restaurant invoices.", href: "/restaurant?view=ingredients" },
+          { label: "HRM & Payroll", description: "Manage staff, attendance, and payroll.", href: "/hrm" },
+          { label: "Assets", description: "Track restaurant equipment and other organization assets.", href: "/assets" },
+          { label: "Fraud & Anomaly Detection", description: "Review organization alerts and unusual activity.", href: "/fraud" },
+          { label: "Communication", description: "Open shared internal communication tools.", href: "/communication" },
+          { label: "Customer Engagement", description: "Manage customer messaging and engagement.", href: "/customer-messaging" },
+          { label: "User Management", description: "Manage organization users and access.", href: "/settings/organization" },
+          { label: "Settings", description: "Open organization settings.", href: "/settings" },
+        ].map((tool) => <Link key={tool.label} href={tool.href} className="rounded-xl border bg-white p-4 shadow-sm transition hover:border-orange-300 hover:shadow">
+          <h3 className="text-sm font-bold text-slate-900">{tool.label}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{tool.description}</p>
+        </Link>)}
+      </div>
+    </section>
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
       <div className="space-y-3">
         <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-950">Orders needing attention</h2><Link href="/restaurant" className="text-sm font-semibold text-orange-700">View all</Link></div>

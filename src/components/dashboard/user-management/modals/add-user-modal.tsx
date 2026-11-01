@@ -29,7 +29,10 @@ export function AddUserModal({
     avatar: null as File | null,
     avatarPreview: "",
     employeeId: "",
-    role: "sales_officer",
+    role: roles.find((item) => item.key === "sales_officer")?.key
+      ?? roles.find((item) => item.key !== "owner")?.key
+      ?? roles[0]?.key
+      ?? "sales_officer",
     department: "Sales & Marketing",
     locationId: branches[0]?.id ?? "",
     secondaryBranches: [] as string[],

@@ -14,6 +14,7 @@ export interface NavChild {
   label: string;
   href: string;
   icon?: React.ComponentType<{ className?: string }>;
+  restaurantIntegration?: boolean;
 }
 
 export interface NavItem {
@@ -43,6 +44,16 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Ingredients & Recipes", href: "/restaurant?view=ingredients", icon: Layers },
       { label: "Packaged Item Stock", href: "/restaurant/packaged-items", icon: Package },
       { label: "Dining Tables", href: "/restaurant?view=tables", icon: Building2 },
+      { label: "End Of Day Accounts", href: "/banking/cash-closing?tab=today", icon: ClipboardCheck, restaurantIntegration: true },
+      { label: "Expenses", href: "/expenses", icon: Tag, restaurantIntegration: true },
+      { label: "Accounting & Restaurant Ledger", href: "/accounting/restaurant-ledger", icon: Wallet, restaurantIntegration: true },
+      { label: "Purchases & Suppliers", href: "/restaurant?view=ingredients", icon: Truck, restaurantIntegration: true },
+      { label: "HRM & Payroll", href: "/hrm", icon: Users, restaurantIntegration: true },
+      { label: "Assets", href: "/assets", icon: Package, restaurantIntegration: true },
+      { label: "Fraud & Anomaly Detection", href: "/fraud", icon: ShieldAlert, restaurantIntegration: true },
+      { label: "Communication", href: "/communication", icon: MessageSquare, restaurantIntegration: true },
+      { label: "User Management", href: "/settings/organization", icon: Users2, restaurantIntegration: true },
+      { label: "Restaurant Settings", href: "/settings", icon: Settings, restaurantIntegration: true },
     ],
   },
   {

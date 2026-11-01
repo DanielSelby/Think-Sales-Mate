@@ -30,6 +30,7 @@ interface RolesTabProps {
   roles: RoleDefinition[];
   users: ManagedUser[];
   canManage: boolean;
+  restaurantOnlyOrganization?: boolean;
   onCreateRole: () => void;
   onApplyTemplate: (templateKey: string) => void;
   onEditRole: (role: RoleDefinition) => void;
@@ -45,6 +46,7 @@ export function RolesTab({
   roles,
   users,
   canManage,
+  restaurantOnlyOrganization = false,
   onCreateRole,
   onApplyTemplate,
   onEditRole,
@@ -58,13 +60,17 @@ export function RolesTab({
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-ledger-200 bg-white shadow-sm dark:border-ledger-800 dark:bg-slate-900">
         <div>
-          <h2 className="text-base font-bold text-ink-900 dark:text-white">Role-Based Access Control (RBAC) & Governance</h2>
+          <h2 className="text-base font-bold text-ink-900 dark:text-white">
+            {restaurantOnlyOrganization ? "Restaurant Staff Roles" : "Role-Based Access Control (RBAC) & Governance"}
+          </h2>
           <p className="text-xs text-ledger-500 dark:text-ledger-400">
-            Configure system roles, access policies, approval authorities, and saved permission templates
+            {restaurantOnlyOrganization
+              ? "Assign staff to roles limited to restaurant operations."
+              : "Configure system roles, access policies, approval authorities, and saved permission templates"}
           </p>
         </div>
 
-        {canManage && (
+        {canManage && !restaurantOnlyOrganization && (
           <Button onClick={onCreateRole} className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold">
             <Plus className="h-4 w-4 mr-1.5" /> Create Custom Role
           </Button>
@@ -72,6 +78,7 @@ export function RolesTab({
       </div>
 
       {/* 1-Click Permission Templates Banner */}
+      {!restaurantOnlyOrganization && (
       <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50/70 via-indigo-50/40 to-blue-50/50 p-4 dark:border-purple-900/60 dark:bg-slate-900 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -103,6 +110,7 @@ export function RolesTab({
           ))}
         </div>
       </div>
+      )}
 
       {/* Role Cards Grid */}
       <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-ledger-200 bg-white md:grid-cols-2 lg:grid-cols-3 dark:border-ledger-800 dark:bg-slate-900">
@@ -224,15 +232,17 @@ export function RolesTab({
 
                 {canManage && (
                   <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onCloneRole(role)}
-                      title="Clone this role"
-                      className="h-8 w-8 p-0 text-ledger-400 hover:text-ink-900 dark:hover:text-white"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
+                    {!restaurantOnlyOrganization && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onCloneRole(role)}
+                        title="Clone this role"
+                        className="h-8 w-8 p-0 text-ledger-400 hover:text-ink-900 dark:hover:text-white"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
 
                     <Button
                       size="sm"

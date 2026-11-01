@@ -346,7 +346,8 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
           const childItems = item.children?.filter((child) =>
-            child.label === "Inventory Intelligence"
+            child.restaurantIntegration
+            || child.label === "Inventory Intelligence"
             || !enabledModules?.includes(`__children:${item.label}`)
             || enabledModules.includes(`${item.label}:${child.label}`)
           ) ?? [];

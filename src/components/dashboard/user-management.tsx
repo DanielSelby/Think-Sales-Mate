@@ -108,6 +108,7 @@ interface UserManagementProps {
   employeeNames?: string[];
   roleThemes?: Record<string, string>;
   canManageThemes?: boolean;
+  restaurantOnlyOrganization?: boolean;
 }
 
 export function UserManagement({
@@ -121,7 +122,8 @@ export function UserManagement({
   companyWebsite,
   employeeNames = [],
   roleThemes = {},
-  canManageThemes = false
+  canManageThemes = false,
+  restaurantOnlyOrganization = false
 }: UserManagementProps) {
   const [, startTransition] = useTransition();
   const { setTheme } = useAppStore();
@@ -1213,6 +1215,7 @@ export function UserManagement({
             roles={roles}
             users={users}
             canManage={canManage}
+            restaurantOnlyOrganization={restaurantOnlyOrganization}
             onCreateRole={() => {
               setSelectedRoleForModal(null);
               setRoleModalMode("create");

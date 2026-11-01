@@ -5,6 +5,7 @@ import {
   resolveMemberPermissionMatrix,
   resolveTabPermissionActions
 } from "./permission-matrix";
+import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "./restaurant-roles";
 
 describe("role permission inheritance", () => {
   it("uses the saved role template instead of an old unmarked member snapshot", () => {
@@ -79,5 +80,30 @@ describe("role permission inheritance", () => {
     expect(matrix["sales.sales.new_sales"]).toEqual([]);
     expect(resolveTabPermissionActions(matrix, "sales", "sales", "new_sales")).toEqual([]);
     expect(resolveTabPermissionActions(matrix, "sales", "sales", "sales_history")).toEqual(["view", "create"]);
+  });
+
+  it("uses restaurant-specific permission presets without granting unrelated ERP access", () => {
+    const cashier = defaultPermissionMatrixForRole("restaurant_cashier");
+
+    expect(cashier.restaurant).toContain("create");
+    expect(cashier["restaurant.operations.orders"]).toContain("create");
+    expect(cashier.accounting).toBeUndefined();
+    expect(cashier.inventory).toBeUndefined();
+    expect(cashier.user_management).toBeUndefined();
+  });
+
+  it("recognizes restaurant-only organizations and restaurant role keys", () => {
+    expect(isRestaurantOnlyOrganizationModuleSet([
+      "Restaurant",
+      "Restaurant:Restaurant POS",
+      "__children:Restaurant",
+      "Dashboard",
+      "Settings",
+      "Users"
+    ])).toBe(true);
+    expect(isRestaurantOnlyOrganizationModuleSet(["Restaurant", "Inventory", "Dashboard"])).toBe(false);
+    expect(hasRestaurantModuleAccess(["__children:Restaurant", "Restaurant:Restaurant POS"])).toBe(true);
+    expect(isRestaurantRoleKey("restaurant_server")).toBe(true);
+    expect(isRestaurantRoleKey("accountant")).toBe(false);
   });
 });

@@ -17,6 +17,8 @@ import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
 import { canGrantSuperAdminRole, isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
 import { assertOrganizationCapacity } from "@/lib/organizations/capacity";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "@/lib/rbac/restaurant-roles";
 
 function databaseRole(role: string): MemberRole {
   const key = role.trim().toLowerCase();
@@ -25,6 +27,25 @@ function databaseRole(role: string): MemberRole {
   if (key === "manager" || key === "branch_manager") return "manager";
   if (key === "viewer") return "viewer";
   return "staff";
+}
+
+function organizationRoleError(role: string, enabledModules: readonly string[]): string | null {
+  const roleKey = canonicalRoleKey(role);
+  if (isRestaurantRoleKey(roleKey) && !hasRestaurantModuleAccess(enabledModules)) {
+    return "Restaurant roles can only be assigned when the Restaurant module is enabled.";
+  }
+  if (
+    isRestaurantOnlyOrganizationModuleSet(enabledModules)
+    && roleKey !== "owner"
+    && !isRestaurantRoleKey(roleKey)
+  ) {
+    return "This organization uses only the Restaurant module. Assign a Restaurant-specific role.";
+  }
+  return null;
+}
+
+async function validateOrganizationRole(orgId: string, role: string): Promise<string | null> {
+  return organizationRoleError(role, await getEnabledOrganizationModules(orgId));
 }
 
 function isValidAvatar(file: File): boolean {
@@ -116,6 +137,8 @@ export async function inviteMember(formData: FormData) {
   if (!canGrantSuperAdminRole(context.role, requestedRole)) {
     return { error: "Only an organization owner can grant Super Admin access." };
   }
+  const roleError = await validateOrganizationRole(context.orgId, requestedRole);
+  if (roleError) return { error: roleError };
   if (!["all", "assigned", "single"].includes(branchScope)) return { error: "Invalid branch access scope." };
   if (approvalPermissions === null) return { error: "Approval permissions are invalid." };
 
@@ -224,6 +247,8 @@ export async function createStaffAccount(formData: FormData) {
   if (!canGrantSuperAdminRole(context.role, requestedRole)) {
     return { error: "Only an organization owner can grant Super Admin access." };
   }
+  const roleError = await validateOrganizationRole(context.orgId, requestedRole);
+  if (roleError) return { error: roleError };
   const locationId = String(formData.get("location_id") ?? "").trim() || null;
   const branchScope = String(formData.get("branch_scope") ?? "assigned");
   const secondaryLocationIds = String(formData.get("secondary_location_ids") ?? "")
@@ -444,6 +469,10 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
   if (!canGrantSuperAdminRole(context.role, input.role)) {
     return { error: "Only an organization owner can grant Super Admin access." };
   }
+  if (input.role) {
+    const roleError = await validateOrganizationRole(context.orgId, input.role);
+    if (roleError) return { error: roleError };
+  }
 
   const admin = createAdminClient();
   const targetOwner = await targetIsOwner(input.memberId, context.orgId);
@@ -638,6 +667,8 @@ export async function updateMemberRole(memberId: string, role: MemberRole) {
   if (!canGrantSuperAdminRole(context.role, role)) {
     return { error: "Only an organization owner can grant Super Admin access." };
   }
+  const roleError = await validateOrganizationRole(context.orgId, role);
+  if (roleError) return { error: roleError };
   if (await targetIsOwner(memberId, context.orgId)) {
     return { error: "The organization owner is the super admin and cannot be demoted." };
   }
@@ -866,6 +897,7 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
   if (!context || !await canPermission("user_management", "edit")) {
     return { invited: 0, skipped: rows.map((row, i) => ({ row: row.sourceRow ?? i + 1, reason: "Not permitted" })), members: [] };
   }
+  const enabledModules = await getEnabledOrganizationModules(context.orgId);
   if (rows.some((row) => isSuperAdminRole(row.role)) && !isSuperAdminRole(context.role)) {
     return {
       invited: 0,
@@ -920,6 +952,11 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
     }
 
     const requestedRole = row.role.trim().toLowerCase() || "staff";
+    const roleError = organizationRoleError(requestedRole, enabledModules);
+    if (roleError) {
+      skipped.push({ row: rowNumber, reason: roleError });
+      continue;
+    }
     const isSuperAdmin = isSuperAdminRole(requestedRole);
     const inviteResult = await sendOrganizationInvite(email, row.fullName?.trim() || email.split("@")[0], context.orgName);
     if ("error" in inviteResult) {

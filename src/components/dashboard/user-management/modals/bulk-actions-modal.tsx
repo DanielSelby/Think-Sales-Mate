@@ -20,7 +20,7 @@ export function BulkRoleModal({
   roles,
   onConfirm
 }: BulkRoleModalProps) {
-  const [selectedRole, setSelectedRole] = useState(roles[0]?.key || "sales_officer");
+  const [selectedRole, setSelectedRole] = useState(roles.find((item) => item.key !== "owner")?.key || roles[0]?.key || "sales_officer");
 
   if (!isOpen) return null;
 

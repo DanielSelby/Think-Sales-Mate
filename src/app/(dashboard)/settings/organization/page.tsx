@@ -5,10 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canPermission } from "@/lib/rbac/permissions";
 import { UserManagement, type ManagedUser, type UserBranch } from "@/components/dashboard/user-management";
-import type { ApprovalPermission, AuditLogEntry, InvitationRecord } from "@/components/dashboard/user-management/types";
+import type { ApprovalPermission, AuditLogEntry, InvitationRecord, RoleDefinition } from "@/components/dashboard/user-management/types";
 import { DEFAULT_ROLES } from "@/components/dashboard/user-management/constants";
 import { normalizePermissionMatrix } from "@/lib/rbac/permissions";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey, RESTAURANT_ROLE_PRESETS } from "@/lib/rbac/restaurant-roles";
 
 export default async function OrganizationSettingsPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -36,6 +38,9 @@ export default async function OrganizationSettingsPage() {
   const employeeRows = employeesResult.data;
   const roleTemplateRows = roleTemplatesResult.data;
   const auditRows = auditsResult.data;
+  const enabledModules = await getEnabledOrganizationModules(context.orgId);
+  const hasRestaurantModule = hasRestaurantModuleAccess(enabledModules);
+  const restaurantOnlyOrganization = isRestaurantOnlyOrganizationModuleSet(enabledModules);
   const memberUserIds = Array.from(new Set(
     memberRows.map((row) => row.user_id).filter((id): id is string => Boolean(id))
   ));
@@ -63,7 +68,31 @@ export default async function OrganizationSettingsPage() {
     ((roleTemplateRows ?? []) as Array<{ role_key: string; name: string | null; permissions: Record<string, unknown> | null }>)
       .map((row) => [row.role_key, row] as const)
   );
-  const roles = DEFAULT_ROLES.map((role) => {
+  const restaurantRoles: RoleDefinition[] = hasRestaurantModule
+    ? RESTAURANT_ROLE_PRESETS.map((role) => ({
+        id: `role-${role.key}`,
+        key: role.key,
+        name: role.name,
+        description: role.description,
+        userCount: 0,
+        permissionCount: Object.values(role.permissions).reduce((count, actions) => count + actions.length, 0),
+        isSystem: true,
+        scope: "branch_specific",
+        badgeColor: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800",
+        permissions: role.permissions,
+        approvalCapabilities: {
+          stockTransfers: false,
+          purchases: false,
+          expenses: false,
+          priceUpdates: false,
+          stockAdjustments: false
+        }
+      }))
+    : [];
+  const baseRoleDefinitions = restaurantOnlyOrganization
+    ? DEFAULT_ROLES.filter((role) => role.key === "owner")
+    : DEFAULT_ROLES;
+  const roles = [...baseRoleDefinitions, ...restaurantRoles].map((role) => {
     const saved = savedTemplates.get(role.key);
     if (!saved) return role;
     const permissions = saved.permissions
@@ -77,6 +106,7 @@ export default async function OrganizationSettingsPage() {
     };
   });
   for (const [roleKey, saved] of savedTemplates) {
+    if (restaurantOnlyOrganization && !isRestaurantRoleKey(roleKey)) continue;
     if (roles.some((role) => role.key === roleKey)) continue;
     const permissions = normalizePermissionMatrix(saved.permissions);
     roles.push({
@@ -171,7 +201,7 @@ export default async function OrganizationSettingsPage() {
       avatarUrl: row.user_id ? avatarByUserId.get(row.user_id) ?? null : null,
       employeeId: row.employee_id ?? "",
       role: accessRole,
-      roleLabel: isOwner ? "Super Admin" : accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff",
+      roleLabel: isOwner ? "Super Admin" : roles.find((role) => role.key === accessRole)?.name ?? (accessRole ? accessRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "Staff"),
       status: isOwner ? "active" : row.status as any,
       department: row.department ?? "",
       locationId: row.location_id,
@@ -242,6 +272,7 @@ export default async function OrganizationSettingsPage() {
         employeeNames={Array.from(new Set((employeeRows ?? []).map((employee) => employee.full_name.trim()).filter(Boolean)))}
         roleThemes={roleThemes}
         canManageThemes={canManageUsers}
+        restaurantOnlyOrganization={restaurantOnlyOrganization}
       />
     </div>
   );

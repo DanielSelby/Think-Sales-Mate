@@ -63,7 +63,12 @@ export function CreateStaffAccountModal({
   const [phone, setPhone] = useState("");
   const [avatar, setAvatar] = useState<File | null>(null);
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
-  const [role, setRole] = useState(roles[0]?.key ?? "staff");
+  const [role, setRole] = useState(
+    roles.find((item) => item.key === "sales_officer")?.key
+      ?? roles.find((item) => item.key !== "owner")?.key
+      ?? roles[0]?.key
+      ?? "staff"
+  );
   const [locationId, setLocationId] = useState(branches[0]?.id ?? "");
   const [branchScope, setBranchScope] = useState<"all" | "assigned" | "single">("assigned");
   const [secondaryBranches, setSecondaryBranches] = useState<string[]>([]);
@@ -85,7 +90,12 @@ export function CreateStaffAccountModal({
     setPhone("");
     setAvatar(null);
     setDepartment(DEPARTMENTS[0]);
-    setRole(roles[0]?.key ?? "staff");
+    setRole(
+      roles.find((item) => item.key === "sales_officer")?.key
+        ?? roles.find((item) => item.key !== "owner")?.key
+        ?? roles[0]?.key
+        ?? "staff"
+    );
     setLocationId(branches[0]?.id ?? "");
     setBranchScope("assigned");
     setSecondaryBranches([]);

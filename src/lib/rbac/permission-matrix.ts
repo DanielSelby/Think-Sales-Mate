@@ -1,5 +1,6 @@
 import { DEFAULT_ROLES } from "@/components/dashboard/user-management/constants";
 import type { PermissionAction } from "@/lib/rbac";
+import { RESTAURANT_ROLE_PRESETS } from "./restaurant-roles";
 
 export type PermissionMatrix = Record<string, PermissionAction[]>;
 
@@ -85,6 +86,8 @@ export function resolveTabPermissionActions(
 
 export function defaultPermissionMatrixForRole(role: string): PermissionMatrix {
   const normalizedRole = canonicalRoleKey(role);
+  const restaurantRole = RESTAURANT_ROLE_PRESETS.find((item) => item.key === normalizedRole);
+  if (restaurantRole) return normalizePermissionMatrix(restaurantRole.permissions);
   const roleDefinition = DEFAULT_ROLES.find((item) => item.key.toLowerCase() === normalizedRole);
   return normalizePermissionMatrix(roleDefinition?.permissions);
 }

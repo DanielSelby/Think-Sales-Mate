@@ -29,7 +29,12 @@ export function InviteUserModal({
 }: InviteUserModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("sales_officer");
+  const [role, setRole] = useState(
+    roles.find((item) => item.key === "sales_officer")?.key
+      || roles.find((item) => item.key !== "owner")?.key
+      || roles[0]?.key
+      || "sales_officer"
+  );
   const [branchId, setBranchId] = useState(branches[0]?.id || "");
   const [activeTab, setActiveTab] = useState<"invite" | "history">("invite");
   const [isSending, setIsSending] = useState(false);
