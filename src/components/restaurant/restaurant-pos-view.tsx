@@ -585,7 +585,7 @@ export default function RestaurantPosView({
             const packagedQuantity = packagedStock.find((stock) => stock.location_id === locationId && stock.menu_item_id === item.id)?.quantity ?? 0;
             const outOfStock = item.item_type === "packaged" && packagedQuantity <= 0;
             return <article key={item.id} className="group flex min-w-0 flex-col items-center overflow-hidden rounded-md bg-gradient-to-br from-white via-white to-slate-50 p-2.5 text-center shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 dark:from-ink-900 dark:via-ink-900 dark:to-ink-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(15,23,42,0.35),0_2px_4px_rgba(0,0,0,0.2),0_8px_18px_rgba(0,0,0,0.3)]">
-              <div className="relative mb-2 h-28 w-full overflow-hidden rounded-md bg-gradient-to-br from-white to-slate-100 p-1.5 shadow-inner dark:from-ink-800 dark:to-ink-950">
+              <div className="relative mb-2 h-28 w-full overflow-hidden rounded-md border border-slate-200 bg-slate-100 p-1.5 shadow-inner dark:border-ledger-700 dark:bg-ink-950">
                 {item.image_url ? <Image src={item.image_url} alt={item.name} fill unoptimized sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-contain transition-transform duration-200 group-hover:scale-[1.025]" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400 dark:text-ledger-500">No image</div>}
               </div>
               <div className="flex w-full flex-1 flex-col">
