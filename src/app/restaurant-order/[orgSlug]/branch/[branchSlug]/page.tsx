@@ -16,6 +16,10 @@ export default async function RestaurantOnlineOrderingPage({
   if (!organization || !(await getEnabledOrganizationModules(organization.id)).includes("Restaurant")) {
     return <StorefrontUnavailable />;
   }
+  const { data: companyProfile, error: companyProfileError } = await admin.from("company_profile")
+    .select("logo_url, business_email, business_phone, contact_email, contact_phone")
+    .eq("org_id", organization.id).maybeSingle();
+  if (companyProfileError) throw new Error(`Could not load restaurant organization contact details: ${companyProfileError.message}`);
   const { data: location, error: locationError } = await admin.from("business_locations")
     .select("id, name, customer_portal_slug").eq("org_id", organization.id)
     .eq("customer_portal_slug", branchSlug).eq("is_active", true).maybeSingle();
@@ -55,6 +59,9 @@ export default async function RestaurantOnlineOrderingPage({
     orgSlug={orgSlug}
     branchSlug={branchSlug}
     organizationName={organization.name}
+    organizationLogoUrl={companyProfile?.logo_url ?? null}
+    organizationPhone={companyProfile?.contact_phone || companyProfile?.business_phone || null}
+    organizationEmail={companyProfile?.contact_email || companyProfile?.business_email || null}
     branchName={location.name}
     currency={organization.currency}
     categories={categories ?? []}

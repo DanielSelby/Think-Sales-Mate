@@ -37,6 +37,9 @@ export default function OnlineOrderingView({
   orgSlug,
   branchSlug,
   organizationName,
+  organizationLogoUrl,
+  organizationPhone,
+  organizationEmail,
   branchName,
   currency,
   categories,
@@ -54,6 +57,9 @@ export default function OnlineOrderingView({
   orgSlug: string;
   branchSlug: string;
   organizationName: string;
+  organizationLogoUrl: string | null;
+  organizationPhone: string | null;
+  organizationEmail: string | null;
   branchName: string;
   currency: string;
   categories: OnlineCategory[];
@@ -70,6 +76,7 @@ export default function OnlineOrderingView({
 }) {
   const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">(acceptsPickup ? "pickup" : "delivery");
   const [activeCategoryId, setActiveCategoryId] = useState("all");
+  const [menuSearch, setMenuSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [modifierSelections, setModifierSelections] = useState<Record<string, string[]>>({});
   const [customerName, setCustomerName] = useState("");
@@ -119,6 +126,7 @@ export default function OnlineOrderingView({
       total + Number(modifierOptions.find((option) => option.id === optionId)?.price_delta ?? 0), 0);
     return sum + (Number(item?.price ?? 0) + extra) * selection.quantity;
   }, 0);
+  const cartItemCount = selections.reduce((sum, selection) => sum + selection.quantity, 0);
   const total = subtotal + (fulfillment === "delivery" ? deliveryFee : 0);
   const menuIsEmpty = menuItems.length === 0;
   const menuSections = categories.length
@@ -132,9 +140,17 @@ export default function OnlineOrderingView({
       : item.category_id === category.id);
     return items.length ? [{ ...category, items }] : [];
   });
+  const normalizedSearch = menuSearch.trim().toLowerCase();
+  const searchableMenuSections = normalizedSearch
+    ? menuSectionsWithItems.flatMap((category) => {
+      const items = category.items.filter((item) =>
+        `${item.name} ${item.description ?? ""}`.toLowerCase().includes(normalizedSearch));
+      return items.length ? [{ ...category, items }] : [];
+    })
+    : menuSectionsWithItems;
   const visibleMenuSections = activeCategoryId === "all"
-    ? menuSectionsWithItems
-    : menuSectionsWithItems.filter((category) => category.id === activeCategoryId);
+    ? searchableMenuSections
+    : searchableMenuSections.filter((category) => category.id === activeCategoryId);
 
   function changeQuantity(itemId: string, delta: number) {
     setQuantities((current) => {
@@ -254,20 +270,40 @@ export default function OnlineOrderingView({
   }
 
   return <main className="w-full max-w-none space-y-6 px-3 py-5 sm:px-5 sm:py-6 lg:px-8">
-    <header className="rounded-2xl bg-slate-950 p-6 text-white">
-      <p className="text-sm font-semibold text-orange-300">{branchName}</p>
-      <h1 className="mt-1 text-3xl font-bold">{organizationName}</h1>
-      <p className="mt-2 text-sm text-slate-300">{acceptsOnlineOrders ? "Restaurant menu · Order for pickup or delivery" : "Plan your next event with us"}</p>
+    <header className="rounded-2xl bg-slate-950 p-5 text-white sm:p-6">
+      <div className="flex flex-wrap items-center gap-4">
+        {organizationLogoUrl
+          ? <Image src={organizationLogoUrl} alt={`${organizationName} logo`} width={72} height={72} unoptimized className="h-16 w-16 rounded-xl bg-white object-contain p-1.5" />
+          : <div aria-hidden="true" className="flex h-16 w-16 items-center justify-center rounded-xl bg-white/15 text-2xl font-bold text-white">{organizationName.trim().charAt(0).toUpperCase() || "R"}</div>}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-orange-300">{branchName}</p>
+          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{organizationName}</h1>
+          <p className="mt-2 text-sm text-slate-300">{acceptsOnlineOrders ? "Restaurant menu · Order for pickup or delivery" : "Plan your next event with us"}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/15 pt-3">
+        {(organizationPhone || organizationEmail) && <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-200">
+          {organizationPhone && <a href={`tel:${organizationPhone}`} className="hover:text-white">{organizationPhone}</a>}
+          {organizationEmail && <a href={`mailto:${organizationEmail}`} className="break-all hover:text-white">{organizationEmail}</a>}
+        </div>}
+        {acceptsEventInquiries && <a href="#event-inquiry" className="inline-flex min-h-10 items-center justify-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-orange-500">
+          Make an event inquiry
+        </a>}
+      </div>
     </header>
     {acceptsOnlineOrders && <form onSubmit={submit} className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="space-y-4">
+        <label className="block text-sm font-semibold text-slate-700">Search products
+          <input type="search" value={menuSearch} onChange={(event) => { setMenuSearch(event.target.value); setActiveCategoryId("all"); }} placeholder="Search menu items..." aria-label="Search menu items by name or description" className="mt-1 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200" />
+        </label>
         {menuIsEmpty ? <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No menu items are available right now.</p>
+          : searchableMenuSections.length === 0 ? <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No menu items match “{menuSearch}”.</p>
           : <div className="grid min-w-0 gap-4 xl:grid-cols-[10rem_minmax(0,1fr)]">
             <nav aria-label="Product categories" className="flex gap-2 overflow-x-auto xl:sticky xl:top-4 xl:h-fit xl:flex-col xl:overflow-visible xl:rounded-xl xl:border xl:bg-white xl:p-3">
               <button type="button" onClick={() => setActiveCategoryId("all")} aria-pressed={activeCategoryId === "all"} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === "all" ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 xl:border-transparent"}`}>
-                All items <span className="ml-1 text-xs opacity-75">({menuItems.length})</span>
+                All items <span className="ml-1 text-xs opacity-75">({searchableMenuSections.reduce((count, category) => count + category.items.length, 0)})</span>
               </button>
-              {menuSectionsWithItems.map((category) => <button key={category.id} type="button" onClick={() => setActiveCategoryId(category.id)} aria-pressed={activeCategoryId === category.id} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === category.id ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 xl:border-transparent"}`}>
+              {searchableMenuSections.map((category) => <button key={category.id} type="button" onClick={() => setActiveCategoryId(category.id)} aria-pressed={activeCategoryId === category.id} className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeCategoryId === category.id ? "bg-orange-600 text-white" : "border text-slate-700 hover:bg-slate-50 xl:border-transparent"}`}>
                 <span className="break-words">{category.name}</span> <span className="text-xs opacity-75">({category.items.length})</span>
               </button>)}
             </nav>
@@ -315,7 +351,42 @@ export default function OnlineOrderingView({
           </div>}
       </section>
       <aside className="h-fit space-y-4 rounded-xl border bg-white p-4 xl:sticky xl:top-4">
-        <h2 className="text-lg font-bold text-slate-950">Checkout</h2>
+        <section aria-label="Shopping cart" className="space-y-3">
+          <div className="flex items-center justify-between border-b pb-2">
+            <h2 className="text-lg font-bold text-slate-950">Your cart</h2>
+            <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800">{cartItemCount} {cartItemCount === 1 ? "item" : "items"}</span>
+          </div>
+          {selections.length === 0 ? <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Your cart is empty. Add menu items to get started.</p>
+            : <ul className="max-h-72 space-y-3 overflow-y-auto">
+              {selections.map((selection) => {
+                const item = menuItems.find((entry) => entry.id === selection.menuItemId);
+                if (!item) return null;
+                const modifierNames = selection.modifierOptionIds.map((optionId) =>
+                  modifierOptions.find((option) => option.id === optionId)?.name).filter((name): name is string => Boolean(name));
+                const unitPrice = Number(item.price) + selection.modifierOptionIds.reduce((sum, optionId) =>
+                  sum + Number(modifierOptions.find((option) => option.id === optionId)?.price_delta ?? 0), 0);
+                return <li key={item.id} className="flex items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-semibold text-slate-800">{item.name}</p>
+                    {modifierNames.length > 0 && <p className="mt-0.5 break-words text-xs text-slate-500">{modifierNames.join(", ")}</p>}
+                    <p className="mt-1 text-xs text-slate-500">{money(unitPrice, currency)} each</p>
+                    <div className="mt-2 inline-flex items-center gap-2 rounded-md border px-1">
+                      <button type="button" aria-label={`Remove one ${item.name} from cart`} onClick={() => changeQuantity(item.id, -1)} className="h-7 w-7 text-base text-slate-700">−</button>
+                      <span className="min-w-5 text-center text-xs font-semibold text-slate-800">{selection.quantity}</span>
+                      <button type="button" aria-label={`Add one ${item.name} to cart`} disabled={item.item_type === "packaged" && selection.quantity >= (packagedStock[item.id] ?? 0)} onClick={() => changeQuantity(item.id, 1)} className="h-7 w-7 text-base text-slate-700 disabled:opacity-40">+</button>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold text-slate-900">{money(unitPrice * selection.quantity, currency)}</span>
+                </li>;
+              })}
+            </ul>}
+          <div className="space-y-1 border-t pt-3 text-sm">
+            <p className="flex justify-between"><span>Subtotal</span><span>{money(subtotal, currency)}</span></p>
+            {fulfillment === "delivery" && <p className="flex justify-between"><span>Delivery</span><span>{money(deliveryFee, currency)}</span></p>}
+            <p className="flex justify-between font-bold text-slate-950"><span>Total</span><span>{money(total, currency)}</span></p>
+          </div>
+        </section>
+        <h2 className="border-t pt-4 text-lg font-bold text-slate-950">Checkout details</h2>
         <div className="grid grid-cols-2 gap-2">
           {acceptsPickup && <button type="button" onClick={() => setFulfillment("pickup")} className={`rounded-lg border p-2 text-sm font-semibold ${fulfillment === "pickup" ? "border-orange-600 bg-orange-50 text-orange-800" : "text-slate-600"}`}>Pickup</button>}
           {acceptsDelivery && <button type="button" onClick={() => setFulfillment("delivery")} className={`rounded-lg border p-2 text-sm font-semibold ${fulfillment === "delivery" ? "border-orange-600 bg-orange-50 text-orange-800" : "text-slate-600"}`}>Delivery</button>}
@@ -331,11 +402,6 @@ export default function OnlineOrderingView({
           {paystackEnabled && total > 0 ? <label className="flex items-center gap-2 text-sm text-slate-700"><input type="radio" name="payment" value="paystack" checked={paymentOption === "paystack"} onChange={() => setPaymentOption("paystack")} />Pay securely with Paystack</label>
             : <p className="text-xs text-slate-500">Paystack is not available for this order amount, currency, or server configuration.</p>}
         </fieldset>
-        <div className="space-y-1 border-t pt-3 text-sm">
-          <p className="flex justify-between"><span>Subtotal</span><span>{money(subtotal, currency)}</span></p>
-          {fulfillment === "delivery" && <p className="flex justify-between"><span>Delivery</span><span>{money(deliveryFee, currency)}</span></p>}
-          <p className="flex justify-between font-bold text-slate-950"><span>Total</span><span>{money(total, currency)}</span></p>
-        </div>
         <label className="sr-only" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={companyWebsite} onChange={(event) => setCompanyWebsite(event.target.value)} /></label>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-800">{error}</p>}
         <button type="submit" disabled={isSubmitting || menuIsEmpty || selections.length === 0} className="w-full rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
@@ -343,7 +409,7 @@ export default function OnlineOrderingView({
         </button>
       </aside>
     </form>}
-    {acceptsEventInquiries && <section className="mx-auto w-full max-w-3xl rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
+    {acceptsEventInquiries && <section id="event-inquiry" className="scroll-mt-6 mx-auto w-full max-w-3xl rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
       <h2 className="text-xl font-bold text-slate-950">Plan an event</h2>
       <p className="mt-1 text-sm text-slate-600">Tell us about your event and our team will contact you. Submitting this inquiry does not confirm a booking.</p>
       {submittedInquiry !== null ? <div role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
