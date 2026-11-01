@@ -26,6 +26,7 @@ export default async function RestaurantPosPage() {
     { data: modifierGroups, error: groupsError },
     { data: modifierOptions, error: optionsError },
     { data: tables, error: tablesError },
+    { data: bankAccounts, error: bankAccountsError },
   ] = await Promise.all([
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     supabase.from("restaurant_menu_categories").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("sort_order").order("name"),
@@ -34,8 +35,9 @@ export default async function RestaurantPosPage() {
     supabase.from("restaurant_modifier_groups").select("*").eq("org_id", context.orgId).eq("is_active", true).order("created_at"),
     supabase.from("restaurant_modifier_options").select("*").eq("org_id", context.orgId).eq("is_active", true).order("created_at"),
     supabase.from("restaurant_tables").select("*").eq("org_id", context.orgId).eq("is_active", true).order("table_name"),
+    supabase.from("bank_accounts").select("id, name, account_type").eq("org_id", context.orgId).order("name"),
   ]);
-  const error = [locationsError, categoriesError, menuError, packagedStockError, groupsError, optionsError, tablesError].find((item) => item);
+  const error = [locationsError, categoriesError, menuError, packagedStockError, groupsError, optionsError, tablesError, bankAccountsError].find((item) => item);
   if (error) throw new Error(`Could not load restaurant POS: ${error.message}`);
 
   const accessibleLocations = (locations ?? []).filter((location) => canAccessLocation(context, location.id));
@@ -55,6 +57,7 @@ export default async function RestaurantPosPage() {
     modifierGroups={modifierGroups ?? []}
     modifierOptions={modifierOptions ?? []}
     tables={(tables ?? []).filter((table) => accessibleLocations.some((location) => location.id === table.location_id))}
+    bankAccounts={bankAccounts ?? []}
     currency={context.currency}
     heldDrafts={heldDrafts ?? []}
   />;

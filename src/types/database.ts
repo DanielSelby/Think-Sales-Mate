@@ -684,6 +684,7 @@ export interface Database {
           tip_amount: number;
           payment_type: "payment" | "refund";
           refund_of_payment_id: string | null;
+          bank_account_id: string | null;
           payment_method: "cash" | "card" | "mobile_money" | "other";
           received_by: string | null;
           payment_provider: "paystack" | null;
@@ -700,6 +701,7 @@ export interface Database {
           tip_amount?: number;
           payment_type?: "payment" | "refund";
           refund_of_payment_id?: string | null;
+          bank_account_id?: string | null;
           payment_method: "cash" | "card" | "mobile_money" | "other";
           received_by?: string | null;
           payment_provider?: "paystack" | null;

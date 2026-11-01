@@ -141,6 +141,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Accounting", href: "/accounting", icon: Wallet, status: "live",
     children: [
       { label: "Overview", href: "/accounting?tab=overview", icon: LayoutDashboard },
+      { label: "Restaurant General Ledger", href: "/accounting/restaurant-ledger", icon: Utensils },
       { label: "Chart of Accounts", href: "/accounting?tab=coa", icon: List },
       { label: "Journal Entries", href: "/accounting?tab=journal", icon: FileText },
       { label: "Bank Reconciliation", href: "/accounting?tab=reconciliation", icon: Landmark },

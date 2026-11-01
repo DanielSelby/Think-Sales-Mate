@@ -19,10 +19,11 @@ type ModifierGroup = Database["public"]["Tables"]["restaurant_modifier_groups"][
 type ModifierOption = Database["public"]["Tables"]["restaurant_modifier_options"]["Row"];
 type DiningTable = Database["public"]["Tables"]["restaurant_tables"]["Row"];
 type Location = { id: string; name: string };
+type PaymentBankAccount = { id: string; name: string; account_type: "cash" | "checking" | "savings" | "mobile_money" | "card" | "other" };
 type PackagedStock = Pick<Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"], "location_id" | "menu_item_id" | "quantity">;
 type OrderType = "dine_in" | "takeaway" | "pickup" | "delivery";
 type PaymentMethod = "cash" | "card" | "mobile_money" | "other";
-type SplitPaymentDraft = { method: PaymentMethod; amount: string };
+type SplitPaymentDraft = { method: PaymentMethod; amount: string; accountId?: string };
 type PosDraftPayload = {
   orderType: OrderType;
   tableId: string | null;
@@ -35,6 +36,7 @@ type PosDraftPayload = {
   notes: string;
   paymentTiming: "pay_now" | "pay_later";
   paymentMethod: PaymentMethod;
+  paymentAccountId?: string;
   splitPayments?: SplitPaymentDraft[];
   tipAmountInput: string;
 };
@@ -64,11 +66,13 @@ function isPosDraftPayload(value: unknown): value is PosDraftPayload {
     && typeof value.notes === "string"
     && (value.paymentTiming === "pay_now" || value.paymentTiming === "pay_later")
     && (value.paymentMethod === "cash" || value.paymentMethod === "card" || value.paymentMethod === "mobile_money" || value.paymentMethod === "other")
+    && (value.paymentAccountId === undefined || typeof value.paymentAccountId === "string")
     && (value.splitPayments === undefined
       || (Array.isArray(value.splitPayments) && value.splitPayments.length >= 2 && value.splitPayments.length <= 4
         && value.splitPayments.every((payment) => isRecord(payment)
           && ["cash", "card", "mobile_money", "other"].includes(String(payment.method))
           && typeof payment.amount === "string"
+          && (payment.accountId === undefined || typeof payment.accountId === "string")
           && /^\d+(\.\d{1,2})?$/.test(payment.amount))))
     && typeof value.tipAmountInput === "string";
 }
@@ -85,6 +89,7 @@ export default function RestaurantPosView({
   modifierGroups,
   modifierOptions,
   tables,
+  bankAccounts,
   currency,
   heldDrafts: initialHeldDrafts,
 }: {
@@ -95,6 +100,7 @@ export default function RestaurantPosView({
   modifierGroups: ModifierGroup[];
   modifierOptions: ModifierOption[];
   tables: DiningTable[];
+  bankAccounts: PaymentBankAccount[];
   currency: string;
   heldDrafts: HeldDraft[];
 }) {
@@ -102,6 +108,7 @@ export default function RestaurantPosView({
   const [orderType, setOrderType] = useState<OrderType>("takeaway");
   const [paymentTiming, setPaymentTiming] = useState<"pay_now" | "pay_later">("pay_later");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentAccountId, setPaymentAccountId] = useState("");
   const [splitPayments, setSplitPayments] = useState<SplitPaymentDraft[]>([]);
   const [tipAmountInput, setTipAmountInput] = useState("0");
   const [tableId, setTableId] = useState("");
@@ -117,6 +124,8 @@ export default function RestaurantPosView({
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [categoryId, setCategoryId] = useState("all");
+  const [itemTypeFilter, setItemTypeFilter] = useState<"all" | "prepared" | "packaged">("all");
+  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">("all");
   const [menuQuery, setMenuQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -143,13 +152,30 @@ export default function RestaurantPosView({
   }, [customerQuery, customerSearchOpen]);
 
   const normalizedMenuQuery = menuQuery.trim().toLocaleLowerCase();
+  const getPackagedQuantity = (itemId: string) => packagedStock.find(
+    (stock) => stock.location_id === locationId && stock.menu_item_id === itemId,
+  )?.quantity ?? 0;
+  const paymentAccountsFor = (method: PaymentMethod) => bankAccounts.filter((account) =>
+    method === "mobile_money"
+      ? account.account_type === "mobile_money"
+      : method === "card"
+        ? ["card", "checking", "savings", "other"].includes(account.account_type)
+        : false,
+  );
+  const needsBankAccount = (method: PaymentMethod) => method === "card" || method === "mobile_money";
   const visibleItems = menuItems.filter((item) =>
     (categoryId === "all" || item.category_id === categoryId)
+      && (itemTypeFilter === "all" || item.item_type === itemTypeFilter)
+      && (stockFilter === "all"
+        || (stockFilter === "out_of_stock"
+          ? item.item_type === "packaged" && getPackagedQuantity(item.id) <= 0
+          : item.item_type !== "packaged" || getPackagedQuantity(item.id) > 0))
       && (!normalizedMenuQuery
         || item.name.toLocaleLowerCase().includes(normalizedMenuQuery)
         || item.sku?.toLocaleLowerCase().includes(normalizedMenuQuery)
         || item.barcode?.toLocaleLowerCase().includes(normalizedMenuQuery)),
   );
+  const hasActiveMenuFilters = categoryId !== "all" || itemTypeFilter !== "all" || stockFilter !== "all";
   const cartItems = menuItems.filter((item) => (quantities[item.id] ?? 0) > 0);
   const splitPaymentTotal = splitPayments.reduce((sum, payment) => {
     const amount = Number(payment.amount);
@@ -195,6 +221,7 @@ export default function RestaurantPosView({
     setOrderType("takeaway");
     setPaymentTiming("pay_later");
     setPaymentMethod("cash");
+    setPaymentAccountId("");
     setSplitPayments([]);
     setTipAmountInput("0");
     setTableId("");
@@ -240,6 +267,7 @@ export default function RestaurantPosView({
           notes,
           paymentTiming,
           paymentMethod,
+          paymentAccountId,
           splitPayments,
           tipAmountInput,
         },
@@ -292,6 +320,7 @@ export default function RestaurantPosView({
     setOrderType(draft.orderType);
     setPaymentTiming(draft.paymentTiming);
     setPaymentMethod(draft.paymentMethod);
+    setPaymentAccountId(draft.paymentAccountId ?? "");
     setSplitPayments(draft.splitPayments ?? []);
     setTipAmountInput(draft.tipAmountInput);
     setTableId(restoredTableId);
@@ -377,6 +406,22 @@ export default function RestaurantPosView({
         setError(`Split payments must add up to the order total of ${money(total, currency)}.`);
         return;
       }
+      const missingSplitAccount = splitPayments.find((payment, index) =>
+        splitPaymentAmounts[index] > 0
+        && needsBankAccount(payment.method)
+        && !paymentAccountsFor(payment.method).some((account) => account.id === payment.accountId));
+      if (missingSplitAccount) {
+        setError(missingSplitAccount.method === "card"
+          ? "Select the bank account that receives the card settlement."
+          : "Select the mobile-money account that receives the payment.");
+        return;
+      }
+    } else if (paymentTiming === "pay_now" && needsBankAccount(paymentMethod)
+      && !paymentAccountsFor(paymentMethod).some((account) => account.id === paymentAccountId)) {
+      setError(paymentMethod === "card"
+        ? "Select the bank account that receives the card settlement."
+        : "Select the mobile-money account that receives the payment.");
+      return;
     }
     for (const item of cartItems) {
       for (const group of modifierGroups.filter((entry) => entry.menu_item_id === item.id)) {
@@ -407,12 +452,13 @@ export default function RestaurantPosView({
             .flatMap((group) => selectedOptions[`${item.id}:${group.id}`] ?? []),
         })),
       };
-      const fingerprint = JSON.stringify({ ...orderInput, paymentMethod, splitPayments, tipAmount });
+      const fingerprint = JSON.stringify({ ...orderInput, paymentMethod, paymentAccountId, splitPayments, tipAmount });
       let payment: {
         requestKey: string;
         method: PaymentMethod;
         tipAmount: number;
-        payments?: Array<{ method: PaymentMethod; amount: number }>;
+        amount: number;
+        payments?: Array<{ method: PaymentMethod; amount: number; accountId?: string }>;
       } | undefined;
       if (paymentTiming === "pay_now") {
         if (!pendingRequestRef.current || pendingRequestRef.current.fingerprint !== fingerprint) {
@@ -422,9 +468,18 @@ export default function RestaurantPosView({
           requestKey: pendingRequestRef.current.key,
           method: paymentMethod,
           tipAmount,
+          amount: total,
           ...(splitPayments.length > 0
-            ? { payments: splitPayments.map((splitPayment) => ({ method: splitPayment.method, amount: Number(splitPayment.amount) })) }
-            : {}),
+            ? { payments: splitPayments.map((splitPayment) => ({
+              method: splitPayment.method,
+              amount: Number(splitPayment.amount),
+              ...(splitPayment.accountId ? { accountId: splitPayment.accountId } : {}),
+            })) }
+            : { payments: [{
+              method: paymentMethod,
+              amount: total,
+              ...(paymentAccountId ? { accountId: paymentAccountId } : {}),
+            }] })
         };
       }
       const result = await createRestaurantOrder({ ...orderInput, payment });
@@ -451,6 +506,7 @@ export default function RestaurantPosView({
       setSelectedOptions({});
       setItemNotes({});
       setSplitPayments([]);
+      setPaymentAccountId("");
       setTableId("");
       setCustomerName("");
       setCustomerPhone("");
@@ -562,6 +618,8 @@ export default function RestaurantPosView({
                 return;
               }
               setCategoryId("all");
+              setItemTypeFilter("all");
+              setStockFilter("all");
               setError("");
               changeQuantity(scannedItem.id, 1);
               setMenuQuery("");
@@ -571,18 +629,46 @@ export default function RestaurantPosView({
             className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"
           />
         </label>
-        <nav aria-label="Menu categories" className="flex gap-2 overflow-x-auto">
-          <button type="button" onClick={() => setCategoryId("all")} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === "all" ? "bg-orange-600 text-white" : "border border-slate-300 text-slate-700 dark:border-ledger-700 dark:text-ledger-200"}`}>All items</button>
-          {categories.map((category) => <button key={category.id} type="button" onClick={() => setCategoryId(category.id)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === category.id ? "bg-orange-600 text-white" : "border border-slate-300 text-slate-700 dark:border-ledger-700 dark:text-ledger-200"}`}>{category.name}</button>)}
-        </nav>
+        <div className="space-y-3 rounded-xl border bg-white p-3 dark:border-ledger-700 dark:bg-ink-900">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="min-w-36 flex-1 text-xs font-semibold text-slate-600 dark:text-ledger-300">
+              Item type
+              <select value={itemTypeFilter} onChange={(event) => setItemTypeFilter(event.target.value as typeof itemTypeFilter)} className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-ledger-700 dark:bg-ink-950 dark:text-ledger-100">
+                <option value="all">All item types</option>
+                <option value="prepared">Prepared</option>
+                <option value="packaged">Packaged</option>
+              </select>
+            </label>
+            <label className="min-w-36 flex-1 text-xs font-semibold text-slate-600 dark:text-ledger-300">
+              Stock availability
+              <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as typeof stockFilter)} className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-ledger-700 dark:bg-ink-950 dark:text-ledger-100">
+                <option value="all">Any availability</option>
+                <option value="in_stock">In stock</option>
+                <option value="out_of_stock">Out of stock</option>
+              </select>
+            </label>
+            {hasActiveMenuFilters && <button type="button" onClick={() => {
+              setCategoryId("all");
+              setItemTypeFilter("all");
+              setStockFilter("all");
+            }} className="h-10 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 dark:border-ledger-700 dark:text-ledger-200">
+              Clear filters
+            </button>}
+          </div>
+          <nav aria-label="Menu categories" className="flex gap-2 overflow-x-auto">
+            <button type="button" onClick={() => setCategoryId("all")} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === "all" ? "bg-orange-600 text-white" : "border border-slate-300 text-slate-700 dark:border-ledger-700 dark:text-ledger-200"}`}>All categories</button>
+            {categories.map((category) => <button key={category.id} type="button" onClick={() => setCategoryId(category.id)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${categoryId === category.id ? "bg-orange-600 text-white" : "border border-slate-300 text-slate-700 dark:border-ledger-700 dark:text-ledger-200"}`}>{category.name}</button>)}
+          </nav>
+          <p className="text-xs text-slate-500 dark:text-ledger-400">Showing {visibleItems.length} of {menuItems.length} menu items</p>
+        </div>
         {locations.length === 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">There are no branches available to your account.</p>}
         {menuItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300">Add active menu items before taking restaurant orders.</p>}
-        {menuItems.length > 0 && visibleItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300">No menu items match this search and category.</p>}
+        {menuItems.length > 0 && visibleItems.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-slate-600 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-300">No menu items match the current search and filters.</p>}
         <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visibleItems.map((item) => {
             const quantity = quantities[item.id] ?? 0;
             const groups = modifierGroups.filter((group) => group.menu_item_id === item.id);
-            const packagedQuantity = packagedStock.find((stock) => stock.location_id === locationId && stock.menu_item_id === item.id)?.quantity ?? 0;
+            const packagedQuantity = getPackagedQuantity(item.id);
             const outOfStock = item.item_type === "packaged" && packagedQuantity <= 0;
             return <article key={item.id} className="group flex min-w-0 flex-col items-center overflow-hidden rounded-md bg-gradient-to-br from-white via-white to-slate-50 p-2.5 text-center shadow-[inset_1px_1px_0_rgba(255,255,255,0.95),inset_-1px_-1px_0_rgba(148,163,184,0.1),0_2px_4px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 dark:from-ink-900 dark:via-ink-900 dark:to-ink-950 dark:shadow-[inset_1px_1px_0_rgba(255,255,255,0.06),inset_-1px_-1px_0_rgba(15,23,42,0.35),0_2px_4px_rgba(0,0,0,0.2),0_8px_18px_rgba(0,0,0,0.3)]">
               <div className="relative mb-2 h-28 w-full overflow-hidden rounded-md border border-slate-200 bg-slate-100 p-1.5 shadow-inner dark:border-ledger-700 dark:bg-ink-950">
@@ -726,7 +812,7 @@ export default function RestaurantPosView({
               {splitPayments.map((splitPayment, index) => <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
                 <label className="text-xs font-semibold text-slate-600">Method
                   <select value={splitPayment.method} onChange={(event) => setSplitPayments((current) => current.map((paymentEntry, entryIndex) =>
-                    entryIndex === index ? { ...paymentEntry, method: event.target.value as PaymentMethod } : paymentEntry))}
+                    entryIndex === index ? { ...paymentEntry, method: event.target.value as PaymentMethod, accountId: "" } : paymentEntry))}
                     className="mt-1 h-10 w-full rounded-lg border px-2 text-sm">
                     <option value="cash">Cash</option><option value="card">Card</option><option value="mobile_money">Mobile money</option><option value="other">Other</option>
                   </select>
@@ -738,6 +824,16 @@ export default function RestaurantPosView({
                 </label>
                 <button type="button" disabled={splitPayments.length <= 2} onClick={() => setSplitPayments((current) => current.filter((_, entryIndex) => entryIndex !== index))}
                   aria-label={`Remove split payment ${index + 1}`} className="h-10 rounded-lg border px-3 text-sm text-slate-600 disabled:opacity-40">×</button>
+                {needsBankAccount(splitPayment.method) && <label className="col-span-3 text-xs font-semibold text-slate-600">
+                  {splitPayment.method === "card" ? "Card settlement account" : "Mobile-money account"}
+                  <select value={splitPayment.accountId ?? ""} onChange={(event) => setSplitPayments((current) => current.map((paymentEntry, entryIndex) =>
+                    entryIndex === index ? { ...paymentEntry, accountId: event.target.value } : paymentEntry))}
+                    className="mt-1 h-10 w-full rounded-lg border bg-white px-2 text-sm">
+                    <option value="">Select account</option>
+                    {paymentAccountsFor(splitPayment.method).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                  </select>
+                  {paymentAccountsFor(splitPayment.method).length === 0 && <Link href="/banking" className="mt-1 inline-block font-medium text-blue-700 underline">Add a compatible Bank Account</Link>}
+                </label>}
               </div>)}
               {splitPayments.length < 4 && <button type="button" onClick={() => setSplitPayments((current) => [...current, {
                 method: (["cash", "card", "mobile_money", "other"] as const).find((method) => !current.some((entry) => entry.method === method)) ?? "other",
@@ -746,10 +842,21 @@ export default function RestaurantPosView({
               <p className="text-xs font-semibold text-slate-600">Allocated: {money(splitPaymentTotal, currency)} / {money(total, currency)}</p>
             </div> : <>
             <label className="text-xs font-semibold text-slate-600">Payment method
-              <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm">
+              <select value={paymentMethod} onChange={(event) => {
+                setPaymentMethod(event.target.value as PaymentMethod);
+                setPaymentAccountId("");
+              }} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm">
                 <option value="cash">Cash</option><option value="card">Card</option><option value="mobile_money">Mobile money</option><option value="other">Other</option>
               </select>
             </label>
+            {needsBankAccount(paymentMethod) && <label className="text-xs font-semibold text-slate-600">
+              {paymentMethod === "card" ? "Card settlement account" : "Mobile-money account"}
+              <select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border bg-white px-2 text-sm">
+                <option value="">Select account</option>
+                {paymentAccountsFor(paymentMethod).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+              {paymentAccountsFor(paymentMethod).length === 0 && <Link href="/banking" className="mt-1 inline-block font-medium text-blue-700 underline">Add a compatible Bank Account</Link>}
+            </label>}
             <label className="text-xs font-semibold text-slate-600">Tip (optional)
               <input type="number" min="0" step="0.01" value={tipAmountInput} onChange={(event) => setTipAmountInput(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-2 text-sm" />
             </label>

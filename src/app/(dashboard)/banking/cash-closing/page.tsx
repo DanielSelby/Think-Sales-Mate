@@ -193,7 +193,7 @@ export default async function CashClosingPage({ searchParams }: { searchParams?:
         p_location_ids: restaurantLocationIds,
         p_start_at: selectedClosingPeriod.start.toISOString(),
         p_end_at: selectedClosingPeriod.end.toISOString(),
-        p_user_id: effectiveUserId,
+        p_user_id: effectiveUserId || null,
       });
       if (restaurantError) restaurantSummaryError = restaurantError.message;
       else restaurantSummary = restaurantData as RestaurantFinancialSummaryData;

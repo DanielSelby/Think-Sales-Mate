@@ -8,6 +8,7 @@ import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { assertRestaurantPackagedStockAvailable } from "@/lib/restaurant/packaged-stock";
+import { validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
 import {
   sendRestaurantOrderEmail,
   sendRestaurantReservationEmail,
@@ -31,7 +32,8 @@ type RestaurantPosDraftPayload = {
   notes: string;
   paymentTiming: "pay_now" | "pay_later";
   paymentMethod: PaymentMethod;
-  splitPayments?: Array<{ method: PaymentMethod; amount: string }>;
+  paymentAccountId?: string;
+  splitPayments?: Array<{ method: PaymentMethod; amount: string; accountId?: string }>;
   tipAmountInput: string;
 };
 
@@ -594,6 +596,8 @@ export async function importRestaurantMenuItems(rows: RestaurantMenuImportRow[])
 
   revalidatePath("/restaurant");
   revalidatePath("/restaurant/pos");
+  revalidatePath("/banking");
+  revalidatePath("/accounting");
   revalidatePath("/restaurant-order/[orgSlug]/branch/[branchSlug]", "page");
   return { imported: normalizedRows.length };
 }
@@ -1350,8 +1354,10 @@ export async function createRestaurantOrder(input: {
   payment?: {
     requestKey: string;
     method: PaymentMethod;
+    amount: number;
+    accountId?: string;
     tipAmount: number;
-    payments?: Array<{ method: PaymentMethod; amount: number }>;
+    payments?: Array<{ method: PaymentMethod; amount: number; accountId?: string }>;
   };
 }) {
   const context = await restaurantContext("orders", "create");
@@ -1398,29 +1404,39 @@ export async function createRestaurantOrder(input: {
   if (input.payment) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.payment.requestKey)
       || !["cash", "card", "mobile_money", "other"].includes(input.payment.method)
+      || !validMoney(input.payment.amount, true)
       || !validMoney(input.payment.tipAmount, true)) {
       throw new Error("Enter a valid payment method and tip amount.");
     }
-    const splitPayments = input.payment.payments;
-    if (splitPayments && (splitPayments.length < 2 || splitPayments.length > 4
-      || splitPayments.some((payment) => !["cash", "card", "mobile_money", "other"].includes(payment.method)
-        || !validMoney(payment.amount, true))
-      || new Set(splitPayments.map((payment) => payment.method)).size !== splitPayments.length)) {
-      throw new Error("Enter two to four valid split payments with different payment methods.");
+    const payments = input.payment.payments ?? [{
+      method: input.payment.method,
+      amount: input.payment.amount,
+      accountId: input.payment.accountId,
+    }];
+    if (payments.length < 1 || payments.length > 4
+      || payments.some((payment) => !["cash", "card", "mobile_money", "other"].includes(payment.method)
+        || !validMoney(payment.amount, true)
+        || (payment.accountId !== undefined && !uuidPattern.test(payment.accountId)))
+      || (payments.length > 1
+        && new Set(payments.map((payment) => payment.method)).size !== payments.length)) {
+      throw new Error("Enter one to four valid payments with different methods.");
     }
-    const paymentRequest = splitPayments
-      ? await admin.rpc("create_restaurant_order_with_split_payment", {
-        ...orderInput,
-        p_request_key: input.payment.requestKey,
-        p_payments: splitPayments.map((payment) => ({ method: payment.method, amount: payment.amount })),
-        p_tip_amount: input.payment.tipAmount,
-      })
-      : await admin.rpc("create_restaurant_order_with_payment", {
-        ...orderInput,
-        p_request_key: input.payment.requestKey,
-        p_payment_method: input.payment.method,
-        p_tip_amount: input.payment.tipAmount,
-      });
+    const paymentAccountError = await validatePosPaymentAccounts(context.orgId, payments.filter((payment) => payment.amount > 0).map((payment) => ({
+      paymentMethod: payment.method === "mobile_money" ? "MoMo" : payment.method,
+      accountId: payment.accountId,
+      amount: payment.amount,
+    })));
+    if (paymentAccountError) throw new Error(paymentAccountError);
+    const paymentRequest = await admin.rpc("create_restaurant_order_with_split_payment", {
+      ...orderInput,
+      p_request_key: input.payment.requestKey,
+      p_payments: payments.map((payment) => ({
+        method: payment.method,
+        amount: payment.amount,
+        ...(payment.accountId ? { account_id: payment.accountId } : {}),
+      })),
+      p_tip_amount: input.payment.tipAmount,
+    });
     const { data, error } = paymentRequest;
     if (error) throw new Error(`Could not create and pay for restaurant order: ${error.message}`);
     const result = data?.[0];
@@ -1460,6 +1476,7 @@ export async function saveRestaurantPosDraft(input: {
     || (draft.tableId !== null && (typeof draft.tableId !== "string" || !uuidPattern.test(draft.tableId)))
     || !["pay_now", "pay_later"].includes(draft.paymentTiming)
     || !["cash", "card", "mobile_money", "other"].includes(draft.paymentMethod)
+    || (draft.paymentAccountId !== undefined && !uuidPattern.test(draft.paymentAccountId))
     || typeof draft.tipAmountInput !== "string" || draft.tipAmountInput.length > 20
     || (draft.paymentTiming === "pay_now"
       && (!/^\d+(\.\d{1,2})?$/.test(draft.tipAmountInput)
@@ -1487,6 +1504,7 @@ export async function saveRestaurantPosDraft(input: {
           !isRecord(payment)
           || !["cash", "card", "mobile_money", "other"].includes(String(payment.method))
           || typeof payment.amount !== "string"
+          || (payment.accountId !== undefined && (typeof payment.accountId !== "string" || !uuidPattern.test(payment.accountId)))
           || !/^\d+(\.\d{1,2})?$/.test(payment.amount))
         || new Set(draft.splitPayments.map((payment) => isRecord(payment) ? payment.method : null)).size !== draft.splitPayments.length))
     || (draft.itemNotes !== undefined

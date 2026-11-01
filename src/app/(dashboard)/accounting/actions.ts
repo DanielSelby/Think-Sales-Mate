@@ -254,6 +254,7 @@ export async function saveRestaurantAccountMappings(input: {
   }, { onConflict: "org_id" });
   if (error) return { ok: false, error: `Could not save Restaurant account mappings: ${error.message}` };
   revalidatePath("/accounting");
+  revalidatePath("/accounting/restaurant-ledger");
   return { ok: true };
 }
 
