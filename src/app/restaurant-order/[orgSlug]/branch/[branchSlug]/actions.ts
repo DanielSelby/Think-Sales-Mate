@@ -231,3 +231,117 @@ export async function submitRestaurantOnlineOrder(
     trackingToken: trackingOrder.customer_tracking_token,
   };
 }
+
+type EventInquiryInput = {
+  eventName: string;
+  customerName: string;
+  customerOrganization: string;
+  customerPhone: string;
+  customerEmail: string;
+  startsAt: string;
+  eventLocation: string;
+  guestCount: number;
+  estimatedBudget: number | null;
+  customMenu: string;
+  setupRequirements: string;
+  notes: string;
+  companyWebsite?: string;
+};
+
+export async function submitRestaurantEventInquiry(
+  orgSlug: string,
+  branchSlug: string,
+  input: EventInquiryInput,
+) {
+  if (typeof orgSlug !== "string" || typeof branchSlug !== "string"
+    || orgSlug.length > 120 || branchSlug.length > 120
+    || !input || typeof input !== "object") {
+    throw new Error("The event inquiry request is invalid.");
+  }
+  const textFields: Array<keyof Omit<EventInquiryInput, "guestCount" | "estimatedBudget">> = [
+    "eventName", "customerName", "customerOrganization", "customerPhone", "customerEmail",
+    "startsAt", "eventLocation", "customMenu", "setupRequirements", "notes",
+  ];
+  if (textFields.some((field) => typeof input[field] !== "string")
+    || (input.companyWebsite !== undefined && typeof input.companyWebsite !== "string")
+    || !Number.isInteger(input.guestCount) || input.guestCount < 1 || input.guestCount > 10000
+    || (input.estimatedBudget !== null
+      && (typeof input.estimatedBudget !== "number" || !Number.isFinite(input.estimatedBudget)
+        || input.estimatedBudget < 0 || input.estimatedBudget > 999999999999.99))) {
+    throw new Error("Enter valid event inquiry details.");
+  }
+  if (input.companyWebsite?.trim()) throw new Error("Unable to submit this inquiry.");
+
+  const eventName = requiredText(input.eventName, "Event name", 120);
+  const customerName = requiredText(input.customerName, "Name", 120);
+  const customerPhone = requiredText(input.customerPhone, "Phone number", 40);
+  if (customerPhone.length < 7) throw new Error("Enter a phone number with at least 7 characters.");
+  const customerEmail = input.customerEmail.trim().toLowerCase();
+  if (customerEmail.length > 254 || (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail))) {
+    throw new Error("Enter a valid email address.");
+  }
+  const eventLocation = requiredText(input.eventLocation, "Event location", 300);
+  const customerOrganization = input.customerOrganization.trim();
+  const customMenu = input.customMenu.trim();
+  const setupRequirements = input.setupRequirements.trim();
+  const notes = input.notes.trim();
+  if (customerOrganization.length > 120 || customMenu.length > 2000
+    || setupRequirements.length > 1000 || notes.length > 1000) {
+    throw new Error("Event details exceed the allowed length.");
+  }
+  const startsAt = new Date(input.startsAt);
+  if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() <= Date.now()) {
+    throw new Error("Choose a future event date and time.");
+  }
+
+  const admin = createAdminClient();
+  const { data: organization, error: organizationError } = await admin.from("organizations")
+    .select("id").eq("slug", orgSlug).maybeSingle();
+  if (organizationError) throw new Error(`Could not load restaurant: ${organizationError.message}`);
+  if (!organization || !(await getEnabledOrganizationModules(organization.id)).includes("Restaurant")) {
+    throw new Error("This restaurant storefront is unavailable.");
+  }
+  const { data: location, error: locationError } = await admin.from("business_locations")
+    .select("id").eq("org_id", organization.id).eq("customer_portal_slug", branchSlug)
+    .eq("is_active", true).maybeSingle();
+  if (locationError) throw new Error(`Could not load restaurant branch: ${locationError.message}`);
+  if (!location) throw new Error("This restaurant branch is unavailable.");
+  const { data: settings, error: settingsError } = await admin.from("restaurant_online_settings")
+    .select("accepts_online_event_inquiries")
+    .eq("org_id", organization.id).eq("location_id", location.id).maybeSingle();
+  if (settingsError) throw new Error(`Could not verify event inquiry settings: ${settingsError.message}`);
+  if (!settings?.accepts_online_event_inquiries) {
+    throw new Error("This restaurant is not accepting event inquiries online.");
+  }
+
+  const requestHeaders = await headers();
+  const ipHash = getRegistrationIpHash(getClientIp(requestHeaders));
+  const { data: withinLimit, error: limitError } = await admin.rpc("consume_restaurant_online_order_rate_limit", {
+    p_location_id: location.id,
+    p_ip_hash: ipHash,
+  });
+  if (limitError) throw new Error(`Could not verify event inquiry limit: ${limitError.message}`);
+  if (!withinLimit) throw new Error("Too many inquiry attempts. Please wait before trying again.");
+
+  const { data: event, error: eventError } = await admin.from("restaurant_catering_events").insert({
+    org_id: organization.id,
+    location_id: location.id,
+    event_name: eventName,
+    customer_name: customerName,
+    customer_organization: customerOrganization || null,
+    customer_phone: customerPhone,
+    customer_email: customerEmail || null,
+    starts_at: startsAt.toISOString(),
+    event_location: eventLocation,
+    guest_count: input.guestCount,
+    estimated_budget: input.estimatedBudget,
+    custom_menu: customMenu,
+    setup_requirements: setupRequirements,
+    notes,
+    inquiry_source: "customer_portal",
+    created_by: null,
+    updated_by: null,
+  }).select("event_number").single();
+  if (eventError) throw new Error(`Could not submit event inquiry: ${eventError.message}`);
+  return { eventNumber: event.event_number };
+}

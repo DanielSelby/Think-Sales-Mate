@@ -25,7 +25,9 @@ export default async function RestaurantOnlineOrderingPage({
   const { data: settings, error: settingsError } = await admin.from("restaurant_online_settings")
     .select("*").eq("org_id", organization.id).eq("location_id", location.id).maybeSingle();
   if (settingsError) throw new Error(`Could not load restaurant online ordering settings: ${settingsError.message}`);
-  if (!settings?.is_enabled || (!settings.accepts_pickup && !settings.accepts_delivery)) {
+  const acceptsOnlineOrders = Boolean(settings?.is_enabled && (settings.accepts_pickup || settings.accepts_delivery));
+  const acceptsEventInquiries = Boolean(settings?.accepts_online_event_inquiries);
+  if (!acceptsOnlineOrders && !acceptsEventInquiries) {
     return <StorefrontUnavailable organizationName={organization.name} />;
   }
 
@@ -60,9 +62,11 @@ export default async function RestaurantOnlineOrderingPage({
     packagedStock={Object.fromEntries((packagedStock ?? []).map((stock) => [stock.menu_item_id, Number(stock.quantity)]))}
     modifierGroups={modifierGroups ?? []}
     modifierOptions={modifierOptions ?? []}
-    acceptsPickup={settings.accepts_pickup}
-    acceptsDelivery={settings.accepts_delivery}
-    deliveryFee={Number(settings.delivery_fee)}
+    acceptsPickup={acceptsOnlineOrders && Boolean(settings?.accepts_pickup)}
+    acceptsDelivery={acceptsOnlineOrders && Boolean(settings?.accepts_delivery)}
+    acceptsOnlineOrders={acceptsOnlineOrders}
+    acceptsEventInquiries={acceptsEventInquiries}
+    deliveryFee={Number(settings?.delivery_fee ?? 0)}
     paystackEnabled={isRestaurantPaystackAvailable(organization.currency)}
   />;
 }

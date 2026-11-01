@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { submitRestaurantOnlineOrder } from "@/app/restaurant-order/[orgSlug]/branch/[branchSlug]/actions";
+import {
+  submitRestaurantEventInquiry,
+  submitRestaurantOnlineOrder,
+} from "@/app/restaurant-order/[orgSlug]/branch/[branchSlug]/actions";
 import { formatMoney } from "@/lib/currency";
 
 type OnlineCategory = { id: string; name: string };
@@ -43,6 +46,8 @@ export default function OnlineOrderingView({
   modifierOptions,
   acceptsPickup,
   acceptsDelivery,
+  acceptsOnlineOrders,
+  acceptsEventInquiries,
   deliveryFee,
   paystackEnabled,
 }: {
@@ -58,6 +63,8 @@ export default function OnlineOrderingView({
   modifierOptions: OnlineModifierOption[];
   acceptsPickup: boolean;
   acceptsDelivery: boolean;
+  acceptsOnlineOrders: boolean;
+  acceptsEventInquiries: boolean;
   deliveryFee: number;
   paystackEnabled: boolean;
 }) {
@@ -76,6 +83,22 @@ export default function OnlineOrderingView({
   const [error, setError] = useState("");
   const [placedOrder, setPlacedOrder] = useState<{ orderNumber: number; total: number; trackingToken: string } | null>(null);
   const [orderEmailSent, setOrderEmailSent] = useState<boolean | null>(null);
+  const [eventName, setEventName] = useState("");
+  const [eventCustomerName, setEventCustomerName] = useState("");
+  const [eventOrganization, setEventOrganization] = useState("");
+  const [eventPhone, setEventPhone] = useState("");
+  const [eventEmail, setEventEmail] = useState("");
+  const [eventStartsAt, setEventStartsAt] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
+  const [eventGuestCount, setEventGuestCount] = useState("1");
+  const [eventBudget, setEventBudget] = useState("");
+  const [eventMenu, setEventMenu] = useState("");
+  const [eventSetup, setEventSetup] = useState("");
+  const [eventNotes, setEventNotes] = useState("");
+  const [eventWebsite, setEventWebsite] = useState("");
+  const [isSubmittingInquiry, setIsSubmittingInquiry] = useState(false);
+  const [inquiryError, setInquiryError] = useState("");
+  const [submittedInquiry, setSubmittedInquiry] = useState<number | null>(null);
 
   const selections: Selection[] = useMemo(() => menuItems.flatMap((item) => {
     const quantity = Number(quantities[item.id] ?? 0);
@@ -183,6 +206,39 @@ export default function OnlineOrderingView({
     }
   }
 
+  async function submitInquiry(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInquiryError("");
+    const startsAt = new Date(eventStartsAt);
+    if (!Number.isFinite(startsAt.getTime())) {
+      setInquiryError("Choose a valid event date and time.");
+      return;
+    }
+    setIsSubmittingInquiry(true);
+    try {
+      const result = await submitRestaurantEventInquiry(orgSlug, branchSlug, {
+        eventName,
+        customerName: eventCustomerName,
+        customerOrganization: eventOrganization,
+        customerPhone: eventPhone,
+        customerEmail: eventEmail,
+        startsAt: startsAt.toISOString(),
+        eventLocation,
+        guestCount: Number(eventGuestCount),
+        estimatedBudget: eventBudget.trim() ? Number(eventBudget) : null,
+        customMenu: eventMenu,
+        setupRequirements: eventSetup,
+        notes: eventNotes,
+        companyWebsite: eventWebsite,
+      });
+      setSubmittedInquiry(result.eventNumber);
+    } catch (submitError) {
+      setInquiryError(submitError instanceof Error ? submitError.message : "Could not submit your inquiry. Please try again.");
+    } finally {
+      setIsSubmittingInquiry(false);
+    }
+  }
+
   if (placedOrder) {
     return <main className="mx-auto max-w-xl px-4 py-16">
       <section className="rounded-2xl border bg-white p-8 text-center shadow-sm">
@@ -201,9 +257,9 @@ export default function OnlineOrderingView({
     <header className="rounded-2xl bg-slate-950 p-6 text-white">
       <p className="text-sm font-semibold text-orange-300">{branchName}</p>
       <h1 className="mt-1 text-3xl font-bold">{organizationName}</h1>
-      <p className="mt-2 text-sm text-slate-300">Restaurant menu · Order for pickup or delivery</p>
+      <p className="mt-2 text-sm text-slate-300">{acceptsOnlineOrders ? "Restaurant menu · Order for pickup or delivery" : "Plan your next event with us"}</p>
     </header>
-    <form onSubmit={submit} className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+    {acceptsOnlineOrders && <form onSubmit={submit} className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="space-y-4">
         {menuIsEmpty ? <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No menu items are available right now.</p>
           : <div className="grid min-w-0 gap-4 xl:grid-cols-[10rem_minmax(0,1fr)]">
@@ -286,6 +342,33 @@ export default function OnlineOrderingView({
           {isSubmitting ? "Submitting..." : paymentOption === "paystack" && total > 0 ? "Continue to secure payment" : "Place order"}
         </button>
       </aside>
-    </form>
+    </form>}
+    {acceptsEventInquiries && <section className="mx-auto w-full max-w-3xl rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
+      <h2 className="text-xl font-bold text-slate-950">Plan an event</h2>
+      <p className="mt-1 text-sm text-slate-600">Tell us about your event and our team will contact you. Submitting this inquiry does not confirm a booking.</p>
+      {submittedInquiry !== null ? <div role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
+        Your inquiry <strong>#{submittedInquiry}</strong> has been sent to {branchName}. The restaurant team will contact you.
+      </div> : <form onSubmit={submitInquiry} className="mt-5 grid gap-4 sm:grid-cols-2">
+        <label className="text-xs font-semibold text-slate-600">Event or occasion<input required maxLength={120} value={eventName} onChange={(event) => setEventName(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600">Event date and time<input required type="datetime-local" value={eventStartsAt} onChange={(event) => setEventStartsAt(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600">Your name<input required maxLength={120} value={eventCustomerName} onChange={(event) => setEventCustomerName(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600">Organization (optional)<input maxLength={120} value={eventOrganization} onChange={(event) => setEventOrganization(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600">Phone<input required type="tel" maxLength={40} value={eventPhone} onChange={(event) => setEventPhone(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600">Email (optional)<input type="email" maxLength={254} value={eventEmail} onChange={(event) => setEventEmail(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600">Event location<input required maxLength={300} value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600">Estimated guests<input required type="number" min={1} max={10000} step={1} value={eventGuestCount} onChange={(event) => setEventGuestCount(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Estimated budget (optional)
+          <div className="mt-1 flex items-center rounded-lg border bg-white px-3"><span className="text-sm text-slate-500">{currency}</span><input type="number" min={0} step="0.01" value={eventBudget} onChange={(event) => setEventBudget(event.target.value)} className="h-10 w-full border-0 px-2 text-sm outline-none" /></div>
+        </label>
+        <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Menu preferences (optional)<textarea maxLength={2000} rows={3} value={eventMenu} onChange={(event) => setEventMenu(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Setup or delivery requirements (optional)<textarea maxLength={1000} rows={2} value={eventSetup} onChange={(event) => setEventSetup(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+        <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Additional details (optional)<textarea maxLength={1000} rows={2} value={eventNotes} onChange={(event) => setEventNotes(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+        <label className="sr-only" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={eventWebsite} onChange={(event) => setEventWebsite(event.target.value)} /></label>
+        {inquiryError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 sm:col-span-2">{inquiryError}</p>}
+        <button type="submit" disabled={isSubmittingInquiry} className="rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2">
+          {isSubmittingInquiry ? "Sending inquiry..." : "Send event inquiry"}
+        </button>
+      </form>}
+    </section>}
   </main>;
 }

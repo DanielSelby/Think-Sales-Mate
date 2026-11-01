@@ -573,6 +573,7 @@ export async function saveRestaurantOnlineSettings(input: {
   deliveryFee: number;
   sendOrderEmails: boolean;
   acceptsOnlineReservations: boolean;
+  acceptsOnlineEventInquiries: boolean;
   reservationTimezone: string;
   reservationHours: Array<{ closed: boolean; open: string; close: string }>;
   reservationDurationMinutes: number;
@@ -582,6 +583,7 @@ export async function saveRestaurantOnlineSettings(input: {
   requireOrganizationWideAccess(context.isBranchScoped, "Restaurant online ordering settings");
   if (typeof input.isEnabled !== "boolean" || typeof input.sendOrderEmails !== "boolean"
     || typeof input.acceptsOnlineReservations !== "boolean"
+    || typeof input.acceptsOnlineEventInquiries !== "boolean"
     || typeof input.reservationTimezone !== "string"
     || !Array.isArray(input.reservationHours) || input.reservationHours.length !== 7
     || !Number.isInteger(input.reservationDurationMinutes) || input.reservationDurationMinutes < 30 || input.reservationDurationMinutes > 240
@@ -616,6 +618,7 @@ export async function saveRestaurantOnlineSettings(input: {
     delivery_fee: input.deliveryFee,
     send_order_emails: input.sendOrderEmails,
     accepts_online_reservations: input.acceptsOnlineReservations,
+    accepts_online_event_inquiries: input.acceptsOnlineEventInquiries,
     reservation_timezone: input.reservationTimezone,
     reservation_hours: input.reservationHours,
     reservation_duration_minutes: input.reservationDurationMinutes,

@@ -346,6 +346,8 @@ export interface Database {
           org_id: string;
           location_id: string;
           customer_id: string | null;
+          inquiry_source: "staff" | "customer_portal";
+          estimated_budget: number | null;
           event_number: number;
           event_name: string;
           customer_name: string;
@@ -359,7 +361,7 @@ export interface Database {
           setup_requirements: string;
           notes: string;
           status: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled";
-          created_by: string;
+          created_by: string | null;
           updated_by: string | null;
           created_at: string;
           updated_at: string;
@@ -369,6 +371,8 @@ export interface Database {
           org_id: string;
           location_id: string;
           customer_id?: string | null;
+          inquiry_source?: "staff" | "customer_portal";
+          estimated_budget?: number | null;
           event_number?: number;
           event_name: string;
           customer_name: string;
@@ -382,7 +386,7 @@ export interface Database {
           setup_requirements?: string;
           notes?: string;
           status?: "inquiry" | "quoted" | "confirmed" | "preparing" | "completed" | "cancelled";
-          created_by: string;
+          created_by?: string | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -716,6 +720,7 @@ export interface Database {
           delivery_fee: number;
           send_order_emails: boolean;
           accepts_online_reservations: boolean;
+          accepts_online_event_inquiries: boolean;
           reservation_timezone: string;
           reservation_hours: Json;
           reservation_duration_minutes: number;
@@ -732,6 +737,7 @@ export interface Database {
           delivery_fee?: number;
           send_order_emails?: boolean;
           accepts_online_reservations?: boolean;
+          accepts_online_event_inquiries?: boolean;
           reservation_timezone?: string;
           reservation_hours?: Json;
           reservation_duration_minutes?: number;

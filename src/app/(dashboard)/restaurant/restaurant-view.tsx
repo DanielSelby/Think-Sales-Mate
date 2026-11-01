@@ -901,6 +901,7 @@ function RestaurantOnlineLocationSettings({
   const [deliveryFee, setDeliveryFee] = useState(String(setting?.delivery_fee ?? 0));
   const [sendOrderEmails, setSendOrderEmails] = useState(setting?.send_order_emails ?? true);
   const [acceptsOnlineReservations, setAcceptsOnlineReservations] = useState(setting?.accepts_online_reservations ?? false);
+  const [acceptsOnlineEventInquiries, setAcceptsOnlineEventInquiries] = useState(setting?.accepts_online_event_inquiries ?? false);
   const [reservationTimezone, setReservationTimezone] = useState(setting?.reservation_timezone ?? "UTC");
   const [reservationHours, setReservationHours] = useState(() => getReservationHours(setting?.reservation_hours));
   const [reservationDurationMinutes, setReservationDurationMinutes] = useState(String(setting?.reservation_duration_minutes ?? 90));
@@ -920,6 +921,7 @@ function RestaurantOnlineLocationSettings({
           deliveryFee: Number(deliveryFee),
           sendOrderEmails,
           acceptsOnlineReservations,
+          acceptsOnlineEventInquiries,
           reservationTimezone,
           reservationHours,
           reservationDurationMinutes: Number(reservationDurationMinutes),
@@ -935,6 +937,10 @@ function RestaurantOnlineLocationSettings({
     <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
       <input type="checkbox" checked={acceptsOnlineReservations} onChange={(event) => setAcceptsOnlineReservations(event.target.checked)} disabled={!canEdit} className="h-4 w-4 rounded border-slate-300" />
       Accept online table reservations
+    </label>
+    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+      <input type="checkbox" checked={acceptsOnlineEventInquiries} onChange={(event) => setAcceptsOnlineEventInquiries(event.target.checked)} disabled={!canEdit} className="h-4 w-4 rounded border-slate-300" />
+      Show event inquiries on the customer portal
     </label>
     <div className="space-y-3 rounded-xl border bg-slate-50 p-4">
       <h3 className="text-sm font-bold text-slate-800">Reservation hours and slots</h3>
@@ -2507,7 +2513,7 @@ function CateringEventCard({ event, history, quotes, payments, finalInvoice, pre
   return <article className="rounded-xl border bg-white p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Event #{event.event_number} · {event.guest_count} guests</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Event #{event.event_number} · {event.guest_count} guests · {event.inquiry_source === "customer_portal" ? "Customer portal" : "Staff entry"}</p>
         <h3 className="mt-1 break-words text-base font-bold text-slate-950">{event.event_name}</h3>
         <p className="mt-1 text-sm text-slate-600">{event.customer_name}{event.customer_organization ? ` · ${event.customer_organization}` : ""}</p>
       </div>
@@ -2517,6 +2523,7 @@ function CateringEventCard({ event, history, quotes, payments, finalInvoice, pre
       <div><dt className="text-xs text-slate-500">Date & time (UTC)</dt><dd className="font-medium text-slate-800">{cateringEventDateFormatter.format(new Date(event.starts_at))}</dd></div>
       <div><dt className="text-xs text-slate-500">Event location</dt><dd className="break-words font-medium text-slate-800">{event.event_location}</dd></div>
       <div><dt className="text-xs text-slate-500">Contact</dt><dd className="break-words font-medium text-slate-800">{event.customer_phone}{event.customer_email ? ` · ${event.customer_email}` : ""}</dd></div>
+      {event.estimated_budget !== null && <div><dt className="text-xs text-slate-500">Estimated budget</dt><dd className="font-medium text-slate-800">{money(Number(event.estimated_budget), currency)}</dd></div>}
     </dl>
     {event.custom_menu && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Menu requirements</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{event.custom_menu}</p></div>}
     {event.setup_requirements && <div className="mt-3"><p className="text-xs font-semibold text-slate-500">Delivery & setup</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{event.setup_requirements}</p></div>}
