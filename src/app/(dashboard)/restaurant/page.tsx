@@ -229,6 +229,20 @@ export default async function RestaurantPage({
       ];
   const ingredientDataError = [ingredientsError, ingredientStocksError, recipeIngredientsError, ingredientMovementsError].find((error) => error);
   if (ingredientDataError) throw new Error(`Could not load restaurant ingredient inventory: ${ingredientDataError.message}`);
+  const ingredientStocktakeResults = view === "ingredients"
+    ? await Promise.all(locationIds.map((id) => supabase.from("restaurant_stocktakes").select("*")
+      .eq("org_id", context.orgId).eq("location_id", id).eq("inventory_type", "ingredient")
+      .order("created_at", { ascending: false }).limit(10)))
+    : [];
+  const ingredientStocktakesError = ingredientStocktakeResults.find((result) => result.error)?.error ?? null;
+  if (ingredientStocktakesError) throw new Error(`Could not load ingredient stocktake history: ${ingredientStocktakesError.message}`);
+  const ingredientStocktakes = ingredientStocktakeResults.flatMap((result) => result.data ?? []);
+  const stocktakeIds = ingredientStocktakes.map((stocktake) => stocktake.id);
+  const { data: ingredientStocktakeLines, error: ingredientStocktakeLinesError } = stocktakeIds.length > 0
+    ? await supabase.from("restaurant_stocktake_lines").select("*").eq("org_id", context.orgId)
+      .in("stocktake_id", stocktakeIds)
+    : { data: [], error: null };
+  if (ingredientStocktakeLinesError) throw new Error(`Could not load ingredient stocktake details: ${ingredientStocktakeLinesError.message}`);
   const todayDate = new Date();
   const today = todayDate.toISOString().slice(0, 10);
   const defaultFromDate = new Date(todayDate);
@@ -450,6 +464,8 @@ export default async function RestaurantPage({
       ingredientStocks={(ingredientStocks ?? []).filter((stock) => locationIds.includes(stock.location_id))}
       recipeIngredients={recipeIngredients ?? []}
       ingredientMovements={(ingredientMovements ?? []).filter((movement) => locationIds.includes(movement.location_id))}
+      ingredientStocktakes={ingredientStocktakes}
+      ingredientStocktakeLines={ingredientStocktakeLines ?? []}
       suppliers={ingredientSuppliers}
       purchaseOrders={purchaseOrders}
       purchaseItems={purchaseItems}

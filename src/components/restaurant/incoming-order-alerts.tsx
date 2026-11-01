@@ -17,23 +17,28 @@ const SOUND_SETTING = "restaurant-order-alert-sound-enabled";
 
 function playOrderChime(context: AudioContext) {
   const now = context.currentTime;
-  [880, 1174].forEach((frequency, index) => {
+  const masterGain = context.createGain();
+  masterGain.gain.setValueAtTime(0.85, now);
+  masterGain.connect(context.destination);
+  const frequencies = [880, 1174, 880, 1174, 880, 880, 1174, 880, 1174, 880];
+  frequencies.forEach((frequency, index) => {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    const start = now + index * 0.18;
-    oscillator.type = "sine";
+    const start = now + index * 0.2 + (index >= 5 ? 0.35 : 0);
+    oscillator.type = "triangle";
     oscillator.frequency.setValueAtTime(frequency, start);
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.16, start + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.24);
+    gain.gain.exponentialRampToValueAtTime(0.55, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.3);
     oscillator.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(masterGain);
     oscillator.onended = () => {
       oscillator.disconnect();
       gain.disconnect();
+      if (index === frequencies.length - 1) masterGain.disconnect();
     };
     oscillator.start(start);
-    oscillator.stop(start + 0.25);
+    oscillator.stop(start + 0.31);
   });
 }
 

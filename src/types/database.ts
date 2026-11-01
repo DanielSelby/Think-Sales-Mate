@@ -893,7 +893,7 @@ export interface Database {
           location_id: string;
           ingredient_id: string;
           order_id: string | null;
-          movement_type: "adjustment" | "consumption" | "purchase_receipt";
+          movement_type: "adjustment" | "consumption" | "purchase_receipt" | "waste";
           purchase_order_id: string | null;
           quantity_delta: number;
           balance_after: number;
@@ -907,7 +907,7 @@ export interface Database {
           location_id: string;
           ingredient_id: string;
           order_id?: string | null;
-          movement_type: "adjustment" | "consumption" | "purchase_receipt";
+          movement_type: "adjustment" | "consumption" | "purchase_receipt" | "waste";
           purchase_order_id?: string | null;
           quantity_delta: number;
           balance_after: number;
@@ -970,6 +970,56 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_packaged_item_movements"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_stocktakes: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          inventory_type: "ingredient" | "packaged";
+          item_count: number;
+          variance_count: number;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          inventory_type: "ingredient" | "packaged";
+          item_count: number;
+          variance_count: number;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_stocktakes"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_stocktake_lines: {
+        Row: {
+          id: string;
+          org_id: string;
+          stocktake_id: string;
+          ingredient_id: string | null;
+          menu_item_id: string | null;
+          expected_quantity: number;
+          counted_quantity: number;
+          variance: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          stocktake_id: string;
+          ingredient_id?: string | null;
+          menu_item_id?: string | null;
+          expected_quantity: number;
+          counted_quantity: number;
+          variance: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_stocktake_lines"]["Row"]>;
         Relationships: [];
       };
       restaurant_packaged_purchase_orders: {
@@ -5047,6 +5097,31 @@ export interface Database {
           p_created_by: string;
         };
         Returns: Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row"];
+      };
+      record_restaurant_ingredient_waste: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_ingredient_id: string;
+          p_quantity: number;
+          p_reason: string;
+          p_created_by: string;
+        };
+        Returns: Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"];
+      };
+      record_restaurant_stocktake: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_inventory_type: "ingredient" | "packaged";
+          p_counts: Json;
+          p_created_by: string;
+        };
+        Returns: Array<{
+          stocktake_id: string;
+          item_count: number;
+          variance_count: number;
+        }>;
       };
       get_restaurant_financial_summary: {
         Args: {

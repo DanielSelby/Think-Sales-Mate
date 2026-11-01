@@ -57,6 +57,18 @@ export default async function RestaurantPackagedItemsPage() {
   if (outstandingPurchaseOrderResult.error) {
     throw new Error(`Could not load outstanding packaged purchase orders: ${outstandingPurchaseOrderResult.error.message}`);
   }
+  const stocktakeResults = await Promise.all(locationIds.map((id) => supabase.from("restaurant_stocktakes").select("*")
+    .eq("org_id", context.orgId).eq("location_id", id).eq("inventory_type", "packaged")
+    .order("created_at", { ascending: false }).limit(10)));
+  const stocktakeError = stocktakeResults.find((result) => result.error)?.error;
+  if (stocktakeError) throw new Error(`Could not load packaged stocktake history: ${stocktakeError.message}`);
+  const stocktakes = stocktakeResults.flatMap((result) => result.data ?? []);
+  const stocktakeIds = stocktakes.map((stocktake) => stocktake.id);
+  const { data: stocktakeLines, error: stocktakeLinesError } = stocktakeIds.length
+    ? await supabase.from("restaurant_stocktake_lines").select("*").eq("org_id", context.orgId)
+      .in("stocktake_id", stocktakeIds)
+    : { data: [], error: null };
+  if (stocktakeLinesError) throw new Error(`Could not load packaged stocktake details: ${stocktakeLinesError.message}`);
   const purchaseOrderIds = [...new Set([
     ...(purchaseOrderResult.data ?? []).map((order) => order.id),
     ...(outstandingPurchaseOrderResult.data ?? []).map((order) => order.id),
@@ -79,6 +91,8 @@ export default async function RestaurantPackagedItemsPage() {
       outstandingPurchaseOrders={outstandingPurchaseOrderResult.data ?? []}
       outstandingPurchaseLines={(purchaseLines ?? []).filter((line) =>
         (outstandingPurchaseOrderResult.data ?? []).some((order) => order.id === line.purchase_order_id))}
+      stocktakes={stocktakes}
+      stocktakeLines={stocktakeLines ?? []}
       canCreatePurchases={await canTabPermission("restaurant", "operations", "ingredients", "create")}
       canReceivePurchases={await canTabPermission("restaurant", "operations", "ingredients", "edit")}
     />

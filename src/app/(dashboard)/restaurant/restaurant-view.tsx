@@ -19,6 +19,7 @@ import {
   createRestaurantCateringPrepTask,
   recordRestaurantCateringPayment,
   adjustRestaurantIngredientStock,
+  recordRestaurantIngredientWaste,
   saveRestaurantIngredientMinimumStock,
   recordRestaurantPayment,
   refundRestaurantPayment,
@@ -48,6 +49,8 @@ import {
 import { RestaurantMenuImporter } from "@/components/restaurant/restaurant-menu-importer";
 import { IncomingOrderAlerts } from "@/components/restaurant/incoming-order-alerts";
 import { RestaurantSupplierInvoiceAging, type RestaurantSupplierInvoiceAgingRow } from "@/components/restaurant/restaurant-supplier-invoice-aging";
+import { RestaurantStocktakeForm } from "@/components/restaurant/restaurant-stocktake-form";
+import { Dialog } from "@/components/ui/dialog";
 
 type Category = Database["public"]["Tables"]["restaurant_menu_categories"]["Row"];
 type MenuItem = Database["public"]["Tables"]["restaurant_menu_items"]["Row"];
@@ -95,6 +98,8 @@ type RestaurantIngredient = Database["public"]["Tables"]["restaurant_ingredients
 type RestaurantIngredientStock = Database["public"]["Tables"]["restaurant_ingredient_stock"]["Row"];
 type RestaurantRecipeIngredient = Database["public"]["Tables"]["restaurant_recipe_ingredients"]["Row"];
 type RestaurantIngredientMovement = Database["public"]["Tables"]["restaurant_ingredient_movements"]["Row"];
+type RestaurantStocktake = Database["public"]["Tables"]["restaurant_stocktakes"]["Row"];
+type RestaurantStocktakeLine = Database["public"]["Tables"]["restaurant_stocktake_lines"]["Row"];
 type RestaurantIngredientPurchaseOrder = Database["public"]["Tables"]["restaurant_ingredient_purchase_orders"]["Row"];
 type RestaurantIngredientPurchaseItem = Database["public"]["Tables"]["restaurant_ingredient_purchase_items"]["Row"];
 type RestaurantIngredientReceipt = Database["public"]["Tables"]["restaurant_ingredient_receipts"]["Row"];
@@ -229,6 +234,8 @@ export default function RestaurantView({
   ingredientStocks,
   recipeIngredients,
   ingredientMovements,
+  ingredientStocktakes,
+  ingredientStocktakeLines,
   suppliers,
   purchaseOrders,
   purchaseItems,
@@ -288,6 +295,8 @@ export default function RestaurantView({
   ingredientStocks: RestaurantIngredientStock[];
   recipeIngredients: RestaurantRecipeIngredient[];
   ingredientMovements: RestaurantIngredientMovement[];
+  ingredientStocktakes: RestaurantStocktake[];
+  ingredientStocktakeLines: RestaurantStocktakeLine[];
   suppliers: Array<{ id: string; name: string }>;
   purchaseOrders: RestaurantIngredientPurchaseOrder[];
   purchaseItems: RestaurantIngredientPurchaseItem[];
@@ -690,6 +699,8 @@ export default function RestaurantView({
         stocks={ingredientStocks}
         recipes={recipeIngredients}
         movements={ingredientMovements}
+        stocktakes={ingredientStocktakes}
+        stocktakeLines={ingredientStocktakeLines}
         suppliers={suppliers}
         purchaseOrders={purchaseOrders}
         purchaseItems={purchaseItems}
@@ -996,6 +1007,8 @@ function RestaurantIngredientManagement({
   stocks,
   recipes,
   movements,
+  stocktakes,
+  stocktakeLines,
   suppliers,
   purchaseOrders,
   purchaseItems,
@@ -1020,6 +1033,8 @@ function RestaurantIngredientManagement({
   stocks: RestaurantIngredientStock[];
   recipes: RestaurantRecipeIngredient[];
   movements: RestaurantIngredientMovement[];
+  stocktakes: RestaurantStocktake[];
+  stocktakeLines: RestaurantStocktakeLine[];
   suppliers: Array<{ id: string; name: string }>;
   purchaseOrders: RestaurantIngredientPurchaseOrder[];
   purchaseItems: RestaurantIngredientPurchaseItem[];
@@ -1313,6 +1328,29 @@ function RestaurantIngredientManagement({
             </ul>}
         </section>
 
+        {canEdit && <RestaurantStocktakeForm
+            key={`ingredient-stocktake:${locationId}`}
+            inventoryType="ingredient"
+            locationId={locationId}
+            locationName={locations.find((location) => location.id === locationId)?.name ?? "Selected branch"}
+            items={ingredients.filter((ingredient) => ingredient.is_active).map((ingredient) => ({
+              id: ingredient.id,
+              name: ingredient.name,
+              unit: ingredient.unit,
+              onHand: Number(stockAtLocation.find((stock) => stock.ingredient_id === ingredient.id)?.quantity ?? 0),
+            }))}
+            recentStocktakes={stocktakes.filter((stocktake) => stocktake.location_id === locationId)}
+            recentLines={stocktakeLines}
+        />}
+
+        {canEdit && <IngredientWasteForm
+            locationId={locationId}
+            ingredients={ingredients.filter((ingredient) => ingredient.is_active)}
+            stocks={stockAtLocation}
+            isPending={isPending}
+            onAction={onAction}
+        />}
+
         <section className="space-y-3 rounded-xl border bg-white p-4">
           <div>
             <h3 className="font-bold text-slate-950">Branch stock adjustments</h3>
@@ -1354,6 +1392,63 @@ function RestaurantIngredientManagement({
         </section>
       </>}
   </section>;
+}
+
+function IngredientWasteForm({
+  locationId,
+  ingredients,
+  stocks,
+  isPending,
+  onAction,
+}: {
+  locationId: string;
+  ingredients: RestaurantIngredient[];
+  stocks: RestaurantIngredientStock[];
+  isPending: boolean;
+  onAction: (work: () => Promise<unknown>, success: string) => Promise<boolean>;
+}) {
+  const [ingredientId, setIngredientId] = useState(ingredients[0]?.id ?? "");
+  const [quantity, setQuantity] = useState("");
+  const [reason, setReason] = useState("");
+  const available = Number(stocks.find((stock) => stock.ingredient_id === ingredientId)?.quantity ?? 0);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const saved = await onAction(() => recordRestaurantIngredientWaste({
+      locationId,
+      ingredientId,
+      quantity: Number(quantity),
+      reason,
+    }), "Ingredient waste recorded.");
+    if (saved) {
+      setQuantity("");
+      setReason("");
+    }
+  }
+
+  return <form onSubmit={submit} className="space-y-3 rounded-xl border border-red-200 bg-white p-4">
+    <div>
+      <h3 className="font-bold text-slate-950">Record ingredient waste</h3>
+      <p className="mt-1 text-xs text-slate-500">Waste reduces branch stock and is recorded separately from sales and adjustments.</p>
+    </div>
+    {ingredients.length === 0 ? <p className="text-sm text-slate-500">Add and activate an ingredient before recording waste.</p> : <>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="text-xs font-semibold text-slate-600">Ingredient
+          <select required value={ingredientId} onChange={(event) => setIngredientId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm">
+            {ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Quantity · {ingredients.find((ingredient) => ingredient.id === ingredientId)?.unit ?? ""}
+          <input required type="number" min="0.001" max={available} step="0.001" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Reason
+          <input required maxLength={200} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Spoiled, expired, spill..." className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" />
+        </label>
+      </div>
+      <p className="text-xs text-slate-500">Available at this branch: {available.toLocaleString(undefined, { maximumFractionDigits: 3 })} {ingredients.find((ingredient) => ingredient.id === ingredientId)?.unit ?? ""}</p>
+      <button type="submit" disabled={isPending || !ingredientId || Number(quantity) <= 0 || Number(quantity) > available} className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">Record waste</button>
+    </>}
+  </form>;
 }
 
 function IngredientStockAdjustmentForm({
@@ -1837,11 +1932,6 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
   const [imageUploadError, setImageUploadError] = useState("");
   const [prepStation, setPrepStation] = useState<PrepStation>("kitchen");
   const [itemType, setItemType] = useState<"prepared" | "packaged">("prepared");
-  const menuItemFormRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (itemId) menuItemFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [itemId]);
 
   function resetMenuItemForm() {
     setItemId(undefined);
@@ -1902,6 +1992,32 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
     }, "Menu item saved.");
   }
 
+  function renderMenuItemForm(isDialog: boolean) {
+    return <form onSubmit={submitItem} className={isDialog ? "max-h-[75vh] overflow-y-auto pr-1" : "rounded-xl border bg-white p-4"}>
+      {!isDialog && <h3 className="font-bold text-slate-950">{itemId ? "Edit menu item" : "Add menu item"}</h3>}
+      <div className={`${isDialog ? "grid gap-3 sm:grid-cols-2" : "mt-3 grid gap-3 sm:grid-cols-2"}`}>
+        <label className="text-xs font-semibold">Name<input required maxLength={120} value={itemName} onChange={(event) => setItemName(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold">SKU (optional)<input maxLength={80} value={itemSku} onChange={(event) => setItemSku(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold">Barcode (optional)<input maxLength={120} value={itemBarcode} onChange={(event) => setItemBarcode(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold">Price<input required type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold">Category<select value={itemCategoryId} onChange={(event) => setItemCategoryId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="">Uncategorized</option>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+        <label className="text-xs font-semibold">Item type<select value={itemType} onChange={(event) => setItemType(event.target.value as "prepared" | "packaged")} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="prepared">Prepared menu item</option><option value="packaged">Packaged item for resale</option></select></label>
+        <label className="text-xs font-semibold">Prep station<select value={prepStation} onChange={(event) => setPrepStation(event.target.value as PrepStation)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="kitchen">Kitchen</option><option value="bar">Bar</option><option value="dessert">Dessert</option></select></label>
+        <label className="text-xs font-semibold">Description<input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-semibold">Menu image (JPEG, PNG, or WebP; up to 5 MB)
+          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={imageUploading} onChange={(event) => { void handleMenuImageUpload(event.target.files?.[0]); event.currentTarget.value = ""; }} className="mt-1 block w-full rounded-lg border px-3 py-2 text-sm" />
+        </label>
+      </div>
+      {imageUploading && <p role="status" className="mt-2 text-xs text-slate-500">Uploading image…</p>}
+      {imageUploadError && <p role="alert" className="mt-2 text-xs text-red-700">{imageUploadError}</p>}
+      {imageUrl && <div className="mt-3 flex items-center gap-3"><Image src={imageUrl} alt="Menu item preview" width={80} height={80} unoptimized className="h-20 w-20 rounded-lg bg-slate-100 object-contain dark:bg-slate-800" /><button type="button" onClick={() => setImageUrl(null)} className="rounded border px-3 py-2 text-xs">Remove image</button></div>}
+      <div className="mt-4 flex justify-end gap-2">
+        {itemId && <button type="button" disabled={isPending} onClick={resetMenuItemForm} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">Cancel</button>}
+        <button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>
+      </div>
+    </form>;
+  }
+
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
       <section className="space-y-4">
@@ -1918,26 +2034,16 @@ function MenuManagement({ currency, categories, menuItems, modifierGroups, modif
             </div>}
           </article>
         ))}
-        {(canCreate || (itemId && canEdit)) && <form ref={menuItemFormRef} onSubmit={submitItem} className="rounded-xl border bg-white p-4">
-          <h3 className="font-bold text-slate-950">{itemId ? "Edit menu item" : "Add menu item"}</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="text-xs font-semibold">Name<input required maxLength={120} value={itemName} onChange={(event) => setItemName(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-            <label className="text-xs font-semibold">SKU (optional)<input maxLength={80} value={itemSku} onChange={(event) => setItemSku(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-            <label className="text-xs font-semibold">Barcode (optional)<input maxLength={120} value={itemBarcode} onChange={(event) => setItemBarcode(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-            <label className="text-xs font-semibold">Price<input required type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-            <label className="text-xs font-semibold">Category<select value={itemCategoryId} onChange={(event) => setItemCategoryId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="">Uncategorized</option>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-            <label className="text-xs font-semibold">Item type<select value={itemType} onChange={(event) => setItemType(event.target.value as "prepared" | "packaged")} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="prepared">Prepared menu item</option><option value="packaged">Packaged item for resale</option></select></label>
-            <label className="text-xs font-semibold">Prep station<select value={prepStation} onChange={(event) => setPrepStation(event.target.value as PrepStation)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"><option value="kitchen">Kitchen</option><option value="bar">Bar</option><option value="dessert">Dessert</option></select></label>
-            <label className="text-xs font-semibold">Description<input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-            <label className="text-xs font-semibold">Menu image (JPEG, PNG, or WebP; up to 5 MB)
-              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={imageUploading} onChange={(event) => { void handleMenuImageUpload(event.target.files?.[0]); event.currentTarget.value = ""; }} className="mt-1 block w-full rounded-lg border px-3 py-2 text-sm" />
-            </label>
-          </div>
-          {imageUploading && <p role="status" className="mt-2 text-xs text-slate-500">Uploading image…</p>}
-          {imageUploadError && <p role="alert" className="mt-2 text-xs text-red-700">{imageUploadError}</p>}
-          {imageUrl && <div className="mt-3 flex items-center gap-3"><Image src={imageUrl} alt="Menu item preview" width={80} height={80} unoptimized className="h-20 w-20 rounded-lg bg-slate-100 object-contain dark:bg-slate-800" /><button type="button" onClick={() => setImageUrl(null)} className="rounded border px-3 py-2 text-xs">Remove image</button></div>}
-          <div className="mt-3 flex gap-2"><button disabled={isPending || imageUploading} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isPending ? "Saving..." : itemId ? "Save item" : "Add item"}</button>{itemId && <button type="button" disabled={isPending} onClick={resetMenuItemForm} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">Cancel edit</button>}</div>
-        </form>}
+        {canCreate && !itemId && renderMenuItemForm(false)}
+        <Dialog
+          open={Boolean(itemId)}
+          onClose={resetMenuItemForm}
+          title="Edit menu item"
+          description="Update the menu item details, price, category, and image."
+          className="max-w-2xl"
+        >
+          {renderMenuItemForm(true)}
+        </Dialog>
       </section>
       <aside className="space-y-4">
         {canCreate && <RestaurantMenuImporter categories={categories} menuItems={menuItems} />}

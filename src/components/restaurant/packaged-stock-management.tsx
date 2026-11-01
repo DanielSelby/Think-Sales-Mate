@@ -9,6 +9,7 @@ import {
   saveRestaurantPackagedItemMinimumStock,
   transferRestaurantPackagedStock,
 } from "@/app/(dashboard)/restaurant/actions";
+import { RestaurantStocktakeForm } from "@/components/restaurant/restaurant-stocktake-form";
 import type { Database } from "@/types/database";
 
 type MenuItem = Database["public"]["Tables"]["restaurant_menu_items"]["Row"];
@@ -16,6 +17,8 @@ type Stock = Database["public"]["Tables"]["restaurant_packaged_item_stock"]["Row
 type Movement = Database["public"]["Tables"]["restaurant_packaged_item_movements"]["Row"];
 type PurchaseOrder = Database["public"]["Tables"]["restaurant_packaged_purchase_orders"]["Row"];
 type PurchaseLine = Database["public"]["Tables"]["restaurant_packaged_purchase_items"]["Row"];
+type Stocktake = Database["public"]["Tables"]["restaurant_stocktakes"]["Row"];
+type StocktakeLine = Database["public"]["Tables"]["restaurant_stocktake_lines"]["Row"];
 type Location = { id: string; name: string };
 type Supplier = { id: string; name: string };
 
@@ -35,6 +38,8 @@ export function PackagedStockManagement({
   purchaseLines,
   outstandingPurchaseOrders,
   outstandingPurchaseLines,
+  stocktakes,
+  stocktakeLines,
   canCreatePurchases,
   canReceivePurchases,
 }: {
@@ -48,6 +53,8 @@ export function PackagedStockManagement({
   purchaseLines: PurchaseLine[];
   outstandingPurchaseOrders: Array<Pick<PurchaseOrder, "id" | "location_id" | "status">>;
   outstandingPurchaseLines: PurchaseLine[];
+  stocktakes: Stocktake[];
+  stocktakeLines: StocktakeLine[];
   canCreatePurchases: boolean;
   canReceivePurchases: boolean;
 }) {
@@ -271,6 +278,20 @@ export function PackagedStockManagement({
           {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
           <button type="submit" disabled={isPending || !locations.length} className="w-full rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{isPending ? "Saving…" : "Update stock"}</button>
         </form> : <p className="h-fit rounded-xl border bg-white p-4 text-sm text-slate-600">You have read-only access to packaged stock.</p>}
+        {canAdjust && locationId && <RestaurantStocktakeForm
+          key={`packaged-stocktake:${locationId}`}
+          inventoryType="packaged"
+          locationId={locationId}
+          locationName={location?.name ?? "Selected branch"}
+          items={items.filter((entry) => entry.is_active).map((entry) => ({
+            id: entry.id,
+            name: entry.name,
+            unit: "units",
+            onHand: Number(stocks.find((stock) => stock.location_id === locationId && stock.menu_item_id === entry.id)?.quantity ?? 0),
+          }))}
+          recentStocktakes={stocktakes.filter((stocktake) => stocktake.location_id === locationId)}
+          recentLines={stocktakeLines}
+        />}
         <section className="space-y-3">
           <h2 className="font-bold text-slate-950">Branch stock balances</h2>
           {locations.length === 0 ? <p className="rounded-xl border bg-white p-4 text-sm text-slate-600">No accessible Restaurant branches.</p> : locations.map((branch) => (

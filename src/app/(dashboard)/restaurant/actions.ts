@@ -420,6 +420,71 @@ export async function recordRestaurantPackagedWaste(input: {
   revalidatePath("/restaurant/pos");
 }
 
+export async function recordRestaurantIngredientWaste(input: {
+  locationId: string;
+  ingredientId: string;
+  quantity: number;
+  reason: string;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot record ingredient waste at that branch.");
+  if (!validQuantity(input.quantity)) throw new Error("Waste quantity must be positive with up to three decimals.");
+  const reason = requiredText(input.reason, "Waste reason", 200);
+  const { error } = await createAdminClient().rpc("record_restaurant_ingredient_waste", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_ingredient_id: input.ingredientId,
+    p_quantity: input.quantity,
+    p_reason: reason,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not record ingredient waste: ${error.message}`);
+  revalidatePath("/restaurant");
+  revalidatePath("/restaurant/dashboard");
+}
+
+export async function recordRestaurantStocktake(input: {
+  locationId: string;
+  inventoryType: "ingredient" | "packaged";
+  counts: Array<{ itemId: string; countedQuantity: number }>;
+}) {
+  const context = await restaurantContext("ingredients", "edit");
+  if (!canUseLocation(context, input.locationId)) throw new Error("You cannot count stock at that branch.");
+  if (input.inventoryType !== "ingredient" && input.inventoryType !== "packaged") {
+    throw new Error("Choose a valid stocktake type.");
+  }
+  if (!Array.isArray(input.counts) || input.counts.length < 1 || input.counts.length > 500) {
+    throw new Error("A stocktake must include between 1 and 500 items.");
+  }
+  const seenItemIds = new Set<string>();
+  const counts = input.counts.map(({ itemId, countedQuantity }) => {
+    if (typeof itemId !== "string"
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(itemId)
+      || seenItemIds.has(itemId)
+      || !validQuantity(countedQuantity, true)
+      || countedQuantity > 99_999_999_999.999) {
+      throw new Error("Every stocktake line must have a unique item and a non-negative count to three decimal places.");
+    }
+    seenItemIds.add(itemId);
+    return { itemId, countedQuantity };
+  });
+  const { data, error } = await createAdminClient().rpc("record_restaurant_stocktake", {
+    p_org_id: context.orgId,
+    p_location_id: input.locationId,
+    p_inventory_type: input.inventoryType,
+    p_counts: counts,
+    p_created_by: context.userId,
+  });
+  if (error) throw new Error(`Could not record Restaurant stocktake: ${error.message}`);
+  const result = data?.[0];
+  if (!result) throw new Error("Restaurant stocktake did not return a confirmation.");
+  revalidatePath("/restaurant");
+  revalidatePath("/restaurant/packaged-items");
+  revalidatePath("/restaurant/dashboard");
+  revalidatePath("/restaurant/pos");
+  return { stocktakeId: result.stocktake_id, itemCount: result.item_count, varianceCount: result.variance_count };
+}
+
 export type RestaurantMenuImportRow = {
   name: string;
   sku: string;
