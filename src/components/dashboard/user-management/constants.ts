@@ -34,7 +34,7 @@ const pages = (items: Array<[string, string, Array<[string, string]>]>): Permiss
 /** Hierarchical registry for the optional Module -> Page -> Tab -> Action layer. */
 export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
   restaurant: pages([
-    ["operations", "Restaurant Operations", [["orders", "Orders"], ["kitchen", "Kitchen Display"], ["menu", "Menu Management"], ["tables", "Dining Tables"], ["reservations", "Reservations & Waitlist"], ["reports", "Reports & Analytics"], ["ingredients", "Ingredients & Recipes"]]]
+    ["operations", "Restaurant Operations", [["orders", "Orders"], ["kitchen", "Kitchen Display"], ["pos", "Restaurant POS"], ["menu", "Menu Management"], ["tables", "Dining Tables"], ["reservations", "Reservations & Waitlist"], ["reports", "Reports & Analytics"], ["ingredients", "Ingredients & Recipes"]]]
   ]),
   sales: pages([
     ["sales", "Sales", [["new_sales", "New Sales"], ["sales_history", "Sales History"], ["returns", "Returns"], ["reports", "Reports"], ["settings", "Settings"]]]
@@ -128,6 +128,108 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   ,{ key: "billing", name: "Billing", description: "Subscription, invoices, plan limits, and billing settings", iconName: "Receipt", supportedActions: ["view", "create", "edit", "export", "print"] }
   ,{ key: "team", name: "Team Management", description: "Team members, invitations, and organizational assignments", iconName: "Users2", supportedActions: ["view", "create", "edit", "delete", "export"] }
 ];
+
+const PERMISSION_MODULE_FEATURES: Record<string, string[]> = {
+  dashboard: ["Dashboard"],
+  approvals: ["Approval Center"],
+  sales: ["Sales"],
+  sales_drafts: ["Sales"],
+  pos: ["POS"],
+  restaurant: ["Restaurant"],
+  orders: ["Orders", "Customer Ordering"],
+  customer_ordering: ["Customer Ordering"],
+  products: ["Products"],
+  product_categories: ["Products"],
+  inventory: ["Stock Adjustment", "Stock Transfer", "Products"],
+  stock_adjustments: ["Stock Adjustment"],
+  stock_requests: ["Stock Transfer"],
+  price_management: ["Products"],
+  product_duplicates: ["Products"],
+  transfers: ["Stock Transfer"],
+  purchases: ["Purchases"],
+  expenses: ["Expenses"],
+  customers: ["CRM"],
+  suppliers: ["Purchases"],
+  accounting: ["Accounting"],
+  chart_of_accounts: ["Accounting"],
+  journal_entries: ["Accounting"],
+  bank_reconciliation: ["Accounting"],
+  receivables: ["Accounting"],
+  payables: ["Accounting", "Purchases"],
+  hrm_payroll: ["HRM & Payroll"],
+  payslips: ["HRM & Payroll"],
+  hrm_attendance: ["HRM & Payroll"],
+  hrm_leave: ["HRM & Payroll"],
+  hrm_recruitment: ["HRM & Payroll"],
+  hrm_training: ["HRM & Payroll"],
+  reports: ["Business Report"],
+  branch_reports: ["Business Report"],
+  forecasting: ["Business Report"],
+  user_management: ["Users", "User Management"],
+  banking: ["Accounting", "End Of Day Accounts"],
+  cash_closing: ["End Of Day Accounts"],
+  assets: ["Assets"],
+  projects: ["Projects"],
+  route_sales: ["Route Sales"],
+  ai: ["ThinkSales Ai Agent"],
+  communication: ["Communication"],
+  audit: ["Audit Center"],
+  fraud: ["Fraud & Anomaly Detection"],
+  offline: ["Offline Center"],
+  settings: ["Settings"],
+  company_settings: ["Settings"],
+  locations: ["Settings"],
+  currencies: ["Settings"],
+  integrations: ["Settings"],
+  billing: ["Billing"],
+  team: ["Users:Team Management"],
+};
+
+const RESTAURANT_TAB_FEATURES: Record<string, string[]> = {
+  orders: ["Orders & Kitchen"],
+  kitchen: ["Kitchen Display"],
+  pos: ["Restaurant POS"],
+  menu: ["Menu Management", "Online Ordering"],
+  tables: ["Dining Tables"],
+  reservations: ["Reservations"],
+  reports: ["Reports & Analytics"],
+  ingredients: ["Ingredients & Recipes", "Packaged Item Stock"],
+};
+
+function isPermissionFeatureEnabled(feature: string, enabledModules: readonly string[]): boolean {
+  return enabledModules.includes(feature) || enabledModules.some((module) => module.startsWith(`${feature}:`));
+}
+
+export function getOrganizationPermissionConfigs(enabledModules: readonly string[]) {
+  const modules = MODULE_CONFIGS.filter((module) =>
+    (PERMISSION_MODULE_FEATURES[module.key] ?? [module.name])
+      .some((feature) => isPermissionFeatureEnabled(feature, enabledModules))
+  );
+  const moduleKeys = new Set(modules.map((module) => module.key));
+  const pages = Object.fromEntries(
+    Object.entries(PERMISSION_PAGE_CONFIGS)
+      .filter(([moduleKey]) => moduleKeys.has(moduleKey))
+      .map(([moduleKey, modulePages]) => {
+        if (moduleKey !== "restaurant" || !enabledModules.includes("__children:Restaurant")) {
+          return [moduleKey, modulePages];
+        }
+        return [
+          moduleKey,
+          modulePages
+            .map((page) => ({
+              ...page,
+              tabs: page.tabs.filter((tab) =>
+                (RESTAURANT_TAB_FEATURES[tab.key] ?? [])
+                  .some((feature) => enabledModules.includes(`Restaurant:${feature}`))
+              ),
+            }))
+            .filter((page) => page.tabs.length > 0),
+        ];
+      })
+      .filter(([, modulePages]) => (modulePages as PermissionPageConfig[]).length > 0)
+  ) as Record<string, PermissionPageConfig[]>;
+  return { modules, pages };
+}
 
 export const DEPARTMENTS = [
   "Sales & Marketing",

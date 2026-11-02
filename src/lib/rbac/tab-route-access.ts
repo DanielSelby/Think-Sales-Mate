@@ -44,6 +44,9 @@ export function resolveTabRouteAccess(
   searchParams: URLSearchParams
 ): TabRouteAccess | null {
   if (isPathOrChild(pathname, "/restaurant")) {
+    if (isPathOrChild(pathname, "/restaurant/pos")) {
+      return { module: "restaurant", page: "operations", tab: "pos" };
+    }
     const selected = searchParams.get("view") ?? "orders";
     const tabByView: Record<string, string> = {
       orders: "orders",

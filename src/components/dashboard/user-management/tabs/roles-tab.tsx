@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PERMISSION_TEMPLATES } from "../constants";
-import type { RoleDefinition, ManagedUser } from "../types";
+import type { ModulePermissionConfig, RoleDefinition, ManagedUser } from "../types";
 import { THEMES, type ThemeKey } from "@/store/useAppStore";
 
 interface RolesTabProps {
@@ -31,6 +31,7 @@ interface RolesTabProps {
   users: ManagedUser[];
   canManage: boolean;
   restaurantOnlyOrganization?: boolean;
+  moduleConfigs?: ModulePermissionConfig[];
   onCreateRole: () => void;
   onApplyTemplate: (templateKey: string) => void;
   onEditRole: (role: RoleDefinition) => void;
@@ -47,6 +48,7 @@ export function RolesTab({
   users,
   canManage,
   restaurantOnlyOrganization = false,
+  moduleConfigs,
   onCreateRole,
   onApplyTemplate,
   onEditRole,
@@ -54,6 +56,7 @@ export function RolesTab({
   onDeleteRole,
   onFilterByRole, roleThemes, canManageThemes, onSaveRoleTheme
 }: RolesTabProps) {
+  const visibleModuleConfigs = moduleConfigs ?? [];
   return (
     <div className="space-y-6 rounded-2xl border border-ledger-200 bg-white p-4 dark:border-ledger-800 dark:bg-slate-950">
       
@@ -184,7 +187,7 @@ export function RolesTab({
                   <div className="flex flex-col p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-ledger-400">Permissions</span>
                     <span className="text-sm font-bold text-purple-600 dark:text-purple-400 mt-0.5">
-                      {Object.values(role.permissions).reduce((count, actions) => count + actions.length, 0)} permissions
+                      {visibleModuleConfigs.reduce((count, module) => count + (role.permissions[module.key]?.length ?? 0), 0)} permissions
                     </span>
                   </div>
                 </div>

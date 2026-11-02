@@ -4,19 +4,20 @@ import { useState } from "react";
 import { X, Shield, ShieldCheck, Check, Plus, AlertCircle, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MODULE_CONFIGS, PERMISSION_ACTIONS } from "../constants";
-import type { RoleDefinition, ModuleCategory, PermissionAction } from "../types";
+import { MODULE_CONFIGS } from "../constants";
+import type { ModulePermissionConfig, RoleDefinition, ModuleCategory, PermissionAction } from "../types";
 
 interface RoleModalProps {
   isOpen: boolean;
   onClose: () => void;
   roleToEdit: RoleDefinition | null;
   mode: "create" | "edit" | "clone";
+  moduleConfigs?: ModulePermissionConfig[];
   onSaveRole: (role: RoleDefinition) => Promise<{ error?: string } | void>;
 }
 
-function createDefaultPermissions(): Record<ModuleCategory, PermissionAction[]> {
-  return Object.fromEntries(MODULE_CONFIGS.map((module) => [module.key, ["view"]])) as Record<ModuleCategory, PermissionAction[]>;
+function createDefaultPermissions(moduleConfigs: ModulePermissionConfig[]): Record<ModuleCategory, PermissionAction[]> {
+  return Object.fromEntries(moduleConfigs.map((module) => [module.key, ["view"]])) as Record<ModuleCategory, PermissionAction[]>;
 }
 
 export function RoleModal({
@@ -24,15 +25,16 @@ export function RoleModal({
   onClose,
   roleToEdit,
   mode,
+  moduleConfigs = MODULE_CONFIGS,
   onSaveRole
 }: RoleModalProps) {
   const [name, setName] = useState(roleToEdit ? mode === "clone" ? `${roleToEdit.name} (Copy)` : roleToEdit.name : "");
   const [description, setDescription] = useState(roleToEdit?.description ?? "");
   const [scope, setScope] = useState<"all_branches" | "branch_specific">(roleToEdit?.scope ?? "branch_specific");
   const [permissions, setPermissions] = useState<Record<ModuleCategory, PermissionAction[]>>(() =>
-    roleToEdit ? JSON.parse(JSON.stringify(roleToEdit.permissions)) as Record<ModuleCategory, PermissionAction[]> : createDefaultPermissions()
+    roleToEdit ? JSON.parse(JSON.stringify(roleToEdit.permissions)) as Record<ModuleCategory, PermissionAction[]> : createDefaultPermissions(moduleConfigs)
   );
-  const [approvals, setApprovals] = useState(roleToEdit ? { ...roleToEdit.approvalCapabilities } : {
+  const [approvals, setApprovals] = useState<RoleDefinition["approvalCapabilities"]>(roleToEdit ? { ...roleToEdit.approvalCapabilities } : {
     stockTransfers: false,
     purchases: false,
     expenses: false,
@@ -57,7 +59,7 @@ export function RoleModal({
   };
 
   const toggleAllInModule = (moduleKey: ModuleCategory) => {
-    const config = MODULE_CONFIGS.find((m) => m.key === moduleKey);
+    const config = moduleConfigs.find((m) => m.key === moduleKey);
     if (!config) return;
 
     setPermissions((prev) => {
@@ -71,37 +73,42 @@ export function RoleModal({
   };
 
   const calculateTotalPermissions = () => {
-    return Object.values(permissions).reduce((acc, actions) => acc + actions.length, 0);
+    return moduleConfigs.reduce((total, module) => total + (permissions[module.key]?.length ?? 0), 0);
   };
 
+  const approvalItems = [
+    { key: "stockTransfers", label: "Stock Transfers", modules: ["transfers", "stock_requests"] },
+    { key: "purchases", label: "Purchases", modules: ["purchases"] },
+    { key: "expenses", label: "Expenses", modules: ["expenses"] },
+    { key: "priceUpdates", label: "Price Updates", modules: ["price_management"] },
+    { key: "stockAdjustments", label: "Stock Adjustments", modules: ["stock_adjustments", "inventory"] },
+  ] as const;
+  const visibleApprovalItems = approvalItems.filter((item) =>
+    moduleConfigs.some((module) => item.modules.some((key) => key === module.key))
+  );
+
   const handleGrantAll = () => {
-    const all: Record<ModuleCategory, PermissionAction[]> = {} as any;
-    MODULE_CONFIGS.forEach((m) => {
+    const all = { ...permissions };
+    moduleConfigs.forEach((m) => {
       all[m.key] = [...m.supportedActions];
     });
     setPermissions(all);
-    setApprovals({
-      stockTransfers: true,
-      purchases: true,
-      expenses: true,
-      priceUpdates: true,
-      stockAdjustments: true
-    });
+    setApprovals((current) => Object.fromEntries([
+      ...Object.entries(current),
+      ...visibleApprovalItems.map((item) => [item.key, true]),
+    ]) as RoleDefinition["approvalCapabilities"]);
   };
 
   const handleRevokeAll = () => {
-    const empty: Record<ModuleCategory, PermissionAction[]> = {} as any;
-    MODULE_CONFIGS.forEach((m) => {
+    const empty = { ...permissions };
+    moduleConfigs.forEach((m) => {
       empty[m.key] = [];
     });
     setPermissions(empty);
-    setApprovals({
-      stockTransfers: false,
-      purchases: false,
-      expenses: false,
-      priceUpdates: false,
-      stockAdjustments: false
-    });
+    setApprovals((current) => Object.fromEntries([
+      ...Object.entries(current),
+      ...visibleApprovalItems.map((item) => [item.key, false]),
+    ]) as RoleDefinition["approvalCapabilities"]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -220,31 +227,27 @@ export function RoleModal({
           </div>
 
           {/* Approvals checklist */}
-          <div className="rounded-xl border border-ledger-100 bg-slate-50/50 p-4 dark:border-ledger-800 dark:bg-slate-800/30">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Approval Capabilities</h3>
-              <span className="text-[11px] text-ledger-400">Allows users in this role to authorize high-value transactions</span>
+          {visibleApprovalItems.length > 0 && (
+            <div className="rounded-xl border border-ledger-100 bg-slate-50/50 p-4 dark:border-ledger-800 dark:bg-slate-800/30">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">Approval Capabilities</h3>
+                <span className="text-[11px] text-ledger-400">Allows users in this role to authorize high-value transactions</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {visibleApprovalItems.map((item) => (
+                  <label key={item.key} className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={approvals[item.key]}
+                      onChange={(e) => setApprovals({ ...approvals, [item.key]: e.target.checked })}
+                      className="h-3.5 w-3.5 rounded border-ledger-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-ink-900 dark:text-white">{item.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {[
-                { key: "stockTransfers", label: "Stock Transfers" },
-                { key: "purchases", label: "Purchases" },
-                { key: "expenses", label: "Expenses" },
-                { key: "priceUpdates", label: "Price Updates" },
-                { key: "stockAdjustments", label: "Stock Adjustments" }
-              ].map((item) => (
-                <label key={item.key} className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={(approvals as any)[item.key]}
-                    onChange={(e) => setApprovals({ ...approvals, [item.key]: e.target.checked })}
-                    className="h-3.5 w-3.5 rounded border-ledger-300 text-purple-600 focus:ring-purple-500"
-                  />
-                  <span className="text-ink-900 dark:text-white">{item.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Granular Module Permissions Matrix Checklist */}
           <div>
@@ -253,7 +256,7 @@ export function RoleModal({
                 <h3 className="text-xs font-bold uppercase tracking-wider text-ledger-400">
                   Module Permissions Checklist ({calculateTotalPermissions()} selected)
                 </h3>
-                <p className="text-[11px] text-ledger-400">Toggle individual action rights for each registered enterprise module</p>
+                <p className="text-[11px] text-ledger-400">Toggle action rights for modules enabled for this organization</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button type="button" size="sm" variant="outline" onClick={handleGrantAll} className="h-7 text-xs">
@@ -266,7 +269,7 @@ export function RoleModal({
             </div>
 
             <div className="space-y-2 border border-ledger-100 rounded-xl overflow-hidden dark:border-ledger-800">
-              {MODULE_CONFIGS.map((mod) => {
+              {moduleConfigs.map((mod) => {
                 const currentActions = permissions[mod.key] || [];
                 const isAllSelected = mod.supportedActions.every((a) => currentActions.includes(a));
 

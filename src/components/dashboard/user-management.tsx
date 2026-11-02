@@ -77,7 +77,10 @@ import type { BranchAccessRule } from "./user-management/types";
 import {
   DEFAULT_ROLES,
   DEPARTMENTS,
-  PERMISSION_TEMPLATES
+  PERMISSION_TEMPLATES,
+  MODULE_CONFIGS,
+  PERMISSION_PAGE_CONFIGS,
+  getOrganizationPermissionConfigs
 } from "./user-management/constants";
 
 import {
@@ -109,6 +112,7 @@ interface UserManagementProps {
   roleThemes?: Record<string, string>;
   canManageThemes?: boolean;
   restaurantOnlyOrganization?: boolean;
+  enabledModules?: string[];
 }
 
 export function UserManagement({
@@ -123,12 +127,19 @@ export function UserManagement({
   employeeNames = [],
   roleThemes = {},
   canManageThemes = false,
-  restaurantOnlyOrganization = false
+  restaurantOnlyOrganization = false,
+  enabledModules
 }: UserManagementProps) {
   const [, startTransition] = useTransition();
   const { setTheme } = useAppStore();
   const showAlert = useAppAlert();
   const [roleThemeState, setRoleThemeState] = useState<Record<string, string>>(roleThemes);
+  const permissionConfigs = useMemo(
+    () => enabledModules
+      ? getOrganizationPermissionConfigs(enabledModules)
+      : { modules: MODULE_CONFIGS, pages: PERMISSION_PAGE_CONFIGS },
+    [enabledModules]
+  );
 
   // Primary Data State
   const [branches] = useState<UserBranch[]>(
@@ -1216,6 +1227,7 @@ export function UserManagement({
             users={users}
             canManage={canManage}
             restaurantOnlyOrganization={restaurantOnlyOrganization}
+            moduleConfigs={permissionConfigs.modules}
             onCreateRole={() => {
               setSelectedRoleForModal(null);
               setRoleModalMode("create");
@@ -1271,7 +1283,10 @@ export function UserManagement({
         )}
 
         {activeTab === "permissions" && (
-          <PermissionsTab roles={roles} canManage={canManage}
+          <PermissionsTab
+            roles={roles}
+            canManage={canManage}
+            moduleConfigs={permissionConfigs.modules}
           />
         )}
 
@@ -1279,6 +1294,8 @@ export function UserManagement({
           <AccessMatrixTab
             roles={roles}
             canManage={canManage}
+            moduleConfigs={permissionConfigs.modules}
+            pageConfigs={permissionConfigs.pages}
             onUpdateRolePermissions={async (roleId, permissions) => {
               const updatedRole = roles.find((role) => role.id === roleId);
               const result = await saveRolePermissions(updatedRole?.key || roleId, permissions, updatedRole?.name);
@@ -1458,6 +1475,7 @@ export function UserManagement({
             setSelectedRoleForModal(null);
           }}
           roleToEdit={selectedRoleForModal}
+          moduleConfigs={permissionConfigs.modules}
           onSaveRole={async (saved) => {
             if (roles.some((role) => role.key === saved.key && role.id !== saved.id)) {
               await showAlert("A role with this key already exists. Choose a different name.", {

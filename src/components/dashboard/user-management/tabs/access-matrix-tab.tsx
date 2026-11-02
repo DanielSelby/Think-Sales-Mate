@@ -13,17 +13,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { resolveTabPermissionActions } from "@/lib/rbac/permission-matrix";
 import { MODULE_CONFIGS, PERMISSION_ACTIONS, PERMISSION_PAGE_CONFIGS } from "../constants";
-import type { RoleDefinition, ModuleCategory, PermissionAction } from "../types";
+import type { RoleDefinition, ModuleCategory, ModulePermissionConfig, PermissionAction, PermissionPageConfig } from "../types";
 
 interface AccessMatrixTabProps {
   roles: RoleDefinition[];
   canManage: boolean;
+  moduleConfigs?: ModulePermissionConfig[];
+  pageConfigs?: Record<string, PermissionPageConfig[]>;
   onUpdateRolePermissions: (roleId: string, permissions: Record<ModuleCategory, PermissionAction[]>) => Promise<{ error?: string } | void>;
 }
 
 export function AccessMatrixTab({
   roles,
   canManage,
+  moduleConfigs = MODULE_CONFIGS,
+  pageConfigs = PERMISSION_PAGE_CONFIGS,
   onUpdateRolePermissions
 }: AccessMatrixTabProps) {
   const [activeRoleKey, setActiveRoleKey] = useState<string>(roles[0]?.key || "administrator");
@@ -39,7 +43,7 @@ export function AccessMatrixTab({
   const [hasChanges, setHasChanges] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [activeTabModule, setActiveTabModule] = useState(Object.keys(PERMISSION_PAGE_CONFIGS)[0] ?? "sales");
+  const [activeTabModule, setActiveTabModule] = useState(Object.keys(pageConfigs)[0] ?? moduleConfigs[0]?.key ?? "sales");
   const [moduleSearch, setModuleSearch] = useState("");
   const [showExcelMatrix, setShowExcelMatrix] = useState(false);
 
@@ -84,9 +88,9 @@ export function AccessMatrixTab({
   };
 
   const getModulePages = (moduleKey: string) => {
-    const configured = PERMISSION_PAGE_CONFIGS[moduleKey];
+    const configured = pageConfigs[moduleKey];
     if (configured?.length) return configured;
-    const moduleConfig = MODULE_CONFIGS.find((item) => item.key === moduleKey);
+    const moduleConfig = moduleConfigs.find((item) => item.key === moduleKey);
     return [{
       key: moduleKey,
       name: moduleConfig?.name ?? moduleKey,
@@ -108,7 +112,7 @@ export function AccessMatrixTab({
 
   const handleGrantRow = (moduleKey: ModuleCategory) => {
     if (!canManage) return;
-    const config = MODULE_CONFIGS.find((m) => m.key === moduleKey);
+    const config = moduleConfigs.find((m) => m.key === moduleKey);
     if (!config) return;
 
     setMatrixData((prev) => {
@@ -161,7 +165,7 @@ export function AccessMatrixTab({
 
   const handleExportCsv = () => {
     const headers = ["Module", ...PERMISSION_ACTIONS.map((a) => a.label)];
-    const rows = MODULE_CONFIGS.map((m) => {
+    const rows = moduleConfigs.map((m) => {
       const current = activePermissions[m.key] || [];
       const flags = PERMISSION_ACTIONS.map((a) => {
         if (!m.supportedActions.includes(a.key)) return "N/A";
@@ -180,14 +184,14 @@ export function AccessMatrixTab({
     URL.revokeObjectURL(url);
   };
 
-  const filteredModules = MODULE_CONFIGS.filter((m) => {
+  const filteredModules = moduleConfigs.filter((m) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q);
   });
-  const actionModules = MODULE_CONFIGS.filter((module) => {
+  const actionModules = moduleConfigs.filter((module) => {
     const query = moduleSearch.trim().toLowerCase();
-    const hasPagePermissions = Boolean(PERMISSION_PAGE_CONFIGS[module.key]?.length);
+    const hasPagePermissions = Boolean(pageConfigs[module.key]?.length);
     return hasPagePermissions && (
       !query || module.name.toLowerCase().includes(query) || module.description.toLowerCase().includes(query)
     );
@@ -383,6 +387,7 @@ export function AccessMatrixTab({
       }
 
       {/* Page and tab-level action permissions. */}
+      {actionModules.length > 0 && (
       <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="max-h-[calc(100vh-14rem)] overflow-y-auto rounded-2xl border border-ledger-200 bg-white p-3 shadow-sm dark:border-ledger-800 dark:bg-slate-900">
           <h3 className="px-2 pb-2 text-sm font-bold text-ink-900 dark:text-white">Modules</h3>
@@ -417,7 +422,7 @@ export function AccessMatrixTab({
               </div>
               <div>
                 <h2 className="text-base font-bold text-ink-900 dark:text-white">
-                  {MODULE_CONFIGS.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} — Page &amp; Tab Permissions
+                  {moduleConfigs.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} — Page &amp; Tab Permissions
                 </h2>
                 <p className="text-xs text-ledger-500 dark:text-ledger-400">Control what actions this role can perform in each tab.</p>
               </div>
@@ -467,10 +472,11 @@ export function AccessMatrixTab({
           </div>
           <div className="mt-4 flex gap-2 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-100">
             <Shield className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>For assigned users, each tab uses its saved actions when customized. Otherwise, it inherits the broader {MODULE_CONFIGS.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} module permissions. Tab visibility is enforced on pages wired to these checks.</p>
+            <p>For assigned users, each tab uses its saved actions when customized. Otherwise, it inherits the broader {moduleConfigs.find((module) => module.key === activeTabModule)?.name ?? activeTabModule} module permissions. Tab visibility is enforced on pages wired to these checks.</p>
           </div>
         </section>
       </div>
+      )}
 
     </div>
   );

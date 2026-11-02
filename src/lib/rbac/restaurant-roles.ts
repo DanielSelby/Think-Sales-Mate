@@ -20,6 +20,7 @@ export const RESTAURANT_ROLE_PRESETS: RestaurantRolePreset[] = [
       restaurant: managerActions,
       "restaurant.operations.orders": managerActions,
       "restaurant.operations.kitchen": managerActions,
+      "restaurant.operations.pos": managerActions,
       "restaurant.operations.menu": managerActions,
       "restaurant.operations.tables": managerActions,
       "restaurant.operations.reservations": managerActions,
@@ -35,6 +36,7 @@ export const RESTAURANT_ROLE_PRESETS: RestaurantRolePreset[] = [
     permissions: {
       restaurant: ["view", "create", "edit", "print"],
       "restaurant.operations.orders": orderActions,
+      "restaurant.operations.pos": orderActions,
       "restaurant.operations.tables": view,
     },
   },

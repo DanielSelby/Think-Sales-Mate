@@ -6,6 +6,7 @@ import {
   resolveTabPermissionActions
 } from "./permission-matrix";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "./restaurant-roles";
+import { getOrganizationPermissionConfigs } from "@/components/dashboard/user-management/constants";
 
 describe("role permission inheritance", () => {
   it("uses the saved role template instead of an old unmarked member snapshot", () => {
@@ -105,5 +106,19 @@ describe("role permission inheritance", () => {
     expect(hasRestaurantModuleAccess(["__children:Restaurant", "Restaurant:Restaurant POS"])).toBe(true);
     expect(isRestaurantRoleKey("restaurant_server")).toBe(true);
     expect(isRestaurantRoleKey("accountant")).toBe(false);
+  });
+
+  it("limits the user-management permission catalogs to enabled organization modules and features", () => {
+    const { modules, pages } = getOrganizationPermissionConfigs([
+      "Dashboard",
+      "Restaurant",
+      "__children:Restaurant",
+      "Restaurant:Restaurant POS",
+      "Users",
+    ]);
+
+    expect(modules.map((module) => module.key)).toEqual(["dashboard", "restaurant", "user_management"]);
+    expect(pages.restaurant?.[0].tabs.map((tab) => tab.key)).toEqual(["pos"]);
+    expect(pages.sales).toBeUndefined();
   });
 });

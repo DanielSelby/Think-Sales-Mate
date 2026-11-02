@@ -273,6 +273,7 @@ export default async function OrganizationSettingsPage() {
         roleThemes={roleThemes}
         canManageThemes={canManageUsers}
         restaurantOnlyOrganization={restaurantOnlyOrganization}
+        enabledModules={enabledModules}
       />
     </div>
   );

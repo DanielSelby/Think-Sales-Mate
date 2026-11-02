@@ -13,6 +13,11 @@ describe("configured tab route access", () => {
       page: "operations",
       tab: "kitchen"
     });
+    expect(resolveTabRouteAccess("/restaurant/pos", new URLSearchParams())).toEqual({
+      module: "restaurant",
+      page: "operations",
+      tab: "pos"
+    });
     expect(resolveTabRouteAccess("/restaurant", new URLSearchParams("view=menu"))).toEqual({
       module: "restaurant",
       page: "operations",
