@@ -35,7 +35,7 @@ export default async function RestaurantPosPage() {
     supabase.from("restaurant_modifier_groups").select("*").eq("org_id", context.orgId).eq("is_active", true).order("created_at"),
     supabase.from("restaurant_modifier_options").select("*").eq("org_id", context.orgId).eq("is_active", true).order("created_at"),
     supabase.from("restaurant_tables").select("*").eq("org_id", context.orgId).eq("is_active", true).order("table_name"),
-    supabase.from("bank_accounts").select("id, name, account_type").eq("org_id", context.orgId).order("name"),
+    supabase.rpc("get_restaurant_pos_payment_accounts", { p_org_id: context.orgId }),
   ]);
   const error = [locationsError, categoriesError, menuError, packagedStockError, groupsError, optionsError, tablesError, bankAccountsError].find((item) => item);
   if (error) throw new Error(`Could not load restaurant POS: ${error.message}`);

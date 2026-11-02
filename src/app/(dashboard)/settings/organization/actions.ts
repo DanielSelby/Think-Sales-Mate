@@ -16,7 +16,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
 import { canGrantSuperAdminRole, isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
-import { assertOrganizationCapacity } from "@/lib/organizations/capacity";
+import { increasesOrganizationSeatUsage, withOrganizationCapacity } from "@/lib/organizations/capacity";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "@/lib/rbac/restaurant-roles";
 
@@ -159,67 +159,67 @@ export async function inviteMember(formData: FormData) {
     if (locationIds.some((id) => !validLocationIds.has(id))) return { error: "One or more selected branches are invalid." };
   }
   try {
-    await assertOrganizationCapacity(context.orgId, "users");
+    return await withOrganizationCapacity(context.orgId, "users", async () => {
+      const supabase = await createClient();
+      const invited = await sendOrganizationInvite(email, String(formData.get("name") ?? email.split("@")[0]), context.orgName);
+      if ("error" in invited) return invited;
+      const { data: member, error: memberError } = await supabase.from("organization_members").insert({
+        org_id: context.orgId,
+        user_id: invited.userId,
+        invited_email: email,
+        role,
+        status: "invited",
+        location_id: isSuperAdmin ? null : locationId || null,
+        branch_scope: isSuperAdmin ? "all" : branchScope as "all" | "assigned" | "single",
+        secondary_location_ids: isSuperAdmin ? [] : secondaryLocationIds,
+        phone: phone || null,
+        employee_id: employeeId || null,
+        department: department || null,
+        can_view_other_users_transactions: canViewOther,
+        can_check_cross_branch_stock: canCheckCrossBranchStock,
+        access_permissions: {
+          role_key: canonicalRoleKey(requestedRole),
+          permissions_mode: "inherit",
+          role_defaults_fallback: defaultPermissionMatrixForRole(requestedRole),
+          ...(approvalPermissions ? { approvals: approvalPermissions } : {})
+        },
+      }).select("id").single();
+
+      if (memberError) return { error: memberError.message };
+
+      let avatarUrl: string | null = null;
+      let warning: string | undefined;
+      if (avatar instanceof File && avatar.size > 0 && invited.userId) {
+        const extensionByType: Record<string, string> = {
+          "image/jpeg": "jpg",
+          "image/png": "png",
+          "image/webp": "webp",
+          "image/gif": "gif"
+        };
+        const extension = extensionByType[avatar.type] ?? "jpg";
+        const path = `${invited.userId}/profile.${extension}`;
+        const admin = createAdminClient();
+        const { error: uploadError } = await admin.storage.from("profile-avatars").upload(path, avatar, {
+          upsert: true,
+          contentType: avatar.type
+        });
+        if (uploadError) {
+          warning = `Invitation created, but profile photo upload failed: ${uploadError.message}`;
+        } else {
+          avatarUrl = admin.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
+          const { error: profileError } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("id", invited.userId);
+          if (profileError) {
+            warning = `Invitation created, but profile photo details could not be fully saved: ${profileError.message}`;
+          }
+        }
+      }
+
+      revalidatePath("/settings/organization");
+      return { success: true, memberId: member?.id, avatarUrl, warning };
+    });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not verify the organization's user limit." };
   }
-
-  const supabase = await createClient();
-  const invited = await sendOrganizationInvite(email, String(formData.get("name") ?? email.split("@")[0]), context.orgName);
-  if ("error" in invited) return invited;
-  const { data: member, error: memberError } = await supabase.from("organization_members").insert({
-    org_id: context.orgId,
-    user_id: invited.userId,
-    invited_email: email,
-    role,
-    status: "invited",
-    location_id: isSuperAdmin ? null : locationId || null,
-    branch_scope: isSuperAdmin ? "all" : branchScope as "all" | "assigned" | "single",
-    secondary_location_ids: isSuperAdmin ? [] : secondaryLocationIds,
-    phone: phone || null,
-    employee_id: employeeId || null,
-    department: department || null,
-    can_view_other_users_transactions: canViewOther,
-    can_check_cross_branch_stock: canCheckCrossBranchStock,
-    access_permissions: {
-      role_key: canonicalRoleKey(requestedRole),
-      permissions_mode: "inherit",
-      role_defaults_fallback: defaultPermissionMatrixForRole(requestedRole),
-      ...(approvalPermissions ? { approvals: approvalPermissions } : {})
-    },
-  }).select("id").single();
-
-  if (memberError) return { error: memberError.message };
-
-  let avatarUrl: string | null = null;
-  let warning: string | undefined;
-  if (avatar instanceof File && avatar.size > 0 && invited.userId) {
-    const extensionByType: Record<string, string> = {
-      "image/jpeg": "jpg",
-      "image/png": "png",
-      "image/webp": "webp",
-      "image/gif": "gif"
-    };
-    const extension = extensionByType[avatar.type] ?? "jpg";
-    const path = `${invited.userId}/profile.${extension}`;
-    const admin = createAdminClient();
-    const { error: uploadError } = await admin.storage.from("profile-avatars").upload(path, avatar, {
-      upsert: true,
-      contentType: avatar.type
-    });
-    if (uploadError) {
-      warning = `Invitation created, but profile photo upload failed: ${uploadError.message}`;
-    } else {
-      avatarUrl = admin.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
-      const { error: profileError } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("id", invited.userId);
-      if (profileError) {
-        warning = `Invitation created, but profile photo details could not be fully saved: ${profileError.message}`;
-      }
-    }
-  }
-
-  revalidatePath("/settings/organization");
-  return { success: true, memberId: member?.id, avatarUrl, warning };
 }
 
 /**
@@ -301,12 +301,6 @@ export async function createStaffAccount(formData: FormData) {
           ? "viewer"
           : "staff";
 
-  try {
-    await assertOrganizationCapacity(context.orgId, "users");
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not verify the organization's user limit." };
-  }
-
   const admin = createAdminClient();
   const { data: duplicateUsername, error: duplicateError } = await admin
     .from("organization_members")
@@ -328,6 +322,8 @@ export async function createStaffAccount(formData: FormData) {
     return { error: "One or more secondary branches are invalid." };
   }
 
+  try {
+    return await withOrganizationCapacity(context.orgId, "users", async () => {
   // Supabase Auth needs an email or phone for password accounts. Internal
   // emails are never shown to users and let username-only accounts use the
   // same secure password flow as normal email accounts.
@@ -430,7 +426,7 @@ export async function createStaffAccount(formData: FormData) {
 
   revalidatePath("/settings/organization");
   return {
-    success: true,
+    success: true as const,
     memberId: member.id,
     userId: authData.user.id,
     username,
@@ -439,6 +435,10 @@ export async function createStaffAccount(formData: FormData) {
     avatarUrl,
     warning
   };
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not verify the organization's user limit." };
+  }
 }
 
 export interface UpdateMemberAccessScopeInput {
@@ -479,7 +479,7 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
   const grantsSuperAdminAccess = targetOwner || isSuperAdminRole(input.role);
   const { data: member, error: memberError } = await admin
     .from("organization_members")
-    .select("user_id, role, access_permissions")
+    .select("user_id, role, status, access_permissions")
     .eq("id", input.memberId)
     .eq("org_id", context.orgId)
     .maybeSingle();
@@ -588,13 +588,23 @@ export async function updateMemberAccessScope(input: UpdateMemberAccessScopeInpu
     };
   }
 
-  const { error } = await (admin
-    .from("organization_members") as any)
-    .update(updatePayload)
-    .eq("id", input.memberId)
-    .eq("org_id", context.orgId);
-
-  if (error) return { error: error.message };
+  const updateMember = async () => {
+    const { error } = await (admin
+      .from("organization_members") as any)
+      .update(updatePayload)
+      .eq("id", input.memberId)
+      .eq("org_id", context.orgId);
+    if (error) throw new Error(error.message);
+  };
+  try {
+    if (increasesOrganizationSeatUsage(member.status, String(updatePayload.status ?? member.status))) {
+      await withOrganizationCapacity(context.orgId, "users", updateMember);
+    } else {
+      await updateMember();
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not update member access." };
+  }
 
   revalidatePath("/settings/organization");
   revalidatePath("/settings/users");
@@ -777,13 +787,32 @@ export async function updateMemberStatus(memberId: string, status: "active" | "s
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: member, error: memberError } = await supabase
     .from("organization_members")
-    .update({ status })
+    .select("status")
     .eq("id", memberId)
-    .eq("org_id", context.orgId);
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (memberError) return { error: memberError.message };
+  if (!member) return { error: "This organization member could not be found." };
 
-  if (error) return { error: error.message };
+  const updateStatus = async () => {
+    const { error } = await supabase
+      .from("organization_members")
+      .update({ status })
+      .eq("id", memberId)
+      .eq("org_id", context.orgId);
+    if (error) throw new Error(error.message);
+  };
+  try {
+    if (increasesOrganizationSeatUsage(member.status, status)) {
+      await withOrganizationCapacity(context.orgId, "users", updateStatus);
+    } else {
+      await updateStatus();
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not change member status." };
+  }
 
   revalidatePath("/settings/organization");
   return { success: true };
@@ -944,13 +973,6 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
       continue;
     }
 
-    try {
-      await assertOrganizationCapacity(context.orgId, "users");
-    } catch (error) {
-      skipped.push({ row: rowNumber, reason: error instanceof Error ? error.message : "Could not verify the organization's user limit." });
-      continue;
-    }
-
     const requestedRole = row.role.trim().toLowerCase() || "staff";
     const roleError = organizationRoleError(requestedRole, enabledModules);
     if (roleError) {
@@ -958,41 +980,44 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
       continue;
     }
     const isSuperAdmin = isSuperAdminRole(requestedRole);
-    const inviteResult = await sendOrganizationInvite(email, row.fullName?.trim() || email.split("@")[0], context.orgName);
-    if ("error" in inviteResult) {
-      skipped.push({ row: rowNumber, reason: inviteResult.error ?? "Invitation failed." });
-      continue;
-    }
-
     const fullName = row.fullName?.trim() || email.split("@")[0];
     const locationId = isSuperAdmin ? null : row.locationId || null;
-    const { data: member, error: memberError } = await supabase.from("organization_members").insert({
-      org_id: context.orgId,
-      user_id: inviteResult.userId,
-      invited_email: email,
-      role: databaseRole(requestedRole),
-      status: "invited",
-      location_id: locationId,
-      branch_scope: isSuperAdmin ? "all" : locationId ? "single" : "assigned",
-      phone: row.phone?.trim() || null,
-      employee_id: row.employeeId?.trim() || null,
-      department: row.department?.trim() || null,
-      can_view_other_users_transactions: true,
-      can_check_cross_branch_stock: isSuperAdmin,
-      access_permissions: {
-        role_key: canonicalRoleKey(requestedRole),
-        permissions_mode: "inherit",
-        role_defaults_fallback: defaultPermissionMatrixForRole(requestedRole)
-      }
-    }).select("id, created_at").single();
+    try {
+      const result = await withOrganizationCapacity(context.orgId, "users", async () => {
+        const inviteResult = await sendOrganizationInvite(email, fullName, context.orgName);
+        if ("error" in inviteResult) return { error: inviteResult.error ?? "Invitation failed." };
 
-    if (memberError) {
-      skipped.push({ row: rowNumber, reason: memberError.message });
-    } else {
+        const { data: member, error: memberError } = await supabase.from("organization_members").insert({
+          org_id: context.orgId,
+          user_id: inviteResult.userId,
+          invited_email: email,
+          role: databaseRole(requestedRole),
+          status: "invited",
+          location_id: locationId,
+          branch_scope: isSuperAdmin ? "all" : locationId ? "single" : "assigned",
+          phone: row.phone?.trim() || null,
+          employee_id: row.employeeId?.trim() || null,
+          department: row.department?.trim() || null,
+          can_view_other_users_transactions: true,
+          can_check_cross_branch_stock: isSuperAdmin,
+          access_permissions: {
+            role_key: canonicalRoleKey(requestedRole),
+            permissions_mode: "inherit",
+            role_defaults_fallback: defaultPermissionMatrixForRole(requestedRole)
+          }
+        }).select("id, created_at").single();
+
+        if (memberError) return { error: memberError.message };
+        return { member, userId: inviteResult.userId ?? null };
+      });
+
+      if ("error" in result) {
+        skipped.push({ row: rowNumber, reason: result.error ?? "Invitation failed." });
+      } else {
       invited++;
       members.push({
-        id: member.id,
-        userId: inviteResult.userId ?? null,
+        id: result.member.id,
+        userId: result.userId ?? null,
         email,
         fullName,
         role: requestedRole,
@@ -1000,7 +1025,13 @@ export async function bulkInviteMembers(rows: BulkInviteRow[]): Promise<BulkInvi
         phone: row.phone?.trim() || null,
         employeeId: row.employeeId?.trim() || null,
         department: row.department?.trim() || null,
-        createdAt: member.created_at
+        createdAt: result.member.created_at
+      });
+      }
+    } catch (error) {
+      skipped.push({
+        row: rowNumber,
+        reason: error instanceof Error ? error.message : "Could not verify the organization's user limit.",
       });
     }
   }

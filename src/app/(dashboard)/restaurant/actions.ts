@@ -7,7 +7,9 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { getCurrentProductEntitlement } from "@/lib/supabase/product-entitlements";
 import { assertRestaurantPackagedStockAvailable } from "@/lib/restaurant/packaged-stock";
+import { getRestaurantPosPaymentAccountIndexes } from "@/lib/restaurant/pos-payments";
 import { validatePosPaymentAccounts } from "@/lib/sales/pos-payment-accounts";
 import {
   sendRestaurantOrderEmail,
@@ -46,6 +48,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function restaurantContext(tab: RestaurantTab, action: "view" | "create" | "edit" | "delete") {
   const context = await getCurrentOrgContext();
   if (!context) throw new Error("Your session expired. Sign in again to continue.");
+  if (process.env.PRODUCT_ENTITLEMENTS_ENFORCED === "true") {
+    const entitlement = await getCurrentProductEntitlement("restaurant");
+    if (!entitlement.canWriteProductData) {
+      throw new Error("Your organization does not have an active Restaurant subscription for this action.");
+    }
+  }
   if (!(await getEnabledOrganizationModules(context.orgId)).includes("Restaurant")) {
     throw new Error("Restaurant Management is not enabled for this organization. Ask your Platform Admin to enable it.");
   }
@@ -1065,8 +1073,8 @@ export async function issueRestaurantCateringFinalInvoice(input: {
   dueDate: string;
 }) {
   const context = await restaurantContext("orders", "edit");
-  if (!await canPermission("accounting", "create")
-    || !await canTabPermission("accounting", "accounting", "receivables", "create")) {
+  if (!await canPermission("accounting", "create", undefined, "restaurant")
+    || !await canTabPermission("accounting", "accounting", "receivables", "create", undefined, "restaurant")) {
     throw new Error("You do not have permission to create Accounts Receivable invoices.");
   }
   const parsedDueDate = /^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)
@@ -1421,7 +1429,10 @@ export async function createRestaurantOrder(input: {
         && new Set(payments.map((payment) => payment.method)).size !== payments.length)) {
       throw new Error("Enter one to four valid payments with different methods.");
     }
-    const paymentAccountError = await validatePosPaymentAccounts(context.orgId, payments.filter((payment) => payment.amount > 0).map((payment) => ({
+    const requiredAccountIndexes = new Set(getRestaurantPosPaymentAccountIndexes(payments, input.payment.tipAmount));
+    const paymentAccountError = await validatePosPaymentAccounts(context.orgId, payments.filter((_, index) =>
+      requiredAccountIndexes.has(index)
+    ).map((payment) => ({
       paymentMethod: payment.method === "mobile_money" ? "MoMo" : payment.method,
       accountId: payment.accountId,
       amount: payment.amount,
@@ -1868,12 +1879,15 @@ export async function refundRestaurantPayment(input: {
   if (!order || !canUseLocation(context, order.location_id)) throw new Error("Restaurant order not found or not accessible.");
   if (order.status === "pending_payment") throw new Error("A pending online payment cannot be refunded.");
   const { data: payment, error: paymentError } = await admin.from("restaurant_order_payments")
-    .select("payment_provider").eq("org_id", context.orgId).eq("order_id", input.orderId)
+    .select("payment_provider, payment_method").eq("org_id", context.orgId).eq("order_id", input.orderId)
     .eq("id", input.paymentId).eq("payment_type", "payment").maybeSingle();
   if (paymentError) throw new Error(`Could not load original restaurant payment: ${paymentError.message}`);
   if (!payment) throw new Error("Original restaurant payment not found.");
   if (payment.payment_provider === "paystack") {
     throw new Error("Refund this Paystack transaction in the Paystack dashboard. This app does not submit provider refunds.");
+  }
+  if (input.method !== payment.payment_method) {
+    throw new Error("A refund must use the original payment method.");
   }
   const { error } = await admin.rpc("refund_restaurant_payment", {
     p_org_id: context.orgId,
@@ -2088,8 +2102,8 @@ export async function recordRestaurantIngredientSupplierPayment(input: {
     throw new Error("Enter a valid payment date that is not in the future.");
   }
   if (input.paymentMethod === "bank"
-    && (!await canPermission("banking", "edit")
-      || !await canTabPermission("banking", "banking", "accounts", "edit"))) {
+    && (!await canPermission("banking", "edit", undefined, "restaurant")
+      || !await canTabPermission("banking", "banking", "accounts", "edit", undefined, "restaurant"))) {
     throw new Error("You do not have permission to pay from a Bank Account.");
   }
 

@@ -11,6 +11,7 @@ import {
   deleteRestaurantPosDraft,
   saveRestaurantPosDraft,
 } from "@/app/(dashboard)/restaurant/actions";
+import { getRestaurantPosPaymentAccountIndexes } from "@/lib/restaurant/pos-payments";
 import type { Database } from "@/types/database";
 
 type MenuItem = Database["public"]["Tables"]["restaurant_menu_items"]["Row"];
@@ -406,9 +407,12 @@ export default function RestaurantPosView({
         setError(`Split payments must add up to the order total of ${money(total, currency)}.`);
         return;
       }
+      const requiredAccountIndexes = new Set(getRestaurantPosPaymentAccountIndexes(
+        splitPayments.map((payment, index) => ({ method: payment.method, amount: splitPaymentAmounts[index] })),
+        tipAmount,
+      ));
       const missingSplitAccount = splitPayments.find((payment, index) =>
-        splitPaymentAmounts[index] > 0
-        && needsBankAccount(payment.method)
+        requiredAccountIndexes.has(index)
         && !paymentAccountsFor(payment.method).some((account) => account.id === payment.accountId));
       if (missingSplitAccount) {
         setError(missingSplitAccount.method === "card"

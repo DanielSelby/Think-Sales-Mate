@@ -18,7 +18,7 @@ export default async function RestaurantLedgerPage() {
   if (!(await getEnabledOrganizationModules(context.orgId)).includes("Restaurant")) {
     redirect("/dashboard?moduleDisabled=Restaurant");
   }
-  if (!(await canTabPermission("accounting", "accounting", "settings", "view"))) {
+  if (!(await canTabPermission("accounting", "accounting", "settings", "view", undefined, "restaurant"))) {
     redirect("/dashboard?accessDenied=accounting");
   }
 
@@ -70,8 +70,8 @@ export default async function RestaurantLedgerPage() {
     difference: 0,
     status: "unreconciled",
   }));
-  const canEdit = await canPermission("accounting", "edit")
-    && await canTabPermission("accounting", "accounting", "settings", "edit");
+  const canEdit = await canPermission("accounting", "edit", undefined, "restaurant")
+    && await canTabPermission("accounting", "accounting", "settings", "edit", undefined, "restaurant");
   const canEditBankMappings = await canPermission("banking", "edit")
     && await canTabPermission("banking", "banking", "accounts", "edit");
 

@@ -144,8 +144,8 @@ export async function saveRestaurantAccountMappings(input: {
 }): Promise<{ ok: boolean; error?: string }> {
   const context = await getCurrentOrgContext();
   if (!context
-    || !(await canPermission("accounting", "edit"))
-    || !(await canTabPermission("accounting", "accounting", "settings", "edit"))) {
+    || !(await canPermission("accounting", "edit", undefined, "restaurant"))
+    || !(await canTabPermission("accounting", "accounting", "settings", "edit", undefined, "restaurant"))) {
     return { ok: false, error: "You do not have permission to configure Restaurant accounting." };
   }
   if (!(await getEnabledOrganizationModules(context.orgId)).includes("Restaurant")) {

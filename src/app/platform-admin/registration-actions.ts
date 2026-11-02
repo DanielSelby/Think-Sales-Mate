@@ -137,8 +137,12 @@ export async function reviewOrganizationRegistration(formData: FormData): Promis
     }
     if (!updated) throw new Error("This registration is no longer awaiting review.");
     const app = createAdminClient();
-    const { error: appError } = await app.from("organizations").update({ registration_status: status }).eq("id", organization.organization_id);
-    if (appError) {
+    const { data: appUpdated, error: appError } = await app.rpc("review_organization_registration_products", {
+      p_organization_id: organization.organization_id,
+      p_registration_status: status,
+      p_reviewed_by: admin.id,
+    });
+    if (appError || !appUpdated) {
       const { error: rollbackError } = await platform.from("platform_organizations").update({
         status: "pending",
         registration_state: organization.registration_state,
@@ -149,7 +153,8 @@ export async function reviewOrganizationRegistration(formData: FormData): Promis
       }).eq("id", id).eq("status", decision === "approve" ? "active" : "rejected")
         .eq("registration_state", status);
       if (rollbackError) console.error(`[registration] Failed to restore pending review after application database update failure: ${rollbackError.message}`);
-      throw new Error(`Could not update organization access: ${appError.message}`);
+      if (appError) throw new Error(`Could not update organization access and its product requests: ${appError.message}`);
+      throw new Error("This organization registration is no longer pending in the application database.");
     }
     if (reason) await addOwnerMessage(organization.organization_id, reason);
     await insertAudit(admin.id, organization.organization_id, status === "approved" ? "registration_approved" : "registration_rejected", { reason });
@@ -163,6 +168,49 @@ export async function reviewOrganizationRegistration(formData: FormData): Promis
   revalidatePath("/platform-admin/registrations");
   revalidatePath("/platform-admin");
   return { notification };
+}
+
+export async function reviewOrganizationProductRequest(formData: FormData): Promise<void> {
+  const admin = await requireRegistrationManager();
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const productSlug = String(formData.get("productSlug") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  if (!organizationId || !productSlug || (decision !== "approved" && decision !== "declined")) {
+    throw new Error("Invalid product request review.");
+  }
+
+  const app = createAdminClient();
+  const { data: organization, error: organizationError } = await app
+    .from("organizations")
+    .select("id, registration_status")
+    .eq("id", organizationId)
+    .single();
+  if (organizationError) throw new Error(`Could not load product request organization: ${organizationError.message}`);
+  if (organization.registration_status !== "approved") {
+    throw new Error("Product add-on requests can only be reviewed after organization approval.");
+  }
+
+  const reviewedAt = new Date().toISOString();
+  const { data: request, error: requestError } = await app
+    .from("organization_product_requests")
+    .update({
+      request_status: decision,
+      reviewed_at: reviewedAt,
+      reviewed_by: admin.id,
+    })
+    .eq("organization_id", organizationId)
+    .eq("product_slug", productSlug)
+    .eq("request_status", "pending")
+    .select("product_slug")
+    .maybeSingle();
+  if (requestError) throw new Error(`Could not update product request: ${requestError.message}`);
+  if (!request) throw new Error("This product request is no longer awaiting review.");
+
+  await insertAudit(admin.id, organizationId, `organization_product_request_${decision}`, {
+    product_slug: productSlug,
+  });
+  revalidatePath("/platform-admin/registrations");
+  revalidatePath("/settings/products");
 }
 
 export async function reviewOrganizationRegistrationForm(formData: FormData): Promise<void> {

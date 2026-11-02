@@ -137,12 +137,100 @@ follow the assigned subscription plan; if the plan has no limit, the resource
 is unlimited. The Platform Admin alert bell receives new platform notifications
 through Supabase Realtime; administrators can enable its synthesized chime from
 the bell menu after a browser interaction.
+Apply `supabase/migrations/20261102160000_organization_capacity_reservations.sql`
+to the application database before deploying capacity-checked member and branch
+creation. The reservation RPC serializes concurrent additions and automatically
+expires abandoned reservations. Reactivating a suspended member also reserves a
+seat because active and invited members count against the configured limit.
 
 For Modern Green login themes, apply
 `supabase/platform-migrations/0011_login_theme_form_background.sql` and
 `supabase/platform-migrations/0012_login_theme_background_visibility.sql` to
 the separate Platform Admin database to enable separate form background
 artwork, transparent form surfaces, and artwork visibility settings.
+
+### Product subscriptions and entitlements
+
+Product subscriptions are managed per organization in Platform Admin. Product
+plans are derived from the product-entitling modules included in each
+subscription plan; an organization can also have a manual product subscription
+without a plan.
+
+Before deploying the code that uses product subscriptions, apply
+`supabase/platform-migrations/0014_product_entitlements.sql` to the separate
+Platform Admin database, then apply
+`supabase/migrations/20261102100000_product_entitlement_projection.sql` to the
+application database. The Platform Admin migration backfills products and
+subscriptions from existing feature grants. Verify that pending projection
+events have synchronized before setting `PRODUCT_ENTITLEMENTS_ENFORCED=true`.
+Keep it `false` until both migrations and the backfill are verified.
+
+New organization registrations can request one or more published products.
+The request is saved with the pending application and shown to Platform Admin
+reviewers; it does not create a subscription, activate access, or trigger
+billing. Product requests start with feature grants disabled, so approval alone
+does not grant product access. Review approval, subscription activation, and
+feature grants remain separate steps.
+
+Apply `supabase/migrations/20261102140000_organization_product_requests.sql`
+after the entitlement projection migration and before deploying the product
+selection or add-on request flows. Owners of approved organizations can request
+additional products from Settings > Products & Access. Platform Admin can mark
+the request approved or declined; approval does not create a subscription or
+grant product feature access. After approval, a billing administrator must
+configure the product subscription in the organization subscription controls.
+Approving or rejecting a new organization registration also resolves its initial
+product requests in the application database transaction, preventing them from
+appearing later as duplicate add-on requests.
+Approved add-on requests remain approved while subscription activation is
+pending; duplicate requests are prevented until the product becomes accessible.
+Declined requests can be submitted again by the organization owner.
+Organization owners can review current seat and branch usage against the
+organization override or subscription-plan limits on the subscription status
+page. Invited members and all configured branches count toward the same limits
+used by capacity checks.
+Platform Admin users with product-management permission can inspect pending
+entitlement projections and retry failed events from the product catalog page.
+The scheduled sync endpoint continues to retry due events automatically.
+
+Platform Admin can manage display names, descriptions, and registration
+availability for the currently integrated products at `/platform-admin/products`.
+Unpublishing a product does not cancel subscriptions or revoke access. Adding a
+new product still requires application routes, permission mappings, subscription
+entitlement handling, and product feature configuration; catalog publication
+alone does not integrate a new product.
+See [docs/product-integration.md](./docs/product-integration.md) for the
+integration checklist and rollout requirements.
+
+Configure `PRODUCT_ENTITLEMENT_SYNC_SECRET` on the application and schedule
+`GET /api/cron/product-entitlements` with the header
+`Authorization: Bearer <secret>` to retry pending cross-database projections.
+Schedule it with the hosting provider's cron facility; no scheduler is
+configured by this repository. The endpoint returns `503` until its secret is
+configured. Do not expose the secret in client-side environment variables.
+
+Configure `PLATFORM_USAGE_SYNC_SECRET` and schedule
+`GET /api/cron/platform-usage` with the header
+`Authorization: Bearer <secret>`. This updates the Platform Admin AI usage
+metrics and measured organization usage. Active users, branches, active
+products, and customers are current counts. Orders, purchases, sales volume,
+AI request counts, and monthly activity cover the rolling last 30 days.
+The product count includes active ERP products and Restaurant menu items.
+Monthly activity is the count of orders plus purchases; linked customer orders
+are not double-counted, cancelled records are excluded, and ERP sales volume
+accounts for refunds. Restaurant sales volume uses non-cancelled order totals.
+API usage and storage are not estimated.
+The endpoint returns `503` until its secret is configured. Apply application migration
+`20261102173000_platform_ai_usage_snapshot.sql` and Platform Admin migration
+`0015_platform_ai_usage_snapshot.sql` before scheduling it.
+
+For Restaurant POS payment-account selection and refund consistency, apply
+`supabase/migrations/20261102110000_restaurant_pos_payment_access.sql` after
+the Restaurant POS payment-account migration. It adds a role-checked
+account-options RPC, enforces organization-matched payment accounts, and makes
+local refunds use the original tender and bank account. Split-payment account
+validation also covers the first tender when it receives a tip, even if its
+payment amount is zero.
 
 ## Validation
 

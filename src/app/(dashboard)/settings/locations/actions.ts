@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { canPermission } from "@/lib/rbac/permissions";
-import { assertOrganizationCapacity } from "@/lib/organizations/capacity";
+import { withOrganizationCapacity } from "@/lib/organizations/capacity";
 import type { LocationType } from "@/types/database";
 
 export async function createLocation(formData: FormData) {
@@ -27,40 +27,41 @@ export async function createLocation(formData: FormData) {
     return { error: "You don't have permission to add locations." };
   }
   if (!name) return { error: "Location name is required." };
+  const supabase = await createClient();
   try {
-    await assertOrganizationCapacity(context.orgId, "branches");
+    const result = await withOrganizationCapacity(context.orgId, "branches", async () => {
+      if (isPrimary) {
+        await supabase.from("business_locations").update({ is_primary: false }).eq("org_id", context.orgId);
+      }
+
+      const { error } = await supabase.from("business_locations").insert({
+        org_id: context.orgId,
+        name,
+        code: code || null,
+        location_type: locationType,
+        manager_name: managerName || null,
+        address: address || null,
+        city: city || null,
+        region: region || null,
+        country: country || null,
+        phone: phone || null,
+        email: email || null,
+        is_primary: isPrimary,
+        created_by: context.userId
+      });
+
+      if (error) {
+        return { error: error.code === "23505" ? `Location code "${code}" is already in use.` : error.message };
+      }
+      return { success: true };
+    });
+    if ("error" in result) return result;
+
+    revalidatePath("/settings/locations");
+    return result;
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not verify the organization's branch limit." };
   }
-
-  const supabase = await createClient();
-
-  if (isPrimary) {
-    await supabase.from("business_locations").update({ is_primary: false }).eq("org_id", context.orgId);
-  }
-
-  const { error } = await supabase.from("business_locations").insert({
-    org_id: context.orgId,
-    name,
-    code: code || null,
-    location_type: locationType,
-    manager_name: managerName || null,
-    address: address || null,
-    city: city || null,
-    region: region || null,
-    country: country || null,
-    phone: phone || null,
-    email: email || null,
-    is_primary: isPrimary,
-    created_by: context.userId
-  });
-
-  if (error) {
-    return { error: error.code === "23505" ? `Location code "${code}" is already in use.` : error.message };
-  }
-
-  revalidatePath("/settings/locations");
-  return { success: true };
 }
 
 export async function updateLocation(

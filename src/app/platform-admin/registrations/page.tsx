@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import {
   reviewOrganizationRegistrationForm,
+  reviewOrganizationProductRequest,
   retryRegistrationEmail,
   saveRegistrationNotificationSettings,
   sendRegistrationTestEmail,
@@ -19,9 +20,14 @@ export default async function OrganizationRegistrationsPage() {
   if (!platformRoleCanAccessPage(admin.role, admin.page_permissions, "registrations")) redirect("/platform-admin");
 
   const platform = createPlatformAdminClient();
-  const [{ data: applications, error: applicationsError }, { data: setting, error: settingError }, { data: deliveries, error: deliveriesError }] = await Promise.all([
+  const [
+    { data: applications, error: applicationsError },
+    { data: setting, error: settingError },
+    { data: deliveries, error: deliveriesError },
+    { data: products, error: productsError },
+  ] = await Promise.all([
     platform.from("platform_organizations")
-      .select("id, organization_id, name, owner_email, registration_state, registration_notes, info_requested_at, created_at")
+      .select("id, organization_id, name, owner_email, registration_state, registration_notes, requested_product_slugs, info_requested_at, created_at")
       .eq("status", "pending")
       .in("registration_state", ["pending", "information_requested"])
       .order("created_at", { ascending: true }),
@@ -30,20 +36,51 @@ export default async function OrganizationRegistrationsPage() {
       .select("id, organization_id, recipient, subject, status, error, attempts, updated_at")
       .order("created_at", { ascending: false })
       .limit(50),
+    platform.from("platform_products").select("slug, name"),
   ]);
-  if (applicationsError || settingError || deliveriesError) {
-    throw new Error(`Could not load registration administration: ${applicationsError?.message ?? settingError?.message ?? deliveriesError?.message}`);
+  if (applicationsError || settingError || deliveriesError || productsError) {
+    throw new Error(`Could not load registration administration: ${applicationsError?.message ?? settingError?.message ?? deliveriesError?.message ?? productsError?.message}`);
   }
+  const productNames = new Map<string, string>((products ?? []).map((product) => [product.slug, product.name]));
 
   const organizationIds = (applications ?? []).map((application) => application.organization_id);
   const app = createAdminClient();
-  const { data: messages, error: messagesError } = organizationIds.length
-    ? await app.from("organization_registration_messages")
+  const [
+    { data: messages, error: messagesError },
+    { data: productRequests, error: productRequestsError },
+  ] = await Promise.all([
+    organizationIds.length
+      ? app.from("organization_registration_messages")
       .select("organization_id, author_type, message, created_at")
       .in("organization_id", organizationIds)
       .order("created_at", { ascending: true })
-    : { data: [], error: null };
+      : Promise.resolve({ data: [], error: null }),
+    app.from("organization_product_requests")
+      .select("organization_id, product_slug, requested_at")
+      .eq("request_status", "pending")
+      .order("requested_at", { ascending: true }),
+  ]);
   if (messagesError) throw new Error(`Could not load owner registration responses: ${messagesError.message}`);
+  if (productRequestsError) throw new Error(`Could not load product requests: ${productRequestsError.message}`);
+  const requestedOrganizationIds = [...new Set((productRequests ?? []).map((request) => request.organization_id))];
+  const { data: productRequestOrganizations, error: productRequestOrganizationsError } = requestedOrganizationIds.length
+    ? await app.from("organizations")
+      .select("id, name, registration_status")
+      .in("id", requestedOrganizationIds)
+      .eq("registration_status", "approved")
+    : { data: [], error: null };
+  if (productRequestOrganizationsError) {
+    throw new Error(`Could not load organizations with product requests: ${productRequestOrganizationsError.message}`);
+  }
+  const approvedProductRequestOrganizations = new Map(
+    (productRequestOrganizations ?? []).map((organization) => [organization.id, organization]),
+  );
+  const pendingProductRequests = (productRequests ?? []).filter((request) =>
+    approvedProductRequestOrganizations.has(request.organization_id)
+  );
+  const productRequestOrganizationNames = new Map(
+    (productRequestOrganizations ?? []).map((organization) => [organization.id, organization.name]),
+  );
 
   const configuredRecipients = Array.isArray(setting?.value?.recipients)
     ? setting.value.recipients.filter((recipient): recipient is string => typeof recipient === "string").join(", ")
@@ -82,6 +119,18 @@ export default async function OrganizationRegistrationsPage() {
                 <h3 className="font-semibold">{application.name}</h3>
                 <p className="text-sm text-slate-600">{application.owner_email ?? "Owner email unavailable"}</p>
                 <p className="mt-1 text-xs capitalize text-blue-700">{application.registration_state.replaceAll("_", " ")}</p>
+                <p className="mt-3 text-xs font-semibold uppercase text-slate-500">Requested products</p>
+                {application.requested_product_slugs.length > 0 ? (
+                  <ul className="mt-1 flex flex-wrap gap-2">
+                    {application.requested_product_slugs.map((slug) => (
+                      <li key={slug} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-800">
+                        {productNames.get(slug) ?? slug}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">No product request was recorded.</p>
+                )}
               </div>
               <time className="text-xs text-slate-500">{new Date(application.created_at).toLocaleString()}</time>
             </div>
@@ -98,6 +147,43 @@ export default async function OrganizationRegistrationsPage() {
               <button name="decision" value="request_information" className="rounded-lg border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-900">Request information</button>
               <button name="decision" value="reject" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white">Reject</button>
             </form>
+          </article>
+        ))}
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Additional product requests ({pendingProductRequests.length})</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Approve or decline each request. Approval records authorization but does not activate a subscription or grant feature access.
+          </p>
+        </div>
+        {!pendingProductRequests.length && (
+          <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">No additional product requests are awaiting review.</p>
+        )}
+        {pendingProductRequests.map((request) => (
+          <article key={`${request.organization_id}-${request.product_slug}`} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5">
+            <div>
+              <h3 className="font-semibold">{productRequestOrganizationNames.get(request.organization_id) ?? "Organization"}</h3>
+              <p className="mt-1 text-sm text-slate-700">{productNames.get(request.product_slug) ?? request.product_slug}</p>
+              <time className="mt-1 block text-xs text-slate-500">{new Date(request.requested_at).toLocaleString()}</time>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <form action={reviewOrganizationProductRequest}>
+                <input type="hidden" name="organizationId" value={request.organization_id} />
+                <input type="hidden" name="productSlug" value={request.product_slug} />
+                <button name="decision" value="approved" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">
+                  Approve (activation still required)
+                </button>
+              </form>
+              <form action={reviewOrganizationProductRequest}>
+                <input type="hidden" name="organizationId" value={request.organization_id} />
+                <input type="hidden" name="productSlug" value={request.product_slug} />
+                <button name="decision" value="declined" className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700">
+                  Decline
+                </button>
+              </form>
+            </div>
           </article>
         ))}
       </section>

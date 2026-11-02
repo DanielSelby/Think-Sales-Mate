@@ -24,7 +24,7 @@ import { FeatureAccessManager } from "./feature-access-manager";
 import SupportCenter from "./support-center";
 import { formatMoney } from "@/lib/currency";
 import { LoginExperienceManager } from "./login-experience-manager";
-import OrganizationManagement, { type ManagedOrganization } from "./organization-management";
+import OrganizationManagement, { type ManagedOrganization, type ManagedProductSubscription } from "./organization-management";
 import { THEMES, useAppStore } from "@/store/useAppStore";
 import type { PlatformAdminPage } from "@/lib/platform-admin-pages";
 
@@ -194,7 +194,9 @@ export default function PlatformAdminConsole({
   logoUrl,
   organizations,
   managedOrganizations,
+  productSubscriptions,
   canManageOrganizations,
+  canManageProductSubscriptions,
   asOf,
   plans,
   features,
@@ -216,7 +218,9 @@ export default function PlatformAdminConsole({
   logoUrl: string;
   organizations: Organization[];
   managedOrganizations: ManagedOrganization[];
+  productSubscriptions: ManagedProductSubscription[];
   canManageOrganizations: boolean;
+  canManageProductSubscriptions: boolean;
   asOf: string;
   plans: Plan[];
   features: { organization_id: string; module: string; enabled: boolean; access_mode: "enabled" | "disabled" | "read_only"; permission_options?: Record<string, boolean>; updated_at?: string }[];
@@ -678,8 +682,10 @@ export default function PlatformAdminConsole({
           </>
         ) : tab === "Complaints & Support" ? <SupportCenter complaints={complaints} contacts={contacts} /> : tab === "Organizations" ? <OrganizationManagement
           organizations={managedOrganizations}
+          productSubscriptions={productSubscriptions}
           plans={plans}
           canManage={canManageOrganizations}
+          canManageProductSubscriptions={canManageProductSubscriptions}
           asOf={asOf}
           onEdit={(organizationId) => {
             const organization = organizations.find((item) => item.id === organizationId);

@@ -3,10 +3,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { syncOrganizationToPlatform } from "@/lib/supabase/platform-admin";
+import { getPublishedPlatformProducts, syncOrganizationToPlatform } from "@/lib/supabase/platform-admin";
 import { notifyRegistrationApplication } from "@/lib/organizations/registration-email";
 import { headers } from "next/headers";
 import { getRegistrationIpHash } from "@/lib/organizations/registration-rate-limit";
+import { parseRequestedProductSlugs, ProductSelectionError } from "@/lib/organizations/product-registration";
+import { getCurrentOrgContext } from "@/lib/organizations/current";
+import type { PlatformProductSlug } from "@/types/platform-database";
 
 function slugify(name: string) {
   return name
@@ -35,6 +38,19 @@ export async function createOrganization(formData: FormData): Promise<void> {
   if (!user) {
     redirectWithError("Your session expired — please sign in again.");
   }
+  if (await getCurrentOrgContext()) redirect("/dashboard");
+
+  const availableProducts = await getPublishedPlatformProducts();
+  let requestedProductSlugs: PlatformProductSlug[];
+  try {
+    requestedProductSlugs = parseRequestedProductSlugs(
+      formData.getAll("productSlugs"),
+      availableProducts.map((product) => product.slug),
+    );
+  } catch (error) {
+    if (error instanceof ProductSelectionError) redirectWithError(error.message);
+    throw error;
+  }
 
   // A brand-new user has no organization yet, so they can't satisfy the
   // "existing member" RLS check that every other org write goes through.
@@ -53,6 +69,7 @@ export async function createOrganization(formData: FormData): Promise<void> {
     p_name: name,
     p_slug: slug,
     p_ip_hash: ipHash,
+    p_product_slugs: requestedProductSlugs,
   });
   if (registrationError) {
     if (registrationError.message.includes("registration limit") || registrationError.message.includes("Too many workspace registrations")) {
@@ -72,6 +89,7 @@ export async function createOrganization(formData: FormData): Promise<void> {
       status: "pending",
       ownerUserId: user.id,
       ownerEmail: user.email ?? "",
+      requestedProductSlugs,
     });
   } catch (syncError) {
     console.error("Platform organization synchronization failed:", syncError);

@@ -6,6 +6,15 @@ export type PlatformRole =
   | "technical_administrator";
 
 export type PlatformModule = string;
+export type PlatformProductSlug = "thinksales-erp" | "restaurant";
+export type PlatformProductSubscriptionStatus =
+  | "pending"
+  | "trial"
+  | "active"
+  | "grace"
+  | "suspended"
+  | "expired"
+  | "cancelled";
 
 type PlatformTable<Row, Insert = Partial<Row>> = {
   Row: Row;
@@ -64,6 +73,7 @@ export interface PlatformDatabase {
            owner_email: string | null;
            registration_state: "pending" | "information_requested" | "approved" | "rejected";
            registration_notes: string | null;
+           requested_product_slugs: PlatformProductSlug[];
            info_requested_at: string | null;
            reviewed_by: string | null;
            reviewed_at: string | null;
@@ -88,6 +98,7 @@ export interface PlatformDatabase {
            owner_email?: string | null;
            registration_state?: "pending" | "information_requested" | "approved" | "rejected";
            registration_notes?: string | null;
+           requested_product_slugs?: PlatformProductSlug[];
            info_requested_at?: string | null;
            reviewed_by?: string | null;
            reviewed_at?: string | null;
@@ -107,6 +118,10 @@ export interface PlatformDatabase {
           monthly_price: number;
            annual_price: number | null;
            archived_at: string | null;
+           start_date: string | null;
+           end_date: string | null;
+           grace_period_days: number;
+           auto_suspend: boolean;
           ai_access: boolean;
           api_access: boolean;
           included_modules: string[];
@@ -122,6 +137,10 @@ export interface PlatformDatabase {
           monthly_price?: number;
            annual_price?: number | null;
            archived_at?: string | null;
+           start_date?: string | null;
+           end_date?: string | null;
+           grace_period_days?: number;
+           auto_suspend?: boolean;
           ai_access?: boolean;
           api_access?: boolean;
           included_modules?: string[];
@@ -173,6 +192,99 @@ export interface PlatformDatabase {
         permission_options?: Record<string, boolean>;
         updated_by?: string | null;
         updated_at?: string;
+      }>;
+      platform_products: PlatformTable<{
+        slug: PlatformProductSlug;
+        name: string;
+        description: string;
+        is_published: boolean;
+        created_at: string;
+        updated_at: string;
+      }, {
+        slug: PlatformProductSlug;
+        name: string;
+        description?: string;
+        is_published?: boolean;
+        created_at?: string;
+        updated_at?: string;
+      }>;
+      platform_plan_products: PlatformTable<{
+        plan_id: string;
+        product_slug: PlatformProductSlug;
+        created_at: string;
+      }, {
+        plan_id: string;
+        product_slug: PlatformProductSlug;
+        created_at?: string;
+      }>;
+      platform_product_features: PlatformTable<{
+        product_slug: PlatformProductSlug;
+        module: string;
+        is_product_entitling_feature: boolean;
+        created_at: string;
+      }, {
+        product_slug: PlatformProductSlug;
+        module: string;
+        is_product_entitling_feature?: boolean;
+        created_at?: string;
+      }>;
+      platform_organization_subscriptions: PlatformTable<{
+        id: string;
+        organization_id: string;
+        product_slug: PlatformProductSlug;
+        plan_id: string | null;
+        status: PlatformProductSubscriptionStatus;
+        current_period_start: string | null;
+        current_period_end: string | null;
+        trial_ends_at: string | null;
+        grace_ends_at: string | null;
+        cancel_at_period_end: boolean;
+        cancelled_at: string | null;
+        source: string;
+        version: number;
+        created_at: string;
+        updated_at: string;
+      }, {
+        id?: string;
+        organization_id: string;
+        product_slug: PlatformProductSlug;
+        plan_id?: string | null;
+        status: PlatformProductSubscriptionStatus;
+        current_period_start?: string | null;
+        current_period_end?: string | null;
+        trial_ends_at?: string | null;
+        grace_ends_at?: string | null;
+        cancel_at_period_end?: boolean;
+        cancelled_at?: string | null;
+        source?: string;
+        version?: number;
+        created_at?: string;
+        updated_at?: string;
+      }>;
+      platform_entitlement_outbox: PlatformTable<{
+        id: string;
+        subscription_id: string;
+        organization_id: string;
+        product_slug: PlatformProductSlug;
+        version: number;
+        payload: Record<string, unknown>;
+        attempts: number;
+        next_attempt_at: string;
+        last_error: string | null;
+        processed_at: string | null;
+        created_at: string;
+      }, {
+        id?: string;
+        subscription_id: string;
+        organization_id: string;
+        product_slug: PlatformProductSlug;
+        version: number;
+        payload: Record<string, unknown>;
+        attempts?: number;
+        next_attempt_at?: string;
+        last_error?: string | null;
+        processed_at?: string | null;
+        created_at?: string;
       }>;
       platform_plan_features: PlatformTable<{
         plan_id: string;
@@ -401,6 +513,23 @@ export interface PlatformDatabase {
     };
     Views: Record<string, never>;
     Functions: {
+      sync_platform_usage_snapshot: {
+        Args: {
+          p_snapshots: {
+            organization_id: string;
+            active_users: number;
+            branches: number;
+            products: number;
+            customers: number;
+            orders: number;
+            purchase_count: number;
+            sales_volume: number;
+            ai_usage: number;
+            monthly_activity: number;
+          }[];
+        };
+        Returns: number;
+      };
       claim_platform_registration_delivery: {
         Args: {
           p_dedupe_key: string;

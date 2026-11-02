@@ -8,7 +8,9 @@ import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 
 export async function markFraudAlerts(alertIds: string[], action: "reviewed" | "false_positive") {
   const context = await getCurrentOrgContext();
-  if (!context || !await canPermission("reports", "view")) return { error: "You do not have permission to update fraud alerts." };
+  if (!context || !await canPermission("reports", "view", undefined, "fraud")) {
+    return { error: "You do not have permission to update fraud alerts." };
+  }
   const supabase = await createClient();
   const results = await Promise.all(alertIds.map((entityId) => recordAuditEvent(supabase, {
     orgId: context.orgId,

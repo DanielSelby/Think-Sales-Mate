@@ -26,11 +26,16 @@ import {
 } from "lucide-react";
 import {
   setOrganizationFeatureAccess,
+  setOrganizationProductSubscription,
   updateOrganizationBusinessDetails,
   updatePlatformOrganization,
 } from "./actions";
 import { reviewOrganizationRegistration, type RegistrationReviewResult } from "./registration-actions";
-import type { PlatformModule } from "@/types/platform-database";
+import type {
+  PlatformModule,
+  PlatformProductSlug,
+  PlatformProductSubscriptionStatus,
+} from "@/types/platform-database";
 import { PLATFORM_MODULES } from "@/lib/platform-modules";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -65,12 +70,32 @@ export type ManagedOrganization = {
   branches: Array<{ id: string; name: string; country: string | null; is_active: boolean }>;
 };
 
+export type ManagedProductSubscription = {
+  organization_id: string;
+  product_slug: PlatformProductSlug;
+  plan_id: string | null;
+  status: PlatformProductSubscriptionStatus;
+  current_period_end: string | null;
+  trial_ends_at: string | null;
+  grace_ends_at: string | null;
+  cancel_at_period_end: boolean;
+};
+
 type Plan = { id: string; name: string; monthly_price: number; max_users: number | null; max_branches: number | null };
+type ProductSubscriptionDraft = {
+  status: PlatformProductSubscriptionStatus;
+  planId: string;
+  currentPeriodEnd: string;
+  graceEndsAt: string;
+  cancelAtPeriodEnd: boolean;
+};
 type TabKey = "all" | "pending" | "active" | "suspended" | "rejected" | "read_only" | "trial";
 type Props = {
   organizations: ManagedOrganization[];
+  productSubscriptions: ManagedProductSubscription[];
   plans: Plan[];
   canManage: boolean;
+  canManageProductSubscriptions: boolean;
   asOf: string;
   onOpenTab: (tab: "Billing & Subscriptions" | "Activity Logs" | "Impersonation", organizationId?: string) => void;
   onEdit: (organizationId: string) => void;
@@ -113,8 +138,10 @@ function registrationTimestamp(value: string) {
 
 export default function OrganizationManagement({
   organizations,
+  productSubscriptions,
   plans,
   canManage,
+  canManageProductSubscriptions,
   asOf,
   onOpenTab,
   onEdit,
@@ -137,6 +164,7 @@ export default function OrganizationManagement({
   const [message, setMessage] = useState<{ text: string; kind: "success" | "warning" | "error" } | null>(null);
   const [editedLimits, setEditedLimits] = useState<Record<string, { users: string; branches: string }>>({});
   const [businessEdits, setBusinessEdits] = useState<Record<string, { name: string; businessType: string; country: string }>>({});
+  const [productSubscriptionDrafts, setProductSubscriptionDrafts] = useState<Record<string, ProductSubscriptionDraft>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -208,6 +236,58 @@ export default function OrganizationManagement({
   const selectedLimitEdits = selected ? editedLimits[selected.id] : undefined;
   const userLimitInput = selectedLimitEdits?.users ?? (selected?.max_users_override?.toString() ?? "");
   const branchLimitInput = selectedLimitEdits?.branches ?? (selected?.max_branches_override?.toString() ?? "");
+  const defaultSubscriptionStatus: PlatformProductSubscriptionStatus = selected?.status === "pending"
+    ? "pending"
+    : selected?.status === "trial" ? "trial"
+      : selected?.status === "expired" ? "expired"
+        : selected?.status === "suspended" || selected?.status === "rejected" ? "suspended" : "active";
+  const getSubscriptionDraft = (productSlug: PlatformProductSlug): ProductSubscriptionDraft => {
+    const key = `${selected?.id ?? ""}:${productSlug}`;
+    const subscription = productSubscriptions.find((item) =>
+      item.organization_id === selected?.organization_id && item.product_slug === productSlug
+    );
+    return productSubscriptionDrafts[key] ?? {
+      status: subscription?.status ?? defaultSubscriptionStatus,
+      planId: subscription?.plan_id ?? "",
+      currentPeriodEnd: (subscription?.status === "trial"
+        ? subscription.trial_ends_at
+        : subscription?.current_period_end)?.slice(0, 10) ?? "",
+      graceEndsAt: subscription?.grace_ends_at?.slice(0, 10) ?? "",
+      cancelAtPeriodEnd: subscription?.cancel_at_period_end ?? false,
+    };
+  };
+  const updateSubscriptionDraft = (productSlug: PlatformProductSlug, update: Partial<ProductSubscriptionDraft>) => {
+    if (!selected) return;
+    const key = `${selected.id}:${productSlug}`;
+    setProductSubscriptionDrafts((current) => ({
+      ...current,
+      [key]: { ...getSubscriptionDraft(productSlug), ...update },
+    }));
+  };
+  const saveProductSubscription = (
+    event: React.FormEvent<HTMLFormElement>,
+    productSlug: PlatformProductSlug,
+  ) => {
+    event.preventDefault();
+    if (!selected) return;
+    const draft = getSubscriptionDraft(productSlug);
+    const endOfDay = (value: string) => value
+      ? new Date(`${value}T23:59:59.000Z`).toISOString()
+      : null;
+    void runAction(
+      () => setOrganizationProductSubscription({
+        organizationId: selected.organization_id,
+        productSlug,
+        planId: draft.planId || null,
+        status: draft.status,
+        currentPeriodEnd: endOfDay(draft.currentPeriodEnd),
+        trialEndsAt: draft.status === "trial" ? endOfDay(draft.currentPeriodEnd) : null,
+        graceEndsAt: endOfDay(draft.graceEndsAt),
+        cancelAtPeriodEnd: draft.cancelAtPeriodEnd,
+      }),
+      `${productSlug === "restaurant" ? "Restaurant" : "ThinkSales ERP"} subscription updated.`,
+    );
+  };
   const saveOrganizationLimits = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selected) return;
@@ -463,6 +543,92 @@ export default function OrganizationManagement({
               </p>
             )}
           </div>
+          {canManageProductSubscriptions && (
+            <div className="border-t border-slate-100 pt-4">
+              <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-700">Product Subscriptions</h3>
+              <p className="mb-3 text-[11px] leading-4 text-slate-500">
+                Product activation is manual. Feature grants and staff permissions remain separate.
+              </p>
+              <div className="space-y-3">
+                {([
+                  { slug: "thinksales-erp", name: "ThinkSales ERP" },
+                  { slug: "restaurant", name: "Restaurant" },
+                ] as const).map((product) => {
+                  const draft = getSubscriptionDraft(product.slug);
+                  return (
+                    <form
+                      key={product.slug}
+                      onSubmit={(event) => saveProductSubscription(event, product.slug)}
+                      className="space-y-2 rounded-lg border border-slate-200 p-3"
+                    >
+                      <h4 className="text-xs font-semibold text-slate-800">{product.name}</h4>
+                      <label className="block text-[10px] font-semibold text-slate-600">
+                        Subscription status
+                        <select
+                          value={draft.status}
+                          onChange={(event) => {
+                            const status = (["pending", "trial", "active", "grace", "suspended", "expired", "cancelled"] as const)
+                              .find((candidate) => candidate === event.target.value);
+                            if (status) updateSubscriptionDraft(product.slug, { status });
+                          }}
+                          className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-normal"
+                        >
+                          {(["pending", "trial", "active", "grace", "suspended", "expired", "cancelled"] as const).map((status) => (
+                            <option key={status} value={status}>{status.replaceAll("_", " ")}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-[10px] font-semibold text-slate-600">
+                        Product plan
+                        <select
+                          value={draft.planId}
+                          onChange={(event) => updateSubscriptionDraft(product.slug, { planId: event.target.value })}
+                          className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-normal"
+                        >
+                          <option value="">Manual / no plan</option>
+                          {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="block text-[10px] font-semibold text-slate-600">
+                        Billing period ends
+                        <input
+                          type="date"
+                          value={draft.currentPeriodEnd}
+                          onChange={(event) => updateSubscriptionDraft(product.slug, { currentPeriodEnd: event.target.value })}
+                          className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-normal"
+                        />
+                      </label>
+                      <label className="block text-[10px] font-semibold text-slate-600">
+                        Grace period ends
+                        <input
+                          type="date"
+                          value={draft.graceEndsAt}
+                          onChange={(event) => updateSubscriptionDraft(product.slug, { graceEndsAt: event.target.value })}
+                          className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-normal"
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={draft.cancelAtPeriodEnd}
+                          onChange={(event) => updateSubscriptionDraft(product.slug, { cancelAtPeriodEnd: event.target.checked })}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Cancel at the end of the billing period
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        className="w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                      >
+                        {busy ? "Saving..." : `Save ${product.name} subscription`}
+                      </button>
+                    </form>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="border-t border-slate-100 pt-4">
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-700">Quick Actions</h3>
             {canManage && <QuickAction label="Edit Organization" icon={<Eye className="h-4 w-4" />} onClick={() => onEdit(selected.id)} />}

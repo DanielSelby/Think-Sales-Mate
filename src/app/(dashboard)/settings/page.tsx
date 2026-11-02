@@ -9,7 +9,8 @@ import {
   CreditCard,
   Mail,
   ShoppingBag,
-  ShieldCheck
+  ShieldCheck,
+  PackageCheck
 } from "lucide-react";
 
 const SECTIONS = [
@@ -22,6 +23,7 @@ const SECTIONS = [
   { label: "Payments", desc: "Payment methods", href: "/settings/payments", icon: CreditCard },
   { label: "Email", desc: "Email templates", href: "/settings/email", icon: Mail },
   { label: "Customer Ordering", desc: "Storefront & order settings", href: "/settings/customer-ordering", icon: ShoppingBag },
+  { label: "Products & Access", desc: "Subscriptions and product requests", href: "/settings/products", icon: PackageCheck },
   { label: "Duplicate Product Control", desc: "Prevent duplicate catalog items", href: "/settings/products/duplicates", icon: ShieldCheck }
 ];
 

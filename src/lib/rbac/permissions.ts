@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
+import {
+  getRequiredProductSlugsForPermissionModule,
+  hasAnyRequiredProductAccess,
+} from "@/lib/product-entitlement-routes";
 import type { MemberRole } from "@/lib/rbac";
 import type { PermissionAction } from "@/lib/rbac";
 import {
@@ -57,14 +61,40 @@ export async function loadPermissionMatrix(
   );
 }
 
+async function hasProductAccessForPermissionModule(
+  orgId: string,
+  module: string,
+  action: PermissionAction,
+  page?: string,
+  tab?: string,
+): Promise<boolean> {
+  if (process.env.PRODUCT_ENTITLEMENTS_ENFORCED !== "true") return true;
+
+  const supabase = await createClient();
+  const requiredProducts = getRequiredProductSlugsForPermissionModule(module, page, tab);
+  const readableProducts = new Set<"thinksales-erp" | "restaurant">();
+  for (const productSlug of requiredProducts) {
+    const { data: hasAccess, error } = await supabase.rpc("has_product_access", {
+      p_organization_id: orgId,
+      p_product_slug: productSlug,
+      p_require_write: action !== "view",
+    });
+    if (error) throw new Error(`Could not verify product access for ${module}: ${error.message}`);
+    if (hasAccess) readableProducts.add(productSlug);
+  }
+  return hasAnyRequiredProductAccess(requiredProducts, readableProducts);
+}
+
 /** Server-side check using the signed-in user's active organization. */
 export async function canPermission(
   module: string,
   action: PermissionAction,
-  activeOrgId?: string
+  activeOrgId?: string,
+  productModule = module,
 ): Promise<boolean> {
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return false;
+  if (!await hasProductAccessForPermissionModule(context.orgId, productModule, action)) return false;
   if (context.role === "owner") return true;
   const matrix = await loadPermissionMatrix(context.orgId, context.role, context.accessPermissions);
   return hasPermission(matrix, module, action);
@@ -75,10 +105,12 @@ export async function canTabPermission(
   page: string,
   tab: string,
   action: PermissionAction,
-  activeOrgId?: string
+  activeOrgId?: string,
+  productModule = module,
 ): Promise<boolean> {
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return false;
+  if (!await hasProductAccessForPermissionModule(context.orgId, productModule, action, page, tab)) return false;
   if (context.role === "owner") return true;
   const matrix = await loadPermissionMatrix(context.orgId, context.role, context.accessPermissions);
   return hasTabPermission(matrix, module, page, tab, action);

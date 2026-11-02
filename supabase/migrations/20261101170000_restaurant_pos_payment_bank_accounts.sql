@@ -334,9 +334,12 @@ begin
   end if;
   if exists (
     select 1
-    from jsonb_array_elements(p_payments) as split_entries(entry)
+    from jsonb_array_elements(p_payments) with ordinality as split_entries(entry, payment_index)
     where (entry->>'method' in ('card', 'mobile_money')
-      and (entry->>'amount')::numeric > 0
+      and (
+        (entry->>'amount')::numeric > 0
+        or (payment_index = 1 and p_tip_amount > 0)
+      )
       and coalesce(entry->>'account_id', '') = '')
   ) then
     raise exception 'Select the bank account for each card or mobile-money payment.';

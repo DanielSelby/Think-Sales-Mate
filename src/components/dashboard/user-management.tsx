@@ -561,7 +561,7 @@ export function UserManagement({
       showToast(result.error);
       return result;
     }
-    if (!result.memberId) {
+    if (!("memberId" in result) || !result.memberId) {
       const error = "The account was created, but its organization membership could not be confirmed.";
       showToast(error);
       return { ...result, error };

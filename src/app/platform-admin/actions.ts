@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { getPlatformAdmin, platformRoleCan, requirePlatformAdminPage } from "@/lib/platform-auth";
 import { platformRoleCanAccessPage, type PlatformAdminPage } from "@/lib/platform-admin-pages";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
+import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { PlatformModule } from "@/types/platform-database";
+import { syncPendingProductEntitlements } from "@/lib/supabase/product-entitlements";
+import type {
+  PlatformModule,
+  PlatformProductSlug,
+  PlatformProductSubscriptionStatus,
+} from "@/types/platform-database";
 
 async function requirePlatformManagement(page: PlatformAdminPage = "Organizations") {
   const admin = await requirePlatformAdminPage(page);
@@ -271,12 +277,40 @@ export async function createSubscriptionPlan(input: {
     if (error.code === "23505") throw new Error(`A subscription plan named "${input.name.trim()}" already exists.`);
     throw new Error(`Could not create subscription plan: ${error.message}`);
   }
-  await supabase.from("platform_audit_logs").insert({
+  let productFeatures: Array<{ product_slug: PlatformProductSlug }> = [];
+  if (planValues.included_modules.length) {
+    const { data: featureRows, error: productFeaturesError } = await supabase
+      .from("platform_product_features")
+      .select("product_slug, module")
+      .eq("is_product_entitling_feature", true)
+      .in("module", planValues.included_modules);
+    if (productFeaturesError) {
+      const { error: rollbackError } = await supabase.from("subscription_plans").delete().eq("id", data.id);
+      throw new Error(rollbackError
+        ? `Plan was created but product assignments could not be loaded: ${productFeaturesError.message}; plan cleanup failed: ${rollbackError.message}`
+        : `Plan was not saved because product assignments could not be loaded: ${productFeaturesError.message}`);
+    }
+    productFeatures = featureRows ?? [];
+  }
+  const productSlugs = [...new Set(productFeatures.map((feature) => feature.product_slug))];
+  if (productSlugs.length) {
+    const { error: productAssignmentError } = await supabase.from("platform_plan_products").insert(
+      productSlugs.map((productSlug) => ({ plan_id: data.id, product_slug: productSlug })),
+    );
+    if (productAssignmentError) {
+      const { error: rollbackError } = await supabase.from("subscription_plans").delete().eq("id", data.id);
+      throw new Error(rollbackError
+        ? `Plan product assignments failed: ${productAssignmentError.message}; plan cleanup failed: ${rollbackError.message}`
+        : `Plan was not saved because product assignments failed: ${productAssignmentError.message}`);
+    }
+  }
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
     admin_id: admin.id,
     action: "subscription_plan_created",
     module: "subscription_plans",
-    metadata: { name: data.name },
+    metadata: { name: data.name, productSlugs },
   });
+  if (auditError) throw new Error(`Plan was created, but its audit record failed: ${auditError.message}`);
   revalidatePath("/platform-admin");
   return data;
 }
@@ -642,6 +676,207 @@ export async function setOrganizationFeature(organizationId: string, module: Pla
   });
   if (auditError) throw new Error(auditError.message);
   revalidatePath("/platform-admin");
+}
+
+export async function updatePlatformProductCatalog(formData: FormData): Promise<void> {
+  const { admin, supabase } = await requirePlatformManagement("Feature Access");
+  const slug = String(formData.get("slug") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const publishedValue = String(formData.get("isPublished") ?? "");
+  if (slug !== "thinksales-erp" && slug !== "restaurant") {
+    throw new Error("Choose a supported product.");
+  }
+  if (!name || name.length > 120 || description.length > 1000) {
+    throw new Error("Product name is required and descriptions must be no more than 1,000 characters.");
+  }
+  if (publishedValue !== "true" && publishedValue !== "false") {
+    throw new Error("Choose whether the product is published.");
+  }
+
+  const { data: previousProduct, error: loadError } = await supabase
+    .from("platform_products")
+    .select("name, description, is_published")
+    .eq("slug", slug)
+    .single();
+  if (loadError) throw new Error(`Could not load product catalog entry: ${loadError.message}`);
+
+  const isPublished = publishedValue === "true";
+  const { error } = await supabase
+    .from("platform_products")
+    .update({
+      name,
+      description,
+      is_published: isPublished,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("slug", slug);
+  if (error) throw new Error(`Could not update product catalog entry: ${error.message}`);
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "platform_product_catalog_updated",
+    module: "product_catalog",
+    metadata: {
+      product_slug: slug,
+      previous: previousProduct,
+      updated: { name, description, is_published: isPublished },
+    },
+  });
+  if (auditError) throw new Error(`Product catalog was updated, but its audit record failed: ${auditError.message}`);
+
+  revalidatePath("/platform-admin/products");
+  revalidatePath("/onboarding");
+  revalidatePath("/settings/products");
+}
+
+export async function retryProductEntitlementEvent(formData: FormData): Promise<void> {
+  const { admin, supabase } = await requirePlatformManagement("Feature Access");
+  const eventId = String(formData.get("eventId") ?? "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)) {
+    throw new Error("A valid entitlement event ID is required.");
+  }
+
+  const platformAdmin = createPlatformAdminClient();
+  const { data: event, error: eventError } = await platformAdmin
+    .from("platform_entitlement_outbox")
+    .update({ next_attempt_at: new Date().toISOString() })
+    .eq("id", eventId)
+    .is("processed_at", null)
+    .not("last_error", "is", null)
+    .select("id, organization_id, product_slug, version")
+    .maybeSingle();
+  if (eventError) throw new Error(`Could not schedule entitlement retry: ${eventError.message}`);
+  if (!event) throw new Error("This entitlement event is no longer failed and pending.");
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    organization_id: event.organization_id,
+    action: "product_entitlement_retry_requested",
+    module: "product_entitlements",
+    metadata: {
+      event_id: event.id,
+      product_slug: event.product_slug,
+      version: event.version,
+    },
+  });
+  if (auditError) throw new Error(`Entitlement retry was scheduled, but its audit record failed: ${auditError.message}`);
+
+  await syncPendingProductEntitlements(1, event.id);
+  revalidatePath("/platform-admin/products");
+}
+
+export async function setOrganizationProductSubscription(input: {
+  organizationId: string;
+  productSlug: PlatformProductSlug;
+  planId?: string | null;
+  status: PlatformProductSubscriptionStatus;
+  currentPeriodEnd?: string | null;
+  trialEndsAt?: string | null;
+  graceEndsAt?: string | null;
+  cancelAtPeriodEnd?: boolean;
+}) {
+  const { admin, supabase } = await requirePlatformPermission("manage_billing", "Billing & Subscriptions");
+  if (!input.organizationId || !["thinksales-erp", "restaurant"].includes(input.productSlug)) {
+    throw new Error("Choose an organization and a valid product.");
+  }
+  if (!["pending", "trial", "active", "grace", "suspended", "expired", "cancelled"].includes(input.status)) {
+    throw new Error("Choose a valid product subscription status.");
+  }
+  if (input.status === "trial" && !input.trialEndsAt) {
+    throw new Error("A trial end date is required for a trial subscription.");
+  }
+  if (input.cancelAtPeriodEnd !== undefined && typeof input.cancelAtPeriodEnd !== "boolean") {
+    throw new Error("Cancellation at period end must be a boolean value.");
+  }
+  for (const [label, value] of [
+    ["Current period end", input.currentPeriodEnd],
+    ["Trial end", input.trialEndsAt],
+    ["Grace end", input.graceEndsAt],
+  ] as const) {
+    if (value !== undefined && value !== null
+      && (typeof value !== "string" || !value.trim() || !Number.isFinite(Date.parse(value)))) {
+      throw new Error(`${label} must be a valid date.`);
+    }
+  }
+
+  const [{ data: organization, error: organizationError }, { data: product, error: productError }] = await Promise.all([
+    supabase.from("platform_organizations")
+      .select("organization_id, status, registration_state")
+      .eq("organization_id", input.organizationId)
+      .single(),
+    supabase.from("platform_products")
+      .select("slug")
+      .eq("slug", input.productSlug)
+      .single(),
+  ]);
+  if (organizationError) throw new Error(`Could not load organization: ${organizationError.message}`);
+  if (productError) throw new Error(`Could not load product: ${productError.message}`);
+  if (!product) throw new Error("Product is not registered.");
+  if (
+    (input.status === "active" || input.status === "trial")
+    && (organization.registration_state !== "approved"
+      || organization.status === "pending"
+      || organization.status === "rejected"
+      || organization.status === "suspended")
+  ) {
+    throw new Error("Approve and activate the organization before activating a product subscription.");
+  }
+
+  if (input.planId) {
+    const { data: planProduct, error: planProductError } = await supabase
+      .from("platform_plan_products")
+      .select("product_slug")
+      .eq("plan_id", input.planId)
+      .eq("product_slug", input.productSlug)
+      .maybeSingle();
+    if (planProductError) throw new Error(`Could not verify product plan: ${planProductError.message}`);
+    if (!planProduct) throw new Error("The selected plan does not include this product.");
+  }
+
+  const now = new Date().toISOString();
+  const { data: previousSubscription, error: previousSubscriptionError } = await supabase
+    .from("platform_organization_subscriptions")
+    .select("current_period_start")
+    .eq("organization_id", input.organizationId)
+    .eq("product_slug", input.productSlug)
+    .maybeSingle();
+  if (previousSubscriptionError) {
+    throw new Error(`Could not load the current product subscription: ${previousSubscriptionError.message}`);
+  }
+  const { data, error } = await supabase.from("platform_organization_subscriptions").upsert({
+    organization_id: input.organizationId,
+    product_slug: input.productSlug,
+    plan_id: input.planId ?? null,
+    status: input.status,
+    current_period_start: previousSubscription?.current_period_start ?? now,
+    current_period_end: input.currentPeriodEnd ?? null,
+    trial_ends_at: input.trialEndsAt ?? null,
+    grace_ends_at: input.graceEndsAt ?? null,
+    cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
+    cancelled_at: input.status === "cancelled" ? now : null,
+    source: "manual",
+    updated_at: now,
+  }, { onConflict: "organization_id,product_slug" })
+    .select("id, organization_id, product_slug, plan_id, status, current_period_start, current_period_end, trial_ends_at, grace_ends_at, cancel_at_period_end, cancelled_at, version")
+    .single();
+  if (error) throw new Error(`Could not update product subscription: ${error.message}`);
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    organization_id: organization.organization_id,
+    action: "product_subscription_updated",
+    module: "billing_subscriptions",
+    metadata: {
+      productSlug: input.productSlug,
+      status: input.status,
+      planId: input.planId ?? null,
+      version: data.version,
+    },
+  });
+  if (auditError) throw new Error(`Subscription was saved, but its audit record failed: ${auditError.message}`);
+  revalidatePath("/platform-admin");
+  return data;
 }
 
 export async function getOrganizationFeatures(organizationId: string) {

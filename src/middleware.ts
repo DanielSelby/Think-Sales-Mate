@@ -3,8 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { canonicalRoleKey, isTabVisible, resolveMemberPermissionMatrix } from "@/lib/rbac/permission-matrix";
 import { resolveTabRouteAccess } from "@/lib/rbac/tab-route-access";
+import { getRequiredProductSlugs, hasAnyRequiredProductAccess } from "@/lib/product-entitlement-routes";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/api/restaurant-order/", "/api/system-logo", "/mobile-scan/pair"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/mobile-scan/pair"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
@@ -48,6 +49,7 @@ export async function middleware(request: NextRequest) {
     response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
     return redirectResponse;
   };
+  const isApiRequest = pathname.startsWith("/api/");
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -66,6 +68,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!user && !isPublicPath) {
+    if (isApiRequest) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("next", request.nextUrl.pathname);
     return redirectWithAuthCookies(redirectUrl);
@@ -84,8 +87,11 @@ export async function middleware(request: NextRequest) {
   }
 
   const tabAccess = resolveTabRouteAccess(pathname, request.nextUrl.searchParams);
+  const requiredProducts = process.env.PRODUCT_ENTITLEMENTS_ENFORCED === "true"
+    ? getRequiredProductSlugs(pathname)
+    : null;
   const activeOrgId = request.cookies.get("active_org_id")?.value;
-  if (user && tabAccess) {
+  if (user && (tabAccess || requiredProducts)) {
     const { data: members, error: memberError } = await supabase
       .from("organization_members")
       .select("org_id, role, user_id, access_permissions, organizations(created_by, registration_status)")
@@ -94,6 +100,7 @@ export async function middleware(request: NextRequest) {
 
     if (memberError) {
       console.error("Tab permission member lookup failed:", memberError.message);
+      if (isApiRequest) return NextResponse.json({ error: "Unable to verify your access permissions." }, { status: 503 });
       return new NextResponse("Unable to verify your access permissions. Please try again.", { status: 503 });
     }
 
@@ -102,6 +109,34 @@ export async function middleware(request: NextRequest) {
       return organization?.registration_status === "approved";
     });
     const member = accessibleMembers.find((candidate) => candidate.org_id === activeOrgId) ?? accessibleMembers[0];
+    if (requiredProducts && !member) {
+      if (isApiRequest) return NextResponse.json({ error: "An approved organization membership is required." }, { status: 403 });
+      return redirectWithAuthCookies(new URL("/login", request.url));
+    }
+    if (member && requiredProducts) {
+      const readableProducts = new Set<"thinksales-erp" | "restaurant">();
+      for (const productSlug of requiredProducts) {
+        const { data: hasAccess, error: entitlementError } = await supabase.rpc("has_product_access", {
+          p_organization_id: member.org_id,
+          p_product_slug: productSlug,
+          p_require_write: request.method !== "GET" && request.method !== "HEAD",
+        });
+        if (entitlementError) {
+          console.error("Product entitlement lookup failed:", entitlementError.message);
+          if (isApiRequest) return NextResponse.json({ error: "Unable to verify your product access." }, { status: 503 });
+          return new NextResponse("Unable to verify your product access. Please try again.", { status: 503 });
+        }
+        if (hasAccess) readableProducts.add(productSlug);
+      }
+      if (!hasAnyRequiredProductAccess(requiredProducts, readableProducts)) {
+        if (isApiRequest) return NextResponse.json({ error: "This product is not available for your organization." }, { status: 403 });
+        const deniedUrl = new URL("/subscription-status", request.url);
+        deniedUrl.searchParams.set("product", requiredProducts.join(","));
+        return redirectWithAuthCookies(deniedUrl);
+      }
+    }
+
+    if (!tabAccess) return response;
     if (member) {
       const organization = Array.isArray(member.organizations) ? member.organizations[0] : member.organizations;
       const accessPermissions = (member.access_permissions ?? {}) as Record<string, unknown>;

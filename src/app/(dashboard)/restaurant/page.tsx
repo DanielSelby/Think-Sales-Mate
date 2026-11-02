@@ -421,8 +421,8 @@ export default async function RestaurantPage({
       cateringMenuPlans={cateringMenuPlans ?? []}
       cateringStaff={cateringStaff}
       cateringDataError={cateringDataErrorMessage}
-      canIssueCateringInvoices={await canPermission("accounting", "create")
-        && await canTabPermission("accounting", "accounting", "receivables", "create")}
+      canIssueCateringInvoices={await canPermission("accounting", "create", undefined, "restaurant")
+        && await canTabPermission("accounting", "accounting", "receivables", "create", undefined, "restaurant")}
       reportData={reportData}
       reportFrom={reportFrom}
       reportTo={reportTo}

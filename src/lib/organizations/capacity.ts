@@ -5,11 +5,11 @@ import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 
 type CapacityResource = "users" | "branches";
 
-export async function assertOrganizationCapacity(
-  organizationId: string,
-  resource: CapacityResource,
-  additional = 1,
-) {
+export function increasesOrganizationSeatUsage(currentStatus: string, nextStatus: string): boolean {
+  return currentStatus === "suspended" && nextStatus === "active";
+}
+
+async function getOrganizationCapacityLimit(organizationId: string, resource: CapacityResource) {
   const platform = createPlatformAdminClient();
   const { data: organization, error: organizationError } = await platform
     .from("platform_organizations")
@@ -30,14 +30,55 @@ export async function assertOrganizationCapacity(
     limit = plan ? resource === "users" ? plan.max_users : plan.max_branches : null;
   }
 
-  const app = createAdminClient();
-  const countQuery = resource === "users"
-    ? app.from("organization_members").select("id", { count: "exact", head: true }).eq("org_id", organizationId).in("status", ["active", "invited"])
-    : app.from("business_locations").select("id", { count: "exact", head: true }).eq("org_id", organizationId);
-  const { count, error: countError } = await countQuery;
-  if (countError) throw new Error(`Could not check current organization ${resource}: ${countError.message}`);
+  return limit;
+}
 
-  if (limit !== null && (count ?? 0) + additional > limit) {
-    throw new Error(`This organization has reached its ${resource} limit of ${limit}. Contact your Platform Admin to increase it.`);
+export async function withOrganizationCapacity<T>(
+  organizationId: string,
+  resource: CapacityResource,
+  operation: () => Promise<T>,
+  additional = 1,
+): Promise<T> {
+  if (!Number.isInteger(additional) || additional < 1) {
+    throw new Error("Additional organization capacity must be a positive integer.");
   }
+
+  const limit = await getOrganizationCapacityLimit(organizationId, resource);
+  if (limit === null) return operation();
+
+  const application = createAdminClient();
+  const { data: reservationId, error: reserveError } = await application.rpc("reserve_organization_capacity", {
+    p_organization_id: organizationId,
+    p_resource: resource,
+    p_limit: limit,
+    p_additional: additional,
+  });
+  if (reserveError) throw new Error(reserveError.message);
+  if (!reservationId) throw new Error("Could not reserve organization capacity.");
+
+  let result!: T;
+  let operationFailed = false;
+  let operationError: unknown;
+  try {
+    result = await operation();
+  } catch (error) {
+    operationFailed = true;
+    operationError = error;
+  }
+
+  const { error: releaseError } = await application.rpc("release_organization_capacity", {
+    p_reservation_id: reservationId,
+  });
+  if (releaseError) {
+    const operationMessage = operationFailed
+      ? operationError instanceof Error ? operationError.message : String(operationError)
+      : null;
+    throw new Error(
+      operationMessage
+        ? `Organization capacity reservation cleanup failed: ${releaseError.message}; operation also failed: ${operationMessage}`
+        : `Organization capacity was used, but its reservation cleanup failed: ${releaseError.message}`,
+    );
+  }
+  if (operationFailed) throw operationError;
+  return result;
 }

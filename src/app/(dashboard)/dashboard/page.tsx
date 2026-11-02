@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { getFinancialSummary, getRecentActivity, defaultDateRange, type DateRange } from "@/lib/accounting/metrics";
 import { createClient } from "@/lib/supabase/server";
@@ -39,6 +40,21 @@ export default async function DashboardPage({
   const filters = { locationId, category };
 
   const supabase = await createClient();
+  if (process.env.PRODUCT_ENTITLEMENTS_ENFORCED === "true") {
+    const { data: hasErpAccess, error: entitlementError } = await supabase.rpc("has_product_access", {
+      p_organization_id: context.orgId,
+      p_product_slug: "thinksales-erp",
+      p_require_write: false,
+    });
+    if (entitlementError) {
+      throw new Error(`Could not verify ERP dashboard access: ${entitlementError.message}`);
+    }
+    if (!hasErpAccess) {
+      const modules = await getEnabledOrganizationModules(context.orgId);
+      if (modules.includes("Restaurant")) redirect("/restaurant/dashboard");
+      redirect("/subscription-status?product=thinksales-erp");
+    }
+  }
 
   const [summary, recentActivity, { data: latestInsight }, { data: locationRows }, { data: categoryRows }] =
     await Promise.all([

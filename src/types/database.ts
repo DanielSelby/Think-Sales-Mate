@@ -144,6 +144,46 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organization_registration_attempts"]["Row"]>;
         Relationships: [];
       };
+      organization_product_requests: {
+        Row: {
+          organization_id: string;
+          product_slug: string;
+          requested_at: string;
+          request_status: "pending" | "approved" | "declined";
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+        };
+        Insert: {
+          organization_id: string;
+          product_slug: string;
+          requested_at?: string;
+          request_status?: "pending" | "approved" | "declined";
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_product_requests"]["Row"]>;
+        Relationships: [];
+      };
+      organization_capacity_reservations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          resource: "users" | "branches";
+          reserved_count: number;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          resource: "users" | "branches";
+          reserved_count: number;
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_capacity_reservations"]["Row"]>;
+        Relationships: [];
+      };
       organization_registration_messages: {
         Row: {
           id: string;
@@ -4340,6 +4380,48 @@ export interface Database {
           }
         ];
       };
+      organization_product_entitlements: {
+        Row: {
+          organization_id: string;
+          product_slug: string;
+          plan_id: string | null;
+          status: "pending" | "trial" | "active" | "grace" | "suspended" | "expired" | "cancelled";
+          current_period_start: string | null;
+          current_period_end: string | null;
+          trial_ends_at: string | null;
+          grace_ends_at: string | null;
+          cancel_at_period_end: boolean;
+          cancelled_at: string | null;
+          source: string;
+          source_version: number;
+          source_updated_at: string;
+          organization_status: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
+          registration_state: "pending" | "information_requested" | "approved" | "rejected";
+          organization_expires_at: string | null;
+          projected_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          product_slug: string;
+          plan_id?: string | null;
+          status: "pending" | "trial" | "active" | "grace" | "suspended" | "expired" | "cancelled";
+          current_period_start?: string | null;
+          current_period_end?: string | null;
+          trial_ends_at?: string | null;
+          grace_ends_at?: string | null;
+          cancel_at_period_end?: boolean;
+          cancelled_at?: string | null;
+          source: string;
+          source_version: number;
+          source_updated_at: string;
+          organization_status: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
+          registration_state: "pending" | "information_requested" | "approved" | "rejected";
+          organization_expires_at?: string | null;
+          projected_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_product_entitlements"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       public_product_catalog: {
@@ -4358,6 +4440,21 @@ export interface Database {
       };
     };
     Functions: {
+      get_platform_usage_snapshot: {
+        Args: { p_since: string };
+        Returns: {
+          organization_id: string;
+          active_users: number;
+          branches: number;
+          products: number;
+          customers: number;
+          orders: number;
+          purchase_count: number;
+          sales_volume: number;
+          ai_usage: number;
+          monthly_activity: number;
+        }[];
+      };
       place_customer_portal_order: {
         Args: {
           p_org_id: string;
@@ -4498,8 +4595,39 @@ export interface Database {
           p_name: string;
           p_slug: string;
           p_ip_hash?: string | null;
+          p_product_slugs: string[];
         };
         Returns: { organization_id: string; created: boolean }[];
+      };
+      review_organization_registration_products: {
+        Args: {
+          p_organization_id: string;
+          p_registration_status: "approved" | "rejected";
+          p_reviewed_by: string;
+        };
+        Returns: boolean;
+      };
+      reserve_organization_capacity: {
+        Args: {
+          p_organization_id: string;
+          p_resource: "users" | "branches";
+          p_limit: number;
+          p_additional?: number;
+        };
+        Returns: string;
+      };
+      release_organization_capacity: {
+        Args: {
+          p_reservation_id: string;
+        };
+        Returns: undefined;
+      };
+      request_organization_product: {
+        Args: {
+          p_organization_id: string;
+          p_product_slug: string;
+        };
+        Returns: string;
       };
       open_pos_register_sessions: {
         Args: {
@@ -4933,6 +5061,16 @@ export interface Database {
         };
         Returns: Database["public"]["Tables"]["restaurant_orders"]["Row"];
       };
+      get_restaurant_pos_payment_accounts: {
+        Args: {
+          p_org_id: string;
+        };
+        Returns: Array<{
+          id: string;
+          name: string;
+          account_type: BankAccountType;
+        }>;
+      };
       refund_restaurant_payment: {
         Args: {
           p_org_id: string;
@@ -5134,6 +5272,35 @@ export interface Database {
           p_user_id?: string | null;
         };
         Returns: Json;
+      };
+      apply_product_entitlement_projection: {
+        Args: {
+          p_organization_id: string;
+          p_product_slug: string;
+          p_plan_id: string | null;
+          p_status: "pending" | "trial" | "active" | "grace" | "suspended" | "expired" | "cancelled";
+          p_current_period_start: string | null;
+          p_current_period_end: string | null;
+          p_trial_ends_at: string | null;
+          p_grace_ends_at: string | null;
+          p_cancel_at_period_end: boolean;
+          p_cancelled_at: string | null;
+          p_source: string;
+          p_source_version: number;
+          p_source_updated_at: string;
+          p_organization_status: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
+          p_registration_state: "pending" | "information_requested" | "approved" | "rejected";
+          p_organization_expires_at: string | null;
+        };
+        Returns: boolean;
+      };
+      has_product_access: {
+        Args: {
+          p_organization_id: string;
+          p_product_slug: string;
+          p_require_write?: boolean;
+        };
+        Returns: boolean;
       };
     };
     Enums: {
