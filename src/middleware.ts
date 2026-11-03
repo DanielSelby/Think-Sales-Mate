@@ -5,7 +5,7 @@ import { canonicalRoleKey, isTabVisible, resolveMemberPermissionMatrix } from "@
 import { resolveTabRouteAccess } from "@/lib/rbac/tab-route-access";
 import { getRequiredProductSlugs, hasAnyRequiredProductAccess } from "@/lib/product-entitlement-routes";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/mobile-scan/pair"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/api/cron/platform-usage", "/mobile-scan/pair"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
