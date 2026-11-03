@@ -14,6 +14,7 @@ import type { ThemeKey } from "@/store/useAppStore";
 import { GlobalCallNotifications } from "@/components/communication/global-call-notifications";
 import type { PlatformWatermarkConfiguration } from "@/lib/platform-watermark";
 import { OrganizationExpiryWarning } from "@/components/organization/organization-access-expiry";
+import type { OrganizationUsageSummary } from "@/lib/organizations/usage-summary";
 
 interface Props {
   children: React.ReactNode;
@@ -35,9 +36,10 @@ interface Props {
   enabledModules?: string[];
   watermark?: PlatformWatermarkConfiguration | null;
   organizationAccessExpiresAt?: string | null;
+  organizationUsage: OrganizationUsageSummary | null;
 }
 
-export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
@@ -135,6 +137,8 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             allowedLocationIds={allowedLocationIds}
             canViewAllBranches={canViewAllBranches}
             canChangeTheme={canChangeTheme}
+            organizationUsage={organizationUsage}
+            organizationAccessExpiresAt={organizationAccessExpiresAt ?? null}
             onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           />
           <main

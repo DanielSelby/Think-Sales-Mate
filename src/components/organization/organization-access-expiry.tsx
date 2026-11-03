@@ -59,7 +59,7 @@ export function OrganizationExpiredScreen({
     <main className="org-expired-screen">
       <section className="org-expired-card" role="alert">
         <div className="org-expired-emblem"><AlertTriangle className="h-8 w-8" /></div>
-        <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-orange-700">ThinkSales workspace access</p>
+        <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-orange-700">Think-Digital Solutions Workspace Access</p>
         <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Access is paused</h1>
         <p className="mt-4 text-slate-700">
           Access for <strong>{organizationName}</strong> expired on <strong>{formatOrganizationExpiryDate(expiryDate)}</strong>.

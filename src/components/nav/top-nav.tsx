@@ -3,13 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen, Menu } from "lucide-react";
+import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen, Menu, Gauge, Users, CalendarDays } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { RefreshButton } from "@/components/refresh-button";
 import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/sales/format";
+import { formatOrganizationExpiryDate } from "@/lib/organization-access-expiry";
+import type { OrganizationUsageSummary } from "@/lib/organizations/usage-summary";
 
 const THEME_OPTIONS: { key: ThemeKey; label: string }[] = [
   { key: "fintech", label: "Fintech Blue" },
@@ -36,7 +38,7 @@ interface NotificationItem {
   location_id: string | null;
 }
 
-export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; onOpenMobileSidebar: () => void }) {
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, organizationUsage, organizationAccessExpiresAt, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; onOpenMobileSidebar: () => void }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -46,6 +48,8 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
   const [showThemes,        setShowThemes]        = useState(false);
   const [showUser,          setShowUser]          = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showOrganizationInfo, setShowOrganizationInfo] = useState(false);
+  const [hoverOrganizationInfo, setHoverOrganizationInfo] = useState(false);
   const [userName,         setUserName]         = useState(initialUserName ?? "");
   const [avatarUrl,        setAvatarUrl]        = useState<string | null>(initialAvatarUrl ?? null);
   const [userEmail] = useState(initialUserEmail);
@@ -197,6 +201,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
   const searchParams = useSearchParams();
   const [showBranches, setShowBranches] = useState(false);
   const [showCurrencies, setShowCurrencies] = useState(false);
+  const organizationInfoOpen = showOrganizationInfo || hoverOrganizationInfo;
 
   const selectBranch = (branch: { id: string; name: string } | null) => {
     setBranch(branch?.name ?? "all");
@@ -281,11 +286,71 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         <ShoppingCart className="h-4 w-4" />
         <span className="hidden sm:inline">POS</span>
       </Link>
+      <div
+        className="relative shrink-0"
+        onMouseEnter={() => setHoverOrganizationInfo(true)}
+        onMouseLeave={() => setHoverOrganizationInfo(false)}
+      >
+        <button
+          type="button"
+          aria-label="Organization capacity and expiry"
+          aria-expanded={organizationInfoOpen}
+          aria-controls="organization-capacity-popover"
+          title="Organization capacity and expiry"
+          onClick={() => setShowOrganizationInfo((open) => !open)}
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10"
+        >
+          <Gauge className="h-4 w-4" />
+        </button>
+        {organizationInfoOpen && (
+          <section
+            id="organization-capacity-popover"
+            role="region"
+            aria-label="Organization capacity and expiry"
+            className="absolute right-0 top-10 z-50 w-64 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          >
+            <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Organization capacity
+            </h2>
+            {organizationUsage ? <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-xs">
+                  <Users className="h-3.5 w-3.5 text-slate-500" />
+                  Users <span className="text-[10px] text-slate-500">(active + invited)</span>
+                </span>
+                <strong className="text-xs tabular-nums">
+                  {organizationUsage.members} / {organizationUsage.userLimit ?? "Unlimited"}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-xs">
+                  <Building2 className="h-3.5 w-3.5 text-slate-500" />
+                  Branches
+                </span>
+                <strong className="text-xs tabular-nums">
+                  {organizationUsage.branches} / {organizationUsage.branchLimit ?? "Unlimited"}
+                </strong>
+              </div>
+            </div> : <p className="text-xs text-slate-500 dark:text-slate-400">Organization capacity details are unavailable. Please refresh and try again.</p>}
+            <div className="mt-3 flex items-start justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <span className="flex items-center gap-2 text-xs">
+                <CalendarDays className="h-3.5 w-3.5 text-slate-500" />
+                Access expires
+              </span>
+              <strong className="text-right text-xs">
+                {organizationAccessExpiresAt
+                  ? formatOrganizationExpiryDate(organizationAccessExpiresAt)
+                  : "No expiry date"}
+              </strong>
+            </div>
+          </section>
+        )}
+      </div>
       {/* Branch Selector */}
       <div className="relative">
         <button
           disabled={branchOptions.length === 0}
-          onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
+          onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex shrink-0 items-center gap-1.5 h-8 px-1.5 sm:px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Building2 className="h-3.5 w-3.5 text-white/60" />
@@ -330,7 +395,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       {/* Currency Selector */}
       <div className="relative">
         <button
-          onClick={() => { setShowCurrencies(v => !v); setShowBranches(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); }}
+          onClick={() => { setShowCurrencies(v => !v); setShowBranches(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex shrink-0 items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Coins className="h-3.5 w-3.5 text-white/60" />
@@ -364,7 +429,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       {/* Theme picker */}
       <div className="relative">
         <button
-          onClick={() => { if (!canChangeTheme) return; setShowThemes(v => !v); setShowUser(false); setShowNotifications(false); }}
+          onClick={() => { if (!canChangeTheme) return; setShowThemes(v => !v); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex items-center gap-2 h-8 px-1.5 sm:px-3 rounded-xl text-xs font-semibold transition-all"
           style={{ color: "rgba(255,255,255,0.7)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}
@@ -426,7 +491,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       {/* Notifications Popover */}
       <div className="relative">
         <button
-          onClick={() => { setShowNotifications(v => !v); setShowUser(false); setShowThemes(false); }}
+          onClick={() => { setShowNotifications(v => !v); setShowUser(false); setShowThemes(false); setShowOrganizationInfo(false); }}
           className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10"
         >
           <Bell className="h-4 w-4" />
@@ -475,7 +540,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       {/* User profile menu */}
       <div className="relative">
         <button
-          onClick={() => { setShowUser(v => !v); setShowThemes(false); setShowNotifications(false); }}
+          onClick={() => { setShowUser(v => !v); setShowThemes(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex items-center gap-1 sm:gap-2.5 h-9 px-1 sm:px-2 rounded-xl transition-all hover:bg-white/10"
         >
           {avatarUrl ? (
