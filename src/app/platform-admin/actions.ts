@@ -7,6 +7,8 @@ import { createPlatformServerClient } from "@/lib/supabase/platform-server";
 import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncPendingProductEntitlements } from "@/lib/supabase/product-entitlements";
+import { parsePlatformWatermark, type WatermarkPosition } from "@/lib/platform-watermark";
+import { validateAndSanitizeWatermarkImage } from "@/lib/platform-watermark-upload";
 import type {
   PlatformModule,
   PlatformProductSlug,
@@ -27,19 +29,24 @@ export async function updateOrganizationBusinessDetails(input: {
   name: string;
   businessType: string;
   country: string;
+  ownerEmail: string;
 }) {
   const { admin, supabase } = await requirePlatformManagement();
   const name = input.name.trim();
   const businessType = input.businessType.trim();
   const country = input.country.trim();
+  const ownerEmail = input.ownerEmail.trim();
   if (!input.platformOrganizationId || !name) throw new Error("Organization name is required.");
-  if (name.length > 160 || businessType.length > 120 || country.length > 120) {
-    throw new Error("Organization name, business type, and country must be within their allowed lengths.");
+  if (name.length > 160 || businessType.length > 120 || country.length > 120 || ownerEmail.length > 254) {
+    throw new Error("Organization name, business type, country, or owner email exceeds the allowed length.");
+  }
+  if (ownerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) {
+    throw new Error("Enter a valid owner contact email address.");
   }
 
   const { data: organization, error: loadError } = await supabase
     .from("platform_organizations")
-    .select("organization_id, name")
+    .select("organization_id, name, owner_email")
     .eq("id", input.platformOrganizationId)
     .single();
   if (loadError) throw new Error(`Could not load organization: ${loadError.message}`);
@@ -64,7 +71,7 @@ export async function updateOrganizationBusinessDetails(input: {
 
   const { error: platformError } = await supabase
     .from("platform_organizations")
-    .update({ name, updated_at: new Date().toISOString() })
+    .update({ name, owner_email: ownerEmail || null, updated_at: new Date().toISOString() })
     .eq("id", input.platformOrganizationId);
   if (platformError) throw new Error(`Business details were saved, but the Platform Admin organization name could not be synchronized: ${platformError.message}`);
 
@@ -76,6 +83,8 @@ export async function updateOrganizationBusinessDetails(input: {
     metadata: {
       previous_name: organization.name,
       name,
+      previous_owner_email: organization.owner_email,
+      owner_email: ownerEmail || null,
       business_type: businessType || null,
       country: country || null,
     },
@@ -84,6 +93,69 @@ export async function updateOrganizationBusinessDetails(input: {
 
   revalidatePath("/platform-admin");
   return { success: true };
+}
+
+export async function syncMissingApplicationOrganizationsToPlatform() {
+  const { admin, supabase } = await requirePlatformManagement();
+  const app = createAdminClient();
+  const { data: applicationOrganizations, error: applicationError } = await app
+    .from("organizations")
+    .select("id, name, created_by, registration_status");
+  if (applicationError) {
+    throw new Error(`Could not load application organizations: ${applicationError.message}`);
+  }
+  if (!applicationOrganizations?.length) return { synchronized: 0 };
+
+  const organizationIds = applicationOrganizations.map((organization) => organization.id);
+  const { data: platformOrganizations, error: platformReadError } = await supabase
+    .from("platform_organizations")
+    .select("organization_id")
+    .in("organization_id", organizationIds);
+  if (platformReadError) {
+    throw new Error(`Could not check Platform Admin organization records: ${platformReadError.message}`);
+  }
+
+  const existingIds = new Set((platformOrganizations ?? []).map((organization) => organization.organization_id));
+  const missingOrganizations = applicationOrganizations.filter((organization) => !existingIds.has(organization.id));
+  if (!missingOrganizations.length) return { synchronized: 0 };
+
+  const records = missingOrganizations.map((organization) => ({
+    organization_id: organization.id,
+    name: organization.name,
+    owner_user_id: organization.created_by,
+    status: organization.registration_status === "approved"
+      ? "trial" as const
+      : organization.registration_status,
+    registration_state: organization.registration_status === "pending"
+      ? "pending" as const
+      : organization.registration_status === "rejected" ? "rejected" as const : "approved" as const,
+  }));
+  const { data: synchronizedOrganizations, error: syncError } = await supabase
+    .from("platform_organizations")
+    .upsert(records, { onConflict: "organization_id", ignoreDuplicates: true })
+    .select("organization_id");
+  if (syncError) {
+    throw new Error(`Could not add missing organizations to Platform Admin: ${syncError.message}`);
+  }
+
+  const synchronizedIds = (synchronizedOrganizations ?? []).map((organization) => organization.organization_id);
+  if (synchronizedIds.length) {
+    const { error: auditError } = await supabase.from("platform_audit_logs").insert(
+      synchronizedIds.map((organizationId) => ({
+        admin_id: admin.id,
+        organization_id: organizationId,
+        action: "organization_synchronized",
+        module: "organizations",
+        metadata: { source: "application_organization_reconciliation" },
+      }))
+    );
+    if (auditError) {
+      throw new Error(`Organizations were synchronized, but audit records could not be saved: ${auditError.message}`);
+    }
+  }
+
+  revalidatePath("/platform-admin");
+  return { synchronized: synchronizedIds.length, organizationIds: synchronizedIds };
 }
 
 async function requirePlatformPermission(
@@ -404,6 +476,151 @@ export async function updatePlatformSetting(key: string, value: Record<string, u
   if (error) throw new Error(error.message);
   await supabase.from("platform_audit_logs").insert({ admin_id: admin.id, action: "platform_setting_updated", module: access.module, metadata: { key } });
   revalidatePath("/platform-admin");
+}
+
+export async function savePlatformWatermark(formData: FormData) {
+  const { admin } = await requirePlatformManagement("System Settings");
+  const platform = createPlatformAdminClient();
+  const enabledValue = formData.get("enabled");
+  const positionValue = formData.get("position");
+  const opacity = Number(formData.get("opacity"));
+  const desktopSize = Number(formData.get("desktopSize"));
+  const mobileSize = Number(formData.get("mobileSize"));
+  const removeImage = formData.get("removeImage") === "true";
+  const positions: WatermarkPosition[] = ["center", "top-left", "top-right", "bottom-left", "bottom-right"];
+  if ((enabledValue !== "true" && enabledValue !== "false") ||
+      typeof positionValue !== "string" || !positions.includes(positionValue as WatermarkPosition) ||
+      !Number.isFinite(opacity) || opacity < 0.01 || opacity > 0.15 ||
+      !Number.isInteger(desktopSize) || desktopSize < 100 || desktopSize > 800 ||
+      !Number.isInteger(mobileSize) || mobileSize < 60 || mobileSize > 400) {
+    throw new Error("Watermark settings contain invalid values.");
+  }
+  if (removeImage && formData.has("watermark")) {
+    throw new Error("Choose either a replacement image or image removal, not both.");
+  }
+  const uploadedFile = formData.get("watermark");
+  if (formData.has("watermark") && (!(uploadedFile instanceof File) || uploadedFile.size === 0)) {
+    throw new Error("Choose a non-empty image file to upload.");
+  }
+  if (uploadedFile instanceof File && uploadedFile.size > 2 * 1024 * 1024) {
+    throw new Error("Watermark images must not exceed 2 MB.");
+  }
+
+  const { data: current, error: currentError } = await platform
+    .from("platform_settings")
+    .select("value, updated_at, updated_by")
+    .eq("key", "platform_watermark")
+    .maybeSingle();
+  if (currentError) throw new Error(`Could not load the current watermark settings: ${currentError.message}`);
+  const currentValue = current?.value && typeof current.value === "object"
+    ? current.value as Record<string, unknown>
+    : {};
+  const currentConfig = parsePlatformWatermark(currentValue);
+  let newPath: string | null = currentConfig.storagePath;
+  let newUrl: string | null = currentConfig.imageUrl;
+  let uploadedPath: string | null = null;
+
+  if (removeImage) {
+    newPath = null;
+    newUrl = null;
+  } else if (uploadedFile instanceof File) {
+    const image = validateAndSanitizeWatermarkImage(
+      uploadedFile.name,
+      uploadedFile.type,
+      Buffer.from(await uploadedFile.arrayBuffer()),
+    );
+    uploadedPath = `watermarks/${Date.now()}-${crypto.randomUUID()}.${image.extension}`;
+    const { error: uploadError } = await platform.storage.from("platform-assets").upload(uploadedPath, image.bytes, {
+      contentType: image.contentType,
+      cacheControl: "31536000",
+      upsert: false,
+    });
+    if (uploadError) throw new Error(`Could not upload the watermark image: ${uploadError.message}`);
+    newPath = uploadedPath;
+    newUrl = platform.storage.from("platform-assets").getPublicUrl(uploadedPath).data.publicUrl;
+  }
+
+  const enabled = enabledValue === "true";
+  if (enabled && (!newPath || !newUrl)) {
+    if (uploadedPath) {
+      const { error: cleanupError } = await platform.storage.from("platform-assets").remove([uploadedPath]);
+      if (cleanupError) throw new Error(`A watermark image is required to enable the watermark, and its temporary upload could not be removed: ${cleanupError.message}`);
+    }
+    throw new Error("Upload a watermark image before enabling the global watermark.");
+  }
+
+  const updatedAt = new Date().toISOString();
+  const value = {
+    image_url: newUrl,
+    storage_path: newPath,
+    enabled: removeImage ? false : enabled,
+    opacity,
+    position: positionValue,
+    desktop_size: desktopSize,
+    mobile_size: mobileSize,
+  };
+  const { error: saveError } = await platform.from("platform_settings").upsert({
+    key: "platform_watermark",
+    value,
+    updated_by: admin.id,
+    updated_at: updatedAt,
+  });
+  if (saveError) {
+    if (uploadedPath) {
+      const { error: cleanupError } = await platform.storage.from("platform-assets").remove([uploadedPath]);
+      if (cleanupError) throw new Error(`Watermark settings could not be saved (${saveError.message}); the uploaded image also could not be cleaned up (${cleanupError.message}).`);
+    }
+    throw new Error(`Could not save watermark settings: ${saveError.message}`);
+  }
+
+  const action = removeImage
+    ? "platform_watermark_removed"
+    : uploadedPath
+      ? currentConfig.storagePath ? "platform_watermark_replaced" : "platform_watermark_uploaded"
+      : "platform_watermark_settings_updated";
+  const { error: auditError } = await platform.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action,
+    module: "system_settings",
+    metadata: {
+      previous_storage_path: currentConfig.storagePath,
+      storage_path: newPath,
+      enabled: value.enabled,
+      opacity,
+      position: positionValue,
+      desktop_size: desktopSize,
+      mobile_size: mobileSize,
+    },
+  });
+  if (auditError) {
+    const rollback = current
+      ? await platform.from("platform_settings").upsert({
+        key: "platform_watermark",
+        value: current.value,
+        updated_at: current.updated_at,
+        updated_by: current.updated_by,
+      })
+      : await platform.from("platform_settings").delete().eq("key", "platform_watermark");
+    if (rollback.error) {
+      throw new Error(`Watermark settings were saved, but audit logging failed (${auditError.message}) and the settings rollback also failed (${rollback.error.message}).`);
+    }
+    if (uploadedPath) {
+      const { error: cleanupError } = await platform.storage.from("platform-assets").remove([uploadedPath]);
+      if (cleanupError) {
+        throw new Error(`Watermark settings were rolled back after audit logging failed, but the new image could not be removed (${cleanupError.message}).`);
+      }
+    }
+    throw new Error(`Watermark settings were rolled back because the audit record could not be written: ${auditError.message}`);
+  }
+
+  if (currentConfig.storagePath && currentConfig.storagePath !== newPath) {
+    const { error: removeError } = await platform.storage.from("platform-assets").remove([currentConfig.storagePath]);
+    if (removeError) throw new Error(`Watermark settings were saved, but the previous image could not be removed: ${removeError.message}`);
+  }
+
+  revalidatePath("/platform-admin");
+  revalidatePath("/", "layout");
+  return parsePlatformWatermark(value, updatedAt, admin.id);
 }
 
 export async function setGlobalLoginTheme(themeId: string) {

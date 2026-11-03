@@ -23,6 +23,16 @@ organization settings, and some provider-backed functionality may require
 additional configuration. Use the application and its role/permission
 configuration to determine which features are enabled for an organization.
 
+## Global watermark
+
+Platform Admins with **System Settings** access manage the screen-only watermark
+under **Branding & Watermark Management**. The image and display settings are
+stored centrally in Platform Supabase (`platform_settings.platform_watermark`)
+and the dedicated image is kept in the existing `platform-assets` bucket.
+Uploads accept PNG, SVG, and WebP files up to 2 MB; SVG uploads are sanitized.
+ERP users receive the shared watermark on their next authenticated page load or
+refresh. It is not included in printed pages or business-document exports.
+
 ## Technology
 
 - Next.js 16 App Router and React 18
@@ -199,6 +209,11 @@ Unpublishing a product does not cancel subscriptions or revoke access. Adding a
 new product still requires application routes, permission mappings, subscription
 entitlement handling, and product feature configuration; catalog publication
 alone does not integrate a new product.
+Users with organization-management permission can explicitly synchronize
+application organizations missing from Platform Admin without granting product
+features or subscriptions. The organization details editor can update the
+organization name and owner contact email; changing the contact email does not
+change the owner's sign-in email.
 See [docs/product-integration.md](./docs/product-integration.md) for the
 integration checklist and rollout requirements.
 

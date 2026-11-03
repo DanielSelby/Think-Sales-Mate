@@ -163,7 +163,7 @@ export default function OrganizationManagement({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: "success" | "warning" | "error" } | null>(null);
   const [editedLimits, setEditedLimits] = useState<Record<string, { users: string; branches: string }>>({});
-  const [businessEdits, setBusinessEdits] = useState<Record<string, { name: string; businessType: string; country: string }>>({});
+  const [businessEdits, setBusinessEdits] = useState<Record<string, { name: string; businessType: string; country: string; ownerEmail: string }>>({});
   const [productSubscriptionDrafts, setProductSubscriptionDrafts] = useState<Record<string, ProductSubscriptionDraft>>({});
   const router = useRouter();
 
@@ -233,6 +233,7 @@ export default function OrganizationManagement({
   const businessNameInput = selectedBusinessEdit?.name ?? selected?.name ?? "";
   const businessTypeInput = selectedBusinessEdit?.businessType ?? selected?.business_type ?? selected?.industry ?? "";
   const countryInput = selectedBusinessEdit?.country ?? selected?.country ?? "";
+  const ownerEmailInput = selectedBusinessEdit?.ownerEmail ?? selected?.owner_email ?? "";
   const selectedLimitEdits = selected ? editedLimits[selected.id] : undefined;
   const userLimitInput = selectedLimitEdits?.users ?? (selected?.max_users_override?.toString() ?? "");
   const branchLimitInput = selectedLimitEdits?.branches ?? (selected?.max_branches_override?.toString() ?? "");
@@ -309,6 +310,7 @@ export default function OrganizationManagement({
         name: businessNameInput,
         businessType: businessTypeInput,
         country: countryInput,
+        ownerEmail: ownerEmailInput,
       }),
       "Organization business details updated.",
     );
@@ -410,16 +412,19 @@ export default function OrganizationManagement({
           {detailTab === "overview" || detailTab === "details" ? (
             <>
               {canManage && <form onSubmit={saveBusinessDetails} className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
-                <h3 className="mb-2 text-xs font-bold text-slate-800">Business Details</h3>
+                <h3 className="mb-2 text-xs font-bold text-slate-800">Business Details &amp; Owner Contact</h3>
                 <div className="space-y-2">
                   <label className="block text-[10px] font-semibold text-slate-600">Business name
-                    <input value={businessNameInput} maxLength={160} required onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: event.target.value, businessType: businessTypeInput, country: countryInput } }))} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
+                    <input value={businessNameInput} maxLength={160} required onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: event.target.value, businessType: businessTypeInput, country: countryInput, ownerEmail: ownerEmailInput } }))} className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
                   </label>
                   <label className="block text-[10px] font-semibold text-slate-600">Business type
-                    <input value={businessTypeInput} maxLength={120} onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: businessNameInput, businessType: event.target.value, country: countryInput } }))} placeholder="e.g. Retail, Wholesale, Restaurant" className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
+                    <input value={businessTypeInput} maxLength={120} onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: businessNameInput, businessType: event.target.value, country: countryInput, ownerEmail: ownerEmailInput } }))} placeholder="e.g. Retail, Wholesale, Restaurant" className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
                   </label>
                   <label className="block text-[10px] font-semibold text-slate-600">Country
-                    <input value={countryInput} maxLength={120} onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: businessNameInput, businessType: businessTypeInput, country: event.target.value } }))} placeholder="Country" className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
+                    <input value={countryInput} maxLength={120} onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: businessNameInput, businessType: businessTypeInput, country: event.target.value, ownerEmail: ownerEmailInput } }))} placeholder="Country" className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-slate-600">Owner contact email (does not change sign-in)
+                    <input type="email" value={ownerEmailInput} maxLength={254} onChange={(event) => setBusinessEdits((current) => ({ ...current, [selected.id]: { name: businessNameInput, businessType: businessTypeInput, country: countryInput, ownerEmail: event.target.value } }))} placeholder="owner@example.com" className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800" />
                   </label>
                 </div>
                 <button type="submit" disabled={busy} className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{busy ? "Saving..." : "Save business details"}</button>

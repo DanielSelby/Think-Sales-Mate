@@ -11,6 +11,7 @@ import { SessionTimeout } from "./session-timeout";
 import { NavigationLoading } from "./navigation-loading";
 import type { ThemeKey } from "@/store/useAppStore";
 import { GlobalCallNotifications } from "@/components/communication/global-call-notifications";
+import type { PlatformWatermarkConfiguration } from "@/lib/platform-watermark";
 
 interface Props {
   children: React.ReactNode;
@@ -30,9 +31,10 @@ interface Props {
   canViewAllBranches?: boolean;
   canChangeTheme?: boolean;
   enabledModules?: string[];
+  watermark?: PlatformWatermarkConfiguration | null;
 }
 
-export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
@@ -51,6 +53,22 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   }, [roleTheme, setTheme]);
   const theme = THEMES[activeTheme];
   const mobileNav = NAV_ITEMS.filter((item) => ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href));
+  const watermarkPosition = watermark?.position === "top-left" ? "left top"
+    : watermark?.position === "top-right" ? "right top"
+      : watermark?.position === "bottom-left" ? "left bottom"
+        : watermark?.position === "bottom-right" ? "right bottom"
+          : "center";
+  const watermarkStyle: React.CSSProperties = watermark?.enabled && watermark.imageUrl
+    ? {
+      "--platform-watermark-desktop-size": `${watermark.desktopSize}px`,
+      "--platform-watermark-mobile-size": `${watermark.mobileSize}px`,
+      backgroundImage: `linear-gradient(rgba(${darkMode ? "8, 17, 31" : "247, 248, 250"}, ${1 - watermark.opacity}), rgba(${darkMode ? "8, 17, 31" : "247, 248, 250"}, ${1 - watermark.opacity})), url("${watermark.imageUrl}")`,
+      backgroundRepeat: "no-repeat, no-repeat",
+      backgroundPosition: `center, ${watermarkPosition}`,
+      backgroundSize: "100% 100%, auto var(--platform-watermark-desktop-size)",
+      backgroundAttachment: "scroll, fixed",
+    } as React.CSSProperties
+    : {};
 
   return (
     <SessionTimeout>
@@ -103,6 +121,8 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
           <main
             className="page-canvas flex-1 overflow-y-auto p-4 pb-20 sm:p-5 md:pb-5"
             data-light-surfaces={useStandardLightSurfaces ? "standard" : undefined}
+            data-platform-watermark={watermark?.enabled && watermark.imageUrl ? "enabled" : undefined}
+            style={watermarkStyle}
           >
             {children}
           </main>

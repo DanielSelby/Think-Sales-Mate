@@ -15,6 +15,7 @@ import {
   archiveSubscriptionPlan,
   setFeatureFlag,
   reviewPlatformApproval,
+  syncMissingApplicationOrganizationsToPlatform,
   updatePlatformSetting,
   uploadPlatformLogo,
 } from "./actions";
@@ -27,6 +28,8 @@ import { LoginExperienceManager } from "./login-experience-manager";
 import OrganizationManagement, { type ManagedOrganization, type ManagedProductSubscription } from "./organization-management";
 import { THEMES, useAppStore } from "@/store/useAppStore";
 import type { PlatformAdminPage } from "@/lib/platform-admin-pages";
+import { parsePlatformWatermark } from "@/lib/platform-watermark";
+import { WatermarkManager } from "./watermark-manager";
 
 type Organization = {
   id: string;
@@ -101,7 +104,7 @@ type Approval = {
   status: "pending" | "approved" | "rejected" | "cancelled";
   created_at: string;
 };
-type PlatformSetting = { key: string; value: Record<string, unknown>; updated_at: string };
+type PlatformSetting = { key: string; value: Record<string, unknown>; updated_at: string; updated_by?: string | null };
 type Tab =
   | "Overview"
   | "Organizations"
@@ -436,13 +439,13 @@ export default function PlatformAdminConsole({
     const key = date.toISOString().slice(0, 7);
     return { label: date.toLocaleDateString(undefined, { month: "short" }), count: auditLogs.filter((log) => log.created_at.slice(0, 7) === key).length };
   });
-  const run = async (work: () => Promise<unknown>, success: string) => {
+  const run = async (work: () => Promise<unknown>, success: string | ((result: unknown) => string)) => {
     setBusy(true);
     setMessage(null);
     try {
-      await work();
+      const result = await work();
       setModal(null);
-      setMessage(success);
+      setMessage(typeof success === "function" ? success(result) : success);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Action failed.");
@@ -450,6 +453,29 @@ export default function PlatformAdminConsole({
       setBusy(false);
     }
   };
+  if (tab === "System Settings") {
+    const watermarkSetting = settings.find((setting) => setting.key === "platform_watermark");
+    const watermark = parsePlatformWatermark(
+      watermarkSetting?.value,
+      watermarkSetting?.updated_at ?? null,
+      watermarkSetting?.updated_by ?? null,
+    );
+    return (
+      <main className="min-h-[calc(100vh-74px)] bg-[#f5f8fc] p-4 md:p-6">
+        <div className="mx-auto max-w-6xl">
+          <nav aria-label="Platform Admin pages" className="mb-5 flex gap-2 overflow-x-auto rounded-xl border bg-white p-2">
+            {visibleTabs.map((item) => (
+              <button key={item.label} type="button" onClick={() => setTab(item.label)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold ${item.label === tab ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <h1 className="text-2xl font-bold text-slate-950">System Settings</h1>
+          <WatermarkManager initialConfiguration={watermark} />
+        </div>
+      </main>
+    );
+  }
   if (tab === "API & Integrations" || tab === "Security Center") {
     const settingKeys = tab === "API & Integrations"
       ? ["api_settings", "email_provider", "sms_provider", "whatsapp_provider"]
@@ -657,7 +683,7 @@ export default function PlatformAdminConsole({
           </button>
         </div>
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-          {tab !== "Feature Access" && tab !== "Overview" && tab !== "Complaints & Support" && tab !== "Login Experience" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div><div className="flex flex-wrap gap-2">{canManageOrganizations && <><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button></>}<button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
+          {tab !== "Feature Access" && tab !== "Overview" && tab !== "Complaints & Support" && tab !== "Login Experience" && <><div><p className="text-xs text-slate-400">System Administration Platform <span className="mx-1">›</span> {tab}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{tab === "Organizations" ? "Organization Management" : tab}</h2><p className="mt-1 text-sm text-slate-500">Manage organizations, subscriptions, modules, permissions, billing, and platform-wide settings.</p></div>                    <div className="flex flex-wrap gap-2">{canManageOrganizations && <><button type="button" onClick={() => void run(() => syncMissingApplicationOrganizationsToPlatform(), (result) => { const synchronized = typeof result === "object" && result !== null && "synchronized" in result && typeof result.synchronized === "number" ? result.synchronized : 0; return synchronized ? `Added ${synchronized} missing organization${synchronized === 1 ? "" : "s"} to Platform Admin.` : "No missing application organizations to synchronize."; })} disabled={busy} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 disabled:opacity-50">Sync Missing Organizations</button><button type="button" onClick={() => { setEditingOrganizationId(null); setOrgForm({ organizationId: "", name: "", status: "trial", expiresAt: "", planId: "" }); setModal("organization"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">+ Add Organization</button><button type="button" onClick={() => setModal("plan")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Create Subscription Plan</button></>}<button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold">Refresh</button></div></>}
         </div>
         {message && <button type="button" onClick={() => setMessage(null)} className="mb-4 w-full rounded-lg bg-blue-50 p-3 text-left text-sm text-blue-800">{message} ×</button>}
 

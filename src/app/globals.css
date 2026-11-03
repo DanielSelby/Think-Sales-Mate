@@ -37,6 +37,10 @@
 }
 
 @media print {
+  .page-canvas[data-platform-watermark] {
+    background-image: none !important;
+  }
+
   body.stock-transfer-printing * {
     visibility: hidden !important;
   }
@@ -53,6 +57,12 @@
     width: 100%;
     max-width: none;
     padding: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .page-canvas[data-platform-watermark] {
+    background-size: 100% 100%, auto var(--platform-watermark-mobile-size) !important;
   }
 }
 

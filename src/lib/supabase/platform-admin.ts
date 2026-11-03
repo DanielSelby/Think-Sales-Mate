@@ -10,6 +10,7 @@ import {
   type ProductEntitlementInput,
 } from "@/lib/product-entitlements";
 import type { PlatformProductSlug } from "@/types/platform-database";
+import { parsePlatformWatermark } from "@/lib/platform-watermark";
 
 const PRODUCT_SLUGS: PlatformProductSlug[] = ["thinksales-erp", "restaurant"];
 
@@ -49,6 +50,36 @@ export async function getPlatformSystemName() {
   return value && typeof value === "object" && "name" in value && typeof value.name === "string" && value.name.trim()
     ? value.name.trim()
     : "ThinkSales ERP Pro";
+}
+
+export async function getPlatformWatermarkConfiguration() {
+  const platform = createPlatformAdminClient();
+  const { data, error } = await platform
+    .from("platform_settings")
+    .select("value, updated_at, updated_by")
+    .eq("key", "platform_watermark")
+    .maybeSingle();
+  if (error) throw new Error(`Could not load platform watermark settings: ${error.message}`);
+  if (!data) return parsePlatformWatermark(null);
+
+  const configuration = parsePlatformWatermark(
+    data.value,
+    data.updated_at,
+    data.updated_by,
+  );
+  if (!configuration.storagePath || !configuration.imageUrl) return configuration;
+
+  const expectedUrl = platform.storage.from("platform-assets").getPublicUrl(configuration.storagePath).data.publicUrl;
+  try {
+    const storedUrl = new URL(configuration.imageUrl);
+    const trustedUrl = new URL(expectedUrl);
+    if (storedUrl.origin !== trustedUrl.origin || storedUrl.pathname !== trustedUrl.pathname) {
+      return { ...configuration, imageUrl: null, enabled: false };
+    }
+  } catch {
+    return { ...configuration, imageUrl: null, enabled: false };
+  }
+  return configuration;
 }
 
 export async function getPublishedPlatformProducts() {

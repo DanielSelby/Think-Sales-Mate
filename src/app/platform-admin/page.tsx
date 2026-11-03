@@ -69,7 +69,7 @@ export default async function PlatformAdminPage() {
     supabase.from("platform_feature_flags").select("*").order("name"),
     supabase.from("platform_approvals").select("*").order("created_at", { ascending: false }).limit(100),
     supabase.from("platform_notifications").select("*").is("read_at", null).order("created_at", { ascending: false }).limit(20),
-    supabase.from("platform_settings").select("key, value, updated_at").order("key"),
+    supabase.from("platform_settings").select("key, value, updated_at, updated_by").order("key"),
     supabase.from("platform_complaints").select("*").order("created_at", { ascending: false }),
     supabase.from("platform_support_contacts").select("*").order("name"),
     supabase.from("login_themes").select("id, name, description, preview_image, background_artwork, background_artwork_visibility, login_form_transparent, theme_type, is_active, created_at").order("created_at"),

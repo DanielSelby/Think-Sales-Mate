@@ -94,6 +94,13 @@ by inserting a catalog row alone.
 Review the current code and migration heads before following this checklist;
 the listed files may evolve as product integration becomes more data-driven.
 
+Platform Admin users with organization-management permission can reconcile
+missing application organization records from the Organizations page. This
+creates only the Platform Admin organization record; it does not activate a
+subscription or grant product features. Organization business details allow
+editing the organization name and owner contact email. The email is Platform
+Admin contact metadata and does not change the owner's authentication email.
+
 ## Platform usage snapshots
 
 The scheduled `GET /api/cron/platform-usage` endpoint reports current counts
