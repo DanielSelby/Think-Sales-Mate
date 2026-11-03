@@ -36,11 +36,14 @@ describe("syncPlatformUsageSnapshot", () => {
       monthly_activity: 8,
     }];
     appRpc.mockResolvedValue({ data: snapshots, error: null });
-    platformRpc.mockResolvedValue({ data: 1, error: null });
+    platformRpc
+      .mockResolvedValueOnce({ data: 1, error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
 
     await expect(syncPlatformUsageSnapshot(now)).resolves.toEqual({
       organizations: 1,
       synchronized: 1,
+      skipped: [],
       windowStart: "2026-10-03T12:00:00.000Z",
     });
     expect(appRpc).toHaveBeenCalledWith("get_platform_usage_snapshot", {
@@ -48,6 +51,40 @@ describe("syncPlatformUsageSnapshot", () => {
     });
     expect(platformRpc).toHaveBeenCalledWith("sync_platform_usage_snapshot", {
       p_snapshots: snapshots,
+    });
+    expect(platformRpc).toHaveBeenCalledWith("get_unmatched_platform_usage_organizations", {
+      p_organization_ids: ["org-1"],
+    });
+  });
+
+  it("reports IDs and reasons for organizations missing from Platform Admin", async () => {
+    const organizationIds = ["org-1", "org-2", "org-3"];
+    appRpc.mockResolvedValue({
+      data: organizationIds.map((organization_id) => ({
+        organization_id,
+        active_users: 0,
+        branches: 0,
+        products: 0,
+        customers: 0,
+        orders: 0,
+        purchase_count: 0,
+        sales_volume: 0,
+        ai_usage: 0,
+        monthly_activity: 0,
+      })),
+      error: null,
+    });
+    platformRpc
+      .mockResolvedValueOnce({ data: 1, error: null })
+      .mockResolvedValueOnce({ data: ["org-2", "org-3"], error: null });
+
+    await expect(syncPlatformUsageSnapshot()).resolves.toMatchObject({
+      organizations: 3,
+      synchronized: 1,
+      skipped: [
+        { organizationId: "org-2", reason: "not_registered_in_platform_admin" },
+        { organizationId: "org-3", reason: "not_registered_in_platform_admin" },
+      ],
     });
   });
 
@@ -71,6 +108,30 @@ describe("syncPlatformUsageSnapshot", () => {
     platformRpc.mockResolvedValue({ data: "one", error: null });
     await expect(syncPlatformUsageSnapshot()).rejects.toThrow(
       "Platform Admin usage synchronization returned an invalid result."
+    );
+  });
+
+  it("surfaces diagnostics failures and inconsistent skipped counts", async () => {
+    appRpc.mockResolvedValue({
+      data: [
+        { organization_id: "org-1" },
+        { organization_id: "org-2" },
+      ],
+      error: null,
+    });
+    platformRpc
+      .mockResolvedValueOnce({ data: 1, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: "diagnostics unavailable" } });
+
+    await expect(syncPlatformUsageSnapshot()).rejects.toThrow(
+      "Could not identify unmatched Platform Admin organizations: diagnostics unavailable"
+    );
+
+    platformRpc
+      .mockResolvedValueOnce({ data: 1, error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
+    await expect(syncPlatformUsageSnapshot()).rejects.toThrow(
+      "Platform Admin usage diagnostics returned an inconsistent result."
     );
   });
 });

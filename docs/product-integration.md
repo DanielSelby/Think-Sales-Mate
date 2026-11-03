@@ -104,9 +104,13 @@ Monthly activity is the count of orders plus purchases. Linked customer orders
 are excluded from order counts when their sale is counted; cancelled orders
 are excluded. ERP sales volume accounts for refunds; Restaurant sales volume
 uses non-cancelled, non-pending-payment order totals. API usage and storage
-are not estimated without reliable source data. Configure the server-only
+are not estimated without reliable source data. The endpoint response lists
+skipped organization IDs when no corresponding Platform Admin organization
+record exists; this requires Platform Admin migration
+`0016_platform_usage_sync_diagnostics.sql`. Configure the server-only
 `PLATFORM_USAGE_SYNC_SECRET` and schedule the endpoint with
 `Authorization: Bearer <secret>`. Apply application migration
 `20261102173000_platform_ai_usage_snapshot.sql` and Platform Admin migration
-`0015_platform_ai_usage_snapshot.sql` before enabling the scheduler. No
-scheduler is configured by this repository.
+`0015_platform_ai_usage_snapshot.sql` before enabling the scheduler. Apply
+`0016_platform_usage_sync_diagnostics.sql` before deploying the diagnostic
+response code. No scheduler is configured by this repository.

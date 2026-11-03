@@ -513,6 +513,10 @@ export interface PlatformDatabase {
     };
     Views: Record<string, never>;
     Functions: {
+      get_unmatched_platform_usage_organizations: {
+        Args: { p_organization_ids: string[] };
+        Returns: string[];
+      };
       sync_platform_usage_snapshot: {
         Args: {
           p_snapshots: {

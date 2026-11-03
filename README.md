@@ -219,10 +219,15 @@ The product count includes active ERP products and Restaurant menu items.
 Monthly activity is the count of orders plus purchases; linked customer orders
 are not double-counted, cancelled records are excluded, and ERP sales volume
 accounts for refunds. Restaurant sales volume uses non-cancelled order totals.
-API usage and storage are not estimated.
+The response lists skipped organization IDs when an application organization
+has no matching Platform Admin organization record. API usage and storage are
+not estimated.
 The endpoint returns `503` until its secret is configured. Apply application migration
 `20261102173000_platform_ai_usage_snapshot.sql` and Platform Admin migration
-`0015_platform_ai_usage_snapshot.sql` before scheduling it.
+`0015_platform_ai_usage_snapshot.sql` before scheduling it. To include skipped
+organization diagnostics, also apply Platform Admin migration
+`0016_platform_usage_sync_diagnostics.sql` before deploying the updated sync
+service.
 
 For Restaurant POS payment-account selection and refund consistency, apply
 `supabase/migrations/20261102110000_restaurant_pos_payment_access.sql` after
