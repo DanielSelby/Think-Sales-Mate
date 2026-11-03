@@ -27,6 +27,12 @@ describe("platform watermark configuration", () => {
   it.each(["top-center", "bottom-center"] as const)("accepts the %s position", (position) => {
     expect(parsePlatformWatermark({ position }).position).toBe(position);
   });
+
+  it("uses normal watermark display by default and supports 3D", () => {
+    expect(parsePlatformWatermark({}).displayStyle).toBe("normal");
+    expect(parsePlatformWatermark({ display_style: "3d" }).displayStyle).toBe("3d");
+    expect(parsePlatformWatermark({ display_style: "unknown" }).displayStyle).toBe("normal");
+  });
 });
 
 describe("platform watermark image validation", () => {

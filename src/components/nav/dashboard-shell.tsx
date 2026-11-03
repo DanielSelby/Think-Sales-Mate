@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -71,6 +72,19 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
       backgroundAttachment: "scroll, fixed",
     } as React.CSSProperties
     : {};
+  const watermark3dPosition: React.CSSProperties = watermark?.position === "top-left"
+    ? { top: 0, left: 0, transform: "perspective(900px) rotateX(10deg) rotateY(-8deg)" }
+    : watermark?.position === "top-center"
+      ? { top: 0, left: "50%", transform: "translateX(-50%) perspective(900px) rotateX(10deg) rotateY(-8deg)" }
+      : watermark?.position === "top-right"
+        ? { top: 0, right: 0, transform: "perspective(900px) rotateX(10deg) rotateY(-8deg)" }
+        : watermark?.position === "bottom-left"
+          ? { bottom: 0, left: 0, transform: "perspective(900px) rotateX(10deg) rotateY(-8deg)" }
+          : watermark?.position === "bottom-center"
+            ? { bottom: 0, left: "50%", transform: "translateX(-50%) perspective(900px) rotateX(10deg) rotateY(-8deg)" }
+            : watermark?.position === "bottom-right"
+              ? { bottom: 0, right: 0, transform: "perspective(900px) rotateX(10deg) rotateY(-8deg)" }
+              : { top: "50%", left: "50%", transform: "translate(-50%, -50%) perspective(900px) rotateX(10deg) rotateY(-8deg)" };
 
   return (
     <SessionTimeout>
@@ -124,8 +138,27 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             className="page-canvas flex-1 overflow-y-auto p-4 pb-20 sm:p-5 md:pb-5"
             data-light-surfaces={useStandardLightSurfaces ? "standard" : undefined}
             data-platform-watermark={watermark?.enabled && watermark.imageUrl ? "enabled" : undefined}
-            style={watermarkStyle}
+            data-watermark-style={watermark?.displayStyle}
+            style={watermark?.displayStyle === "3d" ? {} : watermarkStyle}
           >
+            {watermark?.enabled && watermark.imageUrl && watermark.displayStyle === "3d" && (
+              <Image
+                src={watermark.imageUrl}
+                alt=""
+                aria-hidden="true"
+                unoptimized
+                width={800}
+                height={800}
+                className="platform-watermark-3d"
+                style={{
+                  ...watermark3dPosition,
+                  "--platform-watermark-desktop-size": `${watermark.desktopSize}px`,
+                  "--platform-watermark-mobile-size": `${watermark.mobileSize}px`,
+                  "--platform-watermark-opacity": watermark.opacity,
+                  filter: `drop-shadow(12px 14px 6px rgba(${darkMode ? "0, 0, 0" : "15, 23, 42"}, ${Math.min(0.35, watermark.opacity * 0.9)}))`,
+                } as React.CSSProperties}
+              />
+            )}
             {children}
           </main>
           <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden dark:border-slate-700 dark:bg-ink-950/95">

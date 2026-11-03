@@ -32,6 +32,7 @@ and the dedicated image is kept in the existing `platform-assets` bucket.
 Uploads accept PNG, SVG, and WebP files up to 2 MB; SVG uploads are sanitized.
 ERP users receive the shared watermark on their next authenticated page load or
 refresh. It is not included in printed pages or business-document exports.
+The display can be set to a normal image or a subtle 3D perspective style.
 
 ## Technology
 

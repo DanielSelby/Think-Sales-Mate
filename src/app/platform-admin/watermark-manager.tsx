@@ -20,6 +20,7 @@ export function WatermarkManager({ initialConfiguration }: { initialConfiguratio
   const [enabled, setEnabled] = useState(initialConfiguration.enabled);
   const [opacity, setOpacity] = useState(Math.round(initialConfiguration.opacity * 100));
   const [position, setPosition] = useState(initialConfiguration.position);
+  const [displayStyle, setDisplayStyle] = useState(initialConfiguration.displayStyle);
   const [desktopSize, setDesktopSize] = useState(initialConfiguration.desktopSize);
   const [mobileSize, setMobileSize] = useState(initialConfiguration.mobileSize);
   const [file, setFile] = useState<File | null>(null);
@@ -41,6 +42,7 @@ export function WatermarkManager({ initialConfiguration }: { initialConfiguratio
     formData.set("enabled", String(removeImage ? false : enabled));
     formData.set("opacity", String(opacity / 100));
     formData.set("position", position);
+    formData.set("displayStyle", displayStyle);
     formData.set("desktopSize", String(desktopSize));
     formData.set("mobileSize", String(mobileSize));
     if (removeImage) {
@@ -54,6 +56,7 @@ export function WatermarkManager({ initialConfiguration }: { initialConfiguratio
       setEnabled(saved.enabled);
       setOpacity(Math.round(saved.opacity * 100));
       setPosition(saved.position);
+      setDisplayStyle(saved.displayStyle);
       setDesktopSize(saved.desktopSize);
       setMobileSize(saved.mobileSize);
       setFile(null);
@@ -129,6 +132,15 @@ export function WatermarkManager({ initialConfiguration }: { initialConfiguratio
             </select>
           </label>
 
+          <label className="block text-sm font-medium text-slate-700">
+            Image display
+            <select value={displayStyle} onChange={(event) => setDisplayStyle(event.target.value as "normal" | "3d")} className="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm">
+              <option value="normal">Normal</option>
+              <option value="3d">3D perspective</option>
+            </select>
+            <span className="mt-1 block text-xs font-normal text-slate-500">The 3D style adds a subtle perspective tilt and shadow.</span>
+          </label>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium text-slate-700">
               Desktop size ({desktopSize}px)
@@ -156,7 +168,15 @@ export function WatermarkManager({ initialConfiguration }: { initialConfiguratio
           <h3 className="text-sm font-semibold text-slate-800">Image preview</h3>
           <div className="mt-2 flex min-h-56 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5">
             {imageUrl
-              ? <Image src={imageUrl} alt="Watermark preview" unoptimized width={320} height={192} className="max-h-48 max-w-full object-contain" />
+              ? <Image
+                src={imageUrl}
+                alt="Watermark preview"
+                unoptimized
+                width={320}
+                height={192}
+                className={`max-h-48 max-w-full object-contain ${displayStyle === "3d" ? "drop-shadow-[10px_12px_5px_rgba(15,23,42,0.35)] [transform:perspective(900px)_rotateX(10deg)_rotateY(-8deg)]" : ""}`}
+                style={{ opacity: opacity / 100 }}
+              />
               : <p className="text-center text-sm text-slate-500">Choose an image to preview the watermark.</p>}
           </div>
           {configuration.updatedAt && (

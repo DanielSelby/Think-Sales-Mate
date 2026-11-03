@@ -483,6 +483,7 @@ export async function savePlatformWatermark(formData: FormData) {
   const platform = createPlatformAdminClient();
   const enabledValue = formData.get("enabled");
   const positionValue = formData.get("position");
+  const displayStyleValue = formData.get("displayStyle");
   const opacity = Number(formData.get("opacity"));
   const desktopSize = Number(formData.get("desktopSize"));
   const mobileSize = Number(formData.get("mobileSize"));
@@ -498,6 +499,7 @@ export async function savePlatformWatermark(formData: FormData) {
   ];
   if ((enabledValue !== "true" && enabledValue !== "false") ||
       typeof positionValue !== "string" || !positions.includes(positionValue as WatermarkPosition) ||
+      (displayStyleValue !== "normal" && displayStyleValue !== "3d") ||
       !Number.isFinite(opacity) || opacity < 0.01 || opacity > 0.5 ||
       !Number.isInteger(desktopSize) || desktopSize < 100 || desktopSize > 800 ||
       !Number.isInteger(mobileSize) || mobileSize < 60 || mobileSize > 400) {
@@ -564,6 +566,7 @@ export async function savePlatformWatermark(formData: FormData) {
     enabled: removeImage ? false : enabled,
     opacity,
     position: positionValue,
+    display_style: displayStyleValue,
     desktop_size: desktopSize,
     mobile_size: mobileSize,
   };
@@ -596,6 +599,7 @@ export async function savePlatformWatermark(formData: FormData) {
       enabled: value.enabled,
       opacity,
       position: positionValue,
+      display_style: displayStyleValue,
       desktop_size: desktopSize,
       mobile_size: mobileSize,
     },

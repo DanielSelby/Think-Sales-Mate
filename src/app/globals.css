@@ -40,6 +40,9 @@
   .page-canvas[data-platform-watermark] {
     background-image: none !important;
   }
+  .platform-watermark-3d {
+    display: none !important;
+  }
 
   body.stock-transfer-printing * {
     visibility: hidden !important;
@@ -63,6 +66,31 @@
 @media (max-width: 639px) {
   .page-canvas[data-platform-watermark] {
     background-size: 100% 100%, auto var(--platform-watermark-mobile-size) !important;
+  }
+}
+
+.page-canvas[data-watermark-style="3d"] {
+  position: relative;
+  isolation: isolate;
+}
+
+.platform-watermark-3d {
+  position: absolute;
+  z-index: -1;
+  width: var(--platform-watermark-desktop-size);
+  max-width: 80%;
+  max-height: 75%;
+  height: auto;
+  object-fit: contain;
+  opacity: var(--platform-watermark-opacity);
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+@media (max-width: 639px) {
+  .platform-watermark-3d {
+    width: var(--platform-watermark-mobile-size);
+    max-width: 80%;
   }
 }
 

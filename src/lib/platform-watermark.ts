@@ -6,6 +6,7 @@ export type WatermarkPosition =
   | "bottom-left"
   | "bottom-center"
   | "bottom-right";
+export type WatermarkDisplayStyle = "normal" | "3d";
 
 export type PlatformWatermarkConfiguration = {
   imageUrl: string | null;
@@ -13,6 +14,7 @@ export type PlatformWatermarkConfiguration = {
   enabled: boolean;
   opacity: number;
   position: WatermarkPosition;
+  displayStyle: WatermarkDisplayStyle;
   desktopSize: number;
   mobileSize: number;
   updatedAt: string | null;
@@ -44,6 +46,7 @@ export function parsePlatformWatermark(
     WATERMARK_POSITIONS.includes(settings.position as WatermarkPosition)
     ? settings.position as WatermarkPosition
     : "center";
+  const displayStyle: WatermarkDisplayStyle = settings.display_style === "3d" ? "3d" : "normal";
   const opacity = typeof settings.opacity === "number" && Number.isFinite(settings.opacity)
     ? Math.min(0.5, Math.max(0.01, settings.opacity))
     : 0.04;
@@ -60,6 +63,7 @@ export function parsePlatformWatermark(
     enabled: settings.enabled === true && Boolean(imageUrl),
     opacity,
     position,
+    displayStyle,
     desktopSize,
     mobileSize,
     updatedAt,
