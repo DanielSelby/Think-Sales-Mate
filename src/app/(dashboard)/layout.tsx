@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { DashboardShell } from "@/components/nav/dashboard-shell";
+import { OrganizationExpiredScreen } from "@/components/organization/organization-access-expiry";
+import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 import { createClient } from "@/lib/supabase/server";
 import type { ThemeKey } from "@/store/useAppStore";
 import { getEnabledOrganizationModules, getPlatformSystemLogo, getPlatformSystemName, getPlatformWatermarkConfiguration } from "@/lib/supabase/platform-admin";
@@ -11,11 +13,19 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
-  const context     = await getCurrentOrgContext(activeOrgId);
+  const context = await getCurrentOrgContext(activeOrgId, { allowExpired: true });
   if (!context) {
     const { applications } = await getUserRegistrationApplications();
     if (applications.length) redirect("/registration-status");
     redirect("/onboarding");
+  }
+  if (getOrganizationExpiryStatus(context.organizationAccessExpiresAt).expired) {
+    return (
+      <OrganizationExpiredScreen
+        organizationName={context.orgName}
+        expiryDate={context.organizationAccessExpiresAt!}
+      />
+    );
   }
   const supabase = await createClient();
   const roleKey = typeof context.accessPermissions.role_key === "string"
@@ -51,7 +61,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const [enabledModules, systemLogoUrl, systemName, watermark] = platformSettings;
 
   return (
-    <DashboardShell userId={context.userId} userEmail={context.userEmail} orgId={context.orgId} currency={context.currency} avatarUrl={profile?.avatar_url ?? null} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} watermark={watermark} orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
+    <DashboardShell userId={context.userId} userEmail={context.userEmail} orgId={context.orgId} currency={context.currency} avatarUrl={profile?.avatar_url ?? null} enabledModules={enabledModules} systemLogoUrl={systemLogoUrl} systemName={systemName} watermark={watermark} organizationAccessExpiresAt={context.organizationAccessExpiresAt} orgName={context.orgName} logoUrl={companyProfile?.logo_url ?? null} userName={profile?.full_name ?? null} userRole={context.role} allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]} canViewAllBranches={context.branchScope === "all" || context.role === "owner" || context.role === "admin"} roleTheme={selectedTheme} canChangeTheme={context.role === "owner" || context.role === "admin"}>
       {children}
     </DashboardShell>
   );

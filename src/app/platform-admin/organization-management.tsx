@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import {
   setOrganizationFeatureAccess,
+  setOrganizationAccessExpiry,
   setOrganizationProductSubscription,
   updateOrganizationBusinessDetails,
   updatePlatformOrganization,
@@ -49,6 +50,7 @@ export type ManagedOrganization = {
   plan_id: string | null;
   status: OrganizationStatus;
   expires_at: string | null;
+  organization_access_expires_at: string | null;
   max_users_override: number | null;
   max_branches_override: number | null;
   created_at: string;
@@ -164,6 +166,7 @@ export default function OrganizationManagement({
   const [message, setMessage] = useState<{ text: string; kind: "success" | "warning" | "error" } | null>(null);
   const [editedLimits, setEditedLimits] = useState<Record<string, { users: string; branches: string }>>({});
   const [businessEdits, setBusinessEdits] = useState<Record<string, { name: string; businessType: string; country: string; ownerEmail: string }>>({});
+  const [accessExpiryEdits, setAccessExpiryEdits] = useState<Record<string, string>>({});
   const [productSubscriptionDrafts, setProductSubscriptionDrafts] = useState<Record<string, ProductSubscriptionDraft>>({});
   const router = useRouter();
 
@@ -234,6 +237,7 @@ export default function OrganizationManagement({
   const businessTypeInput = selectedBusinessEdit?.businessType ?? selected?.business_type ?? selected?.industry ?? "";
   const countryInput = selectedBusinessEdit?.country ?? selected?.country ?? "";
   const ownerEmailInput = selectedBusinessEdit?.ownerEmail ?? selected?.owner_email ?? "";
+  const accessExpiryInput = selected ? accessExpiryEdits[selected.id] ?? selected.organization_access_expires_at ?? "" : "";
   const selectedLimitEdits = selected ? editedLimits[selected.id] : undefined;
   const userLimitInput = selectedLimitEdits?.users ?? (selected?.max_users_override?.toString() ?? "");
   const branchLimitInput = selectedLimitEdits?.branches ?? (selected?.max_branches_override?.toString() ?? "");
@@ -313,6 +317,14 @@ export default function OrganizationManagement({
         ownerEmail: ownerEmailInput,
       }),
       "Organization business details updated.",
+    );
+  };
+  const saveOrganizationAccessExpiry = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected) return;
+    void runAction(
+      () => setOrganizationAccessExpiry(selected.id, accessExpiryInput || null),
+      accessExpiryInput ? "Organization access expiry saved." : "Organization access expiry removed.",
     );
   };
   const clearFilters = () => {
@@ -411,6 +423,30 @@ export default function OrganizationManagement({
         <div className="space-y-5 p-5">
           {detailTab === "overview" || detailTab === "details" ? (
             <>
+              <form onSubmit={saveOrganizationAccessExpiry} className="rounded-xl border border-orange-200 bg-orange-50/60 p-3">
+                <h3 className="text-xs font-bold text-slate-800">Organization-wide access expiry</h3>
+                <p className="mt-1 text-[10px] leading-4 text-slate-600">
+                  Separate from product subscriptions. Access remains available through the selected UTC date, then pauses until renewed.
+                </p>
+                {canManage ? (
+                  <>
+                    <label className="mt-2 block text-[10px] font-semibold text-slate-600">
+                      Expiry date
+                      <input
+                        type="date"
+                        value={accessExpiryInput}
+                        onChange={(event) => setAccessExpiryEdits((current) => ({ ...current, [selected.id]: event.target.value }))}
+                        className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-normal text-slate-800"
+                      />
+                    </label>
+                    <button type="submit" disabled={busy} className="mt-2 w-full rounded-lg bg-orange-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                      {busy ? "Saving..." : "Save access expiry"}
+                    </button>
+                  </>
+                ) : (
+                  <p className="mt-2 text-xs font-semibold text-slate-800">{accessExpiryInput || "No expiry date set"}</p>
+                )}
+              </form>
               {canManage && <form onSubmit={saveBusinessDetails} className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
                 <h3 className="mb-2 text-xs font-bold text-slate-800">Business Details &amp; Owner Contact</h3>
                 <div className="space-y-2">
@@ -439,6 +475,7 @@ export default function OrganizationManagement({
                   <Detail label="Number of Branches" value={String(selected.branch_count)} />
                   <Detail label="Users" value={String(selected.user_count)} />
                   <Detail label="Registration Date" value={registrationTimestamp(selected.created_at)} />
+                  <Detail label="Organization Access Expires" value={selected.organization_access_expires_at || "No expiry set"} />
                   <Detail label="Organization ID" value={selected.organization_id} />
                 </dl>
               </div>

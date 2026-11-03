@@ -59,7 +59,7 @@ export default async function PlatformAdminPage() {
     { data: loginThemeAssignments, error: loginThemeAssignmentsError },
     { data: loginThemeAudit, error: loginThemeAuditError },
   ] = await Promise.all([
-    supabase.from("platform_organizations").select("id, organization_id, name, plan_id, status, expires_at, created_at, updated_at, industry, suspended_at, suspension_reason, owner_user_id, owner_email, registration_state, registration_notes, max_users_override, max_branches_override").order("updated_at", { ascending: false }),
+    supabase.from("platform_organizations").select("id, organization_id, name, plan_id, status, expires_at, organization_access_expires_at, created_at, updated_at, industry, suspended_at, suspension_reason, owner_user_id, owner_email, registration_state, registration_notes, max_users_override, max_branches_override").order("updated_at", { ascending: false }),
     supabase.from("platform_organization_subscriptions").select("organization_id, product_slug, plan_id, status, current_period_end, trial_ends_at, grace_ends_at, cancel_at_period_end"),
     supabase.from("subscription_plans").select("id, name, max_users, max_branches, storage_limit_gb, monthly_price, annual_price, ai_access, api_access, included_modules, is_active, archived_at").eq("is_active", true).order("monthly_price"),
     supabase.from("platform_organization_features").select("organization_id, module, enabled, access_mode, permission_options, updated_at"),

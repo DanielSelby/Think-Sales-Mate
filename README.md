@@ -34,6 +34,14 @@ ERP users receive the shared watermark on their next authenticated page load or
 refresh. It is not included in printed pages or business-document exports.
 The display can be set to a normal image or a subtle 3D perspective style.
 
+Platform Admin can also set an optional **organization-wide access expiry**,
+separate from each product subscription. Access remains available through the
+selected UTC date; from the next UTC day, application pages and organization
+actions are blocked until the date is renewed. Users see a warning during the
+final seven days and an access-paused message after expiry. Apply
+`supabase/platform-migrations/0017_organization_access_expiry.sql` to the
+Platform Supabase project before deploying code that reads this field.
+
 ## Technology
 
 - Next.js 16 App Router and React 18

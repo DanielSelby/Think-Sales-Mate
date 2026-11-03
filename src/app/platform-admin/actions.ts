@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { syncPendingProductEntitlements } from "@/lib/supabase/product-entitlements";
 import { parsePlatformWatermark, type WatermarkPosition } from "@/lib/platform-watermark";
 import { validateAndSanitizeWatermarkImage } from "@/lib/platform-watermark-upload";
+import { isValidOrganizationExpiryDate } from "@/lib/organization-access-expiry";
 import type {
   PlatformModule,
   PlatformProductSlug,
@@ -176,9 +177,13 @@ export async function createPlatformOrganization(input: {
   name: string;
   status: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
   expiresAt?: string;
+  accessExpiresAt?: string | null;
   planId?: string;
 }) {
   const { admin, supabase } = await requirePlatformManagement();
+  if (input.accessExpiresAt && !isValidOrganizationExpiryDate(input.accessExpiresAt)) {
+    throw new Error("Enter a valid organization access expiry date.");
+  }
   const { data, error } = await supabase
     .from("platform_organizations")
     .insert({
@@ -186,20 +191,78 @@ export async function createPlatformOrganization(input: {
       name: input.name.trim(),
       status: input.status,
       expires_at: input.expiresAt || null,
+      organization_access_expires_at: input.accessExpiresAt || null,
       plan_id: input.planId || null,
     })
-    .select("id, organization_id, name, plan_id, status, expires_at, created_at, updated_at")
+    .select("id, organization_id, name, plan_id, status, expires_at, organization_access_expires_at, created_at, updated_at")
     .single();
   if (error) throw new Error(error.message);
-  await supabase.from("platform_audit_logs").insert({
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
     admin_id: admin.id,
     organization_id: data.organization_id,
     action: "organization_created",
     module: "organizations",
-    metadata: { name: data.name },
+    metadata: { name: data.name, organization_access_expires_at: data.organization_access_expires_at },
   });
+  if (auditError) {
+    const { error: rollbackError } = await supabase.from("platform_organizations").delete().eq("id", data.id);
+    if (rollbackError) {
+      throw new Error(`Organization was created, but its audit record failed (${auditError.message}) and the organization could not be rolled back (${rollbackError.message}).`);
+    }
+    throw new Error(`Organization creation was rolled back because its audit record could not be written: ${auditError.message}`);
+  }
   revalidatePath("/platform-admin");
   return data;
+}
+
+export async function setOrganizationAccessExpiry(organizationId: string, accessExpiresAt: string | null) {
+  const { admin, supabase } = await requirePlatformManagement();
+  if (!organizationId || (accessExpiresAt !== null && !isValidOrganizationExpiryDate(accessExpiresAt))) {
+    throw new Error("Enter a valid organization access expiry date.");
+  }
+  const { data: organization, error: loadError } = await supabase
+    .from("platform_organizations")
+    .select("organization_id, organization_access_expires_at")
+    .eq("id", organizationId)
+    .single();
+  if (loadError) throw new Error(`Could not load organization access expiry: ${loadError.message}`);
+
+  const { error: updateError } = await supabase
+    .from("platform_organizations")
+    .update({
+      organization_access_expires_at: accessExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", organizationId);
+  if (updateError) throw new Error(`Could not update organization access expiry: ${updateError.message}`);
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    organization_id: organization.organization_id,
+    action: accessExpiresAt ? "organization_access_expiry_updated" : "organization_access_expiry_removed",
+    module: "organizations",
+    metadata: {
+      previous_expiry_date: organization.organization_access_expires_at,
+      expiry_date: accessExpiresAt,
+    },
+  });
+  if (auditError) {
+    const { error: rollbackError } = await supabase
+      .from("platform_organizations")
+      .update({
+        organization_access_expires_at: organization.organization_access_expires_at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", organizationId);
+    if (rollbackError) {
+      throw new Error(`Expiry date was saved, but audit logging failed (${auditError.message}) and the rollback also failed (${rollbackError.message}).`);
+    }
+    throw new Error(`Expiry date was rolled back because its audit record could not be written: ${auditError.message}`);
+  }
+
+  revalidatePath("/platform-admin");
+  revalidatePath("/", "layout");
+  return { organizationId, accessExpiresAt };
 }
 
 export async function updatePlatformOrganization(

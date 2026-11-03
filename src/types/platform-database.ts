@@ -62,6 +62,7 @@ export interface PlatformDatabase {
           plan_id: string | null;
           status: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
           expires_at: string | null;
+          organization_access_expires_at: string | null;
           created_at: string;
           updated_at: string;
            industry: string | null;
@@ -87,6 +88,7 @@ export interface PlatformDatabase {
           plan_id?: string | null;
           status?: "active" | "trial" | "pending" | "rejected" | "suspended" | "expired";
           expires_at?: string | null;
+          organization_access_expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
            industry?: string | null;

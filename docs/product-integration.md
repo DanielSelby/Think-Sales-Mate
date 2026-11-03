@@ -90,6 +90,13 @@ by inserting a catalog row alone.
   `20261102160000_organization_capacity_reservations.sql` first.
 - `supabase/platform-migrations/0014_product_entitlements.sql`: current
   product, feature, plan, subscription, and outbox schema/seeds.
+- `supabase/platform-migrations/0017_organization_access_expiry.sql`:
+  optional Platform Admin–controlled organization-wide access expiry, separate
+  from product subscriptions. Apply this migration to Platform Supabase before
+  deploying code that reads the new column. The date remains valid through its
+  UTC calendar day; access is blocked from the following UTC day until renewed.
+  Expiry blocks application access without changing organization status or
+  deleting organization data.
 
 Review the current code and migration heads before following this checklist;
 the listed files may evolve as product integration becomes more data-driven.

@@ -4,6 +4,15 @@ import { cache } from "react";
 import type { MemberRole } from "@/lib/rbac";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createPlatformAdminClient } from "@/lib/supabase/platform-admin";
+import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
+
+export class OrganizationAccessExpiredError extends Error {
+  constructor(readonly expiryDate: string) {
+    super("This organization’s platform access has expired.");
+    this.name = "OrganizationAccessExpiredError";
+  }
+}
 
 export interface CurrentOrgContext {
   userId: string;
@@ -23,6 +32,7 @@ export interface CurrentOrgContext {
   isBranchScoped: boolean;
   allowedLocationIds: string[];
   masterLocationId: string | null;
+  organizationAccessExpiresAt: string | null;
   memberships: Array<{ orgId: string; orgName: string; role: MemberRole }>;
 }
 
@@ -33,7 +43,8 @@ export interface CurrentOrgContext {
  */
 const resolveCurrentOrgContext = cache(async (
   activeOrgId: string | null,
-  requestedMasterLocationId: string | null
+  requestedMasterLocationId: string | null,
+  allowExpired: boolean
 ): Promise<CurrentOrgContext | null> => {
   const supabase = await createClient();
 
@@ -111,6 +122,17 @@ const resolveCurrentOrgContext = cache(async (
   });
 
   const active = memberships.find((m) => m.orgId === activeOrgId) ?? memberships[0];
+  const platform = createPlatformAdminClient();
+  const { data: platformOrganization, error: expiryError } = await platform
+    .from("platform_organizations")
+    .select("organization_access_expires_at")
+    .eq("organization_id", active.orgId)
+    .maybeSingle();
+  if (expiryError) throw new Error(`Could not verify organization access expiry: ${expiryError.message}`);
+  const organizationAccessExpiresAt = platformOrganization?.organization_access_expires_at ?? null;
+  if (!allowExpired && getOrganizationExpiryStatus(organizationAccessExpiresAt).expired) {
+    throw new OrganizationAccessExpiredError(organizationAccessExpiresAt!);
+  }
   let masterLocationId: string | null = null;
   if (active.branchScope === "all" && requestedMasterLocationId) {
     const { data: selectedLocation } = await supabase
@@ -141,13 +163,17 @@ const resolveCurrentOrgContext = cache(async (
     isBranchScoped: active.isBranchScoped,
     allowedLocationIds: active.allowedLocationIds,
     masterLocationId,
+    organizationAccessExpiresAt,
     memberships: memberships.map(({ orgId, orgName, role }) => ({ orgId, orgName, role }))
   };
 });
 
-export async function getCurrentOrgContext(activeOrgId?: string): Promise<CurrentOrgContext | null> {
+export async function getCurrentOrgContext(
+  activeOrgId?: string,
+  options: { allowExpired?: boolean } = {},
+): Promise<CurrentOrgContext | null> {
   const requestCookies = await cookies();
   const selectedOrgId = activeOrgId ?? requestCookies.get("active_org_id")?.value ?? null;
   const masterLocationId = requestCookies.get("master_location_id")?.value ?? null;
-  return resolveCurrentOrgContext(selectedOrgId, masterLocationId);
+  return resolveCurrentOrgContext(selectedOrgId, masterLocationId, options.allowExpired === true);
 }

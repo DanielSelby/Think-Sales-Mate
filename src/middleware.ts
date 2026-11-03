@@ -4,6 +4,7 @@ import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-acces
 import { canonicalRoleKey, isTabVisible, resolveMemberPermissionMatrix } from "@/lib/rbac/permission-matrix";
 import { resolveTabRouteAccess } from "@/lib/rbac/tab-route-access";
 import { getRequiredProductSlugs, hasAnyRequiredProductAccess } from "@/lib/product-entitlement-routes";
+import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/api/cron/platform-usage", "/mobile-scan/pair"];
 
@@ -86,11 +87,75 @@ export async function middleware(request: NextRequest) {
     return redirectWithAuthCookies(new URL("/reset-password", request.url));
   }
 
+  const activeOrgId = request.cookies.get("active_org_id")?.value;
+  if (user && activeOrgId && pathname !== "/organization-expired") {
+    const { data: expiryMember, error: expiryMemberError } = await supabase
+      .from("organization_members")
+      .select("org_id, organizations(registration_status)")
+      .eq("user_id", user.id)
+      .eq("org_id", activeOrgId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (expiryMemberError) {
+      console.error("Organization expiry membership lookup failed:", expiryMemberError.message);
+      return isApiRequest
+        ? NextResponse.json({ error: "Unable to verify organization access." }, { status: 503 })
+        : new NextResponse("Unable to verify organization access. Please try again.", { status: 503 });
+    }
+    const expiryOrganization = Array.isArray(expiryMember?.organizations)
+      ? expiryMember.organizations[0]
+      : expiryMember?.organizations;
+    if (expiryMember && expiryOrganization?.registration_status === "approved") {
+      const platformUrl = process.env.PLATFORM_SUPABASE_URL;
+      const platformServiceKey = process.env.PLATFORM_SUPABASE_SERVICE_ROLE_KEY;
+      if (!platformUrl || !platformServiceKey) {
+        console.error("Organization expiry verification is unavailable because Platform Supabase is not configured.");
+        return isApiRequest
+          ? NextResponse.json({ error: "Unable to verify organization access." }, { status: 503 })
+          : new NextResponse("Unable to verify organization access. Please try again.", { status: 503 });
+      }
+
+      try {
+        const platformQuery = new URL("/rest/v1/platform_organizations", platformUrl);
+        platformQuery.searchParams.set("organization_id", `eq.${activeOrgId}`);
+        platformQuery.searchParams.set("select", "organization_access_expires_at");
+        const platformResponse = await fetch(platformQuery, {
+          headers: {
+            apikey: platformServiceKey,
+            Authorization: `Bearer ${platformServiceKey}`,
+          },
+          cache: "no-store",
+        });
+        if (!platformResponse.ok) {
+          console.error("Organization expiry lookup failed:", platformResponse.status, platformResponse.statusText);
+          return isApiRequest
+            ? NextResponse.json({ error: "Unable to verify organization access." }, { status: 503 })
+            : new NextResponse("Unable to verify organization access. Please try again.", { status: 503 });
+        }
+        const platformRows = await platformResponse.json() as Array<{ organization_access_expires_at: string | null }>;
+        const accessExpiry = platformRows[0]?.organization_access_expires_at ?? null;
+        if (getOrganizationExpiryStatus(accessExpiry).expired) {
+          if (isApiRequest) {
+            return NextResponse.json({
+              error: "Organization access has expired.",
+              organizationAccessExpiresAt: accessExpiry,
+            }, { status: 403 });
+          }
+          return redirectWithAuthCookies(new URL("/organization-expired", request.url));
+        }
+      } catch (error) {
+        console.error("Organization expiry verification failed:", error);
+        return isApiRequest
+          ? NextResponse.json({ error: "Unable to verify organization access." }, { status: 503 })
+          : new NextResponse("Unable to verify organization access. Please try again.", { status: 503 });
+      }
+    }
+  }
+
   const tabAccess = resolveTabRouteAccess(pathname, request.nextUrl.searchParams);
   const requiredProducts = process.env.PRODUCT_ENTITLEMENTS_ENFORCED === "true"
     ? getRequiredProductSlugs(pathname)
     : null;
-  const activeOrgId = request.cookies.get("active_org_id")?.value;
   if (user && (tabAccess || requiredProducts)) {
     const { data: members, error: memberError } = await supabase
       .from("organization_members")

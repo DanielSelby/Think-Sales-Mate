@@ -21,6 +21,7 @@ function makeContext(overrides: Partial<CurrentOrgContext> = {}): CurrentOrgCont
     isBranchScoped: true,
     allowedLocationIds: ["branch-a", "branch-b"],
     masterLocationId: null,
+    organizationAccessExpiresAt: null,
     memberships: [],
     ...overrides,
   };
