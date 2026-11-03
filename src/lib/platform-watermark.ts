@@ -1,4 +1,11 @@
-export type WatermarkPosition = "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+export type WatermarkPosition =
+  | "center"
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right";
 
 export type PlatformWatermarkConfiguration = {
   imageUrl: string | null;
@@ -15,8 +22,10 @@ export type PlatformWatermarkConfiguration = {
 const WATERMARK_POSITIONS: WatermarkPosition[] = [
   "center",
   "top-left",
+  "top-center",
   "top-right",
   "bottom-left",
+  "bottom-center",
   "bottom-right",
 ];
 
@@ -36,7 +45,7 @@ export function parsePlatformWatermark(
     ? settings.position as WatermarkPosition
     : "center";
   const opacity = typeof settings.opacity === "number" && Number.isFinite(settings.opacity)
-    ? Math.min(0.15, Math.max(0.01, settings.opacity))
+    ? Math.min(0.5, Math.max(0.01, settings.opacity))
     : 0.04;
   const desktopSize = typeof settings.desktop_size === "number" && Number.isFinite(settings.desktop_size)
     ? Math.min(800, Math.max(100, Math.round(settings.desktop_size)))

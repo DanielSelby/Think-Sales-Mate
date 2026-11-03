@@ -487,10 +487,18 @@ export async function savePlatformWatermark(formData: FormData) {
   const desktopSize = Number(formData.get("desktopSize"));
   const mobileSize = Number(formData.get("mobileSize"));
   const removeImage = formData.get("removeImage") === "true";
-  const positions: WatermarkPosition[] = ["center", "top-left", "top-right", "bottom-left", "bottom-right"];
+  const positions: WatermarkPosition[] = [
+    "center",
+    "top-left",
+    "top-center",
+    "top-right",
+    "bottom-left",
+    "bottom-center",
+    "bottom-right",
+  ];
   if ((enabledValue !== "true" && enabledValue !== "false") ||
       typeof positionValue !== "string" || !positions.includes(positionValue as WatermarkPosition) ||
-      !Number.isFinite(opacity) || opacity < 0.01 || opacity > 0.15 ||
+      !Number.isFinite(opacity) || opacity < 0.01 || opacity > 0.5 ||
       !Number.isInteger(desktopSize) || desktopSize < 100 || desktopSize > 800 ||
       !Number.isInteger(mobileSize) || mobileSize < 60 || mobileSize > 400) {
     throw new Error("Watermark settings contain invalid values.");

@@ -21,6 +21,7 @@ const THEME_OPTIONS: { key: ThemeKey; label: string }[] = [
   { key: "harvest", label: "Harvest"      },
   { key: "royal",   label: "Royal Blue"   },
   { key: "orangeBlack", label: "Orange & Black" },
+  { key: "emberOnyx", label: "Ember & Onyx" },
   { key: "greenWhite", label: "Green & White" },
 ];
 

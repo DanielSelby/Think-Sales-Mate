@@ -8,8 +8,10 @@ import type { PlatformWatermarkConfiguration, WatermarkPosition } from "@/lib/pl
 const positions: { value: WatermarkPosition; label: string }[] = [
   { value: "center", label: "Center" },
   { value: "top-left", label: "Top left" },
+  { value: "top-center", label: "Top center" },
   { value: "top-right", label: "Top right" },
   { value: "bottom-left", label: "Bottom left" },
+  { value: "bottom-center", label: "Bottom center" },
   { value: "bottom-right", label: "Bottom right" },
 ];
 
@@ -116,7 +118,7 @@ export function WatermarkManager({ initialConfiguration }: { initialConfiguratio
 
           <label className="block">
             <span className="flex justify-between text-sm font-medium text-slate-700"><span>Opacity</span><span>{opacity}%</span></span>
-            <input type="range" min="1" max="15" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="mt-2 w-full" />
+            <input type="range" min="1" max="50" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="mt-2 w-full" />
             <span className="text-xs text-slate-500">Default is 4%; lower values are less prominent.</span>
           </label>
 

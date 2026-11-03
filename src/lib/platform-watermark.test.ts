@@ -16,12 +16,16 @@ describe("platform watermark configuration", () => {
 
     expect(config).toMatchObject({
       enabled: true,
-      opacity: 0.15,
+      opacity: 0.5,
       desktopSize: 800,
       mobileSize: 60,
       position: "center",
     });
     expect(parsePlatformWatermark({ image_url: "https://example.com/image.png" }).enabled).toBe(false);
+  });
+
+  it.each(["top-center", "bottom-center"] as const)("accepts the %s position", (position) => {
+    expect(parsePlatformWatermark({ position }).position).toBe(position);
   });
 });
 

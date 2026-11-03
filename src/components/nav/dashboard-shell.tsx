@@ -54,10 +54,12 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   const theme = THEMES[activeTheme];
   const mobileNav = NAV_ITEMS.filter((item) => ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href));
   const watermarkPosition = watermark?.position === "top-left" ? "left top"
-    : watermark?.position === "top-right" ? "right top"
+    : watermark?.position === "top-center" ? "center top"
+      : watermark?.position === "top-right" ? "right top"
       : watermark?.position === "bottom-left" ? "left bottom"
-        : watermark?.position === "bottom-right" ? "right bottom"
-          : "center";
+        : watermark?.position === "bottom-center" ? "center bottom"
+          : watermark?.position === "bottom-right" ? "right bottom"
+            : "center";
   const watermarkStyle: React.CSSProperties = watermark?.enabled && watermark.imageUrl
     ? {
       "--platform-watermark-desktop-size": `${watermark.desktopSize}px`,
