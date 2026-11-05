@@ -139,6 +139,12 @@ by inserting a catalog row alone.
   reports page shows exact current job counts by
   status, jobs received during a selected date range, and appointment counts
   by status for that period when the user has appointment-view permission.
+  It also shows jobs closed and average intake-to-closure time; accounting-view
+  users can see repair payments collected by method, inventory-view users can
+  see issued/returned parts and their net inventory cost, and service-technician
+  viewers can see the selected-period workload by current assignment. Report
+  queries respect branch scope and paginate all matching rows rather than
+  silently truncating totals.
   At collection, staff can issue an Accounts Receivable invoice from the
   approved estimate. Repair invoices support branch-scoped partial payments,
   payment history, and printable per-payment receipts; the job completes only
