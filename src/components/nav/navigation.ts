@@ -29,7 +29,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "live" },
   { label: "Approval Center", href: "/approvals", icon: ClipboardCheck, status: "live" },
-  { label: "Think Service & Repairs", href: "/service-center", icon: Wrench, status: "soon" },
+  { label: "Think Service & Repairs", href: "/service-center", icon: Wrench, status: "live" },
   {
     label: "Restaurant", href: "/restaurant", icon: Utensils, status: "live",
     children: [

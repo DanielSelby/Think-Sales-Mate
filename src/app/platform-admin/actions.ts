@@ -971,20 +971,28 @@ export async function setOrganizationFeature(organizationId: string, module: Pla
   revalidatePath("/platform-admin");
 }
 
-export async function updatePlatformProductCatalog(formData: FormData): Promise<void> {
+export type PlatformProductCatalogActionResult =
+  | { ok: true; message: string }
+  | { ok: false; error: string };
+
+export async function updatePlatformProductCatalog(formData: FormData): Promise<PlatformProductCatalogActionResult> {
   const { admin, supabase } = await requirePlatformManagement("Feature Access");
-  const slug = String(formData.get("slug") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const publishedValue = String(formData.get("isPublished") ?? "");
+  const slugValue = formData.get("slug");
+  const nameValue = formData.get("name");
+  const descriptionValue = formData.get("description");
+  const publishedFormValue = formData.get("isPublished");
+  const slug = typeof slugValue === "string" ? slugValue : "";
+  const name = typeof nameValue === "string" ? nameValue.trim() : "";
+  const description = typeof descriptionValue === "string" ? descriptionValue.trim() : "";
+  const publishedValue = typeof publishedFormValue === "string" ? publishedFormValue : "";
   if (!isPlatformProductSlug(slug)) {
-    throw new Error("Choose a supported product.");
+    return { ok: false, error: "Choose a supported product." };
   }
   if (!name || name.length > 120 || description.length > 1000) {
-    throw new Error("Product name is required and descriptions must be no more than 1,000 characters.");
+    return { ok: false, error: "Product name is required and descriptions must be no more than 1,000 characters." };
   }
   if (publishedValue !== "true" && publishedValue !== "false") {
-    throw new Error("Choose whether the product is published.");
+    return { ok: false, error: "Choose whether the product is published." };
   }
 
   const { data: previousProduct, error: loadError } = await supabase
@@ -992,10 +1000,10 @@ export async function updatePlatformProductCatalog(formData: FormData): Promise<
     .select("name, description, is_published")
     .eq("slug", slug)
     .single();
-  if (loadError) throw new Error(`Could not load product catalog entry: ${loadError.message}`);
+  if (loadError) return { ok: false, error: `Could not load product catalog entry: ${loadError.message}` };
 
   const isPublished = publishedValue === "true";
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("platform_products")
     .update({
       name,
@@ -1003,8 +1011,15 @@ export async function updatePlatformProductCatalog(formData: FormData): Promise<
       is_published: isPublished,
       updated_at: new Date().toISOString(),
     })
-    .eq("slug", slug);
-  if (error) throw new Error(`Could not update product catalog entry: ${error.message}`);
+    .eq("slug", slug)
+    .select("slug")
+    .maybeSingle();
+  if (error) return { ok: false, error: `Could not update product catalog entry: ${error.message}` };
+  if (!data) return { ok: false, error: "The product no longer exists in the catalog. Refresh and try again." };
+
+  revalidatePath("/platform-admin/products");
+  revalidatePath("/onboarding");
+  revalidatePath("/settings/products");
 
   const { error: auditError } = await supabase.from("platform_audit_logs").insert({
     admin_id: admin.id,
@@ -1016,11 +1031,11 @@ export async function updatePlatformProductCatalog(formData: FormData): Promise<
       updated: { name, description, is_published: isPublished },
     },
   });
-  if (auditError) throw new Error(`Product catalog was updated, but its audit record failed: ${auditError.message}`);
+  if (auditError) {
+    return { ok: false, error: `Product settings were saved, but their audit record failed: ${auditError.message}` };
+  }
 
-  revalidatePath("/platform-admin/products");
-  revalidatePath("/onboarding");
-  revalidatePath("/settings/products");
+  return { ok: true, message: `${name} was saved. Publishing changes registration availability only; it does not activate subscriptions.` };
 }
 
 export async function retryProductEntitlementEvent(formData: FormData): Promise<void> {
