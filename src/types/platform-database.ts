@@ -6,7 +6,17 @@ export type PlatformRole =
   | "technical_administrator";
 
 export type PlatformModule = string;
-export type PlatformProductSlug = "thinksales-erp" | "restaurant";
+export const PLATFORM_PRODUCT_SLUGS = ["thinksales-erp", "restaurant", "think-service-repairs"] as const;
+export type PlatformProductSlug = (typeof PLATFORM_PRODUCT_SLUGS)[number];
+export const PLATFORM_PRODUCT_LABELS: Record<PlatformProductSlug, string> = {
+  "thinksales-erp": "ThinkSales ERP",
+  restaurant: "Restaurant",
+  "think-service-repairs": "Think Service & Repairs",
+};
+
+export function isPlatformProductSlug(value: string): value is PlatformProductSlug {
+  return (PLATFORM_PRODUCT_SLUGS as readonly string[]).includes(value);
+}
 export type PlatformProductSubscriptionStatus =
   | "pending"
   | "trial"

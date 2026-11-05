@@ -129,6 +129,7 @@ const resolveCurrentOrgContext = cache(async (
     .eq("organization_id", active.orgId)
     .maybeSingle();
   if (expiryError) throw new Error(`Could not verify organization access expiry: ${expiryError.message}`);
+  if (!platformOrganization) throw new Error("Could not verify organization access expiry: organization is missing from Platform Admin.");
   const organizationAccessExpiresAt = platformOrganization?.organization_access_expires_at ?? null;
   if (!allowExpired && getOrganizationExpiryStatus(organizationAccessExpiresAt).expired) {
     throw new OrganizationAccessExpiredError(organizationAccessExpiresAt!);

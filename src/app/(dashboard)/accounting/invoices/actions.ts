@@ -54,7 +54,7 @@ export async function markInvoicePaid(invoiceId: string) {
   const supabase = await createClient();
   const { data: invoice, error: loadError } = await supabase
     .from("invoices")
-    .select("amount, source_catering_event_id")
+    .select("amount, source_catering_event_id, source_service_job_id")
     .eq("id", invoiceId)
     .eq("org_id", context.orgId)
     .maybeSingle();
@@ -62,6 +62,9 @@ export async function markInvoicePaid(invoiceId: string) {
   if (!invoice) return { error: "Invoice not found." };
   if (invoice.source_catering_event_id) {
     return { error: "Record payments through the linked catering event so its payment history stays accurate." };
+  }
+  if (invoice.source_service_job_id) {
+    return { error: "Record repair invoice payments from the invoice details so each payment has a receipt." };
   }
 
   const { error } = await supabase
@@ -76,7 +79,69 @@ export async function markInvoicePaid(invoiceId: string) {
   revalidatePath("/accounting/invoices");
   revalidatePath("/accounting");
   revalidatePath("/dashboard");
+  revalidatePath("/service-center");
   return { success: true };
+}
+
+export async function recordServiceInvoicePayment(input: {
+  invoiceId: string;
+  amount: number;
+  paymentMethod: "Cash" | "Card" | "Bank Transfer" | "Mobile Money" | "Other";
+  paymentDate: string;
+  notes?: string;
+}): Promise<{ success: true; paymentId: string } | { error: string }> {
+  if (!input
+    || typeof input.invoiceId !== "string"
+    || typeof input.paymentDate !== "string"
+    || typeof input.paymentMethod !== "string"
+    || (input.notes !== undefined && typeof input.notes !== "string")) {
+    return { error: "Enter complete payment details." };
+  }
+
+  const context = await getCurrentOrgContext();
+  if (!context
+    || !await canPermission("accounting", "edit")
+    || !await canTabPermission("accounting", "accounting", "receivables", "edit")) {
+    return { error: "You don't have permission to record invoice payments." };
+  }
+
+  const amount = Number(input.amount);
+  if (!input.invoiceId || !Number.isFinite(amount) || amount <= 0
+    || Math.abs(amount - Math.round(amount * 100) / 100) > 1e-8) {
+    return { error: "Enter a valid payment amount with up to two decimal places." };
+  }
+  const methods = ["Cash", "Card", "Bank Transfer", "Mobile Money", "Other"] as const;
+  if (!methods.includes(input.paymentMethod)) return { error: "Select a valid payment method." };
+  const paymentDate = input.paymentDate.trim();
+  const parsedDate = new Date(`${paymentDate}T00:00:00.000Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
+    || Number.isNaN(parsedDate.getTime())
+    || parsedDate.toISOString().slice(0, 10) !== paymentDate
+    || paymentDate > new Date().toISOString().slice(0, 10)) {
+    return { error: "Enter a valid payment date that is not in the future." };
+  }
+  const notes = input.notes?.trim() || null;
+  if (notes && notes.length > 500) return { error: "Payment notes cannot exceed 500 characters." };
+
+  const supabase = await createClient();
+  const { data: paymentId, error } = await supabase.rpc("record_service_invoice_payment", {
+    p_org_id: context.orgId,
+    p_invoice_id: input.invoiceId,
+    p_amount: amount,
+    p_payment_method: input.paymentMethod,
+    p_payment_date: paymentDate,
+    p_notes: notes,
+  });
+  if (error) return { error: error.message };
+  if (!paymentId) return { error: "The payment was not saved. Please try again." };
+
+  revalidatePath(`/accounting/invoices/${input.invoiceId}`);
+  revalidatePath(`/accounting/invoices/${input.invoiceId}/receipts/${paymentId}`);
+  revalidatePath("/accounting/invoices");
+  revalidatePath("/accounting");
+  revalidatePath("/dashboard");
+  revalidatePath("/service-center");
+  return { success: true, paymentId };
 }
 
 export async function voidInvoice(invoiceId: string) {
@@ -88,7 +153,7 @@ export async function voidInvoice(invoiceId: string) {
   const supabase = await createClient();
   const { data: invoice, error: loadError } = await supabase
     .from("invoices")
-    .select("source_catering_event_id")
+    .select("source_catering_event_id, source_service_job_id, amount_paid")
     .eq("id", invoiceId)
     .eq("org_id", context.orgId)
     .maybeSingle();
@@ -96,6 +161,9 @@ export async function voidInvoice(invoiceId: string) {
   if (!invoice) return { error: "Invoice not found." };
   if (invoice.source_catering_event_id) {
     return { error: "Catering final invoices cannot be voided from Accounts Receivable." };
+  }
+  if (invoice.source_service_job_id && Number(invoice.amount_paid) > 0) {
+    return { error: "A repair invoice with recorded payments cannot be voided." };
   }
 
   const { error } = await supabase
@@ -109,5 +177,6 @@ export async function voidInvoice(invoiceId: string) {
   revalidatePath("/accounting/invoices");
   revalidatePath("/accounting");
   revalidatePath("/dashboard");
+  revalidatePath("/service-center");
   return { success: true };
 }

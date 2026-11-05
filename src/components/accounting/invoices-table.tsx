@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { markInvoicePaid, voidInvoice } from "@/app/(dashboard)/accounting/invoices/actions";
 
 export interface InvoiceRow {
@@ -10,6 +11,7 @@ export interface InvoiceRow {
   amount: number;
   amountPaid: number;
   sourceCateringEventId: string | null;
+  sourceServiceJobId: string | null;
   status: "draft" | "sent" | "paid" | "overdue" | "void";
   dueDate: string;
 }
@@ -74,8 +76,11 @@ export function InvoicesTable({ invoices, canManage, currencyConfig }: { invoice
             {invoices.map((invoice) => (
               <tr key={invoice.id} className="border-b border-ledger-50 last:border-0 dark:border-ledger-700/50">
                 <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
-                  #{String(invoice.invoiceNumber).padStart(4, "0")}
+                  <Link href={`/accounting/invoices/${invoice.id}`} className="hover:text-amber-700 hover:underline dark:hover:text-amber-300">
+                    #{String(invoice.invoiceNumber).padStart(4, "0")}
+                  </Link>
                   {invoice.sourceCateringEventId && <span className="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">Catering</span>}
+                  {invoice.sourceServiceJobId && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Service repair</span>}
                 </td>
                 <td className="px-4 py-3 text-ledger-600 dark:text-ledger-300">{invoice.customerName}</td>
                 <td className="px-4 py-3 text-ledger-500 dark:text-ledger-400">
@@ -91,7 +96,26 @@ export function InvoicesTable({ invoices, canManage, currencyConfig }: { invoice
                 <td className="px-4 py-3 text-right figure font-semibold text-ink-900 dark:text-white">{formatCurrencyAmount(Math.max(0, invoice.amount - invoice.amountPaid), currencyConfig)}</td>
                 {canManage && (
                   <td className="px-4 py-3">
-                    {(invoice.status === "sent" || invoice.status === "overdue") && !invoice.sourceCateringEventId && (
+                    {(invoice.status === "sent" || invoice.status === "overdue") && invoice.sourceServiceJobId && (
+                      <div className="flex justify-end gap-3">
+                        <Link
+                          href={`/accounting/invoices/${invoice.id}`}
+                          className="text-xs font-medium text-signal hover:underline"
+                        >
+                          Record payment
+                        </Link>
+                        {invoice.amountPaid === 0 && (
+                          <button
+                            onClick={() => handleVoid(invoice.id)}
+                            disabled={isPending}
+                            className="text-xs font-medium text-alert hover:underline disabled:opacity-40"
+                          >
+                            Void
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {(invoice.status === "sent" || invoice.status === "overdue") && !invoice.sourceCateringEventId && !invoice.sourceServiceJobId && (
                       <div className="flex justify-end gap-3">
                         <button
                           onClick={() => handleMarkPaid(invoice.id)}

@@ -33,5 +33,7 @@ describe("organization access expiry", () => {
   it("rejects malformed dates from persisted data", () => {
     expect(() => getOrganizationExpiryStatus("2026-02-30", new Date("2026-02-01T00:00:00.000Z")))
       .toThrow("Organization access expiry date is invalid.");
+    expect(() => getOrganizationExpiryStatus("not-a-date", new Date("2026-02-01T00:00:00.000Z")))
+      .toThrow("Organization access expiry date is invalid.");
   });
 });

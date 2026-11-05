@@ -1,7 +1,8 @@
 # Integrating a Product
 
 The product catalog currently manages the display name, description, and
-registration availability of ThinkSales ERP and Restaurant. Publishing a
+registration availability of ThinkSales ERP, Restaurant, and Think Service &
+Repairs. Publishing a
 catalog entry only makes it selectable; it does not integrate a new product.
 Product slugs are currently a compile-time union, and route access defaults to
 ThinkSales ERP unless a route is explicitly classified. Do not add a product
@@ -97,6 +98,71 @@ by inserting a catalog row alone.
   UTC calendar day; access is blocked from the following UTC day until renewed.
   Expiry blocks application access without changing organization status or
   deleting organization data.
+- `supabase/platform-migrations/0018_think_service_repairs_product.sql` and
+  `supabase/migrations/20261104100000_think_service_repairs_core.sql`:
+  register the unpublished Think Service & Repairs product and its initial
+  branch-scoped service schema. The current application workflow supports
+  service-job intake with recorded arrival condition, included accessories,
+  and acknowledgment by the customer or an authorized representative, plus
+  status transitions, customer equipment registration,
+  technician registration, optional equipment/technician assignment, and
+  appointment scheduling with technician-overlap protection and status history.
+  Equipment records can include warranty provider, reference, coverage dates,
+  and terms. Coverage status is shown on equipment and linked repair jobs;
+  warranty dates are optional, but when supplied both dates are required and
+  the end date cannot precede the start date.
+  It also supports versioned repair estimates, itemized totals and tax, recording
+  when an estimate is sent, and recording the customer's decision with an audit
+  note. Staff may explicitly send an estimate using a configured customer
+  messaging provider. The message includes a per-estimate secure portal link
+  that expires after 30 days; customers can review repair status and estimate
+  details, then approve or decline once. Only a SHA-256 token hash is stored,
+  responses update estimate and job history atomically, and message history
+  does not retain the bearer link. The portal does not require an account;
+  anyone with the link can view its scoped repair details. Sending remains
+  staff-triggered, and automatic status notifications are not implemented.
+  Service staff with inventory
+  edit permission can issue stock-tracked products to an approved repair job
+  from that job's branch inventory, and record unused-part returns against the
+  original issue. These inventory changes are atomic and appear in the repair
+  movement history. Staff can also keep an append-only, branch-scoped customer
+  contact log for each repair job, recording direction, method, outcome, and
+  notes. Staff can prepare a status-based customer update and either copy it
+  to their normal messaging app and log it manually, or explicitly send it
+  through the configured SMS, WhatsApp, or email provider. Direct sends check
+  the customer's channel preferences, record delivery status and provider in
+  messaging history, and add an entry to the repair contact log. Direct delivery
+  requires a configured provider and may incur provider charges; failed sends
+  are surfaced and logged. Staff with appointment-edit permission can also
+  prepare and send a reminder for a scheduled or confirmed future appointment;
+  reminders are never sent automatically. The service
+  reports page shows exact current job counts by
+  status, jobs received during a selected date range, and appointment counts
+  by status for that period when the user has appointment-view permission.
+  At collection, staff can issue an Accounts Receivable invoice from the
+  approved estimate. Repair invoices support branch-scoped partial payments,
+  payment history, and printable per-payment receipts; the job completes only
+  when the invoice is fully paid. Staff can then record a branch-scoped device
+  handover with the recipient, release condition, returned accessories, and
+  customer acknowledgment; this closes the job and adds status history. Direct
+  status changes cannot mark a job paid or handed over. An unpaid invoice can
+  be voided to return the job to the collection-ready state, while an invoice
+  with recorded payments cannot be voided. Repair payment recording is
+  separate from the generic customer-credit ledger and does not create bank
+  deposits or process online payments. A warranty follow-up can be opened only
+  from a handed-over repair for the same customer, branch, and equipment.
+  The claim must be reviewed before work proceeds beyond inspection. Staff
+  record a covered/not-covered decision and reason; covered claims follow a
+  no-customer-charge repair path and require handover but no invoice. Non-covered
+  claims continue through the estimate and payment workflow. Dates and stored
+  warranty terms are context for the staff decision, not an automatic coverage
+  determination. The core schema is in the unapplied service migration;
+  secure customer portal links and response procedures are in the additive
+  `20261105192000_service_repair_customer_portal.sql` migration.
+  Configure `SITE_URL` or `NEXT_PUBLIC_SITE_URL` to the production HTTPS
+  origin before sending estimate links. Keep the product unpublished and do
+  not apply these migrations or deploy until the remaining product workflows,
+  authorization tests, and rollout checks are complete.
 
 Review the current code and migration heads before following this checklist;
 the listed files may evolve as product integration becomes more data-driven.

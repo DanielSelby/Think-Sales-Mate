@@ -37,6 +37,7 @@ import type {
   PlatformProductSlug,
   PlatformProductSubscriptionStatus,
 } from "@/types/platform-database";
+import { PLATFORM_PRODUCT_LABELS } from "@/types/platform-database";
 import { PLATFORM_MODULES } from "@/lib/platform-modules";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -290,7 +291,7 @@ export default function OrganizationManagement({
         graceEndsAt: endOfDay(draft.graceEndsAt),
         cancelAtPeriodEnd: draft.cancelAtPeriodEnd,
       }),
-      `${productSlug === "restaurant" ? "Restaurant" : "ThinkSales ERP"} subscription updated.`,
+      `${PLATFORM_PRODUCT_LABELS[productSlug]} subscription updated.`,
     );
   };
   const saveOrganizationLimits = (event: React.FormEvent<HTMLFormElement>) => {

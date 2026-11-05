@@ -15,6 +15,25 @@ export type ExpenseStatus = "pending_approval" | "approved" | "rejected";
 export type ExpensePaymentStatus = "unpaid" | "paid";
 export type ExpenseCategoryStatus = "active" | "inactive";
 export type EmploymentType = "full_time" | "part_time" | "contract" | "intern";
+export type ServiceJobStatus =
+  | "received"
+  | "inspection"
+  | "awaiting_quotation"
+  | "awaiting_customer_approval"
+  | "approved"
+  | "rejected"
+  | "in_progress"
+  | "awaiting_parts"
+  | "quality_check"
+  | "ready_for_collection"
+  | "awaiting_payment"
+  | "completed"
+  | "closed"
+  | "cancelled";
+export type ServiceJobPriority = "low" | "normal" | "high" | "urgent";
+export type ServiceAppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
+export type ServiceQuotationStatus = "draft" | "sent" | "approved" | "rejected" | "superseded" | "withdrawn";
+export type ServiceWarrantyClaimStatus = "pending" | "covered" | "not_covered";
 export type PayrollRunStatus = "draft" | "processing" | "completed" | "failed";
 export type PayslipStatus = "pending" | "generated" | "archived";
 export type PayrollApprovalStatus = "pending" | "approved" | "rejected";
@@ -3036,6 +3055,8 @@ export interface Database {
           paid_at: string | null;
           source_catering_event_id: string | null;
           source_catering_quote_id: string | null;
+          source_service_job_id: string | null;
+          source_service_quotation_id: string | null;
           created_by: string;
           created_at: string;
         };
@@ -3051,6 +3072,8 @@ export interface Database {
           paid_at?: string | null;
           source_catering_event_id?: string | null;
           source_catering_quote_id?: string | null;
+          source_service_job_id?: string | null;
+          source_service_quotation_id?: string | null;
           created_by: string;
           created_at?: string;
         };
@@ -3095,6 +3118,534 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["customers"]["Row"]>;
+        Relationships: [];
+      };
+      service_categories: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string | null;
+          name: string;
+          description: string | null;
+          default_duration_minutes: number;
+          is_active: boolean;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id?: string | null;
+          name: string;
+          description?: string | null;
+          default_duration_minutes?: number;
+          is_active?: boolean;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_categories"]["Row"]>;
+        Relationships: [];
+      };
+      service_assets: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          customer_id: string;
+          asset_type: string;
+          brand: string | null;
+          model: string | null;
+          serial_number: string | null;
+          condition: string | null;
+          notes: string | null;
+          warranty_provider: string | null;
+          warranty_reference: string | null;
+          warranty_start_date: string | null;
+          warranty_end_date: string | null;
+          warranty_terms: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          customer_id: string;
+          asset_type: string;
+          brand?: string | null;
+          model?: string | null;
+          serial_number?: string | null;
+          condition?: string | null;
+          notes?: string | null;
+          warranty_provider?: string | null;
+          warranty_reference?: string | null;
+          warranty_start_date?: string | null;
+          warranty_end_date?: string | null;
+          warranty_terms?: string | null;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_assets"]["Row"]>;
+        Relationships: [];
+      };
+      service_technicians: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          user_id: string;
+          skills: string[];
+          is_active: boolean;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          user_id: string;
+          skills?: string[];
+          is_active?: boolean;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_technicians"]["Row"]>;
+        Relationships: [];
+      };
+      service_jobs: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_number: string;
+          customer_id: string;
+          asset_id: string | null;
+          category_id: string | null;
+          technician_id: string | null;
+          status: ServiceJobStatus;
+          priority: ServiceJobPriority;
+          reported_problem: string;
+          condition_on_arrival: string;
+          accessories: string[];
+          intake_confirmed_by: string;
+          intake_confirmed_as: "customer" | "authorized_representative";
+          intake_confirmed_at: string;
+          diagnosis: string | null;
+          recommended_work: string | null;
+          internal_notes: string | null;
+          customer_notes: string | null;
+          expected_completion_at: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_number: string;
+          customer_id: string;
+          asset_id?: string | null;
+          category_id?: string | null;
+          technician_id?: string | null;
+          status?: ServiceJobStatus;
+          priority?: ServiceJobPriority;
+          reported_problem: string;
+          condition_on_arrival: string;
+          accessories?: string[];
+          intake_confirmed_by: string;
+          intake_confirmed_as: "customer" | "authorized_representative";
+          intake_confirmed_at?: string;
+          diagnosis?: string | null;
+          recommended_work?: string | null;
+          internal_notes?: string | null;
+          customer_notes?: string | null;
+          expected_completion_at?: string | null;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_jobs"]["Row"]>;
+        Relationships: [];
+      };
+      service_job_status_history: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          previous_status: string | null;
+          new_status: string;
+          note: string | null;
+          actor_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          previous_status?: string | null;
+          new_status: string;
+          note?: string | null;
+          actor_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_job_status_history"]["Row"]>;
+        Relationships: [];
+      };
+      service_job_customer_contacts: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          direction: "incoming" | "outgoing";
+          method: "phone" | "email" | "sms" | "whatsapp" | "in_person" | "other";
+          outcome: "completed" | "no_answer" | "left_message" | "follow_up_needed" | "other";
+          details: string;
+          actor_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          direction: "incoming" | "outgoing";
+          method: "phone" | "email" | "sms" | "whatsapp" | "in_person" | "other";
+          outcome: "completed" | "no_answer" | "left_message" | "follow_up_needed" | "other";
+          details: string;
+          actor_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_job_customer_contacts"]["Row"]>;
+        Relationships: [];
+      };
+      service_job_handovers: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          recipient_name: string;
+          recipient_type: "customer" | "authorized_representative";
+          condition_on_handover: string;
+          accessories_returned: string | null;
+          customer_acknowledged: boolean;
+          collected_at: string;
+          recorded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          recipient_name: string;
+          recipient_type: "customer" | "authorized_representative";
+          condition_on_handover: string;
+          accessories_returned?: string | null;
+          customer_acknowledged: boolean;
+          collected_at?: string;
+          recorded_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_job_handovers"]["Row"]>;
+        Relationships: [];
+      };
+      service_job_warranty_claims: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          original_job_id: string;
+          follow_up_job_id: string;
+          customer_id: string;
+          asset_id: string;
+          status: ServiceWarrantyClaimStatus;
+          decision_note: string | null;
+          decided_by: string | null;
+          decided_at: string | null;
+          recorded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          original_job_id: string;
+          follow_up_job_id: string;
+          customer_id: string;
+          asset_id: string;
+          status?: ServiceWarrantyClaimStatus;
+          decision_note?: string | null;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          recorded_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_job_warranty_claims"]["Row"]>;
+        Relationships: [];
+      };
+
+      service_appointments: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          customer_id: string;
+          asset_id: string | null;
+          technician_id: string | null;
+          job_id: string | null;
+          title: string;
+          notes: string | null;
+          starts_at: string;
+          ends_at: string;
+          status: ServiceAppointmentStatus;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          customer_id: string;
+          asset_id?: string | null;
+          technician_id?: string | null;
+          job_id?: string | null;
+          title: string;
+          notes?: string | null;
+          starts_at: string;
+          ends_at: string;
+          status?: ServiceAppointmentStatus;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_appointments"]["Row"]>;
+        Relationships: [];
+      };
+      service_appointment_status_history: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          appointment_id: string;
+          previous_status: ServiceAppointmentStatus | null;
+          new_status: ServiceAppointmentStatus;
+          actor_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          appointment_id: string;
+          previous_status?: ServiceAppointmentStatus | null;
+          new_status: ServiceAppointmentStatus;
+          actor_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_appointment_status_history"]["Row"]>;
+        Relationships: [];
+      };
+      service_quotations: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          version: number;
+          status: ServiceQuotationStatus;
+          notes: string | null;
+          subtotal: number;
+          tax_rate: number;
+          tax_amount: number;
+          total: number;
+          created_by: string;
+          created_at: string;
+          sent_at: string | null;
+          sent_note: string | null;
+          decided_at: string | null;
+          decision_note: string | null;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          version: number;
+          status?: ServiceQuotationStatus;
+          notes?: string | null;
+          subtotal: number;
+          tax_rate?: number;
+          tax_amount: number;
+          total: number;
+          created_by: string;
+          created_at?: string;
+          sent_at?: string | null;
+          sent_note?: string | null;
+          decided_at?: string | null;
+          decision_note?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_quotations"]["Row"]>;
+        Relationships: [];
+      };
+      service_quotation_portal_links: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          quotation_id: string;
+          token_hash: string;
+          expires_at: string;
+          created_by: string;
+          created_at: string;
+          revoked_at: string | null;
+          responded_at: string | null;
+          decision: "approved" | "rejected" | null;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          quotation_id: string;
+          token_hash: string;
+          expires_at?: string;
+          created_by: string;
+          created_at?: string;
+          revoked_at?: string | null;
+          responded_at?: string | null;
+          decision?: "approved" | "rejected" | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_quotation_portal_links"]["Row"]>;
+        Relationships: [];
+      };
+      service_quotation_items: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          quotation_id: string;
+          description: string;
+          quantity: number;
+          unit_price: number;
+          line_total: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          quotation_id: string;
+          description: string;
+          quantity: number;
+          unit_price: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_quotation_items"]["Row"]>;
+        Relationships: [];
+      };
+      service_quotation_status_history: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          quotation_id: string;
+          previous_status: ServiceQuotationStatus | null;
+          new_status: ServiceQuotationStatus;
+          note: string | null;
+          actor_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          quotation_id: string;
+          previous_status?: ServiceQuotationStatus | null;
+          new_status: ServiceQuotationStatus;
+          note?: string | null;
+          actor_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_quotation_status_history"]["Row"]>;
+        Relationships: [];
+      };
+      service_job_part_movements: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          product_id: string;
+          movement_type: "issued" | "returned";
+          related_issue_id: string | null;
+          quantity: number;
+          returned_quantity: number;
+          unit_cost: number;
+          note: string | null;
+          actor_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          product_id: string;
+          movement_type: "issued" | "returned";
+          related_issue_id?: string | null;
+          quantity: number;
+          returned_quantity?: number;
+          unit_cost?: number;
+          note?: string | null;
+          actor_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_job_part_movements"]["Row"]>;
+        Relationships: [];
+      };
+      service_invoice_payments: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          invoice_id: string;
+          amount: number;
+          payment_method: "Cash" | "Card" | "Bank Transfer" | "Mobile Money" | "Other";
+          payment_date: string;
+          balance_after: number;
+          notes: string | null;
+          recorded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          invoice_id: string;
+          amount: number;
+          payment_method: "Cash" | "Card" | "Bank Transfer" | "Mobile Money" | "Other";
+          payment_date: string;
+          balance_after: number;
+          notes?: string | null;
+          recorded_by: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_invoice_payments"]["Row"]>;
         Relationships: [];
       };
 
@@ -4271,6 +4822,46 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["communication_channels"]["Row"]>;
         Relationships: [];
       };
+      communication_message_history: {
+        Row: {
+          id: string;
+          org_id: string;
+          template_id: string | null;
+          customer_id: string | null;
+          event: string | null;
+          channel: string;
+          recipient: string | null;
+          rendered_subject: string | null;
+          rendered_content: string;
+          status: "Pending" | "Sent" | "Delivered" | "Read" | "Failed" | "Cancelled";
+          sent_by: string | null;
+          branch_scope: string | null;
+          created_at: string;
+          delivery_provider: string | null;
+          delivery_recipient: string | null;
+          failure_reason: string | null;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          template_id?: string | null;
+          customer_id?: string | null;
+          event?: string | null;
+          channel: string;
+          recipient?: string | null;
+          rendered_subject?: string | null;
+          rendered_content: string;
+          status?: "Pending" | "Sent" | "Delivered" | "Read" | "Failed" | "Cancelled";
+          sent_by?: string | null;
+          branch_scope?: string | null;
+          created_at?: string;
+          delivery_provider?: string | null;
+          delivery_recipient?: string | null;
+          failure_reason?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["communication_message_history"]["Row"]>;
+        Relationships: [];
+      };
       communication_messages: {
         Row: {
           id: string;
@@ -4311,6 +4902,32 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["communication_channel_members"]["Row"]>;
+        Relationships: [];
+      };
+      customer_message_preferences: {
+        Row: {
+          id: string;
+          org_id: string;
+          customer_id: string;
+          whatsapp: boolean;
+          sms: boolean;
+          email: boolean;
+          portal_notification: boolean;
+          preferred_channel: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          customer_id: string;
+          whatsapp?: boolean;
+          sms?: boolean;
+          email?: boolean;
+          portal_notification?: boolean;
+          preferred_channel?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["customer_message_preferences"]["Row"]>;
         Relationships: [];
       };
       product_duplicate_settings: {
@@ -4440,6 +5057,97 @@ export interface Database {
       };
     };
     Functions: {
+      transition_service_appointment: {
+        Args: { p_appointment_id: string; p_new_status: ServiceAppointmentStatus };
+        Returns: undefined;
+      };
+      transition_service_job: {
+        Args: { p_job_id: string; p_new_status: ServiceJobStatus; p_note?: string | null };
+        Returns: undefined;
+      };
+      create_service_quotation: {
+        Args: { p_job_id: string; p_items: Json; p_notes?: string | null; p_tax_rate?: number };
+        Returns: string;
+      };
+      transition_service_quotation: {
+        Args: { p_quotation_id: string; p_new_status: string; p_note?: string | null };
+        Returns: undefined;
+      };
+      get_service_repair_portal_view: {
+        Args: { p_token_hash: string };
+        Returns: Json;
+      };
+      respond_to_service_repair_portal: {
+        Args: { p_token_hash: string; p_decision: string; p_note?: string | null };
+        Returns: undefined;
+      };
+      issue_service_job_parts: {
+        Args: { p_job_id: string; p_items: Json; p_note?: string | null };
+        Returns: undefined;
+      };
+      return_service_job_part: {
+        Args: { p_issue_id: string; p_quantity: number; p_note: string };
+        Returns: undefined;
+      };
+      create_service_job_invoice: {
+        Args: { p_job_id: string; p_due_date: string };
+        Returns: Array<{ invoice_id: string; invoice_number: number }>;
+      };
+      record_service_invoice_payment: {
+        Args: {
+          p_org_id: string;
+          p_invoice_id: string;
+          p_amount: number;
+          p_payment_method: "Cash" | "Card" | "Bank Transfer" | "Mobile Money" | "Other";
+          p_payment_date: string;
+          p_notes?: string | null;
+        };
+        Returns: string;
+      };
+      record_service_job_handover: {
+        Args: {
+          p_job_id: string;
+          p_recipient_name: string;
+          p_recipient_type: "customer" | "authorized_representative";
+          p_condition_on_handover: string;
+          p_accessories_returned: string | null;
+          p_customer_acknowledged: boolean;
+        };
+        Returns: string;
+      };
+      record_covered_service_job_handover: {
+        Args: {
+          p_job_id: string;
+          p_recipient_name: string;
+          p_recipient_type: "customer" | "authorized_representative";
+          p_condition_on_handover: string;
+          p_accessories_returned: string | null;
+          p_customer_acknowledged: boolean;
+        };
+        Returns: string;
+      };
+      create_service_job_warranty_claim: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_customer_id: string;
+          p_asset_id: string;
+          p_original_job_id: string;
+          p_job_number: string;
+          p_priority: ServiceJobPriority;
+          p_reported_problem: string;
+          p_technician_id: string | null;
+          p_condition_on_arrival: string;
+          p_accessories: string[];
+          p_intake_confirmed_by: string;
+          p_intake_confirmed_as: "customer" | "authorized_representative";
+        };
+        Returns: string;
+      };
+      decide_service_job_warranty_claim: {
+        Args: { p_claim_id: string; p_decision: "covered" | "not_covered"; p_note: string };
+        Returns: undefined;
+      };
       get_platform_usage_snapshot: {
         Args: { p_since: string };
         Returns: {

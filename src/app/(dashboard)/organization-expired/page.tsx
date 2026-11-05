@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function OrganizationExpiredPage() {
-  return null;
+  redirect("/dashboard");
 }

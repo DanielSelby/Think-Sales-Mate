@@ -9,14 +9,10 @@ import {
   resolveProductEntitlement,
   type ProductEntitlementInput,
 } from "@/lib/product-entitlements";
-import type { PlatformProductSlug } from "@/types/platform-database";
+import { isPlatformProductSlug, PLATFORM_PRODUCT_SLUGS, type PlatformProductSlug } from "@/types/platform-database";
 import { parsePlatformWatermark } from "@/lib/platform-watermark";
 
-const PRODUCT_SLUGS: PlatformProductSlug[] = ["thinksales-erp", "restaurant"];
-
-function isPlatformProductSlug(value: string): value is PlatformProductSlug {
-  return PRODUCT_SLUGS.some((slug) => slug === value);
-}
+const PRODUCT_SLUGS: readonly PlatformProductSlug[] = PLATFORM_PRODUCT_SLUGS;
 
 export function createPlatformAdminClient() {
   const key = process.env.PLATFORM_SUPABASE_SERVICE_ROLE_KEY;

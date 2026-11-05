@@ -6,6 +6,10 @@ import { AlertTriangle, LogOut, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatOrganizationExpiryDate, getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 
+function persistActiveOrganization(orgId: string) {
+  document.cookie = `active_org_id=${encodeURIComponent(orgId)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+}
+
 export function OrganizationExpiryWarning({ expiryDate }: { expiryDate: string | null }) {
   const [dismissed, setDismissed] = useState(false);
   if (!expiryDate) return null;
@@ -33,9 +37,11 @@ export function OrganizationExpiryWarning({ expiryDate }: { expiryDate: string |
 export function OrganizationExpiredScreen({
   organizationName,
   expiryDate,
+  organizations,
 }: {
   organizationName: string;
   expiryDate: string;
+  organizations: Array<{ orgId: string; orgName: string; role: string }>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +61,12 @@ export function OrganizationExpiredScreen({
     }
   };
 
+  const switchOrganization = (orgId: string) => {
+    persistActiveOrganization(orgId);
+    router.replace("/dashboard");
+    router.refresh();
+  };
+
   return (
     <main className="org-expired-screen">
       <section className="org-expired-card" role="alert">
@@ -68,6 +80,24 @@ export function OrganizationExpiredScreen({
         <p className="mt-3 text-sm text-slate-600">
           Contact your Platform Admin to renew the organization access date. Access will return after it is renewed.
         </p>
+        {organizations.length > 0 && (
+          <div className="mt-5 border-t border-slate-200 pt-4 text-left">
+            <p className="text-sm font-semibold text-slate-800">Switch to another organization</p>
+            <div className="mt-2 space-y-2">
+              {organizations.map((organization) => (
+                <button
+                  key={organization.orgId}
+                  type="button"
+                  onClick={() => switchOrganization(organization.orgId)}
+                  className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm hover:bg-slate-50"
+                >
+                  <span className="font-semibold text-slate-800">{organization.orgName}</span>
+                  <span className="text-xs capitalize text-slate-500">{organization.role}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
         <button type="button" disabled={busy} onClick={() => void signOut()} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-50">
           <LogOut className="h-4 w-4" />

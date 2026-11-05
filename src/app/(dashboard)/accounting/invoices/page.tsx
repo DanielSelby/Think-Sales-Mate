@@ -18,7 +18,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams?: { 
   const supabase = await createClient();
   const { data: rows } = await supabase
     .from("invoices")
-    .select("id, invoice_number, customer_name, amount, amount_paid, source_catering_event_id, status, due_date")
+    .select("id, invoice_number, customer_name, amount, amount_paid, source_catering_event_id, source_service_job_id, status, due_date")
     .eq("org_id", context.orgId)
     .order("created_at", { ascending: false });
 
@@ -74,6 +74,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams?: { 
     amount: i.amount,
     amountPaid: i.amount_paid,
     sourceCateringEventId: i.source_catering_event_id,
+    sourceServiceJobId: i.source_service_job_id,
     status: i.status,
     dueDate: i.due_date
   }));

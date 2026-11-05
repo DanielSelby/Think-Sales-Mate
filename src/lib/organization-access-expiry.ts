@@ -17,9 +17,7 @@ export function getOrganizationExpiryStatus(
   expiryDate: string | null,
   now: Date = new Date(),
 ): OrganizationExpiryStatus {
-  if (!expiryDate || !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
-    return { expired: false, daysRemaining: null };
-  }
+  if (expiryDate === null) return { expired: false, daysRemaining: null };
   if (!isValidOrganizationExpiryDate(expiryDate)) {
     throw new Error("Organization access expiry date is invalid.");
   }

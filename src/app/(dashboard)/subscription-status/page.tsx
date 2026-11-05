@@ -5,6 +5,7 @@ import { getOrganizationUsageSummary } from "@/lib/organizations/usage-summary";
 const products = [
   { slug: "thinksales-erp", name: "ThinkSales ERP" },
   { slug: "restaurant", name: "Restaurant" },
+  { slug: "think-service-repairs", name: "Think Service & Repairs" },
 ] as const;
 
 const accessLabels = {

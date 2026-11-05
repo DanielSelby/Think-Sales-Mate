@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { parseRequestedProductSlugs, ProductSelectionError } from "./product-registration";
 
-const publishedProducts = ["thinksales-erp", "restaurant"] as const;
+const publishedProducts = ["thinksales-erp", "restaurant", "think-service-repairs"] as const;
 
 describe("parseRequestedProductSlugs", () => {
   it("accepts one or more published products", () => {
     expect(parseRequestedProductSlugs(["restaurant"], publishedProducts)).toEqual(["restaurant"]);
     expect(parseRequestedProductSlugs(["restaurant", "thinksales-erp"], publishedProducts))
       .toEqual(["restaurant", "thinksales-erp"]);
+    expect(parseRequestedProductSlugs(["think-service-repairs"], publishedProducts))
+      .toEqual(["think-service-repairs"]);
   });
 
   it("rejects empty or unpublished product selections", () => {

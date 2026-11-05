@@ -52,6 +52,13 @@ describe("role permission inheritance", () => {
     expect(defaultPermissionMatrixForRole("sales_officer").sales).toContain("create");
   });
 
+  it("includes service appointment access in the built-in branch manager permissions", () => {
+    const manager = defaultPermissionMatrixForRole("manager");
+
+    expect(manager.service_appointments).toEqual(["view", "create", "edit"]);
+    expect(manager.service_jobs).toContain("edit");
+  });
+
   it("uses the compatibility fallback only when no role template exists", () => {
     const accessPermissions = {
       permissions_mode: "inherit",

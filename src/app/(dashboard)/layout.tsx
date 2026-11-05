@@ -25,6 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <OrganizationExpiredScreen
         organizationName={context.orgName}
         expiryDate={context.organizationAccessExpiresAt!}
+        organizations={context.memberships.filter((membership) => membership.orgId !== context.orgId)}
       />
     );
   }

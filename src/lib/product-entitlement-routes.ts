@@ -23,6 +23,7 @@ const ENTITLEMENT_EXEMPT_PATHS = [
   "/platform-admin",
   "/registration-status",
   "/reset-password",
+  "/service-repair/",
   "/signup",
   "/subscription-status",
 ] as const;
@@ -36,6 +37,7 @@ const PERMISSION_MODULE_PATHS: Record<string, string> = {
   communication: "/communication",
   customer_messaging: "/communication",
   customer_orders: "/orders",
+  customer_assets: "/service-center/assets",
   crm: "/crm",
   expenses: "/expenses",
   fraud: "/fraud",
@@ -48,6 +50,22 @@ const PERMISSION_MODULE_PATHS: Record<string, string> = {
   pos: "/pos",
   purchases: "/purchases",
   reports: "/reports/sales",
+  service_activities: "/service-center/activity",
+  service_appointments: "/service-center/appointments",
+  service_assets: "/service-center/assets",
+  service_customers: "/service-center/customers",
+  service_invoices: "/service-center/invoices",
+  service_inventory: "/service-center/parts",
+  service_jobs: "/service-center/jobs",
+  service_job_cards: "/service-center/job-cards",
+  service_payments: "/service-center/invoices",
+  service_quotations: "/service-center/quotations",
+  service_reports: "/service-center/reports",
+  service_settings: "/service-center/settings",
+  service_suppliers: "/service-center/suppliers",
+  service_technicians: "/service-center/technicians",
+  service_warranty: "/service-center/warranty",
+  service_workshop: "/service-center/workshop",
   restaurant: "/restaurant",
   route_sales: "/route-sales",
   sales: "/sales",
@@ -74,6 +92,9 @@ export function getRequiredProductSlugs(pathname: string): PlatformProductSlug[]
   }
   if (isPathOrChild(pathname, "/restaurant")) {
     return ["restaurant"];
+  }
+  if (isPathOrChild(pathname, "/api/service-center") || isPathOrChild(pathname, "/service-center")) {
+    return ["think-service-repairs"];
   }
   if (ACCESSIBLE_WITH_EITHER_PRODUCT.some((path) => isPathOrChild(pathname, path))) {
     return ["thinksales-erp", "restaurant"];

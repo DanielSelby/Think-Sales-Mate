@@ -5,12 +5,20 @@ import { canonicalRoleKey, isTabVisible, resolveMemberPermissionMatrix } from "@
 import { resolveTabRouteAccess } from "@/lib/rbac/tab-route-access";
 import { getRequiredProductSlugs, hasAnyRequiredProductAccess } from "@/lib/product-entitlement-routes";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
+import type { PlatformProductSlug } from "@/types/platform-database";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/api/cron/platform-usage", "/mobile-scan/pair"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/service-repair/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/api/cron/platform-usage", "/mobile-scan/pair"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
   const pathname = request.nextUrl.pathname;
+
+  if (pathname.startsWith("/service-repair/")) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return response;
+  }
 
   if (
     pathname.startsWith("/platform-admin")
@@ -132,8 +140,23 @@ export async function middleware(request: NextRequest) {
             ? NextResponse.json({ error: "Unable to verify organization access." }, { status: 503 })
             : new NextResponse("Unable to verify organization access. Please try again.", { status: 503 });
         }
-        const platformRows = await platformResponse.json() as Array<{ organization_access_expires_at: string | null }>;
-        const accessExpiry = platformRows[0]?.organization_access_expires_at ?? null;
+        const platformRows: unknown = await platformResponse.json();
+        if (!Array.isArray(platformRows) || platformRows.length !== 1) {
+          throw new Error("Platform Admin returned no unique organization expiry record.");
+        }
+        const platformOrganization: unknown = platformRows[0];
+        if (
+          typeof platformOrganization !== "object"
+          || platformOrganization === null
+          || !("organization_access_expires_at" in platformOrganization)
+          || (
+            platformOrganization.organization_access_expires_at !== null
+            && typeof platformOrganization.organization_access_expires_at !== "string"
+          )
+        ) {
+          throw new Error("Platform Admin returned an invalid organization expiry record.");
+        }
+        const accessExpiry = platformOrganization.organization_access_expires_at;
         if (getOrganizationExpiryStatus(accessExpiry).expired) {
           if (isApiRequest) {
             return NextResponse.json({
@@ -179,7 +202,7 @@ export async function middleware(request: NextRequest) {
       return redirectWithAuthCookies(new URL("/login", request.url));
     }
     if (member && requiredProducts) {
-      const readableProducts = new Set<"thinksales-erp" | "restaurant">();
+      const readableProducts = new Set<PlatformProductSlug>();
       for (const productSlug of requiredProducts) {
         const { data: hasAccess, error: entitlementError } = await supabase.rpc("has_product_access", {
           p_organization_id: member.org_id,

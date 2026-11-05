@@ -15,6 +15,7 @@ import type {
   PlatformProductSlug,
   PlatformProductSubscriptionStatus,
 } from "@/types/platform-database";
+import { isPlatformProductSlug } from "@/types/platform-database";
 
 async function requirePlatformManagement(page: PlatformAdminPage = "Organizations") {
   const admin = await requirePlatformAdminPage(page);
@@ -976,7 +977,7 @@ export async function updatePlatformProductCatalog(formData: FormData): Promise<
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const publishedValue = String(formData.get("isPublished") ?? "");
-  if (slug !== "thinksales-erp" && slug !== "restaurant") {
+  if (!isPlatformProductSlug(slug)) {
     throw new Error("Choose a supported product.");
   }
   if (!name || name.length > 120 || description.length > 1000) {
@@ -1069,7 +1070,7 @@ export async function setOrganizationProductSubscription(input: {
   cancelAtPeriodEnd?: boolean;
 }) {
   const { admin, supabase } = await requirePlatformPermission("manage_billing", "Billing & Subscriptions");
-  if (!input.organizationId || !["thinksales-erp", "restaurant"].includes(input.productSlug)) {
+  if (!input.organizationId || !isPlatformProductSlug(input.productSlug)) {
     throw new Error("Choose an organization and a valid product.");
   }
   if (!["pending", "trial", "active", "grace", "suspended", "expired", "cancelled"].includes(input.status)) {

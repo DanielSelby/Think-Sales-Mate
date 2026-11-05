@@ -8,6 +8,7 @@ import {
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
   Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route, Barcode,
   Utensils,
+  Wrench,
 } from "lucide-react";
 
 export interface NavChild {
@@ -28,6 +29,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "live" },
   { label: "Approval Center", href: "/approvals", icon: ClipboardCheck, status: "live" },
+  { label: "Think Service & Repairs", href: "/service-center", icon: Wrench, status: "soon" },
   {
     label: "Restaurant", href: "/restaurant", icon: Utensils, status: "live",
     children: [

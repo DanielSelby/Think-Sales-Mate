@@ -6,6 +6,7 @@ import {
 } from "@/lib/product-entitlement-routes";
 import type { MemberRole } from "@/lib/rbac";
 import type { PermissionAction } from "@/lib/rbac";
+import type { PlatformProductSlug } from "@/types/platform-database";
 import {
   canonicalRoleKey,
   hasModulePermission as hasPermission,
@@ -72,7 +73,7 @@ async function hasProductAccessForPermissionModule(
 
   const supabase = await createClient();
   const requiredProducts = getRequiredProductSlugsForPermissionModule(module, page, tab);
-  const readableProducts = new Set<"thinksales-erp" | "restaurant">();
+  const readableProducts = new Set<PlatformProductSlug>();
   for (const productSlug of requiredProducts) {
     const { data: hasAccess, error } = await supabase.rpc("has_product_access", {
       p_organization_id: orgId,
