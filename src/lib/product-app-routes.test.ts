@@ -43,6 +43,11 @@ describe("product application routes", () => {
       productSlug: "restaurant",
       appPath: "/accounting/restaurant-ledger",
     });
+    expect(resolveProductAppRoute("/app/restaurant/settings/organization")).toEqual({
+      kind: "valid",
+      productSlug: "restaurant",
+      appPath: "/settings/organization",
+    });
   });
 
   it("rejects unknown namespaces and exposes the active namespace prefix", () => {

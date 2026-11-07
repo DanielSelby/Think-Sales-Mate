@@ -34,7 +34,9 @@ export function getProductScopedHref(pathname: string, href: string): string | n
   if (targetRoute?.kind === "valid") {
     return targetRoute.productSlug === currentRoute.productSlug ? href : null;
   }
-  if (isOrganizationWideRoute(url.pathname)) return href;
+  if (isOrganizationWideRoute(url.pathname)) {
+    return `${getProductAppPath(currentRoute.productSlug, url.pathname)}${url.search}${url.hash}`;
+  }
 
   const pageProducts = getRequiredProductSlugs(url.pathname);
   if (!pageProducts?.includes(currentRoute.productSlug)) return null;

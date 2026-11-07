@@ -105,7 +105,8 @@ function getLegacyRequiredProductSlugs(pathname: string): PlatformProductSlug[] 
 export function getRequiredProductSlugs(pathname: string): PlatformProductSlug[] | null {
   const appRoute = resolveProductAppRoute(pathname);
   if (!appRoute) return getLegacyRequiredProductSlugs(pathname);
-  if (appRoute.kind === "invalid" || isOrganizationWideRoute(appRoute.appPath)) return [];
+  if (appRoute.kind === "invalid") return [];
+  if (isOrganizationWideRoute(appRoute.appPath)) return [appRoute.productSlug];
 
   const pageProducts = getLegacyRequiredProductSlugs(appRoute.appPath);
   if (!pageProducts?.includes(appRoute.productSlug)) return [];

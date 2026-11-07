@@ -46,11 +46,12 @@ export function resolveProductAppRoute(pathname: string): ResolvedProductAppRout
   const isSharedPath = productRoute.sharedPaths?.some((path) =>
     suffix === path || suffix.startsWith(`${path}/`)
   );
+  const isContextualOrganizationPath = isOrganizationWideRoute(suffix);
   return {
     kind: "valid",
     productSlug: productRoute.productSlug,
     appPath: suffix
-      ? isSharedPath ? suffix : `${productRoute.legacyPrefix}${suffix}`
+      ? isSharedPath || isContextualOrganizationPath ? suffix : `${productRoute.legacyPrefix}${suffix}`
       : productRoute.defaultLegacyPath,
   };
 }

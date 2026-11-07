@@ -34,7 +34,8 @@ describe("product navigation", () => {
     expect(getProductScopedHref("/app/restaurant", "/inventory")).toBeNull();
     expect(getProductScopedHref("/app/restaurant", "/app/thinksales/inventory")).toBeNull();
     expect(getProductScopedHref("/app/restaurant", "/app/unknown/page")).toBeNull();
-    expect(getProductScopedHref("/app/restaurant", "/settings/organization")).toBe("/settings/organization");
+    expect(getProductScopedHref("/app/restaurant", "/settings/organization"))
+      .toBe("/app/restaurant/settings/organization");
     expect(getProductScopedHref("/app/restaurant", "https://example.com")).toBe("https://example.com");
   });
 

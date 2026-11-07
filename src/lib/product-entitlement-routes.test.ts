@@ -38,6 +38,7 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/app/thinksales/inventory")).toEqual(["thinksales-erp"]);
     expect(getRequiredProductSlugs("/app/restaurant/menu")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/restaurant/expenses")).toEqual(["restaurant"]);
+    expect(getRequiredProductSlugs("/app/restaurant/settings/organization")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/think-service/jobs")).toEqual(["think-service-repairs"]);
     expect(getRequiredProductSlugs("/app/restaurant/inventory")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/unknown/inventory")).toEqual([]);

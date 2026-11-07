@@ -17,7 +17,8 @@ import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
 import { canGrantSuperAdminRole, isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
 import { increasesOrganizationSeatUsage, withOrganizationCapacity } from "@/lib/organizations/capacity";
-import { getEnabledOrganizationModules, getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
+import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { getOrganizationAccessibleProductOptions } from "@/lib/supabase/organization-product-access";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "@/lib/rbac/restaurant-roles";
 
 function databaseRole(role: string): MemberRole {
@@ -78,11 +79,11 @@ export async function setOrganizationProductAssignments(userId: string, requeste
   if (memberError) return { error: `Could not verify the selected member: ${memberError.message}` };
   if (!member) return { error: "The selected user is not an active member of this organization." };
 
-  const products = await getPublishedPlatformProducts();
+  const products = await getOrganizationAccessibleProductOptions(context.orgId);
   const availableSlugs = new Set<string>(products.map((product) => product.slug));
   const productSlugs = [...new Set(requestedSlugs)];
   if (productSlugs.some((slug) => !availableSlugs.has(slug))) {
-    return { error: "One or more selected products are not published." };
+    return { error: "One or more selected products are not available to this organization." };
   }
 
   const { error } = await supabase.rpc("set_organization_product_assignments", {
