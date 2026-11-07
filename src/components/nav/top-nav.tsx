@@ -547,7 +547,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
           onMouseLeave={(event) => { (event.currentTarget as HTMLElement).style.background = "transparent" }}
         >
           <Contrast className="h-4 w-4" />
-          <span className="hidden lg:block">{darkStyle === "think-service" ? "Think Service" : "ThinkSales"}</span>
+          <span className="hidden lg:block">{darkStyle === "think-service" ? "Dark-Transparent" : "Dark-Opaque"}</span>
           <ChevronDown className="hidden h-3 w-3 opacity-60 lg:block" />
         </button>
         {showDarkStyles && (
@@ -564,8 +564,8 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
                 <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Choose the look used across your account.</p>
               </div>
               {([
-                { key: "think-sales", label: "ThinkSales", description: "Clean surfaces with minimal borders" },
-                { key: "think-service", label: "Think Service", description: "Clearer outlines for cards and tables" },
+                { key: "think-sales", label: "Dark-Opaque", description: "Solid dark surfaces with minimal borders" },
+                { key: "think-service", label: "Dark-Transparent", description: "Transparent dark surfaces with visible borders" },
               ] as const).map((option) => {
                 const isActive = darkStyle === option.key;
                 return (

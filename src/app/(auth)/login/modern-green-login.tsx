@@ -114,7 +114,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl, loginFormTr
   }
 
   return (
-    <div className="modern-login-form-shell flex min-h-[inherit] items-center justify-center px-3 py-3 sm:px-6 lg:px-8">
+    <div className="modern-login-form-shell flex min-h-0 w-full items-center justify-center px-3 py-3 sm:px-6 lg:px-8">
       <div className={`modern-login-card login-card-enter login-neumorphic-card w-full max-w-[540px] rounded-[28px] px-7 py-9 sm:px-11 sm:py-12 ${loginFormTransparent ? "login-neumorphic-card-transparent" : ""}`}>
         <div className="flex flex-col items-center text-center">
           <div className="modern-login-logo login-logo-enter login-neumorphic-logo flex h-[76px] w-[76px] items-center justify-center rounded-[24px] p-2">
@@ -254,7 +254,7 @@ export function ModernGreenLogin({
   loginFormTransparent?: boolean;
 }) {
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
-  const pageHeight = preview ? "min-h-[680px]" : "min-h-[100dvh]";
+  const pageHeight = preview ? "min-h-[680px] modern-login-preview" : "modern-login-viewport";
   const previewWidth = preview ? device === "mobile" ? "mx-auto max-w-[390px]" : device === "tablet" ? "mx-auto max-w-[900px]" : "w-full" : "w-full";
   const splitLayout = !preview || device !== "mobile";
 
@@ -288,7 +288,7 @@ export function ModernGreenLogin({
             />
           </div>
         </section>
-        <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-[inherit] min-w-0 flex-col overflow-hidden">
+        <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-0 min-w-0 flex-col overflow-hidden">
           {backgroundArtworkUrl && (
             <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
               <LoginArtwork

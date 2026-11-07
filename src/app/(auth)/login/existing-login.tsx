@@ -187,7 +187,7 @@ function LoginForm() {
 
   return (
     <main
-      className="login-neumorphic-page login-page-enter min-h-screen overflow-x-hidden overflow-y-auto"
+      className="login-neumorphic-page login-page-enter h-dvh overflow-hidden"
       style={{
         "--login-primary": theme.btn.bg,
         "--login-primary-hover": theme.btn.hover,
@@ -197,7 +197,7 @@ function LoginForm() {
         "--login-page-surface": themeKey === "harvest" ? "#f5f1dc" : "#f1f4f1",
       } as React.CSSProperties}
     >
-      <div className="grid min-h-screen lg:grid-cols-[50%_50%]">
+      <div className="grid h-full min-h-0 lg:grid-cols-[50%_50%]">
 
         {/* ── LEFT PANEL ── */}
         <section className="relative hidden overflow-hidden px-10 py-9 text-white lg:flex lg:flex-col xl:px-16"
@@ -303,7 +303,7 @@ function LoginForm() {
         </section>
 
         {/* ── RIGHT LOGIN PANEL ── */}
-        <section className="login-neumorphic-panel relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
+        <section className="login-neumorphic-panel relative flex min-h-0 items-center justify-center overflow-hidden px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
 
           {/* Decorative shapes */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">

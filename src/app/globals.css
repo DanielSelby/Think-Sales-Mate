@@ -585,6 +585,22 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
   overflow-y: auto;
 }
 
+.modern-login-viewport {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modern-login-viewport .modern-login-layout {
+  height: 100%;
+  min-height: 0;
+}
+
+.modern-login-viewport .modern-login-layout > section {
+  height: 100%;
+  min-height: 0;
+}
+
 .modern-login-layout {
   min-height: 100dvh;
 }
@@ -793,6 +809,184 @@ html:not(.dark) .page-canvas[data-light-surfaces="standard"] thead {
   .modern-login-copyright {
     padding-bottom: 0.25rem;
     font-size: 0.625rem;
+  }
+}
+
+@media (max-height: 760px) {
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:last-child {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card {
+    padding: 1.25rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-logo {
+    width: 3.25rem;
+    height: 3.25rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card form {
+    margin-top: 1.25rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card form .mt-5 {
+    margin-top: 0.75rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card > .my-7 {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card > .grid button {
+    height: 2.5rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card > p {
+    margin-top: 1rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:last-child > .relative.z-10 > p {
+    margin-top: 0.75rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:first-child > .mt-16 {
+    margin-top: 2rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:first-child > .mt-10 {
+    margin-top: 1.5rem;
+  }
+}
+
+@media (max-height: 560px) {
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:last-child {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card {
+    padding: 0.65rem 1rem;
+    border-radius: 1.25rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.85rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card h2 {
+    font-size: 1.35rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card form {
+    margin-top: 0.75rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card form .mt-5 {
+    margin-top: 0.5rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card form .mt-6 {
+    margin-top: 0.75rem;
+    height: 2.5rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card > .my-7 {
+    margin-top: 0.65rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card > .grid {
+    gap: 0.5rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card > .grid button {
+    height: 2.2rem;
+    font-size: 0.75rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) .login-neumorphic-card > p {
+    margin-top: 0.65rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:last-child > .relative.z-10 > p {
+    margin-top: 0.4rem;
+    font-size: 0.6rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:first-child > .mt-auto {
+    display: none;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:first-child > .mt-16 {
+    margin-top: 1.25rem;
+  }
+
+  .login-neumorphic-page:not(.modern-login-page) > .grid > section:first-child > .mt-10 {
+    margin-top: 1rem;
+  }
+
+  .modern-login-viewport .modern-login-language {
+    padding-top: 0.25rem;
+  }
+
+  .modern-login-viewport .modern-login-form-shell {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .modern-login-viewport .modern-login-card {
+    padding: 0.65rem 1rem;
+    border-radius: 1rem;
+  }
+
+  .modern-login-viewport .modern-login-logo {
+    width: 2rem;
+    height: 2rem;
+    padding: 0.25rem;
+    border-radius: 0.65rem;
+  }
+
+  .modern-login-viewport .modern-login-title {
+    margin-top: 0.25rem;
+    font-size: 1.25rem;
+  }
+
+  .modern-login-viewport .modern-login-fields {
+    margin-top: 0.5rem;
+  }
+
+  .modern-login-viewport .modern-login-fields > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.4rem;
+  }
+
+  .modern-login-viewport .modern-login-input,
+  .modern-login-viewport .modern-login-submit {
+    height: 2.1rem;
+  }
+
+  .modern-login-viewport .modern-login-divider {
+    margin-top: 0.45rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .modern-login-viewport .modern-login-oauth button {
+    height: 1.9rem;
+  }
+
+  .modern-login-viewport .modern-login-signup {
+    margin-top: 0.45rem;
+  }
+
+  .modern-login-viewport .modern-login-copyright {
+    padding-bottom: 0.15rem;
+    font-size: 0.55rem;
   }
 }
 
@@ -3241,9 +3435,33 @@ html.dark[data-dark-style="think-service"] .page-canvas :is(div, section, articl
   box-shadow: none !important;
 }
 
+html.dark[data-dark-style="think-service"] .page-canvas :is(div, section, article, aside, nav, form):is(
+  [class~="rounded-card"],
+  [class*="rounded-2xl"],
+  [class*="rounded-xl"],
+  [class*="rounded-lg"]
+):is(
+  [class~="bg-ledger-50"],
+  [class~="dark:bg-ink-800"],
+  [class~="dark:bg-ink-900"],
+  [class~="dark:bg-slate-800"],
+  [class~="dark:bg-slate-900"]
+):not([role="dialog"]) {
+  border: 1px solid #334155 !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
 html.dark[data-dark-style="think-service"] .page-canvas table,
+html.dark[data-dark-style="think-service"] .page-canvas thead,
+html.dark[data-dark-style="think-service"] .page-canvas tbody,
 html.dark[data-dark-style="think-service"] .page-canvas table tr,
 html.dark[data-dark-style="think-service"] .page-canvas table th,
 html.dark[data-dark-style="think-service"] .page-canvas table td {
   border-color: #334155 !important;
+  background-color: transparent !important;
+}
+
+html.dark .page-canvas tbody tr:hover {
+  background-color: rgb(30 41 59 / 0.4) !important;
 }
