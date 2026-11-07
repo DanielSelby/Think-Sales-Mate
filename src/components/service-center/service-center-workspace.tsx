@@ -690,7 +690,7 @@ export function ServiceCenterWorkspace({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="service-center-ui flex flex-col gap-6">
       <header className="order-1 flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">

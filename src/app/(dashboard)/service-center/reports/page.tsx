@@ -116,7 +116,7 @@ export default async function ServiceReportsPage({
 
   if (!await canPermission("service_jobs", "view")) {
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
+      <div className="service-center-ui mx-auto max-w-2xl rounded-xl border border-dashed border-ledger-200 bg-white p-10 text-center dark:border-ledger-700 dark:bg-ink-900">
         <p className="text-sm text-ledger-500">You do not have permission to view service reports.</p>
       </div>
     );
@@ -303,7 +303,7 @@ export default async function ServiceReportsPage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="service-center-ui mx-auto max-w-5xl space-y-6">
       <div>
         <Link href="/service-center" className="inline-flex items-center gap-1 text-sm text-ledger-500 hover:text-ink-900 dark:hover:text-white">
           <ArrowLeft className="h-3.5 w-3.5" />

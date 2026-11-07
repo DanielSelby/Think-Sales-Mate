@@ -218,6 +218,16 @@ html.dark .platform-admin-console main [class~="bg-blue-50/50"] {
   background-color: #172b45 !important;
 }
 
+html.dark .service-center-ui [class*="dark:border-ledger-"],
+html.dark .service-center-ui [class*="dark:border-slate-"] {
+  border-color: #475569 !important;
+}
+
+html.dark .service-center-ui [class*="dark:divide-ledger-"] > :not(:first-child),
+html.dark .service-center-ui [class*="dark:divide-slate-"] > :not(:first-child) {
+  border-color: #334155 !important;
+}
+
 html.dark .platform-admin-console main [class~="text-slate-950"],
 html.dark .platform-admin-console main [class~="text-slate-900"],
 html.dark .platform-admin-console main [class~="text-slate-800"] {

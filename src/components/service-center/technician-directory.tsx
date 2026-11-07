@@ -151,7 +151,7 @@ export function TechnicianDirectory({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="service-center-ui space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Think Service &amp; Repairs</p>

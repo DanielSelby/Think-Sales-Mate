@@ -217,7 +217,7 @@ export function ServiceDashboard({ data }: { data: ServiceDashboardData }) {
   const canCreateQuotation = permissions.canEditJobs;
 
   return (
-    <div className="space-y-5">
+    <div className="service-center-ui space-y-5">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Think Service &amp; Repairs</p>

@@ -175,7 +175,7 @@ export function TechnicianProfileWorkspace({ data }: { data: TechnicianProfileDa
   }
 
   return (
-    <div className="space-y-5">
+    <div className="service-center-ui space-y-5">
       {(error || notice) && <p role={error ? "alert" : "status"} className={`rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"}`}>{error ?? notice}</p>}
 
       <header className="relative overflow-hidden rounded-2xl border border-ledger-200 bg-white dark:border-ledger-700 dark:bg-ink-900">
