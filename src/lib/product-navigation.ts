@@ -1,7 +1,7 @@
 export type ProductNavigationScope = "thinksales-erp" | "restaurant" | "think-service-repairs";
 
 type NavigationItem = { label: string };
-type NavigationChild = { label: string; restaurantIntegration?: boolean };
+type NavigationChild = { label: string; restaurantIntegration?: boolean; alwaysVisible?: boolean };
 
 function isPathOrChild(pathname: string, path: string) {
   return pathname === path || pathname.startsWith(`${path}/`);
@@ -32,7 +32,8 @@ export function getVisibleNavigationChildren<T extends NavigationChild>(
   enabledModules?: readonly string[],
 ): T[] {
   return (children ?? []).filter((child) =>
-    child.restaurantIntegration
+    child.alwaysVisible
+    || child.restaurantIntegration
     || child.label === "Inventory Intelligence"
     || !enabledModules?.includes(`__children:${parentLabel}`)
     || enabledModules.includes(`${parentLabel}:${child.label}`)

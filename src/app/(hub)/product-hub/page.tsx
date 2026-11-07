@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { getProductLaunchPath } from "@/lib/product-launch-path";
+import { shouldShowProductInHub } from "@/lib/product-hub-visibility";
 import { getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
@@ -67,6 +68,7 @@ export default async function ProductHubPage() {
   for (const product of catalog) {
     const subscriptionStatus = entitlementBySlug.get(product.slug);
     if (!subscriptionStatus || (!isOrgAdmin && !assignedSlugs.has(product.slug))) continue;
+    if (!shouldShowProductInHub(subscriptionStatus)) continue;
 
     if (subscriptionStatus === "pending") {
       if (isOrgAdmin) {
@@ -75,18 +77,8 @@ export default async function ProductHubPage() {
       continue;
     }
 
-    if (subscriptionStatus === "suspended") {
-      if (isOrgAdmin) {
-        items.push({ ...product, status: "Suspended", launchPath: null, canOpen: false });
-      }
-      continue;
-    }
-
     if (subscriptionStatus !== "active" && subscriptionStatus !== "trial" && subscriptionStatus !== "grace"
       && subscriptionStatus !== "expired") {
-      if (isOrgAdmin && subscriptionStatus === "cancelled") {
-        items.push({ ...product, status: "Unavailable", launchPath: null, canOpen: false });
-      }
       continue;
     }
 

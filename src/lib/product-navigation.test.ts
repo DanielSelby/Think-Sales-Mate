@@ -33,10 +33,11 @@ describe("product navigation", () => {
       { label: "Service Jobs" },
       { label: "Appointments" },
       { label: "Legacy integration", restaurantIntegration: true },
+      { label: "Products & Access", alwaysVisible: true },
     ];
     expect(getVisibleNavigationChildren(children, "Think Service & Repairs", [
       "__children:Think Service & Repairs",
       "Think Service & Repairs:Appointments",
-    ])).toEqual([children[1], children[2]]);
+    ])).toEqual([children[1], children[2], children[3]]);
   });
 });

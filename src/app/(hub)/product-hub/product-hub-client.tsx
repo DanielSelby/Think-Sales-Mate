@@ -32,7 +32,7 @@ export interface ProductHubItem {
   slug: string;
   name: string;
   description: string;
-  status: "Active" | "Read-only" | "Provisioning" | "Suspended" | "Unavailable";
+  status: "Active" | "Read-only" | "Provisioning" | "Unavailable";
   launchPath: string | null;
   canOpen: boolean;
 }

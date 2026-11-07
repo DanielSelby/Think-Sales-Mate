@@ -1183,6 +1183,23 @@ export async function setOrganizationProductSubscription(input: {
     },
   });
   if (auditError) throw new Error(`Subscription was saved, but its audit record failed: ${auditError.message}`);
+
+  const { data: entitlementEvent, error: entitlementEventError } = await supabase
+    .from("platform_entitlement_outbox")
+    .select("id")
+    .eq("organization_id", input.organizationId)
+    .eq("product_slug", input.productSlug)
+    .eq("version", data.version)
+    .maybeSingle();
+  if (entitlementEventError) {
+    throw new Error(`Subscription was saved, but its entitlement update could not be loaded: ${entitlementEventError.message}`);
+  }
+  if (!entitlementEvent) {
+    throw new Error("Subscription was saved, but its entitlement update was not queued. Check the product-entitlement database migration.");
+  }
+  await syncPendingProductEntitlements(1, entitlementEvent.id);
+
+  revalidatePath("/product-hub");
   revalidatePath("/platform-admin");
   return data;
 }

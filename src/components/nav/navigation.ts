@@ -16,6 +16,7 @@ export interface NavChild {
   href: string;
   icon?: React.ComponentType<{ className?: string }>;
   restaurantIntegration?: boolean;
+  alwaysVisible?: boolean;
 }
 
 export interface NavItem {
@@ -219,6 +220,7 @@ export const SETTINGS_CHILDREN: NavChild[] = [
   { label: "Locations", href: "/settings/locations" },
   { label: "Currencies", href: "/settings/currencies" },
   { label: "Customer Ordering", href: "/settings/customer-ordering" },
+  { label: "Products & Access", href: "/settings/products", icon: PackageCheck, alwaysVisible: true },
 ];
 
 // Feature Access keeps some business-facing names that differ from the
