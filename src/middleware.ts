@@ -99,7 +99,7 @@ export async function middleware(request: NextRequest) {
   if (user && activeOrgId && pathname !== "/organization-expired") {
     const { data: expiryMember, error: expiryMemberError } = await supabase
       .from("organization_members")
-      .select("org_id, organizations(registration_status)")
+      .select("org_id, organizations!organization_members_org_id_fkey(registration_status)")
       .eq("user_id", user.id)
       .eq("org_id", activeOrgId)
       .eq("status", "active")
@@ -181,7 +181,7 @@ export async function middleware(request: NextRequest) {
   if (user && (tabAccess || routeProducts || requiredProducts)) {
     const { data: members, error: memberError } = await supabase
       .from("organization_members")
-      .select("org_id, role, user_id, access_permissions, organizations(created_by, registration_status)")
+      .select("org_id, role, user_id, access_permissions, organizations!organization_members_org_id_fkey(created_by, registration_status)")
       .eq("user_id", user.id)
       .eq("status", "active");
 

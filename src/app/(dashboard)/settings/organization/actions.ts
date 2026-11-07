@@ -130,7 +130,7 @@ async function targetIsOwner(memberId: string, orgId: string): Promise<boolean> 
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("organization_members")
-    .select("role, user_id, access_permissions, organizations(created_by)")
+    .select("role, user_id, access_permissions, organizations!organization_members_org_id_fkey(created_by)")
     .eq("id", memberId)
     .eq("org_id", orgId)
     .maybeSingle();

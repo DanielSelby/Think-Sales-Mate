@@ -21,7 +21,7 @@ export default async function OrganizationSettingsPage() {
   const [membersResult, locationsResult, companyProfileResult, employeesResult, roleTemplatesResult, auditsResult] = await Promise.all([
     supabase
       .from("organization_members")
-      .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, can_view_other_users_transactions, can_check_cross_branch_stock, role, status, location_id, created_at, organizations(created_by)")
+      .select("id, user_id, invited_email, contact_email, username, employee_id, phone, department, branch_scope, secondary_location_ids, access_permissions, can_view_other_users_transactions, can_check_cross_branch_stock, role, status, location_id, created_at, organizations!organization_members_org_id_fkey(created_by)")
       .eq("org_id", context.orgId),
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     supabase.from("company_profile").select("website").eq("org_id", context.orgId).maybeSingle(),
