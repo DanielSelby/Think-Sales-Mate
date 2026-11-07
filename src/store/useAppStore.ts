@@ -104,10 +104,10 @@ export const useAppStore = create<AppState>()(
       darkMode:          false,
       setDarkMode:       (enabled) => set((state) => state.darkMode === enabled
         ? state
-        : { darkMode: enabled, activeTheme: enabled ? "royal" : "green" }),
+        : { darkMode: enabled, activeTheme: enabled ? "fintech" : "green" }),
       toggleDarkMode:    () => set((state) => {
         const darkMode = !state.darkMode;
-        return { darkMode, activeTheme: darkMode ? "royal" : "green" };
+        return { darkMode, activeTheme: darkMode ? "fintech" : "green" };
       }),
       darkStyle:         "think-sales",
       setDarkStyle:      (darkStyle) => set({ darkStyle }),

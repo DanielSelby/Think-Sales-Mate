@@ -1436,19 +1436,6 @@ html.dark[data-dark-style="think-sales"] .approval-page [class*="border"] {
   border-color: transparent !important;
 }
 
-html.dark[data-dark-style="think-service"] .page-canvas [class*="rounded-card"],
-html.dark[data-dark-style="think-service"] .page-canvas [class*="rounded-2xl"][class*="bg-white"],
-html.dark[data-dark-style="think-service"] .page-canvas [class*="rounded-xl"][class*="bg-white"] {
-  border: 1px solid #334155 !important;
-}
-
-html.dark[data-dark-style="think-service"] .page-canvas table,
-html.dark[data-dark-style="think-service"] .page-canvas table tr,
-html.dark[data-dark-style="think-service"] .page-canvas table th,
-html.dark[data-dark-style="think-service"] .page-canvas table td {
-  border-color: #334155 !important;
-}
-
 html.dark .inventory-intelligence-page [class~="text-slate-700"],
 html.dark .inventory-intelligence-page [class~="text-slate-600"],
 html.dark .crm-page [class~="text-slate-700"],
@@ -3236,4 +3223,27 @@ html.dark .page-canvas .banking-page [class*="rounded-xl"][class*="bg-white"],
 html.dark .page-canvas .banking-page [class*="rounded-lg"][class*="bg-white"] {
   background-color: #0f1d2d !important;
   border-color: #475569 !important;
+}
+
+html.dark[data-dark-style="think-service"] .page-canvas :is(div, section, article, aside, nav, form, a, button):is(
+  [class~="rounded-card"],
+  [class*="rounded-2xl"],
+  [class*="rounded-xl"]
+):is(
+  [class~="bg-white"],
+  [class~="dark:bg-ink-900"],
+  [class~="dark:bg-ink-800"],
+  [class~="dark:bg-slate-900"],
+  [class~="dark:bg-slate-800"]
+):not([role="dialog"]) {
+  border: 1px solid #334155 !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.dark[data-dark-style="think-service"] .page-canvas table,
+html.dark[data-dark-style="think-service"] .page-canvas table tr,
+html.dark[data-dark-style="think-service"] .page-canvas table th,
+html.dark[data-dark-style="think-service"] .page-canvas table td {
+  border-color: #334155 !important;
 }
