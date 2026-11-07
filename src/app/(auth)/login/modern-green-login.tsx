@@ -289,20 +289,22 @@ export function ModernGreenLogin({
           </div>
         </section>
         <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-0 min-w-0 flex-col overflow-hidden">
-          {backgroundArtworkUrl && (
-            <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
-              <LoginArtwork
-                url={backgroundArtworkUrl}
-                showControlsWhenReducedMotion={false}
-                className="absolute inset-0 h-full w-full object-cover"
-                style={{ opacity: backgroundArtworkVisibility / 100 }}
-              />
-              <div
-                className="absolute inset-0 bg-white dark:bg-slate-950"
-                style={{ opacity: ((100 - backgroundArtworkVisibility) / 100) * 0.45 }}
-              />
-            </div>
-          )}
+          <div className="pointer-events-none absolute inset-3 z-0 overflow-hidden rounded-2xl border border-white/90 shadow-[0_8px_32px_rgba(15,23,42,0.08)] sm:inset-4 lg:inset-5" aria-hidden="true">
+            {backgroundArtworkUrl && (
+              <>
+                <LoginArtwork
+                  url={backgroundArtworkUrl}
+                  showControlsWhenReducedMotion={false}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  style={{ opacity: backgroundArtworkVisibility / 100 }}
+                />
+                <div
+                  className="absolute inset-0 bg-white dark:bg-slate-950"
+                  style={{ opacity: ((100 - backgroundArtworkVisibility) / 100) * 0.45 }}
+                />
+              </>
+            )}
+          </div>
           <div className="modern-login-bubbles" aria-hidden="true">
             <span className="modern-login-bubble modern-login-bubble-one" />
             <span className="modern-login-bubble modern-login-bubble-two" />

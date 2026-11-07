@@ -37,7 +37,7 @@ import type {
   PlatformProductSlug,
   PlatformProductSubscriptionStatus,
 } from "@/types/platform-database";
-import { PLATFORM_PRODUCT_LABELS } from "@/types/platform-database";
+import { PLATFORM_PRODUCT_LABELS, PLATFORM_PRODUCT_SLUGS } from "@/types/platform-database";
 import { PLATFORM_MODULES } from "@/lib/platform-modules";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -85,6 +85,7 @@ export type ManagedProductSubscription = {
 };
 
 type Plan = { id: string; name: string; monthly_price: number; max_users: number | null; max_branches: number | null };
+type PlanProduct = { plan_id: string; product_slug: PlatformProductSlug };
 type ProductSubscriptionDraft = {
   status: PlatformProductSubscriptionStatus;
   planId: string;
@@ -96,6 +97,7 @@ type TabKey = "all" | "pending" | "active" | "suspended" | "rejected" | "read_on
 type Props = {
   organizations: ManagedOrganization[];
   productSubscriptions: ManagedProductSubscription[];
+  planProducts: PlanProduct[];
   plans: Plan[];
   canManage: boolean;
   canManageProductSubscriptions: boolean;
@@ -142,6 +144,7 @@ function registrationTimestamp(value: string) {
 export default function OrganizationManagement({
   organizations,
   productSubscriptions,
+  planProducts,
   plans,
   canManage,
   canManageProductSubscriptions,
@@ -593,11 +596,17 @@ export default function OrganizationManagement({
                 Product activation is manual. Feature grants and staff permissions remain separate.
               </p>
               <div className="space-y-3">
-                {([
-                  { slug: "thinksales-erp", name: "ThinkSales ERP" },
-                  { slug: "restaurant", name: "Restaurant" },
-                ] as const).map((product) => {
+                {PLATFORM_PRODUCT_SLUGS.map((slug) => {
+                  const product = { slug, name: PLATFORM_PRODUCT_LABELS[slug] };
                   const draft = getSubscriptionDraft(product.slug);
+                  const compatiblePlans = plans.filter((plan) =>
+                    planProducts.some((planProduct) =>
+                      planProduct.plan_id === plan.id && planProduct.product_slug === product.slug
+                    )
+                  );
+                  const selectedPlanIncludesProduct = !draft.planId || planProducts.some((planProduct) =>
+                    planProduct.plan_id === draft.planId && planProduct.product_slug === product.slug
+                  );
                   return (
                     <form
                       key={product.slug}
@@ -629,9 +638,23 @@ export default function OrganizationManagement({
                           className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-normal"
                         >
                           <option value="">Manual / no plan</option>
-                          {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+                          {draft.planId && !compatiblePlans.some((plan) => plan.id === draft.planId) && (
+                            <option value={draft.planId}>
+                              {planById.get(draft.planId)?.name ?? "Current plan"} ({selectedPlanIncludesProduct ? "current plan" : "does not include this product"})
+                            </option>
+                          )}
+                          {compatiblePlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
                         </select>
                       </label>
+                      {draft.planId && !selectedPlanIncludesProduct ? (
+                        <p className="text-[10px] leading-4 text-amber-700">
+                          This plan does not include {product.name}. Choose a compatible plan or Manual / no plan before saving.
+                        </p>
+                      ) : (
+                        <p className="text-[10px] leading-4 text-slate-500">
+                          Only plans configured for {product.name} are listed. Configure product access under Subscription Plans, or use Manual / no plan.
+                        </p>
+                      )}
                       <label className="block text-[10px] font-semibold text-slate-600">
                         Billing period ends
                         <input
@@ -661,10 +684,10 @@ export default function OrganizationManagement({
                       </label>
                       <button
                         type="submit"
-                        disabled={busy}
+                        disabled={busy || (Boolean(draft.planId) && !selectedPlanIncludesProduct)}
                         className="w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                       >
-                        {busy ? "Saving..." : `Save ${product.name} subscription`}
+                        {busy ? "Saving..." : !selectedPlanIncludesProduct ? "Choose a compatible plan" : `Save ${product.name} subscription`}
                       </button>
                     </form>
                   );

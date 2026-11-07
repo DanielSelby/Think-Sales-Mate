@@ -188,6 +188,14 @@ product-route checks and employee product assignments are enforced regardless
 of `PRODUCT_ENTITLEMENTS_ENFORCED`. That setting controls additional
 module-permission checks and should be enabled after the projection is verified.
 
+For Think Service & Repairs, apply
+`supabase/platform-migrations/0018_think_service_repairs_product.sql` and then
+`supabase/platform-migrations/0019_publish_think_service_repairs.sql` to the
+Platform Admin database. The latter publishes the catalog entry; Platform
+Admins can then activate its organization subscription in the organization's
+Product Subscriptions panel. It can be activated manually without a product
+plan.
+
 Organization owners and super administrators automatically see entitled,
 published products. Other active members start with no product assignments;
 assign their products in Settings → Organization → Product Access before they

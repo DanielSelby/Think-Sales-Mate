@@ -199,6 +199,7 @@ export default function PlatformAdminConsole({
   organizations,
   managedOrganizations,
   productSubscriptions,
+  planProducts,
   canManageOrganizations,
   canManageProductSubscriptions,
   asOf,
@@ -223,6 +224,7 @@ export default function PlatformAdminConsole({
   organizations: Organization[];
   managedOrganizations: ManagedOrganization[];
   productSubscriptions: ManagedProductSubscription[];
+  planProducts: Array<{ plan_id: string; product_slug: ManagedProductSubscription["product_slug"] }>;
   canManageOrganizations: boolean;
   canManageProductSubscriptions: boolean;
   asOf: string;
@@ -717,6 +719,7 @@ export default function PlatformAdminConsole({
         ) : tab === "Complaints & Support" ? <SupportCenter complaints={complaints} contacts={contacts} /> : tab === "Organizations" ? <OrganizationManagement
           organizations={managedOrganizations}
           productSubscriptions={productSubscriptions}
+          planProducts={planProducts}
           plans={plans}
           canManage={canManageOrganizations}
           canManageProductSubscriptions={canManageProductSubscriptions}

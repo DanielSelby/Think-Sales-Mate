@@ -110,7 +110,12 @@ by inserting a catalog row alone.
 - `supabase/platform-migrations/0018_think_service_repairs_product.sql` and
   `supabase/migrations/20261104100000_think_service_repairs_core.sql`:
   register the unpublished Think Service & Repairs product and its initial
-  branch-scoped service schema. The current application workflow supports
+  branch-scoped service schema. Apply platform migration
+  `0019_publish_think_service_repairs.sql` after `0018` to publish the catalog
+  entry so it can be subscribed to per organization in Platform Admin. The
+  subscription can be activated manually without a product plan. Apply the
+  application migration below to the organization database to enable the
+  service product itself. The current application workflow supports
   service-job intake with recorded arrival condition, included accessories,
   and acknowledgment by the customer or an authorized representative, plus
   status transitions, customer equipment registration,
