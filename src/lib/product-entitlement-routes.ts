@@ -1,16 +1,14 @@
 import type { PlatformProductSlug } from "@/types/platform-database";
+import {
+  getProductAppPath,
+  isOrganizationWideRoute,
+  PRODUCT_APP_ROUTES,
+  resolveProductAppRoute,
+} from "@/lib/product-app-routes";
 
-const ACCESSIBLE_WITH_EITHER_PRODUCT = [
-  "/accounting/restaurant-ledger",
-  "/approvals",
-  "/assets",
-  "/banking/cash-closing",
-  "/communication",
-  "/expenses",
-  "/fraud",
-  "/hrm",
-  "/settings",
-] as const;
+const ACCESSIBLE_WITH_EITHER_PRODUCT = PRODUCT_APP_ROUTES
+  .flatMap((route) => route.sharedPaths ?? [])
+  .concat("/settings");
 
 const ENTITLEMENT_EXEMPT_PATHS = [
   "/api/cron",
@@ -81,7 +79,7 @@ function isPathOrChild(pathname: string, path: string) {
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
-export function getRequiredProductSlugs(pathname: string): PlatformProductSlug[] | null {
+function getLegacyRequiredProductSlugs(pathname: string): PlatformProductSlug[] | null {
   if (pathname === "/") return null;
   if (ENTITLEMENT_EXEMPT_PATHS.some((path) =>
     path.endsWith("/") ? pathname.startsWith(path) : isPathOrChild(pathname, path)
@@ -91,9 +89,7 @@ export function getRequiredProductSlugs(pathname: string): PlatformProductSlug[]
   if (isPathOrChild(pathname, "/settings/customer-ordering")) {
     return ["thinksales-erp"];
   }
-  if (pathname === "/dashboard" || pathname === "/") {
-    return ["thinksales-erp", "restaurant"];
-  }
+  if (pathname === "/dashboard") return ["thinksales-erp"];
   if (isPathOrChild(pathname, "/restaurant")) {
     return ["restaurant"];
   }
@@ -104,6 +100,29 @@ export function getRequiredProductSlugs(pathname: string): PlatformProductSlug[]
     return ["thinksales-erp", "restaurant"];
   }
   return ["thinksales-erp"];
+}
+
+export function getRequiredProductSlugs(pathname: string): PlatformProductSlug[] | null {
+  const appRoute = resolveProductAppRoute(pathname);
+  if (!appRoute) return getLegacyRequiredProductSlugs(pathname);
+  if (appRoute.kind === "invalid" || isOrganizationWideRoute(appRoute.appPath)) return [];
+
+  const pageProducts = getLegacyRequiredProductSlugs(appRoute.appPath);
+  if (!pageProducts?.includes(appRoute.productSlug)) return [];
+  return [appRoute.productSlug];
+}
+
+export function getLegacyProductAppPath(pathname: string): string | null {
+  if (pathname.startsWith("/api/") || isOrganizationWideRoute(pathname)) return null;
+  const requiredProducts = getLegacyRequiredProductSlugs(pathname);
+  if (!requiredProducts || requiredProducts.length !== 1) return null;
+  const legacyBase = requiredProducts[0] === "restaurant"
+    ? "/restaurant"
+    : requiredProducts[0] === "think-service-repairs" ? "/service-center" : "";
+  const relativePath = legacyBase && (pathname === legacyBase || pathname.startsWith(`${legacyBase}/`))
+    ? pathname.slice(legacyBase.length) || "/"
+    : pathname;
+  return getProductAppPath(requiredProducts[0], relativePath);
 }
 
 export function hasAnyRequiredProductAccess(

@@ -120,6 +120,19 @@ describe("product entitlement resolution", () => {
     })).accessMode).toBe("blocked");
   });
 
+  it("blocks an immediately cancelled subscription even when a grace period remains", () => {
+    const entitlement = resolveProductEntitlement(input({
+      subscription: {
+        ...input().subscription!,
+        status: "cancelled",
+        grace_ends_at: "2026-11-05T00:00:00.000Z",
+      },
+    }));
+
+    expect(entitlement.status).toBe("cancelled");
+    expect(entitlement.accessMode).toBe("blocked");
+  });
+
   it("preserves access from legacy feature grants while requiring a grant when no subscription exists", () => {
     const legacy = resolveProductEntitlement(input({
       subscription: null,

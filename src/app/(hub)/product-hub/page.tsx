@@ -7,6 +7,7 @@ import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-acces
 import { getProductLaunchPath } from "@/lib/product-launch-path";
 import { shouldShowProductInHub } from "@/lib/product-hub-visibility";
 import { getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
+import { reconcileCurrentProductEntitlements } from "@/lib/supabase/product-entitlements";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 import { OrganizationExpiredScreen } from "@/components/organization/organization-access-expiry";
@@ -40,6 +41,7 @@ export default async function ProductHubPage() {
     userId: context.userId,
     accessPermissions: context.accessPermissions,
   });
+  await reconcileCurrentProductEntitlements();
   const [profileResult, notificationResult, catalog, entitlementResult, assignmentResult] = await Promise.all([
     supabase.from("profiles").select("full_name, avatar_url").eq("id", context.userId).maybeSingle(),
     supabase.from("notifications").select("id", { count: "exact", head: true })

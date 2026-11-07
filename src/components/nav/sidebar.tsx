@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   getProductNavigationItems,
   getProductNavigationScope,
+  getProductScopedHref,
   getVisibleNavigationChildren,
 } from "@/lib/product-navigation";
 import { useAppStore, THEMES } from "@/store/useAppStore";
@@ -228,7 +229,9 @@ function ChildLinks({ items, sidebar, onNavigate }: {
       style={{ borderLeft: `1px solid ${sidebar.borderColor}` }}>
       {items.map(child => {
         const Icon        = child.icon;
-        const childUrl = new URL(child.href, "http://localhost");
+        const href = getProductScopedHref(pathname, child.href);
+        if (!href) return null;
+        const childUrl = new URL(href, "http://localhost");
         const childActive =
           pathname === childUrl.pathname &&
           Array.from(childUrl.searchParams.entries()).every(
@@ -237,7 +240,7 @@ function ChildLinks({ items, sidebar, onNavigate }: {
         return (
           <Link
             key={child.href}
-            href={child.href}
+            href={href}
             onClick={onNavigate}
             prefetch={PREFETCH_ROUTES.has(childUrl.pathname)}
             aria-current={childActive ? "page" : undefined}
@@ -286,7 +289,10 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
     if (pathname.startsWith("/settings")) return "settings";
     // Auto-open the group containing the current path on first render
     const active = productNavItems.find(item =>
-      item.children?.some(c => pathname.startsWith(c.href))
+      item.children?.some((child) => {
+        const href = getProductScopedHref(pathname, child.href);
+        return href ? pathname.startsWith(new URL(href, "http://localhost").pathname) : false;
+      })
     );
     return active?.href ?? null;
   });
@@ -353,12 +359,19 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
         {productNavItems.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
-          const childItems = getVisibleNavigationChildren(item.children, item.label, enabledModules);
-          const isActive = !item.children && (pathname === item.href || pathname.startsWith(item.href + "/"));
+          const childItems = getVisibleNavigationChildren(item.children, item.label, enabledModules)
+            .filter((child) => getProductScopedHref(pathname, child.href) !== null);
+          const itemHref = getProductScopedHref(pathname, item.href);
+          if (!itemHref) return null;
+          const itemPath = new URL(itemHref, "http://localhost").pathname;
+          const isActive = !item.children && (pathname === itemPath || pathname.startsWith(itemPath + "/"));
           const isGroupActive = !!item.children && (
-            pathname === item.href
-            || pathname.startsWith(item.href + "/")
-            || childItems?.some(c => pathname.startsWith(c.href))
+            pathname === itemPath
+            || pathname.startsWith(itemPath + "/")
+            || childItems.some((child) => {
+              const href = getProductScopedHref(pathname, child.href);
+              return href ? pathname.startsWith(new URL(href, "http://localhost").pathname) : false;
+            })
           );
           const isOpen   = !collapsed && openGroup === item.href;
 
@@ -398,7 +411,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
           return (
             <Link
               key={item.href}
-              href={isSoon ? "#" : item.href}
+              href={isSoon ? "#" : itemHref}
               prefetch={PREFETCH_ROUTES.has(item.href.split("?")[0])}
               onClick={e => {
                 if (isSoon) {

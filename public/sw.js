@@ -1,15 +1,6 @@
-const CACHE_NAME = "thinksales-shell-v4";
+const CACHE_NAME = "thinksales-static-v5";
 const APP_SHELL = [
-  "/",
-  "/dashboard",
-  "/offline",
   "/offline-portal.html",
-  "/pos",
-  "/sales",
-  "/sales/new",
-  "/inventory",
-  "/inventory/new",
-  "/settings/general",
   "/thinksales-logo.jpeg",
 ];
 
@@ -22,7 +13,8 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      keys.filter((key) => key.startsWith("thinksales-shell-") && key !== CACHE_NAME)
+        .map((key) => caches.delete(key))
     )).then(() => self.clients.claim())
   );
 });
@@ -37,15 +29,7 @@ self.addEventListener("fetch", (event) => {
     fetch(event.request)
       .then((response) => {
         if (response.ok && (
-          request.pathname.startsWith("/_next/static/") ||
-          request.pathname === "/dashboard" ||
-          request.pathname === "/offline" ||
-          request.pathname === "/pos" ||
-          request.pathname === "/sales" ||
-          request.pathname === "/sales/new" ||
-          request.pathname === "/inventory" ||
-          request.pathname === "/inventory/new" ||
-          request.pathname === "/settings/general"
+          request.pathname.startsWith("/_next/static/")
         )) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));

@@ -18,6 +18,7 @@ import type { OrganizationUsageSummary } from "@/lib/organizations/usage-summary
 import {
   getProductNavigationItems,
   getProductNavigationScope,
+  getProductScopedHref,
   getVisibleNavigationChildren,
 } from "@/lib/product-navigation";
 
@@ -66,11 +67,20 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   const productScope = getProductNavigationScope(pathname);
   const productNavItems = getProductNavigationItems(NAV_ITEMS, productScope);
   const mobileNav = productScope === "thinksales-erp"
-    ? productNavItems.filter((item) => ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href))
+    ? productNavItems
+      .filter((item) => ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href))
+      .flatMap((item) => {
+        const href = getProductScopedHref(pathname, item.href);
+        return href ? [{ ...item, href }] : [];
+      })
     : productNavItems
       .filter((item) => !enabledModules || enabledModules.includes(item.label))
       .flatMap((item) =>
         getVisibleNavigationChildren(item.children, item.label, enabledModules)
+          .flatMap((child) => {
+            const href = getProductScopedHref(pathname, child.href);
+            return href ? [{ ...child, href }] : [];
+          })
       ).slice(0, 5);
   const watermarkPosition = watermark?.position === "top-left" ? "left top"
     : watermark?.position === "top-center" ? "center top"
@@ -183,7 +193,10 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             )}
             {children}
           </main>
-          <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden dark:border-slate-700 dark:bg-ink-950/95">
+          <nav
+            className="fixed inset-x-0 bottom-0 z-40 grid border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden dark:border-slate-700 dark:bg-ink-950/95"
+            style={{ gridTemplateColumns: `repeat(${Math.max(mobileNav.length, 1)}, minmax(0, 1fr))` }}
+          >
             {mobileNav.map((item) => {
               const Icon = item.icon;
               return (

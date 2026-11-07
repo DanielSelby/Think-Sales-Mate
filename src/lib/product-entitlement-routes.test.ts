@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getLegacyProductAppPath,
   getRequiredProductSlugs,
   getRequiredProductSlugsForPermissionModule,
   hasAnyRequiredProductAccess,
@@ -33,6 +34,23 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/api/service-center/jobs")).toEqual(["think-service-repairs"]);
   });
 
+  it("validates namespaced routes against their legacy page ownership", () => {
+    expect(getRequiredProductSlugs("/app/thinksales/inventory")).toEqual(["thinksales-erp"]);
+    expect(getRequiredProductSlugs("/app/restaurant/menu")).toEqual(["restaurant"]);
+    expect(getRequiredProductSlugs("/app/restaurant/expenses")).toEqual(["restaurant"]);
+    expect(getRequiredProductSlugs("/app/think-service/jobs")).toEqual(["think-service-repairs"]);
+    expect(getRequiredProductSlugs("/app/restaurant/inventory")).toEqual(["restaurant"]);
+    expect(getRequiredProductSlugs("/app/unknown/inventory")).toEqual([]);
+  });
+
+  it("canonicalizes unambiguous legacy product routes without losing their path", () => {
+    expect(getLegacyProductAppPath("/inventory/barcode-labels"))
+      .toBe("/app/thinksales/inventory/barcode-labels");
+    expect(getLegacyProductAppPath("/restaurant/menu")).toBe("/app/restaurant/menu");
+    expect(getLegacyProductAppPath("/service-center/jobs")).toBe("/app/think-service/jobs");
+    expect(getLegacyProductAppPath("/expenses/categories")).toBeNull();
+  });
+
   it("allows integrations when either product subscription is active", () => {
     expect(getRequiredProductSlugs("/accounting/restaurant-ledger")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugs("/expenses/categories")).toEqual(["thinksales-erp", "restaurant"]);
@@ -40,6 +58,7 @@ describe("product route entitlement mapping", () => {
   });
 
   it("requires the ERP product for core ERP routes", () => {
+    expect(getRequiredProductSlugs("/dashboard")).toEqual(["thinksales-erp"]);
     expect(getRequiredProductSlugs("/inventory/barcode-labels")).toEqual(["thinksales-erp"]);
     expect(getRequiredProductSlugs("/settings/customer-ordering")).toEqual(["thinksales-erp"]);
     expect(getRequiredProductSlugs("/settings/customer-ordering/branches")).toEqual(["thinksales-erp"]);

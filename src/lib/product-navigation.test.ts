@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getProductNavigationItems,
   getProductNavigationScope,
+  getProductScopedHref,
   getVisibleNavigationChildren,
 } from "./product-navigation";
 
@@ -14,9 +15,27 @@ const navigation = [
 
 describe("product navigation", () => {
   it("uses the current product route to select the navigation scope", () => {
+    expect(getProductNavigationScope("/app/think-service/jobs")).toBe("think-service-repairs");
+    expect(getProductNavigationScope("/app/restaurant/menu")).toBe("restaurant");
     expect(getProductNavigationScope("/service-center/jobs")).toBe("think-service-repairs");
     expect(getProductNavigationScope("/restaurant/pos")).toBe("restaurant");
     expect(getProductNavigationScope("/inventory")).toBe("thinksales-erp");
+  });
+
+  it("keeps local links in the active product namespace and excludes foreign namespaces", () => {
+    expect(getProductScopedHref("/app/thinksales/dashboard", "/inventory?view=all#top"))
+      .toBe("/app/thinksales/inventory?view=all#top");
+    expect(getProductScopedHref("/app/restaurant", "/restaurant/menu"))
+      .toBe("/app/restaurant/menu");
+    expect(getProductScopedHref("/app/restaurant", "/accounting/restaurant-ledger"))
+      .toBe("/app/restaurant/accounting/restaurant-ledger");
+    expect(getProductScopedHref("/app/think-service", "/service-center/jobs"))
+      .toBe("/app/think-service/jobs");
+    expect(getProductScopedHref("/app/restaurant", "/inventory")).toBeNull();
+    expect(getProductScopedHref("/app/restaurant", "/app/thinksales/inventory")).toBeNull();
+    expect(getProductScopedHref("/app/restaurant", "/app/unknown/page")).toBeNull();
+    expect(getProductScopedHref("/app/restaurant", "/settings/organization")).toBe("/settings/organization");
+    expect(getProductScopedHref("/app/restaurant", "https://example.com")).toBe("https://example.com");
   });
 
   it("shows only the active product group while retaining ThinkSales modules in its scope", () => {

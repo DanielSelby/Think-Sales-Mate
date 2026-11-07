@@ -3,7 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { canonicalRoleKey, isTabVisible, resolveMemberPermissionMatrix } from "@/lib/rbac/permission-matrix";
 import { resolveTabRouteAccess } from "@/lib/rbac/tab-route-access";
-import { getRequiredProductSlugs, hasAnyRequiredProductAccess } from "@/lib/product-entitlement-routes";
+import {
+  getLegacyProductAppPath,
+  getRequiredProductSlugs,
+  hasAnyRequiredProductAccess,
+} from "@/lib/product-entitlement-routes";
+import { resolveProductAppRoute } from "@/lib/product-app-routes";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 import type { PlatformProductSlug } from "@/types/platform-database";
 
@@ -12,6 +17,26 @@ const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password",
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
   const pathname = request.nextUrl.pathname;
+  const resolvedAppRoute = resolveProductAppRoute(pathname);
+  if (resolvedAppRoute?.kind === "invalid") {
+    return new NextResponse("Product application route not found.", { status: 404 });
+  }
+  const appRoute = resolvedAppRoute?.kind === "valid" ? resolvedAppRoute : null;
+  const isApiRequest = pathname.startsWith("/api/") || Boolean(appRoute?.appPath.startsWith("/api/"));
+  let verifiedProductOrganizationId: string | null = null;
+  const continueWithProductContext = () => {
+    if (!appRoute || !verifiedProductOrganizationId) return response;
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.delete("x-active-product-slug");
+    requestHeaders.delete("x-active-organization-id");
+    requestHeaders.set("x-active-product-slug", appRoute.productSlug);
+    requestHeaders.set("x-active-organization-id", verifiedProductOrganizationId);
+    const rewriteUrl = new URL(appRoute.appPath, request.url);
+    rewriteUrl.search = request.nextUrl.search;
+    const scopedResponse = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+    response.cookies.getAll().forEach((cookie) => scopedResponse.cookies.set(cookie));
+    return scopedResponse;
+  };
 
   if (pathname.startsWith("/service-repair/")) {
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
@@ -58,8 +83,6 @@ export async function middleware(request: NextRequest) {
     response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
     return redirectResponse;
   };
-  const isApiRequest = pathname.startsWith("/api/");
-
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (
@@ -93,6 +116,15 @@ export async function middleware(request: NextRequest) {
     && !pathname.startsWith("/auth/callback")
   ) {
     return redirectWithAuthCookies(new URL("/reset-password", request.url));
+  }
+
+  if (!appRoute) {
+    const canonicalPath = getLegacyProductAppPath(pathname);
+    if (canonicalPath) {
+      const redirectUrl = new URL(canonicalPath, request.url);
+      redirectUrl.search = request.nextUrl.search;
+      return redirectWithAuthCookies(redirectUrl);
+    }
   }
 
   const activeOrgId = request.cookies.get("active_org_id")?.value;
@@ -175,8 +207,15 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const tabAccess = resolveTabRouteAccess(pathname, request.nextUrl.searchParams);
-  const routeProducts = getRequiredProductSlugs(pathname);
+  const routePath = appRoute?.appPath ?? pathname;
+  const tabAccess = resolveTabRouteAccess(routePath, request.nextUrl.searchParams);
+  const pageProducts = getRequiredProductSlugs(routePath);
+  if (appRoute && !pageProducts?.includes(appRoute.productSlug)) {
+    return new NextResponse("Product application route not found.", { status: 404 });
+  }
+  const routeProducts = appRoute
+    ? [appRoute.productSlug]
+    : pageProducts;
   const requiredProducts = routeProducts;
   if (user && (tabAccess || routeProducts || requiredProducts)) {
     const { data: members, error: memberError } = await supabase
@@ -195,7 +234,9 @@ export async function middleware(request: NextRequest) {
       const organization = Array.isArray(candidate.organizations) ? candidate.organizations[0] : candidate.organizations;
       return organization?.registration_status === "approved";
     });
-    const member = accessibleMembers.find((candidate) => candidate.org_id === activeOrgId) ?? accessibleMembers[0];
+    const member = activeOrgId
+      ? accessibleMembers.find((candidate) => candidate.org_id === activeOrgId)
+      : accessibleMembers[0];
     if (routeProducts && !member) {
       if (isApiRequest) return NextResponse.json({ error: "An approved organization membership is required." }, { status: 403 });
       return redirectWithAuthCookies(new URL("/login", request.url));
@@ -254,7 +295,8 @@ export async function middleware(request: NextRequest) {
         }
       }
 
-      if (!tabAccess) return response;
+      if (appRoute) verifiedProductOrganizationId = member.org_id;
+      if (!tabAccess) return continueWithProductContext();
       if (!isOwner) {
         const roleKey = canonicalRoleKey(
           typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : member.role
@@ -296,7 +338,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return response;
+  return continueWithProductContext();
 }
 
 export const config = {
