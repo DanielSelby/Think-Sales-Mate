@@ -55,7 +55,6 @@ export default async function ServiceCenterPage() {
     canViewAssets,
     canCreateAsset,
     canViewTechnicians,
-    canCreateTechnician,
     canViewAppointments,
     canCreateAppointment,
     canEditAppointments,
@@ -68,7 +67,6 @@ export default async function ServiceCenterPage() {
     canPermission("service_assets", "view"),
     canPermission("service_assets", "create"),
     canPermission("service_technicians", "view"),
-    canPermission("service_technicians", "create"),
     canPermission("service_appointments", "view"),
     canPermission("service_appointments", "create"),
     canPermission("service_appointments", "edit"),
@@ -85,7 +83,7 @@ export default async function ServiceCenterPage() {
     throw new Error(`Unable to load automatic repair status message settings: ${notificationSettingsError.message}`);
   }
 
-  const [locationsResult, customersResult, assetsResult, techniciansResult, appointmentsResult, membersResult] = await Promise.all([
+  const [locationsResult, customersResult, assetsResult, techniciansResult, appointmentsResult] = await Promise.all([
     locationsPromise,
     supabase.from("customers")
       .select("id, name")
@@ -112,26 +110,17 @@ export default async function ServiceCenterPage() {
           return allowedLocationIds ? query.in("location_id", allowedLocationIds) : query;
         })()
       : Promise.resolve({ data: [], error: null }),
-    canCreateTechnician
-      ? supabase.from("organization_members")
-        .select("user_id, branch_scope, location_id, secondary_location_ids")
-        .eq("org_id", context.orgId)
-        .eq("status", "active")
-        .not("user_id", "is", null)
-      : Promise.resolve({ data: [], error: null }),
   ]);
   const { data: locations, error: locationsError } = locationsResult;
   const { data: customers, error: customersError } = customersResult;
   const { data: assets, error: assetsError } = assetsResult;
   const { data: technicians, error: techniciansError } = techniciansResult;
   const { data: appointments, error: appointmentsError } = appointmentsResult;
-  const { data: members, error: membersError } = membersResult;
   if (locationsError) throw new Error(`Unable to load service branches: ${locationsError.message}`);
   if (customersError) throw new Error(`Unable to load service customers: ${customersError.message}`);
   if (assetsError) throw new Error(`Unable to load customer equipment: ${assetsError.message}`);
   if (techniciansError) throw new Error(`Unable to load service technicians: ${techniciansError.message}`);
   if (appointmentsError) throw new Error(`Unable to load service appointments: ${appointmentsError.message}`);
-  if (membersError) throw new Error(`Unable to load eligible organization members: ${membersError.message}`);
   const categoriesQuery = supabase.from("service_categories")
     .select("id, name, location_id")
     .eq("org_id", context.orgId)
@@ -181,24 +170,12 @@ export default async function ServiceCenterPage() {
   if (stockLevelsResult.error) throw new Error(`Unable to load branch stock for repairs: ${stockLevelsResult.error.message}`);
   if (partMovementsResult.error) throw new Error(`Unable to load repair part history: ${partMovementsResult.error.message}`);
 
-  const visibleMembers = (members ?? []).filter((member) =>
-    member.branch_scope === "all"
-    || locations?.some((location) =>
-      member.location_id === location.id || (member.secondary_location_ids ?? []).includes(location.id)
-    ),
-  );
-  const visibleMemberIds = Array.from(new Set(visibleMembers.map((member) => member.user_id).filter((id): id is string => Boolean(id))));
-  const [{ data: profiles, error: profilesError }, { data: technicianProfiles, error: technicianProfilesError }] = await Promise.all([
-    visibleMemberIds.length
-      ? supabase.from("profiles").select("id, full_name").in("id", visibleMemberIds)
-      : Promise.resolve({ data: [], error: null }),
+  const { data: technicianProfiles, error: technicianProfilesError } = await (
     technicians?.length
       ? supabase.from("profiles").select("id, full_name").in("id", Array.from(new Set(technicians.map((technician) => technician.user_id))))
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (profilesError) throw new Error(`Unable to load organization member names: ${profilesError.message}`);
+      : Promise.resolve({ data: [], error: null })
+  );
   if (technicianProfilesError) throw new Error(`Unable to load technician names: ${technicianProfilesError.message}`);
-  const profileNames = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name?.trim() || "Organization member"]));
   const technicianNameById = new Map((technicianProfiles ?? []).map((profile) => [profile.id, profile.full_name?.trim() || "Technician"]));
 
   let jobsQuery = supabase.from("service_jobs")
@@ -435,17 +412,10 @@ export default async function ServiceCenterPage() {
         technician_name: appointment.technician_id ? technicianById.get(appointment.technician_id) ?? null : null,
         job_number: appointment.job_id ? jobNumberById.get(appointment.job_id) ?? null : null,
       }))}
-      technicianCandidates={visibleMembers.flatMap((member) =>
-        member.user_id && profileNames.has(member.user_id)
-          ? [{ userId: member.user_id, name: profileNames.get(member.user_id) ?? "Organization member" }]
-          : [],
-      )}
       canCreate={canCreate}
       canEdit={canEdit}
       canViewAssets={canViewAssets}
-      canViewTechnicians={canViewTechnicians}
       canCreateAsset={canCreateAsset}
-      canCreateTechnician={canCreateTechnician}
       canViewAppointments={canViewAppointments}
       canCreateAppointment={canCreateAppointment}
       canEditAppointments={canEditAppointments}

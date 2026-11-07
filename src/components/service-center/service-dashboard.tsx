@@ -387,7 +387,7 @@ export function ServiceDashboard({ data }: { data: ServiceDashboardData }) {
           <h2 className="mr-2 font-semibold text-slate-900 dark:text-white">Quick Actions</h2>
           {permissions.canCreateJobs && <QuickAction href="/service-center#new-service-job" icon={Plus} label="New Service Job" />}
           {permissions.canCreateAppointments && <QuickAction href="/service-center#book-appointment" icon={CalendarDays} label="Book Appointment" />}
-          {canCreateQuotation && <QuickAction href="/service-center#quotations" icon={Receipt} label="Create Quotation" />}
+          {canCreateQuotation && <QuickAction href="/service-center?view=quotations#quotations" icon={Receipt} label="Create Quotation" />}
           {permissions.canCreateCustomers && <QuickAction href="/crm/new" icon={Plus} label="Add Customer" />}
           {permissions.canViewInventory && <QuickAction href="/inventory" icon={Package} label="Check Inventory" />}
           <QuickAction href="/service-center/reports" icon={Activity} label="View Reports" />
