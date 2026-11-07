@@ -84,7 +84,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && checksSignedInDestination) {
-    return redirectWithAuthCookies(new URL("/dashboard", request.url));
+    return redirectWithAuthCookies(new URL("/product-hub", request.url));
   }
 
   if (
@@ -176,10 +176,9 @@ export async function middleware(request: NextRequest) {
   }
 
   const tabAccess = resolveTabRouteAccess(pathname, request.nextUrl.searchParams);
-  const requiredProducts = process.env.PRODUCT_ENTITLEMENTS_ENFORCED === "true"
-    ? getRequiredProductSlugs(pathname)
-    : null;
-  if (user && (tabAccess || requiredProducts)) {
+  const routeProducts = getRequiredProductSlugs(pathname);
+  const requiredProducts = routeProducts;
+  if (user && (tabAccess || routeProducts || requiredProducts)) {
     const { data: members, error: memberError } = await supabase
       .from("organization_members")
       .select("org_id, role, user_id, access_permissions, organizations(created_by, registration_status)")
@@ -197,7 +196,7 @@ export async function middleware(request: NextRequest) {
       return organization?.registration_status === "approved";
     });
     const member = accessibleMembers.find((candidate) => candidate.org_id === activeOrgId) ?? accessibleMembers[0];
-    if (requiredProducts && !member) {
+    if (routeProducts && !member) {
       if (isApiRequest) return NextResponse.json({ error: "An approved organization membership is required." }, { status: 403 });
       return redirectWithAuthCookies(new URL("/login", request.url));
     }
@@ -224,7 +223,6 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    if (!tabAccess) return response;
     if (member) {
       const organization = Array.isArray(member.organizations) ? member.organizations[0] : member.organizations;
       const accessPermissions = (member.access_permissions ?? {}) as Record<string, unknown>;
@@ -235,6 +233,28 @@ export async function middleware(request: NextRequest) {
         accessPermissions,
       });
 
+      if (routeProducts && !isOwner) {
+        const { data: assignments, error: assignmentError } = await supabase
+          .from("organization_product_access_assignments")
+          .select("product_slug")
+          .eq("org_id", member.org_id)
+          .eq("user_id", user.id)
+          .eq("is_active", true);
+        if (assignmentError) {
+          console.error("Product assignment lookup failed:", assignmentError.message);
+          if (isApiRequest) return NextResponse.json({ error: "Unable to verify your product assignments." }, { status: 503 });
+          return new NextResponse("Unable to verify your product assignments. Please try again.", { status: 503 });
+        }
+        const assignedProducts = new Set((assignments ?? []).map((assignment) => assignment.product_slug));
+        if (!routeProducts.some((productSlug) => assignedProducts.has(productSlug))) {
+          if (isApiRequest) return NextResponse.json({ error: "You are not assigned to this product." }, { status: 403 });
+          const deniedUrl = new URL("/product-hub", request.url);
+          deniedUrl.searchParams.set("accessDenied", "product");
+          return redirectWithAuthCookies(deniedUrl);
+        }
+      }
+
+      if (!tabAccess) return response;
       if (!isOwner) {
         const roleKey = canonicalRoleKey(
           typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : member.role
@@ -269,6 +289,7 @@ export async function middleware(request: NextRequest) {
         }
       }
     } else {
+      if (!tabAccess) return response;
       const deniedUrl = new URL("/dashboard", request.url);
       deniedUrl.searchParams.set("accessDenied", `${tabAccess.module}.${tabAccess.page}.${tabAccess.tab}`);
       return redirectWithAuthCookies(deniedUrl);

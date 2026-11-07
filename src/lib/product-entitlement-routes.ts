@@ -20,12 +20,15 @@ const ENTITLEMENT_EXEMPT_PATHS = [
   "/auth/",
   "/login",
   "/onboarding",
+  "/organization-expired",
   "/platform-admin",
   "/registration-status",
   "/reset-password",
   "/service-repair/",
+  "/product-hub",
   "/signup",
   "/subscription-status",
+  "/support",
 ] as const;
 
 const PERMISSION_MODULE_PATHS: Record<string, string> = {
@@ -79,6 +82,7 @@ function isPathOrChild(pathname: string, path: string) {
 }
 
 export function getRequiredProductSlugs(pathname: string): PlatformProductSlug[] | null {
+  if (pathname === "/") return null;
   if (ENTITLEMENT_EXEMPT_PATHS.some((path) =>
     path.endsWith("/") ? pathname.startsWith(path) : isPathOrChild(pathname, path)
   )) {

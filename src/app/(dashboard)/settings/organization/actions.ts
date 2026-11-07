@@ -17,7 +17,7 @@ import { recordAuditEvent } from "@/lib/audit/record-audit-event";
 import { deliverMessage } from "@/lib/communication/providers";
 import { canGrantSuperAdminRole, isOrganizationSuperAdminMember, isSuperAdminRole } from "@/lib/organizations/member-access";
 import { increasesOrganizationSeatUsage, withOrganizationCapacity } from "@/lib/organizations/capacity";
-import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { getEnabledOrganizationModules, getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "@/lib/rbac/restaurant-roles";
 
 function databaseRole(role: string): MemberRole {
@@ -51,6 +51,50 @@ async function validateOrganizationRole(orgId: string, role: string): Promise<st
 function isValidAvatar(file: File): boolean {
   return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)
     && file.size <= 5 * 1024 * 1024;
+}
+
+export async function setOrganizationProductAssignments(userId: string, requestedSlugs: string[]) {
+  const context = await getCurrentOrgContext();
+  if (!context) return { error: "An active organization membership is required." };
+  if (!isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  })) {
+    return { error: "Only an organization owner or super administrator may manage product access." };
+  }
+  if (!userId || !Array.isArray(requestedSlugs) || requestedSlugs.some((slug) => typeof slug !== "string")) {
+    return { error: "Select a valid member and product list." };
+  }
+
+  const supabase = await createClient();
+  const { data: member, error: memberError } = await supabase
+    .from("organization_members")
+    .select("user_id, status")
+    .eq("org_id", context.orgId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (memberError) return { error: `Could not verify the selected member: ${memberError.message}` };
+  if (!member) return { error: "The selected user is not an active member of this organization." };
+
+  const products = await getPublishedPlatformProducts();
+  const availableSlugs = new Set<string>(products.map((product) => product.slug));
+  const productSlugs = [...new Set(requestedSlugs)];
+  if (productSlugs.some((slug) => !availableSlugs.has(slug))) {
+    return { error: "One or more selected products are not published." };
+  }
+
+  const { error } = await supabase.rpc("set_organization_product_assignments", {
+    p_org_id: context.orgId,
+    p_user_id: userId,
+    p_product_slugs: productSlugs,
+  });
+  if (error) return { error: `Could not update product access: ${error.message}` };
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/product-hub");
+  return { success: true as const };
 }
 
 function submittedApprovalPermissions(formData: FormData): Record<string, boolean | number> | null | undefined {

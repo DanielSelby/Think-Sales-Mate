@@ -121,7 +121,7 @@ export default function ResetPasswordPage() {
 
       setSuccess(true);
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push("/product-hub");
         router.refresh();
       }, 1800);
     } catch (err) {

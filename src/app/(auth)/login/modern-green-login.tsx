@@ -85,7 +85,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl, loginFormTr
         submissionInProgress.current = false;
         return;
       }
-      router.replace(searchParams.get("next") ?? "/dashboard");
+      router.replace(searchParams.get("next") ?? "/product-hub");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign in. Please try again.");
@@ -103,7 +103,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl, loginFormTr
       const supabase = createClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=${searchParams.get("next") ?? "/dashboard"}` },
+        options: { redirectTo: `${window.location.origin}/auth/callback?next=${searchParams.get("next") ?? "/product-hub"}` },
       });
       if (oauthError) throw oauthError;
     } catch (cause) {

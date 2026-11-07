@@ -47,6 +47,7 @@ import { ApprovalMatrixTab } from "./user-management/tabs/approval-matrix-tab";
 import { BranchAccessTab } from "./user-management/tabs/branch-access-tab";
 import { AuditLogsTab } from "./user-management/tabs/audit-logs-tab";
 import { LoginSessionsTab } from "./user-management/tabs/login-sessions-tab";
+import { ProductAccessTab } from "./user-management/tabs/product-access-tab";
 
 // Modals & Drawers
 import { AddUserModal } from "./user-management/modals/add-user-modal";
@@ -113,6 +114,9 @@ interface UserManagementProps {
   canManageThemes?: boolean;
   restaurantOnlyOrganization?: boolean;
   enabledModules?: string[];
+  productCatalog?: Array<{ slug: string; name: string }>;
+  productAssignments?: Record<string, string[]>;
+  canManageProductAccess?: boolean;
 }
 
 export function UserManagement({
@@ -128,7 +132,10 @@ export function UserManagement({
   roleThemes = {},
   canManageThemes = false,
   restaurantOnlyOrganization = false,
-  enabledModules
+  enabledModules,
+  productCatalog = [],
+  productAssignments = {},
+  canManageProductAccess = false
 }: UserManagementProps) {
   const [, startTransition] = useTransition();
   const { setTheme } = useAppStore();
@@ -1141,7 +1148,8 @@ export function UserManagement({
           { key: "branches", label: "Branch Access" },
           { key: "audit", label: "Activity Logs", count: auditLogs.length },
           { key: "sessions", label: "Login Sessions", count: 6 },
-          { key: "staff_accounts", label: "Create Staff Account" }
+          { key: "staff_accounts", label: "Create Staff Account" },
+          ...(canManageProductAccess ? [{ key: "product_access", label: "Product Access", count: productCatalog.length }] : [])
         ].map((tab) => (
           <button
             key={tab.key}
@@ -1308,6 +1316,10 @@ export function UserManagement({
               return {};
             }}
           />
+        )}
+
+        {activeTab === "product_access" && canManageProductAccess && (
+          <ProductAccessTab users={users} products={productCatalog} assignments={productAssignments} />
         )}
 
         {activeTab === "approvals" && (

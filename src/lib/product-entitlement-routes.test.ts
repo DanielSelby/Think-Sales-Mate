@@ -46,7 +46,11 @@ describe("product route entitlement mapping", () => {
   });
 
   it("leaves onboarding, billing status, and explicitly public API paths outside product gates", () => {
+    expect(getRequiredProductSlugs("/")).toBeNull();
     expect(getRequiredProductSlugs("/onboarding")).toBeNull();
+    expect(getRequiredProductSlugs("/product-hub")).toBeNull();
+    expect(getRequiredProductSlugs("/product-hub/open/restaurant")).toBeNull();
+    expect(getRequiredProductSlugs("/support")).toBeNull();
     expect(getRequiredProductSlugs("/subscription-status")).toBeNull();
     expect(getRequiredProductSlugs("/api/restaurant-order/checkout")).toBeNull();
     expect(getRequiredProductSlugs("/api/restaurant-order/paystack/webhook")).toBeNull();

@@ -179,10 +179,19 @@ Before deploying the code that uses product subscriptions, apply
 `supabase/platform-migrations/0014_product_entitlements.sql` to the separate
 Platform Admin database, then apply
 `supabase/migrations/20261102100000_product_entitlement_projection.sql` to the
-application database. The Platform Admin migration backfills products and
-subscriptions from existing feature grants. Verify that pending projection
-events have synchronized before setting `PRODUCT_ENTITLEMENTS_ENFORCED=true`.
-Keep it `false` until both migrations and the backfill are verified.
+application database. Also apply
+`supabase/migrations/20261107100000_organization_product_access_assignments.sql`
+before deploying the Organization Product Hub. The Platform Admin migration
+backfills products and subscriptions from existing feature grants. Verify that
+pending projection events have synchronized before deploying: middleware
+product-route checks and employee product assignments are enforced regardless
+of `PRODUCT_ENTITLEMENTS_ENFORCED`. That setting controls additional
+module-permission checks and should be enabled after the projection is verified.
+
+Organization owners and super administrators automatically see entitled,
+published products. Other active members start with no product assignments;
+assign their products in Settings → Organization → Product Access before they
+open existing product routes.
 
 New organization registrations can request one or more published products.
 The request is saved with the pending application and shown to Platform Admin

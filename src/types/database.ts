@@ -5091,6 +5091,52 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organization_product_entitlements"]["Row"]>;
         Relationships: [];
       };
+      organization_product_access_assignments: {
+        Row: {
+          org_id: string;
+          user_id: string;
+          product_slug: string;
+          is_active: boolean;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          user_id: string;
+          product_slug: string;
+          is_active?: boolean;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_product_access_assignments"]["Row"]>;
+        Relationships: [];
+      };
+      organization_product_access_audit: {
+        Row: {
+          id: string;
+          org_id: string;
+          user_id: string;
+          product_slug: string;
+          action: "assigned" | "revoked";
+          actor_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          user_id: string;
+          product_slug: string;
+          action: "assigned" | "revoked";
+          actor_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_product_access_audit"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       public_product_catalog: {
@@ -6073,6 +6119,14 @@ export interface Database {
           p_require_write?: boolean;
         };
         Returns: boolean;
+      };
+      set_organization_product_assignments: {
+        Args: {
+          p_org_id: string;
+          p_user_id: string;
+          p_product_slugs: string[];
+        };
+        Returns: undefined;
       };
     };
     Enums: {

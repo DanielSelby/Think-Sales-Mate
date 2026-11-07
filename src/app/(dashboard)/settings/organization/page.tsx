@@ -9,7 +9,7 @@ import type { ApprovalPermission, AuditLogEntry, InvitationRecord, RoleDefinitio
 import { DEFAULT_ROLES } from "@/components/dashboard/user-management/constants";
 import { normalizePermissionMatrix } from "@/lib/rbac/permissions";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
-import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
+import { getEnabledOrganizationModules, getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey, RESTAURANT_ROLE_PRESETS } from "@/lib/rbac/restaurant-roles";
 
 export default async function OrganizationSettingsPage() {
@@ -258,8 +258,30 @@ export default async function OrganizationSettingsPage() {
       };
     });
   const canManageUsers = await canPermission("user_management", "edit", context.orgId);
+  const canManageProductAccess = isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  });
+  const [productCatalog, productAssignmentsResult] = canManageProductAccess
+    ? await Promise.all([
+        getPublishedPlatformProducts(),
+        supabase.from("organization_product_access_assignments")
+          .select("user_id, product_slug")
+          .eq("org_id", context.orgId)
+          .eq("is_active", true),
+      ])
+    : [[], { data: [], error: null }];
+  if (productAssignmentsResult.error) {
+    throw new Error(`Could not load product assignments: ${productAssignmentsResult.error.message}`);
+  }
+  const productAssignments: Record<string, string[]> = {};
+  for (const assignment of productAssignmentsResult.data ?? []) {
+    productAssignments[assignment.user_id] ??= [];
+    productAssignments[assignment.user_id].push(assignment.product_slug);
+  }
   return (
-    <div className="mx-auto max-w-[1680px] space-y-6">
+    <div id="users" className="mx-auto max-w-[1680px] space-y-6">
       <UserManagement
         users={users}
         branches={branches}
@@ -274,6 +296,9 @@ export default async function OrganizationSettingsPage() {
         canManageThemes={canManageUsers}
         restaurantOnlyOrganization={restaurantOnlyOrganization}
         enabledModules={enabledModules}
+        productCatalog={productCatalog}
+        productAssignments={productAssignments}
+        canManageProductAccess={canManageProductAccess}
       />
     </div>
   );

@@ -60,14 +60,18 @@ by inserting a catalog row alone.
    - Run the focused tests, lint, typecheck, and `git diff --check`.
 
 6. **Migrate and roll out safely**
-   - Add an additive Platform Admin migration for the catalog and feature
-     mappings. Add an application migration only if the product requires new
-     projection or data/RLS objects.
-   - Apply and verify migrations in a non-production environment first.
+   - Apply and verify the Platform Admin catalog/entitlement migration and the
+     application entitlement-projection and product-assignment migrations in
+     a non-production environment first.
    - Verify legacy-grant compatibility and outbox projection/reconciliation.
-   - Keep `PRODUCT_ENTITLEMENTS_ENFORCED=false` until the migrations,
-     backfill, and synchronization are verified and rollout is approved.
-     Never apply migrations or enable enforcement in production without
+   - The Organization Product Hub and middleware route gates always require
+     valid organization entitlements and explicit employee assignments; apply
+     the migrations before deploying. Organization administrators can assign
+     existing employees after deployment; until assigned, non-administrators
+     are denied access to product routes.
+   - `PRODUCT_ENTITLEMENTS_ENFORCED` controls additional module-permission
+     checks. Enable it after the entitlement projection is verified.
+   - Never apply migrations or enable enforcement in production without
      explicit deployment approval.
 
 ## Current integration seams
@@ -83,6 +87,11 @@ by inserting a catalog row alone.
 - `src/app/platform-admin/actions.ts`: supported product validation and
   subscription administration.
 - `src/app/(dashboard)/subscription-status/page.tsx`: product status display.
+- `src/app/(hub)/product-hub/page.tsx`: dynamically loaded organization product
+  hub and server-side entitlement/assignment filtering.
+- `src/app/(dashboard)/settings/organization/actions.ts` and
+  `supabase/migrations/20261107100000_organization_product_access_assignments.sql`:
+  owner-managed employee assignments, RLS, and audit history.
 - `src/lib/organizations/capacity.ts`: shared seat and branch limit enforcement;
   owners can review these current organization-wide limits and usage on the
   subscription status page. Member and branch creation reserves capacity

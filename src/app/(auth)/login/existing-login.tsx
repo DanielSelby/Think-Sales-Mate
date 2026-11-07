@@ -158,7 +158,7 @@ function LoginForm() {
     try {
       const { error: err } = await loginWithIdentifier(identifier, password);
       if (err) { setError(err); setLoading(false); submissionInProgress.current = false; return; }
-      router.replace(searchParams.get("next") ?? "/dashboard");
+      router.replace(searchParams.get("next") ?? "/product-hub");
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to sign in. Please try again.");
@@ -175,7 +175,7 @@ function LoginForm() {
       const supabase = createClient();
       const { error: err } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=${searchParams.get("next") ?? "/dashboard"}` },
+        options: { redirectTo: `${window.location.origin}/auth/callback?next=${searchParams.get("next") ?? "/product-hub"}` },
       });
       if (err) { setError(err.message); setLoading(false); submissionInProgress.current = false; }
     } catch (err) {

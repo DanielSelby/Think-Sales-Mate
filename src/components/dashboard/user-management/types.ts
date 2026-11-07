@@ -262,4 +262,5 @@ export type ActiveTab =
   | "branches" 
   | "audit" 
   | "sessions"
-  | "staff_accounts";
+  | "staff_accounts"
+  | "product_access";
