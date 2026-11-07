@@ -86,6 +86,10 @@ create table if not exists public.service_jobs (
   intake_confirmed_by text not null check (length(trim(intake_confirmed_by)) between 1 and 120),
   intake_confirmed_as text not null check (intake_confirmed_as in ('customer', 'authorized_representative')),
   intake_confirmed_at timestamptz not null default now(),
+  customer_update_channels text[] not null default '{}'
+    check (customer_update_channels <@ array['WhatsApp', 'SMS', 'Email']::text[]),
+  customer_update_consent_recorded_at timestamptz,
+  customer_update_consent_recorded_by uuid references auth.users(id),
   diagnosis text,
   recommended_work text,
   internal_notes text,
@@ -104,6 +108,14 @@ create table if not exists public.service_jobs (
   foreign key (org_id, category_id) references public.service_categories(org_id, id) on delete restrict,
   foreign key (org_id, location_id, technician_id)
     references public.service_technicians(org_id, location_id, id) on delete restrict,
+  check (
+    (cardinality(customer_update_channels) = 0
+      and customer_update_consent_recorded_at is null
+      and customer_update_consent_recorded_by is null)
+    or (cardinality(customer_update_channels) > 0
+      and customer_update_consent_recorded_at is not null
+      and customer_update_consent_recorded_by is not null)
+  ),
   foreign key (org_id, location_id) references public.business_locations(org_id, id) on delete restrict
 );
 
@@ -586,6 +598,13 @@ create policy "service jobs: authorized members can create"
   on public.service_jobs for insert
   with check (
     created_by = auth.uid()
+    and (
+      cardinality(customer_update_channels) = 0
+      or (
+        customer_update_consent_recorded_by = auth.uid()
+        and customer_update_consent_recorded_at <= now()
+      )
+    )
     and public.can_access_org_location(org_id, location_id)
     and (
       technician_id is null
@@ -2029,7 +2048,9 @@ create or replace function public.create_service_job_warranty_claim(
   p_condition_on_arrival text,
   p_accessories text[],
   p_intake_confirmed_by text,
-  p_intake_confirmed_as text
+  p_intake_confirmed_as text,
+  p_customer_update_channels text[] default '{}',
+  p_customer_update_consent_acknowledged boolean default false
 )
 returns uuid
 language plpgsql
@@ -2069,6 +2090,14 @@ begin
   if p_intake_confirmed_as is null or p_intake_confirmed_as not in ('customer', 'authorized_representative') then
     raise exception 'Select whether the customer or an authorized representative confirmed intake';
   end if;
+  if p_customer_update_channels is null
+     or not p_customer_update_channels <@ array['WhatsApp', 'SMS', 'Email']::text[] then
+    raise exception 'Choose only WhatsApp, SMS, or email for automatic repair updates';
+  end if;
+  if cardinality(p_customer_update_channels) > 0
+     and p_customer_update_consent_acknowledged is not true then
+    raise exception 'Confirm that the customer or representative expressly opted in to automatic repair updates';
+  end if;
 
   select * into original_job
   from public.service_jobs
@@ -2101,11 +2130,16 @@ begin
   insert into public.service_jobs (
     org_id, location_id, job_number, customer_id, asset_id, technician_id, status,
     priority, reported_problem, condition_on_arrival, accessories, intake_confirmed_by,
-    intake_confirmed_as, created_by
+    intake_confirmed_as, customer_update_channels, customer_update_consent_recorded_at,
+    customer_update_consent_recorded_by, created_by
   ) values (
     p_org_id, p_location_id, trim(p_job_number), p_customer_id, p_asset_id, p_technician_id,
     'received', p_priority, trim(p_reported_problem), trim(p_condition_on_arrival),
-    p_accessories, trim(p_intake_confirmed_by), p_intake_confirmed_as, auth.uid()
+    p_accessories, trim(p_intake_confirmed_by), p_intake_confirmed_as,
+    p_customer_update_channels,
+    case when cardinality(p_customer_update_channels) > 0 then now() else null end,
+    case when cardinality(p_customer_update_channels) > 0 then auth.uid() else null end,
+    auth.uid()
   )
   returning id into new_job_id;
 
@@ -2121,8 +2155,8 @@ begin
 end;
 $$;
 
-revoke all on function public.create_service_job_warranty_claim(uuid, uuid, uuid, uuid, uuid, text, text, text, uuid, text, text[], text, text) from public, anon;
-grant execute on function public.create_service_job_warranty_claim(uuid, uuid, uuid, uuid, uuid, text, text, text, uuid, text, text[], text, text) to authenticated;
+revoke all on function public.create_service_job_warranty_claim(uuid, uuid, uuid, uuid, uuid, text, text, text, uuid, text, text[], text, text, text[], boolean) from public, anon;
+grant execute on function public.create_service_job_warranty_claim(uuid, uuid, uuid, uuid, uuid, text, text, text, uuid, text, text[], text, text, text[], boolean) to authenticated;
 
 create or replace function public.decide_service_job_warranty_claim(
   p_claim_id uuid,

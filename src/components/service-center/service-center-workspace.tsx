@@ -1,10 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  ClipboardList,
+  Clock3,
+  Eye,
+  Plus,
+  RotateCcw,
+  Search,
+  Wrench,
+  XCircle,
+} from "lucide-react";
 import {
   createServiceAsset,
   createServiceAppointment,
@@ -22,6 +36,7 @@ import { ServiceQuotationForm } from "@/components/service-center/service-quotat
 import { ServiceCustomerUpdate } from "@/components/service-center/service-customer-update";
 import { ServiceAppointmentReminder } from "@/components/service-center/service-appointment-reminder";
 import { ServiceQuotationDelivery } from "@/components/service-center/service-quotation-delivery";
+import { ServiceStatusNotificationSettings } from "@/components/service-center/service-status-notification-settings";
 import type { InvoiceStatus, ServiceAppointmentStatus, ServiceJobPriority, ServiceJobStatus, ServiceQuotationStatus, ServiceWarrantyClaimStatus } from "@/types/database";
 
 type ServiceJobRow = {
@@ -30,6 +45,7 @@ type ServiceJobRow = {
   location_id: string;
   customer_id: string;
   asset_id: string | null;
+  category_id: string | null;
   technician_id: string | null;
   status: ServiceJobStatus;
   priority: ServiceJobPriority;
@@ -66,6 +82,7 @@ type ServiceJobRow = {
 };
 
 type SelectOption = { id: string; name: string };
+type ServiceCategoryOption = SelectOption & { location_id: string | null };
 type AssetWarrantyStatus = "not_recorded" | "upcoming" | "active" | "expired";
 type AssetOption = {
   id: string;
@@ -188,6 +205,7 @@ export function ServiceCenterWorkspace({
   quotations,
   contactLogs,
   customers,
+  serviceCategories,
   locations,
   assets,
   technicians,
@@ -202,6 +220,9 @@ export function ServiceCenterWorkspace({
   canViewAppointments,
   canCreateAppointment,
   canEditAppointments,
+  canManageServiceNotifications,
+  serviceStatusNotificationsEnabled,
+  serviceStatusNotificationResults,
   currency,
 }: {
   jobs: ServiceJobRow[];
@@ -209,6 +230,7 @@ export function ServiceCenterWorkspace({
   quotations: QuotationRow[];
   contactLogs: ContactLogRow[];
   customers: SelectOption[];
+  serviceCategories: ServiceCategoryOption[];
   locations: SelectOption[];
   assets: AssetOption[];
   technicians: TechnicianOption[];
@@ -223,6 +245,17 @@ export function ServiceCenterWorkspace({
   canViewAppointments: boolean;
   canCreateAppointment: boolean;
   canEditAppointments: boolean;
+  canManageServiceNotifications: boolean;
+  serviceStatusNotificationsEnabled: boolean;
+  serviceStatusNotificationResults: Array<{
+    id: string;
+    job_id: string;
+    job_number: string;
+    status: ServiceJobStatus;
+    delivery_status: "pending" | "processing" | "sent" | "failed" | "skipped";
+    result_message: string | null;
+    created_at: string;
+  }>;
   currency: string;
 }) {
   const router = useRouter();
@@ -231,6 +264,49 @@ export function ServiceCenterWorkspace({
   const [notice, setNotice] = useState<string | null>(null);
   const [appointmentLocationId, setAppointmentLocationId] = useState("");
   const [appointmentCustomerId, setAppointmentCustomerId] = useState("");
+  const [jobSearch, setJobSearch] = useState("");
+  const [jobStatusFilter, setJobStatusFilter] = useState("all");
+  const [jobPriorityFilter, setJobPriorityFilter] = useState("all");
+  const [jobCategoryFilter, setJobCategoryFilter] = useState("all");
+  const [jobTechnicianFilter, setJobTechnicianFilter] = useState("all");
+  const [jobCustomerFilter, setJobCustomerFilter] = useState("all");
+  const [jobLocationFilter, setJobLocationFilter] = useState("all");
+  const [jobDateRange, setJobDateRange] = useState("30");
+  const [jobPage, setJobPage] = useState(1);
+  const [jobPageSize, setJobPageSize] = useState(10);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
+
+  useEffect(() => {
+    const openFromHash = () => {
+      if (window.location.hash === "#new-service-job") setIsCreateJobOpen(true);
+    };
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, []);
+
+  useEffect(() => {
+    const openJobFromHash = () => {
+      if (!window.location.hash.startsWith("#job-")) return;
+      const jobId = window.location.hash.slice("#job-".length);
+      const jobIndex = jobs.findIndex((job) => job.id === jobId);
+      if (jobIndex < 0) return;
+      setJobSearch("");
+      setJobStatusFilter("all");
+      setJobPriorityFilter("all");
+      setJobCategoryFilter("all");
+      setJobTechnicianFilter("all");
+      setJobCustomerFilter("all");
+      setJobLocationFilter("all");
+      setJobDateRange("all");
+      setJobPage(Math.floor(jobIndex / jobPageSize) + 1);
+      setExpandedJobId(jobId);
+    };
+    openJobFromHash();
+    window.addEventListener("hashchange", openJobFromHash);
+    return () => window.removeEventListener("hashchange", openJobFromHash);
+  }, [jobs, jobPageSize]);
 
   async function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -247,6 +323,7 @@ export function ServiceCenterWorkspace({
       }
       form.reset();
       setNotice(`Job ${result.jobNumber} was created.`);
+      setIsCreateJobOpen(false);
       router.refresh();
     } catch (cause) {
       console.error("Service job creation failed:", cause);
@@ -406,7 +483,6 @@ export function ServiceCenterWorkspace({
   const locationNames = new Map(locations.map((location) => [location.id, location.name]));
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   const technicianById = new Map(technicians.map((technician) => [technician.id, technician]));
-  const activeJobs = jobs.filter((job) => !["closed", "cancelled"].includes(job.status)).length;
   const appointmentNextStatuses: Record<ServiceAppointmentStatus, ServiceAppointmentStatus[]> = {
     scheduled: ["confirmed", "cancelled", "no_show"],
     confirmed: ["completed", "cancelled", "no_show"],
@@ -454,32 +530,178 @@ export function ServiceCenterWorkspace({
     covered: "Covered · no customer charge",
     not_covered: "Not covered",
   };
+  const serviceCategoryById = new Map(serviceCategories.map((category) => [category.id, category.name]));
+  const dateScopedJobs = useMemo(() => {
+    const now = new Date();
+    let start: Date | null = null;
+    let end: Date | null = null;
+    if (jobDateRange === "7" || jobDateRange === "30") {
+      start = new Date(now);
+      start.setDate(start.getDate() - (Number(jobDateRange) - 1));
+      start.setHours(0, 0, 0, 0);
+    } else if (jobDateRange === "this_month") {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (jobDateRange === "last_month") {
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      end = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    return jobs.filter((job) => {
+      if (jobLocationFilter !== "all" && job.location_id !== jobLocationFilter) return false;
+      const createdAt = new Date(job.created_at);
+      if (start && createdAt < start) return false;
+      if (end && createdAt >= end) return false;
+      return true;
+    });
+  }, [jobs, jobDateRange, jobLocationFilter]);
+  const filteredJobs = dateScopedJobs.filter((job) => {
+    const search = jobSearch.trim().toLocaleLowerCase();
+    if (jobStatusFilter !== "all" && job.status !== jobStatusFilter) return false;
+    if (jobPriorityFilter !== "all" && job.priority !== jobPriorityFilter) return false;
+    if (jobCategoryFilter !== "all" && job.category_id !== jobCategoryFilter) return false;
+    if (jobTechnicianFilter !== "all" && job.technician_id !== jobTechnicianFilter) return false;
+    if (jobCustomerFilter !== "all" && job.customer_id !== jobCustomerFilter) return false;
+    if (!search) return true;
+    const searchableFields = [
+      job.job_number,
+      customerNames.get(job.customer_id),
+      job.reported_problem,
+      serviceCategoryById.get(job.category_id ?? ""),
+      job.technician_id ? technicianById.get(job.technician_id)?.name : null,
+    ];
+    return searchableFields.some((value) => value?.toLocaleLowerCase().includes(search));
+  });
+  const pageCount = Math.max(1, Math.ceil(filteredJobs.length / jobPageSize));
+  const currentPage = Math.min(jobPage, pageCount);
+  const paginatedJobs = filteredJobs.slice((currentPage - 1) * jobPageSize, currentPage * jobPageSize);
+  const pendingStatuses: ServiceJobStatus[] = [
+    "received",
+    "inspection",
+    "awaiting_quotation",
+    "awaiting_customer_approval",
+    "approved",
+    "rejected",
+    "awaiting_parts",
+    "quality_check",
+    "ready_for_collection",
+    "awaiting_payment",
+  ];
+  const summaryCards = [
+    { label: "Total Jobs", value: dateScopedJobs.length, icon: ClipboardList, color: "emerald" },
+    { label: "In Progress", value: dateScopedJobs.filter((job) => job.status === "in_progress").length, icon: Clock3, color: "blue" },
+    { label: "Completed", value: dateScopedJobs.filter((job) => job.status === "completed" || job.status === "closed").length, icon: CheckCircle2, color: "amber" },
+    { label: "Pending", value: dateScopedJobs.filter((job) => pendingStatuses.includes(job.status)).length, icon: CircleAlert, color: "purple" },
+    { label: "Cancelled", value: dateScopedJobs.filter((job) => job.status === "cancelled").length, icon: XCircle, color: "teal" },
+  ] as const;
+  const hasJobFilters = jobSearch !== ""
+    || jobStatusFilter !== "all"
+    || jobPriorityFilter !== "all"
+    || jobCategoryFilter !== "all"
+    || jobTechnicianFilter !== "all"
+    || jobCustomerFilter !== "all"
+    || jobLocationFilter !== "all"
+    || jobDateRange !== "30";
+  function resetJobFilters() {
+    setJobSearch("");
+    setJobStatusFilter("all");
+    setJobPriorityFilter("all");
+    setJobCategoryFilter("all");
+    setJobTechnicianFilter("all");
+    setJobCustomerFilter("all");
+    setJobLocationFilter("all");
+    setJobDateRange("30");
+    setJobPage(1);
+  }
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="flex flex-col gap-6">
+      <header className="order-1 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+            <Wrench className="h-7 w-7" aria-hidden="true" />
+          </span>
+          <div>
           <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Think Service &amp; Repairs</p>
           <h1 className="mt-1 text-2xl font-semibold text-ledger-900 dark:text-white">Service jobs</h1>
-          <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Track customer repairs and move each job through its service workflow.</p>
+          <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Manage and track all service and repair jobs.</p>
+          </div>
         </div>
-        <div className="rounded-xl border border-ledger-200 bg-white px-4 py-3 text-sm dark:border-ledger-700 dark:bg-ink-900">
-          <span className="text-ledger-500 dark:text-ledger-400">Open jobs</span>
-          <span className="ml-3 font-semibold text-ledger-900 dark:text-white">{activeJobs}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="service-job-date-range">Job date range</label>
+          <span className="relative">
+            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-500" aria-hidden="true" />
+            <select id="service-job-date-range" value={jobDateRange} onChange={(event) => { setJobDateRange(event.target.value); setJobPage(1); }} className="rounded-lg border border-ledger-200 bg-white py-2.5 pl-9 pr-8 text-sm text-ledger-700 shadow-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="this_month">This month</option>
+              <option value="last_month">Last month</option>
+              <option value="all">All time</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-500" aria-hidden="true" />
+          </span>
+          <label className="sr-only" htmlFor="service-job-branch">Job branch</label>
+          <span className="relative">
+            <select id="service-job-branch" value={jobLocationFilter} onChange={(event) => { setJobLocationFilter(event.target.value); setJobPage(1); }} className="rounded-lg border border-ledger-200 bg-white px-3 py-2.5 pr-8 text-sm text-ledger-700 shadow-sm dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+              <option value="all">All branches</option>
+              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ledger-500" aria-hidden="true" />
+          </span>
+          {canCreate && (
+            <button type="button" onClick={() => setIsCreateJobOpen(true)} className="inline-flex items-center gap-2 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 dark:bg-emerald-700 dark:hover:bg-emerald-600">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New service job
+            </button>
+          )}
         </div>
-        <Link href="/service-center/reports" className="rounded-lg border border-ledger-200 bg-white px-4 py-3 text-sm font-medium text-ledger-700 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200 dark:hover:bg-ink-800">
-          Service reports
-        </Link>
       </header>
 
+      <section aria-label="Service job summary" className="order-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {summaryCards.map((card) => {
+          const Icon = card.icon;
+          const style = {
+            emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900",
+            blue: "bg-blue-50 text-blue-700 ring-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900",
+            amber: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900",
+            purple: "bg-purple-50 text-purple-700 ring-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:ring-purple-900",
+            teal: "bg-teal-50 text-teal-700 ring-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-900",
+          }[card.color];
+          return (
+            <article key={card.label} className="min-w-0 rounded-xl border border-ledger-200 bg-white p-4 shadow-sm dark:border-ledger-700 dark:bg-ink-900">
+              <div className="flex items-start justify-between gap-3">
+                <span className={`flex h-10 w-10 items-center justify-center rounded-xl ring-1 ${style}`}>
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className="text-right text-2xl font-bold tabular-nums text-ledger-900 dark:text-white">{card.value.toLocaleString()}</span>
+              </div>
+              <p className="mt-3 text-sm font-medium text-ledger-600 dark:text-ledger-300">{card.label}</p>
+              <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">In selected period and branch</p>
+            </article>
+          );
+        })}
+      </section>
+      {jobs.length === 500 && (
+        <p className="order-3 -mt-3 text-xs text-ledger-500 dark:text-ledger-400">
+          Summary and filters reflect the latest 500 service jobs currently loaded.
+        </p>
+      )}
+
+      <div className="[order:20]">
+        <ServiceStatusNotificationSettings
+          enabled={serviceStatusNotificationsEnabled}
+          canManage={canManageServiceNotifications}
+          recentResults={serviceStatusNotificationResults}
+        />
+      </div>
+
       {(error || notice) && (
-        <p role={error ? "alert" : "status"} className={`rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"}`}>
+        <p role={error ? "alert" : "status"} className={`order-4 rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"}`}>
           {error ?? notice}
         </p>
       )}
 
       {canCreateAppointment && (
-        <form onSubmit={submitAppointment} className="grid gap-4 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900 md:grid-cols-2 xl:grid-cols-3">
+        <form id="book-appointment" onSubmit={submitAppointment} className="[order:21] scroll-mt-24 grid gap-4 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900 md:grid-cols-2 xl:grid-cols-3">
           <div className="md:col-span-2 xl:col-span-3">
             <h2 className="font-semibold text-ledger-900 dark:text-white">Schedule a service appointment</h2>
             <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Optionally reserve an active technician, link equipment, or attach an existing service job.</p>
@@ -544,7 +766,7 @@ export function ServiceCenterWorkspace({
       )}
 
       {canViewAppointments && (
-        <section className="overflow-hidden rounded-xl border border-ledger-200 bg-white dark:border-ledger-700 dark:bg-ink-900">
+        <section id="appointments" className="[order:22] scroll-mt-24 overflow-hidden rounded-xl border border-ledger-200 bg-white dark:border-ledger-700 dark:bg-ink-900">
           <div className="border-b border-ledger-200 px-5 py-4 dark:border-ledger-700">
             <h2 className="font-semibold text-ledger-900 dark:text-white">Service appointments</h2>
           </div>
@@ -618,9 +840,14 @@ export function ServiceCenterWorkspace({
       )}
 
       {canCreate && (
-        <form onSubmit={submitCreate} className="grid gap-4 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900 md:grid-cols-2">
+        <details id="new-service-job" open={isCreateJobOpen} onToggle={(event) => setIsCreateJobOpen(event.currentTarget.open)} className="order-5 scroll-mt-24 overflow-hidden rounded-xl border border-ledger-200 bg-white dark:border-ledger-700 dark:bg-ink-900">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 font-semibold text-ledger-900 marker:hidden dark:text-white">
+            Receive a service job
+            <ChevronDown className="h-4 w-4 text-ledger-500" aria-hidden="true" />
+          </summary>
+          <form onSubmit={submitCreate} className="grid gap-4 border-t border-ledger-200 p-5 dark:border-ledger-700 md:grid-cols-2">
           <div className="md:col-span-2">
-            <h2 className="font-semibold text-ledger-900 dark:text-white">Receive a service job</h2>
+            <h2 className="font-semibold text-ledger-900 dark:text-white">Job intake details</h2>
             <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Create a branch-scoped job linked to an existing CRM customer.</p>
           </div>
           <label className="space-y-1 text-sm text-ledger-700 dark:text-ledger-200">
@@ -698,6 +925,24 @@ export function ServiceCenterWorkspace({
             <input type="checkbox" name="intakeAcknowledged" required disabled={isPending} className="mt-1" />
             The customer or representative reviewed and acknowledged the recorded problem, condition, and accessories.
           </label>
+          <fieldset className="space-y-2 rounded-lg border border-ledger-200 p-3 dark:border-ledger-700 md:col-span-2">
+            <legend className="px-1 text-sm font-medium text-ledger-800 dark:text-ledger-200">Optional automatic repair updates</legend>
+            <p className="text-xs text-ledger-500 dark:text-ledger-400">
+              Select channels only if the customer or representative expressly opted in. Updates are sent only for enabled statuses, only on the selected preferred channel, and only when its provider is configured.
+            </p>
+            <label className="flex items-start gap-2 text-xs text-ledger-700 dark:text-ledger-300">
+              <input type="checkbox" name="customerUpdateConsentAcknowledged" value="on" disabled={isPending} className="mt-0.5" />
+              The customer or representative expressly consents to automatic repair status messages on the selected channels.
+            </label>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {(["WhatsApp", "SMS", "Email"] as const).map((channel) => (
+                <label key={channel} className="flex items-center gap-2 text-sm text-ledger-700 dark:text-ledger-200">
+                  <input type="checkbox" name="customerUpdateChannels" value={channel} disabled={isPending} />
+                  {channel}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label className="space-y-1 text-sm text-ledger-700 dark:text-ledger-200 md:col-span-2">
             <span>Reported problem</span>
             <textarea name="reportedProblem" required maxLength={4000} rows={3} disabled={isPending} className="w-full rounded-lg border border-ledger-300 bg-white px-3 py-2 dark:border-ledger-600 dark:bg-ink-800" placeholder="Describe the issue reported by the customer" />
@@ -708,71 +953,140 @@ export function ServiceCenterWorkspace({
             </button>
             {(!locations.length || !customers.length) && <p className="mt-2 text-sm text-ledger-500 dark:text-ledger-400">Add an active branch and at least one CRM customer before creating a job.</p>}
           </div>
-        </form>
+          </form>
+        </details>
       )}
 
-      <section className="overflow-hidden rounded-xl border border-ledger-200 bg-white dark:border-ledger-700 dark:bg-ink-900">
-        <div className="border-b border-ledger-200 px-5 py-4 dark:border-ledger-700">
-          <h2 className="font-semibold text-ledger-900 dark:text-white">Recent jobs</h2>
+      <section id="service-jobs" className="order-6 scroll-mt-24 overflow-hidden rounded-xl border border-ledger-200 bg-white dark:border-ledger-700 dark:bg-ink-900">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ledger-200 px-5 py-4 dark:border-ledger-700">
+          <div>
+            <h2 className="font-semibold text-ledger-900 dark:text-white">All service jobs</h2>
+            <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">
+              Showing {filteredJobs.length.toLocaleString()} matching {filteredJobs.length === 1 ? "job" : "jobs"}
+              {jobs.length === 500 ? " from the latest 500 records" : ""}
+            </p>
+          </div>
+          <Link href="/service-center/reports" className="text-sm font-medium text-amber-800 hover:underline dark:text-amber-300">
+            Service reports
+          </Link>
         </div>
-        {jobs.length === 0 ? (
+        <div className="space-y-3 border-b border-ledger-200 p-4 dark:border-ledger-700">
+          <label className="relative block">
+            <span className="sr-only">Search jobs, customers, or service details</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ledger-400" aria-hidden="true" />
+            <input
+              type="search"
+              value={jobSearch}
+              onChange={(event) => { setJobSearch(event.target.value); setJobPage(1); }}
+              placeholder="Search jobs, customers, or services..."
+              className="w-full rounded-lg border border-ledger-200 bg-white py-2.5 pl-9 pr-3 text-sm text-ledger-800 outline-none placeholder:text-ledger-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-100"
+            />
+          </label>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            <label>
+              <span className="sr-only">Filter by job status</span>
+              <select value={jobStatusFilter} onChange={(event) => { setJobStatusFilter(event.target.value); setJobPage(1); }} className="w-full rounded-lg border border-ledger-200 bg-white px-3 py-2 text-sm text-ledger-700 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+                <option value="all">All statuses</option>
+                {(Object.keys(statusLabels) as ServiceJobStatus[]).map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Filter by priority</span>
+              <select value={jobPriorityFilter} onChange={(event) => { setJobPriorityFilter(event.target.value); setJobPage(1); }} className="w-full rounded-lg border border-ledger-200 bg-white px-3 py-2 text-sm text-ledger-700 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+                <option value="all">All priorities</option>
+                {priorityOptions.map((priority) => <option key={priority} value={priority}>{priorityLabels[priority]}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Filter by service type</span>
+              <select value={jobCategoryFilter} onChange={(event) => { setJobCategoryFilter(event.target.value); setJobPage(1); }} className="w-full rounded-lg border border-ledger-200 bg-white px-3 py-2 text-sm text-ledger-700 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+                <option value="all">All service types</option>
+                <option value="">Uncategorized</option>
+                {serviceCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Filter by technician</span>
+              <select value={jobTechnicianFilter} onChange={(event) => { setJobTechnicianFilter(event.target.value); setJobPage(1); }} className="w-full rounded-lg border border-ledger-200 bg-white px-3 py-2 text-sm text-ledger-700 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+                <option value="all">All technicians</option>
+                <option value="">Unassigned</option>
+                {technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Filter by customer</span>
+              <select value={jobCustomerFilter} onChange={(event) => { setJobCustomerFilter(event.target.value); setJobPage(1); }} className="w-full rounded-lg border border-ledger-200 bg-white px-3 py-2 text-sm text-ledger-700 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+                <option value="all">All customers</option>
+                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={resetJobFilters} disabled={!hasJobFilters} className="inline-flex items-center justify-center gap-2 rounded-lg border border-ledger-200 px-3 py-2 text-sm font-medium text-ledger-700 hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-ledger-700 dark:text-ledger-200 dark:hover:bg-ink-800">
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              Reset filters
+            </button>
+          </div>
+        </div>
+        {jobs.length === 0 && (
           <p className="px-5 py-10 text-center text-sm text-ledger-500 dark:text-ledger-400">No service jobs have been received yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="bg-ledger-50 text-xs uppercase text-ledger-500 dark:bg-ink-800 dark:text-ledger-400">
+        )}
+        {jobs.length > 0 && filteredJobs.length === 0 && (
+          <div className="px-5 py-12 text-center">
+            <p className="font-medium text-ledger-800 dark:text-ledger-200">No jobs match these filters</p>
+            <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Try changing your search or resetting the filters.</p>
+            <button type="button" onClick={resetJobFilters} className="mt-4 text-sm font-semibold text-emerald-800 hover:underline dark:text-emerald-300">Reset filters</button>
+          </div>
+        )}
+        <div className="overflow-x-auto" hidden={filteredJobs.length === 0}>
+            <table className="w-full min-w-[1100px] text-left text-sm">
+              <thead className="bg-ledger-50 text-xs text-ledger-500 dark:bg-ink-800 dark:text-ledger-400">
                 <tr>
-                  <th className="px-5 py-3 font-medium">Job</th>
-                  <th className="px-5 py-3 font-medium">Customer / branch</th>
-                  <th className="px-5 py-3 font-medium">Problem</th>
-                  <th className="px-5 py-3 font-medium">Priority</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
+                  {["#", "Job Number", "Customer", "Service Type", "Status", "Priority", "Technician", "Branch", "Created On", "Actions"].map((heading) => (
+                    <th key={heading} className="whitespace-nowrap px-4 py-3 font-medium">{heading}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
-                {jobs.map((job) => {
+                {paginatedJobs.map((job, index) => {
                   const asset = job.asset_id ? assetById.get(job.asset_id) : undefined;
                   const availableStatuses = job.warranty_claim?.status === "covered"
                     ? nextStatuses[job.status].filter((status) => status !== "awaiting_payment")
                     : nextStatuses[job.status];
                   return (
-                  <tr key={job.id} className="align-top">
-                    <td className="px-5 py-4">
-                      <p className="font-medium text-ledger-900 dark:text-white">{job.job_number}</p>
-                      <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">{new Date(job.created_at).toLocaleDateString()}</p>
-                      <p className="mt-2 text-xs text-ledger-600 dark:text-ledger-300">Received condition: {job.condition_on_arrival}</p>
-                      <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">
-                        Intake confirmed by {job.intake_confirmed_by} · {job.intake_confirmed_as === "customer" ? "Customer" : "Authorized representative"}
-                      </p>
-                      <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">{new Date(job.intake_confirmed_at).toLocaleString()}</p>
-                      {job.accessories.length > 0 && (
-                        <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">Accessories: {job.accessories.join(", ")}</p>
-                      )}
+                  <Fragment key={job.id}>
+                  <tr id={`job-${job.id}`} className="scroll-mt-24 hover:bg-ledger-50/70 dark:hover:bg-ink-800/50">
+                    <td className="px-4 py-3">
+                      <p className="text-xs text-ledger-500 dark:text-ledger-400">{(currentPage - 1) * jobPageSize + index + 1}</p>
                     </td>
-                    <td className="px-5 py-4">
-                      <p className="text-ledger-900 dark:text-white">{customerNames.get(job.customer_id) ?? "Customer"}</p>
-                      <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">{locationNames.get(job.location_id) ?? "Branch"}</p>
-                      {asset && (
-                        <div className="mt-1 space-y-1">
-                          <p className="text-xs text-ledger-500 dark:text-ledger-400">Equipment: {asset.label}</p>
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${warrantyStatusClasses[asset.warranty_status]}`}>
-                            {warrantyStatusLabels[asset.warranty_status]}
-                          </span>
-                          {asset.warranty_end_date && (
-                            <p className="text-xs text-ledger-500 dark:text-ledger-400">
-                              Coverage through {new Date(`${asset.warranty_end_date}T00:00:00`).toLocaleDateString()}
-                            </p>
-                          )}
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <a href={`#job-${job.id}`} className="font-semibold text-emerald-800 hover:underline dark:text-emerald-300">{job.job_number}</a>
+                      <details className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">
+                        <summary className="cursor-pointer">Intake details</summary>
+                        <div className="mt-2 max-w-64 space-y-1">
+                          <p>Condition: {job.condition_on_arrival}</p>
+                          <p>Confirmed by {job.intake_confirmed_by} · {job.intake_confirmed_as === "customer" ? "Customer" : "Authorized representative"}</p>
+                          <p>{new Date(job.intake_confirmed_at).toLocaleString()}</p>
+                          {job.accessories.length > 0 && <p>Accessories: {job.accessories.join(", ")}</p>}
                         </div>
-                      )}
-                      {job.technician_id && technicianById.has(job.technician_id) && (
-                        <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">Technician: {technicianById.get(job.technician_id)?.name}</p>
-                      )}
+                      </details>
                     </td>
-                    <td className="max-w-sm whitespace-pre-wrap px-5 py-4 text-ledger-700 dark:text-ledger-300">{job.reported_problem}</td>
-                    <td className="px-5 py-4 text-ledger-700 dark:text-ledger-300">{priorityLabels[job.priority]}</td>
-                    <td className="px-5 py-4">
-                      <p className="font-medium text-ledger-800 dark:text-ledger-200">{statusLabels[job.status]}</p>
+                    <td className="px-4 py-3 text-ledger-900 dark:text-white">{customerNames.get(job.customer_id) ?? "Customer"}</td>
+                    <td className="max-w-56 px-4 py-3">
+                      <p className="font-medium text-ledger-800 dark:text-ledger-200">{serviceCategoryById.get(job.category_id ?? "") ?? "General service"}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-ledger-500 dark:text-ledger-400">{job.reported_problem}</p>
+                      {asset && <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">{asset.label}</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
+                        job.status === "in_progress" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200"
+                          : job.status === "completed" || job.status === "closed" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+                            : job.status === "cancelled" ? "bg-slate-100 text-slate-600 dark:bg-ink-700 dark:text-ledger-300"
+                              : job.status === "awaiting_parts" || job.status === "awaiting_quotation" || job.status === "awaiting_customer_approval" || job.status === "awaiting_payment" ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+                                : "bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200"
+                      }`}>{statusLabels[job.status]}</span>
+                      {job.warranty_claim || canEdit ? (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs font-medium text-emerald-800 hover:underline dark:text-emerald-300">Manage job</summary>
+                          <div className="mt-2 min-w-64 space-y-3 rounded-lg border border-ledger-200 bg-white p-3 dark:border-ledger-700 dark:bg-ink-900">
                       {job.warranty_claim && (
                         <div className="mt-2 rounded-lg border border-purple-200 bg-purple-50/60 p-3 dark:border-purple-900 dark:bg-purple-950/20">
                           <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
@@ -922,18 +1236,85 @@ export function ServiceCenterWorkspace({
                           status={job.status}
                         />
                       )}
+                          </div>
+                        </details>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                        job.priority === "urgent" ? "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200"
+                          : job.priority === "high" ? "bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-200"
+                            : job.priority === "normal" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
+                              : "bg-slate-100 text-slate-600 dark:bg-ink-700 dark:text-ledger-300"
+                      }`}>{priorityLabels[job.priority]}</span>
+                    </td>
+                    <td className="px-4 py-3 text-ledger-700 dark:text-ledger-300">
+                      {job.technician_id && technicianById.has(job.technician_id) ? technicianById.get(job.technician_id)?.name : <span className="text-ledger-400">Unassigned</span>}
+                    </td>
+                    <td className="px-4 py-3 text-ledger-700 dark:text-ledger-300">{locationNames.get(job.location_id) ?? "Branch"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-ledger-600 dark:text-ledger-300">
+                      <p>{new Date(job.created_at).toLocaleDateString()}</p>
+                      <p className="mt-1 text-ledger-400">{new Date(job.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button type="button" onClick={() => setExpandedJobId((current) => current === job.id ? null : job.id)} aria-label={`${expandedJobId === job.id ? "Hide" : "View"} details for ${job.job_number}`} aria-expanded={expandedJobId === job.id} title={`${expandedJobId === job.id ? "Hide" : "View"} ${job.job_number}`} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-ledger-200 text-ledger-600 hover:bg-ledger-50 hover:text-emerald-800 dark:border-ledger-700 dark:text-ledger-300 dark:hover:bg-ink-800 dark:hover:text-emerald-300">
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      </button>
                     </td>
                   </tr>
+                  {expandedJobId === job.id && (
+                    <tr className="bg-emerald-50/50 dark:bg-emerald-950/10">
+                      <td colSpan={10} className="px-5 py-4">
+                        <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-ledger-500 dark:text-ledger-400">Reported problem</p>
+                            <p className="mt-1 whitespace-pre-wrap text-ledger-800 dark:text-ledger-200">{job.reported_problem}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-ledger-500 dark:text-ledger-400">Equipment</p>
+                            <p className="mt-1 text-ledger-800 dark:text-ledger-200">{asset?.label ?? "No equipment linked"}</p>
+                            {asset && <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">{warrantyStatusLabels[asset.warranty_status]}{asset.warranty_end_date ? ` · Through ${new Date(`${asset.warranty_end_date}T00:00:00`).toLocaleDateString()}` : ""}</p>}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-ledger-500 dark:text-ledger-400">Intake condition</p>
+                            <p className="mt-1 whitespace-pre-wrap text-ledger-800 dark:text-ledger-200">{job.condition_on_arrival}</p>
+                            <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">Confirmed by {job.intake_confirmed_by}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-ledger-500 dark:text-ledger-400">Related records</p>
+                            {job.invoice ? <Link href="/accounting/invoices" className="mt-1 block text-emerald-800 hover:underline dark:text-emerald-300">Invoice #{String(job.invoice.invoice_number).padStart(4, "0")} · {job.invoice.status}</Link> : <p className="mt-1 text-ledger-600 dark:text-ledger-300">No invoice recorded</p>}
+                            {job.warranty_claim && <p className="mt-1 text-xs text-purple-800 dark:text-purple-300">Warranty claim · {warrantyClaimLabels[job.warranty_claim.status]}</p>}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        )}
+          <div hidden={filteredJobs.length === 0} className="flex flex-wrap items-center justify-between gap-3 border-t border-ledger-200 px-4 py-3 dark:border-ledger-700">
+            <p className="text-xs text-ledger-500 dark:text-ledger-400">
+              Showing {(currentPage - 1) * jobPageSize + 1}–{Math.min(currentPage * jobPageSize, filteredJobs.length)} of {filteredJobs.length.toLocaleString()} jobs
+            </p>
+            <div className="flex items-center gap-2">
+              <label className="sr-only" htmlFor="service-job-page-size">Rows per page</label>
+              <select id="service-job-page-size" value={jobPageSize} onChange={(event) => { setJobPageSize(Number(event.target.value)); setJobPage(1); }} className="rounded-lg border border-ledger-200 bg-white px-2.5 py-2 text-xs text-ledger-700 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-200">
+                <option value={10}>10 rows</option>
+                <option value={25}>25 rows</option>
+                <option value={50}>50 rows</option>
+              </select>
+              <button type="button" onClick={() => setJobPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1} className="rounded-lg border border-ledger-200 px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-ledger-700 dark:text-ledger-200 dark:hover:bg-ink-800">Previous</button>
+              <span className="min-w-16 text-center text-xs text-ledger-600 dark:text-ledger-300">{currentPage} / {pageCount}</span>
+              <button type="button" onClick={() => setJobPage((page) => Math.min(pageCount, page + 1))} disabled={currentPage === pageCount} className="rounded-lg border border-ledger-200 px-3 py-2 text-xs font-medium text-ledger-700 hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-ledger-700 dark:text-ledger-200 dark:hover:bg-ink-800">Next</button>
+            </div>
+          </div>
       </section>
 
       {(canCreateAsset || canCreateTechnician) && (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="[order:23] grid gap-6 xl:grid-cols-2">
           {canCreateAsset && (
             <form
               onSubmit={(event) => void submitRecord(event, createServiceAsset, "Customer equipment registered.")}
@@ -1049,9 +1430,9 @@ export function ServiceCenterWorkspace({
         </div>
       )}
 
-      {partsPanel}
+      <div className="[order:24]">{partsPanel}</div>
 
-      <section className="space-y-4 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
+      <section id="communications" className="[order:25] scroll-mt-24 space-y-4 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
         <div>
           <h2 className="font-semibold text-ledger-900 dark:text-white">Customer contact history</h2>
           <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Record calls, messages, or visits about a repair. This saves an internal note only; it does not send anything to the customer.</p>
@@ -1116,7 +1497,7 @@ export function ServiceCenterWorkspace({
         )}
       </section>
 
-      <section className="space-y-4 rounded-xl border border-ledger-200 bg-ledger-50/60 p-5 dark:border-ledger-700 dark:bg-ink-950/40">
+      <section id="quotations" className="[order:26] scroll-mt-24 space-y-4 rounded-xl border border-ledger-200 bg-ledger-50/60 p-5 dark:border-ledger-700 dark:bg-ink-950/40">
         <div>
           <h2 className="font-semibold text-ledger-900 dark:text-white">Repair estimates and customer decisions</h2>
           <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Each estimate is versioned and its sent/decision actions are recorded in the job history.</p>
@@ -1203,9 +1584,9 @@ export function ServiceCenterWorkspace({
       </section>
 
       {(canViewAssets || canViewTechnicians) && (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="[order:27] grid gap-6 xl:grid-cols-2">
           {canViewAssets && (
-            <section className="rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
+            <section id="warranty" className="scroll-mt-24 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
               <h2 className="font-semibold text-ledger-900 dark:text-white">Customer equipment</h2>
               {assets.length === 0 ? (
                 <p className="mt-3 text-sm text-ledger-500 dark:text-ledger-400">No equipment has been registered yet.</p>
@@ -1233,7 +1614,7 @@ export function ServiceCenterWorkspace({
             </section>
           )}
           {canViewTechnicians && (
-            <section className="rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
+            <section id="technicians" className="scroll-mt-24 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
               <h2 className="font-semibold text-ledger-900 dark:text-white">Service technicians</h2>
               {technicians.length === 0 ? (
                 <p className="mt-3 text-sm text-ledger-500 dark:text-ledger-400">No technicians have been registered yet.</p>

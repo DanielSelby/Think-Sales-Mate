@@ -7,6 +7,27 @@ const configured = (...names: string[]) => names.map((name) => process.env[name]
 const formPost = async (url: string, headers: Record<string, string>, values: Record<string, string>) =>
   fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", ...headers }, body: new URLSearchParams(values) });
 
+export function hasConfiguredMessageProvider(channel: DeliveryChannel): boolean {
+  if (channel === "SMS") {
+    return Boolean(
+      (configured("TWILIO_ACCOUNT_SID") && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER)
+      || (configured("HUBTEL_CLIENT_ID") && process.env.HUBTEL_CLIENT_SECRET && process.env.HUBTEL_FROM)
+      || (configured("ARKESEL_API_KEY") && process.env.ARKESEL_SENDER)
+      || (configured("AFRICASTALKING_API_KEY") && process.env.AFRICASTALKING_USERNAME && process.env.AFRICASTALKING_FROM)
+    );
+  }
+  if (channel === "WhatsApp") {
+    return Boolean(
+      (configured("WHATSAPP_CLOUD_ACCESS_TOKEN", "META_WHATSAPP_ACCESS_TOKEN", "META_ACCESS_TOKEN")
+        && configured("WHATSAPP_CLOUD_PHONE_NUMBER_ID", "META_WHATSAPP_PHONE_NUMBER_ID", "META_PHONE_NUMBER_ID"))
+      || (configured("META_WHATSAPP_API_URL", "WHATSAPP_CLOUD_API_URL")
+        && configured("META_WHATSAPP_TOKEN", "WHATSAPP_CLOUD_TOKEN"))
+      || (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_FROM)
+    );
+  }
+  return Boolean(configured("RESEND_API_KEY") && process.env.RESEND_FROM_EMAIL);
+}
+
 async function sendSms(recipient: string, content: string): Promise<ProviderResult> {
   const twilioSid = configured("TWILIO_ACCOUNT_SID");
   if (twilioSid && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER) {

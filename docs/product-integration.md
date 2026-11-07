@@ -119,8 +119,17 @@ by inserting a catalog row alone.
   details, then approve or decline once. Only a SHA-256 token hash is stored,
   responses update estimate and job history atomically, and message history
   does not retain the bearer link. The portal does not require an account;
-  anyone with the link can view its scoped repair details. Sending remains
-  staff-triggered, and automatic status notifications are not implemented.
+  anyone with the link can view its scoped repair details. Estimate delivery
+  remains staff-triggered. Automatic repair status messages are disabled by
+  default and can be enabled by a settings editor. Intake records affirmative
+  customer consent separately for WhatsApp, SMS, and email; a notification is
+  sent only when the customer's preferred channel is both consented for that
+  repair and not opted out in message preferences. There is no channel fallback.
+  Only received, awaiting-customer-approval, in-progress, awaiting-parts,
+  ready-for-collection, and awaiting-payment changes are eligible. The worker
+  skips stale statuses, disabled organizations, missing consent, missing
+  recipients, and unconfigured providers. Delivery attempts are written to
+  message history and are not automatically retried, to avoid duplicate sends.
   Service staff with inventory
   edit permission can issue stock-tracked products to an approved repair job
   from that job's branch inventory, and record unused-part returns against the
@@ -164,7 +173,19 @@ by inserting a catalog row alone.
   warranty terms are context for the staff decision, not an automatic coverage
   determination. The core schema is in the unapplied service migration;
   secure customer portal links and response procedures are in the additive
-  `20261105192000_service_repair_customer_portal.sql` migration.
+  `20261105192000_service_repair_customer_portal.sql` migration. Portal links
+  also show the latest 50 repair status changes without exposing internal staff
+  notes; this is added by `20261105213500_service_repair_portal_timeline.sql`.
+  Automatic repair status messages require the
+  `20261105220000_service_status_notification_outbox.sql` migration, a configured
+  provider, and a scheduled authenticated request to
+  `/api/cron/service-status-notifications` using
+  `SERVICE_STATUS_NOTIFICATION_SECRET`.
+  The automatic estimate-ready update asks customers to contact the service
+  team; it does not contain a customer portal link. Delivery attempts are
+  one-shot to avoid duplicate messages. If a worker stops while an outbox item
+  is `processing`, verify the provider's delivery status before taking any
+  manual action; do not reset it to `pending` without confirming it was not sent.
   Configure `SITE_URL` or `NEXT_PUBLIC_SITE_URL` to the production HTTPS
   origin before sending estimate links. Keep the product unpublished and do
   not apply these migrations or deploy until the remaining product workflows,

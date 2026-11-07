@@ -3,7 +3,7 @@ import {
   Wallet, Landmark, Receipt, Package, FolderKanban,
   BarChart3, Settings, Sparkles, TrendingUp,
   ChevronLeft, ChevronRight, ChevronDown,
-  Truck, ClipboardEdit, Users2, FileText, Tag,
+  Truck, ClipboardEdit, ClipboardList, Users2, FileText, Tag,
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
   Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route, Barcode,
@@ -29,7 +29,26 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "live" },
   { label: "Approval Center", href: "/approvals", icon: ClipboardCheck, status: "live" },
-  { label: "Think Service & Repairs", href: "/service-center", icon: Wrench, status: "live" },
+  {
+    label: "Think Service & Repairs", href: "/service-center", icon: Wrench, status: "live",
+    children: [
+      { label: "Dashboard", href: "/service-center/dashboard", icon: LayoutDashboard },
+      { label: "Service Jobs", href: "/service-center#service-jobs", icon: ClipboardList },
+      { label: "Appointments", href: "/service-center#appointments", icon: CalendarClock },
+      { label: "Customers", href: "/crm", icon: Contact },
+      { label: "Technicians", href: "/service-center/technicians", icon: Users },
+      { label: "Quotations", href: "/service-center#quotations", icon: FileText },
+      { label: "Invoices", href: "/accounting/invoices", icon: Receipt },
+      { label: "Inventory", href: "/inventory", icon: Package },
+      { label: "Suppliers", href: "/purchases/suppliers", icon: Truck },
+      { label: "Warranty", href: "/service-center#warranty", icon: ShieldCheck },
+      { label: "Communications", href: "/service-center#communications", icon: MessageSquare },
+      { label: "Reports", href: "/service-center/reports", icon: BarChart3 },
+      { label: "Staff & Roles", href: "/settings/team", icon: Users2 },
+      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Subscription", href: "/subscription-status", icon: Wallet },
+    ],
+  },
   {
     label: "Restaurant", href: "/restaurant", icon: Utensils, status: "live",
     children: [

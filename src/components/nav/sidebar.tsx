@@ -352,7 +352,11 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
             || enabledModules.includes(`${item.label}:${child.label}`)
           ) ?? [];
           const isActive = !item.children && (pathname === item.href || pathname.startsWith(item.href + "/"));
-          const isGroupActive = !!item.children && (pathname === item.href || childItems?.some(c => pathname.startsWith(c.href)));
+          const isGroupActive = !!item.children && (
+            pathname === item.href
+            || pathname.startsWith(item.href + "/")
+            || childItems?.some(c => pathname.startsWith(c.href))
+          );
           const isOpen   = !collapsed && openGroup === item.href;
 
           // ── Collapsible group ──

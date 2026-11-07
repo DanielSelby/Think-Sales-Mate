@@ -13,12 +13,20 @@ export const metadata: Metadata = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  received: "Received",
+  inspection: "Under inspection",
+  awaiting_quotation: "Estimate in progress",
   awaiting_customer_approval: "Awaiting your response",
+  approved: "Estimate approved",
+  rejected: "Estimate declined",
+  in_progress: "Repair in progress",
+  awaiting_parts: "Waiting for parts",
+  quality_check: "Quality check",
   ready_for_collection: "Ready for collection",
   awaiting_payment: "Awaiting payment",
-  in_progress: "In progress",
-  quality_check: "Quality check",
-  awaiting_parts: "Waiting for parts",
+  completed: "Repair completed",
+  closed: "Collected",
+  cancelled: "Cancelled",
 };
 
 export default async function ServiceRepairPortalPage({
@@ -53,6 +61,45 @@ export default async function ServiceRepairPortalPage({
           <p className="text-xs font-medium uppercase tracking-wide text-ledger-500">Current status</p>
           <p className="mt-1 font-medium text-ledger-900 dark:text-white">{statusLabel}</p>
         </div>
+
+        <section aria-labelledby="repair-progress-heading" className="mt-7 border-t border-ledger-200 pt-6 dark:border-ledger-700">
+          <h2 id="repair-progress-heading" className="text-lg font-semibold text-ledger-900 dark:text-white">
+            Repair progress
+          </h2>
+          {view.statusHistory.length ? (
+            <ol aria-label="Repair status history" className="mt-4 space-y-0">
+              {view.statusHistory.map((event, index) => (
+                <li key={`${event.status}-${event.occurredAt}-${index}`} className="relative flex gap-3 pb-5 last:pb-0">
+                  {index < view.statusHistory.length - 1 && (
+                    <span aria-hidden="true" className="absolute bottom-0 left-[0.4375rem] top-3 w-px bg-ledger-200 dark:bg-ledger-700" />
+                  )}
+                  <span
+                    aria-hidden="true"
+                    className={`relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-white dark:ring-ink-900 ${
+                      index === view.statusHistory.length - 1 ? "bg-sky-600" : "bg-ledger-300 dark:bg-ledger-600"
+                    }`}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ledger-900 dark:text-white">
+                      {STATUS_LABELS[event.status] ?? event.status.replaceAll("_", " ")}
+                    </p>
+                    <time dateTime={event.occurredAt} className="mt-0.5 block text-xs text-ledger-500">
+                      {new Date(event.occurredAt).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </time>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-2 text-sm text-ledger-500">No repair progress updates are available yet.</p>
+          )}
+          <p className="mt-4 text-xs text-ledger-500">
+            This timeline shows status updates only; private staff notes are not displayed.
+          </p>
+        </section>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div>

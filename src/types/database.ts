@@ -3236,6 +3236,9 @@ export interface Database {
           intake_confirmed_by: string;
           intake_confirmed_as: "customer" | "authorized_representative";
           intake_confirmed_at: string;
+          customer_update_channels: ("WhatsApp" | "SMS" | "Email")[];
+          customer_update_consent_recorded_at: string | null;
+          customer_update_consent_recorded_by: string | null;
           diagnosis: string | null;
           recommended_work: string | null;
           internal_notes: string | null;
@@ -3262,6 +3265,9 @@ export interface Database {
           intake_confirmed_by: string;
           intake_confirmed_as: "customer" | "authorized_representative";
           intake_confirmed_at?: string;
+          customer_update_channels?: ("WhatsApp" | "SMS" | "Email")[];
+          customer_update_consent_recorded_at?: string | null;
+          customer_update_consent_recorded_by?: string | null;
           diagnosis?: string | null;
           recommended_work?: string | null;
           internal_notes?: string | null;
@@ -3394,7 +3400,52 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["service_job_warranty_claims"]["Row"]>;
         Relationships: [];
       };
-
+      service_status_notification_settings: {
+        Row: {
+          org_id: string;
+          enabled: boolean;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          enabled?: boolean;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_status_notification_settings"]["Row"]>;
+        Relationships: [];
+      };
+      service_job_status_notification_outbox: {
+        Row: {
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          status: ServiceJobStatus;
+          delivery_status: "pending" | "processing" | "sent" | "failed" | "skipped";
+          attempt_count: number;
+          provider: string | null;
+          result_message: string | null;
+          created_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          status: ServiceJobStatus;
+          delivery_status?: "pending" | "processing" | "sent" | "failed" | "skipped";
+          attempt_count?: number;
+          provider?: string | null;
+          result_message?: string | null;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_job_status_notification_outbox"]["Row"]>;
+        Relationships: [];
+      };
       service_appointments: {
         Row: {
           id: string;
@@ -5141,8 +5192,20 @@ export interface Database {
           p_accessories: string[];
           p_intake_confirmed_by: string;
           p_intake_confirmed_as: "customer" | "authorized_representative";
+          p_customer_update_channels: ("WhatsApp" | "SMS" | "Email")[];
+          p_customer_update_consent_acknowledged: boolean;
         };
         Returns: string;
+      };
+      claim_service_job_status_notifications: {
+        Args: { p_batch_limit: number };
+        Returns: Array<{
+          id: string;
+          org_id: string;
+          location_id: string;
+          job_id: string;
+          status: ServiceJobStatus;
+        }>;
       };
       decide_service_job_warranty_claim: {
         Args: { p_claim_id: string; p_decision: "covered" | "not_covered"; p_note: string };

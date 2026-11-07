@@ -20,6 +20,10 @@ const serviceJobStatuses = [
 const serviceRepairPortalViewSchema = z.object({
   jobNumber: z.string(),
   jobStatus: z.enum(serviceJobStatuses),
+  statusHistory: z.array(z.object({
+    status: z.enum(serviceJobStatuses),
+    occurredAt: z.string().datetime({ offset: true }),
+  }).strict()).max(50),
   reportedProblem: z.string(),
   currency: z.string(),
   equipment: z.object({

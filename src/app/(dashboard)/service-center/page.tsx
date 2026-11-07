@@ -4,6 +4,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { ServiceCenterWorkspace } from "@/components/service-center/service-center-workspace";
 import { ServiceJobPartsPanel } from "@/components/service-center/service-job-parts-panel";
+import { ServiceStatusNotificationSettings } from "@/components/service-center/service-status-notification-settings";
 import { getServiceAssetWarrantyStatus } from "@/lib/service-center/warranty-validation";
 
 export const metadata = { title: "Think Service & Repairs · ThinkSales Pro" };
@@ -60,6 +61,7 @@ export default async function ServiceCenterPage() {
     canEditAppointments,
     canViewInventory,
     canEditInventory,
+    canManageServiceNotifications,
   ] = await Promise.all([
     canPermission("service_jobs", "create"),
     canPermission("service_jobs", "edit"),
@@ -72,7 +74,16 @@ export default async function ServiceCenterPage() {
     canPermission("service_appointments", "edit"),
     canPermission("inventory", "view"),
     canPermission("inventory", "edit"),
+    canPermission("settings", "edit"),
   ]);
+  const { data: notificationSettings, error: notificationSettingsError } = await supabase
+    .from("service_status_notification_settings")
+    .select("enabled")
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (notificationSettingsError) {
+    throw new Error(`Unable to load automatic repair status message settings: ${notificationSettingsError.message}`);
+  }
 
   const [locationsResult, customersResult, assetsResult, techniciansResult, appointmentsResult, membersResult] = await Promise.all([
     locationsPromise,
@@ -121,6 +132,19 @@ export default async function ServiceCenterPage() {
   if (techniciansError) throw new Error(`Unable to load service technicians: ${techniciansError.message}`);
   if (appointmentsError) throw new Error(`Unable to load service appointments: ${appointmentsError.message}`);
   if (membersError) throw new Error(`Unable to load eligible organization members: ${membersError.message}`);
+  const categoriesQuery = supabase.from("service_categories")
+    .select("id, name, location_id")
+    .eq("org_id", context.orgId)
+    .eq("is_active", true)
+    .order("name")
+    .limit(500);
+  const categoriesResult = allowedLocationIds && allowedLocationIds.length === 0
+    ? { data: [], error: null }
+    : await categoriesQuery;
+  if (categoriesResult.error) throw new Error(`Unable to load service types: ${categoriesResult.error.message}`);
+  const visibleCategories = (categoriesResult.data ?? []).filter((category) =>
+    category.location_id === null || !allowedLocationIds || allowedLocationIds.includes(category.location_id),
+  );
 
   const [inventoryProductsResult, stockLevelsResult, partMovementsResult] = await Promise.all([
     canViewInventory && (!allowedLocationIds || allowedLocationIds.length > 0)
@@ -178,7 +202,7 @@ export default async function ServiceCenterPage() {
   const technicianNameById = new Map((technicianProfiles ?? []).map((profile) => [profile.id, profile.full_name?.trim() || "Technician"]));
 
   let jobsQuery = supabase.from("service_jobs")
-    .select("id, job_number, location_id, customer_id, asset_id, technician_id, status, priority, reported_problem, condition_on_arrival, accessories, intake_confirmed_by, intake_confirmed_as, intake_confirmed_at, created_at")
+    .select("id, job_number, location_id, customer_id, asset_id, category_id, technician_id, status, priority, reported_problem, condition_on_arrival, accessories, intake_confirmed_by, intake_confirmed_as, intake_confirmed_at, created_at")
     .eq("org_id", context.orgId)
     .order("created_at", { ascending: false })
     .limit(500);
@@ -187,6 +211,20 @@ export default async function ServiceCenterPage() {
     : await (allowedLocationIds ? jobsQuery.in("location_id", allowedLocationIds) : jobsQuery);
   const { data: jobs, error: jobsError } = jobsResult;
   if (jobsError) throw new Error(`Unable to load service jobs: ${jobsError.message}`);
+
+  const notificationResultsQuery = supabase.from("service_job_status_notification_outbox")
+    .select("id, job_id, status, delivery_status, result_message, created_at")
+    .eq("org_id", context.orgId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  const notificationResultsResult = canManageServiceNotifications
+    ? allowedLocationIds && allowedLocationIds.length === 0
+      ? { data: [], error: null }
+      : await (allowedLocationIds ? notificationResultsQuery.in("location_id", allowedLocationIds) : notificationResultsQuery)
+    : { data: [], error: null };
+  if (notificationResultsResult.error) {
+    throw new Error(`Unable to load automatic repair status message results: ${notificationResultsResult.error.message}`);
+  }
 
   const contactsQuery = supabase.from("service_job_customer_contacts")
     .select("id, location_id, job_id, direction, method, outcome, details, actor_id, created_at")
@@ -375,6 +413,7 @@ export default async function ServiceCenterPage() {
         job_number: jobNumberById.get(contact.job_id) ?? "Service job",
       }))}
       customers={customers ?? []}
+      serviceCategories={visibleCategories}
       locations={locations ?? []}
       assets={(assets ?? []).map((asset) => ({
         ...asset,
@@ -410,6 +449,12 @@ export default async function ServiceCenterPage() {
       canViewAppointments={canViewAppointments}
       canCreateAppointment={canCreateAppointment}
       canEditAppointments={canEditAppointments}
+      canManageServiceNotifications={canManageServiceNotifications}
+      serviceStatusNotificationsEnabled={notificationSettings?.enabled ?? false}
+      serviceStatusNotificationResults={(notificationResultsResult.data ?? []).map((result) => ({
+        ...result,
+        job_number: jobs?.find((job) => job.id === result.job_id)?.job_number ?? "Repair job",
+      }))}
       currency={context.currency}
     />
   );

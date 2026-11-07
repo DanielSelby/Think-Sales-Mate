@@ -3,11 +3,16 @@ export type ServiceIntakeDetails = {
   accessories: string[];
   confirmedBy: string;
   confirmedAs: "customer" | "authorized_representative";
+  customerUpdateChannels: Array<"WhatsApp" | "SMS" | "Email">;
 };
 
 type IntakeResult =
   | { ok: true; intake: ServiceIntakeDetails }
   | { ok: false; error: string };
+
+function isCustomerUpdateChannel(value: unknown): value is ServiceIntakeDetails["customerUpdateChannels"][number] {
+  return value === "WhatsApp" || value === "SMS" || value === "Email";
+}
 
 export function parseServiceIntake(values: {
   conditionOnArrival: unknown;
@@ -15,6 +20,8 @@ export function parseServiceIntake(values: {
   confirmedBy: unknown;
   confirmedAs: unknown;
   acknowledged: unknown;
+  customerUpdateChannels: unknown[];
+  customerUpdateConsentAcknowledged: unknown;
 }): IntakeResult {
   const conditionOnArrival = typeof values.conditionOnArrival === "string" ? values.conditionOnArrival.trim() : "";
   const confirmedBy = typeof values.confirmedBy === "string" ? values.confirmedBy.trim() : "";
@@ -37,9 +44,25 @@ export function parseServiceIntake(values: {
   if (values.acknowledged !== "on") {
     return { ok: false, error: "Confirm that the customer or representative reviewed and acknowledged the recorded intake details." };
   }
+  const customerUpdateChannels = new Set<ServiceIntakeDetails["customerUpdateChannels"][number]>();
+  for (const channel of values.customerUpdateChannels) {
+    if (!isCustomerUpdateChannel(channel)) {
+      return { ok: false, error: "Choose only WhatsApp, SMS, or email for automatic repair updates." };
+    }
+    customerUpdateChannels.add(channel);
+  }
+  if (customerUpdateChannels.size && values.customerUpdateConsentAcknowledged !== "on") {
+    return { ok: false, error: "Confirm that the customer or representative expressly opted in to automatic repair updates." };
+  }
 
   return {
     ok: true,
-    intake: { conditionOnArrival, accessories, confirmedBy, confirmedAs },
+    intake: {
+      conditionOnArrival,
+      accessories,
+      confirmedBy,
+      confirmedAs,
+      customerUpdateChannels: Array.from(customerUpdateChannels),
+    },
   };
 }

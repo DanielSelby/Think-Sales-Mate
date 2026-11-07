@@ -261,6 +261,12 @@ local refunds use the original tender and bank account. Split-payment account
 validation also covers the first tender when it receives a tip, even if its
 payment amount is zero.
 
+For Think Service & Repairs, configure `SERVICE_STATUS_NOTIFICATION_SECRET`
+and schedule `GET /api/cron/service-status-notifications` with the header
+`Authorization: Bearer <secret>`. This requires the Service Center migrations,
+a provider configuration, and the organization-level setting enabled. No cron
+scheduler is configured by this repository.
+
 ## Validation
 
 Run these checks before submitting changes:

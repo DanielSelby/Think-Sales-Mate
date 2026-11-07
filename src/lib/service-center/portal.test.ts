@@ -31,6 +31,10 @@ describe("service repair portal view", () => {
   const validPortalView = {
     jobNumber: "SR-101",
     jobStatus: "awaiting_customer_approval",
+    statusHistory: [
+      { status: "received", occurredAt: "2026-11-05T10:00:00.000Z" },
+      { status: "awaiting_customer_approval", occurredAt: "2026-11-05T11:00:00.000Z" },
+    ],
     reportedProblem: "Device does not turn on",
     currency: "GHS",
     equipment: { type: "Phone", brand: "Example", model: "X1" },

@@ -184,6 +184,132 @@ export async function registerServiceTechnician(formData: FormData): Promise<Ser
   }
 
   revalidatePath("/service-center");
+  revalidatePath("/service-center/technicians");
+  return { ok: true };
+}
+
+export async function updateServiceTechnician(formData: FormData): Promise<ServiceRecordActionResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "Your session expired. Please sign in again." };
+  if (!await canPermission("service_technicians", "edit")) {
+    return { ok: false, error: "You do not have permission to update service technicians." };
+  }
+
+  const technicianId = formText(formData, "technicianId");
+  const skillsText = formText(formData, "technicianSkills");
+  const activeValue = formText(formData, "technicianActive");
+  if (!technicianId) return { ok: false, error: "Choose a service technician." };
+  if (activeValue !== "true" && activeValue !== "false") {
+    return { ok: false, error: "Choose whether the technician is active." };
+  }
+  const skills = Array.from(new Set(skillsText.split(",").map((skill) => skill.trim()).filter(Boolean)));
+  if (skills.some((skill) => skill.length > 80) || skills.length > 20) {
+    return { ok: false, error: "Enter no more than 20 skills, with up to 80 characters each." };
+  }
+
+  const supabase = await createClient();
+  const { data: technician, error: technicianError } = await supabase.from("service_technicians")
+    .select("id, location_id, is_active")
+    .eq("org_id", context.orgId)
+    .eq("id", technicianId)
+    .maybeSingle();
+  if (technicianError) return { ok: false, error: `Could not load the technician: ${technicianError.message}` };
+  if (!technician || !canAccessLocation(context, technician.location_id)) {
+    return { ok: false, error: "The technician is unavailable in your assigned branches." };
+  }
+
+  const isActive = activeValue === "true";
+  if (!isActive && technician.is_active) {
+    const [canViewJobs, canViewAppointments] = await Promise.all([
+      canPermission("service_jobs", "view"),
+      canPermission("service_appointments", "view"),
+    ]);
+    if (!canViewJobs || !canViewAppointments) {
+      return { ok: false, error: "Job and appointment view access is required to safely deactivate a technician." };
+    }
+    const { count, error: jobsError } = await supabase.from("service_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", context.orgId)
+      .eq("location_id", technician.location_id)
+      .eq("technician_id", technician.id)
+      .not("status", "in", "(completed,closed,cancelled)");
+    if (jobsError) return { ok: false, error: `Could not verify the technician's assigned jobs: ${jobsError.message}` };
+    if ((count ?? 0) > 0) {
+      return { ok: false, error: "Reassign or close this technician's open service jobs before deactivating them." };
+    }
+    const { count: appointmentCount, error: appointmentsError } = await supabase.from("service_appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", context.orgId)
+      .eq("location_id", technician.location_id)
+      .eq("technician_id", technician.id)
+      .in("status", ["scheduled", "confirmed"])
+      .gte("ends_at", new Date().toISOString());
+    if (appointmentsError) return { ok: false, error: `Could not verify the technician's upcoming appointments: ${appointmentsError.message}` };
+    if ((appointmentCount ?? 0) > 0) {
+      return { ok: false, error: "Reassign or cancel this technician's upcoming appointments before deactivating them." };
+    }
+  }
+
+  const { error } = await supabase.from("service_technicians")
+    .update({ skills, is_active: isActive })
+    .eq("org_id", context.orgId)
+    .eq("location_id", technician.location_id)
+    .eq("id", technician.id);
+  if (error) return { ok: false, error: `Could not update the technician: ${error.message}` };
+
+  revalidatePath("/service-center");
+  revalidatePath("/service-center/technicians");
+  revalidatePath(`/service-center/technicians/${technician.id}`);
+  return { ok: true };
+}
+
+export async function assignServiceJobTechnician(formData: FormData): Promise<ServiceRecordActionResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "Your session expired. Please sign in again." };
+  if (!await canPermission("service_jobs", "edit")) {
+    return { ok: false, error: "You do not have permission to assign service jobs." };
+  }
+
+  const jobId = formText(formData, "jobId");
+  const technicianId = formText(formData, "technicianId");
+  if (!jobId) return { ok: false, error: "Choose a service job." };
+
+  const supabase = await createClient();
+  const { data: job, error: jobError } = await supabase.from("service_jobs")
+    .select("id, location_id, status")
+    .eq("org_id", context.orgId)
+    .eq("id", jobId)
+    .maybeSingle();
+  if (jobError) return { ok: false, error: `Could not load the service job: ${jobError.message}` };
+  if (!job || !canAccessLocation(context, job.location_id)) {
+    return { ok: false, error: "The service job is unavailable in your assigned branches." };
+  }
+  if (["completed", "closed", "cancelled"].includes(job.status)) {
+    return { ok: false, error: "Completed, handed-over, or cancelled jobs cannot be reassigned." };
+  }
+
+  if (technicianId) {
+    const { data: technician, error: technicianError } = await supabase.from("service_technicians")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("location_id", job.location_id)
+      .eq("id", technicianId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (technicianError) return { ok: false, error: `Could not verify the selected technician: ${technicianError.message}` };
+    if (!technician) return { ok: false, error: "Choose an active technician registered at this job's branch." };
+  }
+
+  const { error } = await supabase.from("service_jobs")
+    .update({ technician_id: technicianId || null })
+    .eq("org_id", context.orgId)
+    .eq("location_id", job.location_id)
+    .eq("id", job.id);
+  if (error) return { ok: false, error: `Could not update the job assignment: ${error.message}` };
+
+  revalidatePath("/service-center");
+  revalidatePath("/service-center/technicians");
+  if (technicianId) revalidatePath(`/service-center/technicians/${technicianId}`);
   return { ok: true };
 }
 
@@ -207,6 +333,8 @@ export async function createServiceJob(formData: FormData): Promise<ServiceActio
     confirmedBy: formData.get("intakeConfirmedBy"),
     confirmedAs: formData.get("intakeConfirmedAs"),
     acknowledged: formData.get("intakeAcknowledged"),
+    customerUpdateChannels: formData.getAll("customerUpdateChannels"),
+    customerUpdateConsentAcknowledged: formData.get("customerUpdateConsentAcknowledged"),
   });
   if (!locationId || !canAccessLocation(context, locationId)) {
     return { ok: false, error: "You are not assigned to the selected branch." };
@@ -223,12 +351,35 @@ export async function createServiceJob(formData: FormData): Promise<ServiceActio
   const supabase = await createClient();
   const [{ data: location, error: locationError }, { data: customer, error: customerError }] = await Promise.all([
     supabase.from("business_locations").select("id").eq("org_id", context.orgId).eq("id", locationId).eq("is_active", true).maybeSingle(),
-    supabase.from("customers").select("id").eq("org_id", context.orgId).eq("id", customerId).maybeSingle(),
+    supabase.from("customers").select("id, phone, email").eq("org_id", context.orgId).eq("id", customerId).maybeSingle(),
   ]);
   if (locationError) return { ok: false, error: `Could not verify the selected branch: ${locationError.message}` };
   if (!location) return { ok: false, error: "The selected branch is unavailable." };
   if (customerError) return { ok: false, error: `Could not verify the selected customer: ${customerError.message}` };
   if (!customer) return { ok: false, error: "The selected customer is unavailable." };
+  if (intake.intake.customerUpdateChannels.some((channel) =>
+    channel === "Email" ? !customer.email?.trim() : !customer.phone?.trim()
+  )) {
+    return { ok: false, error: "Add the customer's email or phone number before recording consent for that update channel." };
+  }
+  if (intake.intake.customerUpdateChannels.length) {
+    const { data: preferences, error: preferencesError } = await supabase.from("customer_message_preferences")
+      .select("whatsapp, sms, email")
+      .eq("org_id", context.orgId)
+      .eq("customer_id", customerId)
+      .maybeSingle();
+    if (preferencesError) {
+      return { ok: false, error: `Could not verify customer channel opt-outs: ${preferencesError.message}` };
+    }
+    const optedOutChannel = intake.intake.customerUpdateChannels.find((channel) =>
+      channel === "WhatsApp" ? preferences?.whatsapp === false
+        : channel === "SMS" ? preferences?.sms === false
+          : preferences?.email === false
+    );
+    if (optedOutChannel) {
+      return { ok: false, error: `The customer is currently opted out of ${optedOutChannel}. Update their messaging preference before recording consent for that channel.` };
+    }
+  }
 
   if (assetId) {
     const { data: asset, error: assetError } = await supabase.from("service_assets")
@@ -273,6 +424,8 @@ export async function createServiceJob(formData: FormData): Promise<ServiceActio
       p_accessories: intake.intake.accessories,
       p_intake_confirmed_by: intake.intake.confirmedBy,
       p_intake_confirmed_as: intake.intake.confirmedAs,
+      p_customer_update_channels: intake.intake.customerUpdateChannels,
+      p_customer_update_consent_acknowledged: intake.intake.customerUpdateChannels.length > 0,
     });
     if (error) return { ok: false, error: `Could not create the warranty follow-up job: ${error.message}` };
 
@@ -294,6 +447,9 @@ export async function createServiceJob(formData: FormData): Promise<ServiceActio
     accessories: intake.intake.accessories,
     intake_confirmed_by: intake.intake.confirmedBy,
     intake_confirmed_as: intake.intake.confirmedAs,
+    customer_update_channels: intake.intake.customerUpdateChannels,
+    customer_update_consent_recorded_at: intake.intake.customerUpdateChannels.length ? new Date().toISOString() : null,
+    customer_update_consent_recorded_by: intake.intake.customerUpdateChannels.length ? context.userId : null,
     created_by: context.userId,
   });
   if (error) return { ok: false, error: `Could not create the service job: ${error.message}` };
@@ -355,6 +511,29 @@ export async function transitionServiceJob(formData: FormData): Promise<ServiceA
     p_note: note || null,
   });
   if (error) return { ok: false, error: `Could not update the service job: ${error.message}` };
+
+  revalidatePath("/service-center");
+  return { ok: true };
+}
+
+export async function setServiceStatusNotificationsEnabled(enabled: boolean): Promise<ServiceRecordActionResult> {
+  const context = await getCurrentOrgContext();
+  if (!context) return { ok: false, error: "Your session expired. Please sign in again." };
+  if (typeof enabled !== "boolean") {
+    return { ok: false, error: "Choose whether automatic repair status messages are enabled." };
+  }
+  if (!await canPermission("settings", "edit")) {
+    return { ok: false, error: "You do not have permission to change service notification settings." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("service_status_notification_settings").upsert({
+    org_id: context.orgId,
+    enabled,
+    updated_by: context.userId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "org_id" });
+  if (error) return { ok: false, error: `Could not save service notification settings: ${error.message}` };
 
   revalidatePath("/service-center");
   return { ok: true };
