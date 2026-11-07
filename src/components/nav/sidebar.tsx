@@ -14,6 +14,11 @@ import {
   Star, Building2, UserPlus, GraduationCap, PackageCheck, Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getProductNavigationItems,
+  getProductNavigationScope,
+  getVisibleNavigationChildren,
+} from "@/lib/product-navigation";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { NAV_ITEMS as SHARED_NAV_ITEMS, SETTINGS_CHILDREN as SHARED_SETTINGS_CHILDREN } from "./navigation";
 export { NAV_ITEMS } from "./navigation";
@@ -32,6 +37,7 @@ export interface NavChild {
   label: string;
   href:  string;
   icon?: React.ComponentType<{ className?: string }>;
+  restaurantIntegration?: boolean;
 }
 
 export interface NavItem {
@@ -261,6 +267,8 @@ function ChildLinks({ items, sidebar, onNavigate }: {
 
 export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro", mobileOpen = false, onNavigate }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string; mobileOpen?: boolean; onNavigate?: () => void }) {
   const pathname  = usePathname();
+  const productScope = getProductNavigationScope(pathname);
+  const productNavItems = getProductNavigationItems(SHARED_NAV_ITEMS, productScope);
   const { activeTheme } = useAppStore();
   const theme     = THEMES[activeTheme];
   const sidebar   = {
@@ -277,7 +285,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     if (pathname.startsWith("/settings")) return "settings";
     // Auto-open the group containing the current path on first render
-    const active = SHARED_NAV_ITEMS.find(item =>
+    const active = productNavItems.find(item =>
       item.children?.some(c => pathname.startsWith(c.href))
     );
     return active?.href ?? null;
@@ -342,15 +350,10 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
 
       {/* ── Nav ── */}
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {SHARED_NAV_ITEMS.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
+        {productNavItems.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
-          const childItems = item.children?.filter((child) =>
-            child.restaurantIntegration
-            || child.label === "Inventory Intelligence"
-            || !enabledModules?.includes(`__children:${item.label}`)
-            || enabledModules.includes(`${item.label}:${child.label}`)
-          ) ?? [];
+          const childItems = getVisibleNavigationChildren(item.children, item.label, enabledModules);
           const isActive = !item.children && (pathname === item.href || pathname.startsWith(item.href + "/"));
           const isGroupActive = !!item.children && (
             pathname === item.href

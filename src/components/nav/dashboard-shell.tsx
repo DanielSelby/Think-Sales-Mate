@@ -15,6 +15,11 @@ import { GlobalCallNotifications } from "@/components/communication/global-call-
 import type { PlatformWatermarkConfiguration } from "@/lib/platform-watermark";
 import { OrganizationExpiryWarning } from "@/components/organization/organization-access-expiry";
 import type { OrganizationUsageSummary } from "@/lib/organizations/usage-summary";
+import {
+  getProductNavigationItems,
+  getProductNavigationScope,
+  getVisibleNavigationChildren,
+} from "@/lib/product-navigation";
 
 interface Props {
   children: React.ReactNode;
@@ -58,7 +63,15 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
     if (roleTheme) setTheme(roleTheme);
   }, [roleTheme, setTheme]);
   const theme = THEMES[activeTheme];
-  const mobileNav = NAV_ITEMS.filter((item) => ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href));
+  const productScope = getProductNavigationScope(pathname);
+  const productNavItems = getProductNavigationItems(NAV_ITEMS, productScope);
+  const mobileNav = productScope === "thinksales-erp"
+    ? productNavItems.filter((item) => ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href))
+    : productNavItems
+      .filter((item) => !enabledModules || enabledModules.includes(item.label))
+      .flatMap((item) =>
+        getVisibleNavigationChildren(item.children, item.label, enabledModules)
+      ).slice(0, 5);
   const watermarkPosition = watermark?.position === "top-left" ? "left top"
     : watermark?.position === "top-center" ? "center top"
       : watermark?.position === "top-right" ? "right top"
@@ -175,7 +188,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
               const Icon = item.icon;
               return (
                 <Link key={item.href} href={item.href} prefetch className="flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-blue-600 dark:text-slate-300">
-                  <Icon className="h-4 w-4" />
+                  {Icon && <Icon className="h-4 w-4" />}
                   {item.label}
                 </Link>
               );
