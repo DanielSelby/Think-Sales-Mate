@@ -72,6 +72,7 @@ export const THEMES = {
 } as const;
 
 export type ThemeKey = keyof typeof THEMES;
+export type DarkStyleKey = "think-sales" | "think-service";
 
 interface AppState {
   sidebarCollapsed:  boolean;
@@ -84,6 +85,8 @@ interface AppState {
   darkMode:          boolean;
   setDarkMode:       (enabled: boolean) => void;
   toggleDarkMode:    () => void;
+  darkStyle:         DarkStyleKey;
+  setDarkStyle:      (style: DarkStyleKey) => void;
   commandBarOpen:    boolean;
   setCommandBarOpen: (open: boolean) => void;
 }
@@ -106,18 +109,27 @@ export const useAppStore = create<AppState>()(
         const darkMode = !state.darkMode;
         return { darkMode, activeTheme: darkMode ? "royal" : "green" };
       }),
+      darkStyle:         "think-sales",
+      setDarkStyle:      (darkStyle) => set({ darkStyle }),
       commandBarOpen:    false,
       setCommandBarOpen: (open) => set({ commandBarOpen: open }),
     }),
     {
       name: "salesmate-ui",
-      version: 1,
+      version: 2,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<AppState>;
         if (version === 0 && state.activeTheme === "fintech") {
-          return { ...state, activeTheme: state.darkMode ? "royal" : "green" } as AppState;
+          return {
+            ...state,
+            activeTheme: state.darkMode ? "royal" : "green",
+            darkStyle: state.darkStyle === "think-service" ? "think-service" : "think-sales",
+          } as AppState;
         }
-        return state as AppState;
+        return {
+          ...state,
+          darkStyle: state.darkStyle === "think-service" ? "think-service" : "think-sales",
+        } as AppState;
       },
     }
   )

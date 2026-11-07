@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen, Menu, Gauge, Users, CalendarDays } from "lucide-react";
+import { Search, Bell, Sun, Moon, ChevronDown, Check, LogOut, Settings, Package, CheckCircle2, MapPin, MessageSquare, Building2, Coins, ShoppingCart, PanelLeftClose, PanelLeftOpen, Menu, Gauge, Users, CalendarDays, Contrast } from "lucide-react";
 import { CommandBar } from "./command-bar";
 import { RefreshButton } from "@/components/refresh-button";
-import { useAppStore, THEMES, type ThemeKey } from "@/store/useAppStore";
+import { useAppStore, THEMES, type DarkStyleKey, type ThemeKey } from "@/store/useAppStore";
 import { useAccountingStore } from "@/lib/accounting/accounting-store";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/sales/format";
@@ -38,14 +38,17 @@ interface NotificationItem {
   location_id: string | null;
 }
 
-export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, organizationUsage, organizationAccessExpiresAt, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; onOpenMobileSidebar: () => void }) {
-  const { activeTheme, setTheme, darkMode, setDarkMode, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, organizationUsage, organizationAccessExpiresAt, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; onOpenMobileSidebar: () => void }) {
+  const { activeTheme, setTheme, darkMode, setDarkMode, darkStyle, setDarkStyle, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
   const topbar  = theme.topbar;
   const router  = useRouter();
 
   const [showThemes,        setShowThemes]        = useState(false);
+  const [showDarkStyles,    setShowDarkStyles]    = useState(false);
+  const [darkStyleError,    setDarkStyleError]    = useState("");
+  const [savingDarkStyle,   setSavingDarkStyle]   = useState(false);
   const [showUser,          setShowUser]          = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOrganizationInfo, setShowOrganizationInfo] = useState(false);
@@ -72,6 +75,39 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
     document.documentElement.classList.toggle("dark", darkMode);
     document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
   }, [darkMode]);
+
+  useEffect(() => {
+    document.documentElement.dataset.darkStyle = darkStyle;
+  }, [darkStyle]);
+
+  useEffect(() => {
+    setDarkStyle(initialDarkStyle);
+  }, [initialDarkStyle, setDarkStyle]);
+
+  const chooseDarkStyle = async (style: DarkStyleKey) => {
+    if (savingDarkStyle || style === darkStyle) {
+      setShowDarkStyles(false);
+      return;
+    }
+    const previousStyle = darkStyle;
+    setDarkStyle(style);
+    setSavingDarkStyle(true);
+    setDarkStyleError("");
+    try {
+      const { error } = await createClient()
+        .from("profiles")
+        .update({ ui_preferences: { dark_style: style } })
+        .eq("id", userId);
+      if (error) throw error;
+      setShowDarkStyles(false);
+    } catch (error) {
+      setDarkStyle(previousStyle);
+      console.error("Dark-mode style preference could not be saved:", error);
+      setDarkStyleError("Could not save this preference. Please try again.");
+    } finally {
+      setSavingDarkStyle(false);
+    }
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -297,7 +333,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
           aria-expanded={organizationInfoOpen}
           aria-controls="organization-capacity-popover"
           title="Organization capacity and expiry"
-          onClick={() => setShowOrganizationInfo((open) => !open)}
+          onClick={() => { setShowOrganizationInfo((open) => !open); setShowDarkStyles(false); }}
           className="flex h-8 w-8 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10"
         >
           <Gauge className="h-4 w-4" />
@@ -350,7 +386,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       <div className="relative">
         <button
           disabled={branchOptions.length === 0}
-          onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
+          onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowDarkStyles(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex shrink-0 items-center gap-1.5 h-8 px-1.5 sm:px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Building2 className="h-3.5 w-3.5 text-white/60" />
@@ -395,7 +431,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       {/* Currency Selector */}
       <div className="relative">
         <button
-          onClick={() => { setShowCurrencies(v => !v); setShowBranches(false); setShowThemes(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
+          onClick={() => { setShowCurrencies(v => !v); setShowBranches(false); setShowThemes(false); setShowDarkStyles(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex shrink-0 items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Coins className="h-3.5 w-3.5 text-white/60" />
@@ -429,7 +465,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       {/* Theme picker */}
       <div className="relative">
         <button
-          onClick={() => { if (!canChangeTheme) return; setShowThemes(v => !v); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
+          onClick={() => { if (!canChangeTheme) return; setShowThemes(v => !v); setShowDarkStyles(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex items-center gap-2 h-8 px-1.5 sm:px-3 rounded-xl text-xs font-semibold transition-all"
           style={{ color: "rgba(255,255,255,0.7)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}
@@ -488,10 +524,78 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </button>
 
+      {/* Dark-mode style picker */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => {
+            setShowDarkStyles((visible) => !visible);
+            setShowThemes(false);
+            setShowBranches(false);
+            setShowCurrencies(false);
+            setShowUser(false);
+            setShowNotifications(false);
+            setShowOrganizationInfo(false);
+            setDarkStyleError("");
+          }}
+          aria-label="Choose dark mode style"
+          aria-expanded={showDarkStyles}
+          title="Choose dark mode style"
+          className="flex h-8 items-center gap-1.5 rounded-xl px-2 text-xs font-semibold transition-all"
+          style={{ color: "rgba(255,255,255,0.7)" }}
+          onMouseEnter={(event) => { (event.currentTarget as HTMLElement).style.background = sidebar.hoverBackground }}
+          onMouseLeave={(event) => { (event.currentTarget as HTMLElement).style.background = "transparent" }}
+        >
+          <Contrast className="h-4 w-4" />
+          <span className="hidden lg:block">{darkStyle === "think-service" ? "Think Service" : "ThinkSales"}</span>
+          <ChevronDown className="hidden h-3 w-3 opacity-60 lg:block" />
+        </button>
+        {showDarkStyles && (
+          <>
+            <button
+              type="button"
+              aria-label="Close dark mode style menu"
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={() => setShowDarkStyles(false)}
+            />
+            <div className="absolute right-0 top-10 z-50 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-slate-100 px-3 py-2.5 dark:border-slate-800">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Dark mode style</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Choose the look used across your account.</p>
+              </div>
+              {([
+                { key: "think-sales", label: "ThinkSales", description: "Clean surfaces with minimal borders" },
+                { key: "think-service", label: "Think Service", description: "Clearer outlines for cards and tables" },
+              ] as const).map((option) => {
+                const isActive = darkStyle === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    disabled={savingDarkStyle}
+                    onClick={() => void chooseDarkStyle(option.key)}
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-slate-800"
+                    aria-pressed={isActive}
+                  >
+                    <span>
+                      <span className="block text-xs font-semibold text-slate-800 dark:text-slate-100">{option.label}</span>
+                      <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{option.description}</span>
+                    </span>
+                    {isActive && <Check className="ml-3 h-4 w-4 shrink-0 text-blue-600" />}
+                  </button>
+                );
+              })}
+              {savingDarkStyle && <p className="px-3 pb-2 text-[11px] text-slate-500 dark:text-slate-400">Saving preference...</p>}
+              {darkStyleError && <p role="alert" className="px-3 pb-3 text-xs text-rose-600 dark:text-rose-400">{darkStyleError}</p>}
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Notifications Popover */}
       <div className="relative">
         <button
-          onClick={() => { setShowNotifications(v => !v); setShowUser(false); setShowThemes(false); setShowOrganizationInfo(false); }}
+          onClick={() => { setShowNotifications(v => !v); setShowUser(false); setShowThemes(false); setShowDarkStyles(false); setShowOrganizationInfo(false); }}
           className="relative flex h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10"
         >
           <Bell className="h-4 w-4" />
@@ -540,7 +644,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       {/* User profile menu */}
       <div className="relative">
         <button
-          onClick={() => { setShowUser(v => !v); setShowThemes(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
+          onClick={() => { setShowUser(v => !v); setShowThemes(false); setShowDarkStyles(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex items-center gap-1 sm:gap-2.5 h-9 px-1 sm:px-2 rounded-xl transition-all hover:bg-white/10"
         >
           {avatarUrl ? (

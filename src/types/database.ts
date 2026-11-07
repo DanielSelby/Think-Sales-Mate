@@ -55,6 +55,7 @@ export interface Database {
           full_name: string | null;
           avatar_url: string | null;
           location_id: string | null;
+          ui_preferences: Json;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };

@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAppStore, THEMES } from "@/store/useAppStore";
+import { useAppStore, THEMES, type DarkStyleKey } from "@/store/useAppStore";
 import { Sidebar } from "./sidebar";
 import { NAV_ITEMS } from "./sidebar";
 import { TopNav } from "./top-nav";
@@ -28,6 +28,7 @@ interface Props {
   systemLogoUrl?: string | null;
   systemName?: string;
   roleTheme?: ThemeKey | null;
+  darkStyle?: DarkStyleKey;
   userName?: string | null;
   userRole?: string | null;
   allowedLocationIds?: string[];
@@ -39,7 +40,7 @@ interface Props {
   organizationUsage: OrganizationUsageSummary | null;
 }
 
-export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
@@ -137,6 +138,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             allowedLocationIds={allowedLocationIds}
             canViewAllBranches={canViewAllBranches}
             canChangeTheme={canChangeTheme}
+            darkStyle={darkStyle}
             organizationUsage={organizationUsage}
             organizationAccessExpiresAt={organizationAccessExpiresAt ?? null}
             onOpenMobileSidebar={() => setMobileSidebarOpen(true)}

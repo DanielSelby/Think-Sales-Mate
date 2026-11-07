@@ -1126,7 +1126,6 @@ html.dark .stock-transfer-modal-surface .stock-transfer-search-input {
     font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
   }
 
-  .approval-page [class*="border"],
   .sales-page [class*="border"]:not(input):not(select):not(textarea),
   .orders-page [class*="border"],
   .procurement-page:not(.procurement-grid-lines) [class*="border"],
@@ -1341,8 +1340,8 @@ html.dark .hrm-page .bg-slate-50 {
 
 html.dark .procurement-page:not(.procurement-grid-lines) .rounded-card,
 html.dark .procurement-page:not(.procurement-grid-lines) .rounded-2xl.border,
-html.dark .approval-page [class*="rounded-2xl"][class*="bg-white"],
-html.dark .approval-page [class*="rounded-xl"][class*="bg-white"],
+html.dark[data-dark-style="think-sales"] .approval-page [class*="rounded-2xl"][class*="bg-white"],
+html.dark[data-dark-style="think-sales"] .approval-page [class*="rounded-xl"][class*="bg-white"],
 html.dark .sales-page [class*="rounded-2xl"][class*="bg-white"],
 html.dark .sales-page [class*="rounded-xl"][class*="bg-white"],
 html.dark .orders-page [class*="rounded-2xl"][class*="bg-white"],
@@ -1430,6 +1429,24 @@ html.dark .inventory-intelligence-page [class~="text-slate-800"],
 html.dark .crm-page [class~="text-slate-900"],
 html.dark .crm-page [class~="text-slate-800"] {
   color: #f8fafc !important;
+}
+
+html.dark[data-dark-style="think-sales"] .approval-page [class*="border"] {
+  border: 0 !important;
+  border-color: transparent !important;
+}
+
+html.dark[data-dark-style="think-service"] .page-canvas [class*="rounded-card"],
+html.dark[data-dark-style="think-service"] .page-canvas [class*="rounded-2xl"][class*="bg-white"],
+html.dark[data-dark-style="think-service"] .page-canvas [class*="rounded-xl"][class*="bg-white"] {
+  border: 1px solid #334155 !important;
+}
+
+html.dark[data-dark-style="think-service"] .page-canvas table,
+html.dark[data-dark-style="think-service"] .page-canvas table tr,
+html.dark[data-dark-style="think-service"] .page-canvas table th,
+html.dark[data-dark-style="think-service"] .page-canvas table td {
+  border-color: #334155 !important;
 }
 
 html.dark .inventory-intelligence-page [class~="text-slate-700"],
