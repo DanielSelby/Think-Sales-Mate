@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
 import {
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
   Wallet, Landmark, Receipt, Package, FolderKanban,
@@ -12,6 +12,7 @@ import {
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload,Clock3,
   Inbox, Headphones, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
   Star, Building2, UserPlus, GraduationCap, PackageCheck, Network,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -21,6 +22,7 @@ import {
   getVisibleNavigationChildren,
 } from "@/lib/product-navigation";
 import { useAppStore, THEMES } from "@/store/useAppStore";
+import { createClient } from "@/lib/supabase/client";
 import { NAV_ITEMS as SHARED_NAV_ITEMS, SETTINGS_CHILDREN as SHARED_SETTINGS_CHILDREN } from "./navigation";
 export { NAV_ITEMS } from "./navigation";
 
@@ -270,10 +272,13 @@ function ChildLinks({ items, sidebar, onNavigate }: {
 
 export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro", mobileOpen = false, onNavigate }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string; mobileOpen?: boolean; onNavigate?: () => void }) {
   const pathname  = usePathname();
+  const router = useRouter();
   const productScope = getProductNavigationScope(pathname);
   const productNavItems = getProductNavigationItems(SHARED_NAV_ITEMS, productScope);
   const { activeTheme } = useAppStore();
   const theme     = THEMES[activeTheme];
+  const [isSigningOut, startSignOut] = useTransition();
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const sidebar   = {
     ...theme.sidebar,
     background: theme.colors.primaryPale,
@@ -300,6 +305,20 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   const toggleGroup = (href: string) => {
     if (collapsed) return;
     setOpenGroup(prev => prev === href ? null : href);
+  };
+
+  const handleSignOut = () => {
+    setSignOutError(null);
+    startSignOut(async () => {
+      const { error } = await createClient().auth.signOut();
+      if (error) {
+        setSignOutError(`Could not sign out: ${error.message}`);
+        return;
+      }
+      onNavigate?.();
+      router.push("/login");
+      router.refresh();
+    });
   };
 
   const linkStyle = (isActive: boolean) => ({
@@ -473,7 +492,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
         </div>
       </nav>
 
-      {/* ── Bottom: Support ── */}
+      {/* ── Bottom actions ── */}
       <div className="mt-auto shrink-0 space-y-1 border-t px-2 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
         style={{ borderColor: sidebar.borderColor, background: sidebar.background }}>
         {/* Need Help / Support */}
@@ -497,7 +516,34 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
           </div>
           </>
         )}
-
+        {signOutError && (!collapsed || mobileOpen) && (
+          <p className="px-2 text-[11px] text-red-600 dark:text-red-400" role="alert">{signOutError}</p>
+        )}
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={isSigningOut}
+          title={collapsed && !mobileOpen ? "Log out" : undefined}
+          aria-label="Log out"
+          className={cn(
+            "flex w-full items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-60",
+            collapsed && !mobileOpen ? "justify-center px-2" : "px-3",
+          )}
+          style={{ color: sidebar.textMuted }}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.background = sidebar.hoverBackground;
+            event.currentTarget.style.color = sidebar.text;
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.background = "transparent";
+            event.currentTarget.style.color = sidebar.textMuted;
+          }}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {(!collapsed || mobileOpen) && (
+            <span className="truncate">{isSigningOut ? "Logging out..." : "Log out"}</span>
+          )}
+        </button>
       </div>
     </aside>
   );
