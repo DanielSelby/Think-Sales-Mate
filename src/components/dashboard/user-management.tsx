@@ -103,6 +103,7 @@ import {
 } from "@/app/(dashboard)/settings/organization/actions";
 import { createStaffAccount, saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
 import { THEMES, type ThemeKey, useAppStore } from "@/store/useAppStore";
+import { canonicalRoleKey } from "@/lib/rbac/permission-matrix";
 
 export type { ManagedUser, UserBranch } from "./user-management/types";
 
@@ -1163,7 +1164,11 @@ export function UserManagement({
           { key: "staff_accounts", label: "Create Staff Account" },
           ...(canManageProductAccess ? [
             { key: "product_access", label: "Product Access", count: productCatalog.length },
-            { key: "product_permissions", label: "Product Permissions", count: productRoleTemplates.length },
+            {
+              key: "product_permissions",
+              label: "Product Permissions",
+              count: roles.filter((role) => !["owner", "super_admin"].includes(canonicalRoleKey(role.key))).length,
+            },
           ] : [])
         ].map((tab) => (
           <button

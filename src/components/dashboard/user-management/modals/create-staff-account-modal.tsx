@@ -12,6 +12,7 @@ interface CreateStaffAccountResult {
   success?: boolean;
   username?: string;
   temporaryPassword?: string;
+  warning?: string;
 }
 
 interface CreateStaffAccountModalProps {
@@ -43,7 +44,7 @@ function getCompanyDomain(website?: string | null) {
 function makeUsername(name: string, companyWebsite?: string | null) {
   const base = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
   const domain = getCompanyDomain(companyWebsite);
-  return domain ? `${base || "staff"}@${domain}` : base || "staff";
+  return domain ? `${base || "staff"}@${domain}` : "";
 }
 
 export function CreateStaffAccountModal({
@@ -57,6 +58,7 @@ export function CreateStaffAccountModal({
 }: CreateStaffAccountModalProps) {
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
+  const [usernameEdited, setUsernameEdited] = useState(false);
   const [password, setPassword] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [email, setEmail] = useState("");
@@ -78,12 +80,14 @@ export function CreateStaffAccountModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [createdWarning, setCreatedWarning] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const resetForm = () => {
     setFullName("");
     setUsername("");
+    setUsernameEdited(false);
     setPassword("");
     setEmployeeId("");
     setEmail("");
@@ -107,6 +111,7 @@ export function CreateStaffAccountModal({
 
   const resetAndClose = () => {
     setCreatedCredentials(null);
+    setCreatedWarning(null);
     resetForm();
     onClose();
   };
@@ -146,6 +151,7 @@ export function CreateStaffAccountModal({
           username: result.username ?? resolvedUsername,
           password: result.temporaryPassword ?? resolvedPassword
         });
+        setCreatedWarning(result.warning ?? null);
         resetForm();
       }
     } finally {
@@ -178,6 +184,11 @@ export function CreateStaffAccountModal({
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
               <div><p className="text-sm font-semibold">Staff account created</p><p className="mt-1 text-xs">Save these credentials securely. The password will not be shown again.</p></div>
             </div>
+            {createdWarning && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" role="status">
+                {createdWarning}
+              </p>
+            )}
             <div className="rounded-xl border border-ledger-200 bg-slate-50 p-4 dark:border-ledger-700 dark:bg-slate-800/60">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div><p className="text-[10px] font-bold uppercase text-ledger-400">Username</p><p className="mt-1 font-mono text-sm font-semibold text-ink-900 dark:text-white">{createdCredentials.username}</p></div>
@@ -206,7 +217,7 @@ export function CreateStaffAccountModal({
                       value={fullName}
                       onChange={(event) => {
                         setFullName(event.target.value);
-                        setUsername(makeUsername(event.target.value, companyWebsite));
+                        if (!usernameEdited) setUsername(makeUsername(event.target.value, companyWebsite));
                       }}
                       className="mt-1 h-9 text-xs"
                       placeholder="Search an HR employee or enter a new name"
@@ -219,7 +230,40 @@ export function CreateStaffAccountModal({
                     </span>
                   </label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Employee ID<Input value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className="mt-1 h-9 text-xs font-mono" placeholder="TS-EMP-015" /></label>
-                  <label className="text-xs font-semibold text-ink-900 dark:text-white">Username *<div className="mt-1 flex gap-2"><Input required readOnly value={username || makeUsername(fullName, companyWebsite)} className="h-9 text-xs font-mono" placeholder="kwame.mensah@company.com" /><Button type="button" variant="outline" size="sm" className="h-9 shrink-0 text-[11px]" onClick={() => setUsername(makeUsername(fullName, companyWebsite))}>Generate</Button></div></label>
+                  <label className="text-xs font-semibold text-ink-900 dark:text-white">
+                    Username *
+                    <div className="mt-1 flex gap-2">
+                      <Input
+                        required
+                        type="email"
+                        value={username || makeUsername(fullName, companyWebsite)}
+                        onChange={(event) => {
+                          setUsername(event.target.value);
+                          setUsernameEdited(true);
+                        }}
+                        className="h-9 text-xs font-mono"
+                        placeholder="name@company.com"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!companyWebsite?.trim()}
+                        className="h-9 shrink-0 text-[11px]"
+                        onClick={() => {
+                          setUsername(makeUsername(fullName, companyWebsite));
+                          setUsernameEdited(false);
+                        }}
+                      >
+                        Generate
+                      </Button>
+                    </div>
+                    {!companyWebsite?.trim() && (
+                      <span className="mt-1 block text-[10px] font-normal text-ledger-400">
+                        Enter a valid email-style username, or add a company website to generate one.
+                      </span>
+                    )}
+                  </label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Password *<div className="mt-1 flex gap-2"><Input required minLength={8} type="text" value={password} onChange={(event) => setPassword(event.target.value)} className="h-9 text-xs font-mono" placeholder="Generate a secure password" /><Button type="button" variant="outline" size="sm" className="h-9 shrink-0 text-[11px]" onClick={() => setPassword(makePassword())}>Generate</Button></div></label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Email (optional)<Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 h-9 text-xs" placeholder="name@company.com" /></label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Phone<Input value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1 h-9 text-xs" placeholder="+233 24 123 4567" /></label>

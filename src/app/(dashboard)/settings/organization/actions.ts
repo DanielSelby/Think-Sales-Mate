@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -21,7 +22,7 @@ import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { getOrganizationAccessibleProductOptions } from "@/lib/supabase/organization-product-access";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "@/lib/rbac/restaurant-roles";
 import { filterPermissionMatrixForProduct } from "@/lib/product-entitlement-routes";
-import type { PlatformProductSlug } from "@/types/platform-database";
+import { isPlatformProductSlug, type PlatformProductSlug } from "@/types/platform-database";
 
 function databaseRole(role: string): MemberRole {
   const key = role.trim().toLowerCase();
@@ -431,6 +432,22 @@ export async function createStaffAccount(formData: FormData) {
   const department = String(formData.get("department") ?? "").trim();
   const requestedRole = String(formData.get("role") ?? "staff").trim().toLowerCase();
   const requestedSuperAdmin = isSuperAdminRole(requestedRole);
+  const canManageProductAccess = isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  });
+  const activeProductHeader = (await headers()).get("x-active-product-slug");
+  const activeProductSlug = activeProductHeader && isPlatformProductSlug(activeProductHeader)
+    ? activeProductHeader
+    : null;
+  let productToAssign: PlatformProductSlug | null = null;
+  if (activeProductSlug && canManageProductAccess && !requestedSuperAdmin) {
+    const accessibleProducts = await getOrganizationAccessibleProductOptions(context.orgId);
+    if (accessibleProducts.some((product) => product.slug === activeProductSlug)) {
+      productToAssign = activeProductSlug;
+    }
+  }
   if (!canGrantSuperAdminRole(context.role, requestedRole)) {
     return { error: "Only an organization owner can grant Super Admin access." };
   }
@@ -444,7 +461,8 @@ export async function createStaffAccount(formData: FormData) {
     .filter(Boolean);
 
   if (!fullName) return { error: "Full name is required." };
-  const { data: companyProfile, error: companyProfileError } = await (await createClient())
+  const supabase = await createClient();
+  const { data: companyProfile, error: companyProfileError } = await supabase
     .from("company_profile")
     .select("website")
     .eq("org_id", context.orgId)
@@ -460,9 +478,9 @@ export async function createStaffAccount(formData: FormData) {
       })()
     : "";
   const usernameBase = fullName.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "") || "staff";
-  const username = domain ? `${usernameBase}@${domain}` : submittedUsername;
-  if (!username || !/^[a-z0-9][a-z0-9.]{0,63}@[a-z0-9.-]+\.[a-z]{2,}$/i.test(username)) {
-    return { error: "A company website is required to generate the staff username." };
+  const username = submittedUsername || (domain ? `${usernameBase}@${domain}` : "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username)) {
+    return { error: "Enter a valid email-style username, or add a company website to generate one." };
   }
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
   if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
@@ -587,6 +605,22 @@ export async function createStaffAccount(formData: FormData) {
 
   let avatarUrl: string | null = null;
   let warning: string | undefined;
+  if (activeProductSlug && !requestedSuperAdmin) {
+    if (!canManageProductAccess) {
+      warning = "Staff account created, but only an organization owner or super administrator can assign product access. Ask one to assign this member in Product Access.";
+    } else if (productToAssign) {
+      const { error: assignmentError } = await supabase.rpc("set_organization_product_assignments", {
+        p_org_id: context.orgId,
+        p_user_id: authData.user.id,
+        p_product_slugs: [productToAssign],
+      });
+      if (assignmentError) {
+        warning = `Staff account created, but access to ${productToAssign} could not be assigned: ${assignmentError.message}`;
+      }
+    } else {
+      warning = "Staff account created, but the currently open product is not available to this organization, so access was not assigned.";
+    }
+  }
   if (avatar instanceof File && avatar.size > 0) {
     const extensionByType: Record<string, string> = {
       "image/jpeg": "jpg",
@@ -601,17 +635,18 @@ export async function createStaffAccount(formData: FormData) {
       contentType: avatar.type
     });
     if (uploadError) {
-      warning = `Account created, but profile photo upload failed: ${uploadError.message}`;
+      warning = [warning, `Account created, but profile photo upload failed: ${uploadError.message}`].filter(Boolean).join(" ");
     } else {
       avatarUrl = admin.storage.from("profile-avatars").getPublicUrl(path).data.publicUrl;
       const { error: profileError } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("id", authData.user.id);
       if (profileError) {
-        warning = `Account created, but profile photo details could not be fully saved: ${profileError.message}`;
+        warning = [warning, `Account created, but profile photo details could not be fully saved: ${profileError.message}`].filter(Boolean).join(" ");
       }
     }
   }
 
   revalidatePath("/settings/organization");
+  revalidatePath("/product-hub");
   return {
     success: true as const,
     memberId: member.id,
