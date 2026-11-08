@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
@@ -12,6 +12,12 @@ import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-acces
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { getOrganizationAccessibleProductOptions } from "@/lib/supabase/organization-product-access";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey, RESTAURANT_ROLE_PRESETS } from "@/lib/rbac/restaurant-roles";
+import { isPlatformProductSlug, type PlatformProductSlug } from "@/types/platform-database";
+import type { Json } from "@/types/database";
+
+function isPermissionMatrix(value: Json): value is { [key: string]: Json | undefined } {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 export default async function OrganizationSettingsPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -27,7 +33,7 @@ export default async function OrganizationSettingsPage() {
     supabase.from("business_locations").select("id, name").eq("org_id", context.orgId).eq("is_active", true).order("name"),
     supabase.from("company_profile").select("website").eq("org_id", context.orgId).maybeSingle(),
     supabase.from("employees").select("full_name").eq("org_id", context.orgId).order("full_name")
-    , (supabase as any).from("organization_role_templates").select("role_key, name, permissions").eq("org_id", context.orgId)
+    , supabase.from("organization_role_templates").select("role_key, name, permissions").eq("org_id", context.orgId)
     , supabase.from("audit_logs").select("id, actor_id, action, entity_type, entity_id, metadata, created_at").eq("org_id", context.orgId).order("created_at", { ascending: false }).limit(500)
   ]);
   for (const result of [membersResult, locationsResult, companyProfileResult, employeesResult, roleTemplatesResult, auditsResult]) {
@@ -264,25 +270,70 @@ export default async function OrganizationSettingsPage() {
     userId: context.userId,
     accessPermissions: context.accessPermissions,
   });
-  const [productCatalog, productAssignmentsResult] = canManageProductAccess
-    ? await Promise.all([
-        getOrganizationAccessibleProductOptions(context.orgId),
+  let productCatalog: Awaited<ReturnType<typeof getOrganizationAccessibleProductOptions>> = [];
+  let productAssignmentRows: Array<{ user_id: string; product_slug: string }> = [];
+  let productRoleTemplates: Array<{
+    product_slug: PlatformProductSlug;
+    role_key: string;
+    name: string | null;
+    permissions: Record<string, unknown> | null;
+  }> = [];
+  let productMemberRoles: Array<{ user_id: string; product_slug: PlatformProductSlug; role_key: string }> = [];
+  if (canManageProductAccess) {
+    productCatalog = await getOrganizationAccessibleProductOptions(context.orgId);
+    if (productCatalog.length) {
+      const productSlugs = productCatalog.map((product) => product.slug);
+      const [assignmentsResult, templatesResult, memberRolesResult] = await Promise.all([
         supabase.from("organization_product_access_assignments")
           .select("user_id, product_slug")
           .eq("org_id", context.orgId)
-          .eq("is_active", true),
-      ])
-    : [[], { data: [], error: null }];
-  if (productAssignmentsResult.error) {
-    throw new Error(`Could not load product assignments: ${productAssignmentsResult.error.message}`);
+          .eq("is_active", true)
+          .in("product_slug", productSlugs),
+        supabase.from("organization_product_role_templates")
+          .select("product_slug, role_key, name, permissions")
+          .eq("org_id", context.orgId)
+          .in("product_slug", productSlugs),
+        supabase.from("organization_member_product_permissions")
+          .select("user_id, product_slug, role_key")
+          .eq("org_id", context.orgId)
+          .in("product_slug", productSlugs),
+      ]);
+      if (assignmentsResult.error) {
+        throw new Error(`Could not load product assignments: ${assignmentsResult.error.message}`);
+      }
+      if (templatesResult.error) {
+        throw new Error(`Could not load product role templates: ${templatesResult.error.message}`);
+      }
+      if (memberRolesResult.error) {
+        throw new Error(`Could not load product member roles: ${memberRolesResult.error.message}`);
+      }
+      productAssignmentRows = assignmentsResult.data ?? [];
+      productRoleTemplates = (templatesResult.data ?? []).flatMap((item) =>
+        isPlatformProductSlug(item.product_slug)
+          ? [{
+              ...item,
+              product_slug: item.product_slug,
+              permissions: isPermissionMatrix(item.permissions) ? item.permissions : null,
+            }]
+          : [],
+      );
+      productMemberRoles = (memberRolesResult.data ?? []).filter(
+        (item): item is typeof item & { product_slug: PlatformProductSlug } =>
+          isPlatformProductSlug(item.product_slug),
+      );
+    }
   }
-  const assignableProductSlugs = new Set(productCatalog.map((product) => product.slug));
+  const assignableProductSlugs = new Set<string>(productCatalog.map((product) => product.slug));
   const productAssignments: Record<string, string[]> = {};
-  for (const assignment of productAssignmentsResult.data ?? []) {
+  for (const assignment of productAssignmentRows) {
     if (!assignableProductSlugs.has(assignment.product_slug)) continue;
     productAssignments[assignment.user_id] ??= [];
     productAssignments[assignment.user_id].push(assignment.product_slug);
   }
+  const activeProductHeader = (await headers()).get("x-active-product-slug");
+  const activeProductSlug = activeProductHeader && isPlatformProductSlug(activeProductHeader)
+    ? activeProductHeader
+    : null;
   return (
     <div id="users" className="mx-auto max-w-[1680px] space-y-6">
       <UserManagement
@@ -301,6 +352,9 @@ export default async function OrganizationSettingsPage() {
         enabledModules={enabledModules}
         productCatalog={productCatalog}
         productAssignments={productAssignments}
+        productRoleTemplates={productRoleTemplates}
+        productMemberRoles={productMemberRoles}
+        activeProductSlug={activeProductSlug}
         canManageProductAccess={canManageProductAccess}
       />
     </div>

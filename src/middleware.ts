@@ -35,6 +35,12 @@ export async function middleware(request: NextRequest) {
     rewriteUrl.search = request.nextUrl.search;
     const scopedResponse = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
     response.cookies.getAll().forEach((cookie) => scopedResponse.cookies.set(cookie));
+    scopedResponse.cookies.set("active_product_slug", appRoute.productSlug, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: request.nextUrl.protocol === "https:",
+      path: "/",
+    });
     return scopedResponse;
   };
 
@@ -298,12 +304,42 @@ export async function middleware(request: NextRequest) {
       if (appRoute) verifiedProductOrganizationId = member.org_id;
       if (!tabAccess) return continueWithProductContext();
       if (!isOwner) {
-        const roleKey = canonicalRoleKey(
+        let permissionAccess = accessPermissions;
+        let roleKey = canonicalRoleKey(
           typeof accessPermissions.role_key === "string" ? accessPermissions.role_key : member.role
         );
         let roleTemplate: unknown;
         let hasRoleTemplate = false;
-        if (accessPermissions.permissions_mode !== "custom") {
+        if (appRoute) {
+          const { data: productPermission, error: productPermissionError } = await (supabase as any)
+            .from("organization_member_product_permissions")
+            .select("role_key, permissions_mode, permissions")
+            .eq("org_id", member.org_id)
+            .eq("user_id", user.id)
+            .eq("product_slug", appRoute.productSlug)
+            .maybeSingle();
+          if (productPermissionError || !productPermission) {
+            console.error("Product permission lookup failed:", productPermissionError?.message ?? "No product permission profile exists.");
+            return new NextResponse("Unable to verify your product permissions. Please try again.", { status: 503 });
+          }
+          permissionAccess = productPermission;
+          roleKey = canonicalRoleKey(productPermission.role_key);
+          if (productPermission.permissions_mode !== "custom") {
+            const { data: productTemplate, error: productTemplateError } = await (supabase as any)
+              .from("organization_product_role_templates")
+              .select("permissions")
+              .eq("org_id", member.org_id)
+              .eq("product_slug", appRoute.productSlug)
+              .eq("role_key", roleKey)
+              .maybeSingle();
+            if (productTemplateError) {
+              console.error("Product role template lookup failed:", productTemplateError.message);
+              return new NextResponse("Unable to verify your product permissions. Please try again.", { status: 503 });
+            }
+            roleTemplate = productTemplate?.permissions;
+            hasRoleTemplate = productTemplate !== null;
+          }
+        } else if (accessPermissions.permissions_mode !== "custom") {
           const { data: template, error: templateError } = await supabase
             .from("organization_role_templates")
             .select("permissions")
@@ -319,7 +355,7 @@ export async function middleware(request: NextRequest) {
         }
 
         const permissionMatrix = resolveMemberPermissionMatrix(
-          accessPermissions,
+          permissionAccess,
           roleTemplate,
           hasRoleTemplate,
           roleKey

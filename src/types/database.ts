@@ -5115,6 +5115,70 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organization_product_access_assignments"]["Row"]>;
         Relationships: [];
       };
+      organization_product_role_templates: {
+        Row: {
+          org_id: string;
+          product_slug: string;
+          role_key: string;
+          name: string | null;
+          permissions: Json;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          org_id: string;
+          product_slug: string;
+          role_key: string;
+          name?: string | null;
+          permissions?: Json;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_product_role_templates"]["Row"]>;
+        Relationships: [];
+      };
+      organization_role_templates: {
+        Row: {
+          org_id: string;
+          role_key: string;
+          name: string | null;
+          permissions: Json;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          role_key: string;
+          name?: string | null;
+          permissions?: Json;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_role_templates"]["Row"]>;
+        Relationships: [];
+      };
+      organization_member_product_permissions: {
+        Row: {
+          org_id: string;
+          user_id: string;
+          product_slug: string;
+          role_key: string;
+          permissions_mode: "inherit" | "custom";
+          permissions: Json;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          org_id: string;
+          user_id: string;
+          product_slug: string;
+          role_key: string;
+          permissions_mode?: "inherit" | "custom";
+          permissions?: Json;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_member_product_permissions"]["Row"]>;
+        Relationships: [];
+      };
       organization_product_access_audit: {
         Row: {
           id: string;
@@ -6125,6 +6189,25 @@ export interface Database {
           p_org_id: string;
           p_user_id: string;
           p_product_slugs: string[];
+        };
+        Returns: undefined;
+      };
+      set_organization_product_role_permissions: {
+        Args: {
+          p_org_id: string;
+          p_product_slug: string;
+          p_role_key: string;
+          p_name: string;
+          p_permissions: Json;
+        };
+        Returns: undefined;
+      };
+      set_organization_member_product_role: {
+        Args: {
+          p_org_id: string;
+          p_user_id: string;
+          p_product_slug: string;
+          p_role_key: string;
         };
         Returns: undefined;
       };

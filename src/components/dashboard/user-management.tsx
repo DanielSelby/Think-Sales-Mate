@@ -48,6 +48,11 @@ import { BranchAccessTab } from "./user-management/tabs/branch-access-tab";
 import { AuditLogsTab } from "./user-management/tabs/audit-logs-tab";
 import { LoginSessionsTab } from "./user-management/tabs/login-sessions-tab";
 import { ProductAccessTab } from "./user-management/tabs/product-access-tab";
+import {
+  ProductPermissionsTab,
+  type ProductMemberRole,
+  type ProductRoleTemplate,
+} from "./user-management/tabs/product-permissions-tab";
 
 // Modals & Drawers
 import { AddUserModal } from "./user-management/modals/add-user-modal";
@@ -74,6 +79,7 @@ import type {
   PermissionAction
 } from "./user-management/types";
 import type { BranchAccessRule } from "./user-management/types";
+import type { PlatformProductSlug } from "@/types/platform-database";
 
 import {
   DEFAULT_ROLES,
@@ -114,8 +120,11 @@ interface UserManagementProps {
   canManageThemes?: boolean;
   restaurantOnlyOrganization?: boolean;
   enabledModules?: string[];
-  productCatalog?: Array<{ slug: string; name: string }>;
+  productCatalog?: Array<{ slug: PlatformProductSlug; name: string }>;
   productAssignments?: Record<string, string[]>;
+  productRoleTemplates?: ProductRoleTemplate[];
+  productMemberRoles?: ProductMemberRole[];
+  activeProductSlug?: PlatformProductSlug | null;
   canManageProductAccess?: boolean;
 }
 
@@ -135,6 +144,9 @@ export function UserManagement({
   enabledModules,
   productCatalog = [],
   productAssignments = {},
+  productRoleTemplates = [],
+  productMemberRoles = [],
+  activeProductSlug = null,
   canManageProductAccess = false
 }: UserManagementProps) {
   const [, startTransition] = useTransition();
@@ -1149,7 +1161,10 @@ export function UserManagement({
           { key: "audit", label: "Activity Logs", count: auditLogs.length },
           { key: "sessions", label: "Login Sessions", count: 6 },
           { key: "staff_accounts", label: "Create Staff Account" },
-          ...(canManageProductAccess ? [{ key: "product_access", label: "Product Access", count: productCatalog.length }] : [])
+          ...(canManageProductAccess ? [
+            { key: "product_access", label: "Product Access", count: productCatalog.length },
+            { key: "product_permissions", label: "Product Permissions", count: productRoleTemplates.length },
+          ] : [])
         ].map((tab) => (
           <button
             key={tab.key}
@@ -1320,6 +1335,20 @@ export function UserManagement({
 
         {activeTab === "product_access" && canManageProductAccess && (
           <ProductAccessTab users={users} products={productCatalog} assignments={productAssignments} />
+        )}
+
+        {activeTab === "product_permissions" && canManageProductAccess && (
+          <ProductPermissionsTab
+            users={users}
+            products={productCatalog}
+            assignments={productAssignments}
+            templates={productRoleTemplates}
+            memberRoles={productMemberRoles}
+            roles={roles}
+            moduleConfigs={permissionConfigs.modules}
+            pageConfigs={permissionConfigs.pages}
+            activeProductSlug={activeProductSlug}
+          />
         )}
 
         {activeTab === "approvals" && (

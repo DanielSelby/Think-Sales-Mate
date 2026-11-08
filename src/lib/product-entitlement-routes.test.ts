@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   getLegacyProductAppPath,
+  filterPermissionMatrixForProduct,
   getRequiredProductSlugs,
   getRequiredProductSlugsForPermissionModule,
+  isOrganizationWidePermissionModule,
   hasAnyRequiredProductAccess,
 } from "./product-entitlement-routes";
 
@@ -89,6 +91,7 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugsForPermissionModule("restaurant")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugsForPermissionModule("service_jobs")).toEqual(["think-service-repairs"]);
     expect(getRequiredProductSlugsForPermissionModule("service_customers")).toEqual(["think-service-repairs"]);
+    expect(getRequiredProductSlugsForPermissionModule("customer_assets")).toEqual(["think-service-repairs"]);
     expect(getRequiredProductSlugsForPermissionModule("expenses")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugsForPermissionModule("accounting")).toEqual(["thinksales-erp"]);
     expect(getRequiredProductSlugsForPermissionModule("restaurant")).toEqual(["restaurant"]);
@@ -98,5 +101,32 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugsForPermissionModule("cash_closing")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugsForPermissionModule("banking", "banking", "reconciliation")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugsForPermissionModule("unmapped_module")).toEqual(["thinksales-erp"]);
+  });
+
+  it("filters permission matrices by product while excluding organization-wide administration", () => {
+    const matrix = {
+      sales: ["view"],
+      restaurant: ["create"],
+      service_jobs: ["edit"],
+      expenses: ["view"],
+      "sales.sales.sales_history": ["view"],
+      "user_management": ["edit"],
+      invalid: { action: true },
+    };
+
+    expect(filterPermissionMatrixForProduct(matrix, "thinksales-erp")).toEqual({
+      sales: ["view"],
+      expenses: ["view"],
+      "sales.sales.sales_history": ["view"],
+    });
+    expect(filterPermissionMatrixForProduct(matrix, "restaurant")).toEqual({
+      restaurant: ["create"],
+      expenses: ["view"],
+    });
+    expect(filterPermissionMatrixForProduct(matrix, "think-service-repairs")).toEqual({
+      service_jobs: ["edit"],
+    });
+    expect(isOrganizationWidePermissionModule("user_management")).toBe(true);
+    expect(isOrganizationWidePermissionModule("sales")).toBe(false);
   });
 });

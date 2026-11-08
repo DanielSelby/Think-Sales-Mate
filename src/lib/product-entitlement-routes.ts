@@ -145,3 +145,26 @@ export function getRequiredProductSlugsForPermissionModule(
   return getRequiredProductSlugs(PERMISSION_MODULE_PATHS[moduleKey] ?? `/__permission/${moduleKey}`)
     ?? ["thinksales-erp"];
 }
+
+export function isOrganizationWidePermissionModule(module: string): boolean {
+  const moduleKey = module.toLowerCase().replace(/[\s-]+/g, "_");
+  const path = PERMISSION_MODULE_PATHS[moduleKey];
+  return Boolean(path && isOrganizationWideRoute(path));
+}
+
+export function filterPermissionMatrixForProduct(
+  permissions: Record<string, unknown>,
+  productSlug: PlatformProductSlug,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(permissions).filter(([key]) => {
+      const moduleKey = key.split(".", 1)[0];
+      return !isOrganizationWidePermissionModule(moduleKey)
+        && getRequiredProductSlugsForPermissionModule(moduleKey).includes(productSlug);
+    }).flatMap(([key, actions]) =>
+      Array.isArray(actions) && actions.every((action) => typeof action === "string")
+        ? [[key, actions]]
+        : []
+    ),
+  );
+}

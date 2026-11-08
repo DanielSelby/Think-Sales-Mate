@@ -20,6 +20,8 @@ import { increasesOrganizationSeatUsage, withOrganizationCapacity } from "@/lib/
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { getOrganizationAccessibleProductOptions } from "@/lib/supabase/organization-product-access";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "@/lib/rbac/restaurant-roles";
+import { filterPermissionMatrixForProduct } from "@/lib/product-entitlement-routes";
+import type { PlatformProductSlug } from "@/types/platform-database";
 
 function databaseRole(role: string): MemberRole {
   const key = role.trim().toLowerCase();
@@ -96,6 +98,146 @@ export async function setOrganizationProductAssignments(userId: string, requeste
   revalidatePath("/settings/organization");
   revalidatePath("/product-hub");
   return { success: true as const };
+}
+
+export async function saveProductRolePermissions(
+  productSlug: PlatformProductSlug,
+  roleKey: string,
+  permissions: Record<string, unknown>,
+  name?: string,
+) {
+  const context = await getCurrentOrgContext();
+  if (!context || !isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  })) {
+    return { error: "Only an organization owner or super administrator may manage product permissions." };
+  }
+  if (!requestedProductSlugIsValid(productSlug)) {
+    return { error: "Select a valid product." };
+  }
+  const role = roleKey.replace(/^role-/, "").trim();
+  if (!/^[a-z0-9_]+$/.test(role) || !permissions || typeof permissions !== "object" || Array.isArray(permissions)) {
+    return { error: "Select a valid product role and permission matrix." };
+  }
+  const products = await getOrganizationAccessibleProductOptions(context.orgId);
+  if (!products.some((product) => product.slug === productSlug)) {
+    return { error: "This product is not available to the organization." };
+  }
+  const productPermissions = filterPermissionMatrixForProduct(permissions, productSlug);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_organization_product_role_permissions", {
+    p_org_id: context.orgId,
+    p_product_slug: productSlug,
+    p_role_key: role,
+    p_name: name ?? role,
+    p_permissions: productPermissions,
+  });
+  if (error) return { error: `Could not save product role permissions: ${error.message}` };
+
+  const auditResult = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "product_role_permissions_updated",
+    entityType: "product_role_permission_matrix",
+    module: "product_access",
+    description: `Updated ${productSlug} permissions for ${name ?? role}.`,
+    newValues: { product_slug: productSlug, role_key: role, permissions: productPermissions },
+  });
+  if (auditResult.error) return { error: auditResult.error };
+
+  revalidatePath("/settings/organization");
+  return { success: true as const };
+}
+
+export async function setMemberProductRole(
+  userId: string,
+  productSlug: PlatformProductSlug,
+  roleKey: string,
+) {
+  const context = await getCurrentOrgContext();
+  if (!context || !isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  })) {
+    return { error: "Only an organization owner or super administrator may manage product permissions." };
+  }
+  const normalizedRoleKey = canonicalRoleKey(roleKey);
+  if (
+    !requestedProductSlugIsValid(productSlug)
+    || !userId
+    || !/^[a-z0-9_]+$/.test(normalizedRoleKey)
+    || ["owner", "super_admin"].includes(normalizedRoleKey)
+  ) {
+    return { error: "Select a valid member, product, and product role." };
+  }
+  const products = await getOrganizationAccessibleProductOptions(context.orgId);
+  if (!products.some((product) => product.slug === productSlug)) {
+    return { error: "This product is not available to the organization." };
+  }
+  const supabase = await createClient();
+  const { data: productTemplate, error: productTemplateError } = await supabase
+    .from("organization_product_role_templates")
+    .select("role_key")
+    .eq("org_id", context.orgId)
+    .eq("product_slug", productSlug)
+    .eq("role_key", normalizedRoleKey)
+    .maybeSingle();
+  if (productTemplateError) {
+    return { error: `Could not verify the product role: ${productTemplateError.message}` };
+  }
+  if (!productTemplate) {
+    const { data: organizationTemplate, error: organizationTemplateError } = await supabase
+      .from("organization_role_templates")
+      .select("name, permissions")
+      .eq("org_id", context.orgId)
+      .eq("role_key", normalizedRoleKey)
+      .maybeSingle();
+    if (organizationTemplateError) {
+      return { error: `Could not load the source role permissions: ${organizationTemplateError.message}` };
+    }
+    const sourcePermissions = organizationTemplate?.permissions
+      ? normalizePermissionMatrix(organizationTemplate.permissions)
+      : defaultPermissionMatrixForRole(normalizedRoleKey);
+    if (!Object.keys(sourcePermissions).length) {
+      return { error: "This role has no permission template yet. Save its product permissions before assigning it." };
+    }
+    const { error: seedError } = await supabase.rpc("set_organization_product_role_permissions", {
+      p_org_id: context.orgId,
+      p_product_slug: productSlug,
+      p_role_key: normalizedRoleKey,
+      p_name: organizationTemplate?.name ?? normalizedRoleKey,
+      p_permissions: filterPermissionMatrixForProduct(sourcePermissions, productSlug),
+    });
+    if (seedError) return { error: `Could not prepare the product role: ${seedError.message}` };
+  }
+  const { error } = await supabase.rpc("set_organization_member_product_role", {
+    p_org_id: context.orgId,
+    p_user_id: userId,
+    p_product_slug: productSlug,
+    p_role_key: normalizedRoleKey,
+  });
+  if (error) return { error: `Could not update product role: ${error.message}` };
+
+  const auditResult = await recordAuditEvent(supabase, {
+    orgId: context.orgId,
+    actorId: context.userId,
+    action: "member_product_role_updated",
+    entityType: "member_product_permission",
+    module: "product_access",
+    description: `Updated product role for member ${userId} in ${productSlug}.`,
+    newValues: { user_id: userId, product_slug: productSlug, role_key: normalizedRoleKey },
+  });
+  if (auditResult.error) return { error: auditResult.error };
+
+  revalidatePath("/settings/organization");
+  return { success: true as const };
+}
+
+function requestedProductSlugIsValid(value: string): value is PlatformProductSlug {
+  return value === "thinksales-erp" || value === "restaurant" || value === "think-service-repairs";
 }
 
 function submittedApprovalPermissions(formData: FormData): Record<string, boolean | number> | null | undefined {

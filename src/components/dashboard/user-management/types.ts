@@ -263,4 +263,5 @@ export type ActiveTab =
   | "audit" 
   | "sessions"
   | "staff_accounts"
-  | "product_access";
+  | "product_access"
+  | "product_permissions";
