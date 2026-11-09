@@ -15,8 +15,8 @@ const SVG_ALLOWED_ATTRIBUTES = [
 ];
 
 export type ValidatedWatermarkImage = {
-  extension: "png" | "svg" | "webp";
-  contentType: "image/png" | "image/svg+xml" | "image/webp";
+  extension: "jpg" | "png" | "svg" | "webp";
+  contentType: "image/jpeg" | "image/png" | "image/svg+xml" | "image/webp";
   bytes: Buffer;
 };
 
@@ -47,6 +47,15 @@ function isWebp(bytes: Buffer) {
   return ["VP8 ", "VP8L", "VP8X"].includes(chunkType) &&
     chunkLength >= minimumChunkLength &&
     chunkLength <= bytes.length - 20;
+}
+
+function isJpeg(bytes: Buffer) {
+  return bytes.length >= 4 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff &&
+    bytes[bytes.length - 2] === 0xff &&
+    bytes[bytes.length - 1] === 0xd9;
 }
 
 function sanitizeSvg(bytes: Buffer) {
@@ -93,6 +102,9 @@ export function validateAndSanitizeWatermarkImage(
   }
 
   const extension = fileName.toLowerCase().split(".").pop();
+  if ((extension === "jpg" || extension === "jpeg") && contentType === "image/jpeg" && isJpeg(bytes)) {
+    return { extension: "jpg", contentType: "image/jpeg", bytes };
+  }
   if (extension === "png" && contentType === "image/png" && isPng(bytes)) {
     return { extension: "png", contentType: "image/png", bytes };
   }
@@ -102,5 +114,5 @@ export function validateAndSanitizeWatermarkImage(
   if (extension === "svg" && contentType === "image/svg+xml") {
     return { extension: "svg", contentType: "image/svg+xml", bytes: sanitizeSvg(bytes) };
   }
-  throw new Error("Choose a valid PNG, SVG, or WebP image with a matching file type.");
+  throw new Error("Choose a valid JPEG, PNG, SVG, or WebP image with a matching file type.");
 }

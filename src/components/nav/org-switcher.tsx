@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronsUpDown, Check } from "lucide-react";
@@ -15,7 +16,15 @@ function persistActiveOrganization(orgId: string) {
   document.cookie = `active_org_id=${orgId}; path=/; max-age=${60 * 60 * 24 * 365}`;
 }
 
-export function OrgSwitcher({ activeOrgId, options }: { activeOrgId: string; options: OrgOption[] }) {
+export function OrgSwitcher({
+  activeOrgId,
+  activeOrgLogoUrl,
+  options,
+}: {
+  activeOrgId: string;
+  activeOrgLogoUrl?: string | null;
+  options: OrgOption[];
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const active = options.find((o) => o.orgId === activeOrgId) ?? options[0];
@@ -29,9 +38,27 @@ export function OrgSwitcher({ activeOrgId, options }: { activeOrgId: string; opt
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-md border border-ledger-200 bg-white px-3 py-1.5 text-sm font-medium text-ledger-800 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-100 dark:hover:bg-white/[0.06]"
+        className="flex items-center gap-2 rounded-md border border-ledger-200 bg-white px-2.5 py-1.5 text-sm font-medium text-ledger-800 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-100 dark:hover:bg-white/[0.06]"
       >
+        {activeOrgLogoUrl ? (
+          <Image
+            src={activeOrgLogoUrl}
+            alt=""
+            width={28}
+            height={28}
+            unoptimized
+            className="h-7 w-7 shrink-0 rounded-md border border-ledger-100 object-contain dark:border-ledger-700"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-ledger-100 text-xs font-bold uppercase text-ledger-600 dark:bg-ledger-700 dark:text-ledger-100"
+          >
+            {active?.orgName.slice(0, 1) ?? "O"}
+          </span>
+        )}
         <span className="max-w-[160px] truncate">{active?.orgName ?? "Select workspace"}</span>
         <ChevronsUpDown className="h-3.5 w-3.5 text-ledger-400" />
       </button>

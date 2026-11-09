@@ -36,6 +36,13 @@ describe("platform watermark configuration", () => {
 });
 
 describe("platform watermark image validation", () => {
+  it("accepts JPEG images with matching file extension, MIME type, and signature", () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9]);
+    expect(validateAndSanitizeWatermarkImage("brand.jpg", "image/jpeg", jpeg).extension).toBe("jpg");
+    expect(validateAndSanitizeWatermarkImage("brand.jpeg", "image/jpeg", jpeg).extension).toBe("jpg");
+    expect(() => validateAndSanitizeWatermarkImage("brand.jpg", "image/png", jpeg)).toThrow();
+  });
+
   it("accepts a PNG only when the file signature, extension, and MIME type agree", () => {
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN5sAAAAASUVORK5CYII=", "base64");
     expect(validateAndSanitizeWatermarkImage("brand.png", "image/png", png).extension).toBe("png");

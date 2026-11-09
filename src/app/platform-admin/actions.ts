@@ -1038,6 +1038,187 @@ export async function updatePlatformProductCatalog(formData: FormData): Promise<
   return { ok: true, message: `${name} was saved. Publishing changes registration availability only; it does not activate subscriptions.` };
 }
 
+export type ProductHubAppearanceActionResult =
+  | { ok: true; message: string }
+  | { ok: false; error: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export async function uploadProductHubArtwork(formData: FormData): Promise<ProductHubAppearanceActionResult> {
+  const { admin, supabase } = await requirePlatformManagement("Feature Access");
+  const assetTypeValue = formData.get("assetType");
+  const assetType = typeof assetTypeValue === "string" ? assetTypeValue : "";
+  const slugValue = formData.get("productSlug");
+  const slug = typeof slugValue === "string" ? slugValue : "";
+  const file = formData.get("image");
+  if (assetType !== "hero" && assetType !== "about" && assetType !== "product") {
+    return { ok: false, error: "Choose a valid Product Hub image type." };
+  }
+  if (assetType === "product" && !isPlatformProductSlug(slug)) {
+    return { ok: false, error: "Choose a supported product for this image." };
+  }
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Choose an image to upload." };
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    return { ok: false, error: "Images must be no larger than 2 MB." };
+  }
+
+  let image: ReturnType<typeof validateAndSanitizeWatermarkImage>;
+  try {
+    image = validateAndSanitizeWatermarkImage(
+      file.name,
+      file.type,
+      Buffer.from(await file.arrayBuffer()),
+    );
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Choose a valid JPEG, PNG, SVG, or WebP image under 2 MB." };
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("platform_settings")
+    .select("value, updated_at, updated_by")
+    .eq("key", "product_hub_branding")
+    .maybeSingle();
+  if (currentError) return { ok: false, error: `Could not load current Product Hub settings: ${currentError.message}` };
+
+  const currentValue = isRecord(current?.value) ? current.value : {};
+  const currentProductPaths = isRecord(currentValue.product_image_paths)
+    ? currentValue.product_image_paths
+    : {};
+  const previousPath = assetType === "hero"
+    ? currentValue.hero_storage_path
+    : assetType === "about"
+      ? currentValue.about_storage_path
+      : currentProductPaths[slug];
+  const uploadedPath = `product-hub/${assetType}/${assetType === "product" ? slug : "page"}/${crypto.randomUUID()}.${image.extension}`;
+  const { error: uploadError } = await supabase.storage.from("platform-assets").upload(uploadedPath, image.bytes, {
+    contentType: image.contentType,
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (uploadError) return { ok: false, error: `Could not upload Product Hub artwork: ${uploadError.message}` };
+
+  const productImagePaths = { ...currentProductPaths };
+  if (assetType === "product") productImagePaths[slug] = uploadedPath;
+  const nextValue: Record<string, unknown> = {
+    ...currentValue,
+    ...(assetType === "hero" ? { hero_storage_path: uploadedPath } : {}),
+    ...(assetType === "about" ? { about_storage_path: uploadedPath } : {}),
+    ...(assetType === "product" ? { product_image_paths: productImagePaths } : {}),
+  };
+  const updatedAt = new Date().toISOString();
+  const { error: saveError } = await supabase.from("platform_settings").upsert({
+    key: "product_hub_branding",
+    value: nextValue,
+    updated_by: admin.id,
+    updated_at: updatedAt,
+  });
+  const platform = createPlatformAdminClient();
+  if (saveError) {
+    const { error: cleanupError } = await platform.storage.from("platform-assets").remove([uploadedPath]);
+    return {
+      ok: false,
+      error: cleanupError
+        ? `Could not save Product Hub settings (${saveError.message}); the uploaded image could not be removed (${cleanupError.message}).`
+        : `Could not save Product Hub settings: ${saveError.message}`,
+    };
+  }
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "product_hub_artwork_updated",
+    module: "product_catalog",
+    metadata: { asset_type: assetType, product_slug: assetType === "product" ? slug : null, storage_path: uploadedPath },
+  });
+  if (auditError) {
+    const rollback = current
+      ? await supabase.from("platform_settings").upsert({
+        key: "product_hub_branding",
+        value: current.value,
+        updated_at: current.updated_at,
+        updated_by: current.updated_by,
+      })
+      : await supabase.from("platform_settings").delete().eq("key", "product_hub_branding");
+    const { error: cleanupError } = await platform.storage.from("platform-assets").remove([uploadedPath]);
+    if (rollback.error || cleanupError) {
+      return {
+        ok: false,
+        error: `Audit logging failed (${auditError.message})${rollback.error ? `; settings rollback failed (${rollback.error.message})` : ""}${cleanupError ? `; uploaded image cleanup failed (${cleanupError.message})` : ""}.`,
+      };
+    }
+    return { ok: false, error: `Product Hub artwork was not saved because audit logging failed: ${auditError.message}` };
+  }
+
+  revalidatePath("/platform-admin/products");
+  revalidatePath("/product-hub");
+  if (typeof previousPath === "string" && previousPath.startsWith("product-hub/")) {
+    const { error: removeError } = await platform.storage.from("platform-assets").remove([previousPath]);
+    if (removeError) {
+      return { ok: true, message: `Artwork was saved, but the previous image could not be removed: ${removeError.message}` };
+    }
+  }
+
+  return { ok: true, message: "Product Hub artwork was uploaded and saved." };
+}
+
+export async function saveProductHubTheme(formData: FormData): Promise<ProductHubAppearanceActionResult> {
+  const { admin, supabase } = await requirePlatformManagement("Feature Access");
+  const enabledValue = formData.get("darkThemeEnabled");
+  const styleValue = formData.get("darkSurfaceStyle");
+  if ((enabledValue !== "true" && enabledValue !== "false") ||
+      (styleValue !== "opaque" && styleValue !== "transparent")) {
+    return { ok: false, error: "Choose a valid Product Hub theme configuration." };
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("platform_settings")
+    .select("value, updated_at, updated_by")
+    .eq("key", "product_hub_branding")
+    .maybeSingle();
+  if (currentError) return { ok: false, error: `Could not load current Product Hub settings: ${currentError.message}` };
+
+  const value = {
+    ...(isRecord(current?.value) ? current.value : {}),
+    dark_theme_enabled: enabledValue === "true",
+    dark_surface_style: styleValue,
+  };
+  const { error } = await supabase.from("platform_settings").upsert({
+    key: "product_hub_branding",
+    value,
+    updated_by: admin.id,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: `Could not save Product Hub theme: ${error.message}` };
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "product_hub_theme_updated",
+    module: "product_catalog",
+    metadata: { dark_theme_enabled: enabledValue === "true", dark_surface_style: styleValue },
+  });
+  if (auditError) {
+    const rollback = current
+      ? await supabase.from("platform_settings").upsert({
+        key: "product_hub_branding",
+        value: current.value,
+        updated_at: current.updated_at,
+        updated_by: current.updated_by,
+      })
+      : await supabase.from("platform_settings").delete().eq("key", "product_hub_branding");
+    if (rollback.error) {
+      return { ok: false, error: `Audit logging failed (${auditError.message}), and theme settings rollback failed (${rollback.error.message}).` };
+    }
+    return { ok: false, error: `Theme settings were rolled back because audit logging failed: ${auditError.message}` };
+  }
+
+  revalidatePath("/platform-admin/products");
+  revalidatePath("/product-hub");
+  return { ok: true, message: "Product Hub theme settings were saved." };
+}
+
 export async function retryProductEntitlementEvent(formData: FormData): Promise<void> {
   const { admin, supabase } = await requirePlatformManagement("Feature Access");
   const eventId = String(formData.get("eventId") ?? "");

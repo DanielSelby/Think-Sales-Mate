@@ -39,11 +39,13 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { OrgSwitcher } from "@/components/nav/org-switcher";
 import { createClient } from "@/lib/supabase/client";
+import type { ProductHubBranding } from "@/lib/supabase/platform-admin";
 
 export interface ProductHubItem {
   slug: string;
   name: string;
   description: string;
+  imageUrl: string | null;
   status: "Active" | "Read-only" | "Provisioning" | "Unavailable";
   launchPath: string | null;
   canOpen: boolean;
@@ -58,6 +60,8 @@ interface OrganizationOption {
 interface ProductHubClientProps {
   orgId: string;
   orgName: string;
+  orgLogoUrl: string | null;
+  hubBranding: ProductHubBranding;
   organizations: OrganizationOption[];
   userName: string | null;
   userEmail: string;
@@ -103,6 +107,8 @@ const BENEFITS = [
 export function ProductHubClient({
   orgId,
   orgName,
+  orgLogoUrl,
+  hubBranding,
   organizations,
   userName,
   userEmail,
@@ -187,7 +193,64 @@ export function ProductHubClient({
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-[#18243b]">
+    <div
+      data-product-hub-theme={hubBranding.darkThemeEnabled ? "dark" : "light"}
+      data-product-hub-surface-style={hubBranding.darkSurfaceStyle}
+      className="min-h-screen bg-[#f5f7fb] text-[#18243b]"
+    >
+      <style jsx global>{`
+        [data-product-hub-theme="dark"] {
+          --hub-surface: #111d30;
+          --hub-inset-surface: #18263a;
+          background-color: #0a1322 !important;
+          color: #e2e8f0;
+        }
+        [data-product-hub-theme="dark"][data-product-hub-surface-style="transparent"] {
+          --hub-surface: rgba(17, 29, 48, 0.76);
+          --hub-inset-surface: rgba(148, 163, 184, 0.08);
+          background-image:
+            radial-gradient(circle at 85% 12%, rgba(37, 99, 235, 0.18), transparent 28rem),
+            radial-gradient(circle at 12% 65%, rgba(8, 145, 178, 0.12), transparent 26rem);
+        }
+        [data-product-hub-theme="dark"] [data-hub-surface] {
+          background-color: var(--hub-surface) !important;
+          border-color: #2a3b52 !important;
+          background-image: none !important;
+        }
+        [data-product-hub-theme="dark"][data-product-hub-surface-style="transparent"] [data-hub-surface] {
+          backdrop-filter: blur(14px);
+        }
+        [data-product-hub-theme="dark"] main [class~="text-[#14233e]"],
+        [data-product-hub-theme="dark"] main [class~="text-[#152440]"],
+        [data-product-hub-theme="dark"] main [class~="text-[#172744]"],
+        [data-product-hub-theme="dark"] main [class~="text-[#10234a]"],
+        [data-product-hub-theme="dark"] main [class~="text-[#18243b]"],
+        [data-product-hub-theme="dark"] main [class~="text-slate-700"],
+        [data-product-hub-theme="dark"] main [class~="text-slate-800"],
+        [data-product-hub-theme="dark"] main [class~="text-slate-900"] {
+          color: #e2e8f0 !important;
+        }
+        [data-product-hub-theme="dark"] main [class~="text-slate-500"],
+        [data-product-hub-theme="dark"] main [class~="text-slate-600"] {
+          color: #a8b7cc !important;
+        }
+        [data-product-hub-theme="dark"] main [class~="text-blue-700"] {
+          color: #8fc5ff !important;
+        }
+        [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-slate-50"],
+        [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-slate-50/80"],
+        [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-white"] {
+          background-color: var(--hub-inset-surface) !important;
+        }
+        [data-product-hub-theme="dark"] header [class~="text-slate-500"],
+        [data-product-hub-theme="dark"] header [class~="text-slate-800"] {
+          color: #d3deec !important;
+        }
+        [data-product-hub-theme="dark"] header [class~="bg-white"] {
+          background-color: var(--hub-surface) !important;
+          border-color: #2a3b52 !important;
+        }
+      `}</style>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[252px] md:block">{renderSidebar()}</aside>
 
       {mobileMenuOpen && (
@@ -203,7 +266,7 @@ export function ProductHubClient({
       )}
 
       <div className="min-h-screen md:pl-[252px]">
-        <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-7">
+        <header data-hub-surface className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-7">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -220,6 +283,7 @@ export function ProductHubClient({
               <p className="hidden text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:block">Organization</p>
               <OrgSwitcher
                 activeOrgId={orgId}
+                activeOrgLogoUrl={orgLogoUrl}
                 options={organizations.map((organization) => ({
                   orgId: organization.orgId,
                   orgName: organization.orgName,
@@ -265,7 +329,7 @@ export function ProductHubClient({
                 <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
               </button>
               {profileOpen && (
-                <div className="absolute right-0 top-full z-30 mt-2 w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                <div data-hub-surface className="absolute right-0 top-full z-30 mt-2 w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
                   <div className="border-b border-slate-100 px-3 py-2">
                     <p className="truncate text-sm font-semibold text-slate-800">{userName || "Account"}</p>
                     <p className="truncate text-xs text-slate-500">{userEmail}</p>
@@ -286,6 +350,19 @@ export function ProductHubClient({
 
         <main className="mx-auto max-w-[1450px] space-y-10 px-4 py-5 sm:space-y-12 sm:px-7 sm:py-7 lg:px-10">
           <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#071c46] via-[#0754b7] to-[#087dd8] px-5 py-7 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:min-h-[250px] sm:px-9 sm:py-8">
+            {hubBranding.heroArtworkUrl && (
+              <>
+                <Image
+                  src={hubBranding.heroArtworkUrl}
+                  alt=""
+                  fill
+                  priority
+                  unoptimized
+                  className="absolute inset-0 z-0 object-cover"
+                />
+                <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-r from-[#071c46]/90 via-[#0754b7]/65 to-[#0754b7]/15" />
+              </>
+            )}
             <div className="pointer-events-none absolute inset-0 -z-10 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 75% 30%, #66d9ff 0, transparent 27%), radial-gradient(circle at 93% 90%, #3b82f6 0, transparent 28%)" }} />
             <div className="pointer-events-none absolute -right-20 -top-32 -z-10 h-80 w-80 rounded-full border border-white/15 sm:right-[10%]">
               <div className="absolute inset-7 rounded-full border border-white/15" />
@@ -310,6 +387,7 @@ export function ProductHubClient({
                 </a>
               </div>
             </div>
+            {!hubBranding.heroArtworkUrl && (
             <div aria-hidden="true" className="absolute bottom-4 right-6 hidden h-[180px] w-[270px] items-end justify-center lg:flex xl:right-[8%]">
               <div className="absolute right-0 top-2 grid h-10 w-10 place-items-center rounded-xl border border-white/25 bg-white/15 text-cyan-100 shadow-lg"><Users className="h-5 w-5" /></div>
               <div className="absolute left-1 top-10 grid h-10 w-10 place-items-center rounded-xl border border-white/25 bg-white/15 text-cyan-100 shadow-lg"><ShieldCheck className="h-5 w-5" /></div>
@@ -337,6 +415,7 @@ export function ProductHubClient({
               </div>
               <div className="absolute bottom-0 h-3 w-[225px] rounded-b-md bg-slate-500 shadow-lg" />
             </div>
+            )}
           </section>
 
           <section id="applications" className="scroll-mt-24 space-y-5">
@@ -359,7 +438,7 @@ export function ProductHubClient({
             )}
 
             {canSearch && (
-              <label className="flex h-10 max-w-sm items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-400">
+              <label data-hub-surface className="flex h-10 max-w-sm items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-400">
                 <Search className="h-4 w-4" />
                 <input
                   value={search}
@@ -376,10 +455,14 @@ export function ProductHubClient({
                   const presentation = PRODUCT_ICONS[product.slug] ?? { icon: LayoutGrid, color: "bg-slate-100 text-slate-700" };
                   const ProductIcon = presentation.icon;
                   return (
-                    <article key={product.slug} className="group flex min-h-[190px] flex-col rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:p-5">
+                    <article data-hub-surface key={product.slug} className="group flex min-h-[190px] flex-col rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div className={`grid h-12 w-12 place-items-center rounded-xl ${presentation.color}`}>
-                          <ProductIcon className="h-6 w-6" strokeWidth={1.8} />
+                          {product.imageUrl ? (
+                            <Image src={product.imageUrl} alt="" width={48} height={48} unoptimized className="h-full w-full rounded-xl bg-white object-contain p-1" />
+                          ) : (
+                            <ProductIcon className="h-6 w-6" strokeWidth={1.8} />
+                          )}
                         </div>
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${product.status === "Active" ? "bg-emerald-50 text-emerald-700" : product.status === "Read-only" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${product.status === "Active" ? "bg-emerald-500" : product.status === "Read-only" ? "bg-amber-500" : "bg-slate-400"}`} />
@@ -411,7 +494,7 @@ export function ProductHubClient({
                   );
                 })}
                 {isOrgAdmin && (
-                  <article className="flex min-h-[190px] flex-col justify-between rounded-xl border border-dashed border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-4 sm:p-5">
+                  <article data-hub-surface className="flex min-h-[190px] flex-col justify-between rounded-xl border border-dashed border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-4 sm:p-5">
                     <div className="flex items-start gap-3">
                       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700"><LayoutGrid className="h-6 w-6" /></div>
                       <div>
@@ -426,7 +509,7 @@ export function ProductHubClient({
                 )}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center sm:py-12">
+              <div data-hub-surface className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center sm:py-12">
                 <LayoutGrid className="mx-auto h-8 w-8 text-slate-400" />
                 <h3 className="mt-3 text-sm font-semibold text-slate-800">No applications available</h3>
                 <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
@@ -440,7 +523,7 @@ export function ProductHubClient({
           </section>
 
           {isOrgAdmin && (
-            <section className="flex flex-col gap-4 rounded-xl border border-blue-100 bg-blue-50/70 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <section data-hub-surface className="flex flex-col gap-4 rounded-xl border border-blue-100 bg-blue-50/70 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-blue-700">
                   <ShieldCheck className="h-5 w-5" />
@@ -457,20 +540,26 @@ export function ProductHubClient({
             </section>
           )}
 
-          <section id="about" className="scroll-mt-24 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
+          <section data-hub-surface id="about" className="scroll-mt-24 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
             <div aria-hidden="true" className="relative flex min-h-[230px] items-center justify-center overflow-hidden bg-gradient-to-br from-[#08234f] via-[#0872c9] to-[#56c3e8] p-8 sm:min-h-[280px]">
-              <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 30% 30%, white 0 1px, transparent 1.5px)", backgroundSize: "23px 23px" }} />
-              <div className="absolute h-56 w-56 rounded-full border border-white/25" />
-              <div className="absolute h-40 w-40 rounded-full border border-white/25" />
-              <div className="relative z-10 flex h-36 w-full max-w-[310px] items-center justify-center rounded-t-xl border-[7px] border-slate-800 bg-white/95 shadow-2xl">
-                <div className="text-center">
-                  <Image src="/thinksales-logo.svg" alt="" width={54} height={54} className="mx-auto" />
-                  <p className="mt-2 text-[10px] font-bold tracking-wide text-slate-700">THINK DIGITAL SOLUTIONS</p>
-                </div>
-              </div>
-              <div className="absolute bottom-7 h-3 w-[min(82%,340px)] rounded-b-md bg-slate-400 shadow-xl" />
-              <div className="absolute left-[12%] top-[15%] grid h-10 w-10 place-items-center rounded-xl border border-white/30 bg-white/15 text-white"><Database className="h-5 w-5" /></div>
-              <div className="absolute right-[12%] top-[22%] grid h-10 w-10 place-items-center rounded-xl border border-white/30 bg-white/15 text-white"><Network className="h-5 w-5" /></div>
+              {hubBranding.aboutImageUrl ? (
+                <Image src={hubBranding.aboutImageUrl} alt="" fill unoptimized className="absolute inset-0 object-cover" />
+              ) : (
+                <>
+                  <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 30% 30%, white 0 1px, transparent 1.5px)", backgroundSize: "23px 23px" }} />
+                  <div className="absolute h-56 w-56 rounded-full border border-white/25" />
+                  <div className="absolute h-40 w-40 rounded-full border border-white/25" />
+                  <div className="relative z-10 flex h-36 w-full max-w-[310px] items-center justify-center rounded-t-xl border-[7px] border-slate-800 bg-white/95 shadow-2xl">
+                    <div className="text-center">
+                      <Image src="/thinksales-logo.svg" alt="" width={54} height={54} className="mx-auto" />
+                      <p className="mt-2 text-[10px] font-bold tracking-wide text-slate-700">THINK DIGITAL SOLUTIONS</p>
+                    </div>
+                  </div>
+                  <div className="absolute bottom-7 h-3 w-[min(82%,340px)] rounded-b-md bg-slate-400 shadow-xl" />
+                  <div className="absolute left-[12%] top-[15%] grid h-10 w-10 place-items-center rounded-xl border border-white/30 bg-white/15 text-white"><Database className="h-5 w-5" /></div>
+                  <div className="absolute right-[12%] top-[22%] grid h-10 w-10 place-items-center rounded-xl border border-white/30 bg-white/15 text-white"><Network className="h-5 w-5" /></div>
+                </>
+              )}
             </div>
             <div className="flex flex-col justify-center p-6 sm:p-9">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">About Think Digital Solutions</p>
@@ -502,7 +591,7 @@ export function ProductHubClient({
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {SERVICES.map(({ title, description, icon: Icon, color }) => (
-                <Link key={title} href="/support" className="group rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:p-5">
+                <Link data-hub-surface key={title} href="/support" className="group rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:p-5">
                   <span className={`grid h-10 w-10 place-items-center rounded-xl ${color}`}><Icon className="h-5 w-5" /></span>
                   <h3 className="mt-4 text-sm font-bold text-[#172744]">{title}</h3>
                   <p className="mt-1.5 text-xs leading-5 text-slate-500">{description}</p>
@@ -513,7 +602,7 @@ export function ProductHubClient({
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1.45fr_0.75fr]">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div data-hub-surface className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Why Choose Think Digital Solutions?</p>
               <h2 className="mt-1 text-xl font-bold tracking-tight text-[#14233e]">A technology partner for your business.</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -525,7 +614,7 @@ export function ProductHubClient({
                 ))}
               </div>
             </div>
-            <div className="relative flex min-h-[270px] flex-col justify-end overflow-hidden rounded-2xl bg-gradient-to-br from-[#dbeafe] via-[#bfdbfe] to-[#93c5fd] p-6 sm:min-h-[320px]">
+            <div data-hub-surface className="relative flex min-h-[270px] flex-col justify-end overflow-hidden rounded-2xl bg-gradient-to-br from-[#dbeafe] via-[#bfdbfe] to-[#93c5fd] p-6 sm:min-h-[320px]">
               <div aria-hidden="true" className="absolute -right-10 -top-10 h-56 w-56 rounded-full border-[22px] border-white/30" />
               <div aria-hidden="true" className="absolute right-8 top-14 grid h-28 w-28 place-items-center rounded-full bg-white/60 text-blue-700 shadow-inner"><TrendingUp className="h-14 w-14" /></div>
               <div className="relative z-10 max-w-[280px]">
@@ -538,7 +627,7 @@ export function ProductHubClient({
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
-            <div id="support" className="scroll-mt-24 flex flex-col justify-between gap-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-[#eaf4ff] to-white p-5 sm:p-6">
+            <div data-hub-surface id="support" className="scroll-mt-24 flex flex-col justify-between gap-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-[#eaf4ff] to-white p-5 sm:p-6">
               <div className="flex gap-3">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-blue-700 shadow-sm"><LifeBuoy className="h-6 w-6" /></span>
                 <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Customer Support</p><h2 className="mt-1 text-lg font-bold text-[#172744]">Need Assistance?</h2><p className="mt-1 text-xs leading-5 text-slate-600">Our support team is here to help you get the most out of your applications.</p></div>
@@ -548,7 +637,7 @@ export function ProductHubClient({
                 <Link href="/support" className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"><BookOpen className="h-3.5 w-3.5" /> Help & Guides</Link>
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <div data-hub-surface className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div className="flex items-start justify-between gap-3">
                 <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Updates</p><h2 className="mt-1 text-lg font-bold text-[#172744]">Latest News & Updates</h2></div>
                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-700"><Bell className="h-4 w-4" /></span>

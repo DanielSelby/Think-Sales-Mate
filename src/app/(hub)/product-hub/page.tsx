@@ -6,7 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { getProductLaunchPath } from "@/lib/product-launch-path";
 import { shouldShowProductInHub } from "@/lib/product-hub-visibility";
-import { getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
+import { getProductHubBranding, getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
 import { reconcileCurrentProductEntitlements } from "@/lib/supabase/product-entitlements";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
@@ -42,11 +42,13 @@ export default async function ProductHubPage() {
     accessPermissions: context.accessPermissions,
   });
   await reconcileCurrentProductEntitlements();
-  const [profileResult, notificationResult, catalog, entitlementResult, assignmentResult] = await Promise.all([
+  const [profileResult, companyProfileResult, notificationResult, catalog, hubBranding, entitlementResult, assignmentResult] = await Promise.all([
     supabase.from("profiles").select("full_name, avatar_url").eq("id", context.userId).maybeSingle(),
+    supabase.from("company_profile").select("logo_url").eq("org_id", context.orgId).maybeSingle(),
     supabase.from("notifications").select("id", { count: "exact", head: true })
       .eq("org_id", context.orgId).eq("is_read", false),
     getPublishedPlatformProducts(),
+    getProductHubBranding(),
     admin.from("organization_product_entitlements")
       .select("product_slug, status")
       .eq("organization_id", context.orgId),
@@ -59,6 +61,7 @@ export default async function ProductHubPage() {
         .eq("is_active", true),
   ]);
   if (profileResult.error) throw new Error(`Could not load your profile: ${profileResult.error.message}`);
+  if (companyProfileResult.error) throw new Error(`Could not load your organization logo: ${companyProfileResult.error.message}`);
   if (notificationResult.error) throw new Error(`Could not load notification count: ${notificationResult.error.message}`);
   if (entitlementResult.error) throw new Error(`Could not load product entitlements: ${entitlementResult.error.message}`);
   if (assignmentResult.error) throw new Error(`Could not verify product assignments: ${assignmentResult.error.message}`);
@@ -74,7 +77,13 @@ export default async function ProductHubPage() {
 
     if (subscriptionStatus === "pending") {
       if (isOrgAdmin) {
-        items.push({ ...product, status: "Provisioning", launchPath: null, canOpen: false });
+        items.push({
+          ...product,
+          imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
+          status: "Provisioning",
+          launchPath: null,
+          canOpen: false,
+        });
       }
       continue;
     }
@@ -95,12 +104,19 @@ export default async function ProductHubPage() {
     if (hasReadAccess && launchPath) {
       items.push({
         ...product,
+        imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
         status: subscriptionStatus === "grace" || subscriptionStatus === "expired" ? "Read-only" : "Active",
         launchPath,
         canOpen: true,
       });
     } else if (isOrgAdmin) {
-      items.push({ ...product, status: "Unavailable", launchPath: null, canOpen: false });
+      items.push({
+        ...product,
+        imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
+        status: "Unavailable",
+        launchPath: null,
+        canOpen: false,
+      });
     }
   }
 
@@ -108,7 +124,9 @@ export default async function ProductHubPage() {
     <ProductHubClient
       orgId={context.orgId}
       orgName={context.orgName}
+      hubBranding={hubBranding}
       organizations={context.memberships}
+      orgLogoUrl={companyProfileResult.data?.logo_url ?? null}
       userName={profileResult.data?.full_name ?? null}
       userEmail={context.userEmail}
       avatarUrl={profileResult.data?.avatar_url ?? null}

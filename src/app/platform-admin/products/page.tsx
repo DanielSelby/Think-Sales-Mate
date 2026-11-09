@@ -4,9 +4,11 @@ import { Box, Info, Plus, ShieldCheck } from "lucide-react";
 import { getPlatformAdmin, platformRoleCan } from "@/lib/platform-auth";
 import { platformRoleCanAccessPage } from "@/lib/platform-admin-pages";
 import { createPlatformServerClient } from "@/lib/supabase/platform-server";
+import { getProductHubBranding } from "@/lib/supabase/platform-admin";
 import PlatformNotificationBell from "../notification-bell";
 import PlatformAdminSignOutButton from "../sign-out-button";
 import { retryProductEntitlementEvent } from "../actions";
+import { ProductHubAppearanceManager } from "./product-hub-appearance-manager";
 import {
   ProductCatalogDashboard,
   type CatalogProduct,
@@ -142,6 +144,7 @@ export default async function PlatformProductCatalogPage() {
     };
   });
   const canManage = platformRoleCan(admin.role, "manage_platform");
+  const hubBranding = await getProductHubBranding();
   const summary = {
     totalProducts: products.length,
     activeOrganizations: activeOrganizations ?? 0,
@@ -215,6 +218,12 @@ export default async function PlatformProductCatalogPage() {
             Publishing does not activate subscriptions or grant organization access; unpublishing does not revoke existing access.
           </p>
         </aside>
+
+        <ProductHubAppearanceManager
+          branding={hubBranding}
+          products={products.map(({ slug, name }) => ({ slug, name }))}
+          canManage={canManage}
+        />
 
         <ProductCatalogDashboard products={products} summary={summary} canManage={canManage} />
 

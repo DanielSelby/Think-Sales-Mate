@@ -78,6 +78,47 @@ export async function getPlatformWatermarkConfiguration() {
   return configuration;
 }
 
+export interface ProductHubBranding {
+  heroArtworkUrl: string | null;
+  aboutImageUrl: string | null;
+  productImageUrls: Partial<Record<PlatformProductSlug, string>>;
+  darkThemeEnabled: boolean;
+  darkSurfaceStyle: "opaque" | "transparent";
+}
+
+function getManagedAssetUrl(platform: ReturnType<typeof createPlatformAdminClient>, value: unknown): string | null {
+  if (typeof value !== "string" || !/^product-hub\/[a-z0-9/-]+\.(?:jpg|png|svg|webp)$/.test(value)) return null;
+  return platform.storage.from("platform-assets").getPublicUrl(value).data.publicUrl;
+}
+
+export async function getProductHubBranding(): Promise<ProductHubBranding> {
+  const platform = createPlatformAdminClient();
+  const { data, error } = await platform
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "product_hub_branding")
+    .maybeSingle();
+  if (error) throw new Error(`Could not load Product Hub appearance settings: ${error.message}`);
+
+  const value = data?.value ?? {};
+  const productPaths = value.product_image_paths && typeof value.product_image_paths === "object" && !Array.isArray(value.product_image_paths)
+    ? value.product_image_paths as Record<string, unknown>
+    : {};
+  const productImageUrls: Partial<Record<PlatformProductSlug, string>> = {};
+  for (const slug of PRODUCT_SLUGS) {
+    const url = getManagedAssetUrl(platform, productPaths[slug]);
+    if (url) productImageUrls[slug] = url;
+  }
+
+  return {
+    heroArtworkUrl: getManagedAssetUrl(platform, value.hero_storage_path),
+    aboutImageUrl: getManagedAssetUrl(platform, value.about_storage_path),
+    productImageUrls,
+    darkThemeEnabled: value.dark_theme_enabled === true,
+    darkSurfaceStyle: value.dark_surface_style === "transparent" ? "transparent" : "opaque",
+  };
+}
+
 export async function getPublishedPlatformProducts() {
   const platform = createPlatformAdminClient();
   const { data, error } = await platform
