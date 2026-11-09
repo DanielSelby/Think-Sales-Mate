@@ -636,6 +636,8 @@ export interface Database {
           payment_option: "pay_at_fulfillment" | "paystack";
           subtotal: number;
           total: number;
+          loyalty_discount: number;
+          loyalty_points_redeemed: number;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -669,6 +671,8 @@ export interface Database {
           payment_option?: "pay_at_fulfillment" | "paystack";
           subtotal: number;
           total: number;
+          loyalty_discount?: number;
+          loyalty_points_redeemed?: number;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -770,6 +774,32 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["restaurant_order_payments"]["Row"]>;
+        Relationships: [];
+      };
+      restaurant_loyalty_transactions: {
+        Row: {
+          id: string;
+          org_id: string;
+          customer_id: string;
+          order_id: string;
+          source_payment_id: string | null;
+          source_key: string;
+          transaction_type: "earn" | "redeem" | "refund_adjustment" | "cancel_adjustment";
+          points_delta: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          customer_id: string;
+          order_id: string;
+          source_payment_id?: string | null;
+          source_key: string;
+          transaction_type: "earn" | "redeem" | "refund_adjustment" | "cancel_adjustment";
+          points_delta: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["restaurant_loyalty_transactions"]["Row"]>;
         Relationships: [];
       };
       restaurant_online_settings: {
@@ -5219,6 +5249,39 @@ export interface Database {
       };
     };
     Functions: {
+      get_restaurant_loyalty_balance: {
+        Args: { p_org_id: string; p_customer_id: string };
+        Returns: number;
+      };
+      create_restaurant_order_with_loyalty: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_order_type: "dine_in" | "takeaway" | "pickup" | "delivery";
+          p_table_id: string | null;
+          p_customer_name: string | null;
+          p_customer_phone: string | null;
+          p_delivery_address: string | null;
+          p_notes: string | null;
+          p_items: Json;
+          p_created_by: string;
+          p_customer_id: string | null;
+          p_request_key: string;
+          p_payments: Json;
+          p_tip_amount: number;
+          p_points_to_redeem: number;
+          p_expected_total: number;
+        };
+        Returns: Array<{
+          order_id: string;
+          order_number: number;
+          bill_id: string;
+          payment_status: "unpaid" | "partial" | "paid";
+          points_earned: number;
+          points_redeemed: number;
+          loyalty_discount: number;
+        }>;
+      };
       transition_service_appointment: {
         Args: { p_appointment_id: string; p_new_status: ServiceAppointmentStatus };
         Returns: undefined;

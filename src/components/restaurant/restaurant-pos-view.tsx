@@ -2,16 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Trash2, X } from "lucide-react";
+import { Award, Trash2, WifiOff, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formatMoney } from "@/lib/currency";
 import { searchCustomers, type CustomerOption } from "@/app/(dashboard)/pos/actions";
 import {
   createRestaurantOrder,
   deleteRestaurantPosDraft,
+  getRestaurantLoyaltyBalance,
   saveRestaurantPosDraft,
 } from "@/app/(dashboard)/restaurant/actions";
 import { getRestaurantPosPaymentAccountIndexes } from "@/lib/restaurant/pos-payments";
+import { calculateRestaurantLoyaltyDiscount } from "@/lib/restaurant/loyalty";
+import { enqueueOfflineOperation, getOfflineQueue, subscribeOfflineQueue } from "@/lib/offline/queue";
+import { isOfflineTransactionsEnabled } from "@/lib/offline/cache";
 import type { Database } from "@/types/database";
 
 type MenuItem = Database["public"]["Tables"]["restaurant_menu_items"]["Row"];
@@ -33,6 +37,8 @@ type PosDraftPayload = {
   itemNotes?: Record<string, string>;
   customerName: string;
   customerPhone: string;
+  customerId?: string | null;
+  selectedCustomer?: Pick<CustomerOption, "id" | "name" | "phone" | "email"> | null;
   deliveryAddress: string;
   notes: string;
   paymentTiming: "pay_now" | "pay_later";
@@ -63,6 +69,13 @@ function isPosDraftPayload(value: unknown): value is PosDraftPayload {
           Object.prototype.hasOwnProperty.call(quantities, itemId) && typeof note === "string" && note.length <= 500)))
     && typeof value.customerName === "string"
     && typeof value.customerPhone === "string"
+    && (value.customerId === undefined || value.customerId === null || typeof value.customerId === "string")
+    && (value.selectedCustomer === undefined || value.selectedCustomer === null
+      || (isRecord(value.selectedCustomer)
+        && typeof value.selectedCustomer.id === "string"
+        && typeof value.selectedCustomer.name === "string"
+        && (value.selectedCustomer.phone === null || typeof value.selectedCustomer.phone === "string")
+        && (value.selectedCustomer.email === null || typeof value.selectedCustomer.email === "string")))
     && typeof value.deliveryAddress === "string"
     && typeof value.notes === "string"
     && (value.paymentTiming === "pay_now" || value.paymentTiming === "pay_later")
@@ -83,6 +96,7 @@ function money(amount: number, currency: string) {
 }
 
 export default function RestaurantPosView({
+  orgId,
   locations,
   categories,
   menuItems,
@@ -94,6 +108,7 @@ export default function RestaurantPosView({
   currency,
   heldDrafts: initialHeldDrafts,
 }: {
+  orgId: string;
   locations: Location[];
   categories: MenuCategory[];
   menuItems: MenuItem[];
@@ -122,6 +137,9 @@ export default function RestaurantPosView({
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [loyaltyBalance, setLoyaltyBalance] = useState<number | null>(null);
+  const [loyaltyError, setLoyaltyError] = useState("");
+  const [pointsToRedeem, setPointsToRedeem] = useState("0");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [categoryId, setCategoryId] = useState("all");
@@ -134,7 +152,55 @@ export default function RestaurantPosView({
   const [receiptHref, setReceiptHref] = useState("");
   const [heldDrafts, setHeldDrafts] = useState(initialHeldDrafts);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [queuedRestaurantOrders, setQueuedRestaurantOrders] = useState(0);
   const pendingRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  const loyaltyLoading = Boolean(selectedCustomer && isOnline && loyaltyBalance === null && !loyaltyError);
+
+  useEffect(() => {
+    const updateNetworkState = () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+      if (!online) {
+        setPaymentTiming("pay_later");
+        setTipAmountInput("0");
+        setSplitPayments([]);
+        setPointsToRedeem("0");
+      } else {
+        setLoyaltyBalance(null);
+        setLoyaltyError("");
+      }
+    };
+    const updateQueueCount = () => {
+      setQueuedRestaurantOrders(getOfflineQueue().filter((operation) => operation.type === "restaurant_order").length);
+    };
+    updateNetworkState();
+    updateQueueCount();
+    window.addEventListener("online", updateNetworkState);
+    window.addEventListener("offline", updateNetworkState);
+    const unsubscribe = subscribeOfflineQueue(updateQueueCount);
+    return () => {
+      window.removeEventListener("online", updateNetworkState);
+      window.removeEventListener("offline", updateNetworkState);
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCustomer || !isOnline) return;
+    let active = true;
+    getRestaurantLoyaltyBalance(selectedCustomer.id)
+      .then((balance) => {
+        if (active) {
+          setLoyaltyBalance(balance);
+          setLoyaltyError("");
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active) setLoyaltyError(cause instanceof Error ? cause.message : "Could not load loyalty points.");
+      });
+    return () => { active = false; };
+  }, [selectedCustomer?.id, isOnline, selectedCustomer]);
 
   useEffect(() => {
     if (!customerSearchOpen) return;
@@ -187,6 +253,13 @@ export default function RestaurantPosView({
       value + Number(modifierOptions.find((option) => option.id === optionId)?.price_delta ?? 0), 0);
     return sum + (Number(item.price) + extras) * quantities[item.id];
   }, 0);
+  const roundedTotal = Math.round(total * 100) / 100;
+  const requestedPoints = Number(pointsToRedeem);
+  const activePointsToRedeem = isOnline && Number.isInteger(requestedPoints) && requestedPoints > 0
+    ? requestedPoints
+    : 0;
+  const loyaltyDiscount = calculateRestaurantLoyaltyDiscount(activePointsToRedeem, roundedTotal);
+  const amountDue = Math.max(0, Math.round((roundedTotal - loyaltyDiscount) * 100) / 100);
   const availableTables = tables.filter((table) => table.location_id === locationId);
 
   function changeQuantity(itemId: string, delta: number) {
@@ -214,6 +287,7 @@ export default function RestaurantPosView({
     setItemNotes({});
     setSplitPayments([]);
     setActiveDraftId(null);
+    setPointsToRedeem("0");
     setError("");
     setSuccess("");
   }
@@ -234,6 +308,9 @@ export default function RestaurantPosView({
     setCustomerQuery("");
     setCustomerResults([]);
     setSelectedCustomer(null);
+    setLoyaltyBalance(null);
+    setLoyaltyError("");
+    setPointsToRedeem("0");
     setCustomerSearchOpen(false);
     setDeliveryAddress("");
     setNotes("");
@@ -264,6 +341,15 @@ export default function RestaurantPosView({
           itemNotes,
           customerName,
           customerPhone,
+          customerId: selectedCustomer?.id ?? null,
+          selectedCustomer: selectedCustomer
+            ? {
+              id: selectedCustomer.id,
+              name: selectedCustomer.name,
+              phone: selectedCustomer.phone,
+              email: selectedCustomer.email,
+            }
+            : null,
           deliveryAddress,
           notes,
           paymentTiming,
@@ -330,6 +416,10 @@ export default function RestaurantPosView({
     setItemNotes(draft.itemNotes ?? {});
     setCustomerName(draft.customerName);
     setCustomerPhone(draft.customerPhone);
+    setSelectedCustomer(draft.selectedCustomer ?? null);
+    setLoyaltyBalance(null);
+    setLoyaltyError("");
+    setPointsToRedeem("0");
     setDeliveryAddress(draft.deliveryAddress);
     setNotes(draft.notes);
     setActiveDraftId(heldDraft.id);
@@ -384,6 +474,31 @@ export default function RestaurantPosView({
       setError("Enter the delivery address.");
       return;
     }
+    if (!Number.isInteger(requestedPoints) || requestedPoints < 0
+      || (requestedPoints > 0 && !selectedCustomer)) {
+      setError("Select an existing customer and enter a whole-number loyalty point amount.");
+      return;
+    }
+    if (requestedPoints > 0 && !isOnline) {
+      setError("Loyalty redemption requires a connection. Clear the points or reconnect before continuing.");
+      return;
+    }
+    if (requestedPoints > 0 && requestedPoints > (loyaltyBalance ?? 0)) {
+      setError("The customer does not have enough loyalty points. Refresh the balance and try again.");
+      return;
+    }
+    if (requestedPoints > Math.round(roundedTotal * 100)) {
+      setError("Loyalty points cannot reduce the order below zero.");
+      return;
+    }
+    if (!isOnline && paymentTiming === "pay_now") {
+      setError("Payment cannot be processed offline. Switch to Pay later to queue this order unpaid.");
+      return;
+    }
+    if (!isOnline && !isOfflineTransactionsEnabled()) {
+      setError("Offline transactions are disabled in General Settings. Reconnect before creating this order.");
+      return;
+    }
     const tipAmount = Number(tipAmountInput);
     if (paymentTiming === "pay_now"
       && (!/^\d+(\.\d{1,2})?$/.test(tipAmountInput) || !Number.isFinite(tipAmount) || tipAmount < 0)) {
@@ -403,8 +518,8 @@ export default function RestaurantPosView({
         return;
       }
       const splitTotalCents = splitPaymentAmounts.reduce((sum, amount) => sum + Math.round(amount * 100), 0);
-      if (splitTotalCents !== Math.round(total * 100)) {
-        setError(`Split payments must add up to the order total of ${money(total, currency)}.`);
+      if (splitTotalCents !== Math.round(amountDue * 100)) {
+        setError(`Split payments must add up to the amount due of ${money(amountDue, currency)}.`);
         return;
       }
       const requiredAccountIndexes = new Set(getRestaurantPosPaymentAccountIndexes(
@@ -443,6 +558,7 @@ export default function RestaurantPosView({
         locationId,
         orderType,
         tableId: orderType === "dine_in" ? tableId : null,
+        customerId: selectedCustomer?.id ?? null,
         customerName,
         customerPhone,
         deliveryAddress,
@@ -456,23 +572,50 @@ export default function RestaurantPosView({
             .flatMap((group) => selectedOptions[`${item.id}:${group.id}`] ?? []),
         })),
       };
-      const fingerprint = JSON.stringify({ ...orderInput, paymentMethod, paymentAccountId, splitPayments, tipAmount });
+      const fingerprint = JSON.stringify({
+        ...orderInput,
+        paymentMethod,
+        paymentAccountId,
+        splitPayments,
+        tipAmount,
+        paymentTiming,
+        pointsToRedeem: activePointsToRedeem,
+      });
+      if (!pendingRequestRef.current || pendingRequestRef.current.fingerprint !== fingerprint) {
+        pendingRequestRef.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      if (!isOnline) {
+        enqueueOfflineOperation("restaurant_order", {
+          orgId,
+          locationId,
+          orderType,
+          tableId: orderType === "dine_in" ? tableId : null,
+          customerId: selectedCustomer?.id ?? null,
+          customerName,
+          customerPhone,
+          deliveryAddress,
+          notes,
+          expectedTotal: roundedTotal,
+          items: orderInput.items,
+        });
+        setSuccess("Order saved on this device and queued as unpaid. It will sync when your connection returns; no payment or loyalty redemption was recorded.");
+        setReceiptHref("");
+        setActiveDraftId(null);
+        pendingRequestRef.current = null;
+        clearOrderForNewSale();
+        return;
+      }
       let payment: {
-        requestKey: string;
         method: PaymentMethod;
         tipAmount: number;
         amount: number;
         payments?: Array<{ method: PaymentMethod; amount: number; accountId?: string }>;
       } | undefined;
       if (paymentTiming === "pay_now") {
-        if (!pendingRequestRef.current || pendingRequestRef.current.fingerprint !== fingerprint) {
-          pendingRequestRef.current = { fingerprint, key: crypto.randomUUID() };
-        }
         payment = {
-          requestKey: pendingRequestRef.current.key,
           method: paymentMethod,
           tipAmount,
-          amount: total,
+          amount: amountDue,
           ...(splitPayments.length > 0
             ? { payments: splitPayments.map((splitPayment) => ({
               method: splitPayment.method,
@@ -481,12 +624,18 @@ export default function RestaurantPosView({
             })) }
             : { payments: [{
               method: paymentMethod,
-              amount: total,
+              amount: amountDue,
               ...(paymentAccountId ? { accountId: paymentAccountId } : {}),
             }] })
         };
       }
-      const result = await createRestaurantOrder({ ...orderInput, payment });
+      const result = await createRestaurantOrder({
+        ...orderInput,
+        requestKey: pendingRequestRef.current.key,
+        pointsToRedeem: activePointsToRedeem,
+        expectedTotal: roundedTotal,
+        payment,
+      });
       let heldDraftWarning = "";
       if (activeDraftId) {
         try {
@@ -497,11 +646,16 @@ export default function RestaurantPosView({
           heldDraftWarning = ` The order was created, but its held draft could not be removed${reason}; delete that draft to avoid creating it again.`;
         }
       }
-      if (payment && result.billId) {
-        setSuccess(`Order #${result.orderNumber} · Cue No. ${result.cueNumber} created and paid.${heldDraftWarning}`);
+      if (result.paymentStatus === "paid" && result.billId) {
+        const loyaltyMessage = [
+          result.loyaltyDiscount > 0 ? `${money(result.loyaltyDiscount, currency)} loyalty discount applied.` : "",
+          result.pointsEarned > 0 ? `${result.pointsEarned} points earned.` : "",
+        ].filter(Boolean).join(" ");
+        setSuccess(`Order #${result.orderNumber} · Cue No. ${result.cueNumber} created and paid.${loyaltyMessage ? ` ${loyaltyMessage}` : ""}${heldDraftWarning}`);
         setReceiptHref(`/restaurant/receipt?orderId=${encodeURIComponent(result.orderId)}&billId=${encodeURIComponent(result.billId)}`);
       } else {
-        setSuccess(`Order #${result.orderNumber} · Cue No. ${result.cueNumber} created. Complete payment from Restaurant Orders.${heldDraftWarning}`);
+        const loyaltyMessage = result.loyaltyDiscount > 0 ? ` ${money(result.loyaltyDiscount, currency)} loyalty discount applied.` : "";
+        setSuccess(`Order #${result.orderNumber} · Cue No. ${result.cueNumber} created. Complete payment from Restaurant Orders.${loyaltyMessage}${heldDraftWarning}`);
         setReceiptHref("");
       }
       pendingRequestRef.current = null;
@@ -514,9 +668,12 @@ export default function RestaurantPosView({
       setTableId("");
       setCustomerName("");
       setCustomerPhone("");
+      setPointsToRedeem("0");
       setCustomerQuery("");
       setCustomerResults([]);
       setSelectedCustomer(null);
+      setLoyaltyBalance(null);
+      setLoyaltyError("");
       setCustomerSearchOpen(false);
       setDeliveryAddress("");
       setNotes("");
@@ -535,6 +692,10 @@ export default function RestaurantPosView({
       </div>
       <Link href="/restaurant" className="rounded-lg border px-4 py-2 text-sm font-semibold">Restaurant management</Link>
     </header>
+    {!isOnline && <section role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+      <p className="flex items-center gap-2 font-semibold"><WifiOff aria-hidden="true" className="h-4 w-4" />You are offline. Orders can only be saved unpaid and will sync when reconnected.</p>
+      <p className="mt-1 text-xs">No payments or loyalty redemptions are processed offline. {queuedRestaurantOrders} Restaurant order(s) are queued on this device.</p>
+    </section>}
     {heldDrafts.length > 0 && <section aria-label="Held POS orders" className="space-y-2 rounded-xl border bg-white p-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-slate-900">Held orders</h2>
@@ -746,6 +907,9 @@ export default function RestaurantPosView({
               onChange={(event) => {
                 setCustomerQuery(event.target.value);
                 setSelectedCustomer(null);
+                setLoyaltyBalance(null);
+                setLoyaltyError("");
+                setPointsToRedeem("0");
                 setCustomerSearchOpen(true);
               }}
               placeholder="Search name, phone, or email"
@@ -757,6 +921,9 @@ export default function RestaurantPosView({
             {customerResults.map((customer) => <li key={customer.id}>
               <button type="button" onClick={() => {
                 setSelectedCustomer(customer);
+                setLoyaltyBalance(null);
+                setLoyaltyError("");
+                setPointsToRedeem("0");
                 setCustomerName(customer.name);
                 setCustomerPhone(customer.phone ?? "");
                 setCustomerQuery("");
@@ -770,23 +937,58 @@ export default function RestaurantPosView({
           </ul>}
           {selectedCustomer && <p className="mt-1 text-xs text-emerald-700">Selected: {selectedCustomer.name} · <button type="button" onClick={() => {
             setSelectedCustomer(null);
-            setCustomerName("");
+          setLoyaltyBalance(null);
+          setLoyaltyError("");
+          setPointsToRedeem("0");
+          setCustomerName("");
             setCustomerPhone("");
             setCustomerSearchOpen(true);
           }} className="font-semibold underline">Change</button></p>}
           {customerSearchOpen && customerQuery.trim().length > 0 && customerResults.length === 0 && <p className="mt-1 text-xs text-slate-500">No matching customers found. You can enter the customer details below.</p>}
         </div>
+        {selectedCustomer && <section className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3" aria-label="Restaurant loyalty">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-1 text-xs font-bold text-emerald-900"><Award aria-hidden="true" className="h-3.5 w-3.5" />Loyalty rewards</h3>
+            <span className="text-xs text-emerald-800">
+              {!isOnline ? "Reconnect to check" : loyaltyLoading ? "Loading points…" : loyaltyBalance === null ? "Balance unavailable" : `${loyaltyBalance} points`}
+            </span>
+          </div>
+          {(!isOnline || loyaltyError) && <p role="status" className="text-xs text-amber-800">{!isOnline ? "Reconnect to check or redeem this customer’s points." : loyaltyError}</p>}
+          <label className="block text-xs font-semibold text-slate-700">
+            Points to redeem (100 points = {money(1, currency)})
+            <input
+              type="number"
+              min="0"
+              max={loyaltyBalance ?? 0}
+              step="1"
+              value={pointsToRedeem}
+              disabled={!isOnline || loyaltyLoading || loyaltyBalance === null}
+              onChange={(event) => setPointsToRedeem(event.target.value)}
+              className="mt-1 h-9 w-full rounded-lg border px-3 text-sm disabled:bg-slate-100"
+            />
+          </label>
+        </section>}
         <label className="block text-xs font-semibold text-slate-600">Customer name (optional)<input value={customerName} onChange={(event) => {
           setCustomerName(event.target.value);
           setSelectedCustomer(null);
+          setLoyaltyBalance(null);
+          setLoyaltyError("");
+          setPointsToRedeem("0");
         }} maxLength={120} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         <label className="block text-xs font-semibold text-slate-600">Phone (optional)<input value={customerPhone} onChange={(event) => {
           setCustomerPhone(event.target.value);
           setSelectedCustomer(null);
+          setLoyaltyBalance(null);
+          setLoyaltyError("");
+          setPointsToRedeem("0");
         }} maxLength={40} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
         {orderType === "delivery" && <label className="block text-xs font-semibold text-slate-600">Delivery address<input required value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} maxLength={300} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>}
         <label className="block text-xs font-semibold text-slate-600">Order notes<input value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm" /></label>
-        <p className="flex justify-between border-t pt-3 font-bold"><span>Total</span><span>{money(total, currency)}</span></p>
+        <div className="space-y-1 border-t pt-3 text-sm">
+          <p className="flex justify-between"><span>Subtotal</span><span>{money(roundedTotal, currency)}</span></p>
+          {loyaltyDiscount > 0 && <p className="flex justify-between text-emerald-700"><span>Loyalty discount ({activePointsToRedeem} points)</span><span>−{money(loyaltyDiscount, currency)}</span></p>}
+          <p className="flex justify-between font-bold"><span>Amount due</span><span>{money(amountDue, currency)}</span></p>
+        </div>
         <fieldset className="space-y-2 rounded-lg border p-3">
           <legend className="px-1 text-xs font-semibold text-slate-600">Payment</legend>
           <label className="flex items-center gap-2 text-sm">
@@ -794,15 +996,16 @@ export default function RestaurantPosView({
             <span>Pay later</span>
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="radio" name="paymentTiming" value="pay_now" checked={paymentTiming === "pay_now"} onChange={() => setPaymentTiming("pay_now")} />
+            <input type="radio" name="paymentTiming" value="pay_now" checked={paymentTiming === "pay_now"} disabled={!isOnline} onChange={() => setPaymentTiming("pay_now")} />
             <span>Pay now</span>
           </label>
+          {!isOnline && <p className="text-xs text-amber-800">Pay now is unavailable offline.</p>}
           {paymentTiming === "pay_now" && <div className="grid grid-cols-2 gap-2 pt-1">
             <label className="col-span-2 flex items-center gap-2 text-xs font-medium text-slate-600">
               <input type="checkbox" checked={splitPayments.length > 0} onChange={(event) => {
                 if (event.target.checked) {
                   setSplitPayments([
-                    { method: paymentMethod, amount: total.toFixed(2) },
+                    { method: paymentMethod, amount: amountDue.toFixed(2) },
                     { method: paymentMethod === "cash" ? "card" : "cash", amount: "0" },
                   ]);
                 } else {
@@ -812,7 +1015,7 @@ export default function RestaurantPosView({
               Split payment across methods
             </label>
             {splitPayments.length > 0 ? <div className="col-span-2 space-y-2">
-              <p className="text-xs text-slate-500">Allocate the full order total across two to four payment methods.</p>
+              <p className="text-xs text-slate-500">Allocate the amount due across two to four payment methods.</p>
               {splitPayments.map((splitPayment, index) => <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
                 <label className="text-xs font-semibold text-slate-600">Method
                   <select value={splitPayment.method} onChange={(event) => setSplitPayments((current) => current.map((paymentEntry, entryIndex) =>
@@ -843,7 +1046,7 @@ export default function RestaurantPosView({
                 method: (["cash", "card", "mobile_money", "other"] as const).find((method) => !current.some((entry) => entry.method === method)) ?? "other",
                 amount: "0",
               }])} className="rounded-lg border px-3 py-2 text-xs font-semibold">Add payment method</button>}
-              <p className="text-xs font-semibold text-slate-600">Allocated: {money(splitPaymentTotal, currency)} / {money(total, currency)}</p>
+              <p className="text-xs font-semibold text-slate-600">Allocated: {money(splitPaymentTotal, currency)} / {money(amountDue, currency)}</p>
             </div> : <>
             <label className="text-xs font-semibold text-slate-600">Payment method
               <select value={paymentMethod} onChange={(event) => {

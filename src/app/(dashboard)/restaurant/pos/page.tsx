@@ -50,6 +50,7 @@ export default async function RestaurantPosPage() {
     : { data: [], error: null };
   if (heldDraftsError) throw new Error(`Could not load held restaurant orders: ${heldDraftsError.message}`);
   return <RestaurantPosView
+    orgId={context.orgId}
     locations={accessibleLocations}
     categories={categories ?? []}
     menuItems={menuItems ?? []}

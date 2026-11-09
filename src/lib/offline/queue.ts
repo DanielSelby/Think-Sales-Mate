@@ -1,7 +1,7 @@
 "use client";
 
 export type OfflineSyncMode = "automatic" | "approval" | "manual";
-export type OfflineOperationType = "sale";
+export type OfflineOperationType = "sale" | "restaurant_order";
 
 export interface OfflineOperation {
   id: string;

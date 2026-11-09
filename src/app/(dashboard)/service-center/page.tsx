@@ -61,6 +61,7 @@ export default async function ServiceCenterPage() {
     canViewInventory,
     canEditInventory,
     canManageServiceNotifications,
+    canViewAccounting,
   ] = await Promise.all([
     canPermission("service_jobs", "create"),
     canPermission("service_jobs", "edit"),
@@ -73,6 +74,7 @@ export default async function ServiceCenterPage() {
     canPermission("inventory", "view"),
     canPermission("inventory", "edit"),
     canPermission("settings", "edit"),
+    canPermission("accounting", "view"),
   ]);
   const { data: notificationSettings, error: notificationSettingsError } = await supabase
     .from("service_status_notification_settings")
@@ -86,7 +88,7 @@ export default async function ServiceCenterPage() {
   const [locationsResult, customersResult, assetsResult, techniciansResult, appointmentsResult] = await Promise.all([
     locationsPromise,
     supabase.from("customers")
-      .select("id, name")
+      .select("id, name, email, phone, company")
       .eq("org_id", context.orgId)
       .order("name")
       .limit(2000),
@@ -188,6 +190,42 @@ export default async function ServiceCenterPage() {
     : await (allowedLocationIds ? jobsQuery.in("location_id", allowedLocationIds) : jobsQuery);
   const { data: jobs, error: jobsError } = jobsResult;
   if (jobsError) throw new Error(`Unable to load service jobs: ${jobsError.message}`);
+
+  const serviceInvoicesQuery = supabase.from("invoices")
+    .select("id, invoice_number, customer_name, amount, amount_paid, status, due_date, source_service_job_id, created_at")
+    .eq("org_id", context.orgId)
+    .not("source_service_job_id", "is", null)
+    .neq("status", "void")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  const serviceInvoicesResult = canViewAccounting && (!allowedLocationIds || allowedLocationIds.length > 0)
+    ? await serviceInvoicesQuery
+    : { data: [], error: null };
+  if (serviceInvoicesResult.error) throw new Error(`Unable to load service invoices: ${serviceInvoicesResult.error.message}`);
+  const invoiceJobIds = Array.from(new Set((serviceInvoicesResult.data ?? [])
+    .map((invoice) => invoice.source_service_job_id)
+    .filter((jobId): jobId is string => Boolean(jobId))));
+  const serviceInvoiceJobsQuery = invoiceJobIds.length
+    ? supabase.from("service_jobs")
+      .select("id, job_number, location_id")
+      .eq("org_id", context.orgId)
+      .in("id", invoiceJobIds)
+    : null;
+  const serviceInvoiceJobsResult = !serviceInvoiceJobsQuery
+    ? { data: [], error: null }
+    : allowedLocationIds
+      ? await serviceInvoiceJobsQuery.in("location_id", allowedLocationIds)
+      : await serviceInvoiceJobsQuery;
+  if (serviceInvoiceJobsResult.error) throw new Error(`Unable to scope service invoices to authorized branches: ${serviceInvoiceJobsResult.error.message}`);
+  const serviceInvoiceJobById = new Map((serviceInvoiceJobsResult.data ?? []).map((job) => [job.id, job]));
+  const serviceInvoices = (serviceInvoicesResult.data ?? []).flatMap((invoice) => {
+    const job = invoice.source_service_job_id ? serviceInvoiceJobById.get(invoice.source_service_job_id) : null;
+    return job ? [{
+      ...invoice,
+      job_number: job.job_number,
+      location_id: job.location_id,
+    }] : [];
+  });
 
   const notificationResultsQuery = supabase.from("service_job_status_notification_outbox")
     .select("id, job_id, status, delivery_status, result_message, created_at")
@@ -425,6 +463,9 @@ export default async function ServiceCenterPage() {
         ...result,
         job_number: jobs?.find((job) => job.id === result.job_id)?.job_number ?? "Repair job",
       }))}
+      serviceInvoices={serviceInvoices}
+      serviceInvoicesLimited={(serviceInvoicesResult.data ?? []).length === 1000}
+      canViewAccounting={canViewAccounting}
       currency={context.currency}
     />
   );

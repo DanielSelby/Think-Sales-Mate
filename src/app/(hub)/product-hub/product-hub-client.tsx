@@ -348,7 +348,7 @@ export function ProductHubClient({
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1450px] space-y-10 px-4 py-5 sm:space-y-12 sm:px-7 sm:py-7 lg:px-10">
+        <main className="w-full space-y-7 px-4 py-4 sm:space-y-9 sm:px-6 sm:py-6 lg:px-8">
           <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#071c46] via-[#0754b7] to-[#087dd8] px-5 py-7 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:min-h-[250px] sm:px-9 sm:py-8">
             {hubBranding.heroArtworkUrl && (
               <>
@@ -457,9 +457,9 @@ export function ProductHubClient({
                   return (
                     <article data-hub-surface key={product.slug} className="group flex min-h-[190px] flex-col rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:p-5">
                       <div className="flex items-start justify-between gap-3">
-                        <div className={`grid h-12 w-12 place-items-center rounded-xl ${presentation.color}`}>
+                        <div className={`relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${presentation.color}`}>
                           {product.imageUrl ? (
-                            <Image src={product.imageUrl} alt="" width={48} height={48} unoptimized className="h-full w-full rounded-xl bg-white object-contain p-1" />
+                            <Image src={product.imageUrl} alt="" fill unoptimized className="object-contain p-1" />
                           ) : (
                             <ProductIcon className="h-6 w-6" strokeWidth={1.8} />
                           )}
@@ -541,9 +541,9 @@ export function ProductHubClient({
           )}
 
           <section data-hub-surface id="about" className="scroll-mt-24 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
-            <div aria-hidden="true" className="relative flex min-h-[230px] items-center justify-center overflow-hidden bg-gradient-to-br from-[#08234f] via-[#0872c9] to-[#56c3e8] p-8 sm:min-h-[280px]">
+            <div aria-hidden="true" className="relative flex min-h-[230px] items-center justify-center overflow-hidden bg-gradient-to-br from-[#08234f] via-[#0872c9] to-[#56c3e8] p-4 sm:min-h-[280px] sm:p-6">
               {hubBranding.aboutImageUrl ? (
-                <Image src={hubBranding.aboutImageUrl} alt="" fill unoptimized className="absolute inset-0 object-cover" />
+                <Image src={hubBranding.aboutImageUrl} alt="" fill unoptimized className="absolute inset-0 bg-slate-50 object-contain p-3 sm:p-5" />
               ) : (
                 <>
                   <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 30% 30%, white 0 1px, transparent 1.5px)", backgroundSize: "23px 23px" }} />
@@ -651,7 +651,7 @@ export function ProductHubClient({
           </section>
         </main>
         <footer className="bg-[#0d1b35] px-4 py-6 text-white sm:px-7 lg:px-10">
-          <div className="mx-auto flex max-w-[1450px] flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mx-auto flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <Link href="/product-hub" className="flex items-center gap-3">
               <Image src="/thinksales-logo.svg" alt="" width={38} height={38} />
               <span><span className="block text-xs font-bold">Think Digital Solutions</span><span className="mt-0.5 block text-[10px] text-blue-200">Technology for Business Growth</span></span>

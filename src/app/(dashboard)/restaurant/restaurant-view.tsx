@@ -1545,6 +1545,7 @@ function CreateOrderForm({
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [modifierSelections, setModifierSelections] = useState<Record<string, string[]>>({});
   const [modifierError, setModifierError] = useState("");
+  const pendingRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   function activeGroups(itemId: string) {
     return modifierGroups.filter((group) => group.menu_item_id === itemId && group.is_active);
@@ -1579,8 +1580,29 @@ function CreateOrderForm({
       modifierOptionIds: activeGroups(item.id).flatMap((group) => selectedOptionIds(group.id)),
     })).filter((item) => item.quantity > 0);
     if (items.length === 0) return;
-    const created = await onCreate({ locationId, orderType, tableId: orderType === "dine_in" ? tableId : null, customerName, customerPhone, deliveryAddress, notes, items });
+    const request = {
+      locationId,
+      orderType,
+      tableId: orderType === "dine_in" ? tableId : null,
+      customerName,
+      customerPhone,
+      deliveryAddress,
+      notes,
+      items,
+    };
+    const fingerprint = JSON.stringify(request);
+    if (!pendingRequestRef.current || pendingRequestRef.current.fingerprint !== fingerprint) {
+      pendingRequestRef.current = { fingerprint, key: crypto.randomUUID() };
+    }
+    const created = await onCreate({
+      ...request,
+      requestKey: pendingRequestRef.current.key,
+      customerId: null,
+      pointsToRedeem: 0,
+      expectedTotal: Math.round(estimate * 100) / 100,
+    });
     if (!created) return;
+    pendingRequestRef.current = null;
     setQuantities({});
     setCustomerName("");
     setCustomerPhone("");

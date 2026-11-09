@@ -81,6 +81,7 @@ type ServiceJobRow = {
 };
 
 type SelectOption = { id: string; name: string };
+type CustomerOption = SelectOption & { email: string | null; phone: string | null; company: string | null };
 type ServiceCategoryOption = SelectOption & { location_id: string | null };
 type AssetWarrantyStatus = "not_recorded" | "upcoming" | "active" | "expired";
 type AssetOption = {
@@ -123,6 +124,19 @@ type ContactLogRow = {
   outcome: "completed" | "no_answer" | "left_message" | "follow_up_needed" | "other";
   details: string;
   created_at: string;
+};
+type ServiceInvoiceRow = {
+  id: string;
+  invoice_number: number;
+  customer_name: string;
+  amount: number;
+  amount_paid: number;
+  status: InvoiceStatus;
+  due_date: string;
+  source_service_job_id: string | null;
+  created_at: string;
+  job_number: string;
+  location_id: string;
 };
 type AppointmentRow = {
   id: string;
@@ -208,6 +222,8 @@ export function ServiceCenterWorkspace({
   assets,
   technicians,
   appointments,
+  serviceInvoices: serviceInvoiceRows,
+  serviceInvoicesLimited,
   canCreate,
   canEdit,
   canViewAssets,
@@ -216,6 +232,7 @@ export function ServiceCenterWorkspace({
   canCreateAppointment,
   canEditAppointments,
   canManageServiceNotifications,
+  canViewAccounting,
   serviceStatusNotificationsEnabled,
   serviceStatusNotificationResults,
   currency,
@@ -224,12 +241,14 @@ export function ServiceCenterWorkspace({
   partsPanel: ReactNode;
   quotations: QuotationRow[];
   contactLogs: ContactLogRow[];
-  customers: SelectOption[];
+  customers: CustomerOption[];
   serviceCategories: ServiceCategoryOption[];
   locations: SelectOption[];
   assets: AssetOption[];
   technicians: TechnicianOption[];
   appointments: AppointmentRow[];
+  serviceInvoices: ServiceInvoiceRow[];
+  serviceInvoicesLimited: boolean;
   canCreate: boolean;
   canEdit: boolean;
   canViewAssets: boolean;
@@ -238,6 +257,7 @@ export function ServiceCenterWorkspace({
   canCreateAppointment: boolean;
   canEditAppointments: boolean;
   canManageServiceNotifications: boolean;
+  canViewAccounting: boolean;
   serviceStatusNotificationsEnabled: boolean;
   serviceStatusNotificationResults: Array<{
     id: string;
@@ -259,6 +279,7 @@ export function ServiceCenterWorkspace({
     || requestedView === "communications"
     || requestedView === "warranty"
     || requestedView === "assets"
+    || requestedView === "invoices"
     ? requestedView
     : "jobs";
   const [isPending, setIsPending] = useState(false);
@@ -284,6 +305,9 @@ export function ServiceCenterWorkspace({
   const [appointmentPage, setAppointmentPage] = useState(1);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerPage, setCustomerPage] = useState(1);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const [invoicePage, setInvoicePage] = useState(1);
 
   useEffect(() => {
     const openFromHash = () => {
@@ -511,7 +535,8 @@ export function ServiceCenterWorkspace({
     jobCount: jobsPerCustomer.get(customer.id) ?? 0,
   }));
   const filteredCustomerActivity = customerActivity.filter((customer) =>
-    customer.name.toLocaleLowerCase().includes(customerSearch.trim().toLocaleLowerCase())
+    [customer.name, customer.company, customer.email, customer.phone]
+      .some((value) => value?.toLocaleLowerCase().includes(customerSearch.trim().toLocaleLowerCase()))
   );
   const customerPageSize = 10;
   const customerPageCount = Math.max(1, Math.ceil(filteredCustomerActivity.length / customerPageSize));
@@ -519,7 +544,25 @@ export function ServiceCenterWorkspace({
   const paginatedCustomerActivity = filteredCustomerActivity.slice((currentCustomerPage - 1) * customerPageSize, currentCustomerPage * customerPageSize);
   const branchScopedQuotations = jobLocationFilter === "all" ? quotations : quotations.filter((quotation) => branchScopedJobIds.has(quotation.job_id));
   const branchScopedContacts = jobLocationFilter === "all" ? contactLogs : contactLogs.filter((contact) => branchScopedJobIds.has(contact.job_id));
-  const branchScopedInvoices = branchScopedJobs.flatMap((job) => job.invoice ? [{ ...job.invoice, jobNumber: job.job_number }] : []);
+  const branchScopedInvoices = serviceInvoiceRows.filter((invoice) =>
+    jobLocationFilter === "all" || invoice.location_id === jobLocationFilter,
+  );
+  const filteredServiceInvoices = branchScopedInvoices.filter((invoice) => {
+    if (invoiceStatusFilter !== "all" && invoice.status !== invoiceStatusFilter) return false;
+    const search = invoiceSearch.trim().toLocaleLowerCase();
+    return !search || [
+      String(invoice.invoice_number),
+      invoice.customer_name,
+      invoice.job_number,
+    ].some((value) => value.toLocaleLowerCase().includes(search));
+  });
+  const invoicePageSize = 20;
+  const invoicePageCount = Math.max(1, Math.ceil(filteredServiceInvoices.length / invoicePageSize));
+  const currentInvoicePage = Math.min(invoicePage, invoicePageCount);
+  const paginatedServiceInvoices = filteredServiceInvoices.slice(
+    (currentInvoicePage - 1) * invoicePageSize,
+    currentInvoicePage * invoicePageSize,
+  );
   const appointmentNextStatuses: Record<ServiceAppointmentStatus, ServiceAppointmentStatus[]> = {
     scheduled: ["confirmed", "cancelled", "no_show"],
     confirmed: ["completed", "cancelled", "no_show"],
@@ -672,6 +715,7 @@ export function ServiceCenterWorkspace({
     jobs: { title: "Service Jobs", subtitle: "Manage and track all service and repair jobs." },
     appointments: { title: "Appointments & Bookings", subtitle: "Schedule customer visits and manage service appointments." },
     quotations: { title: "Quotations & Invoices", subtitle: "Prepare repair estimates and follow their related invoices." },
+    invoices: { title: "Service Invoices", subtitle: "Search and review invoices created for service repair jobs." },
     parts: { title: "Service Parts", subtitle: "Track parts issued to service jobs using existing inventory records." },
     communications: { title: "Customer Communications", subtitle: "Review customer updates and repair communication history." },
     assets: { title: "Customers & Assets", subtitle: "View shared CRM customers and their registered service equipment." },
@@ -745,6 +789,7 @@ export function ServiceCenterWorkspace({
           ["jobs", "Service Jobs"],
           ["appointments", "Appointments"],
           ["quotations", "Quotations"],
+          ["invoices", "Invoices"],
           ["assets", "Customers & Assets"],
           ["warranty", "Warranty"],
           ["parts", "Service Parts"],
@@ -754,17 +799,17 @@ export function ServiceCenterWorkspace({
           && (key !== "assets" || canViewAssets || canCreateAsset)
           && (key !== "warranty" || canViewAssets)
           && (key !== "appointments" || canViewAppointments || canCreateAppointment)
+          && (key !== "invoices" || canViewAccounting)
         ).map(([key, label]) => (
           <Link
             key={key}
-            href={key === "jobs" ? "/service-center" : `/service-center?view=${key}`}
+            href={key === "jobs" ? "/service-center" : `/service-center/${key === "assets" ? "customers" : key}`}
             aria-current={view === key ? "page" : undefined}
             className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${view === key ? "bg-emerald-800 text-white dark:bg-emerald-700" : "text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-ink-800"}`}
           >
             {label}
           </Link>
         ))}
-        <Link href="/accounting/invoices" className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-ink-800">Invoices</Link>
         <Link href="/inventory/return-products" className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-ledger-600 hover:bg-ledger-50 dark:text-ledger-300 dark:hover:bg-ink-800">Returns</Link>
       </nav>
 
@@ -1653,9 +1698,6 @@ export function ServiceCenterWorkspace({
         <p className="text-sm text-ledger-600 dark:text-ledger-300">
           Service invoices are created through the existing accounting workflow. <Link href="/accounting/invoices" className="font-medium text-emerald-800 underline dark:text-emerald-300">Open all invoices</Link>
         </p>
-        {jobs.length === 500 && (
-          <p className="text-xs text-ledger-500 dark:text-ledger-400">Service invoice summaries reflect the latest 500 loaded jobs; use Accounting for the complete invoice register.</p>
-        )}
         {canEdit && <ServiceQuotationForm jobs={estimateJobs} currency={currency} />}
         {branchScopedQuotations.length === 0 ? (
           <p className="rounded-lg bg-white px-4 py-8 text-center text-sm text-ledger-500 dark:bg-ink-900 dark:text-ledger-400">No estimates have been prepared yet.</p>
@@ -1757,12 +1799,12 @@ export function ServiceCenterWorkspace({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
-                  {serviceInvoices.map((invoice) => (
+                  {serviceInvoices.slice(0, 10).map((invoice) => (
                     <tr key={invoice.id}>
                       <td className="px-3 py-3">
                         <Link href={`/accounting/invoices/${invoice.id}`} className="font-medium text-emerald-800 underline dark:text-emerald-300">#{String(invoice.invoice_number).padStart(4, "0")}</Link>
                       </td>
-                      <td className="px-3 py-3 text-ledger-700 dark:text-ledger-300">{invoice.jobNumber}</td>
+                      <td className="px-3 py-3 text-ledger-700 dark:text-ledger-300">{invoice.job_number}</td>
                       <td className="px-3 py-3 capitalize text-ledger-700 dark:text-ledger-300">{invoice.status}</td>
                       <td className="px-3 py-3 text-ledger-700 dark:text-ledger-300">{new Date(`${invoice.due_date}T00:00:00`).toLocaleDateString()}</td>
                     </tr>
@@ -1771,8 +1813,125 @@ export function ServiceCenterWorkspace({
               </table>
             </div>
           )}
+          {serviceInvoices.length > 10 && (
+            <p className="mt-3 text-xs text-ledger-500 dark:text-ledger-400">
+              Showing the latest 10 service invoices. <Link href="/service-center/invoices" className="font-medium text-emerald-800 underline dark:text-emerald-300">View all service invoices</Link>
+            </p>
+          )}
         </div>
       </section>
+
+      {canViewAccounting && view === "invoices" && (
+        <section className="order-7 space-y-5 rounded-xl border border-ledger-200 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-ledger-900 dark:text-white">Service invoices</h2>
+              <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">Invoices for repair jobs in the selected branch. Payment and invoice edits remain in Accounting.</p>
+            </div>
+            <Link href="/accounting/invoices" className="text-sm font-medium text-emerald-800 underline dark:text-emerald-300">Open accounting register</Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: "Service invoices", value: branchScopedInvoices.length.toLocaleString() },
+              { label: "Paid", value: branchScopedInvoices.filter((invoice) => invoice.status === "paid").length.toLocaleString() },
+              { label: "Overdue", value: branchScopedInvoices.filter((invoice) => invoice.status === "overdue").length.toLocaleString() },
+              {
+                label: "Outstanding",
+                value: `${currency} ${branchScopedInvoices
+                  .filter((invoice) => invoice.status === "sent" || invoice.status === "overdue")
+                  .reduce((total, invoice) => total + Math.max(0, invoice.amount - invoice.amount_paid), 0)
+                  .toFixed(2)}`,
+              },
+            ].map((card) => (
+              <article key={card.label} className="rounded-xl border border-ledger-200 bg-ledger-50/60 p-4 dark:border-ledger-700 dark:bg-ink-800">
+                <p className="text-sm font-medium text-ledger-500 dark:text-ledger-400">{card.label}</p>
+                <p className="mt-2 text-xl font-bold tabular-nums text-ledger-900 dark:text-white">{card.value}</p>
+              </article>
+            ))}
+          </div>
+          {serviceInvoicesLimited && (
+            <p className="text-xs text-ledger-500 dark:text-ledger-400">Service invoice data is limited to the latest 1,000 organization records before branch filtering. Use the Accounting register for a complete search.</p>
+          )}
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+            <label>
+              <span className="sr-only">Search service invoices</span>
+              <input
+                type="search"
+                value={invoiceSearch}
+                onChange={(event) => { setInvoiceSearch(event.target.value); setInvoicePage(1); }}
+                placeholder="Search invoice, customer, or job"
+                className="w-full rounded-lg border border-ledger-300 bg-white px-3 py-2 text-sm dark:border-ledger-600 dark:bg-ink-800"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Filter invoices by status</span>
+              <select
+                value={invoiceStatusFilter}
+                onChange={(event) => { setInvoiceStatusFilter(event.target.value); setInvoicePage(1); }}
+                className="w-full rounded-lg border border-ledger-300 bg-white px-3 py-2 text-sm dark:border-ledger-600 dark:bg-ink-800"
+              >
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="sent">Sent</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </label>
+          </div>
+          {filteredServiceInvoices.length === 0 ? (
+            <p className="rounded-lg bg-ledger-50 px-4 py-8 text-center text-sm text-ledger-500 dark:bg-ink-800 dark:text-ledger-400">
+              {branchScopedInvoices.length ? "No invoices match these filters." : "No service job invoices are recorded in this branch."}
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="border-b border-ledger-200 text-xs uppercase text-ledger-500 dark:border-ledger-700 dark:text-ledger-400">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Invoice</th>
+                      <th className="px-3 py-2 font-medium">Customer</th>
+                      <th className="px-3 py-2 font-medium">Service job</th>
+                      <th className="px-3 py-2 text-right font-medium">Amount</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
+                      <th className="px-3 py-2 font-medium">Due date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ledger-100 dark:divide-ledger-800">
+                    {paginatedServiceInvoices.map((invoice) => (
+                      <tr key={invoice.id}>
+                        <td className="px-3 py-3">
+                          <Link href={`/accounting/invoices/${invoice.id}`} className="font-medium text-emerald-800 underline dark:text-emerald-300">
+                            #{String(invoice.invoice_number).padStart(4, "0")}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-3 text-ledger-700 dark:text-ledger-300">{invoice.customer_name}</td>
+                        <td className="px-3 py-3 text-ledger-700 dark:text-ledger-300">{invoice.job_number}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-ledger-700 dark:text-ledger-300">{currency} {invoice.amount.toFixed(2)}</td>
+                        <td className="px-3 py-3 capitalize text-ledger-700 dark:text-ledger-300">{invoice.status}</td>
+                        <td className="px-3 py-3 text-ledger-700 dark:text-ledger-300">{new Date(`${invoice.due_date}T00:00:00`).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {filteredServiceInvoices.length > invoicePageSize && (
+                <div className="flex items-center justify-between text-xs text-ledger-500 dark:text-ledger-400">
+                  <span>Showing {(currentInvoicePage - 1) * invoicePageSize + 1}–{Math.min(currentInvoicePage * invoicePageSize, filteredServiceInvoices.length)} of {filteredServiceInvoices.length}</span>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setInvoicePage((page) => Math.max(1, page - 1))} disabled={currentInvoicePage <= 1} className="rounded border border-ledger-300 px-2 py-1 disabled:opacity-50 dark:border-ledger-600">Previous</button>
+                    <button type="button" onClick={() => setInvoicePage((page) => Math.min(invoicePageCount, page + 1))} disabled={currentInvoicePage >= invoicePageCount} className="rounded border border-ledger-300 px-2 py-1 disabled:opacity-50 dark:border-ledger-600">Next</button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+      {!canViewAccounting && view === "invoices" && (
+        <p role="status" className="order-7 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          You do not have permission to view accounting invoices.
+        </p>
+      )}
 
       {canViewAssets && (
         <div className={view === "assets" ? "[order:27] grid gap-6 xl:grid-cols-2" : "hidden"}>
@@ -1812,7 +1971,7 @@ export function ServiceCenterWorkspace({
               </div>
               <label className="mt-3 block">
                 <span className="sr-only">Search CRM customers</span>
-                <input type="search" value={customerSearch} onChange={(event) => { setCustomerSearch(event.target.value); setCustomerPage(1); }} placeholder="Search customers" className="w-full rounded-lg border border-ledger-300 bg-white px-3 py-2 text-sm dark:border-ledger-600 dark:bg-ink-800" />
+                <input type="search" value={customerSearch} onChange={(event) => { setCustomerSearch(event.target.value); setCustomerPage(1); }} placeholder="Search customer, company, email, or phone" className="w-full rounded-lg border border-ledger-300 bg-white px-3 py-2 text-sm dark:border-ledger-600 dark:bg-ink-800" />
               </label>
               {filteredCustomerActivity.length === 0 ? (
                 <p className="mt-3 text-sm text-ledger-500 dark:text-ledger-400">{branchScopedCustomers.length === 0 ? "No CRM customers are available in this service scope." : "No customers match this search."}</p>
@@ -1821,7 +1980,12 @@ export function ServiceCenterWorkspace({
                   <ul className="mt-3 divide-y divide-ledger-100 dark:divide-ledger-800">
                     {paginatedCustomerActivity.map((customer) => (
                     <li key={customer.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                      <p className="font-medium text-ledger-900 dark:text-white">{customer.name}</p>
+                      <div>
+                        <p className="font-medium text-ledger-900 dark:text-white">{customer.name}</p>
+                        <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">
+                          {[customer.company, customer.email, customer.phone].filter(Boolean).join(" · ") || "No company or contact details"}
+                        </p>
+                      </div>
                       <p className="text-xs text-ledger-500 dark:text-ledger-400">{customer.equipmentCount} equipment · {customer.jobCount} service jobs</p>
                     </li>
                     ))}

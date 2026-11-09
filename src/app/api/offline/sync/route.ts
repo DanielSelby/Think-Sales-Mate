@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordSale } from "@/app/(dashboard)/sales/actions";
+import { createRestaurantOfflineOrder } from "@/app/(dashboard)/restaurant/actions";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 
 export async function POST(request: Request) {
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Invalid offline operation body." }, { status: 400 });
   }
   if (
-    operation.type !== "sale"
+    (operation.type !== "sale" && operation.type !== "restaurant_order")
     || !operation.payload
     || typeof operation.payload !== "object"
     || !operation.id
@@ -25,7 +26,67 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "No active organization found for sync." }, { status: 400 });
   }
   if (payload.orgId && payload.orgId !== context.orgId) {
-    return NextResponse.json({ ok: false, error: "The queued sale belongs to a different organization." }, { status: 403 });
+    return NextResponse.json({ ok: false, error: "The queued transaction belongs to a different organization." }, { status: 403 });
+  }
+
+  if (operation.type === "restaurant_order") {
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    const orderType = payload.orderType;
+    const total = Number(payload.expectedTotal);
+    if (
+      typeof payload.locationId !== "string"
+      || (orderType !== "dine_in" && orderType !== "takeaway" && orderType !== "pickup" && orderType !== "delivery")
+      || !Number.isFinite(total)
+      || total < 0
+      || (payload.customerId !== null && typeof payload.customerId !== "string")
+      || !rawItems.length
+      || rawItems.some((line) => {
+        if (!line || typeof line !== "object" || Array.isArray(line)) return true;
+        const item = line as Record<string, unknown>;
+        return typeof item.menuItemId !== "string"
+          || typeof item.quantity !== "number"
+          || typeof item.notes !== "string"
+          || !Array.isArray(item.modifierOptionIds);
+      })
+    ) {
+      return NextResponse.json({ ok: false, error: "The queued Restaurant order is invalid." }, { status: 422 });
+    }
+    try {
+      const result = await createRestaurantOfflineOrder({
+        requestKey: operation.id,
+        locationId: payload.locationId,
+        orderType,
+        tableId: typeof payload.tableId === "string" ? payload.tableId : null,
+        customerId: typeof payload.customerId === "string" ? payload.customerId : null,
+        customerName: typeof payload.customerName === "string" ? payload.customerName : "",
+        customerPhone: typeof payload.customerPhone === "string" ? payload.customerPhone : "",
+        deliveryAddress: typeof payload.deliveryAddress === "string" ? payload.deliveryAddress : "",
+        notes: typeof payload.notes === "string" ? payload.notes : "",
+        expectedTotal: total,
+        items: rawItems.map((line) => {
+          const item = line as Record<string, unknown>;
+          return {
+            menuItemId: String(item.menuItemId),
+            quantity: Number(item.quantity),
+            notes: String(item.notes),
+            modifierOptionIds: (item.modifierOptionIds as unknown[]).map(String),
+          };
+        }),
+      });
+      return NextResponse.json({
+        ok: true,
+        orderId: result.orderId,
+        orderNumber: result.orderNumber,
+        cueNumber: result.cueNumber,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The queued Restaurant order could not be synced.";
+      return NextResponse.json({ ok: false, error: message }, { status: 422 });
+    }
+  }
+
+  if (operation.type !== "sale") {
+    return NextResponse.json({ ok: false, error: "Unsupported offline operation." }, { status: 400 });
   }
 
   const rawItems = Array.isArray(payload.items) ? payload.items : [];

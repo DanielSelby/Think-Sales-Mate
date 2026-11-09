@@ -69,7 +69,7 @@ export function OfflineCenter() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Offline Center</h1>
-        <p className="mt-1 text-sm text-ledger-500">Review and sync queued sales. To create a sale offline, keep a Sales/POS screen that was opened online available on this device.</p>
+        <p className="mt-1 text-sm text-ledger-500">Review and sync queued sales and unpaid Restaurant orders. To create work offline, keep its POS screen that was opened online available on this device.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
@@ -106,7 +106,7 @@ export function OfflineCenter() {
           <div className="flex items-center gap-2 text-sm text-emerald-600"><CheckCircle2 className="h-4 w-4" /> No pending offline transactions.</div>
         ) : queue.map((operation) => (
           <div key={operation.id} className="flex items-center justify-between border-b border-ledger-100 py-3 last:border-0 dark:border-ledger-700">
-            <div><p className="text-sm font-semibold text-ink-900 dark:text-white">Sales transaction</p><p className="text-xs text-ledger-500">{new Date(operation.createdAt).toLocaleString()}</p>{operation.status === "failed" && <span className="mt-1 flex items-center gap-1 text-xs text-alert"><AlertTriangle className="h-4 w-4" /> {operation.error}</span>}</div>
+            <div><p className="text-sm font-semibold text-ink-900 dark:text-white">{operation.type === "restaurant_order" ? "Restaurant order" : "Sales transaction"}</p><p className="text-xs text-ledger-500">{new Date(operation.createdAt).toLocaleString()}</p>{operation.status === "failed" && <span className="mt-1 flex items-center gap-1 text-xs text-alert"><AlertTriangle className="h-4 w-4" /> {operation.error}</span>}</div>
             <button type="button" onClick={() => { if (confirm("Remove this queued transaction from this device? It will not be synced.")) removeOfflineOperation(operation.id); }} className="rounded-lg border border-ledger-200 px-2.5 py-1.5 text-xs font-semibold text-alert dark:border-ledger-700">Discard</button>
           </div>
         ))}

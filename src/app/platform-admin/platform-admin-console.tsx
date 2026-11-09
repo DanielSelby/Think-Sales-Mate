@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, Database, Download, Gauge, Moon, RefreshCw, ShieldCheck, Sun, Users, WalletCards, type LucideIcon } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
@@ -248,15 +249,21 @@ export default function PlatformAdminConsole({
   const platformCurrency = String(settings.find((setting) => setting.key === "platform_currency")?.value?.code ?? "GHS");
   const formatPlatformMoney = (value: number) => formatMoney(value, platformCurrency);
   const visibleTabs = tabs.filter((item) => accessiblePages.includes(item.label));
-  const [selectedTab, setTab] = useState<Tab>(visibleTabs[0]?.label ?? "Overview");
-  const tab = accessiblePages.includes(selectedTab as PlatformAdminPage)
-    ? selectedTab
-    : visibleTabs[0]?.label ?? "Overview";
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab = visibleTabs.find((item) => item.label === requestedTab)?.label ?? visibleTabs[0]?.label ?? "Overview";
+  const [selectedTab, setSelectedTab] = useState<Tab>(initialTab);
+  const tab = visibleTabs.find((item) => item.label === requestedTab)?.label
+    ?? (accessiblePages.includes(selectedTab as PlatformAdminPage) ? selectedTab : visibleTabs[0]?.label ?? "Overview");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(organizations[0]?.id ?? null);
   const [modal, setModal] = useState<"organization" | "plan" | null>(null);
   const [editingOrganizationId, setEditingOrganizationId] = useState<string | null>(null);
   const router = useRouter();
+  function setTab(nextTab: Tab) {
+    setSelectedTab(nextTab);
+    router.replace(`/platform-admin?tab=${encodeURIComponent(nextTab)}`, { scroll: false });
+  }
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -581,6 +588,7 @@ export default function PlatformAdminConsole({
         }
         setCurrentLogoUrl(result.logoUrl);
         setMessage("System logo updated.");
+        router.refresh();
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Logo upload failed."))
       .finally(() => setUploadingLogo(false));
@@ -598,11 +606,11 @@ export default function PlatformAdminConsole({
         "--theme-header-border-dark": `color-mix(in srgb, ${theme.colors.primary} 36%, #334155)`,
       } as CSSProperties}
     >
-      <aside className="fixed left-0 top-[74px] z-30 hidden h-[calc(100vh-74px)] w-56 overflow-y-auto bg-[#06294a] text-white lg:block">
+      <aside className="hidden">
         <div className="border-b border-white/10 px-4 py-5">
           <div className="flex items-center gap-2">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-              <img src={currentLogoUrl} alt="" className="h-full w-full rounded-lg object-contain" />
+              <Image src={currentLogoUrl} alt="" width={36} height={36} unoptimized className="h-full w-full rounded-lg object-contain" />
             </span>
             <span className="font-bold">ThinkSales <small className="text-blue-300">Pro</small></span>
           </div>
@@ -685,8 +693,22 @@ export default function PlatformAdminConsole({
         </Modal>
       )}
 
-      <main className="min-w-0 flex-1 p-4 md:p-6 lg:ml-56">
-        <div className="mb-3 flex justify-end">
+      <main className="min-w-0 flex-1 p-4 md:p-6">
+        <div className="mb-3 flex flex-wrap justify-end gap-2">
+          <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+            {uploadingLogo ? "Uploading logo…" : "Change system logo"}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml"
+              className="sr-only"
+              disabled={uploadingLogo}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) handleLogoUpload(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
           <button type="button" onClick={() => setDarkMode(!darkMode)} aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"} title={darkMode ? "Switch to light mode" : "Switch to dark mode"} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm ${darkMode ? "border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
             {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {darkMode ? "Light mode" : "Dark mode"}

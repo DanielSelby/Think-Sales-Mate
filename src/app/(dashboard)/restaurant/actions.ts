@@ -30,6 +30,8 @@ type RestaurantPosDraftPayload = {
   itemNotes?: Record<string, string>;
   customerName: string;
   customerPhone: string;
+  customerId?: string | null;
+  selectedCustomer?: { id: string; name: string; phone: string | null; email: string | null } | null;
   deliveryAddress: string;
   notes: string;
   paymentTiming: "pay_now" | "pay_later";
@@ -1351,6 +1353,10 @@ export async function assignRestaurantReservationTable(reservationId: string, ta
 }
 
 export async function createRestaurantOrder(input: {
+  requestKey: string;
+  customerId: string | null;
+  pointsToRedeem: number;
+  expectedTotal: number;
   locationId: string;
   orderType: OrderType;
   tableId: string | null;
@@ -1360,7 +1366,6 @@ export async function createRestaurantOrder(input: {
   notes: string;
   items: Array<{ menuItemId: string; quantity: number; notes: string; modifierOptionIds: string[] }>;
   payment?: {
-    requestKey: string;
     method: PaymentMethod;
     amount: number;
     accountId?: string;
@@ -1370,6 +1375,10 @@ export async function createRestaurantOrder(input: {
 }) {
   const context = await restaurantContext("orders", "create");
   if (!canUseLocation(context, input.locationId)) throw new Error("You cannot take restaurant orders at that branch.");
+  if (!uuidPattern.test(input.requestKey)) throw new Error("Invalid Restaurant order request key.");
+  if (input.customerId !== null && !uuidPattern.test(input.customerId)) throw new Error("Select a valid CRM customer.");
+  if (!Number.isInteger(input.pointsToRedeem) || input.pointsToRedeem < 0) throw new Error("Enter a valid loyalty point amount.");
+  if (!validMoney(input.expectedTotal, true)) throw new Error("The order total is invalid.");
   if (!["dine_in", "takeaway", "pickup", "delivery"].includes(input.orderType)) throw new Error("Choose a valid order type.");
   if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100) {
     throw new Error("Add between 1 and 100 items to the order.");
@@ -1408,10 +1417,15 @@ export async function createRestaurantOrder(input: {
     p_notes: input.notes.trim() || null,
     p_items: items,
     p_created_by: context.userId,
+    p_customer_id: input.customerId,
+    p_request_key: input.requestKey,
+    p_payments: [] as Json,
+    p_tip_amount: input.payment?.tipAmount ?? 0,
+    p_points_to_redeem: input.pointsToRedeem,
+    p_expected_total: input.expectedTotal,
   };
   if (input.payment) {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.payment.requestKey)
-      || !["cash", "card", "mobile_money", "other"].includes(input.payment.method)
+    if (!["cash", "card", "mobile_money", "other"].includes(input.payment.method)
       || !validMoney(input.payment.amount, true)
       || !validMoney(input.payment.tipAmount, true)) {
       throw new Error("Enter a valid payment method and tip amount.");
@@ -1429,6 +1443,9 @@ export async function createRestaurantOrder(input: {
         && new Set(payments.map((payment) => payment.method)).size !== payments.length)) {
       throw new Error("Enter one to four valid payments with different methods.");
     }
+    if (Math.abs(payments.reduce((sum, payment) => sum + payment.amount, 0) - input.payment.amount) > 0.01) {
+      throw new Error("Split payments must add up to the amount due.");
+    }
     const requiredAccountIndexes = new Set(getRestaurantPosPaymentAccountIndexes(payments, input.payment.tipAmount));
     const paymentAccountError = await validatePosPaymentAccounts(context.orgId, payments.filter((_, index) =>
       requiredAccountIndexes.has(index)
@@ -1438,39 +1455,60 @@ export async function createRestaurantOrder(input: {
       amount: payment.amount,
     })));
     if (paymentAccountError) throw new Error(paymentAccountError);
-    const paymentRequest = await admin.rpc("create_restaurant_order_with_split_payment", {
-      ...orderInput,
-      p_request_key: input.payment.requestKey,
-      p_payments: payments.map((payment) => ({
-        method: payment.method,
-        amount: payment.amount,
-        ...(payment.accountId ? { account_id: payment.accountId } : {}),
-      })),
-      p_tip_amount: input.payment.tipAmount,
-    });
-    const { data, error } = paymentRequest;
-    if (error) throw new Error(`Could not create and pay for restaurant order: ${error.message}`);
-    const result = data?.[0];
-    if (!result) throw new Error("Could not confirm the paid restaurant order.");
-    const { data: createdOrder, error: cueError } = await admin.from("restaurant_orders")
-      .select("cue_number").eq("org_id", context.orgId).eq("id", result.order_id).maybeSingle();
-    if (cueError) throw new Error(`Order was created, but its cue number could not be loaded: ${cueError.message}`);
-    if (!createdOrder) throw new Error("Order was created, but its cue number could not be found.");
-    revalidatePath("/restaurant");
-    revalidatePath("/restaurant/pos");
-    return {
-      orderId: result.order_id,
-      orderNumber: result.order_number,
-      cueNumber: createdOrder.cue_number,
-      billId: result.bill_id,
-      paymentStatus: result.payment_status,
-    };
+    orderInput.p_payments = payments.map((payment) => ({
+      method: payment.method,
+      amount: payment.amount,
+      ...(payment.accountId ? { account_id: payment.accountId } : {}),
+    })) as Json;
   }
-  const { data, error } = await admin.rpc("create_restaurant_order", orderInput);
-  if (error) throw new Error(`Could not create restaurant order: ${error.message}`);
+  const { data, error } = await admin.rpc("create_restaurant_order_with_loyalty", orderInput);
+  if (error) throw new Error(`Could not create Restaurant order: ${error.message}`);
+  const result = data?.[0];
+  if (!result) throw new Error("Could not confirm the Restaurant order.");
+  const { data: createdOrder, error: cueError } = await admin.from("restaurant_orders")
+    .select("cue_number").eq("org_id", context.orgId).eq("id", result.order_id).maybeSingle();
+  if (cueError) throw new Error(`Order was created, but its cue number could not be loaded: ${cueError.message}`);
+  if (!createdOrder) throw new Error("Order was created, but its cue number could not be found.");
   revalidatePath("/restaurant");
   revalidatePath("/restaurant/pos");
-  return { orderId: data.id, orderNumber: data.order_number, cueNumber: data.cue_number, billId: null, paymentStatus: data.payment_status };
+  return {
+    orderId: result.order_id,
+    orderNumber: result.order_number,
+    cueNumber: createdOrder.cue_number,
+    billId: result.bill_id,
+    paymentStatus: result.payment_status,
+    pointsEarned: result.points_earned,
+    pointsRedeemed: result.points_redeemed,
+    loyaltyDiscount: result.loyalty_discount,
+  };
+}
+
+export async function getRestaurantLoyaltyBalance(customerId: string) {
+  const context = await restaurantContext("orders", "create");
+  if (!uuidPattern.test(customerId)) throw new Error("Select a valid CRM customer.");
+  const { data, error } = await createAdminClient().rpc("get_restaurant_loyalty_balance", {
+    p_org_id: context.orgId,
+    p_customer_id: customerId,
+  });
+  if (error) throw new Error(`Could not load Restaurant loyalty points: ${error.message}`);
+  return Math.max(0, Number(data ?? 0));
+}
+
+export async function createRestaurantOfflineOrder(input: {
+  requestKey: string;
+  locationId: string;
+  orderType: OrderType;
+  tableId: string | null;
+  customerId: string | null;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  notes: string;
+  expectedTotal: number;
+  items: Array<{ menuItemId: string; quantity: number; notes: string; modifierOptionIds: string[] }>;
+}) {
+  if (input.customerId !== null && !uuidPattern.test(input.customerId)) throw new Error("The queued order has an invalid CRM customer.");
+  return createRestaurantOrder({ ...input, pointsToRedeem: 0 });
 }
 
 export async function saveRestaurantPosDraft(input: {
@@ -1494,6 +1532,15 @@ export async function saveRestaurantPosDraft(input: {
         || !Number.isFinite(Number(draft.tipAmountInput)) || Number(draft.tipAmountInput) < 0))
     || typeof draft.customerName !== "string" || draft.customerName.length > 120
     || typeof draft.customerPhone !== "string" || draft.customerPhone.length > 40
+    || (draft.customerId !== undefined && draft.customerId !== null && !uuidPattern.test(draft.customerId))
+    || (draft.selectedCustomer !== undefined && draft.selectedCustomer !== null
+      && (!isRecord(draft.selectedCustomer)
+        || typeof draft.selectedCustomer.id !== "string"
+        || !uuidPattern.test(draft.selectedCustomer.id)
+        || typeof draft.selectedCustomer.name !== "string"
+        || (draft.selectedCustomer.phone !== null && typeof draft.selectedCustomer.phone !== "string")
+        || (draft.selectedCustomer.email !== null && typeof draft.selectedCustomer.email !== "string")
+        || (draft.customerId !== undefined && draft.customerId !== draft.selectedCustomer.id)))
     || typeof draft.deliveryAddress !== "string" || draft.deliveryAddress.length > 300
     || typeof draft.notes !== "string" || draft.notes.length > 500
     || !isRecord(draft.quantities) || Object.keys(draft.quantities).length < 1
@@ -1545,6 +1592,8 @@ export async function saveRestaurantPosDraft(input: {
       itemNotes: draft.itemNotes ?? {},
       customerName: draft.customerName,
       customerPhone: draft.customerPhone,
+      customerId: draft.customerId ?? null,
+      selectedCustomer: draft.selectedCustomer ?? null,
       deliveryAddress: draft.deliveryAddress,
       notes: draft.notes,
       paymentTiming: draft.paymentTiming,

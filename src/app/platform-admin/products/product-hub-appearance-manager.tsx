@@ -60,7 +60,9 @@ function ArtworkUploader({
 
   return (
     <article className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4">
-      <div className="relative mb-3 flex h-32 items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
+      <div className={`relative mb-3 flex w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50 ${
+        assetType === "hero" ? "aspect-[16/5] max-h-40" : assetType === "about" ? "aspect-[4/3] max-h-40" : "aspect-square max-h-40"
+      }`}>
         {imageUrl ? (
           <Image src={imageUrl} alt="" fill unoptimized className="object-contain p-2" />
         ) : (

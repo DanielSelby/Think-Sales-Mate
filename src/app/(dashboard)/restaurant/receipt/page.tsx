@@ -104,6 +104,10 @@ export default async function RestaurantReceiptPage({
         </section>
         <section className="space-y-1 border-t py-3 text-sm">
           {Number(order.delivery_fee) > 0 && <div className="flex justify-between text-xs text-slate-600"><span>Order delivery fee (included in total)</span><span>{money(Number(order.delivery_fee), context.currency)}</span></div>}
+          {Number(order.loyalty_discount) > 0 && <>
+            <div className="flex justify-between text-xs text-slate-600"><span>Subtotal before loyalty</span><span>{money(Number(order.subtotal), context.currency)}</span></div>
+            <div className="flex justify-between text-emerald-700"><span>Loyalty discount ({order.loyalty_points_redeemed} points)</span><span>−{money(Number(order.loyalty_discount), context.currency)}</span></div>
+          </>}
           <div className="flex justify-between font-semibold"><span>Bill total</span><span>{money(Number(bill.amount), context.currency)}</span></div>
           <div className="flex justify-between"><span>Net payments</span><span>{money(netPaid, context.currency)}</span></div>
           <div className="flex justify-between font-semibold"><span>Balance due</span><span>{money(balanceDue, context.currency)}</span></div>
