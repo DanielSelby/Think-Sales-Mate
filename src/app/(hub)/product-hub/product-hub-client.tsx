@@ -466,25 +466,21 @@ export function ProductHubClient({
         </header>
 
         <main className="w-full space-y-6 px-4 py-4 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8">
-          <section className="relative isolate overflow-hidden rounded-2xl bg-transparent px-5 py-5 text-slate-900 sm:min-h-[205px] sm:px-8 sm:py-5">
+          <section className="relative isolate grid grid-cols-1 items-center gap-4 overflow-hidden rounded-2xl bg-transparent px-5 py-5 text-slate-900 sm:min-h-[205px] sm:grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] sm:gap-6 sm:px-8 sm:py-5">
             {hubBranding.heroArtworkUrl && (
-              <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[42%] sm:block">
+              <div aria-hidden="true" className="relative order-2 mx-auto h-[120px] w-full max-w-[420px] min-w-0 sm:order-none sm:col-start-2 sm:row-start-1 sm:h-[175px] sm:w-full">
                 <Image
                   src={hubBranding.heroArtworkUrl}
                   alt=""
-                  width={960}
-                  height={360}
+                  fill
                   priority
                   unoptimized
-                  className="h-full w-full object-contain object-right"
+                  sizes="(max-width: 640px) 100vw, 42vw"
+                  className="object-contain"
                 />
               </div>
             )}
-            <div className="pointer-events-none absolute -right-20 -top-32 -z-10 h-80 w-80 rounded-full border border-blue-100/70 sm:right-[10%]">
-              <div className="absolute inset-7 rounded-full border border-blue-100/70" />
-              <div className="absolute inset-14 rounded-full border border-blue-100/70" />
-            </div>
-            <div className="relative z-10 flex min-h-[165px] max-w-[700px] flex-col justify-center sm:min-h-[175px] sm:max-w-[58%]">
+            <div className={`relative z-10 order-1 flex min-h-[165px] w-full max-w-[700px] flex-col justify-center sm:order-none sm:min-h-[175px] ${hubBranding.heroArtworkUrl ? "sm:col-start-1 sm:row-start-1" : "sm:col-span-2"}`}>
               <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700 sm:text-xs">
                 <span className="h-px w-6 bg-blue-500" /> Think Digital Solutions
               </p>
@@ -620,15 +616,12 @@ export function ProductHubClient({
                   const presentation = PRODUCT_ICONS[product.slug] ?? { icon: LayoutGrid, color: "bg-slate-100 text-slate-700" };
                   const ProductIcon = presentation.icon;
                   return (
-                    <article data-hub-surface key={product.slug} className="group flex min-h-[190px] flex-col rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className={`relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${presentation.color}`}>
-                          {product.imageUrl ? (
-                            <Image src={product.imageUrl} alt="" fill unoptimized className="object-contain p-1" />
-                          ) : (
-                            <ProductIcon className="h-6 w-6" strokeWidth={1.8} />
-                          )}
-                        </div>
+                    <article data-hub-surface key={product.slug} className="group flex min-h-[320px] flex-col rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${product.status === "Active" ? "bg-emerald-50 text-emerald-700" : product.status === "Read-only" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${product.status === "Active" ? "bg-emerald-500" : product.status === "Read-only" ? "bg-amber-500" : "bg-slate-400"}`} />
+                          {product.status}
+                        </span>
                         <div className="flex items-center gap-2">
                           {product.canOpen && (
                             <button
@@ -642,14 +635,27 @@ export function ProductHubClient({
                               <Star className={`h-4 w-4 ${hubPreferences.favorites.includes(product.slug) ? "fill-amber-400 text-amber-500" : ""}`} />
                             </button>
                           )}
-                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${product.status === "Active" ? "bg-emerald-50 text-emerald-700" : product.status === "Read-only" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${product.status === "Active" ? "bg-emerald-500" : product.status === "Read-only" ? "bg-amber-500" : "bg-slate-400"}`} />
-                            {product.status}
-                          </span>
                         </div>
                       </div>
+                      <div className={`relative mt-3 flex h-36 w-full items-center justify-center overflow-hidden rounded-xl ${product.imageUrl ? "bg-slate-50" : presentation.color}`}>
+                        {product.imageUrl ? (
+                          <Image src={product.imageUrl} alt={`${product.name} product image`} fill unoptimized className="object-contain p-3" />
+                        ) : (
+                          <ProductIcon className="h-16 w-16" strokeWidth={1.4} />
+                        )}
+                      </div>
                       <div className="mt-4 flex-1">
-                        <h3 className="text-sm font-bold text-[#152440]">{product.name}</h3>
+                        <h3 className="text-base font-bold text-[#152440]">
+                          {product.canOpen && product.launchPath ? (
+                            <Link
+                              href={product.launchPath}
+                              onClick={() => recordProductLaunch(product.slug)}
+                              className="rounded-sm hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            >
+                              {product.name}
+                            </Link>
+                          ) : product.name}
+                        </h3>
                         <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500">
                           {product.description || "Open your organization's application."}
                         </p>
