@@ -42,7 +42,8 @@ export default async function ProductHubPage() {
     accessPermissions: context.accessPermissions,
   });
   await reconcileCurrentProductEntitlements();
-  const [profileResult, companyProfileResult, notificationResult, catalog, hubBranding, entitlementResult, assignmentResult] = await Promise.all([
+  const [authResult, profileResult, companyProfileResult, notificationResult, catalog, hubBranding, entitlementResult, assignmentResult] = await Promise.all([
+    supabase.auth.getUser(),
     supabase.from("profiles").select("full_name, avatar_url").eq("id", context.userId).maybeSingle(),
     supabase.from("company_profile").select("logo_url").eq("org_id", context.orgId).maybeSingle(),
     supabase.from("notifications").select("id", { count: "exact", head: true })
@@ -61,10 +62,12 @@ export default async function ProductHubPage() {
         .eq("is_active", true),
   ]);
   if (profileResult.error) throw new Error(`Could not load your profile: ${profileResult.error.message}`);
+  if (authResult.error) throw new Error(`Could not load your account details: ${authResult.error.message}`);
   if (companyProfileResult.error) throw new Error(`Could not load your organization logo: ${companyProfileResult.error.message}`);
   if (notificationResult.error) throw new Error(`Could not load notification count: ${notificationResult.error.message}`);
   if (entitlementResult.error) throw new Error(`Could not load product entitlements: ${entitlementResult.error.message}`);
   if (assignmentResult.error) throw new Error(`Could not verify product assignments: ${assignmentResult.error.message}`);
+  const metadataAvatar = authResult.data.user?.user_metadata?.avatar_url ?? authResult.data.user?.user_metadata?.picture;
 
   const entitlementBySlug = new Map((entitlementResult.data ?? []).map((row) => [row.product_slug, row.status]));
   const assignedSlugs = new Set((assignmentResult.data ?? []).map((row) => row.product_slug));
@@ -130,6 +133,7 @@ export default async function ProductHubPage() {
       userName={profileResult.data?.full_name ?? null}
       userEmail={context.userEmail}
       avatarUrl={profileResult.data?.avatar_url ?? null}
+      avatarFallbackUrl={typeof metadataAvatar === "string" ? metadataAvatar : null}
       unreadCount={notificationResult.count ?? 0}
       isOrgAdmin={isOrgAdmin}
       products={items}

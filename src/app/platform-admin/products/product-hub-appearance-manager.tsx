@@ -207,7 +207,7 @@ export function ProductHubAppearanceManager({
         <ArtworkUploader
           assetType="hero"
           label="Hero artwork"
-          description="Wide image displayed behind the Product Hub headline. Use a landscape image."
+          description="Landscape image shown behind the Product Hub headline. The full image fits inside the hero area without cropping."
           imageUrl={branding.heroArtworkUrl}
           canManage={canManage}
         />

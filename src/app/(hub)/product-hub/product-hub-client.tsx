@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
@@ -30,6 +30,7 @@ import {
   Shield,
   Settings,
   ShieldCheck,
+  Star,
   Store,
   TrendingUp,
   Users,
@@ -51,6 +52,38 @@ export interface ProductHubItem {
   canOpen: boolean;
 }
 
+function ProfileAvatar({
+  avatarUrl,
+  fallbackUrl,
+  initials,
+}: {
+  avatarUrl: string | null;
+  fallbackUrl: string | null;
+  initials: string;
+}) {
+  const [imageUrl, setImageUrl] = useState(avatarUrl ?? fallbackUrl);
+
+  if (!imageUrl) {
+    return (
+      <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
+        {initials}
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={imageUrl}
+      alt=""
+      width={34}
+      height={34}
+      unoptimized
+      onError={() => setImageUrl(imageUrl !== fallbackUrl ? fallbackUrl : null)}
+      className="h-[34px] w-[34px] rounded-full object-cover"
+    />
+  );
+}
+
 interface OrganizationOption {
   orgId: string;
   orgName: string;
@@ -66,6 +99,7 @@ interface ProductHubClientProps {
   userName: string | null;
   userEmail: string;
   avatarUrl: string | null;
+  avatarFallbackUrl: string | null;
   unreadCount: number;
   isOrgAdmin: boolean;
   products: ProductHubItem[];
@@ -104,6 +138,27 @@ const BENEFITS = [
   { title: "Business Reporting & Analytics", description: "Make data-driven decisions.", icon: TrendingUp },
 ];
 
+interface ProductHubPreferences {
+  favorites: string[];
+  recent: string[];
+}
+
+function readProductHubPreferences(key: string): ProductHubPreferences {
+  const value = window.localStorage.getItem(key);
+  if (!value) return { favorites: [], recent: [] };
+  const parsed: unknown = JSON.parse(value);
+  if (typeof parsed !== "object" || parsed === null) return { favorites: [], recent: [] };
+  const preferences = parsed as { favorites?: unknown; recent?: unknown };
+  return {
+    favorites: Array.isArray(preferences.favorites)
+      ? preferences.favorites.filter((slug): slug is string => typeof slug === "string")
+      : [],
+    recent: Array.isArray(preferences.recent)
+      ? preferences.recent.filter((slug): slug is string => typeof slug === "string")
+      : [],
+  };
+}
+
 export function ProductHubClient({
   orgId,
   orgName,
@@ -113,6 +168,7 @@ export function ProductHubClient({
   userName,
   userEmail,
   avatarUrl,
+  avatarFallbackUrl,
   unreadCount,
   isOrgAdmin,
   products,
@@ -123,6 +179,10 @@ export function ProductHubClient({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+  const [hubPreferences, setHubPreferences] = useState<ProductHubPreferences>({ favorites: [], recent: [] });
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [preferencesError, setPreferencesError] = useState("");
+  const preferenceKey = `product-hub-preferences:${orgId}`;
   const canSearch = products.length > 4;
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -132,6 +192,50 @@ export function ProductHubClient({
   }, [products, search]);
   const accessibleCount = products.filter((product) => product.canOpen).length;
   const deniedProductMessage = searchParams.get("accessDenied") === "product";
+  const favoriteProducts = hubPreferences.favorites
+    .map((slug) => products.find((product) => product.slug === slug && product.canOpen))
+    .filter((product): product is ProductHubItem => Boolean(product));
+  const recentProducts = hubPreferences.recent
+    .map((slug) => products.find((product) => product.slug === slug && product.canOpen))
+    .filter((product): product is ProductHubItem => Boolean(product))
+    .slice(0, 4);
+
+  useEffect(() => {
+    try {
+      // localStorage is only available after hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHubPreferences(readProductHubPreferences(preferenceKey));
+      setPreferencesError("");
+    } catch (error) {
+      console.error("Product Hub preferences could not be loaded:", error);
+      setPreferencesError("Favorites and recent apps are unavailable in this browser.");
+    } finally {
+      setPreferencesReady(true);
+    }
+  }, [preferenceKey]);
+
+  function saveHubPreferences(next: ProductHubPreferences) {
+    setHubPreferences(next);
+    try {
+      window.localStorage.setItem(preferenceKey, JSON.stringify(next));
+      setPreferencesError("");
+    } catch (error) {
+      console.error("Product Hub preferences could not be saved:", error);
+      setPreferencesError("Could not save your app shortcuts on this device.");
+    }
+  }
+
+  function recordProductLaunch(slug: string) {
+    const recent = [slug, ...hubPreferences.recent.filter((entry) => entry !== slug)].slice(0, 8);
+    saveHubPreferences({ ...hubPreferences, recent });
+  }
+
+  function toggleFavorite(slug: string) {
+    const favorites = hubPreferences.favorites.includes(slug)
+      ? hubPreferences.favorites.filter((entry) => entry !== slug)
+      : [slug, ...hubPreferences.favorites];
+    saveHubPreferences({ ...hubPreferences, favorites });
+  }
 
   async function signOut() {
     try {
@@ -315,13 +419,12 @@ export function ProductHubClient({
                 aria-expanded={profileOpen}
                 aria-label="Open profile menu"
               >
-                {avatarUrl ? (
-                  <Image src={avatarUrl} alt="" width={34} height={34} className="h-[34px] w-[34px] rounded-full object-cover" />
-                ) : (
-                  <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
-                    {(userName || userEmail).slice(0, 1).toUpperCase()}
-                  </span>
-                )}
+                <ProfileAvatar
+                  key={avatarUrl ?? avatarFallbackUrl ?? "default-avatar"}
+                  avatarUrl={avatarUrl}
+                  fallbackUrl={avatarFallbackUrl}
+                  initials={(userName || userEmail).slice(0, 1).toUpperCase()}
+                />
                 <span className="hidden max-w-[150px] text-left sm:block">
                   <span className="block truncate text-xs font-semibold text-slate-800">{userName || userEmail}</span>
                   <span className="block truncate text-[10px] text-slate-500">{orgName}</span>
@@ -348,8 +451,8 @@ export function ProductHubClient({
           </div>
         </header>
 
-        <main className="w-full space-y-7 px-4 py-4 sm:space-y-9 sm:px-6 sm:py-6 lg:px-8">
-          <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#071c46] via-[#0754b7] to-[#087dd8] px-5 py-7 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:min-h-[250px] sm:px-9 sm:py-8">
+        <main className="w-full space-y-6 px-4 py-4 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8">
+          <section className="sticky top-[68px] z-10 isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#071c46] via-[#0754b7] to-[#087dd8] px-5 py-5 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:min-h-[205px] sm:px-8 sm:py-5">
             {hubBranding.heroArtworkUrl && (
               <>
                 <Image
@@ -358,7 +461,7 @@ export function ProductHubClient({
                   fill
                   priority
                   unoptimized
-                  className="absolute inset-0 z-0 object-cover"
+                  className="absolute inset-0 z-0 bg-[#0754b7] object-contain p-2"
                 />
                 <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-r from-[#071c46]/90 via-[#0754b7]/65 to-[#0754b7]/15" />
               </>
@@ -368,17 +471,17 @@ export function ProductHubClient({
               <div className="absolute inset-7 rounded-full border border-white/15" />
               <div className="absolute inset-14 rounded-full border border-white/15" />
             </div>
-            <div className="relative z-10 flex min-h-[205px] max-w-[700px] flex-col justify-center sm:min-h-[210px]">
-              <p className="mb-3 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 sm:text-xs">
+            <div className="relative z-10 flex min-h-[165px] max-w-[700px] flex-col justify-center sm:min-h-[175px]">
+              <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 sm:text-xs">
                 <span className="h-px w-6 bg-cyan-300" /> Think Digital Solutions
               </p>
-              <h1 className="max-w-[620px] text-[27px] font-bold leading-[1.08] tracking-tight sm:text-4xl lg:text-[42px]">
+              <h1 className="max-w-[620px] text-[25px] font-bold leading-[1.08] tracking-tight sm:text-3xl lg:text-4xl">
                 One Platform. Multiple Solutions. Unlimited Possibilities.
               </h1>
-              <p className="mt-3 max-w-[550px] text-xs leading-5 text-blue-100 sm:text-sm sm:leading-6">
+              <p className="mt-2 max-w-[550px] text-xs leading-5 text-blue-100 sm:text-sm sm:leading-6">
                 Discover, manage and access intelligent business applications designed to simplify operations and accelerate growth.
               </p>
-              <div className="mt-5 flex flex-wrap gap-2.5">
+              <div className="mt-4 flex flex-wrap gap-2.5">
                 <a href="#applications" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-xs font-bold text-blue-800 shadow-sm transition hover:bg-blue-50 sm:text-sm">
                   <Rocket className="h-4 w-4" /> Explore Your Applications <ArrowRight className="h-4 w-4" />
                 </a>
@@ -418,7 +521,56 @@ export function ProductHubClient({
             )}
           </section>
 
-          <section id="applications" className="scroll-mt-24 space-y-5">
+          <section aria-label="Quick app shortcuts" className="space-y-4">
+            {preferencesError && <p role="status" className="text-xs text-amber-700">{preferencesError}</p>}
+            {preferencesReady && favoriteProducts.length > 0 && (
+              <div className="space-y-2">
+                <h2 className="flex items-center gap-2 text-sm font-bold text-[#14233e]">
+                  <Star aria-hidden="true" className="h-4 w-4 fill-amber-400 text-amber-500" />
+                  Favorites
+                </h2>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {favoriteProducts.map((product) => {
+                    const presentation = PRODUCT_ICONS[product.slug] ?? { icon: LayoutGrid, color: "bg-slate-100 text-slate-700" };
+                    const ProductIcon = presentation.icon;
+                    return (
+                      <Link
+                        key={product.slug}
+                        href={product.launchPath!}
+                        onClick={() => recordProductLaunch(product.slug)}
+                        className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                      >
+                        <span className={`relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg ${presentation.color}`}>
+                          {product.imageUrl ? <Image src={product.imageUrl} alt="" fill unoptimized className="object-contain p-1" /> : <ProductIcon className="h-5 w-5" />}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#152440]">{product.name}</span>
+                        <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-blue-600" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {preferencesReady && recentProducts.length > 0 && (
+              <div className="space-y-2">
+                <h2 className="text-sm font-bold text-[#14233e]">Recently opened</h2>
+                <div className="flex flex-wrap gap-2">
+                  {recentProducts.map((product) => (
+                    <Link
+                      key={product.slug}
+                      href={product.launchPath!}
+                      onClick={() => recordProductLaunch(product.slug)}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
+                    >
+                      {product.name}<ArrowRight aria-hidden="true" className="h-3 w-3" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section id="applications" className="scroll-mt-[320px] space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Workspace</p>
@@ -464,10 +616,24 @@ export function ProductHubClient({
                             <ProductIcon className="h-6 w-6" strokeWidth={1.8} />
                           )}
                         </div>
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${product.status === "Active" ? "bg-emerald-50 text-emerald-700" : product.status === "Read-only" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${product.status === "Active" ? "bg-emerald-500" : product.status === "Read-only" ? "bg-amber-500" : "bg-slate-400"}`} />
-                          {product.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {product.canOpen && (
+                            <button
+                              type="button"
+                              aria-label={hubPreferences.favorites.includes(product.slug) ? `Remove ${product.name} from favorites` : `Add ${product.name} to favorites`}
+                              aria-pressed={hubPreferences.favorites.includes(product.slug)}
+                              title={hubPreferences.favorites.includes(product.slug) ? "Remove from favorites" : "Add to favorites"}
+                              onClick={() => toggleFavorite(product.slug)}
+                              className="rounded-md p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            >
+                              <Star className={`h-4 w-4 ${hubPreferences.favorites.includes(product.slug) ? "fill-amber-400 text-amber-500" : ""}`} />
+                            </button>
+                          )}
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${product.status === "Active" ? "bg-emerald-50 text-emerald-700" : product.status === "Read-only" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${product.status === "Active" ? "bg-emerald-500" : product.status === "Read-only" ? "bg-amber-500" : "bg-slate-400"}`} />
+                            {product.status}
+                          </span>
+                        </div>
                       </div>
                       <div className="mt-4 flex-1">
                         <h3 className="text-sm font-bold text-[#152440]">{product.name}</h3>
@@ -479,6 +645,7 @@ export function ProductHubClient({
                         {product.canOpen && product.launchPath ? (
                           <Link
                             href={product.launchPath}
+                            onClick={() => recordProductLaunch(product.slug)}
                             className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
                           >
                             Open Application
@@ -540,7 +707,7 @@ export function ProductHubClient({
             </section>
           )}
 
-          <section data-hub-surface id="about" className="scroll-mt-24 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
+          <section data-hub-surface id="about" className="scroll-mt-[320px] grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
             <div aria-hidden="true" className="relative flex min-h-[230px] items-center justify-center overflow-hidden bg-gradient-to-br from-[#08234f] via-[#0872c9] to-[#56c3e8] p-4 sm:min-h-[280px] sm:p-6">
               {hubBranding.aboutImageUrl ? (
                 <Image src={hubBranding.aboutImageUrl} alt="" fill unoptimized className="absolute inset-0 bg-slate-50 object-contain p-3 sm:p-5" />
