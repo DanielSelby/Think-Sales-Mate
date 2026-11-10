@@ -265,7 +265,7 @@ export function ProductHubClient({
 
   function renderSidebar(mobile = false) {
     return (
-      <div className="flex h-full flex-col bg-[#101c35] px-4 py-5 text-white">
+      <div data-hub-sidebar className="flex h-full flex-col bg-[#101c35] px-4 py-5 text-white">
         <Link href="/product-hub" className="flex items-center gap-3 px-2">
           <Image src="/thinksales-logo.svg" alt="" width={38} height={38} priority />
           <span className="min-w-0">
@@ -324,8 +324,8 @@ export function ProductHubClient({
           color: #e2e8f0;
         }
         [data-product-hub-theme="dark"][data-product-hub-surface-style="transparent"] {
-          --hub-surface: rgba(17, 29, 48, 0.76);
-          --hub-inset-surface: rgba(148, 163, 184, 0.08);
+          --hub-surface: rgba(17, 29, 48, 0.48);
+          --hub-inset-surface: rgba(148, 163, 184, 0.07);
           background-image:
             radial-gradient(circle at 85% 12%, rgba(37, 99, 235, 0.18), transparent 28rem),
             radial-gradient(circle at 12% 65%, rgba(8, 145, 178, 0.12), transparent 26rem);
@@ -334,6 +334,14 @@ export function ProductHubClient({
           background-color: var(--hub-surface) !important;
           border-color: #2a3b52 !important;
           background-image: none !important;
+        }
+        .min-h-screen[data-product-hub-theme="dark"] main [data-hub-surface] {
+          border-color: #2a3b52 !important;
+          border-width: 1px !important;
+        }
+        [data-product-hub-theme="dark"] [data-hub-sidebar] {
+          background-color: #080f1c !important;
+          color: #e2e8f0 !important;
         }
         [data-product-hub-theme="dark"][data-product-hub-surface-style="transparent"] [data-hub-surface] {
           backdrop-filter: blur(14px);
@@ -354,6 +362,9 @@ export function ProductHubClient({
         }
         [data-product-hub-theme="dark"] main [class~="text-blue-700"] {
           color: #8fc5ff !important;
+        }
+        [data-product-hub-theme="dark"] main [class~="text-blue-800"] {
+          color: #a8d1ff !important;
         }
         [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-slate-50"],
         [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-slate-50/80"],
@@ -466,35 +477,39 @@ export function ProductHubClient({
         </header>
 
         <main className="w-full space-y-6 px-4 py-4 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8">
-          <section className="relative isolate grid grid-cols-1 items-center gap-4 overflow-hidden rounded-2xl bg-transparent px-5 py-5 text-slate-900 sm:min-h-[205px] sm:grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] sm:gap-6 sm:px-8 sm:py-5">
+          <section className="sticky top-[68px] z-20 isolate min-h-[205px] overflow-hidden rounded-2xl bg-transparent px-5 py-5 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:px-8 sm:py-4">
             {hubBranding.heroArtworkUrl && (
-              <div aria-hidden="true" className="relative order-2 mx-auto h-[120px] w-full max-w-[420px] min-w-0 sm:order-none sm:col-start-2 sm:row-start-1 sm:h-[175px] sm:w-full">
+              <>
                 <Image
                   src={hubBranding.heroArtworkUrl}
                   alt=""
                   fill
                   priority
                   unoptimized
-                  sizes="(max-width: 640px) 100vw, 42vw"
-                  className="object-contain"
+                  sizes="100vw"
+                  className="absolute inset-0 z-0 object-cover"
                 />
-              </div>
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 z-[1] bg-gradient-to-r from-[#071c46]/85 via-[#0754b7]/45 to-transparent"
+                />
+              </>
             )}
-            <div className={`relative z-10 order-1 flex min-h-[165px] w-full max-w-[700px] flex-col justify-center sm:order-none sm:min-h-[175px] ${hubBranding.heroArtworkUrl ? "sm:col-start-1 sm:row-start-1" : "sm:col-span-2"}`}>
-              <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700 sm:text-xs">
-                <span className="h-px w-6 bg-blue-500" /> Think Digital Solutions
+            <div className="relative z-10 flex min-h-[165px] max-w-[700px] flex-col justify-center sm:min-h-[175px]">
+              <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 sm:text-xs">
+                <span className="h-px w-6 bg-cyan-300" /> Think Digital Solutions
               </p>
               <h1 className="max-w-[620px] text-[25px] font-bold leading-[1.08] tracking-tight sm:text-3xl lg:text-4xl">
                 One Platform. Multiple Solutions. Unlimited Possibilities.
               </h1>
-              <p className="mt-2 max-w-[550px] text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
+              <p className="mt-2 max-w-[550px] text-xs leading-5 text-blue-100 sm:text-sm sm:leading-6">
                 Discover, manage and access intelligent business applications designed to simplify operations and accelerate growth.
               </p>
               <div className="mt-4 flex flex-wrap gap-2.5">
                 <a href="#applications" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-xs font-bold text-blue-800 shadow-sm transition hover:bg-blue-50 sm:text-sm">
                   <Rocket className="h-4 w-4" /> Explore Your Applications <ArrowRight className="h-4 w-4" />
                 </a>
-                <a href="#about" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white/70 px-4 text-xs font-semibold text-slate-700 transition hover:bg-white sm:text-sm">
+                <a href="#about" className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-4 text-xs font-semibold text-white transition hover:bg-white/20 sm:text-sm">
                   <CheckCircle2 className="h-4 w-4" /> Learn More
                 </a>
               </div>
@@ -544,6 +559,7 @@ export function ProductHubClient({
                     const ProductIcon = presentation.icon;
                     return (
                       <Link
+                        data-hub-surface
                         key={product.slug}
                         href={product.launchPath!}
                         onClick={() => recordProductLaunch(product.slug)}
@@ -566,6 +582,7 @@ export function ProductHubClient({
                 <div className="flex flex-wrap gap-2">
                   {recentProducts.map((product) => (
                     <Link
+                      data-hub-surface
                       key={product.slug}
                       href={product.launchPath!}
                       onClick={() => recordProductLaunch(product.slug)}
@@ -579,7 +596,7 @@ export function ProductHubClient({
             )}
           </section>
 
-          <section id="applications" className="scroll-mt-24 space-y-5">
+          <section id="applications" className="scroll-mt-[290px] space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Workspace</p>
@@ -637,15 +654,18 @@ export function ProductHubClient({
                           )}
                         </div>
                       </div>
-                      <div className={`relative mt-3 flex h-36 w-full items-center justify-center overflow-hidden rounded-xl ${product.imageUrl ? "bg-slate-50" : presentation.color}`}>
-                        {product.imageUrl ? (
-                          <Image src={product.imageUrl} alt={`${product.name} product image`} fill unoptimized className="object-contain p-3" />
-                        ) : (
-                          <ProductIcon className="h-16 w-16" strokeWidth={1.4} />
-                        )}
-                      </div>
-                      <div className="mt-4 flex-1">
-                        <h3 className="text-base font-bold text-[#152440]">
+                      <div className="mt-3 flex flex-1 items-center gap-4">
+                        <div className={`relative aspect-square h-32 w-32 shrink-0 overflow-hidden rounded-xl sm:h-36 sm:w-36 ${product.imageUrl ? "bg-slate-50" : presentation.color}`}>
+                          {product.imageUrl ? (
+                            <Image src={product.imageUrl} alt={`${product.name} product image`} fill unoptimized className="object-contain p-3" />
+                          ) : (
+                            <span className="flex h-full w-full items-center justify-center">
+                              <ProductIcon className="h-16 w-16" strokeWidth={1.4} />
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 text-center">
+                          <h3 className="text-base font-bold text-[#152440]">
                           {product.canOpen && product.launchPath ? (
                             <Link
                               href={product.launchPath}
@@ -655,10 +675,11 @@ export function ProductHubClient({
                               {product.name}
                             </Link>
                           ) : product.name}
-                        </h3>
-                        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500">
-                          {product.description || "Open your organization's application."}
-                        </p>
+                          </h3>
+                          <p className="mt-1.5 line-clamp-3 text-xs leading-5 text-slate-500">
+                            {product.description || "Open your organization's application."}
+                          </p>
+                        </div>
                       </div>
                       <div className="mt-4 border-t border-slate-100 pt-3">
                         {product.canOpen && product.launchPath ? (
@@ -726,10 +747,10 @@ export function ProductHubClient({
             </section>
           )}
 
-          <section data-hub-surface id="about" className="scroll-mt-24 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
-            <div aria-hidden="true" className="relative flex min-h-[230px] items-center justify-center overflow-hidden bg-gradient-to-br from-[#08234f] via-[#0872c9] to-[#56c3e8] p-4 sm:min-h-[280px] sm:p-6">
+          <section data-hub-surface id="about" className="scroll-mt-[290px] grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
+            <div aria-hidden="true" className="relative flex min-h-[230px] items-center justify-center overflow-hidden bg-transparent p-4 sm:min-h-[280px] sm:p-6">
               {hubBranding.aboutImageUrl ? (
-                <Image src={hubBranding.aboutImageUrl} alt="" fill unoptimized className="absolute inset-0 bg-slate-50 object-contain p-3 sm:p-5" />
+                <Image src={hubBranding.aboutImageUrl} alt="" fill unoptimized className="absolute inset-0 object-contain p-3 sm:p-5" />
               ) : (
                 <>
                   <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 30% 30%, white 0 1px, transparent 1.5px)", backgroundSize: "23px 23px" }} />
@@ -806,7 +827,7 @@ export function ProductHubClient({
               <div className="relative z-10 max-w-[280px]">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-800">Built for what’s next</p>
                 <h2 className="mt-2 text-2xl font-bold leading-tight text-[#10234a]">Your Growth, Our Priority.</h2>
-                <p className="mt-2 text-sm leading-5 text-blue-950/75">Partner with us for innovative digital solutions.</p>
+                <p className="mt-2 text-sm leading-5 text-slate-600">Partner with us for innovative digital solutions.</p>
                 <Link href="/support" className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg bg-blue-700 px-4 text-xs font-semibold text-white hover:bg-blue-800">Get Started <ArrowRight className="h-3.5 w-3.5" /></Link>
               </div>
             </div>
@@ -833,7 +854,7 @@ export function ProductHubClient({
                   {announcements.map((announcement) => {
                     const href = getAnnouncementHref(announcement.link_url);
                     return (
-                      <article key={announcement.id} className="rounded-xl bg-slate-50 px-4 py-3">
+                      <article data-hub-surface key={announcement.id} className="rounded-xl bg-slate-50 px-4 py-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <h3 className="text-xs font-bold text-slate-800">{announcement.title}</h3>
                           {announcement.published_at && (
