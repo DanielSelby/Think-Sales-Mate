@@ -461,7 +461,7 @@ export function ProductHubClient({
                   fill
                   priority
                   unoptimized
-                  className="absolute inset-0 z-0 bg-[#0754b7] object-contain p-2"
+                  className="absolute inset-0 z-0 object-cover"
                 />
                 <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-r from-[#071c46]/90 via-[#0754b7]/65 to-[#0754b7]/15" />
               </>
