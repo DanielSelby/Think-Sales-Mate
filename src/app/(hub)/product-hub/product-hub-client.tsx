@@ -452,7 +452,7 @@ export function ProductHubClient({
         </header>
 
         <main className="w-full space-y-6 px-4 py-4 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8">
-          <section className="sticky top-[68px] z-10 isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#071c46] via-[#0754b7] to-[#087dd8] px-5 py-5 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:min-h-[205px] sm:px-8 sm:py-5">
+          <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#071c46] via-[#0754b7] to-[#087dd8] px-5 py-5 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:min-h-[205px] sm:px-8 sm:py-5">
             {hubBranding.heroArtworkUrl && (
               <>
                 <Image
@@ -461,7 +461,7 @@ export function ProductHubClient({
                   fill
                   priority
                   unoptimized
-                  className="absolute inset-0 z-0 object-cover object-right"
+                  className="absolute inset-0 z-0 object-contain object-right"
                 />
                 <div
                   aria-hidden="true"
@@ -573,7 +573,7 @@ export function ProductHubClient({
             )}
           </section>
 
-          <section id="applications" className="scroll-mt-[320px] space-y-5">
+          <section id="applications" className="scroll-mt-24 space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Workspace</p>
@@ -710,7 +710,7 @@ export function ProductHubClient({
             </section>
           )}
 
-          <section data-hub-surface id="about" className="scroll-mt-[320px] grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
+          <section data-hub-surface id="about" className="scroll-mt-24 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
             <div aria-hidden="true" className="relative flex min-h-[230px] items-center justify-center overflow-hidden bg-gradient-to-br from-[#08234f] via-[#0872c9] to-[#56c3e8] p-4 sm:min-h-[280px] sm:p-6">
               {hubBranding.aboutImageUrl ? (
                 <Image src={hubBranding.aboutImageUrl} alt="" fill unoptimized className="absolute inset-0 bg-slate-50 object-contain p-3 sm:p-5" />
