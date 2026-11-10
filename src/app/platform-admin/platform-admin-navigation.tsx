@@ -12,6 +12,7 @@ import {
   Headphones,
   LayoutDashboard,
   Menu,
+  Megaphone,
   MessageSquare,
   Network,
   ScrollText,
@@ -43,6 +44,7 @@ const pageIcons: Partial<Record<PlatformAdminPage, LucideIcon>> = {
   "Login Experience": LayoutDashboard,
   registrations: Building2,
   communication: MessageSquare,
+  Announcements: Megaphone,
 };
 
 interface NavigationItem {

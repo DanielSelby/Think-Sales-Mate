@@ -15,9 +15,11 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
     page,
     label: page === "registrations" ? "Registration Approvals"
       : page === "communication" ? "Communication Management"
+        : page === "Announcements" ? "Product Hub Announcements"
         : page,
     href: page === "registrations" ? "/platform-admin/registrations"
       : page === "communication" ? "/platform-admin/communication"
+        : page === "Announcements" ? "/platform-admin/announcements"
         : `/platform-admin?tab=${encodeURIComponent(page)}`,
   }));
   if (accessiblePages.includes("Feature Access")) {

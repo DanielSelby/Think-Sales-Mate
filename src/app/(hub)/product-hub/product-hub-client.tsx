@@ -40,7 +40,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { OrgSwitcher } from "@/components/nav/org-switcher";
 import { createClient } from "@/lib/supabase/client";
-import type { ProductHubBranding } from "@/lib/supabase/platform-admin";
+import type { PlatformHubAnnouncement, ProductHubBranding } from "@/lib/supabase/platform-admin";
+import { PLATFORM_PRODUCT_LABELS, isPlatformProductSlug } from "@/types/platform-database";
 
 export interface ProductHubItem {
   slug: string;
@@ -103,6 +104,7 @@ interface ProductHubClientProps {
   unreadCount: number;
   isOrgAdmin: boolean;
   products: ProductHubItem[];
+  announcements: PlatformHubAnnouncement[];
 }
 
 const PRODUCT_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
@@ -159,6 +161,17 @@ function readProductHubPreferences(key: string): ProductHubPreferences {
   };
 }
 
+function getAnnouncementHref(value: string | null): string | null {
+  if (!value) return null;
+  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return value;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ProductHubClient({
   orgId,
   orgName,
@@ -172,6 +185,7 @@ export function ProductHubClient({
   unreadCount,
   isOrgAdmin,
   products,
+  announcements,
 }: ProductHubClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -452,43 +466,39 @@ export function ProductHubClient({
         </header>
 
         <main className="w-full space-y-6 px-4 py-4 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8">
-          <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#071c46] via-[#0754b7] to-[#087dd8] px-5 py-5 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:min-h-[205px] sm:px-8 sm:py-5">
+          <section className="relative isolate overflow-hidden rounded-2xl bg-transparent px-5 py-5 text-slate-900 sm:min-h-[205px] sm:px-8 sm:py-5">
             {hubBranding.heroArtworkUrl && (
-              <>
+              <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[42%] sm:block">
                 <Image
                   src={hubBranding.heroArtworkUrl}
                   alt=""
-                  fill
+                  width={960}
+                  height={360}
                   priority
                   unoptimized
-                  className="absolute inset-0 z-0 object-contain object-right"
+                  className="h-full w-full object-contain object-right"
                 />
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 z-[1] bg-gradient-to-r from-[#071c46] via-[#0754b7]/90 to-[#0754b7]/25"
-                />
-              </>
+              </div>
             )}
-            <div className="pointer-events-none absolute inset-0 -z-10 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 75% 30%, #66d9ff 0, transparent 27%), radial-gradient(circle at 93% 90%, #3b82f6 0, transparent 28%)" }} />
-            <div className="pointer-events-none absolute -right-20 -top-32 -z-10 h-80 w-80 rounded-full border border-white/15 sm:right-[10%]">
-              <div className="absolute inset-7 rounded-full border border-white/15" />
-              <div className="absolute inset-14 rounded-full border border-white/15" />
+            <div className="pointer-events-none absolute -right-20 -top-32 -z-10 h-80 w-80 rounded-full border border-blue-100/70 sm:right-[10%]">
+              <div className="absolute inset-7 rounded-full border border-blue-100/70" />
+              <div className="absolute inset-14 rounded-full border border-blue-100/70" />
             </div>
-            <div className="relative z-10 flex min-h-[165px] max-w-[700px] flex-col justify-center sm:min-h-[175px]">
-              <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 sm:text-xs">
-                <span className="h-px w-6 bg-cyan-300" /> Think Digital Solutions
+            <div className="relative z-10 flex min-h-[165px] max-w-[700px] flex-col justify-center sm:min-h-[175px] sm:max-w-[58%]">
+              <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700 sm:text-xs">
+                <span className="h-px w-6 bg-blue-500" /> Think Digital Solutions
               </p>
               <h1 className="max-w-[620px] text-[25px] font-bold leading-[1.08] tracking-tight sm:text-3xl lg:text-4xl">
                 One Platform. Multiple Solutions. Unlimited Possibilities.
               </h1>
-              <p className="mt-2 max-w-[550px] text-xs leading-5 text-blue-100 sm:text-sm sm:leading-6">
+              <p className="mt-2 max-w-[550px] text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
                 Discover, manage and access intelligent business applications designed to simplify operations and accelerate growth.
               </p>
               <div className="mt-4 flex flex-wrap gap-2.5">
                 <a href="#applications" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-xs font-bold text-blue-800 shadow-sm transition hover:bg-blue-50 sm:text-sm">
                   <Rocket className="h-4 w-4" /> Explore Your Applications <ArrowRight className="h-4 w-4" />
                 </a>
-                <a href="#about" className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-4 text-xs font-semibold text-white transition hover:bg-white/20 sm:text-sm">
+                <a href="#about" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white/70 px-4 text-xs font-semibold text-slate-700 transition hover:bg-white sm:text-sm">
                   <CheckCircle2 className="h-4 w-4" /> Learn More
                 </a>
               </div>
@@ -812,10 +822,51 @@ export function ProductHubClient({
                 <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Updates</p><h2 className="mt-1 text-lg font-bold text-[#172744]">Latest News & Updates</h2></div>
                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-700"><Bell className="h-4 w-4" /></span>
               </div>
-              <div className="mt-4 flex min-h-[90px] items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-slate-400"><Bell className="h-4 w-4" /></span>
-                <div><p className="text-xs font-semibold text-slate-700">No announcements available</p><p className="mt-1 text-[11px] leading-4 text-slate-500">New platform and product updates will appear here when published.</p></div>
-              </div>
+              {announcements.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {announcements.map((announcement) => {
+                    const href = getAnnouncementHref(announcement.link_url);
+                    return (
+                      <article key={announcement.id} className="rounded-xl bg-slate-50 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="text-xs font-bold text-slate-800">{announcement.title}</h3>
+                          {announcement.published_at && (
+                            <time dateTime={announcement.published_at} className="text-[10px] text-slate-500">
+                              {new Date(announcement.published_at).toLocaleDateString("en", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })}
+                            </time>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-600">{announcement.summary}</p>
+                        {announcement.product_slugs.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {announcement.product_slugs.filter(isPlatformProductSlug).map((slug) => (
+                              <span key={slug} className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-medium text-blue-800">
+                                {PLATFORM_PRODUCT_LABELS[slug]}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {href && (
+                          href.startsWith("/") ? (
+                            <Link href={href} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-900">
+                              Learn more <ArrowRight className="h-3 w-3" />
+                            </Link>
+                          ) : (
+                            <a href={href} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-900">
+                              Learn more <ArrowRight className="h-3 w-3" />
+                            </a>
+                          )
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-4 flex min-h-[90px] items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-slate-400"><Bell className="h-4 w-4" /></span>
+                  <div><p className="text-xs font-semibold text-slate-700">No announcements available</p><p className="mt-1 text-[11px] leading-4 text-slate-500">New platform and product updates will appear here when published.</p></div>
+                </div>
+              )}
               <Link href="/communication" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900">View notifications <ArrowRight className="h-3.5 w-3.5" /></Link>
             </div>
           </section>

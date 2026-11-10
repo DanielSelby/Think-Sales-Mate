@@ -460,6 +460,33 @@ export interface PlatformDatabase {
         updated_by?: string | null;
         updated_at?: string;
       }>;
+      platform_hub_announcements: PlatformTable<{
+        id: string;
+        title: string;
+        summary: string;
+        link_url: string | null;
+        product_slugs: string[];
+        status: "draft" | "published" | "archived";
+        published_at: string | null;
+        expires_at: string | null;
+        created_by: string | null;
+        updated_by: string | null;
+        created_at: string;
+        updated_at: string;
+      }, {
+        id?: string;
+        title: string;
+        summary: string;
+        link_url?: string | null;
+        product_slugs?: string[];
+        status?: "draft" | "published" | "archived";
+        published_at?: string | null;
+        expires_at?: string | null;
+        created_by?: string | null;
+        updated_by?: string | null;
+        created_at?: string;
+        updated_at?: string;
+      }>;
       platform_registration_deliveries: PlatformTable<{
         id: string;
         dedupe_key: string;

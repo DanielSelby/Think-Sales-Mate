@@ -6,7 +6,11 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { getProductLaunchPath } from "@/lib/product-launch-path";
 import { shouldShowProductInHub } from "@/lib/product-hub-visibility";
-import { getProductHubBranding, getPublishedPlatformProducts } from "@/lib/supabase/platform-admin";
+import {
+  getProductHubBranding,
+  getPublishedPlatformProducts,
+  getPublishedProductHubAnnouncements,
+} from "@/lib/supabase/platform-admin";
 import { reconcileCurrentProductEntitlements } from "@/lib/supabase/product-entitlements";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
@@ -42,7 +46,7 @@ export default async function ProductHubPage() {
     accessPermissions: context.accessPermissions,
   });
   await reconcileCurrentProductEntitlements();
-  const [authResult, profileResult, companyProfileResult, notificationResult, catalog, hubBranding, entitlementResult, assignmentResult] = await Promise.all([
+  const [authResult, profileResult, companyProfileResult, notificationResult, catalog, hubBranding, announcements, entitlementResult, assignmentResult] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("profiles").select("full_name, avatar_url").eq("id", context.userId).maybeSingle(),
     supabase.from("company_profile").select("logo_url").eq("org_id", context.orgId).maybeSingle(),
@@ -50,6 +54,7 @@ export default async function ProductHubPage() {
       .eq("org_id", context.orgId).eq("is_read", false),
     getPublishedPlatformProducts(),
     getProductHubBranding(),
+    getPublishedProductHubAnnouncements(),
     admin.from("organization_product_entitlements")
       .select("product_slug, status")
       .eq("organization_id", context.orgId),
@@ -123,6 +128,13 @@ export default async function ProductHubPage() {
     }
   }
 
+  const hubAnnouncements = announcements
+    .filter((announcement) =>
+      announcement.product_slugs.length === 0
+      || announcement.product_slugs.some((slug) => items.some((item) => item.slug === slug))
+    )
+    .slice(0, 3);
+
   return (
     <ProductHubClient
       orgId={context.orgId}
@@ -137,6 +149,7 @@ export default async function ProductHubPage() {
       unreadCount={notificationResult.count ?? 0}
       isOrgAdmin={isOrgAdmin}
       products={items}
+      announcements={hubAnnouncements}
     />
   );
 }

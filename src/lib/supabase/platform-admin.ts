@@ -86,6 +86,24 @@ export interface ProductHubBranding {
   darkSurfaceStyle: "opaque" | "transparent";
 }
 
+export type PlatformHubAnnouncement = PlatformDatabase["public"]["Tables"]["platform_hub_announcements"]["Row"];
+
+export async function getPublishedProductHubAnnouncements(): Promise<PlatformHubAnnouncement[]> {
+  const platform = createPlatformAdminClient();
+  const now = new Date().toISOString();
+  const { data, error } = await platform
+    .from("platform_hub_announcements")
+    .select("id, title, summary, link_url, product_slugs, status, published_at, expires_at, created_by, updated_by, created_at, updated_at")
+    .eq("status", "published")
+    .lte("published_at", now)
+    .order("published_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(`Could not load Product Hub announcements: ${error.message}`);
+  return (data ?? []).filter((announcement) =>
+    !announcement.expires_at || announcement.expires_at > now
+  ).slice(0, 20);
+}
+
 function getManagedAssetUrl(platform: ReturnType<typeof createPlatformAdminClient>, value: unknown): string | null {
   if (typeof value !== "string" || !/^product-hub\/[a-z0-9/-]+\.(?:jpg|png|svg|webp)$/.test(value)) return null;
   return platform.storage.from("platform-assets").getPublicUrl(value).data.publicUrl;

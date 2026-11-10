@@ -207,7 +207,7 @@ export function ProductHubAppearanceManager({
         <ArtworkUploader
           assetType="hero"
           label="Hero artwork"
-          description="Landscape image shown behind the Product Hub headline. The full image fits inside the hero area without cropping."
+          description="Shown contained on the right side of the transparent hero. Use a transparent PNG or WebP for artwork that blends into the page; the image will not be cropped."
           imageUrl={branding.heroArtworkUrl}
           canManage={canManage}
         />

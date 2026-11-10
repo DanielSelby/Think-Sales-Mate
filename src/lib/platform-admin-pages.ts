@@ -15,6 +15,7 @@ export const PLATFORM_ADMIN_PAGES = [
   { key: "Security Center", label: "Security Center" },
   { key: "System Settings", label: "System Settings" },
   { key: "Feature Flags", label: "Feature Flags" },
+  { key: "Announcements", label: "Product Hub Announcements" },
   { key: "Audit Logs", label: "Audit Logs" },
   { key: "Login Experience", label: "Login Experience" },
   { key: "registrations", label: "Registration Approvals" },
