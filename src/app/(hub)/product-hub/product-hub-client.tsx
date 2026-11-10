@@ -461,9 +461,12 @@ export function ProductHubClient({
                   fill
                   priority
                   unoptimized
-                  className="absolute inset-0 z-0 object-cover"
+                  className="absolute inset-0 z-0 object-cover object-right"
                 />
-                <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-r from-[#071c46]/90 via-[#0754b7]/65 to-[#0754b7]/15" />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 z-[1] bg-gradient-to-r from-[#071c46] via-[#0754b7]/90 to-[#0754b7]/25"
+                />
               </>
             )}
             <div className="pointer-events-none absolute inset-0 -z-10 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 75% 30%, #66d9ff 0, transparent 27%), radial-gradient(circle at 93% 90%, #3b82f6 0, transparent 28%)" }} />
