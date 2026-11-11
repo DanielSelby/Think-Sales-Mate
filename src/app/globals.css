@@ -3465,3 +3465,36 @@ html.dark[data-dark-style="think-service"] .page-canvas table td {
 html.dark .page-canvas tbody tr:hover {
   background-color: rgb(30 41 59 / 0.4) !important;
 }
+
+html.dark[data-dark-style="think-service"] .page-canvas :is(.pos-page, .restaurant-management-page) :is(div, section, article, aside, form):is(
+  [class~="rounded-card"],
+  [class*="rounded-2xl"],
+  [class*="rounded-xl"],
+  [class*="rounded-lg"],
+  [class*="rounded-md"]
+):is(
+  [class~="bg-white"],
+  [class~="dark:bg-ink-900"],
+  [class~="dark:bg-ink-800"],
+  [class~="dark:bg-ink-950"],
+  [class*="bg-gradient-to"]
+):not([class~="bg-amber-50"]):not([class~="bg-red-50"]):not([class~="bg-emerald-50"]):not([class~="bg-orange-50"]) {
+  border-color: #334155 !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(12px);
+}
+
+html.dark[data-dark-style="think-service"] .page-canvas .pos-page .pos-product-grid > button {
+  border-color: #334155 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html.dark[data-dark-style="think-service"] .page-canvas .pos-page .pos-product-grid > button > div,
+html.dark[data-dark-style="think-service"] .page-canvas .pos-page .pos-product-grid > button .pos-product-info {
+  border-color: #334155 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}

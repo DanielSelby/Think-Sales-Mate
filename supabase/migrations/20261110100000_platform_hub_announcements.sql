@@ -20,7 +20,7 @@ create index if not exists platform_hub_announcements_published_idx
   on public.platform_hub_announcements (published_at desc)
   where status = 'published';
 
-alter table public.platform_hub_announcements enable row level security;
+alter table publicgit.platform_hub_announcements enable row level security;
 revoke all on public.platform_hub_announcements from anon, authenticated;
 grant all on public.platform_hub_announcements to service_role;
 

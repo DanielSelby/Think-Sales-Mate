@@ -102,10 +102,7 @@ export default async function RestaurantDashboardPage() {
   const ingredientLowStock = (ingredientStock ?? []).filter((stock) => Number(stock.quantity) <= Number(stock.minimum_quantity)).length;
   const summary = reportResult.summary;
   const cards = [
-    { label: "Sales (last 30 days)", value: money(summary.gross_sales, context.currency) },
-    { label: "Payments collected", value: money(summary.collected_payments, context.currency) },
     { label: "Orders (last 30 days)", value: String(summary.order_count) },
-    { label: "Average order", value: money(summary.average_order, context.currency) },
     { label: "Active menu items", value: String(activeMenuCount ?? 0) },
     { label: "Open orders", value: String(activeOrders?.length ?? 0) },
   ];
@@ -115,7 +112,7 @@ export default async function RestaurantDashboardPage() {
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Restaurant operations</p>
         <h1 className="mt-1 text-2xl font-bold text-slate-950">Restaurant Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-600">Sales, service activity, and stock health across your accessible branches.</p>
+        <p className="mt-1 text-sm text-slate-600">Orders, service activity, and stock health across your accessible branches.</p>
       </div>
       <nav aria-label="Restaurant dashboard actions" className="flex flex-wrap gap-2">
         <Link href="/restaurant/pos" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white">Open POS</Link>

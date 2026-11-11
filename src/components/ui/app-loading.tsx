@@ -18,7 +18,7 @@ export function AppLoading({ className }: { className?: string }) {
             <img src="/thinksales-logo.jpeg" alt="" className="h-full w-full object-contain" />
           </div>
         </div>
-        <p className="mt-3 text-2xl font-extrabold tracking-tight text-[#153b63]">Think<span className="text-[#77b82a]">Sales</span> <span className="text-[#153b63]">Pro</span></p>
+        <p className="mt-3 text-2xl font-extrabold tracking-tight text-[#153b63]">Think Digital Solutions</p>
         <p className="mt-1 text-xs tracking-wide text-[#6b7280]">Preparing your workspace</p>
         <div className="mt-6 h-1.5 w-64 overflow-hidden rounded-full bg-[#153b63]/10">
           <div className="h-full w-2/5 animate-pulse rounded-full bg-gradient-to-r from-[#153b63] to-[#77b82a]" />
@@ -31,7 +31,7 @@ export function AppLoading({ className }: { className?: string }) {
           {[0, 1, 2].map((dot) => <span key={dot} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#77b82a]" style={{ animationDelay: `${dot * 140}ms` }} />)}
         </div>
       </div>
-      <span className="sr-only">Loading ThinkSales</span>
+      <span className="sr-only">Loading Think Digital Solutions</span>
     </div>
   );
 }

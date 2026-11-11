@@ -267,11 +267,8 @@ export function ProductHubClient({
     return (
       <div data-hub-sidebar className="flex h-full flex-col bg-[#101c35] px-4 py-5 text-white">
         <Link href="/product-hub" className="flex items-center gap-3 px-2">
-          <Image src="/thinksales-logo.svg" alt="" width={38} height={38} priority />
-          <span className="min-w-0">
-            <span className="block truncate text-[11px] font-bold tracking-[0.13em]">THINK DIGITAL</span>
-            <span className="block text-[10px] tracking-[0.14em] text-blue-200">SOLUTIONS</span>
-          </span>
+          <Image src="/thinksales-logo.svg" alt="Think Digital Solutions" width={38} height={38} priority />
+          <span className="min-w-0 truncate text-xs font-bold tracking-wide">Think Digital Solutions</span>
         </Link>
 
         <nav className="mt-8 space-y-1.5" aria-label="Main navigation">
