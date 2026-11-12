@@ -13,6 +13,7 @@ import {
   isOrganizationWidePermissionModule,
 } from "@/lib/product-entitlement-routes";
 import { canonicalRoleKey, normalizePermissionMatrix } from "@/lib/rbac/permission-matrix";
+import { EDUCATION_ROLE_PRESETS } from "@/lib/rbac/education-roles";
 import type { PlatformProductSlug } from "@/types/platform-database";
 import type {
   ManagedUser,
@@ -81,7 +82,7 @@ export function ProductPermissionsTab({
   const productRoles = useMemo(() => {
     if (!selectedProduct) return [];
     const productTemplates = templates.filter((template) => template.product_slug === selectedProduct);
-    return roles
+    const sharedRoles = roles
       .filter((role) => !["owner", "super_admin"].includes(canonicalRoleKey(role.key)))
       .map((role) => {
         const template = productTemplates.find((item) => item.role_key === role.key);
@@ -94,6 +95,26 @@ export function ProductPermissionsTab({
           permissionCount: Object.values(permissions).reduce((count, actions) => count + actions.length, 0),
         };
       });
+    if (selectedProduct !== "think-education") return sharedRoles;
+
+    const templateRole = roles.find((role) => role.key === "manager") ?? roles[0];
+    if (!templateRole) return sharedRoles;
+    const educationRoles = EDUCATION_ROLE_PRESETS.map((preset) => {
+      const template = productTemplates.find((item) => item.role_key === preset.key);
+      const permissions = normalizePermissionMatrix(
+        filterPermissionMatrixForProduct(template?.permissions ?? preset.permissions, selectedProduct),
+      );
+      return {
+        ...templateRole,
+        id: preset.key,
+        key: preset.key,
+        name: template?.name || preset.name,
+        description: preset.description,
+        permissions,
+        permissionCount: Object.values(permissions).reduce((count, actions) => count + actions.length, 0),
+      };
+    });
+    return [...sharedRoles.filter((role) => role.permissionCount > 0), ...educationRoles];
   }, [roles, selectedProduct, templates]);
 
   const assignedUsers = users.filter((user) =>

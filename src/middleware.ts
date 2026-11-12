@@ -12,7 +12,7 @@ import { resolveProductAppRoute } from "@/lib/product-app-routes";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 import type { PlatformProductSlug } from "@/types/platform-database";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/service-repair/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/api/cron/platform-usage", "/mobile-scan/pair"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/education-portal", "/student-education-portal", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/service-repair/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/api/cron/platform-usage", "/mobile-scan/pair"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
@@ -49,6 +49,17 @@ export async function middleware(request: NextRequest) {
     response.headers.set("Referrer-Policy", "no-referrer");
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
     return response;
+  }
+
+  if (
+    pathname === "/education-portal"
+    || pathname.startsWith("/education-portal/")
+    || pathname === "/student-education-portal"
+    || pathname.startsWith("/student-education-portal/")
+  ) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
   }
 
   if (

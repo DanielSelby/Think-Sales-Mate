@@ -6,12 +6,13 @@ export type PlatformRole =
   | "technical_administrator";
 
 export type PlatformModule = string;
-export const PLATFORM_PRODUCT_SLUGS = ["thinksales-erp", "restaurant", "think-service-repairs"] as const;
+export const PLATFORM_PRODUCT_SLUGS = ["thinksales-erp", "restaurant", "think-service-repairs", "think-education"] as const;
 export type PlatformProductSlug = (typeof PLATFORM_PRODUCT_SLUGS)[number];
 export const PLATFORM_PRODUCT_LABELS: Record<PlatformProductSlug, string> = {
   "thinksales-erp": "ThinkSales ERP",
   restaurant: "Restaurant",
   "think-service-repairs": "Think Service & Repairs",
+  "think-education": "Think Education",
 };
 
 export function isPlatformProductSlug(value: string): value is PlatformProductSlug {

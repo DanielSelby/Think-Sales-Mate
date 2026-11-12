@@ -5,7 +5,8 @@ import { RESTAURANT_ROLE_PRESETS } from "./restaurant-roles";
 export type PermissionMatrix = Record<string, PermissionAction[]>;
 
 const ACTIONS = new Set<PermissionAction>([
-  "view", "create", "edit", "delete", "approve", "import", "export", "print"
+  "view", "create", "edit", "delete", "approve", "reject", "publish", "import", "export", "print",
+  "manage_settings", "manage_users", "manage_roles", "view_audit", "revoke_sessions",
 ]);
 
 export function canonicalRoleKey(role: string): string {

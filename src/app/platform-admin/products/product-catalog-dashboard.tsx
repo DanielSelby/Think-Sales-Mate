@@ -56,6 +56,10 @@ const PRODUCT_PRESENTATION: Record<PlatformProductSlug, {
     icon: Wrench,
     accent: "bg-emerald-600 text-white shadow-emerald-200",
   },
+  "think-education": {
+    icon: GraduationCap,
+    accent: "bg-violet-600 text-white shadow-violet-200",
+  },
 };
 const FALLBACK_PRESENTATION = {
   icon: PackageOpen,

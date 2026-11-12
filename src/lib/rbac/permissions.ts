@@ -83,7 +83,7 @@ async function hasProductAccessForPermissionModule(
     const { data: hasAccess, error } = await supabase.rpc("has_product_access", {
       p_organization_id: orgId,
       p_product_slug: productSlug,
-      p_require_write: action !== "view",
+      p_require_write: action !== "view" && action !== "view_audit",
     });
     if (error) throw new Error(`Could not verify product access for ${module}: ${error.message}`);
     if (!hasAccess) continue;

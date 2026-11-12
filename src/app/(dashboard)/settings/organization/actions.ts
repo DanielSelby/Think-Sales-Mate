@@ -21,6 +21,7 @@ import { increasesOrganizationSeatUsage, withOrganizationCapacity } from "@/lib/
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { getOrganizationAccessibleProductOptions } from "@/lib/supabase/organization-product-access";
 import { hasRestaurantModuleAccess, isRestaurantOnlyOrganizationModuleSet, isRestaurantRoleKey } from "@/lib/rbac/restaurant-roles";
+import { getEducationRolePreset } from "@/lib/rbac/education-roles";
 import { filterPermissionMatrixForProduct } from "@/lib/product-entitlement-routes";
 import { isPlatformProductSlug, type PlatformProductSlug } from "@/types/platform-database";
 
@@ -190,27 +191,36 @@ export async function setMemberProductRole(
     return { error: `Could not verify the product role: ${productTemplateError.message}` };
   }
   if (!productTemplate) {
-    const { data: organizationTemplate, error: organizationTemplateError } = await supabase
-      .from("organization_role_templates")
-      .select("name, permissions")
-      .eq("org_id", context.orgId)
-      .eq("role_key", normalizedRoleKey)
-      .maybeSingle();
-    if (organizationTemplateError) {
-      return { error: `Could not load the source role permissions: ${organizationTemplateError.message}` };
+    const educationPreset = productSlug === "think-education"
+      ? getEducationRolePreset(normalizedRoleKey)
+      : undefined;
+    let roleName = educationPreset?.name ?? normalizedRoleKey;
+    let sourcePermissions = educationPreset?.permissions;
+    if (!educationPreset) {
+      const { data: organizationTemplate, error: organizationTemplateError } = await supabase
+        .from("organization_role_templates")
+        .select("name, permissions")
+        .eq("org_id", context.orgId)
+        .eq("role_key", normalizedRoleKey)
+        .maybeSingle();
+      if (organizationTemplateError) {
+        return { error: `Could not load the source role permissions: ${organizationTemplateError.message}` };
+      }
+      roleName = organizationTemplate?.name ?? normalizedRoleKey;
+      sourcePermissions = organizationTemplate?.permissions
+        ? normalizePermissionMatrix(organizationTemplate.permissions)
+        : defaultPermissionMatrixForRole(normalizedRoleKey);
     }
-    const sourcePermissions = organizationTemplate?.permissions
-      ? normalizePermissionMatrix(organizationTemplate.permissions)
-      : defaultPermissionMatrixForRole(normalizedRoleKey);
-    if (!Object.keys(sourcePermissions).length) {
+    const productPermissions = filterPermissionMatrixForProduct(sourcePermissions ?? {}, productSlug);
+    if (!Object.keys(productPermissions).length) {
       return { error: "This role has no permission template yet. Save its product permissions before assigning it." };
     }
     const { error: seedError } = await supabase.rpc("set_organization_product_role_permissions", {
       p_org_id: context.orgId,
       p_product_slug: productSlug,
       p_role_key: normalizedRoleKey,
-      p_name: organizationTemplate?.name ?? normalizedRoleKey,
-      p_permissions: filterPermissionMatrixForProduct(sourcePermissions, productSlug),
+      p_name: roleName,
+      p_permissions: productPermissions,
     });
     if (seedError) return { error: `Could not prepare the product role: ${seedError.message}` };
   }

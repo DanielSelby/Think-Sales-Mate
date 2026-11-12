@@ -2,11 +2,12 @@ import {
   getProductAppPath,
   getProductAppPathPrefix,
   isOrganizationWideRoute,
+  PRODUCT_APP_ROUTES,
   resolveProductAppRoute,
 } from "./product-app-routes";
 import { getRequiredProductSlugs } from "./product-entitlement-routes";
 
-export type ProductNavigationScope = "thinksales-erp" | "restaurant" | "think-service-repairs";
+export type ProductNavigationScope = "thinksales-erp" | "restaurant" | "think-service-repairs" | "think-education";
 
 type NavigationItem = { label: string };
 type NavigationChild = { label: string; restaurantIntegration?: boolean; alwaysVisible?: boolean };
@@ -18,6 +19,7 @@ function isPathOrChild(pathname: string, path: string) {
 export function getProductNavigationScope(pathname: string): ProductNavigationScope {
   const appRoute = resolveProductAppRoute(pathname);
   if (appRoute?.kind === "valid") return appRoute.productSlug;
+  if (isPathOrChild(pathname, "/education")) return "think-education";
   if (isPathOrChild(pathname, "/service-center")) return "think-service-repairs";
   if (isPathOrChild(pathname, "/restaurant")) return "restaurant";
   return "thinksales-erp";
@@ -44,9 +46,7 @@ export function getProductScopedHref(pathname: string, href: string): string | n
   const prefix = getProductAppPathPrefix(pathname);
   if (!prefix) return href;
 
-  const legacyBase = currentRoute.productSlug === "restaurant"
-    ? "/restaurant"
-    : currentRoute.productSlug === "think-service-repairs" ? "/service-center" : "";
+  const legacyBase = PRODUCT_APP_ROUTES.find((route) => route.productSlug === currentRoute.productSlug)?.legacyPrefix ?? "";
   const relativePath = legacyBase && (url.pathname === legacyBase || url.pathname.startsWith(`${legacyBase}/`))
     ? url.pathname.slice(legacyBase.length) || "/"
     : url.pathname;
@@ -63,7 +63,12 @@ export function getProductNavigationItems<T extends NavigationItem>(
   if (scope === "restaurant") {
     return items.filter((item) => item.label === "Restaurant");
   }
-  return items.filter((item) => item.label !== "Think Service & Repairs" && item.label !== "Restaurant");
+  if (scope === "think-education") {
+    return items.filter((item) => item.label === "Think Education");
+  }
+  return items.filter((item) =>
+    item.label !== "Think Service & Repairs" && item.label !== "Restaurant" && item.label !== "Think Education"
+  );
 }
 
 export function getVisibleNavigationChildren<T extends NavigationChild>(

@@ -15,6 +15,8 @@ const ENTITLEMENT_EXEMPT_PATHS = [
   "/api/platform-admin",
   "/api/restaurant-order",
   "/api/system-logo",
+  "/education-portal",
+  "/student-education-portal",
   "/auth/",
   "/login",
   "/onboarding",
@@ -38,6 +40,33 @@ const PERMISSION_MODULE_PATHS: Record<string, string> = {
   communication: "/communication",
   customer_messaging: "/communication",
   customer_orders: "/orders",
+  education: "/education",
+  education_dashboard: "/education/dashboard",
+  education_organization: "/education/organization",
+  education_academics: "/education/academics",
+  education_admissions: "/education/admissions",
+  education_guardians: "/education/guardians",
+  education_attendance: "/education/attendance",
+  education_communication: "/education/communication",
+  education_documents: "/education/documents",
+  education_notifications: "/education/notifications",
+  education_audit: "/education/activity",
+  education_examinations: "/education/examinations",
+  education_expenses: "/education/expenses",
+  education_finance: "/education/finance",
+  education_library: "/education/library",
+  education_inventory_assets: "/education/inventory",
+  education_promotion: "/education/promotion",
+  education_reports: "/education/reports",
+  education_results: "/education/results",
+  education_settings: "/education/settings",
+  education_staff: "/education/staff",
+  education_students: "/education/students",
+  education_timetables: "/education/timetables",
+  education_transport: "/education/transport",
+  education_transfers: "/education/transfers",
+  education_user_management: "/education/settings/users",
+  education_roles: "/education/settings/roles",
   customer_assets: "/service-center/assets",
   crm: "/crm",
   expenses: "/expenses",
@@ -89,6 +118,9 @@ function getLegacyRequiredProductSlugs(pathname: string): PlatformProductSlug[] 
   if (isPathOrChild(pathname, "/settings/customer-ordering")) {
     return ["thinksales-erp"];
   }
+  if (isPathOrChild(pathname, "/education") || isPathOrChild(pathname, "/api/education")) {
+    return ["think-education"];
+  }
   if (pathname === "/dashboard") return ["thinksales-erp"];
   if (isPathOrChild(pathname, "/restaurant")) {
     return ["restaurant"];
@@ -117,9 +149,7 @@ export function getLegacyProductAppPath(pathname: string): string | null {
   if (pathname.startsWith("/api/") || isOrganizationWideRoute(pathname)) return null;
   const requiredProducts = getLegacyRequiredProductSlugs(pathname);
   if (!requiredProducts || requiredProducts.length !== 1) return null;
-  const legacyBase = requiredProducts[0] === "restaurant"
-    ? "/restaurant"
-    : requiredProducts[0] === "think-service-repairs" ? "/service-center" : "";
+  const legacyBase = PRODUCT_APP_ROUTES.find((route) => route.productSlug === requiredProducts[0])?.legacyPrefix ?? "";
   const relativePath = legacyBase && (pathname === legacyBase || pathname.startsWith(`${legacyBase}/`))
     ? pathname.slice(legacyBase.length) || "/"
     : pathname;

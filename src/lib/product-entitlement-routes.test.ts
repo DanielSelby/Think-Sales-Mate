@@ -13,7 +13,8 @@ describe("product route entitlement mapping", () => {
     const erpOnly = new Set(["thinksales-erp"] as const);
     const restaurantOnly = new Set(["restaurant"] as const);
     const serviceOnly = new Set(["think-service-repairs"] as const);
-    const neither = new Set<"thinksales-erp" | "restaurant" | "think-service-repairs">();
+    const educationOnly = new Set(["think-education"] as const);
+    const neither = new Set<"thinksales-erp" | "restaurant" | "think-service-repairs" | "think-education">();
 
     expect(hasAnyRequiredProductAccess(["thinksales-erp"], erpOnly)).toBe(true);
     expect(hasAnyRequiredProductAccess(["restaurant"], erpOnly)).toBe(false);
@@ -21,6 +22,8 @@ describe("product route entitlement mapping", () => {
     expect(hasAnyRequiredProductAccess(["restaurant"], restaurantOnly)).toBe(true);
     expect(hasAnyRequiredProductAccess(["think-service-repairs"], serviceOnly)).toBe(true);
     expect(hasAnyRequiredProductAccess(["think-service-repairs"], erpOnly)).toBe(false);
+    expect(hasAnyRequiredProductAccess(["think-education"], educationOnly)).toBe(true);
+    expect(hasAnyRequiredProductAccess(["think-education"], erpOnly)).toBe(false);
     expect(hasAnyRequiredProductAccess(["thinksales-erp", "restaurant"], erpOnly)).toBe(true);
     expect(hasAnyRequiredProductAccess(["thinksales-erp", "restaurant"], restaurantOnly)).toBe(true);
     expect(hasAnyRequiredProductAccess(["thinksales-erp", "restaurant"], neither)).toBe(false);
@@ -36,12 +39,48 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/api/service-center/jobs")).toEqual(["think-service-repairs"]);
   });
 
+  it("requires Think Education for all education routes and APIs", () => {
+    expect(getRequiredProductSlugs("/education/dashboard")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/students/123")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/library")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/transport")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/inventory")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/communication")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/documents")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/notifications")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/attendance/staff")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/staff/leave")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/staff/transfers")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/staff/123")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/reports")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/academics")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/api/education/reports/staff")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/activity")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/api/education/documents")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/api/education/students")).toEqual(["think-education"]);
+  });
+
   it("validates namespaced routes against their legacy page ownership", () => {
     expect(getRequiredProductSlugs("/app/thinksales/inventory")).toEqual(["thinksales-erp"]);
     expect(getRequiredProductSlugs("/app/restaurant/menu")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/restaurant/expenses")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/restaurant/settings/organization")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/think-service/jobs")).toEqual(["think-service-repairs"]);
+    expect(getRequiredProductSlugs("/app/think-education/students")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/guardians")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/expenses")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/library")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/transport")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/inventory")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/communication")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/documents")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/notifications")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/attendance/staff")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/staff/leave")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/staff/transfers")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/staff/123")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/reports")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/activity")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/app/restaurant/inventory")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/unknown/inventory")).toEqual([]);
   });
@@ -79,6 +118,9 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/api/cron/product-entitlements")).toBeNull();
     expect(getRequiredProductSlugs("/api/system-logo")).toBeNull();
     expect(getRequiredProductSlugs("/service-repair/opaque-customer-token")).toBeNull();
+    expect(getRequiredProductSlugs("/education-portal")).toBeNull();
+    expect(getRequiredProductSlugs("/education-portal/children")).toBeNull();
+    expect(getRequiredProductSlugs("/student-education-portal")).toBeNull();
   });
 
   it("requires the ERP entitlement for authenticated product APIs", () => {
@@ -92,6 +134,18 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugsForPermissionModule("service_jobs")).toEqual(["think-service-repairs"]);
     expect(getRequiredProductSlugsForPermissionModule("service_customers")).toEqual(["think-service-repairs"]);
     expect(getRequiredProductSlugsForPermissionModule("customer_assets")).toEqual(["think-service-repairs"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_students")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_guardians")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_expenses")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_library")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_transport")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_inventory_assets")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_communication")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_documents")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_notifications")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_audit")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_finance")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugsForPermissionModule("education_user_management")).toEqual(["think-education"]);
     expect(getRequiredProductSlugsForPermissionModule("expenses")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugsForPermissionModule("accounting")).toEqual(["thinksales-erp"]);
     expect(getRequiredProductSlugsForPermissionModule("restaurant")).toEqual(["restaurant"]);

@@ -1,5 +1,20 @@
 export type MemberRole = "owner" | "admin" | "manager" | "staff" | "viewer";
-export type PermissionAction = "view" | "create" | "edit" | "delete" | "approve" | "import" | "export" | "print";
+export type PermissionAction =
+  | "view"
+  | "create"
+  | "edit"
+  | "delete"
+  | "approve"
+  | "reject"
+  | "publish"
+  | "import"
+  | "export"
+  | "print"
+  | "manage_settings"
+  | "manage_users"
+  | "manage_roles"
+  | "view_audit"
+  | "revoke_sessions";
 export type PermissionMatrix = Record<string, PermissionAction[]>;
 
 const ROLE_RANK: Record<MemberRole, number> = {

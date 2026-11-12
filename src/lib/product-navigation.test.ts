@@ -9,6 +9,7 @@ import {
 const navigation = [
   { label: "Dashboard" },
   { label: "Think Service & Repairs" },
+  { label: "Think Education" },
   { label: "Restaurant" },
   { label: "Sales" },
 ];
@@ -16,8 +17,10 @@ const navigation = [
 describe("product navigation", () => {
   it("uses the current product route to select the navigation scope", () => {
     expect(getProductNavigationScope("/app/think-service/jobs")).toBe("think-service-repairs");
+    expect(getProductNavigationScope("/app/think-education/students")).toBe("think-education");
     expect(getProductNavigationScope("/app/restaurant/menu")).toBe("restaurant");
     expect(getProductNavigationScope("/service-center/jobs")).toBe("think-service-repairs");
+    expect(getProductNavigationScope("/education/students")).toBe("think-education");
     expect(getProductNavigationScope("/restaurant/pos")).toBe("restaurant");
     expect(getProductNavigationScope("/inventory")).toBe("thinksales-erp");
   });
@@ -31,6 +34,8 @@ describe("product navigation", () => {
       .toBe("/app/restaurant/accounting/restaurant-ledger");
     expect(getProductScopedHref("/app/think-service", "/service-center/jobs"))
       .toBe("/app/think-service/jobs");
+    expect(getProductScopedHref("/app/think-education/dashboard", "/education/students"))
+      .toBe("/app/think-education/students");
     expect(getProductScopedHref("/app/restaurant", "/inventory")).toBeNull();
     expect(getProductScopedHref("/app/restaurant", "/app/thinksales/inventory")).toBeNull();
     expect(getProductScopedHref("/app/restaurant", "/app/unknown/page")).toBeNull();
@@ -42,6 +47,8 @@ describe("product navigation", () => {
   it("shows only the active product group while retaining ThinkSales modules in its scope", () => {
     expect(getProductNavigationItems(navigation, "think-service-repairs").map((item) => item.label))
       .toEqual(["Think Service & Repairs"]);
+    expect(getProductNavigationItems(navigation, "think-education").map((item) => item.label))
+      .toEqual(["Think Education"]);
     expect(getProductNavigationItems(navigation, "restaurant").map((item) => item.label))
       .toEqual(["Restaurant"]);
     expect(getProductNavigationItems(navigation, "thinksales-erp").map((item) => item.label))

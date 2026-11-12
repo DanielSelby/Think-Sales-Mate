@@ -29,6 +29,7 @@ export const PRODUCT_APP_ROUTES: readonly ProductAppRoute[] = [
     ],
   },
   { productSlug: "think-service-repairs", namespace: "think-service", defaultPath: "", defaultLegacyPath: "/service-center", legacyPrefix: "/service-center" },
+  { productSlug: "think-education", namespace: "think-education", defaultPath: "/dashboard", defaultLegacyPath: "/education/dashboard", legacyPrefix: "/education" },
 ];
 
 export type ResolvedProductAppRoute =
@@ -46,7 +47,9 @@ export function resolveProductAppRoute(pathname: string): ResolvedProductAppRout
   const isSharedPath = productRoute.sharedPaths?.some((path) =>
     suffix === path || suffix.startsWith(`${path}/`)
   );
-  const isContextualOrganizationPath = isOrganizationWideRoute(suffix);
+  const isEducationSettingsPath = productRoute.productSlug === "think-education"
+    && ["/settings", "/settings/users", "/settings/roles"].includes(suffix);
+  const isContextualOrganizationPath = !isEducationSettingsPath && isOrganizationWideRoute(suffix);
   return {
     kind: "valid",
     productSlug: productRoute.productSlug,

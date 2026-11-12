@@ -22,7 +22,8 @@ export const PERMISSION_ACTIONS: { key: PermissionAction; label: string; descrip
   { key: "approve", label: "Approve", description: "Can authorize transactions, transfers, & budgets" },
   { key: "import", label: "Import", description: "Can import records from supported files" },
   { key: "export", label: "Export", description: "Can export datasets to CSV / Excel / PDF" },
-  { key: "print", label: "Print", description: "Can print receipts, invoices, and audit slips" }
+  { key: "print", label: "Print", description: "Can print receipts, invoices, and audit slips" },
+  { key: "view_audit", label: "View audit history", description: "Can review audit and activity records" }
 ];
 
 const TAB_ACTIONS: PermissionAction[] = ["view", "create", "edit", "delete", "approve", "export"];
@@ -33,6 +34,91 @@ const pages = (items: Array<[string, string, Array<[string, string]>]>): Permiss
 
 /** Hierarchical registry for the optional Module -> Page -> Tab -> Action layer. */
 export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
+  education_dashboard: pages([
+    ["dashboard", "Education Dashboard", [["overview", "Overview"]]]
+  ]),
+  education_organization: pages([
+    ["organization", "Organization", [["campuses", "Campuses"]]]
+  ]),
+  education_students: pages([
+    ["students", "Students", [["list", "Student Directory"]]]
+  ]),
+  education_guardians: pages([
+    ["guardians", "Parents & Guardians", [["directory", "Guardian Directory"], ["relationships", "Student Relationships"]]]
+  ]),
+  education_staff: pages([
+    ["staff", "Staff", [["directory", "Staff Directory"], ["leave", "Leave Management"], ["transfers", "Campus Transfers"]]]
+  ]),
+  education_reports: pages([
+    ["reports", "Education Reports", [["staff", "Staff Headcount"], ["attendance", "Student Attendance"], ["outcomes", "Academic Outcomes"], ["enrollment", "Enrollment & Progression"]]]
+  ]),
+  education_admissions: pages([
+    ["admissions", "Admissions", [["applications", "Applications"]]]
+  ]),
+  education_academics: pages([
+    ["academics", "Academics", [["calendar", "Academic Calendar"], ["classes", "Classes"]]]
+  ]),
+  education_attendance: pages([
+    ["attendance", "Attendance", [["register", "Student Register"], ["staff", "Staff Register"]]]
+  ]),
+  education_timetables: pages([
+    ["timetables", "Timetables", [["schedule", "Class Schedule"]]]
+  ]),
+  education_examinations: pages([
+    ["examinations", "Examinations", [["schedule", "Examination Schedule"]]]
+  ]),
+  education_results: pages([
+    ["results", "Results", [["gradebook", "Gradebook"]]]
+  ]),
+  education_promotion: pages([
+    ["promotion", "Promotion", [["progression", "Progression & Graduation"]]]
+  ]),
+  education_transfers: pages([
+    ["transfers", "Student Transfers", [["requests", "Transfer Requests"]]]
+  ]),
+  education_user_management: pages([
+    ["users", "User Management", [["directory", "Member Directory"], ["branch_access", "Campus Access"]]]
+  ]),
+  education_settings: pages([
+    ["settings", "Institution Settings", [["institution", "Institution Details"], ["terminology", "Terminology"]]]
+  ]),
+  education_finance: pages([
+    ["finance", "Fees & Finance", [["charges", "Fee Charges"], ["payments", "Payments & Receipts"]]]
+  ]),
+  education_expenses: pages([
+    ["expenses", "Expenses Management", [["records", "Expense Records"]]]
+  ]),
+  education_library: pages([
+    ["library", "Library Management", [["catalog", "Catalog & Copies"], ["circulation", "Loans & Returns"]]]
+  ]),
+  education_transport: pages([
+    ["transport", "Transport Management", [["fleet", "Fleet & Routes"], ["assignments", "Student Assignments"]]]
+  ]),
+  education_inventory_assets: pages([
+    ["inventory", "Inventory & Assets", [["stock", "Campus Stock"], ["assets", "Asset Register"]]]
+  ]),
+  education_communication: pages([
+    ["communication", "Campus Communications", [["announcements", "Announcements"]]]
+  ]).map((page) => ({
+    ...page,
+    tabs: page.tabs.map((tab) => tab.key === "announcements"
+      ? { ...tab, supportedActions: [...(tab.supportedActions ?? TAB_ACTIONS), "publish"] }
+      : tab),
+  })),
+  education_documents: pages([
+    ["documents", "Documents & Records", [["library", "Document Library"]]]
+  ]),
+  education_notifications: pages([
+    ["notifications", "Notifications", [["inbox", "Notification Centre"], ["preferences", "Preferences"]]]
+  ]),
+  education_audit: pages([
+    ["activity", "Audit & Activity", [["records", "Activity Records"]]]
+  ]).map((page) => ({
+    ...page,
+    tabs: page.tabs.map((tab) => tab.key === "records"
+      ? { ...tab, supportedActions: [...(tab.supportedActions ?? TAB_ACTIONS), "view_audit"] }
+      : tab),
+  })),
   restaurant: pages([
     ["operations", "Restaurant Operations", [["orders", "Orders"], ["kitchen", "Kitchen Display"], ["pos", "Restaurant POS"], ["menu", "Menu Management"], ["tables", "Dining Tables"], ["reservations", "Reservations & Waitlist"], ["reports", "Reports & Analytics"], ["ingredients", "Ingredients & Recipes"]]]
   ]),
@@ -74,6 +160,31 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
 };
 
 export const MODULE_CONFIGS: ModulePermissionConfig[] = [
+  { key: "education_dashboard", name: "Think Education Dashboard", description: "Education overview and campus metrics", iconName: "GraduationCap", supportedActions: ["view", "export", "print"] },
+  { key: "education_organization", name: "Education Organization", description: "Education campus registry and campus setup", iconName: "Building2", supportedActions: ["view", "create", "edit", "export"] },
+  { key: "education_students", name: "Education Students", description: "Student records, enrollment, and student lifecycle", iconName: "GraduationCap", supportedActions: ["view", "create", "edit", "export", "import"] },
+  { key: "education_guardians", name: "Education Parents & Guardians", description: "Guardian profiles and verified student relationships", iconName: "Users", supportedActions: ["view", "create", "edit", "export", "import"] },
+  { key: "education_staff", name: "Education Staff", description: "Staff directory, leave requests, and approvals", iconName: "Users", supportedActions: ["view", "create", "edit", "approve", "export", "import"] },
+  { key: "education_reports", name: "Education Reports", description: "Campus-scoped workforce and student attendance reports", iconName: "BarChart3", supportedActions: ["view", "export"] },
+  { key: "education_admissions", name: "Education Admissions", description: "Applicant intake, application review, and admission decisions", iconName: "UserPlus", supportedActions: ["view", "create", "edit", "approve", "export"] },
+  { key: "education_academics", name: "Education Academics", description: "Academic years, terms, departments, and classes", iconName: "BookOpen", supportedActions: ["view", "create", "edit", "approve", "export"] },
+  { key: "education_attendance", name: "Education Attendance", description: "Student and staff attendance registers", iconName: "CalendarClock", supportedActions: ["view", "create", "edit", "export"] },
+  { key: "education_timetables", name: "Education Timetables", description: "Campus class schedules and timetable conflict checks", iconName: "CalendarClock", supportedActions: ["view", "create", "edit", "export"] },
+  { key: "education_examinations", name: "Education Examinations", description: "Examination scheduling and controlled publication", iconName: "ClipboardCheck", supportedActions: ["view", "create", "edit", "publish", "export"] },
+  { key: "education_results", name: "Education Results", description: "Grade entry, review, approval, and publication", iconName: "FileText", supportedActions: ["view", "create", "edit", "approve", "publish", "export", "print"] },
+  { key: "education_promotion", name: "Education Promotion", description: "Student progression and graduation", iconName: "TrendingUp", supportedActions: ["view", "create", "edit", "approve", "export"] },
+  { key: "education_transfers", name: "Education Transfers", description: "Audited student campus transfer requests", iconName: "Truck", supportedActions: ["view", "create", "edit", "approve", "export"] },
+  { key: "education_user_management", name: "Education User Management", description: "Think Education member and campus access", iconName: "Users2", supportedActions: ["view", "edit", "manage_users"] },
+  { key: "education_settings", name: "Education Settings", description: "Institution identity and education terminology", iconName: "Settings", supportedActions: ["view", "create", "edit", "manage_settings"] },
+  { key: "education_finance", name: "Education Fees & Finance", description: "Student fee charges, balances, and payment receipts", iconName: "Wallet", supportedActions: ["view", "create", "edit", "approve", "export", "print"] },
+  { key: "education_expenses", name: "Education Expenses", description: "Campus operating expenses, approval workflow, and payment tracking", iconName: "Wallet", supportedActions: ["view", "create", "edit", "approve", "export"] },
+  { key: "education_library", name: "Education Library", description: "Campus library catalog, copies, circulation, renewals, and returns", iconName: "BookOpen", supportedActions: ["view", "create", "edit", "approve", "export"] },
+  { key: "education_transport", name: "Education Transport", description: "Campus transport fleet, routes, stops, and student assignments", iconName: "Truck", supportedActions: ["view", "create", "edit", "export"] },
+  { key: "education_inventory_assets", name: "Education Inventory & Assets", description: "Campus stock, asset register, assignment, condition, and retirement", iconName: "Package", supportedActions: ["view", "create", "edit", "export"] },
+  { key: "education_communication", name: "Education Communication", description: "Campus announcements for students, families, and staff", iconName: "MessageSquare", supportedActions: ["view", "create", "edit", "publish", "export"] },
+  { key: "education_documents", name: "Education Documents", description: "Secure campus and student documents with controlled access and retention", iconName: "FolderOpen", supportedActions: ["view", "create", "edit", "delete", "export"] },
+  { key: "education_notifications", name: "Education Notifications", description: "Campus-scoped in-app notifications and personal delivery preferences", iconName: "Bell", supportedActions: ["view", "edit"] },
+  { key: "education_audit", name: "Education Audit & Activity", description: "Searchable campus-scoped education record and access history", iconName: "ClipboardList", supportedActions: ["view_audit", "export"] },
   { key: "dashboard", name: "Dashboard", description: "Overview metrics, KPIs, and executive charts", iconName: "LayoutDashboard", supportedActions: ["view", "export", "print"] },
   { key: "approvals", name: "Approval Center", description: "Central queue for approvals, review decisions, and exception handling", iconName: "ClipboardCheck", supportedActions: ["view", "approve", "export", "print"] },
   { key: "sales", name: "Sales", description: "Quotations, invoices, sales orders, and returns", iconName: "Receipt", supportedActions: ["view", "create", "edit", "delete", "approve", "export", "print"] },
@@ -135,6 +246,30 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
 ];
 
 const PERMISSION_MODULE_FEATURES: Record<string, string[]> = {
+  education_dashboard: ["Think Education"],
+  education_organization: ["Organization & Branches"],
+  education_students: ["Students"],
+  education_guardians: ["Parent & Guardian Management"],
+  education_staff: ["Staff"],
+  education_admissions: ["Admissions"],
+  education_academics: ["Academic Management"],
+  education_attendance: ["Attendance"],
+  education_timetables: ["Timetables"],
+  education_examinations: ["Examinations"],
+  education_results: ["Results & Report Cards"],
+  education_promotion: ["Promotion & Graduation"],
+  education_transfers: ["Student Transfers"],
+  education_user_management: ["User Management"],
+  education_settings: ["Settings"],
+  education_finance: ["Fees & Finance"],
+  education_expenses: ["Expenses Management"],
+  education_library: ["Library"],
+  education_transport: ["Transport"],
+  education_inventory_assets: ["Inventory & Assets"],
+  education_communication: ["Communication"],
+  education_documents: ["Documents & Records"],
+  education_notifications: ["Notifications"],
+  education_audit: ["Audit & Activity"],
   dashboard: ["Dashboard"],
   approvals: ["Approval Center"],
   sales: ["Sales"],

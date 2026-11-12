@@ -277,9 +277,18 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   const productNavItems = getProductNavigationItems(SHARED_NAV_ITEMS, productScope);
   const { activeTheme } = useAppStore();
   const theme     = THEMES[activeTheme];
+  const educationBrand = productScope === "think-education";
   const [isSigningOut, startSignOut] = useTransition();
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  const sidebar   = {
+  const sidebar   = educationBrand ? {
+    background: "#0b1f47",
+    text: "#FFFFFF",
+    textMuted: "#D4DEEF",
+    activeBackground: "#1765E8",
+    activeText: "#FFFFFF",
+    borderColor: "#263B62",
+    hoverBackground: "#183565",
+  } : {
     ...theme.sidebar,
     background: theme.colors.primaryPale,
     text: theme.colors.text,
@@ -355,13 +364,15 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       {/* ── Logo ── */}
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
-        <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />
+        {educationBrand
+          ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-600 text-white"><GraduationCap className="h-6 w-6" /></span>
+          : <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />}
         {(!collapsed || mobileOpen) && (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="truncate text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>
-              {systemName.replace(/\s+Pro$/i, "")}
+              {educationBrand ? "Think Education" : systemName.replace(/\s+Pro$/i, "")}
             </span>
-            {/Pro$/i.test(systemName) && (
+            {!educationBrand && /Pro$/i.test(systemName) && (
               <span
                 className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wide"
                 style={{ background: theme.colors.primary, color: "#FFFFFF" }}

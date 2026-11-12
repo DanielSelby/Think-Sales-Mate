@@ -46,6 +46,556 @@ export type OrderPaymentStatus = "paid" | "partial" | "unpaid";
 export type OrderDeliveryStatus = "not_shipped" | "picking" | "packing" | "in_delivery" | "delivered";
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
+type EducationDatabaseTable<Row, Required extends keyof Row = never> = {
+  Row: Row;
+  Insert: Omit<Partial<Row>, Required> & Pick<Row, Required>;
+  Update: Partial<Row>;
+  Relationships: [];
+};
+
+type EducationBranchScope = {
+  org_id: string;
+  user_id: string;
+  scope_type: "organization" | "branch";
+  branch_id: string | null;
+  granted_by: string | null;
+  created_at: string;
+};
+type EducationInstitutionSettings = {
+  org_id: string;
+  institution_name: string;
+  institution_code: string;
+  institution_type: "basic" | "primary" | "junior_high" | "senior_high" | "college" | "university" | "technical_vocational" | "training" | "other";
+  terminology: Json;
+  settings: Json;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationCampus = {
+  org_id: string;
+  branch_id: string;
+  administrator_user_id: string | null;
+  status: "active" | "inactive" | "archived";
+  created_at: string;
+  updated_at: string;
+};
+type EducationAcademicYear = {
+  id: string;
+  org_id: string;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+  is_current: boolean;
+  status: "planned" | "active" | "completed" | "archived";
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAcademicTerm = {
+  id: string;
+  org_id: string;
+  academic_year_id: string;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+  sequence_number: number;
+  status: "planned" | "active" | "completed" | "archived";
+  created_at: string;
+};
+type EducationDepartment = {
+  id: string;
+  org_id: string;
+  branch_id: string | null;
+  name: string;
+  department_type: "academic" | "administrative" | "support";
+  is_active: boolean;
+  created_at: string;
+};
+type EducationStudent = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  user_id: string | null;
+  student_number: string;
+  first_name: string;
+  last_name: string;
+  other_names: string | null;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  status: "active" | "on_hold" | "graduated" | "transferred" | "withdrawn" | "archived";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationGuardian = {
+  id: string;
+  org_id: string;
+  user_id: string | null;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  status: "active" | "inactive";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationStudentGuardian = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  student_id: string;
+  guardian_id: string;
+  relationship: string;
+  is_primary: boolean;
+  status: "pending" | "verified" | "rejected" | "revoked";
+  verified_by: string | null;
+  verified_at: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+type EducationExpense = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  expense_number: number;
+  category: string;
+  vendor: string | null;
+  description: string;
+  amount: number;
+  expense_date: string;
+  reference: string | null;
+  status: "pending_approval" | "approved" | "rejected";
+  payment_status: "unpaid" | "paid";
+  payment_method: string | null;
+  paid_on: string | null;
+  rejection_reason: string | null;
+  created_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationLibraryBook = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  isbn: string | null;
+  title: string;
+  author: string;
+  publisher: string | null;
+  category: string;
+  publication_year: number | null;
+  status: "active" | "archived";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type EducationLibraryCopy = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  book_id: string;
+  copy_number: string;
+  status: "available" | "maintenance" | "withdrawn";
+  created_at: string;
+  updated_at: string;
+};
+type EducationLibraryLoan = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  copy_id: string;
+  student_id: string;
+  loaned_on: string;
+  due_on: string;
+  returned_on: string | null;
+  renewal_count: number;
+  issued_by: string;
+  returned_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationTransportVehicle = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  registration_number: string;
+  make_model: string;
+  capacity: number;
+  status: "active" | "maintenance" | "retired";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type EducationTransportRoute = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  vehicle_id: string;
+  name: string;
+  driver_name: string;
+  driver_phone: string | null;
+  stops: string[];
+  status: "active" | "paused" | "retired";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type EducationTransportAssignment = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  route_id: string;
+  student_id: string;
+  pickup_stop: string;
+  dropoff_stop: string;
+  starts_on: string;
+  ends_on: string | null;
+  status: "active" | "ended";
+  created_by: string;
+  ended_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationInventoryItem = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  sku: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity_on_hand: number;
+  reorder_level: number;
+  status: "active" | "archived";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type EducationInventoryMovement = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  item_id: string;
+  movement_type: "opening" | "receipt" | "issue" | "adjustment";
+  quantity_change: number;
+  quantity_after: number;
+  reason: string;
+  created_by: string;
+  created_at: string;
+};
+type EducationAsset = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  asset_tag: string;
+  name: string;
+  category: string;
+  serial_number: string | null;
+  purchase_date: string | null;
+  condition: "new" | "good" | "fair" | "poor";
+  status: "available" | "assigned" | "maintenance" | "retired";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAssetAssignment = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  asset_id: string;
+  student_id: string | null;
+  staff_id: string | null;
+  assigned_on: string;
+  returned_on: string | null;
+  assigned_by: string;
+  returned_by: string | null;
+  created_at: string;
+};
+type EducationCommunication = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  title: string;
+  body: string;
+  audience: "all" | "guardians" | "students" | "staff";
+  status: "draft" | "published" | "archived";
+  created_by: string;
+  published_by: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationDocument = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  student_id: string | null;
+  title: string;
+  category: "student_record" | "admission" | "medical" | "finance" | "staff" | "institutional" | "other";
+  file_name: string;
+  content_type: string;
+  file_size: number;
+  storage_path: string;
+  retention_until: string | null;
+  status: "active" | "archived";
+  uploaded_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type EducationNotification = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  user_id: string;
+  notification_type: "announcement" | "attendance" | "results" | "fees" | "admissions" | "transport";
+  title: string;
+  message: string;
+  announcement_id: string | null;
+  delivery_status: "delivered" | "read";
+  read_at: string | null;
+  created_at: string;
+};
+type EducationNotificationPreference = {
+  org_id: string;
+  user_id: string;
+  notification_type: "announcement" | "attendance" | "results" | "fees" | "admissions" | "transport";
+  in_app_enabled: boolean;
+  updated_at: string;
+};
+type EducationStaff = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  user_id: string | null;
+  staff_number: string;
+  first_name: string;
+  last_name: string;
+  other_names: string | null;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  address: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  staff_category: "teaching" | "non_teaching";
+  department_id: string | null;
+  job_title: string | null;
+  status: "active" | "inactive" | "on_leave" | "suspended" | "archived";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationStaffLeaveRequest = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  staff_id: string;
+  leave_type: "annual" | "sick" | "personal" | "maternity" | "paternity" | "unpaid" | "other";
+  starts_on: string;
+  ends_on: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  requested_by: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationStaffTransfer = {
+  id: string;
+  org_id: string;
+  staff_id: string;
+  source_branch_id: string;
+  destination_branch_id: string;
+  effective_on: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "completed";
+  requested_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationStaffEmploymentRecord = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  staff_id: string;
+  employment_type: "full_time" | "part_time" | "contract" | "temporary" | "casual";
+  job_title: string;
+  department_id: string | null;
+  department_name: string | null;
+  effective_on: string;
+  reason: string;
+  created_by: string;
+  created_at: string;
+};
+type EducationClass = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  academic_year_id: string;
+  department_id: string | null;
+  name: string;
+  level_name: string | null;
+  stream_name: string | null;
+  class_teacher_id: string | null;
+  capacity: number | null;
+  status: "active" | "inactive" | "archived";
+  created_at: string;
+  updated_at: string;
+};
+type EducationStudentEnrollment = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  student_id: string;
+  class_id: string;
+  academic_year_id: string;
+  status: "active" | "completed" | "withdrawn" | "transferred";
+  enrolled_on: string;
+  ended_on: string | null;
+  created_at: string;
+};
+type EducationFeeCharge = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  student_id: string;
+  academic_year_id: string;
+  schedule_id: string | null;
+  description: string;
+  amount: number;
+  due_on: string | null;
+  status: "open" | "void";
+  created_by: string | null;
+  created_at: string;
+};
+type EducationFeeSchedule = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  class_id: string;
+  academic_year_id: string;
+  description: string;
+  amount: number;
+  due_on: string | null;
+  status: "active" | "archived";
+  created_by: string | null;
+  created_at: string;
+};
+type EducationFeePayment = {
+  id: string;
+  org_id: string;
+  charge_id: string;
+  amount: number;
+  payment_method: "cash" | "mobile_money" | "bank_transfer" | "card" | "cheque" | "other";
+  reference: string | null;
+  recorded_by: string | null;
+  created_at: string;
+};
+type EducationTimetableEntry = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  class_id: string;
+  staff_id: string | null;
+  academic_year_id: string;
+  subject_name: string;
+  weekday: number;
+  starts_at: string;
+  ends_at: string;
+  room: string | null;
+  status: "active" | "cancelled";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAdmission = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  application_number: string;
+  applicant_first_name: string;
+  applicant_last_name: string;
+  applicant_email: string | null;
+  applicant_phone: string | null;
+  requested_class_id: string | null;
+  status: "pending" | "under_review" | "admitted" | "rejected" | "withdrawn" | "enrolled";
+  applied_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  decision_note: string | null;
+  enrolled_student_id: string | null;
+  created_at: string;
+};
+type EducationAttendance = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  class_id: string | null;
+  student_id: string | null;
+  staff_id: string | null;
+  attendance_date: string;
+  status: "present" | "absent" | "late" | "excused";
+  note: string | null;
+  recorded_by: string | null;
+  created_at: string;
+};
+type EducationExamination = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  academic_year_id: string;
+  term_id: string | null;
+  name: string;
+  examination_type: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  status: "draft" | "scheduled" | "in_progress" | "completed" | "results_pending" | "published" | "cancelled";
+  created_by: string | null;
+  created_at: string;
+};
+type EducationResult = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  examination_id: string;
+  student_id: string;
+  subject_name: string;
+  score: number;
+  maximum_score: number;
+  grade: string | null;
+  status: "draft" | "submitted" | "approved" | "published";
+  entered_by: string | null;
+  approved_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationStudentTransfer = {
+  id: string;
+  org_id: string;
+  student_id: string;
+  source_branch_id: string;
+  destination_branch_id: string;
+  effective_on: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "completed" | "cancelled";
+  requested_by: string | null;
+  approved_by: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -1404,6 +1954,156 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["restaurant_account_mappings"]["Row"]>;
         Relationships: [];
       };
+      education_member_branch_scopes: EducationDatabaseTable<
+        EducationBranchScope,
+        "org_id" | "user_id" | "scope_type"
+      >;
+      education_institution_settings: EducationDatabaseTable<
+        EducationInstitutionSettings,
+        "org_id" | "institution_name" | "institution_code" | "institution_type"
+      >;
+      education_campuses: EducationDatabaseTable<EducationCampus, "org_id" | "branch_id">;
+      education_academic_years: EducationDatabaseTable<
+        EducationAcademicYear,
+        "org_id" | "name" | "starts_on" | "ends_on"
+      >;
+      education_academic_terms: EducationDatabaseTable<
+        EducationAcademicTerm,
+        "org_id" | "academic_year_id" | "name" | "starts_on" | "ends_on" | "sequence_number"
+      >;
+      education_departments: EducationDatabaseTable<EducationDepartment, "org_id" | "name">;
+      education_students: EducationDatabaseTable<
+        EducationStudent,
+        "org_id" | "branch_id" | "student_number" | "first_name" | "last_name"
+      >;
+      education_guardians: EducationDatabaseTable<
+        EducationGuardian,
+        "org_id" | "first_name" | "last_name"
+      >;
+      education_student_guardians: EducationDatabaseTable<
+        EducationStudentGuardian,
+        "org_id" | "branch_id" | "student_id" | "guardian_id" | "relationship"
+      >;
+      education_expenses: EducationDatabaseTable<
+        EducationExpense,
+        "org_id" | "branch_id" | "category" | "description" | "amount" | "expense_date"
+      >;
+      education_library_books: EducationDatabaseTable<
+        EducationLibraryBook,
+        "org_id" | "branch_id" | "title" | "author" | "category"
+      >;
+      education_library_copies: EducationDatabaseTable<
+        EducationLibraryCopy,
+        "org_id" | "branch_id" | "book_id" | "copy_number"
+      >;
+      education_library_loans: EducationDatabaseTable<
+        EducationLibraryLoan,
+        "org_id" | "branch_id" | "copy_id" | "student_id" | "due_on"
+      >;
+      education_transport_vehicles: EducationDatabaseTable<
+        EducationTransportVehicle,
+        "org_id" | "branch_id" | "registration_number" | "make_model" | "capacity"
+      >;
+      education_transport_routes: EducationDatabaseTable<
+        EducationTransportRoute,
+        "org_id" | "branch_id" | "vehicle_id" | "name" | "driver_name" | "stops"
+      >;
+      education_transport_assignments: EducationDatabaseTable<
+        EducationTransportAssignment,
+        "org_id" | "branch_id" | "route_id" | "student_id" | "pickup_stop" | "dropoff_stop"
+      >;
+      education_inventory_items: EducationDatabaseTable<
+        EducationInventoryItem,
+        "org_id" | "branch_id" | "sku" | "name" | "category" | "unit"
+      >;
+      education_inventory_movements: EducationDatabaseTable<
+        EducationInventoryMovement,
+        "org_id" | "branch_id" | "item_id" | "movement_type" | "quantity_change" | "quantity_after" | "reason"
+      >;
+      education_assets: EducationDatabaseTable<
+        EducationAsset,
+        "org_id" | "branch_id" | "asset_tag" | "name" | "category"
+      >;
+      education_asset_assignments: EducationDatabaseTable<
+        EducationAssetAssignment,
+        "org_id" | "branch_id" | "asset_id"
+      >;
+      education_communications: EducationDatabaseTable<
+        EducationCommunication,
+        "org_id" | "branch_id" | "title" | "body" | "audience"
+      >;
+      education_documents: EducationDatabaseTable<
+        EducationDocument,
+        "org_id" | "branch_id" | "title" | "category" | "file_name" | "content_type" | "file_size" | "storage_path"
+      >;
+      education_notifications: EducationDatabaseTable<
+        EducationNotification,
+        "org_id" | "branch_id" | "user_id" | "notification_type" | "title" | "message"
+      >;
+      education_notification_preferences: EducationDatabaseTable<
+        EducationNotificationPreference,
+        "org_id" | "user_id" | "notification_type"
+      >;
+      education_staff: EducationDatabaseTable<
+        EducationStaff,
+        "org_id" | "branch_id" | "staff_number" | "first_name" | "last_name" | "staff_category"
+      >;
+      education_staff_employment_records: EducationDatabaseTable<
+        EducationStaffEmploymentRecord,
+        "org_id" | "branch_id" | "staff_id" | "employment_type" | "job_title" | "effective_on" | "reason" | "created_by"
+      >;
+      education_staff_leave_requests: EducationDatabaseTable<
+        EducationStaffLeaveRequest,
+        "org_id" | "branch_id" | "staff_id" | "leave_type" | "starts_on" | "ends_on" | "reason" | "requested_by"
+      >;
+      education_staff_transfers: EducationDatabaseTable<
+        EducationStaffTransfer,
+        "org_id" | "staff_id" | "source_branch_id" | "destination_branch_id" | "effective_on" | "reason" | "requested_by"
+      >;
+      education_classes: EducationDatabaseTable<
+        EducationClass,
+        "org_id" | "branch_id" | "academic_year_id" | "name"
+      >;
+      education_student_enrollments: EducationDatabaseTable<
+        EducationStudentEnrollment,
+        "org_id" | "branch_id" | "student_id" | "class_id" | "academic_year_id"
+      >;
+      education_fee_charges: EducationDatabaseTable<
+        EducationFeeCharge,
+        "org_id" | "branch_id" | "student_id" | "academic_year_id" | "description" | "amount"
+      >;
+      education_fee_schedules: EducationDatabaseTable<
+        EducationFeeSchedule,
+        "org_id" | "branch_id" | "class_id" | "academic_year_id" | "description" | "amount"
+      >;
+      education_fee_payments: EducationDatabaseTable<
+        EducationFeePayment,
+        "org_id" | "charge_id" | "amount" | "payment_method"
+      >;
+      education_timetable_entries: EducationDatabaseTable<
+        EducationTimetableEntry,
+        "org_id" | "branch_id" | "class_id" | "academic_year_id" | "subject_name" | "weekday" | "starts_at" | "ends_at"
+      >;
+      education_admissions: EducationDatabaseTable<
+        EducationAdmission,
+        "org_id" | "branch_id" | "application_number" | "applicant_first_name" | "applicant_last_name"
+      >;
+      education_attendance: EducationDatabaseTable<
+        EducationAttendance,
+        "org_id" | "branch_id" | "student_id" | "staff_id" | "attendance_date" | "status"
+      >;
+      education_examinations: EducationDatabaseTable<
+        EducationExamination,
+        "org_id" | "branch_id" | "academic_year_id" | "name"
+      >;
+      education_results: EducationDatabaseTable<
+        EducationResult,
+        "org_id" | "branch_id" | "examination_id" | "student_id" | "subject_name" | "score" | "maximum_score"
+      >;
+      education_student_transfers: EducationDatabaseTable<
+        EducationStudentTransfer,
+        "org_id" | "student_id" | "source_branch_id" | "destination_branch_id" | "effective_on" | "reason"
+      >;
       business_locations: {
         Row: {
           id: string;
@@ -6246,6 +6946,499 @@ export interface Database {
           p_require_write?: boolean;
         };
         Returns: boolean;
+      };
+      education_create_campus: {
+        Args: {
+          p_org_id: string;
+          p_name: string;
+          p_code: string;
+          p_address?: string | null;
+          p_city?: string | null;
+          p_region?: string | null;
+          p_country?: string | null;
+          p_phone?: string | null;
+          p_email?: string | null;
+        };
+        Returns: string;
+      };
+      education_transition_student_transfer: {
+        Args: {
+          p_transfer_id: string;
+          p_status: string;
+        };
+        Returns: string;
+      };
+      education_create_timetable_entry: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_class_id: string;
+          p_staff_id: string | null;
+          p_academic_year_id: string;
+          p_subject_name: string;
+          p_weekday: number;
+          p_starts_at: string;
+          p_ends_at: string;
+          p_room?: string | null;
+        };
+        Returns: string;
+      };
+      education_promote_student: {
+        Args: {
+          p_org_id: string;
+          p_student_id: string;
+          p_source_enrollment_id: string;
+          p_destination_class_id: string | null;
+          p_action: string;
+        };
+        Returns: string;
+      };
+      education_set_academic_year_status: {
+        Args: {
+          p_org_id: string;
+          p_academic_year_id: string;
+          p_status: string;
+        };
+        Returns: string;
+      };
+      education_create_academic_term: {
+        Args: {
+          p_org_id: string;
+          p_academic_year_id: string;
+          p_name: string;
+          p_starts_on: string;
+          p_ends_on: string;
+          p_sequence_number: number;
+        };
+        Returns: string;
+      };
+      education_transition_academic_term: {
+        Args: {
+          p_org_id: string;
+          p_term_id: string;
+          p_status: string;
+        };
+        Returns: boolean;
+      };
+      education_process_admission: {
+        Args: {
+          p_org_id: string;
+          p_admission_id: string;
+          p_status: string;
+          p_decision_note?: string | null;
+          p_student_number?: string | null;
+          p_class_id?: string | null;
+        };
+        Returns: string;
+      };
+      education_record_fee_payment: {
+        Args: {
+          p_org_id: string;
+          p_charge_id: string;
+          p_amount: number;
+          p_payment_method: string;
+          p_reference?: string | null;
+        };
+        Returns: string;
+      };
+      education_void_unpaid_fee_charge: {
+        Args: {
+          p_org_id: string;
+          p_charge_id: string;
+          p_reason: string;
+        };
+        Returns: boolean;
+      };
+      education_apply_fee_schedule: {
+        Args: {
+          p_org_id: string;
+          p_schedule_id: string;
+        };
+        Returns: number;
+      };
+      education_archive_fee_schedule: {
+        Args: {
+          p_org_id: string;
+          p_schedule_id: string;
+          p_reason: string;
+        };
+        Returns: boolean;
+      };
+      education_create_guardian_link: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_student_id: string;
+          p_first_name: string;
+          p_last_name: string;
+          p_email: string | null;
+          p_phone: string | null;
+          p_relationship: string;
+          p_is_primary?: boolean;
+        };
+        Returns: string;
+      };
+      education_link_existing_guardian: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_student_id: string;
+          p_guardian_id: string;
+          p_relationship: string;
+        };
+        Returns: string;
+      };
+      education_verify_guardian_link: {
+        Args: {
+          p_org_id: string;
+          p_relationship_id: string;
+        };
+        Returns: boolean;
+      };
+      education_create_expense: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_category: string;
+          p_vendor: string | null;
+          p_description: string;
+          p_amount: number;
+          p_expense_date: string;
+          p_reference: string | null;
+        };
+        Returns: string;
+      };
+      education_review_expense: {
+        Args: {
+          p_org_id: string;
+          p_expense_id: string;
+          p_decision: string;
+          p_reason?: string | null;
+        };
+        Returns: boolean;
+      };
+      education_mark_expense_paid: {
+        Args: {
+          p_org_id: string;
+          p_expense_id: string;
+          p_payment_method: string;
+          p_paid_on: string;
+        };
+        Returns: boolean;
+      };
+      education_library_create_book: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_isbn: string | null;
+          p_title: string;
+          p_author: string;
+          p_publisher: string | null;
+          p_category: string;
+          p_publication_year: number | null;
+          p_copy_count: number;
+        };
+        Returns: string;
+      };
+      education_library_issue_copy: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_copy_id: string;
+          p_student_id: string;
+        };
+        Returns: string;
+      };
+      education_library_renew_loan: {
+        Args: { p_org_id: string; p_loan_id: string };
+        Returns: boolean;
+      };
+      education_library_return_loan: {
+        Args: { p_org_id: string; p_loan_id: string };
+        Returns: boolean;
+      };
+      education_transport_create_vehicle: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_registration_number: string;
+          p_make_model: string;
+          p_capacity: number;
+        };
+        Returns: string;
+      };
+      education_transport_create_route: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_vehicle_id: string;
+          p_name: string;
+          p_driver_name: string;
+          p_driver_phone: string | null;
+          p_stops: string[];
+        };
+        Returns: string;
+      };
+      education_transport_assign_student: {
+        Args: {
+          p_org_id: string;
+          p_route_id: string;
+          p_student_number: string;
+          p_pickup_stop: string;
+          p_dropoff_stop: string;
+        };
+        Returns: string;
+      };
+      education_transport_end_assignment: {
+        Args: { p_org_id: string; p_assignment_id: string };
+        Returns: boolean;
+      };
+      education_transport_set_vehicle_status: {
+        Args: { p_org_id: string; p_vehicle_id: string; p_status: string };
+        Returns: boolean;
+      };
+      education_transport_set_route_status: {
+        Args: { p_org_id: string; p_route_id: string; p_status: string };
+        Returns: boolean;
+      };
+      education_inventory_create_item: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_sku: string;
+          p_name: string;
+          p_category: string;
+          p_unit: string;
+          p_initial_quantity: number;
+          p_reorder_level: number;
+        };
+        Returns: string;
+      };
+      education_inventory_adjust_stock: {
+        Args: {
+          p_org_id: string;
+          p_item_id: string;
+          p_movement_type: string;
+          p_quantity: number;
+          p_reason: string;
+        };
+        Returns: string;
+      };
+      education_assets_create_asset: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_asset_tag: string;
+          p_name: string;
+          p_category: string;
+          p_serial_number: string | null;
+          p_purchase_date: string | null;
+          p_condition: string;
+        };
+        Returns: string;
+      };
+      education_assets_assign_asset: {
+        Args: {
+          p_org_id: string;
+          p_asset_id: string;
+          p_assignee_type: string;
+          p_assignee_id: string;
+        };
+        Returns: string;
+      };
+      education_assets_return_asset: {
+        Args: { p_org_id: string; p_assignment_id: string };
+        Returns: boolean;
+      };
+      education_assets_set_status: {
+        Args: {
+          p_org_id: string;
+          p_asset_id: string;
+          p_status: string;
+          p_condition: string;
+        };
+        Returns: boolean;
+      };
+      education_communication_create_draft: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_title: string;
+          p_body: string;
+          p_audience: string;
+        };
+        Returns: string;
+      };
+      education_communication_publish: {
+        Args: { p_org_id: string; p_communication_id: string };
+        Returns: boolean;
+      };
+      education_communication_archive: {
+        Args: { p_org_id: string; p_communication_id: string };
+        Returns: boolean;
+      };
+      education_get_guardian_communications: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      education_get_student_communications: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      education_document_register: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_student_id: string | null;
+          p_title: string;
+          p_category: string;
+          p_file_name: string;
+          p_content_type: string;
+          p_file_size: number;
+          p_storage_path: string;
+          p_retention_until: string | null;
+        };
+        Returns: string;
+      };
+      education_document_archive: {
+        Args: { p_org_id: string; p_document_id: string };
+        Returns: boolean;
+      };
+      education_document_prepare_download: {
+        Args: { p_org_id: string; p_document_id: string };
+        Returns: Json;
+      };
+      education_document_prepare_purge: {
+        Args: { p_org_id: string; p_document_id: string };
+        Returns: string | null;
+      };
+      education_document_complete_purge: {
+        Args: { p_org_id: string; p_document_id: string };
+        Returns: boolean;
+      };
+      education_notification_mark_read: {
+        Args: { p_notification_id: string };
+        Returns: boolean;
+      };
+      education_notification_set_preference: {
+        Args: { p_notification_type: string; p_in_app_enabled: boolean };
+        Returns: boolean;
+      };
+      education_record_staff_attendance: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_staff_id: string;
+          p_attendance_date: string;
+          p_status: string;
+          p_note: string | null;
+        };
+        Returns: string;
+      };
+      education_staff_leave_request: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_staff_id: string;
+          p_leave_type: string;
+          p_starts_on: string;
+          p_ends_on: string;
+          p_reason: string;
+        };
+        Returns: string;
+      };
+      education_staff_leave_decide: {
+        Args: {
+          p_org_id: string;
+          p_request_id: string;
+          p_decision: string;
+          p_decision_note: string | null;
+        };
+        Returns: boolean;
+      };
+      education_staff_transfer_request: {
+        Args: {
+          p_org_id: string;
+          p_staff_id: string;
+          p_source_branch_id: string;
+          p_destination_branch_id: string;
+          p_effective_on: string;
+          p_reason: string;
+        };
+        Returns: string;
+      };
+      education_transition_staff_transfer: {
+        Args: { p_transfer_id: string; p_status: string; p_review_note: string | null };
+        Returns: boolean;
+      };
+      education_staff_update_profile: {
+        Args: {
+          p_org_id: string;
+          p_staff_id: string;
+          p_first_name: string;
+          p_last_name: string;
+          p_other_names: string | null;
+          p_email: string | null;
+          p_phone: string | null;
+          p_date_of_birth: string | null;
+          p_address: string | null;
+          p_emergency_contact_name: string | null;
+          p_emergency_contact_phone: string | null;
+        };
+        Returns: boolean;
+      };
+      education_staff_record_employment: {
+        Args: {
+          p_org_id: string;
+          p_staff_id: string;
+          p_employment_type: string;
+          p_job_title: string;
+          p_department_id: string | null;
+          p_effective_on: string;
+          p_reason: string;
+        };
+        Returns: string;
+      };
+      education_get_audit_activity: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string | null;
+          p_search: string | null;
+          p_from: string | null;
+          p_to: string | null;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          id: string;
+          actor_id: string | null;
+          action: string;
+          entity_type: string;
+          entity_id: string | null;
+          metadata: Json;
+          created_at: string;
+          total_count: number;
+        }>;
+      };
+      education_user_can_view_audit: {
+        Args: { target_org_id: string };
+        Returns: boolean;
+      };
+      education_claim_guardian_account: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      education_get_guardian_portal: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      education_claim_student_account: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      education_get_student_portal: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
       };
       set_organization_product_assignments: {
         Args: {

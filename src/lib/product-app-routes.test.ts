@@ -27,12 +27,28 @@ describe("product application routes", () => {
       productSlug: "think-service-repairs",
       appPath: "/service-center/jobs",
     });
+    expect(resolveProductAppRoute("/app/think-education/students")).toEqual({
+      kind: "valid",
+      productSlug: "think-education",
+      appPath: "/education/students",
+    });
+    expect(resolveProductAppRoute("/app/think-education/settings/users")).toEqual({
+      kind: "valid",
+      productSlug: "think-education",
+      appPath: "/education/settings/users",
+    });
   });
 
   it("uses each product's canonical default path", () => {
     expect(getProductAppPath("thinksales-erp")).toBe("/app/thinksales/dashboard");
     expect(getProductAppPath("restaurant")).toBe("/app/restaurant");
     expect(getProductAppPath("think-service-repairs")).toBe("/app/think-service");
+    expect(getProductAppPath("think-education")).toBe("/app/think-education/dashboard");
+    expect(resolveProductAppRoute("/app/think-education")).toEqual({
+      kind: "valid",
+      productSlug: "think-education",
+      appPath: "/education/dashboard",
+    });
     expect(resolveProductAppRoute("/app/restaurant")).toEqual({
       kind: "valid",
       productSlug: "restaurant",

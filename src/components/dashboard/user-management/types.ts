@@ -19,9 +19,16 @@ export type PermissionAction =
   | "edit" 
   | "delete" 
   | "approve" 
+  | "reject"
+  | "publish"
   | "import"
   | "export" 
-  | "print";
+  | "print"
+  | "manage_settings"
+  | "manage_users"
+  | "manage_roles"
+  | "view_audit"
+  | "revoke_sessions";
 
 /** Registry key for a permission module/page. New pages can be added without changing the role schema. */
 export type ModuleCategory = string;
