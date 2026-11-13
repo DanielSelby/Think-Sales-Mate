@@ -128,6 +128,26 @@ export default async function EducationGuardiansPage({
   if (pickerError) throw new Error(`Could not load students for guardian linking: ${pickerError.message}`);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const csvRows = [
+    ["Student", "Student ID", "Guardian", "Guardian email", "Guardian phone", "Relationship", "Primary contact", "Status", "Campus", "Linked on"],
+    ...relationshipRows.map((row) => {
+      const student = studentById.get(row.student_id);
+      const guardian = guardianById.get(row.guardian_id);
+      return [
+        student ? `${student.first_name} ${student.last_name}`.trim() : "Student unavailable",
+        student?.student_number ?? "—",
+        guardian ? `${guardian.first_name} ${guardian.last_name}`.trim() : "Guardian unavailable",
+        guardian?.email ?? "—",
+        guardian?.phone ?? "—",
+        row.relationship,
+        row.is_primary ? "Yes" : "No",
+        row.status,
+        campusNameById.get(row.branch_id) ?? row.branch_id,
+        new Date(row.created_at).toISOString(),
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const queryForPage = (page: number) => {
     const query = new URLSearchParams();
     if (selectedBranch) query.set("branch", selectedBranch);
@@ -221,7 +241,7 @@ export default async function EducationGuardiansPage({
     </section>}
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/guardians")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[1fr_1fr_auto]">
+      <form method="get" action={getProductAppPath("think-education", "/guardians")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[1fr_1fr_auto_auto]">
         <label className="text-sm font-medium text-slate-700">Campus
           <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
             <option value="">All assigned campuses</option>
@@ -235,6 +255,7 @@ export default async function EducationGuardiansPage({
           </select>
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+        {relationshipRows.length > 0 && <a href={csvHref} download={`education-guardians-${new Date().toISOString().slice(0, 10)}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {relationshipRows.length ? <div className="divide-y divide-slate-100">
         {relationshipRows.map((row) => {

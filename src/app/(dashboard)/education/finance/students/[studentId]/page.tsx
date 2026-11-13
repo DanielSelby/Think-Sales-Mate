@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
@@ -29,13 +29,26 @@ export default async function EducationStudentFeeStatementPage({
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
 
-  const [canViewCharges, canViewPayments, canViewStudents, canViewAcademicYears, canPrint, canPrintReceipts] = await Promise.all([
+  const [
+    canViewCharges,
+    canViewPayments,
+    canViewStudents,
+    canViewAcademicYears,
+    canPrint,
+    canPrintReceipts,
+    canExportCharges,
+    canExportPayments,
+    canExportStudents,
+  ] = await Promise.all([
     canTabPermission("education_finance", "finance", "charges", "view"),
     canTabPermission("education_finance", "finance", "payments", "view"),
     canTabPermission("education_students", "students", "list", "view"),
     canTabPermission("education_academics", "academics", "calendar", "view"),
     canTabPermission("education_finance", "finance", "charges", "print"),
     canTabPermission("education_finance", "finance", "payments", "print"),
+    canTabPermission("education_finance", "finance", "charges", "export"),
+    canTabPermission("education_finance", "finance", "payments", "export"),
+    canTabPermission("education_students", "students", "list", "export"),
   ]);
   if (!canViewCharges || !canViewPayments || !canViewStudents || !canViewAcademicYears) {
     redirect("/dashboard?accessDenied=think-education.finance.statement");
@@ -129,13 +142,23 @@ export default async function EducationStudentFeeStatementPage({
     .reduce((sum, charge) => sum + (paidByCharge.get(charge.id) ?? 0), 0);
   const balance = Math.max(0, totalBilled - totalPaid);
   const formatMoney = (amount: number) => `${organization.currency} ${amount.toFixed(2)}`;
+  const canExportStatement = canExportCharges && canExportPayments && canExportStudents && canViewAcademicYears;
+  const exportParams = new URLSearchParams();
+  if (selectedYear) exportParams.set("year", selectedYear);
+  const exportQuery = exportParams.toString();
+  const exportHref = `/api/education/finance/students/${student.id}/export${exportQuery ? `?${exportQuery}` : ""}`;
 
   return <main className="mx-auto max-w-5xl space-y-5 p-4 md:p-8 print:max-w-none print:p-0">
     <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
       <Link href={getProductAppPath("think-education", "/finance")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
         <ArrowLeft className="h-4 w-4" /> Fees & Finance
       </Link>
-      {canPrint && <PrintReceiptButton label="Print statement" />}
+      <div className="flex flex-wrap items-center gap-2">
+        {canExportStatement && <a href={exportHref} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+          <ArrowDownToLine className="h-4 w-4" /> Download CSV
+        </a>}
+        {canPrint && <PrintReceiptButton label="Print statement" />}
+      </div>
     </div>
 
     <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">

@@ -153,11 +153,31 @@ describe("role permission inheritance", () => {
     const enrollmentReport = PERMISSION_PAGE_CONFIGS.education_reports
       .find((page) => page.key === "reports")
       ?.tabs.find((tab) => tab.key === "enrollment");
+    const expensesReport = PERMISSION_PAGE_CONFIGS.education_reports
+      .find((page) => page.key === "reports")
+      ?.tabs.find((tab) => tab.key === "expenses");
+    const feesReport = PERMISSION_PAGE_CONFIGS.education_reports
+      .find((page) => page.key === "reports")
+      ?.tabs.find((tab) => tab.key === "fees");
+    const libraryReport = PERMISSION_PAGE_CONFIGS.education_reports
+      .find((page) => page.key === "reports")
+      ?.tabs.find((tab) => tab.key === "library");
+    const inventoryReport = PERMISSION_PAGE_CONFIGS.education_reports
+      .find((page) => page.key === "reports")
+      ?.tabs.find((tab) => tab.key === "inventory");
+    const transportReport = PERMISSION_PAGE_CONFIGS.education_reports
+      .find((page) => page.key === "reports")
+      ?.tabs.find((tab) => tab.key === "transport");
 
     expect(staffReports?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
     expect(attendanceReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
     expect(outcomesReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
     expect(enrollmentReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
+    expect(expensesReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
+    expect(feesReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
+    expect(libraryReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
+    expect(inventoryReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
+    expect(transportReport?.supportedActions).toEqual(expect.arrayContaining(["view", "export"]));
     expect(MODULE_CONFIGS.find((module) => module.key === "education_reports")?.supportedActions)
       .toEqual(["view", "export"]);
   });
@@ -311,11 +331,19 @@ describe("role permission inheritance", () => {
     ]);
 
     const teacher = getEducationRolePreset("education_teacher");
+    const librarian = getEducationRolePreset("education_librarian");
+    const administrator = getEducationRolePreset("education_admin");
     expect(teacher?.permissions.education_attendance).toEqual(["view", "create", "edit"]);
     expect(teacher?.permissions.education_examinations).toEqual(["view"]);
     expect(teacher?.permissions["education_reports.reports.outcomes"]).toEqual(["view"]);
     expect(teacher?.permissions["education_attendance.attendance.staff"]).toEqual([]);
     expect(teacher?.permissions.education_finance).toBeUndefined();
+    expect(librarian?.permissions["education_reports.reports.library"]).toEqual(["view", "export"]);
+    expect(administrator?.permissions["education_reports.reports.inventory"]).toEqual(["view", "export"]);
+    expect(administrator?.permissions["education_reports.reports.transport"]).toEqual(["view", "export"]);
+    expect(administrator?.permissions["education_reports.reports.fees"]).toEqual(["view", "export"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_reports.reports.fees"])
+      .toEqual(["view", "export"]);
     expect(filterPermissionMatrixForProduct(teacher?.permissions ?? {}, "think-education"))
       .toEqual(teacher?.permissions);
     expect(filterPermissionMatrixForProduct(

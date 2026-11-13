@@ -127,6 +127,7 @@ interface UserManagementProps {
   productMemberRoles?: ProductMemberRole[];
   activeProductSlug?: PlatformProductSlug | null;
   canManageProductAccess?: boolean;
+  initialActiveTab?: ActiveTab;
 }
 
 export function UserManagement({
@@ -148,7 +149,8 @@ export function UserManagement({
   productRoleTemplates = [],
   productMemberRoles = [],
   activeProductSlug = null,
-  canManageProductAccess = false
+  canManageProductAccess = false,
+  initialActiveTab = "users",
 }: UserManagementProps) {
   const [, startTransition] = useTransition();
   const { setTheme } = useAppStore();
@@ -204,7 +206,7 @@ export function UserManagement({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Active Tab & Filters
-  const [activeTab, setActiveTab] = useState<ActiveTab>("users");
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialActiveTab);
   const [showSummary, setShowSummary] = useState(true);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);

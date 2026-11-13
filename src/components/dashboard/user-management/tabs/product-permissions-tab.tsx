@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Check, Save } from "lucide-react";
+import { useAppStore, THEMES } from "@/store/useAppStore";
 import { AccessMatrixTab } from "./access-matrix-tab";
 import {
   saveProductRolePermissions,
@@ -75,9 +76,12 @@ export function ProductPermissionsTab({
   const [selectedMemberRoles, setSelectedMemberRoles] = useState<Record<string, string>>(() =>
     Object.fromEntries(memberRoles.map((item) => [`${item.product_slug}:${item.user_id}`, item.role_key])),
   );
+  const [roleFilter, setRoleFilter] = useState<"all" | "administration" | "academic" | "finance" | "operations">("all");
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ userId: string; text: string; error: boolean } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { activeTheme } = useAppStore();
+  const theme = THEMES[activeTheme] ?? THEMES.green;
 
   const productRoles = useMemo(() => {
     if (!selectedProduct) return [];
@@ -124,6 +128,15 @@ export function ProductPermissionsTab({
     && (assignments[user.userId] ?? []).includes(selectedProduct ?? ""),
   );
 
+  const getRoleGroup = (roleKey: string): "administration" | "academic" | "finance" | "operations" => {
+    if (["owner", "super_admin", "manager", "education_admin"].includes(roleKey)) return "administration";
+    if (["education_teacher", "education_registrar"].includes(roleKey)) return "academic";
+    if (["education_accountant"].includes(roleKey)) return "finance";
+    return "operations";
+  };
+
+  const filteredProductRoles = productRoles.filter((role) => roleFilter === "all" || getRoleGroup(role.key) === roleFilter);
+
   function saveMemberRole(userId: string) {
     if (!selectedProduct) return;
     const roleKey = selectedMemberRoles[`${selectedProduct}:${userId}`];
@@ -145,14 +158,20 @@ export function ProductPermissionsTab({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4 rounded-xl border border-blue-100 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+      <div
+        className="flex flex-wrap items-end justify-between gap-4 rounded-xl border p-4"
+        style={{
+          borderColor: theme.sidebar.borderColor,
+          background: `linear-gradient(135deg, ${theme.colors.primaryPale}, ${theme.colors.surface})`,
+        }}
+      >
         <div>
-          <h2 className="text-sm font-bold text-blue-950 dark:text-blue-100">Product-specific permissions</h2>
-          <p className="mt-1 max-w-3xl text-xs text-blue-800 dark:text-blue-200">
+          <h2 className="text-sm font-bold" style={{ color: theme.colors.primary }}>Product-specific permissions</h2>
+          <p className="mt-1 max-w-3xl text-xs" style={{ color: theme.colors.primaryMid }}>
             These roles apply only inside the selected product. Organization team administration and global roles remain unchanged.
           </p>
         </div>
-        <label className="grid gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+        <label className="grid gap-1 text-xs font-semibold" style={{ color: theme.colors.textMuted }}>
           Product
           <select
             value={selectedProduct}
@@ -162,12 +181,69 @@ export function ProductPermissionsTab({
               setSelectedProduct(next.slug);
               setMessage(null);
             }}
-            className="min-w-52 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            className="min-w-52 rounded-lg border bg-white px-3 py-2 text-sm"
+            style={{
+              borderColor: theme.sidebar.borderColor,
+              backgroundColor: theme.colors.surface,
+              color: theme.colors.text,
+            }}
           >
             {products.map((product) => <option key={product.slug} value={product.slug}>{product.name}</option>)}
           </select>
         </label>
       </div>
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-ink-900 dark:text-white">{selectedProduct === "think-education" ? "Education role catalog" : "Product role catalog"}</h3>
+              <p className="mt-1 text-xs text-ledger-500">Preset access patterns for this product, grouped to simplify assignment and review.</p>
+            </div>
+            {selectedProduct === "think-education" && (
+              <div className="flex flex-wrap gap-2">
+                {(["all", "administration", "academic", "finance", "operations"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setRoleFilter(option)}
+                    className="rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize transition"
+                    style={roleFilter === option
+                      ? {
+                          borderColor: theme.colors.primary,
+                          backgroundColor: theme.colors.primary,
+                          color: "#fff",
+                        }
+                      : {
+                          borderColor: theme.sidebar.borderColor,
+                          backgroundColor: theme.colors.surface,
+                          color: theme.colors.text,
+                        }}
+                  >
+                    {option === "all" ? "All roles" : option}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {filteredProductRoles.map((role) => (
+              <div key={role.key} className="rounded-xl border p-3" style={{ borderColor: theme.sidebar.borderColor, backgroundColor: theme.colors.primaryPale }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: theme.colors.text }}>{role.name}</p>
+                    <p className="mt-1 text-[11px] uppercase tracking-wide" style={{ color: theme.colors.primary }}>{getRoleGroup(role.key)}</p>
+                  </div>
+                  <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: `${theme.colors.primary}1A`, color: theme.colors.primary }}>
+                    {role.permissionCount} perms
+                  </span>
+                </div>
+                <p className="mt-2 text-xs" style={{ color: theme.colors.textMuted }}>{role.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="space-y-3">
         <div>
@@ -203,7 +279,12 @@ export function ProductPermissionsTab({
                             ...previous,
                             [`${selectedProduct}:${userId}`]: event.target.value,
                           }))}
-                          className="min-w-48 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                          className="min-w-48 rounded-lg border px-3 py-2 text-sm"
+                          style={{
+                            borderColor: theme.sidebar.borderColor,
+                            backgroundColor: theme.colors.surface,
+                            color: theme.colors.text,
+                          }}
                         >
                           {productRoles.map((role) => (
                             <option key={role.key} value={role.key}>{role.name}</option>
@@ -215,7 +296,8 @@ export function ProductPermissionsTab({
                           type="button"
                           disabled={isPending}
                           onClick={() => saveMemberRole(userId)}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          style={{ backgroundColor: theme.colors.primary }}
                         >
                           {rowMessage && !rowMessage.error ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                           {isPending && savingUserId === userId ? "Saving" : "Save"}

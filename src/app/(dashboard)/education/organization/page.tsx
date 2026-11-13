@@ -26,6 +26,18 @@ export default async function EducationOrganizationPage({
     !search || [campus.name, campus.code, campus.city, campus.region]
       .some((value) => value?.toLowerCase().includes(search))
   );
+  const csvRows = [
+    ["Campus", "Campus code", "City", "Region", "Status", "Access scope"],
+    ...filteredCampuses.map((campus) => [
+      campus.name,
+      campus.code ?? "—",
+      campus.city ?? "—",
+      campus.region ?? "—",
+      "Active",
+      hasOrganizationScope ? "Organization-wide" : "Assigned campus",
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "duplicate"
     ? "That campus code is already in use in this organization."
     : params.error === "invalid"
@@ -74,13 +86,14 @@ export default async function EducationOrganizationPage({
     </section>}
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/organization")} className="flex flex-wrap gap-3 border-b border-slate-200 p-4">
+      <form method="get" action={getProductAppPath("think-education", "/organization")} className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4">
         <label className="relative min-w-[240px] flex-1">
           <span className="sr-only">Search campuses</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input name="search" defaultValue={search} placeholder="Search campus name, code, or location" className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </label>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Search campuses</button>
+        {filteredCampuses.length > 0 && <a href={csvHref} download={`education-campuses-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {filteredCampuses.length === 0 ? <div className="p-8 text-center">
         <Building2 className="mx-auto h-10 w-10 text-slate-300" />

@@ -45,6 +45,7 @@ export default async function EducationExpensesPage({
   const requestedCategory = typeof params.category === "string" ? params.category : "";
   const requestedFrom = typeof params.from === "string" ? params.from : "";
   const requestedTo = typeof params.to === "string" ? params.to : "";
+  const requestedSearch = typeof params.search === "string" ? params.search : "";
   const currentPage = Math.min(1_000_000, Math.max(1, Number.parseInt(
     typeof params.page === "string" ? params.page : "1", 10
   ) || 1));
@@ -65,6 +66,7 @@ export default async function EducationExpensesPage({
   ) ? requestedCategory : "";
   const fromDate = isValidEducationExpenseDate(requestedFrom) ? requestedFrom : "";
   const toDate = isValidEducationExpenseDate(requestedTo) ? requestedTo : "";
+  const searchFilter = requestedSearch.trim();
   const supabase = await createClient();
   const [{ data: organization, error: organizationError }, result] = await Promise.all([
     supabase.from("organizations").select("currency").eq("id", context.orgId).single(),
@@ -81,6 +83,10 @@ export default async function EducationExpensesPage({
       if (categoryFilter) query = query.eq("category", categoryFilter);
       if (fromDate) query = query.gte("expense_date", fromDate);
       if (toDate) query = query.lte("expense_date", toDate);
+      if (searchFilter) {
+        const term = searchFilter.replace(/'/g, "''");
+        query = query.or(`description.ilike.%${term}%,vendor.ilike.%${term}%,reference.ilike.%${term}%`);
+      }
       return query;
     })(),
   ]);
@@ -91,6 +97,22 @@ export default async function EducationExpensesPage({
   const totalCount = result.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const csvRows = [
+    ["Expense #", "Campus", "Category", "Description", "Vendor", "Reference", "Amount", "Expense date", "Status", "Payment status"],
+    ...expenses.map((expense) => [
+      expense.expense_number,
+      campusNameById.get(expense.branch_id) ?? expense.branch_id,
+      expense.category,
+      expense.description,
+      expense.vendor ?? "",
+      expense.reference ?? "",
+      Number(expense.amount).toFixed(2),
+      expense.expense_date,
+      STATUS_LABELS[expense.status],
+      PAYMENT_STATUS_LABELS[expense.payment_status],
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const queryForPage = (page: number) => {
     const query = new URLSearchParams();
     if (selectedBranch) query.set("branch", selectedBranch);
@@ -98,6 +120,7 @@ export default async function EducationExpensesPage({
     if (categoryFilter) query.set("category", categoryFilter);
     if (fromDate) query.set("from", fromDate);
     if (toDate) query.set("to", toDate);
+    if (searchFilter) query.set("search", searchFilter);
     if (page > 1) query.set("page", String(page));
     const suffix = query.toString();
     return `${getProductAppPath("think-education", "/expenses")}${suffix ? `?${suffix}` : ""}`;
@@ -166,7 +189,7 @@ export default async function EducationExpensesPage({
     </section>}
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/expenses")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-5">
+      <form method="get" action={getProductAppPath("think-education", "/expenses")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-6">
         <label className="text-sm font-medium text-slate-700">Campus
           <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
             <option value="">All assigned campuses</option>
@@ -185,14 +208,18 @@ export default async function EducationExpensesPage({
             {EDUCATION_EXPENSE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
           </select>
         </label>
+        <label className="text-sm font-medium text-slate-700">Search
+          <input name="search" defaultValue={searchFilter} placeholder="Vendor or description" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
         <label className="text-sm font-medium text-slate-700">From
           <input name="from" type="date" defaultValue={fromDate} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <label className="text-sm font-medium text-slate-700">To
           <input name="to" type="date" defaultValue={toDate} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-6 flex flex-wrap items-end gap-3">
           <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+          {expenses.length > 0 && <a href={csvHref} download={`education-expenses-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
         </div>
       </form>
 

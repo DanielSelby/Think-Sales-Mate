@@ -36,6 +36,9 @@ export default async function EducationResultsPage({
   const params = await searchParams;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
+  const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
+  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const validStatus = ["draft", "submitted", "approved", "published"].includes(requestedStatus) ? requestedStatus : "";
   const [canCreate, canEdit, canApprove, canPublish] = await Promise.all([
     canTabPermission("education_results", "results", "gradebook", "create"),
     canTabPermission("education_results", "results", "gradebook", "edit"),
@@ -77,6 +80,35 @@ export default async function EducationResultsPage({
       name: `${student.first_name} ${student.last_name}`,
     });
   }
+  const filteredResults = results.filter((result) => {
+    if (validStatus && result.status !== validStatus) return false;
+    if (!requestedSearch) return true;
+    const student = studentNameById.get(result.student_id);
+    const haystack = [
+      student?.number ?? "",
+      student?.name ?? "",
+      result.subject_name,
+      result.grade ?? "",
+      result.status,
+    ].join(" ").toLowerCase();
+    return haystack.includes(requestedSearch.toLowerCase());
+  });
+  const csvRows = [
+    ["Student number", "Student", "Subject", "Score", "Maximum score", "Grade", "Status"],
+    ...filteredResults.map((result) => {
+      const student = studentNameById.get(result.student_id);
+      return [
+        student?.number ?? "",
+        student?.name ?? "",
+        result.subject_name,
+        String(result.score),
+        String(result.maximum_score),
+        result.grade ?? "",
+        result.status,
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const canEnterResults = Boolean(selectedExam && ["completed", "results_pending"].includes(selectedExam.status) && canCreate);
   const errorMessage = params.error === "duplicate"
     ? "A result for that student and subject already exists for this examination."
@@ -101,9 +133,9 @@ export default async function EducationResultsPage({
 
     <section className="grid gap-3 sm:grid-cols-3">
       {[
-        { label: "Results in selected exam", value: results.length, icon: FileText },
-        { label: "Awaiting approval", value: results.filter((result) => result.status === "submitted").length, icon: Trophy },
-        { label: "Published", value: results.filter((result) => result.status === "published").length, icon: Trophy },
+        { label: "Results in selected exam", value: filteredResults.length, icon: FileText },
+        { label: "Awaiting approval", value: filteredResults.filter((result) => result.status === "submitted").length, icon: Trophy },
+        { label: "Published", value: filteredResults.filter((result) => result.status === "published").length, icon: Trophy },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
@@ -111,28 +143,41 @@ export default async function EducationResultsPage({
     </section>
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/results")} className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4">
-        <label className="min-w-[260px] flex-1 text-sm font-medium text-slate-700">Examination
+      <form method="get" action={getProductAppPath("think-education", "/results")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1.2fr)_220px_220px_auto]">
+        <label className="text-sm font-medium text-slate-700">Examination
           <select name="examination" defaultValue={selectedExam?.id ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
             {exams.length === 0 && <option value="">No examinations available</option>}
             {exams.map((exam) => <option key={exam.id} value={exam.id}>{exam.name} · {exam.status.replace("_", " ")}</option>)}
           </select>
         </label>
-        <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Load results</button>
+        <label className="text-sm font-medium text-slate-700">Search
+          <input name="search" defaultValue={requestedSearch} placeholder="Student, subject, or grade" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Status
+          <select name="status" defaultValue={validStatus} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="">All statuses</option>
+            {['draft', 'submitted', 'approved', 'published'].map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </label>
+        <div className="flex items-end gap-2">
+          <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+          {filteredResults.length > 0 && <a href={csvHref} download={`education-results-${selectedExam?.name ?? "exam"}-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+          <Link href={getProductAppPath("think-education", "/results")} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
+        </div>
       </form>
 
       {!selectedExam ? <div className="p-8 text-center">
         <FileText className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No examinations available</h2>
         <p className="mt-1 text-sm text-slate-500">Create and complete an examination before entering results.</p>
-      </div> : results.length === 0 ? <div className="p-8 text-center">
+      </div> : filteredResults.length === 0 ? <div className="p-8 text-center">
         <FileText className="mx-auto h-10 w-10 text-slate-300" />
-        <h2 className="mt-3 font-semibold text-slate-900">No results entered</h2>
-        <p className="mt-1 text-sm text-slate-500">Add student scores below. Every result must be published before the examination can be published.</p>
+        <h2 className="mt-3 font-semibold text-slate-900">No results match these filters</h2>
+        <p className="mt-1 text-sm text-slate-500">Try another search string or reset the filters.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[850px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Student number</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Grade</th><th className="px-4 py-3">Status / actions</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{results.map((result) => {
+          <tbody className="divide-y divide-slate-100">{filteredResults.map((result) => {
             const student = studentNameById.get(result.student_id);
             const nextStatus = result.status === "draft" ? "submitted"
               : result.status === "submitted" ? "approved"

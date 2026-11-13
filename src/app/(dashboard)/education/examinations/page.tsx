@@ -67,9 +67,46 @@ export default async function EducationExaminationsPage({
   const academicYears = years ?? [];
   const academicTerms = terms ?? [];
   const examinations: ExaminationRow[] = examinationsResult.data ?? [];
+  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const requestedYear = typeof params.year === "string" ? params.year : "";
+  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
+  const selectedBranch = branchIds.includes(requestedBranch) ? requestedBranch : "";
+  const selectedYear = academicYears.some((year) => year.id === requestedYear) ? requestedYear : "";
+  const selectedStatus = ["draft", "scheduled", "in_progress", "completed", "results_pending", "published", "cancelled"].includes(requestedStatus)
+    ? requestedStatus
+    : "";
   const yearNameById = new Map(academicYears.map((year) => [year.id, year.name]));
   const termNameById = new Map(academicTerms.map((term) => [term.id, term.name]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const filteredExaminations = examinations.filter((exam) => {
+    if (selectedBranch && exam.branch_id !== selectedBranch) return false;
+    if (selectedYear && exam.academic_year_id !== selectedYear) return false;
+    if (selectedStatus && exam.status !== selectedStatus) return false;
+    if (!requestedSearch) return true;
+    const haystack = [
+      exam.name,
+      exam.examination_type,
+      yearNameById.get(exam.academic_year_id) ?? "",
+      campusNameById.get(exam.branch_id) ?? "",
+      exam.term_id ? termNameById.get(exam.term_id) ?? "" : "",
+    ].join(" ").toLowerCase();
+    return haystack.includes(requestedSearch.toLowerCase());
+  });
+  const csvRows = [
+    ["Examination", "Type", "Academic year", "Term", "Campus", "Start", "End", "Status"],
+    ...filteredExaminations.map((exam) => [
+      exam.name,
+      exam.examination_type.replace("_", " "),
+      yearNameById.get(exam.academic_year_id) ?? exam.academic_year_id,
+      exam.term_id ? termNameById.get(exam.term_id) ?? exam.term_id : "",
+      campusNameById.get(exam.branch_id) ?? exam.branch_id,
+      exam.starts_at ? new Date(exam.starts_at).toISOString() : "",
+      exam.ends_at ? new Date(exam.ends_at).toISOString() : "",
+      exam.status.replace("_", " "),
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "duplicate"
     ? "That examination already exists."
     : params.error === "invalid"
@@ -96,28 +133,57 @@ export default async function EducationExaminationsPage({
 
     <section className="grid gap-3 sm:grid-cols-3">
       {[
-        { label: "Examinations", value: examinations.length, icon: ClipboardCheck },
-        { label: "Upcoming / scheduled", value: examinations.filter((exam) => exam.status === "scheduled").length, icon: CalendarDays },
-        { label: "In progress", value: examinations.filter((exam) => exam.status === "in_progress").length, icon: ClipboardCheck },
+        { label: "Examinations", value: filteredExaminations.length, icon: ClipboardCheck },
+        { label: "Upcoming / scheduled", value: filteredExaminations.filter((exam) => exam.status === "scheduled").length, icon: CalendarDays },
+        { label: "In progress", value: filteredExaminations.filter((exam) => exam.status === "in_progress").length, icon: ClipboardCheck },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
+    <form method="get" className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
+      <label className="text-sm font-medium text-slate-700">Search
+        <input name="search" defaultValue={requestedSearch} placeholder="Name, type or term" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+      </label>
+      <label className="text-sm font-medium text-slate-700">Campus
+        <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+          <option value="">All campuses</option>
+          {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+        </select>
+      </label>
+      <label className="text-sm font-medium text-slate-700">Academic year
+        <select name="year" defaultValue={selectedYear} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+          <option value="">All years</option>
+          {academicYears.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}
+        </select>
+      </label>
+      <label className="text-sm font-medium text-slate-700">Status
+        <select name="status" defaultValue={selectedStatus} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+          <option value="">All statuses</option>
+          {['draft', 'scheduled', 'in_progress', 'completed', 'results_pending', 'published', 'cancelled'].map((status) => <option key={status} value={status}>{status.replace('_', ' ')}</option>)}
+        </select>
+      </label>
+      <div className="flex items-end gap-2">
+        <button type="submit" className="w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Apply filters</button>
+        {filteredExaminations.length > 0 && <a href={csvHref} download={`education-examinations-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        <Link href={getProductAppPath("think-education", "/examinations")} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
+      </div>
+    </form>
+
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {campuses.length === 0 ? <div className="p-8 text-center">
         <ClipboardCheck className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No campus access assigned</h2>
         <p className="mt-1 text-sm text-slate-500">Ask an authorized Think Education administrator to assign your campus scope.</p>
-      </div> : examinations.length === 0 ? <div className="p-8 text-center">
+      </div> : filteredExaminations.length === 0 ? <div className="p-8 text-center">
         <ClipboardCheck className="mx-auto h-10 w-10 text-slate-300" />
-        <h2 className="mt-3 font-semibold text-slate-900">No examinations scheduled</h2>
-        <p className="mt-1 text-sm text-slate-500">Create an examination after an academic year is available.</p>
+        <h2 className="mt-3 font-semibold text-slate-900">No examinations match these filters</h2>
+        <p className="mt-1 text-sm text-slate-500">Try another search string or reset the filters.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Examination</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Academic period</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Schedule</th><th className="px-4 py-3">Status / actions</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{examinations.map((exam) => <tr key={exam.id} className="align-top">
+          <tbody className="divide-y divide-slate-100">{filteredExaminations.map((exam) => <tr key={exam.id} className="align-top">
             <td className="px-4 py-3 font-semibold text-slate-900">{exam.name}</td>
             <td className="px-4 py-3 capitalize text-slate-600">{exam.examination_type.replace("_", " ")}</td>
             <td className="px-4 py-3 text-slate-600">{yearNameById.get(exam.academic_year_id) ?? "Academic year"}{exam.term_id && termNameById.has(exam.term_id) ? ` · ${termNameById.get(exam.term_id)}` : ""}</td>

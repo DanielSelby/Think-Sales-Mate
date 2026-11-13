@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ClipboardList, Plus, UserPlus } from "lucide-react";
+import { ArrowLeft, ClipboardList, Plus, Search, UserPlus } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationAdmission, updateEducationAdmissionStatus } from "../actions";
+
+const ADMISSION_STATUSES = ["pending", "under_review", "admitted", "rejected", "enrolled", "withdrawn"] as const;
 
 export default async function EducationAdmissionsPage({
   searchParams,
@@ -20,8 +22,16 @@ export default async function EducationAdmissionsPage({
   }
 
   const params = await searchParams;
+  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
-  const branchIds = campuses.map((campus) => campus.id);
+  const campusIds = campuses.map((campus) => campus.id);
+  const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
+  const selectedStatus: (typeof ADMISSION_STATUSES)[number] | "" = ADMISSION_STATUSES.includes(requestedStatus as (typeof ADMISSION_STATUSES)[number])
+    ? (requestedStatus as (typeof ADMISSION_STATUSES)[number])
+    : "";
+  const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const [canCreate, canEdit, canApproveAction, canCreateStudent, canViewClasses] = await Promise.all([
     canTabPermission("education_admissions", "admissions", "applications", "create"),
     canTabPermission("education_admissions", "admissions", "applications", "edit"),
@@ -56,10 +66,19 @@ export default async function EducationAdmissionsPage({
     capacity: number | null;
   }> = [];
   if (branchIds.length) {
-    const { data, error } = await supabase.from("education_admissions")
+    let admissionsQuery = supabase.from("education_admissions")
       .select("id, branch_id, application_number, applicant_first_name, applicant_last_name, applicant_email, applicant_phone, requested_class_id, decision_note, enrolled_student_id, status, applied_at")
       .eq("org_id", context.orgId).in("branch_id", branchIds)
       .order("applied_at", { ascending: false });
+    if (selectedStatus) admissionsQuery = admissionsQuery.eq("status", selectedStatus);
+    if (requestedSearch) {
+      const safeSearch = requestedSearch.replace(/[^A-Za-z0-9\s_-]/g, "");
+      if (safeSearch) {
+        const pattern = `%${safeSearch}%`;
+        admissionsQuery = admissionsQuery.or(`application_number.ilike.${pattern},applicant_first_name.ilike.${pattern},applicant_last_name.ilike.${pattern},applicant_email.ilike.${pattern},applicant_phone.ilike.${pattern}`);
+      }
+    }
+    const { data, error } = await admissionsQuery;
     if (error) throw new Error(`Could not load Think Education applications: ${error.message}`);
     admissions = data ?? [];
     if (canViewClasses) {
@@ -82,6 +101,20 @@ export default async function EducationAdmissionsPage({
     classroom.id,
     `${campusNameById.get(classroom.branch_id) ?? "Campus"} · ${classroom.name}${classroom.level_name ? ` (${classroom.level_name})` : ""}`,
   ]));
+  const csvRows = [
+    ["Application", "Applicant", "Campus", "Class", "Contact", "Applied on", "Status", "Decision note"],
+    ...admissions.map((application) => [
+      application.application_number,
+      `${application.applicant_first_name} ${application.applicant_last_name}`.trim(),
+      campusNameById.get(application.branch_id) ?? application.branch_id,
+      application.requested_class_id ? classNameById.get(application.requested_class_id) ?? application.requested_class_id : "No class selected",
+      application.applicant_email || application.applicant_phone || "—",
+      new Date(application.applied_at).toISOString(),
+      application.status.replace("_", " "),
+      application.decision_note ?? "",
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "duplicate"
     ? "That application number is already in use."
     : params.error === "invalid"
@@ -129,14 +162,31 @@ export default async function EducationAdmissionsPage({
     </section>
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <form method="get" action={getProductAppPath("think-education", "/admissions")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_220px_220px_auto_auto]">
+        <label className="relative block">
+          <span className="sr-only">Search applications</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input name="search" defaultValue={requestedSearch} placeholder="Search applicant or application" className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+        </label>
+        <select name="branch" defaultValue={selectedBranch} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All campuses</option>
+          {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+        </select>
+        <select name="status" defaultValue={selectedStatus} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All statuses</option>
+          {ADMISSION_STATUSES.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}
+        </select>
+        <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+        {admissions.length > 0 && <a href={csvHref} download={`education-admissions-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      </form>
       {campuses.length === 0 ? <div className="p-8 text-center">
         <ClipboardList className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No campus access assigned</h2>
         <p className="mt-1 text-sm text-slate-500">Ask an authorized Think Education administrator to assign your campus scope.</p>
       </div> : admissions.length === 0 ? <div className="p-8 text-center">
         <ClipboardList className="mx-auto h-10 w-10 text-slate-300" />
-        <h2 className="mt-3 font-semibold text-slate-900">No applications yet</h2>
-        <p className="mt-1 text-sm text-slate-500">New applications will appear here.</p>
+        <h2 className="mt-3 font-semibold text-slate-900">No applications match your filters</h2>
+        <p className="mt-1 text-sm text-slate-500">New applications will appear here when they match your current filters.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">

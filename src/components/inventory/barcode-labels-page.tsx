@@ -197,6 +197,31 @@ export function BarcodeLabelsPage({
     });
   }
 
+  function applyFiltersFromInputs(nextSearch = search, nextCategory = category, nextBrand = brand, nextLocation = location, nextStockStatus = stockStatusFilter, nextBarcodeStatus = barcodeStatus, nextProductStatus = productStatus) {
+    const normalized = nextSearch.trim();
+    const nextFilters = {
+      search: normalized,
+      category: nextCategory,
+      brand: nextBrand,
+      location: nextLocation,
+      stockStatus: nextStockStatus,
+      barcodeStatus: nextBarcodeStatus,
+      productStatus: nextProductStatus,
+    };
+    setAppliedFilters(nextFilters);
+    setPage(1);
+
+    if (!normalized) return;
+    const exactMatches = products.filter((product) => {
+      const searchKeys = [product.barcode, product.sku, product.name].map((value) => value?.trim().toLowerCase()).filter(Boolean) as string[];
+      return searchKeys.some((value) => value === normalized.toLowerCase() || value.replace(/\s+/g, "") === normalized.toLowerCase().replace(/\s+/g, ""));
+    });
+    if (exactMatches.length === 1) {
+      setSelected(new Set([exactMatches[0].id]));
+      setPreviewId(exactMatches[0].id);
+    }
+  }
+
   function toggleAllFiltered() {
     const allSelected = filtered.length > 0 && filtered.every((product) => selected.has(product.id));
     setSelected((previous) => {
@@ -248,6 +273,7 @@ export function BarcodeLabelsPage({
       productStatus: "all",
     });
     setPage(1);
+    setSelected(new Set());
   }
 
   function printLabels(targetProducts = labelsToPrint) {
@@ -321,16 +347,44 @@ export function BarcodeLabelsPage({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1.6fr)_repeat(5,minmax(110px,1fr))_auto_auto]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search by product name, SKU or barcode..." className={`${inputClass} w-full pl-9`} />
+            <input value={search} onChange={(event) => {
+              const nextSearch = event.target.value;
+              setSearch(nextSearch);
+              applyFiltersFromInputs(nextSearch, category, brand, location, stockStatusFilter, barcodeStatus, productStatus);
+            }} placeholder="Search by product name, SKU or barcode..." className={`${inputClass} w-full pl-9`} />
           </label>
-          <select value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className={optionClass}><option value="all">All Categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
-          <select value={brand} onChange={(event) => { setBrand(event.target.value); setPage(1); }} className={optionClass}><option value="all">All Brands</option>{brands.map((value) => <option key={value}>{value}</option>)}</select>
-          <select value={location} onChange={(event) => { setLocation(event.target.value); setPage(1); }} className={optionClass}><option value="all">All Branches</option>{locations.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select>
-          <select value={stockStatusFilter} onChange={(event) => { setStockStatusFilter(event.target.value); setPage(1); }} className={optionClass}><option value="all">All Stock Status</option><option>In Stock</option><option>Low Stock</option><option>Out of Stock</option></select>
-          <select value={barcodeStatus} onChange={(event) => { setBarcodeStatus(event.target.value); setPage(1); }} className={optionClass}><option value="all">All Barcodes</option><option value="has">Barcode Saved</option><option value="missing">Missing Barcode</option></select>
-          <select value={productStatus} onChange={(event) => { setProductStatus(event.target.value); setPage(1); }} className={optionClass}><option value="all">All Product Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+          <select value={category} onChange={(event) => {
+            const nextCategory = event.target.value;
+            setCategory(nextCategory);
+            applyFiltersFromInputs(search, nextCategory, brand, location, stockStatusFilter, barcodeStatus, productStatus);
+          }} className={optionClass}><option value="all">All Categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
+          <select value={brand} onChange={(event) => {
+            const nextBrand = event.target.value;
+            setBrand(nextBrand);
+            applyFiltersFromInputs(search, category, nextBrand, location, stockStatusFilter, barcodeStatus, productStatus);
+          }} className={optionClass}><option value="all">All Brands</option>{brands.map((value) => <option key={value}>{value}</option>)}</select>
+          <select value={location} onChange={(event) => {
+            const nextLocation = event.target.value;
+            setLocation(nextLocation);
+            applyFiltersFromInputs(search, category, brand, nextLocation, stockStatusFilter, barcodeStatus, productStatus);
+          }} className={optionClass}><option value="all">All Branches</option>{locations.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select>
+          <select value={stockStatusFilter} onChange={(event) => {
+            const nextStockStatus = event.target.value;
+            setStockStatusFilter(nextStockStatus);
+            applyFiltersFromInputs(search, category, brand, location, nextStockStatus, barcodeStatus, productStatus);
+          }} className={optionClass}><option value="all">All Stock Status</option><option>In Stock</option><option>Low Stock</option><option>Out of Stock</option></select>
+          <select value={barcodeStatus} onChange={(event) => {
+            const nextBarcodeStatus = event.target.value;
+            setBarcodeStatus(nextBarcodeStatus);
+            applyFiltersFromInputs(search, category, brand, location, stockStatusFilter, nextBarcodeStatus, productStatus);
+          }} className={optionClass}><option value="all">All Barcodes</option><option value="has">Barcode Saved</option><option value="missing">Missing Barcode</option></select>
+          <select value={productStatus} onChange={(event) => {
+            const nextProductStatus = event.target.value;
+            setProductStatus(nextProductStatus);
+            applyFiltersFromInputs(search, category, brand, location, stockStatusFilter, barcodeStatus, nextProductStatus);
+          }} className={optionClass}><option value="all">All Product Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
           <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="h-9 gap-1.5"><RotateCcw className="h-3.5 w-3.5" />Reset</Button>
-          <Button type="button" size="sm" onClick={() => { setAppliedFilters({ search, category, brand, location, stockStatus: stockStatusFilter, barcodeStatus, productStatus }); setPage(1); }} className="h-9 gap-1.5 bg-blue-600 text-white hover:bg-blue-700"><Filter className="h-3.5 w-3.5" />Apply Filters</Button>
+          <Button type="button" size="sm" onClick={() => applyFiltersFromInputs(search, category, brand, location, stockStatusFilter, barcodeStatus, productStatus)} className="h-9 gap-1.5 bg-blue-600 text-white hover:bg-blue-700"><Filter className="h-3.5 w-3.5" />Apply Filters</Button>
         </div>
       </section>
 

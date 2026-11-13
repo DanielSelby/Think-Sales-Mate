@@ -57,6 +57,18 @@ export default async function EducationAcademicsPage({
   const today = new Date().toISOString().slice(0, 10);
   const yearNameById = new Map(academicYears.map((year) => [year.id, year.name]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const csvRows = [
+    ["Class", "Level / stream", "Academic year", "Campus", "Capacity", "Status"],
+    ...classes.map((classroom) => [
+      classroom.name,
+      [classroom.level_name, classroom.stream_name].filter(Boolean).join(" · ") || "—",
+      yearNameById.get(classroom.academic_year_id) ?? classroom.academic_year_id,
+      campusNameById.get(classroom.branch_id) ?? classroom.branch_id,
+      String(classroom.capacity ?? ""),
+      classroom.status,
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "duplicate"
     ? "An academic year or class with those details already exists."
     : params.error === "invalid"
@@ -157,7 +169,11 @@ export default async function EducationAcademicsPage({
           <h2 className="font-bold text-slate-950">Classes</h2>
           <p className="mt-1 text-sm text-slate-500">Class groups for your assigned campuses.</p>
         </div>
-        {classes.length === 0 ? <p className="p-6 text-sm text-slate-500">{campuses.length ? "No classes found in your assigned campuses." : "Campus access has not been assigned."}</p> : <div className="overflow-x-auto">
+        {classes.length === 0 ? <p className="p-6 text-sm text-slate-500">{campuses.length ? "No classes found in your assigned campuses." : "Campus access has not been assigned."}</p> : <div>
+          <div className="flex justify-end border-b border-slate-200 px-4 py-3">
+            <a href={csvHref} download={`education-classes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>
+          </div>
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Class</th><th className="px-4 py-3">Level / stream</th><th className="px-4 py-3">Academic year</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Capacity</th></tr></thead>
             <tbody className="divide-y divide-slate-100">{classes.map((classroom) => <tr key={classroom.id}>
@@ -168,6 +184,7 @@ export default async function EducationAcademicsPage({
               <td className="px-4 py-3 text-slate-600">{classroom.capacity ?? "—"}</td>
             </tr>)}</tbody>
           </table>
+          </div>
         </div>}
       </article>
     </section>

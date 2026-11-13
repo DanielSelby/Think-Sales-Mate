@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Clock3, Wallet } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, Clock3, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
@@ -36,10 +36,21 @@ export default async function EducationFeeAgingPage({
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
 
-  const [canViewCharges, canViewPayments, canViewStudents, canViewAcademicYears] = await Promise.all([
+  const [
+    canViewCharges,
+    canExportCharges,
+    canViewPayments,
+    canExportPayments,
+    canViewStudents,
+    canExportStudents,
+    canViewAcademicYears,
+  ] = await Promise.all([
     canTabPermission("education_finance", "finance", "charges", "view"),
+    canTabPermission("education_finance", "finance", "charges", "export"),
     canTabPermission("education_finance", "finance", "payments", "view"),
+    canTabPermission("education_finance", "finance", "payments", "export"),
     canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_students", "students", "list", "export"),
     canTabPermission("education_academics", "academics", "calendar", "view"),
   ]);
   if (!canViewCharges || !canViewPayments || !canViewStudents || !canViewAcademicYears) {
@@ -70,6 +81,13 @@ export default async function EducationFeeAgingPage({
   if (organizationError) throw new Error(`Could not load organization currency for fee aging: ${organizationError.message}`);
   const academicYears = years ?? [];
   const selectedYear = academicYears.some((year) => year.id === requestedYear) ? requestedYear : "";
+  const canExportAging = canViewCharges && canExportCharges && canViewPayments && canExportPayments
+    && canViewStudents && canExportStudents && canViewAcademicYears;
+  const exportParams = new URLSearchParams();
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  if (selectedYear) exportParams.set("year", selectedYear);
+  const exportQuery = exportParams.toString();
+  const exportHref = `/api/education/finance/aging/export${exportQuery ? `?${exportQuery}` : ""}`;
 
   let countQuery = supabase.from("education_fee_charges")
     .select("id", { count: "exact", head: true })
@@ -213,8 +231,15 @@ export default async function EducationFeeAgingPage({
       <Link href={getProductAppPath("think-education", "/finance")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
         <ArrowLeft className="h-4 w-4" /> Fees & Finance
       </Link>
-      <h1 className="mt-2 text-2xl font-bold text-slate-950">Outstanding fees aging</h1>
-      <p className="mt-1 text-sm text-slate-600">Open student balances grouped by days past due. Charges without due dates are listed as not due.</p>
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-950">Outstanding fees aging</h1>
+          <p className="mt-1 text-sm text-slate-600">Open student balances grouped by days past due. Charges without due dates are listed as not due.</p>
+        </div>
+        {canExportAging && !reportTooLarge && <a href={exportHref} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+          <ArrowDownToLine className="h-4 w-4" /> Download aging CSV
+        </a>}
+      </div>
     </header>
 
     <form method="get" action={getProductAppPath("think-education", "/finance/aging")} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]">

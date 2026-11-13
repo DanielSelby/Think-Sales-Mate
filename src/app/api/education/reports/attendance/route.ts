@@ -32,14 +32,20 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const requestedBranch = url.searchParams.get("branch") ?? "";
+  const requestedClass = url.searchParams.get("class") ?? "";
   const from = url.searchParams.get("from") ?? "";
   const to = url.searchParams.get("to") ?? "";
   const statusFilter = url.searchParams.get("status") ?? "";
   if (!isValidDate(from) || !isValidDate(to) || from > to
+    || (requestedClass && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedClass))
     || (statusFilter && !ATTENDANCE_STATUSES.includes(statusFilter as typeof ATTENDANCE_STATUSES[number]))) {
     return new Response("Invalid report filters.", { status: 400 });
   }
   const status = statusFilter as typeof ATTENDANCE_STATUSES[number] | "";
+  const canViewClasses = await canTabPermission("education_academics", "academics", "classes", "view");
+  if (requestedClass && !canViewClasses) {
+    return new Response("You do not have permission to filter attendance by class.", { status: 403 });
+  }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
@@ -52,14 +58,34 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
+  let classNameById = new Map<string, string>();
+  if (canViewClasses) {
+    let classesQuery = supabase.from("education_classes")
+      .select("id, name")
+      .eq("org_id", context.orgId)
+      .in("branch_id", branchIds)
+      .order("name")
+      .range(0, EXPORT_LIMIT - 1);
+    if (requestedBranch) classesQuery = classesQuery.eq("branch_id", requestedBranch);
+    const { data: classes, error: classesError } = await classesQuery;
+    if (classesError) {
+      console.error("Could not load classes for Think Education attendance export:", classesError.message);
+      return new Response("Could not load classes for the attendance report.", { status: 500 });
+    }
+    classNameById = new Map((classes ?? []).map((classRecord) => [classRecord.id, classRecord.name]));
+    if (requestedClass && !classNameById.has(requestedClass)) {
+      return new Response("The selected class is outside your campus access.", { status: 403 });
+    }
+  }
   let query = supabase.from("education_attendance")
-    .select("branch_id, attendance_date, status", { count: "exact" })
+    .select("branch_id, class_id, attendance_date, status", { count: "exact" })
     .eq("org_id", context.orgId).in("branch_id", branchIds)
     .not("student_id", "is", null)
     .gte("attendance_date", from).lte("attendance_date", to)
     .order("attendance_date").order("branch_id").order("id")
     .range(0, EXPORT_LIMIT - 1);
   if (status) query = query.eq("status", status);
+  if (requestedClass) query = query.eq("class_id", requestedClass);
   const { data, count, error } = await query;
   if (error) {
     console.error("Could not export Think Education attendance report:", error.message);
@@ -73,12 +99,13 @@ export async function GET(request: Request) {
   }
 
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  const header = ["Attendance date", "Campus", "Status"];
+  const header = ["Attendance date", "Campus", ...(canViewClasses ? ["Class"] : []), "Status"];
   const lines = [
     header.map(escapeCsv).join(","),
     ...(data ?? []).map((record) => [
       record.attendance_date,
       campusNameById.get(record.branch_id) ?? "Campus",
+      ...(canViewClasses ? [record.class_id ? classNameById.get(record.class_id) ?? "Class" : "Unassigned"] : []),
       record.status,
     ].map(escapeCsv).join(",")),
   ];

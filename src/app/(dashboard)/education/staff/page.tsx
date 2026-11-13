@@ -8,6 +8,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationStaff } from "../actions";
 
+const STAFF_CATEGORIES = ["teaching", "non_teaching"] as const;
+type StaffCategory = (typeof STAFF_CATEGORIES)[number];
+
 export default async function EducationStaffPage({
   searchParams,
 }: {
@@ -20,8 +23,16 @@ export default async function EducationStaffPage({
   }
 
   const params = await searchParams;
+  const search = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
+  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const requestedCategory = typeof params.category === "string" ? params.category : "";
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
-  const branchIds = campuses.map((campus) => campus.id);
+  const allowedBranchIds = campuses.map((campus) => campus.id);
+  const selectedBranch = allowedBranchIds.includes(requestedBranch) ? requestedBranch : "";
+  const selectedCategory: StaffCategory | "" = STAFF_CATEGORIES.includes(requestedCategory as StaffCategory)
+    ? (requestedCategory as StaffCategory)
+    : "";
+  const branchIds = selectedBranch ? [selectedBranch] : allowedBranchIds;
   const canCreate = await canTabPermission("education_staff", "staff", "directory", "create");
   const supabase = await createClient();
   let staff: Array<{
@@ -36,14 +47,35 @@ export default async function EducationStaffPage({
     status: string;
   }> = [];
   if (branchIds.length) {
-    const { data, error } = await supabase.from("education_staff")
+    let query = supabase.from("education_staff")
       .select("id, staff_number, first_name, last_name, branch_id, staff_category, job_title, email, status")
-      .eq("org_id", context.orgId).in("branch_id", branchIds)
-      .order("last_name").order("first_name");
+      .eq("org_id", context.orgId).in("branch_id", branchIds);
+    if (selectedCategory) query = query.eq("staff_category", selectedCategory);
+    if (search) {
+      const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
+      if (safeSearch) {
+        const pattern = `%${safeSearch}%`;
+        query = query.or(`staff_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`);
+      }
+    }
+    const { data, error } = await query.order("last_name").order("first_name");
     if (error) throw new Error(`Could not load Think Education staff: ${error.message}`);
     staff = data ?? [];
   }
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const csvRows = [
+    ["Staff ID", "Name", "Campus", "Category", "Role", "Contact", "Status"],
+    ...staff.map((member) => [
+      member.staff_number,
+      `${member.first_name} ${member.last_name}`.trim(),
+      campusNameById.get(member.branch_id) ?? member.branch_id,
+      member.staff_category.replace("_", " "),
+      member.job_title || "—",
+      member.email || "—",
+      member.status.replace("_", " "),
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "duplicate"
     ? "That staff number is already in use in this organization."
     : params.error === "invalid"
@@ -79,14 +111,31 @@ export default async function EducationStaffPage({
     </section>
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <form method="get" action={getProductAppPath("think-education", "/staff")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_220px_220px_auto_auto]">
+        <label className="relative block">
+          <span className="sr-only">Search staff by name or number</span>
+          <Users className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input name="search" defaultValue={search} placeholder="Search name or staff number" className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+        </label>
+        <select name="branch" defaultValue={selectedBranch} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All assigned campuses</option>
+          {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+        </select>
+        <select name="category" defaultValue={selectedCategory} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All categories</option>
+          {STAFF_CATEGORIES.map((category) => <option key={category} value={category}>{category.replace("_", " ")}</option>)}
+        </select>
+        <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+        {staff.length > 0 && <a href={csvHref} download={`education-staff-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      </form>
       {campuses.length === 0 ? <div className="p-8 text-center">
         <Users className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No campus access assigned</h2>
         <p className="mt-1 text-sm text-slate-500">Ask an authorized Think Education administrator to assign your campus scope.</p>
       </div> : staff.length === 0 ? <div className="p-8 text-center">
         <Users className="mx-auto h-10 w-10 text-slate-300" />
-        <h2 className="mt-3 font-semibold text-slate-900">No staff records yet</h2>
-        <p className="mt-1 text-sm text-slate-500">Add staff members to your authorized campuses.</p>
+        <h2 className="mt-3 font-semibold text-slate-900">No staff records match your filters</h2>
+        <p className="mt-1 text-sm text-slate-500">Add staff members or adjust the current filters.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[800px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">

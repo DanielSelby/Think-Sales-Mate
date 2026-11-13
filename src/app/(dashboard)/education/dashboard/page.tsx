@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, BookOpen, Building2, CalendarCheck, FileText, GraduationCap, TrendingUp, Users } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, BookOpen, Building2, CalendarCheck, ClipboardCheck, FileText, GraduationCap, TrendingUp, Users } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
@@ -20,7 +20,25 @@ export default async function ThinkEducationDashboardPage() {
   const supabase = await createClient();
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
-  const [canReadStudents, canReadStaff, canReadAdmissions, canReadAttendance, canReadAcademics, canReadExaminations, canReadResults, canReadTimetables, canReadPromotion] = await Promise.all([
+  const [
+    canReadStudents,
+    canReadStaff,
+    canReadAdmissions,
+    canReadAttendance,
+    canReadAcademics,
+    canReadExaminations,
+    canReadResults,
+    canReadTimetables,
+    canReadPromotion,
+    canViewExpenseRecords,
+    canApproveExpenses,
+    canReadLibraryCirculation,
+    canViewLeaveRequests,
+    canApproveLeaveRequests,
+    canViewTransfers,
+    canEditTransfers,
+    canApproveTransfers,
+  ] = await Promise.all([
     canPermission("education_students", "view"),
     canPermission("education_staff", "view"),
     canPermission("education_admissions", "view"),
@@ -30,7 +48,18 @@ export default async function ThinkEducationDashboardPage() {
     canPermission("education_results", "view"),
     canPermission("education_timetables", "view"),
     canPermission("education_promotion", "view"),
+    canTabPermission("education_expenses", "expenses", "records", "view"),
+    canTabPermission("education_expenses", "expenses", "records", "approve"),
+    canTabPermission("education_library", "library", "circulation", "view"),
+    canTabPermission("education_staff", "staff", "leave", "view"),
+    canTabPermission("education_staff", "staff", "leave", "approve"),
+    canTabPermission("education_transfers", "transfers", "requests", "view"),
+    canTabPermission("education_transfers", "transfers", "requests", "edit"),
+    canTabPermission("education_transfers", "transfers", "requests", "approve"),
   ]);
+  const canReviewExpenses = canViewExpenseRecords && canApproveExpenses;
+  const canReviewLeave = canViewLeaveRequests && canApproveLeaveRequests;
+  const canReviewTransfers = canViewTransfers && canEditTransfers && canApproveTransfers && branchIds.length > 1;
   const today = new Date().toISOString().slice(0, 10);
   const zeroCount = Promise.resolve({ count: 0, error: null });
   const [
@@ -39,6 +68,10 @@ export default async function ThinkEducationDashboardPage() {
     { count: admissionCount, error: admissionsError },
     { count: presentCount, error: presentError },
     { count: attendanceCount, error: attendanceError },
+    { count: pendingExpenseCount, error: pendingExpensesError },
+    { count: overdueLibraryCount, error: overdueLibraryError },
+    { count: pendingLeaveCount, error: pendingLeaveError },
+    { count: pendingTransferCount, error: pendingTransferError },
   ] = await Promise.all([
     canReadStudents && branchIds.length
       ? supabase.from("education_students").select("id", { count: "exact", head: true })
@@ -60,8 +93,28 @@ export default async function ThinkEducationDashboardPage() {
       ? supabase.from("education_attendance").select("id", { count: "exact", head: true })
         .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", today)
       : zeroCount,
+    canReviewExpenses && branchIds.length
+      ? supabase.from("education_expenses").select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "pending_approval")
+      : zeroCount,
+    canReadLibraryCirculation && branchIds.length
+      ? supabase.from("education_library_loans").select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId).in("branch_id", branchIds).is("returned_on", null).lt("due_on", today)
+      : zeroCount,
+    canReviewLeave && branchIds.length
+      ? supabase.from("education_staff_leave_requests").select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "pending")
+      : zeroCount,
+    canReviewTransfers
+      ? supabase.from("education_student_transfers").select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId)
+        .in("source_branch_id", branchIds)
+        .in("destination_branch_id", branchIds)
+        .eq("status", "pending")
+      : zeroCount,
   ]);
-  const queryError = studentsError ?? staffError ?? admissionsError ?? presentError ?? attendanceError;
+  const queryError = studentsError ?? staffError ?? admissionsError ?? presentError ?? attendanceError
+    ?? pendingExpensesError ?? overdueLibraryError ?? pendingLeaveError ?? pendingTransferError;
   if (queryError) throw new Error(`Could not load Think Education dashboard: ${queryError.message}`);
 
   const studentDistribution = canReadStudents
@@ -83,43 +136,80 @@ export default async function ThinkEducationDashboardPage() {
     { label: "Attendance today", value: !canReadAttendance ? "Restricted" : attendanceRate, icon: CalendarCheck, tint: "bg-amber-50 text-amber-700" },
   ];
 
-  return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
-    <header className="flex flex-wrap items-end justify-between gap-4">
+  return <main className="mx-auto max-w-[1500px] space-y-4 p-3 md:p-5">
+    <header className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Think Education</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-950">Welcome to Think Education</h1>
-        <p className="mt-1 text-sm text-slate-600">{context.orgName} · organization overview for campuses you are authorized to access.</p>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--theme-primary, #2563eb)" }}>Think Education</p>
+        <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>Welcome to Think Education</h1>
+        <p className="mt-1 text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{context.orgName} · organization overview for campuses you are authorized to access.</p>
       </div>
-      <Link href={getProductAppPath("think-education", "/organization")} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
+      <Link href={getProductAppPath("think-education", "/organization")} className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-95" style={{ backgroundColor: "var(--theme-primary, #2563eb)" }}>
         Organization &amp; campuses <ArrowRight className="h-4 w-4" />
       </Link>
     </header>
 
-    {branchIds.length === 0 && <section className="rounded-xl border border-blue-200 bg-blue-50 p-5">
-      <h2 className="font-semibold text-blue-950">Campus access has not been configured</h2>
-      <p className="mt-1 max-w-3xl text-sm text-blue-900">
+    {branchIds.length === 0 && <section className="rounded-xl border p-5" style={{ borderColor: "rgba(37,99,235,0.22)", backgroundColor: "var(--theme-primary-pale, #eff6ff)" }}>
+      <h2 className="font-semibold" style={{ color: "var(--theme-primary, #1d4ed8)" }}>Campus access has not been configured</h2>
+      <p className="mt-1 max-w-3xl text-sm" style={{ color: "var(--theme-primary, #1d4ed8)" }}>
         No organization-wide or branch-specific Think Education access is assigned to your account. Access is deliberately not inferred from your role.
       </p>
       {context.role === "owner" && <form action={grantOwnEducationOrganizationScope} className="mt-4">
-        <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+        <button type="submit" className="rounded-lg px-4 py-2 text-sm font-semibold text-white hover:opacity-95" style={{ backgroundColor: "var(--theme-primary, #2563eb)" }}>
           Grant me access to all campuses
         </button>
       </form>}
     </section>}
 
     <section aria-label="Education overview metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {metrics.map(({ label, value, icon: Icon, tint }) => <article key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      {metrics.map(({ label, value, icon: Icon, tint }) => <article key={label} className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm text-slate-500">{label}</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">
+            <p className="text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{label}</p>
+            <p className="mt-2 text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>
               {value === null ? "—" : label === "Attendance today" && typeof value === "number" ? `${value}%` : typeof value === "number" ? value.toLocaleString() : value}
             </p>
           </div>
-          <span className={`grid h-11 w-11 place-items-center rounded-xl ${tint}`}><Icon className="h-5 w-5" /></span>
+          <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ backgroundColor: tint.includes("bg-blue") ? "rgba(59,130,246,0.10)" : tint.includes("bg-violet") ? "rgba(139,92,246,0.10)" : tint.includes("bg-emerald") ? "rgba(16,185,129,0.10)" : "rgba(245,158,11,0.12)", color: "var(--theme-primary, #2563eb)" }}><Icon className="h-5 w-5" /></span>
         </div>
       </article>)}
     </section>
+
+    {(canReviewExpenses || canReadLibraryCirculation || canReviewLeave || canReviewTransfers) && <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-bold text-slate-950">Needs attention</h2>
+        <p className="mt-1 text-sm text-slate-500">Pending items across the campuses you can access.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {canReviewExpenses && <Link href={getProductAppPath("think-education", "/expenses?status=pending_approval")} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-300 hover:bg-amber-100">
+          <span>
+            <span className="block text-sm font-semibold text-amber-950">Expenses awaiting approval</span>
+            <span className="mt-1 block text-sm text-amber-800">Review pending expense records</span>
+          </span>
+          <span className="flex items-center gap-2 text-amber-900"><span className="text-2xl font-bold">{(pendingExpenseCount ?? 0).toLocaleString()}</span><ClipboardCheck className="h-5 w-5" /></span>
+        </Link>}
+        {canReadLibraryCirculation && <Link href={getProductAppPath("think-education", "/library")} className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 transition hover:border-rose-300 hover:bg-rose-100">
+          <span>
+            <span className="block text-sm font-semibold text-rose-950">Overdue library loans</span>
+            <span className="mt-1 block text-sm text-rose-800">Open the circulation list to follow up</span>
+          </span>
+          <span className="flex items-center gap-2 text-rose-900"><span className="text-2xl font-bold">{(overdueLibraryCount ?? 0).toLocaleString()}</span><BookOpen className="h-5 w-5" /></span>
+        </Link>}
+        {canReviewLeave && <Link href={getProductAppPath("think-education", "/staff/leave?status=pending")} className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4 transition hover:border-violet-300 hover:bg-violet-100">
+          <span>
+            <span className="block text-sm font-semibold text-violet-950">Staff leave awaiting approval</span>
+            <span className="mt-1 block text-sm text-violet-800">Review pending leave requests</span>
+          </span>
+          <span className="flex items-center gap-2 text-violet-900"><span className="text-2xl font-bold">{(pendingLeaveCount ?? 0).toLocaleString()}</span><CalendarCheck className="h-5 w-5" /></span>
+        </Link>}
+        {canReviewTransfers && <Link href={getProductAppPath("think-education", "/transfers")} className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 transition hover:border-blue-300 hover:bg-blue-100">
+          <span>
+            <span className="block text-sm font-semibold text-blue-950">Student transfers awaiting review</span>
+            <span className="mt-1 block text-sm text-blue-800">Both campuses are within your assigned access</span>
+          </span>
+          <span className="flex items-center gap-2 text-blue-900"><span className="text-2xl font-bold">{(pendingTransferCount ?? 0).toLocaleString()}</span><ArrowRightLeft className="h-5 w-5" /></span>
+        </Link>}
+      </div>
+    </section>}
 
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
       <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

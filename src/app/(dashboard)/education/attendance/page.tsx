@@ -80,6 +80,21 @@ export default async function EducationAttendancePage({
       }
     }
   }
+  const csvRows = [
+    ["Student ID", "Student", "Campus", "Attendance status", "Note", "Date"],
+    ...students.map((student) => {
+      const existing = attendanceByStudent.get(student.id);
+      return [
+        student.student_number,
+        `${student.first_name} ${student.last_name}`.trim(),
+        campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus",
+        existing?.status ?? "not_marked",
+        existing?.note ?? "",
+        attendanceDate,
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const queryForPage = (page: number) => {
     const next = new URLSearchParams({ date: attendanceDate, page: String(page) });
@@ -118,7 +133,7 @@ export default async function EducationAttendancePage({
     </section>
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/attendance")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto]">
+      <form method="get" action={getProductAppPath("think-education", "/attendance")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto]">
         <label className="text-sm font-medium text-slate-700">Search students
           <input name="search" defaultValue={search} placeholder="Name or student number" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
@@ -131,6 +146,7 @@ export default async function EducationAttendancePage({
           <input type="date" name="date" defaultValue={attendanceDate} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+        {students.length > 0 && <a href={csvHref} download={`education-attendance-${attendanceDate}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">

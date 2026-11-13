@@ -29,9 +29,11 @@ export default async function EducationDocumentsPage({
   }
 
   const params = await searchParams;
-  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
-  const requestedCategory = typeof params.category === "string" ? params.category : "";
-  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const readParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? "" : value ?? "";
+  const requestedBranch = readParam(params.branch);
+  const requestedCategory = readParam(params.category);
+  const requestedStatus = readParam(params.status);
+  const requestedSearch = readParam(params.search).trim().toLowerCase();
   const [canCreate, canEdit, canDelete, canViewStudents, { campuses }] = await Promise.all([
     canTabPermission("education_documents", "documents", "library", "create"),
     canTabPermission("education_documents", "documents", "library", "edit"),
@@ -82,6 +84,31 @@ export default async function EducationDocumentsPage({
 
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const studentById = new Map((studentsResult.data ?? []).map((student) => [student.id, student]));
+  const filteredDocuments = (documentsResult.data ?? []).filter((document) => {
+    if (!requestedSearch) return true;
+    const student = document.student_id ? studentById.get(document.student_id) : null;
+    const documentText = `${document.title} ${document.file_name} ${student ? `${student.first_name} ${student.last_name} ${student.student_number}` : ""} ${CATEGORY_LABELS[document.category as keyof typeof CATEGORY_LABELS] ?? document.category}`.toLowerCase();
+    return documentText.includes(requestedSearch);
+  });
+  const exportLimit = 5000;
+  const exportRows = filteredDocuments.slice(0, exportLimit);
+  const csvRows = [
+    ["Title", "Campus", "Category", "Student", "File name", "Status", "Retention until", "Uploaded"],
+    ...exportRows.map((document) => {
+      const student = document.student_id ? studentById.get(document.student_id) : null;
+      return [
+        document.title,
+        campusNameById.get(document.branch_id) ?? document.branch_id,
+        CATEGORY_LABELS[document.category as keyof typeof CATEGORY_LABELS] ?? document.category,
+        student ? `${student.first_name} ${student.last_name} (${student.student_number})` : "",
+        document.file_name,
+        document.status === "archived" ? "Archived" : document.retention_until && document.retention_until < new Date().toISOString().slice(0, 10) ? "Retention expired" : "Active",
+        document.retention_until ?? "",
+        new Date(document.created_at).toISOString(),
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const today = new Date().toISOString().slice(0, 10);
   const errorMessage = params.error === "auth"
     ? "Sign in to manage Think Education documents."
@@ -168,6 +195,7 @@ export default async function EducationDocumentsPage({
           <p className="mt-1 text-sm text-slate-500">Only records for campuses you can access are listed.</p>
         </div>
         <form method="get" className="flex flex-wrap gap-2">
+          <input name="search" defaultValue={requestedSearch} placeholder="Search title or student" aria-label="Search documents" className="min-w-[180px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select name="branch" defaultValue={selectedBranch} aria-label="Filter by campus" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">All accessible campuses</option>
             {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
@@ -181,11 +209,14 @@ export default async function EducationDocumentsPage({
             <option value="active">Active</option>
             <option value="archived">Archived</option>
           </select>
-          <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Filter</button>
+          <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply filters</button>
+          <Link href={getProductAppPath("think-education", "/documents")} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</Link>
+          <a href={csvHref} download="education-documents.csv" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Export CSV</a>
         </form>
       </div>
-      {!documentsResult.data?.length ? <p className="p-6 text-sm text-slate-500">No documents match these filters.</p> : <ul className="divide-y divide-slate-100">
-        {documentsResult.data.map((document) => {
+      {filteredDocuments.length > exportLimit && <p className="px-4 pb-2 pt-3 text-xs text-amber-700">Showing the first {exportLimit.toLocaleString()} matching records in the CSV export. Narrow the filters to export the full result set.</p>}
+      {!filteredDocuments.length ? <p className="p-6 text-sm text-slate-500">No documents match these filters.</p> : <ul className="divide-y divide-slate-100">
+        {filteredDocuments.map((document) => {
           const expired = !!document.retention_until && document.retention_until < today;
           const student = document.student_id ? studentById.get(document.student_id) : null;
           const canPurge = canDelete && expired;

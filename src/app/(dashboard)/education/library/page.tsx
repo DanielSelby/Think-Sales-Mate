@@ -14,6 +14,12 @@ import {
 } from "../actions";
 
 const DATA_LIMIT = 1000;
+const LOAN_FILTERS = ["all", "overdue", "due_soon", "not_due_soon"] as const;
+type LoanFilter = typeof LOAN_FILTERS[number];
+
+function isLoanFilter(value: string): value is LoanFilter {
+  return LOAN_FILTERS.includes(value as LoanFilter);
+}
 
 export default async function EducationLibraryPage({
   searchParams,
@@ -27,6 +33,8 @@ export default async function EducationLibraryPage({
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 100) : "";
   const search = requestedSearch.replace(/[^A-Za-z0-9\s_-]/g, "").trim();
+  const requestedLoanFilter = typeof params.loan_status === "string" ? params.loan_status : "";
+  const loanFilter: LoanFilter = isLoanFilter(requestedLoanFilter) ? requestedLoanFilter : "all";
   const [canViewCatalog, canCreate, canViewCirculation, canCreateLoan, canEdit, { campuses }] = await Promise.all([
     canTabPermission("education_library", "library", "catalog", "view"),
     canTabPermission("education_library", "library", "catalog", "create"),
@@ -106,6 +114,37 @@ export default async function EducationLibraryPage({
     }
   }
   const availableCopies = copies.filter((copy) => copy.status === "available" && !openCopyIds.has(copy.id));
+  const today = new Date().toISOString().slice(0, 10);
+  const dueSoonThrough = new Date(`${today}T00:00:00.000Z`);
+  dueSoonThrough.setUTCDate(dueSoonThrough.getUTCDate() + 7);
+  const dueSoonThroughText = dueSoonThrough.toISOString().slice(0, 10);
+  const visibleLoans = loans.filter((loan) => {
+    if (loanFilter === "overdue") return loan.due_on < today;
+    if (loanFilter === "due_soon") return loan.due_on >= today && loan.due_on <= dueSoonThroughText;
+    if (loanFilter === "not_due_soon") return loan.due_on > dueSoonThroughText;
+    return true;
+  });
+  const overdueLoanCount = loans.filter((loan) => loan.due_on < today).length;
+  const csvRows = [
+    ["Student", "Campus", "Book", "Copy", "Loaned on", "Due on", "Renewals", "Status"],
+    ...visibleLoans.map((loan) => {
+      const student = studentById.get(loan.student_id);
+      const copy = copyById.get(loan.copy_id);
+      const book = copy ? bookById.get(copy.book_id) : null;
+      const status = loan.due_on < today ? "Overdue" : loan.due_on <= dueSoonThroughText ? "Due soon" : "Due later";
+      return [
+        student ? `${student.first_name} ${student.last_name} (${student.student_number})` : "Unknown student",
+        campusNameById.get(loan.branch_id) ?? loan.branch_id,
+        book?.title ?? "Unknown book",
+        copy?.copy_number ?? "",
+        loan.loaned_on,
+        loan.due_on,
+        String(loan.renewal_count),
+        status,
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
 
   const errorMessage = params.error === "invalid"
     ? "Enter valid book details, campus, and copy count."
@@ -141,13 +180,25 @@ export default async function EducationLibraryPage({
     {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errorMessage}</p>}
 
     <form method="get" action={getProductAppPath("think-education", "/library")} className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <label className="min-w-[220px] flex-1 text-sm font-medium text-slate-700">Search
+        <input name="search" defaultValue={requestedSearch} placeholder="Title, author, ISBN, category" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+      </label>
       <label className="min-w-60 text-sm font-medium text-slate-700">Campus
         <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
           <option value="">All assigned campuses</option>
           {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
         </select>
       </label>
-      <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply campus filter</button>
+      {canViewCirculation && <label className="min-w-52 text-sm font-medium text-slate-700">Active loan due status
+        <select name="loan_status" defaultValue={loanFilter} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+          <option value="all">All active loans</option>
+          <option value="overdue">Overdue</option>
+          <option value="due_soon">Due within 7 days</option>
+          <option value="not_due_soon">Due later</option>
+        </select>
+      </label>}
+      <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+      {visibleLoans.length > 0 && <a href={csvHref} download={`education-library-loans-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </form>
 
     {canViewCatalog && canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -213,6 +264,7 @@ export default async function EducationLibraryPage({
     {canViewCatalog && <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <form method="get" action={getProductAppPath("think-education", "/library")} className="flex flex-wrap items-end gap-3 border-b border-slate-100 p-4">
         {selectedBranch && <input type="hidden" name="branch" value={selectedBranch} />}
+        {canViewCirculation && <input type="hidden" name="loan_status" value={loanFilter} />}
         <label className="min-w-60 flex-1 text-sm font-medium text-slate-700">Search catalog
           <input name="search" defaultValue={search} maxLength={100} placeholder="Title, author, ISBN, or category" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
@@ -239,11 +291,11 @@ export default async function EducationLibraryPage({
 
     {canViewCirculation && <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 p-4">
-        <h2 className="font-semibold text-slate-950">Active loans</h2>
-        <p className="mt-1 text-sm text-slate-500">Overdue loans are highlighted. A loan may be renewed once before its due date.</p>
+        <h2 className="font-semibold text-slate-950">Active loans <span className="font-normal text-slate-500">({visibleLoans.length.toLocaleString()} shown)</span></h2>
+        <p className="mt-1 text-sm text-slate-500">{overdueLoanCount.toLocaleString()} overdue across the selected campuses. A loan may be renewed once before its due date.</p>
       </div>
-      {loans.length ? <div className="divide-y divide-slate-100">
-        {loans.map((loan) => {
+      {visibleLoans.length ? <div className="divide-y divide-slate-100">
+        {visibleLoans.map((loan) => {
           const copy = copyById.get(loan.copy_id);
           const book = copy ? bookById.get(copy.book_id) : null;
           const student = studentById.get(loan.student_id);
@@ -269,7 +321,7 @@ export default async function EducationLibraryPage({
             </div>}
           </article>;
         })}
-      </div> : <p className="p-6 text-center text-sm text-slate-500">There are no active loans in the selected campuses.</p>}
+      </div> : <p className="p-6 text-center text-sm text-slate-500">{loans.length ? "No active loans match this due-status filter." : "There are no active loans in the selected campuses."}</p>}
     </section>}
   </main>;
 }

@@ -71,6 +71,17 @@ export default async function EducationStudentsPage({
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const branchNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const csvRows = [
+    ["Student ID", "Full name", "Campus", "Status", "Enrolled"],
+    ...students.map((student) => [
+      student.student_number,
+      [student.first_name, student.other_names, student.last_name].filter(Boolean).join(" "),
+      branchNameById.get(student.branch_id) ?? student.branch_id,
+      student.status.replace("_", " "),
+      new Date(student.created_at).toISOString(),
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const queryForPage = (page: number) => {
     const next = new URLSearchParams();
     if (search) next.set("search", search);
@@ -115,7 +126,7 @@ export default async function EducationStudentsPage({
     </section>
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/students")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto]">
+      <form method="get" action={getProductAppPath("think-education", "/students")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto]">
         <label className="relative block">
           <span className="sr-only">Search by student name or number</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -129,6 +140,7 @@ export default async function EducationStudentsPage({
           {STUDENT_STATUSES.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
         </select>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+        {students.length > 0 && <a href={csvHref} download={`education-students-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">

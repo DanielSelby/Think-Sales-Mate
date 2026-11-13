@@ -50,7 +50,7 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
     ["staff", "Staff", [["directory", "Staff Directory"], ["leave", "Leave Management"], ["transfers", "Campus Transfers"]]]
   ]),
   education_reports: pages([
-    ["reports", "Education Reports", [["staff", "Staff Headcount"], ["attendance", "Student Attendance"], ["outcomes", "Academic Outcomes"], ["enrollment", "Enrollment & Progression"]]]
+    ["reports", "Education Reports", [["staff", "Staff Headcount"], ["attendance", "Student Attendance"], ["outcomes", "Academic Outcomes"], ["enrollment", "Enrollment & Progression"], ["fees", "Fee Collections"], ["expenses", "Expense Summary"], ["library", "Library Circulation"], ["inventory", "Inventory & Asset Summary"], ["transport", "Transport Utilization"]]]
   ]),
   education_admissions: pages([
     ["admissions", "Admissions", [["applications", "Applications"]]]
@@ -165,7 +165,7 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "education_students", name: "Education Students", description: "Student records, enrollment, and student lifecycle", iconName: "GraduationCap", supportedActions: ["view", "create", "edit", "export", "import"] },
   { key: "education_guardians", name: "Education Parents & Guardians", description: "Guardian profiles and verified student relationships", iconName: "Users", supportedActions: ["view", "create", "edit", "export", "import"] },
   { key: "education_staff", name: "Education Staff", description: "Staff directory, leave requests, and approvals", iconName: "Users", supportedActions: ["view", "create", "edit", "approve", "export", "import"] },
-  { key: "education_reports", name: "Education Reports", description: "Campus-scoped workforce and student attendance reports", iconName: "BarChart3", supportedActions: ["view", "export"] },
+  { key: "education_reports", name: "Education Reports", description: "Campus-scoped operational, academic, finance, and resource reports", iconName: "BarChart3", supportedActions: ["view", "export"] },
   { key: "education_admissions", name: "Education Admissions", description: "Applicant intake, application review, and admission decisions", iconName: "UserPlus", supportedActions: ["view", "create", "edit", "approve", "export"] },
   { key: "education_academics", name: "Education Academics", description: "Academic years, terms, departments, and classes", iconName: "BookOpen", supportedActions: ["view", "create", "edit", "approve", "export"] },
   { key: "education_attendance", name: "Education Attendance", description: "Student and staff attendance registers", iconName: "CalendarClock", supportedActions: ["view", "create", "edit", "export"] },

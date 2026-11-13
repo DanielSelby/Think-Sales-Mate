@@ -105,6 +105,20 @@ export default async function EducationTimetablesPage({
     && classroom.academic_year_id === createYearId
   );
   const selectedCampusStaff = staff.filter((member) => member.branch_id === createBranchId);
+  const csvRows = [
+    ["Day", "Time", "Subject", "Class", "Teacher", "Campus", "Room", "Academic year"],
+    ...visibleEntries.map((entry) => [
+      WEEKDAYS.find((day) => day.value === entry.weekday)?.label ?? String(entry.weekday),
+      `${entry.starts_at.slice(0, 5)}–${entry.ends_at.slice(0, 5)}`,
+      entry.subject_name,
+      classNameById.get(entry.class_id) ?? "Class",
+      entry.staff_id ? staffById.get(entry.staff_id) ?? "Staff" : "Unassigned",
+      campusNameById.get(entry.branch_id) ?? entry.branch_id,
+      entry.room ?? "",
+      yearNameById.get(entry.academic_year_id) ?? entry.academic_year_id,
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "conflict"
     ? "That time overlaps another lesson for the selected class, staff member, or room."
     : params.error === "invalid"
@@ -140,7 +154,7 @@ export default async function EducationTimetablesPage({
     </section>
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/timetables")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
+      <form method="get" action={getProductAppPath("think-education", "/timetables")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[1fr_1fr_1fr_auto_auto]">
         <label className="text-sm font-medium text-slate-700">Campus
           <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
             <option value="">All assigned campuses</option>{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
@@ -157,6 +171,7 @@ export default async function EducationTimetablesPage({
           </select>
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+        {visibleEntries.length > 0 && <a href={csvHref} download={`education-timetable-${new Date().toISOString().slice(0, 10)}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">

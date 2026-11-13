@@ -2,6 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
+.education-page-content > main {
+  width: 100%;
+  max-width: none !important;
+  margin-inline: 0;
+  min-width: 0;
+}
+
+.education-page-content button[class~="bg-blue-700"],
+.education-page-content button[class~="bg-blue-600"],
+.education-page-content a[class~="bg-blue-700"],
+.education-page-content a[class~="bg-blue-600"] {
+  background-color: var(--theme-primary, #1d4ed8) !important;
+  border-color: var(--theme-primary, #1d4ed8) !important;
+  color: #fff !important;
+}
+
+.education-page-content button[class~="bg-blue-700"]:hover,
+.education-page-content button[class~="bg-blue-600"]:hover,
+.education-page-content a[class~="bg-blue-700"]:hover,
+.education-page-content a[class~="bg-blue-600"]:hover {
+  background-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 88%, black) !important;
+}
+
+.education-page-content [class~="border-blue-600"],
+.education-page-content [class~="border-blue-700"] {
+  border-color: var(--theme-primary, #1d4ed8) !important;
+}
+
+.education-page-content [class~="bg-blue-50"] {
+  background-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 8%, white) !important;
+}
+
+.education-page-content button[class~="text-blue-700"],
+.education-page-content a[class~="text-blue-700"],
+.education-page-content button[class~="text-blue-800"],
+.education-page-content a[class~="text-blue-800"] {
+  color: var(--theme-primary, #1d4ed8) !important;
+}
+
+.education-page-content form input:not([type="checkbox"]):not([type="radio"]),
+.education-page-content form select,
+.education-page-content form textarea {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.education-page-content button:focus-visible,
+.education-page-content a:focus-visible,
+.education-page-content input:focus-visible,
+.education-page-content select:focus-visible,
+.education-page-content textarea:focus-visible {
+  outline: 2px solid var(--theme-primary, #1d4ed8);
+  outline-offset: 2px;
+}
+
 @keyframes stock-limit-pop {
   0% {
     opacity: 0;

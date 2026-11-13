@@ -19,7 +19,12 @@ function isPermissionMatrix(value: Json): value is { [key: string]: Json | undef
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-export default async function OrganizationSettingsPage() {
+export default async function OrganizationSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
   const context = await getCurrentOrgContext(activeOrgId);
   if (!context) return null;
@@ -331,9 +336,15 @@ export default async function OrganizationSettingsPage() {
     productAssignments[assignment.user_id].push(assignment.product_slug);
   }
   const activeProductHeader = (await headers()).get("x-active-product-slug");
-  const activeProductSlug = activeProductHeader && isPlatformProductSlug(activeProductHeader)
+  const requestedEducationProduct = params.educationProduct;
+  const activeProductSlug = requestedEducationProduct === "think-education" && productCatalog.some((product) => product.slug === "think-education")
+    ? "think-education"
+    : activeProductHeader && isPlatformProductSlug(activeProductHeader)
     ? activeProductHeader
     : null;
+  const initialActiveTab = params.educationTab === "product_permissions" && canManageProductAccess
+    ? "product_permissions"
+    : undefined;
   return (
     <div id="users" className="mx-auto max-w-[1680px] space-y-6">
       <UserManagement
@@ -356,6 +367,7 @@ export default async function OrganizationSettingsPage() {
         productMemberRoles={productMemberRoles}
         activeProductSlug={activeProductSlug}
         canManageProductAccess={canManageProductAccess}
+        initialActiveTab={initialActiveTab}
       />
     </div>
   );

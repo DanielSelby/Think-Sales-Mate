@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Bus, Route as RouteIcon, UserRound } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { summarizeEducationTransportRoutes } from "@/lib/education/transport-report";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -113,6 +114,38 @@ export default async function EducationTransportPage({
     const vehicle = vehicleById.get(route.vehicle_id);
     return route.status === "active" && vehicle?.status === "active";
   });
+  const routeSummaries = summarizeEducationTransportRoutes(routes, vehicles, assignments);
+  const activeRouteSummaries = routeSummaries.filter((summary) => summary.route_status === "active" && summary.vehicle_status === "active");
+  const activeRouteCount = activeRouteSummaries.length;
+  const assignedStudents = routeSummaries.reduce((total, summary) => total + summary.active_assignment_count, 0);
+  const transportCapacity = routeSummaries.reduce((total, summary) => total + summary.capacity, 0);
+  const transportUtilization = transportCapacity > 0 ? Math.round((assignedStudents / transportCapacity) * 1000) / 10 : 0;
+  const highestUtilizationRoute = routeSummaries.reduce<null | { route_name: string; utilization: number }>((current, summary) => {
+    const utilization = summary.capacity > 0 ? summary.utilization_percentage : 0;
+    if (!current || utilization > current.utilization) {
+      return { route_name: summary.route_name, utilization };
+    }
+    return current;
+  }, null);
+  const csvRows = [
+    ["Campus", "Route", "Driver", "Vehicle", "Vehicle status", "Route status", "Capacity", "Assigned students", "Available seats", "Utilization %"],
+    ...routeSummaries.map((summary) => {
+      const route = routeById.get(summary.route_id);
+      return [
+        campusNameById.get(summary.branch_id) ?? summary.branch_id,
+        summary.route_name,
+        route?.driver_name ?? "",
+        summary.vehicle_registration,
+        summary.vehicle_status,
+        summary.route_status,
+        String(summary.capacity),
+        String(summary.active_assignment_count),
+        String(summary.available_seats),
+        `${summary.utilization_percentage}`,
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
 
   const errorMessage = params.error === "invalid"
     ? "Check the campus, vehicle capacity, route details, and stop order."
@@ -163,7 +196,31 @@ export default async function EducationTransportPage({
         </select>
       </label>
       <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply campus filter</button>
+      {routeSummaries.length > 0 && <a href={csvHref} download={`education-transport-routes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </form>
+
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm text-slate-500">Active routes</p>
+        <p className="mt-1 text-2xl font-bold text-slate-950">{activeRouteCount.toLocaleString()}</p>
+      </article>
+      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm text-slate-500">Assigned students</p>
+        <p className="mt-1 text-2xl font-bold text-slate-950">{assignedStudents.toLocaleString()}</p>
+      </article>
+      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm text-slate-500">Seats in routes</p>
+        <p className="mt-1 text-2xl font-bold text-slate-950">{transportCapacity.toLocaleString()}</p>
+      </article>
+      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm text-slate-500">Avg utilization</p>
+        <p className="mt-1 text-2xl font-bold text-slate-950">{transportCapacity > 0 ? `${transportUtilization}%` : "—"}</p>
+      </article>
+    </section>
+
+    {highestUtilizationRoute && <p className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+      Most utilized route: <span className="font-semibold">{highestUtilizationRoute.route_name}</span> at <span className="font-semibold">{highestUtilizationRoute.utilization.toFixed(1)}%</span>.
+    </p>}
 
     {canViewFleet && <section className="space-y-5">
       {canCreateFleet && <div className="grid gap-5 lg:grid-cols-2">

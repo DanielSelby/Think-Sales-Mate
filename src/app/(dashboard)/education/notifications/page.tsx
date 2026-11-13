@@ -21,11 +21,19 @@ export default async function EducationNotificationsPage({
   }
 
   const params = await searchParams;
+  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const requestedType = typeof params.type === "string" ? params.type : "";
+  const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const [canEditPreferences, { campuses }] = await Promise.all([
     canTabPermission("education_notifications", "notifications", "preferences", "edit"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
-  const branchIds = campuses.map((campus) => campus.id);
+  const campusIds = campuses.map((campus) => campus.id);
+  const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
+  const selectedType = EDUCATION_NOTIFICATION_TYPES.some(([type]) => type === requestedType) ? requestedType : "";
+  const selectedStatus = ["delivered", "read"].includes(requestedStatus) ? requestedStatus : "";
+  const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const supabase = await createClient();
   const [notificationsResult, preferencesResult] = await Promise.all([
     branchIds.length
@@ -35,7 +43,7 @@ export default async function EducationNotificationsPage({
         .eq("user_id", context.userId)
         .in("branch_id", branchIds)
         .order("created_at", { ascending: false })
-        .limit(100)
+        .limit(200)
       : Promise.resolve({ data: [], error: null }),
     supabase.from("education_notification_preferences")
       .select("notification_type, in_app_enabled")
@@ -55,6 +63,26 @@ export default async function EducationNotificationsPage({
     preference.in_app_enabled,
   ]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const filteredNotifications = notifications.filter((notification) => {
+    if (selectedBranch && notification.branch_id !== selectedBranch) return false;
+    if (selectedType && notification.notification_type !== selectedType) return false;
+    if (selectedStatus && notification.delivery_status !== selectedStatus) return false;
+    if (!requestedSearch) return true;
+    const haystack = `${notification.title} ${notification.message} ${campusNameById.get(notification.branch_id) ?? ""}`.toLowerCase();
+    return haystack.includes(requestedSearch.toLowerCase());
+  });
+  const csvRows = [
+    ["Title", "Campus", "Type", "Status", "Created", "Message"],
+    ...filteredNotifications.map((notification) => [
+      notification.title,
+      campusNameById.get(notification.branch_id) ?? notification.branch_id,
+      EDUCATION_NOTIFICATION_TYPES.find(([type]) => type === notification.notification_type)?.[1] ?? notification.notification_type,
+      notification.delivery_status,
+      new Date(notification.created_at).toISOString(),
+      notification.message,
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const alertMessage = params.notification === "denied"
     ? "You are not authorized to update that notification."
     : params.notification === "not-found"
@@ -83,18 +111,46 @@ export default async function EducationNotificationsPage({
     {alertMessage && <p role="status" className={`rounded-lg border px-4 py-3 text-sm ${params.preference === "saved" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>{alertMessage}</p>}
 
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <form method="get" action={getProductAppPath("think-education", "/notifications")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_220px_220px_200px_auto]">
+        <label className="relative block">
+          <span className="sr-only">Search notifications</span>
+          <Bell className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input name="search" defaultValue={requestedSearch} placeholder="Search title or message" className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Campus
+          <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="">All campuses</option>
+            {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">Type
+          <select name="type" defaultValue={selectedType} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="">All types</option>
+            {EDUCATION_NOTIFICATION_TYPES.map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">Status
+          <select name="status" defaultValue={selectedStatus} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="">All statuses</option>
+            <option value="delivered">Delivered</option>
+            <option value="read">Read</option>
+          </select>
+        </label>
+        <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
+      </form>
       <div className="flex items-center justify-between border-b border-slate-100 p-4">
         <div>
           <h2 className="font-semibold text-slate-950">Your inbox</h2>
-          <p className="mt-1 text-sm text-slate-500">{notifications.filter((notification) => notification.delivery_status === "delivered").length} unread · latest 100</p>
+          <p className="mt-1 text-sm text-slate-500">{filteredNotifications.filter((notification) => notification.delivery_status === "delivered").length} unread · {filteredNotifications.length.toLocaleString()} matching notifications</p>
         </div>
+        {filteredNotifications.length > 0 && <a href={csvHref} download={`education-notifications-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </div>
-      {!notifications.length ? <div className="p-8 text-center">
+      {!filteredNotifications.length ? <div className="p-8 text-center">
         <Bell className="mx-auto h-8 w-8 text-slate-300" />
-        <p className="mt-2 font-medium text-slate-800">You’re all caught up</p>
-        <p className="mt-1 text-sm text-slate-500">Published announcements for your campuses will appear here.</p>
+        <p className="mt-2 font-medium text-slate-800">No matching notifications</p>
+        <p className="mt-1 text-sm text-slate-500">Try a different campus, status, or search term.</p>
       </div> : <ul className="divide-y divide-slate-100">
-        {notifications.map((notification) => <li key={notification.id} className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
+        {filteredNotifications.map((notification) => <li key={notification.id} className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
           <div className="flex min-w-0 gap-3">
             <span className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full ${notification.delivery_status === "delivered" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-500"}`}>
               {notification.delivery_status === "delivered" ? <Bell className="h-4 w-4" /> : <Check className="h-4 w-4" />}

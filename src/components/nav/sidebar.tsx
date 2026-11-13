@@ -365,7 +365,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
         {educationBrand
-          ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-600 text-white"><GraduationCap className="h-6 w-6" /></span>
+          ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white" style={{ background: theme.colors.primary }}><GraduationCap className="h-6 w-6" /></span>
           : <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />}
         {(!collapsed || mobileOpen) && (
           <div className="flex items-center gap-1.5 min-w-0">

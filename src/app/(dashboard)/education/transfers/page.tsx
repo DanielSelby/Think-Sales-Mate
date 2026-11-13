@@ -31,7 +31,14 @@ export default async function EducationTransfersPage({
   }
 
   const params = await searchParams;
+  const readParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? "" : value ?? "";
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const statusFilter = readParam(params.status);
+  const campusFilter = readParam(params.campus);
+  const searchFilter = readParam(params.student).trim().toLowerCase();
+  const validStatuses = new Set(["all", "pending", "approved", "rejected", "completed"]);
+  const normalizedStatus = validStatuses.has(statusFilter) ? statusFilter : "all";
+  const normalizedCampus = campuses.some((campus) => campus.id === campusFilter) ? campusFilter : "all";
   const branchIds = campuses.map((campus) => campus.id);
   const [canCreate, canEdit, canApproveAction] = await Promise.all([
     canTabPermission("education_transfers", "transfers", "requests", "create"),
@@ -64,6 +71,33 @@ export default async function EducationTransfersPage({
     });
   }
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const visibleTransfers = transfers.filter((transfer) => {
+    if (normalizedStatus !== "all" && transfer.status !== normalizedStatus) return false;
+    if (normalizedCampus !== "all" && transfer.source_branch_id !== normalizedCampus && transfer.destination_branch_id !== normalizedCampus) return false;
+    if (!searchFilter) return true;
+    const student = studentNameById.get(transfer.student_id);
+    const studentText = `${student?.name ?? ""} ${student?.number ?? ""}`.toLowerCase();
+    return studentText.includes(searchFilter);
+  });
+  const exportLimit = 5000;
+  const exportRows = visibleTransfers.slice(0, exportLimit);
+  const csvRows = [
+    ["Student number", "Student name", "Source campus", "Destination campus", "Effective date", "Reason", "Status", "Created"],
+    ...exportRows.map((transfer) => {
+      const student = studentNameById.get(transfer.student_id);
+      return [
+        student?.number ?? "",
+        student?.name ?? "",
+        campusNameById.get(transfer.source_branch_id) ?? transfer.source_branch_id,
+        campusNameById.get(transfer.destination_branch_id) ?? transfer.destination_branch_id,
+        transfer.effective_on,
+        transfer.reason,
+        transfer.status,
+        transfer.created_at,
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const today = new Date().toISOString().slice(0, 10);
   const errorMessage = params.error === "student"
     ? "No active student with that number was found at the source campus."
@@ -95,25 +129,56 @@ export default async function EducationTransfersPage({
 
     <section className="grid gap-3 sm:grid-cols-4">
       {[
-        { label: "Transfer requests", value: transfers.length, icon: ArrowRightLeft },
-        { label: "Pending review", value: transfers.filter((item) => item.status === "pending").length, icon: Truck },
-        { label: "Approved", value: transfers.filter((item) => item.status === "approved").length, icon: Check },
-        { label: "Completed", value: transfers.filter((item) => item.status === "completed").length, icon: Check },
+        { label: "Transfer requests", value: visibleTransfers.length, icon: ArrowRightLeft },
+        { label: "Pending review", value: visibleTransfers.filter((item) => item.status === "pending").length, icon: Truck },
+        { label: "Approved", value: visibleTransfers.filter((item) => item.status === "approved").length, icon: Check },
+        { label: "Completed", value: visibleTransfers.filter((item) => item.status === "completed").length, icon: Check },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <form method="get" className="grid gap-3 md:grid-cols-4 lg:flex-1">
+          <label className="text-sm font-medium text-slate-700">Search student
+            <input defaultValue={searchFilter} name="student" placeholder="Name or number" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          </label>
+          <label className="text-sm font-medium text-slate-700">Campus
+            <select name="campus" defaultValue={normalizedCampus} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+              <option value="all">All campuses</option>
+              {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">Status
+            <select name="status" defaultValue={normalizedStatus} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+              <option value="all">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="completed">Completed</option>
+            </select>
+          </label>
+          <div className="flex items-end gap-2">
+            <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Apply filters</button>
+            <Link href={getProductAppPath("think-education", "/transfers")} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
+          </div>
+        </form>
+        {visibleTransfers.length > 0 && <a href={csvHref} download="student-transfers.csv" className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      </div>
+      {visibleTransfers.length > exportLimit && <p className="mt-3 text-xs text-amber-700">Showing the first {exportLimit.toLocaleString()} matching transfers in the CSV export. Narrow the filters to include the full set.</p>}
+    </section>
+
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      {transfers.length === 0 ? <div className="p-8 text-center">
+      {visibleTransfers.length === 0 ? <div className="p-8 text-center">
         <Truck className="mx-auto h-10 w-10 text-slate-300" />
-        <h2 className="mt-3 font-semibold text-slate-900">No transfer requests</h2>
-        <p className="mt-1 text-sm text-slate-500">{campuses.length > 1 ? "Transfer requests between your campuses will appear here." : "Transfer processing requires access to both the source and destination campuses."}</p>
+        <h2 className="mt-3 font-semibold text-slate-900">No transfer requests match these filters</h2>
+        <p className="mt-1 text-sm text-slate-500">Use a different campus, status, or student search to find the transfer register entries you need.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">From</th><th className="px-4 py-3">To</th><th className="px-4 py-3">Effective date</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3">Status / actions</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{transfers.map((transfer) => {
+          <tbody className="divide-y divide-slate-100">{visibleTransfers.map((transfer) => {
             const student = studentNameById.get(transfer.student_id);
             const hasBothCampuses = campuses.some((campus) => campus.id === transfer.source_branch_id)
               && campuses.some((campus) => campus.id === transfer.destination_branch_id);

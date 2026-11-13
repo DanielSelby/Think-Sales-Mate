@@ -37,6 +37,11 @@ describe("product application routes", () => {
       productSlug: "think-education",
       appPath: "/education/settings/users",
     });
+    expect(resolveProductAppRoute("/app/think-education/settings/roles")).toEqual({
+      kind: "valid",
+      productSlug: "think-education",
+      appPath: "/education/settings/roles",
+    });
   });
 
   it("uses each product's canonical default path", () => {

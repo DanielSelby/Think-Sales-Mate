@@ -75,6 +75,27 @@ export default async function EducationActivityPage({
   if (actorsResult.error) throw new Error(`Could not resolve Think Education activity actors: ${actorsResult.error.message}`);
   const actorNames = new Map((actorsResult.data ?? []).map((actor) => [actor.id, actor.full_name]));
   const campusNames = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const csvRows = [
+    ["Date", "Campus", "Actor", "Action", "Entity type", "Entity ID", "Details"],
+    ...records.map((record) => {
+      const metadata = record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+        ? record.metadata
+        : {};
+      const recordBranch = typeof metadata.branch_id === "string"
+        ? metadata.branch_id
+        : typeof metadata.location_id === "string" ? metadata.location_id : "";
+      return [
+        new Date(record.created_at).toISOString(),
+        campusNames.get(recordBranch) ?? (recordBranch ? "Campus" : "Organization-wide"),
+        actorNames.get(record.actor_id ?? "") ?? "System",
+        displayAction(record.action),
+        displayAction(record.entity_type),
+        record.entity_id ?? "",
+        JSON.stringify(metadata),
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const pageCount = Math.ceil(totalCount / PAGE_SIZE);
   const makePageHref = (nextPage: number) => {
     const query = new URLSearchParams();
@@ -95,7 +116,7 @@ export default async function EducationActivityPage({
       <p className="mt-1 text-sm text-slate-600">Review education changes and workflow activity for your authorized campuses.</p>
     </header>
 
-    <form method="get" className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
+    <form method="get" className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_180px_180px_200px]">
       <label className="text-sm font-medium text-slate-700">Campus
         <select name="branch" defaultValue={branchId} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
           <option value="">All accessible campuses</option>
@@ -111,8 +132,9 @@ export default async function EducationActivityPage({
       <label className="text-sm font-medium text-slate-700">To
         <input name="to" type="date" defaultValue={toDate} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
       </label>
-      <div className="flex items-end">
+      <div className="flex items-end gap-2">
         <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"><Search className="h-4 w-4" /> Apply filters</button>
+        {records.length > 0 && <a href={csvHref} download={`education-activity-${new Date().toISOString().slice(0, 10)}.csv`} className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </div>
     </form>
 

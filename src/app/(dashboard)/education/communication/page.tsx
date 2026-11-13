@@ -34,8 +34,11 @@ export default async function EducationCommunicationPage({
   }
 
   const params = await searchParams;
-  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
-  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const readParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? "" : value ?? "";
+  const requestedBranch = readParam(params.branch);
+  const requestedStatus = readParam(params.status);
+  const requestedAudience = readParam(params.audience);
+  const requestedSearch = readParam(params.search).trim().toLowerCase();
   const [canCreate, canPublish, canArchive, { campuses }] = await Promise.all([
     canTabPermission("education_communication", "communication", "announcements", "create"),
     canTabPermission("education_communication", "communication", "announcements", "publish"),
@@ -48,6 +51,9 @@ export default async function EducationCommunicationPage({
   const statusFilter = (["draft", "published", "archived"].includes(requestedStatus)
     ? requestedStatus
     : "") as "draft" | "published" | "archived" | "";
+  const audienceFilter = (Object.keys(AUDIENCE_LABELS).includes(requestedAudience)
+    ? requestedAudience
+    : "") as "all" | "campus" | "students" | "staff" | "parents" | "";
   const supabase = await createClient();
   const { data: announcements, error } = branchIds.length
     ? await (async () => {
@@ -63,7 +69,27 @@ export default async function EducationCommunicationPage({
     : { data: [], error: null };
   if (error) throw new Error(`Could not load Think Education announcements: ${error.message}`);
 
+  const filteredAnnouncements = (announcements ?? []).filter((announcement) => {
+    if (audienceFilter && announcement.audience !== audienceFilter) return false;
+    if (!requestedSearch) return true;
+    const announcementText = `${announcement.title} ${announcement.body}`.toLowerCase();
+    return announcementText.includes(requestedSearch);
+  });
+
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const csvRows = [
+    ["Title", "Campus", "Audience", "Status", "Created", "Published", "Message"],
+    ...filteredAnnouncements.map((announcement) => [
+      announcement.title,
+      campusNameById.get(announcement.branch_id) ?? announcement.branch_id,
+      AUDIENCE_LABELS[announcement.audience as keyof typeof AUDIENCE_LABELS] ?? announcement.audience,
+      STATUS_LABELS[announcement.status] ?? announcement.status,
+      new Date(announcement.created_at).toISOString(),
+      announcement.published_at ? new Date(announcement.published_at).toISOString() : "",
+      announcement.body,
+    ]),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "invalid"
     ? "Enter a valid campus, title, message, and audience."
     : params.error === "transition"
@@ -121,6 +147,7 @@ export default async function EducationCommunicationPage({
           <p className="mt-1 text-sm text-slate-500">Showing up to 100 most recent records across your accessible campuses.</p>
         </div>
         <form method="get" className="flex flex-wrap gap-2">
+          <input name="search" defaultValue={requestedSearch} placeholder="Search title or content" aria-label="Search announcements" className="min-w-[180px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select name="branch" defaultValue={selectedBranch} aria-label="Filter by campus" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">All accessible campuses</option>
             {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
@@ -129,11 +156,17 @@ export default async function EducationCommunicationPage({
             <option value="">All statuses</option>
             {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Filter</button>
+          <select name="audience" defaultValue={audienceFilter} aria-label="Filter by audience" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All audiences</option>
+            {EDUCATION_COMMUNICATION_AUDIENCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply filters</button>
+          {filteredAnnouncements.length > 0 && <a href={csvHref} download={`education-announcements-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Export CSV</a>}
+          <Link href={getProductAppPath("think-education", "/communication")} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</Link>
         </form>
       </div>
-      {!announcements?.length ? <p className="p-6 text-sm text-slate-500">No announcements match these filters.</p> : <ul className="divide-y divide-slate-100">
-        {announcements.map((announcement) => <li key={announcement.id} className="space-y-3 p-4 sm:p-5">
+      {!filteredAnnouncements.length ? <p className="p-6 text-sm text-slate-500">No announcements match these filters.</p> : <ul className="divide-y divide-slate-100">
+        {filteredAnnouncements.map((announcement) => <li key={announcement.id} className="space-y-3 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">

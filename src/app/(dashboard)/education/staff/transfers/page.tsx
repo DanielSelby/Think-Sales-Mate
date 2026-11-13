@@ -35,11 +35,17 @@ export default async function EducationStaffTransfersPage({
   }
 
   const params = await searchParams;
+  const readParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? "" : value ?? "";
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const branchId = campusIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = branchId ? [branchId] : campusIds;
+  const requestedStatus = readParam(params.status);
+  const requestedStaff = readParam(params.staff).trim().toLowerCase();
+  const normalizedStatus = ["all", "pending", "approved", "rejected", "completed"].includes(requestedStatus)
+    ? requestedStatus
+    : "all";
   const [canCreate, canApproveAction, canEdit] = await Promise.all([
     canTabPermission("education_staff", "staff", "transfers", "create"),
     canTabPermission("education_staff", "staff", "transfers", "approve"),
@@ -79,11 +85,39 @@ export default async function EducationStaffTransfersPage({
     }
   }
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const visibleTransfers = transfers.filter((transfer) => {
+    if (normalizedStatus !== "all" && transfer.status !== normalizedStatus) return false;
+    if (!requestedStaff) return true;
+    const staff = staffNameById.get(transfer.staff_id);
+    const staffText = `${staff?.name ?? ""} ${staff?.number ?? ""}`.toLowerCase();
+    return staffText.includes(requestedStaff);
+  });
+  const exportLimit = 5000;
+  const exportRows = visibleTransfers.slice(0, exportLimit);
+  const csvRows = [
+    ["Staff number", "Staff name", "Source campus", "Destination campus", "Effective date", "Reason", "Status", "Review note"],
+    ...exportRows.map((transfer) => {
+      const staff = staffNameById.get(transfer.staff_id);
+      return [
+        staff?.number ?? "",
+        staff?.name ?? "",
+        campusNameById.get(transfer.source_branch_id) ?? transfer.source_branch_id,
+        campusNameById.get(transfer.destination_branch_id) ?? transfer.destination_branch_id,
+        transfer.effective_on,
+        transfer.reason,
+        transfer.status,
+        transfer.review_note ?? "",
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const today = new Date().toISOString().slice(0, 10);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const pageHref = (nextPage: number) => {
     const query = new URLSearchParams({ page: String(nextPage) });
     if (branchId) query.set("branch", branchId);
+    if (requestedStatus !== "all") query.set("status", requestedStatus);
+    if (requestedStaff) query.set("staff", requestedStaff);
     return `${getProductAppPath("think-education", "/staff/transfers")}?${query.toString()}`;
   };
   if (page > totalPages) redirect(pageHref(totalPages));
@@ -119,10 +153,10 @@ export default async function EducationStaffTransfersPage({
 
     <section className="grid gap-3 sm:grid-cols-4">
       {[
-        { label: "Transfer requests", value: totalCount, icon: ArrowRightLeft },
-        { label: "Pending review", value: transfers.filter((item) => item.status === "pending").length, icon: Truck },
-        { label: "Approved", value: transfers.filter((item) => item.status === "approved").length, icon: Check },
-        { label: "Completed", value: transfers.filter((item) => item.status === "completed").length, icon: Check },
+        { label: "Transfer requests", value: visibleTransfers.length, icon: ArrowRightLeft },
+        { label: "Pending review", value: visibleTransfers.filter((item) => item.status === "pending").length, icon: Truck },
+        { label: "Approved", value: visibleTransfers.filter((item) => item.status === "approved").length, icon: Check },
+        { label: "Completed", value: visibleTransfers.filter((item) => item.status === "completed").length, icon: Check },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
@@ -136,17 +170,31 @@ export default async function EducationStaffTransfersPage({
             <option value="">All accessible campuses</option>{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
           </select>
         </label>
-        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Apply filter</button>
+        <label className="min-w-[200px] flex-1 text-sm font-medium text-slate-700">Search staff
+          <input name="staff" defaultValue={requestedStaff} placeholder="Name or staff number" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="min-w-[160px] text-sm font-medium text-slate-700">Status
+          <select name="status" defaultValue={normalizedStatus} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="completed">Completed</option>
+          </select>
+        </label>
+        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Apply filters</button>
+        <a href={csvHref} download="staff-transfers.csv" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>
       </form>
+      {visibleTransfers.length > exportLimit && <p className="px-4 pb-2 pt-3 text-xs text-amber-700">Showing the first {exportLimit.toLocaleString()} matching rows in the CSV export. Narrow the filters to export the full result set.</p>}
 
-      {transfers.length === 0 ? <div className="p-8 text-center">
+      {visibleTransfers.length === 0 ? <div className="p-8 text-center">
         <Truck className="mx-auto h-10 w-10 text-slate-300" />
-        <h2 className="mt-3 font-semibold text-slate-900">No staff transfer requests</h2>
+        <h2 className="mt-3 font-semibold text-slate-900">No staff transfer requests match the current filters</h2>
         <p className="mt-1 text-sm text-slate-500">Both campuses must be assigned to your account to request or process a transfer.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[1000px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Staff member</th><th className="px-4 py-3">From</th><th className="px-4 py-3">To</th><th className="px-4 py-3">Effective</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3">Status / actions</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{transfers.map((transfer) => {
+          <tbody className="divide-y divide-slate-100">{visibleTransfers.map((transfer) => {
             const staff = staffNameById.get(transfer.staff_id);
             const hasBothCampuses = campuses.some((campus) => campus.id === transfer.source_branch_id)
               && campuses.some((campus) => campus.id === transfer.destination_branch_id);
