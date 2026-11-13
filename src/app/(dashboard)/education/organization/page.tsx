@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, Building2, MapPin, Plus, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, MapPin, Search } from "lucide-react";
 import { createEducationCampus, grantOwnEducationOrganizationScope } from "../actions";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { EducationRecordModal } from "@/components/education/education-record-modal";
+import { EducationImportModal } from "@/components/education/education-import-modal";
 
 export default async function EducationOrganizationPage({
   searchParams,
@@ -57,9 +59,35 @@ export default async function EducationOrganizationPage({
         <Link href={getProductAppPath("think-education", "/students")} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
           Students <ArrowRight className="h-4 w-4" />
         </Link>
-        {canCreate && <a href="#add-campus" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
-          <Plus className="h-4 w-4" /> Add campus
-        </a>}
+        <div className="flex flex-wrap gap-2">
+          {canCreate && <EducationImportModal entity="campuses" label="campuses" columns={[
+            { key: "name", label: "Campus", required: true },
+            { key: "code", label: "Campus Code", required: true },
+            { key: "address", label: "Address" },
+            { key: "city", label: "City" },
+            { key: "region", label: "Region" },
+            { key: "country", label: "Country" },
+            { key: "phone", label: "Phone" },
+            { key: "email", label: "Email" },
+          ]} />}
+          {canCreate && <EducationRecordModal
+            title="Add campus"
+            description="Create an Education campus and register it as an organization branch."
+            buttonLabel="Add campus"
+            submitLabel="Create campus"
+            action={createEducationCampus}
+            fields={[
+              { name: "name", label: "Campus name", required: true, maxLength: 120 },
+              { name: "code", label: "Campus code", required: true, maxLength: 32, pattern: "[A-Za-z0-9-]+" },
+              { name: "address", label: "Address", maxLength: 200 },
+              { name: "city", label: "City", maxLength: 100 },
+              { name: "region", label: "Region", maxLength: 100 },
+              { name: "country", label: "Country", maxLength: 100 },
+              { name: "phone", label: "Phone", type: "tel", maxLength: 32 },
+              { name: "email", label: "Email", type: "email", maxLength: 254 },
+            ]}
+          />}
+        </div>
       </div>
     </header>
 
@@ -118,38 +146,5 @@ export default async function EducationOrganizationPage({
       </div>}
     </section>
 
-    {canCreate && <section id="add-campus" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Add campus</h2>
-      <p className="mt-1 text-sm text-slate-500">A campus is also registered as an organization branch in the shared platform.</p>
-      <form action={createEducationCampus} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm font-medium text-slate-700">Campus name
-          <input required name="name" maxLength={120} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Campus code
-          <input required name="code" maxLength={32} pattern="[A-Za-z0-9-]+" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal uppercase" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Address
-          <input name="address" maxLength={200} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">City
-          <input name="city" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Region
-          <input name="region" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Country
-          <input name="country" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Phone
-          <input name="phone" type="tel" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Email
-          <input name="email" type="email" maxLength={254} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-4">
-          <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Create campus</button>
-        </div>
-      </form>
-    </section>}
   </main>;
 }

@@ -9,7 +9,12 @@ import {
   resolveProductEntitlement,
   type ProductEntitlementInput,
 } from "@/lib/product-entitlements";
-import { isPlatformProductSlug, PLATFORM_PRODUCT_SLUGS, type PlatformProductSlug } from "@/types/platform-database";
+import {
+  isPlatformProductSlug,
+  PLATFORM_PRODUCT_LABELS,
+  PLATFORM_PRODUCT_SLUGS,
+  type PlatformProductSlug,
+} from "@/types/platform-database";
 import { parsePlatformWatermark } from "@/lib/platform-watermark";
 
 const PRODUCT_SLUGS: readonly PlatformProductSlug[] = PLATFORM_PRODUCT_SLUGS;
@@ -82,6 +87,7 @@ export interface ProductHubBranding {
   heroArtworkUrl: string | null;
   aboutImageUrl: string | null;
   productImageUrls: Partial<Record<PlatformProductSlug, string>>;
+  productNames: Record<PlatformProductSlug, string>;
   darkThemeEnabled: boolean;
   darkSurfaceStyle: "opaque" | "transparent";
 }
@@ -111,18 +117,28 @@ function getManagedAssetUrl(platform: ReturnType<typeof createPlatformAdminClien
 
 export async function getProductHubBranding(): Promise<ProductHubBranding> {
   const platform = createPlatformAdminClient();
-  const { data, error } = await platform
-    .from("platform_settings")
-    .select("value")
-    .eq("key", "product_hub_branding")
-    .maybeSingle();
+  const [{ data, error }, { data: products, error: productsError }] = await Promise.all([
+    platform
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "product_hub_branding")
+      .maybeSingle(),
+    platform.from("platform_products").select("slug, name"),
+  ]);
   if (error) throw new Error(`Could not load Product Hub appearance settings: ${error.message}`);
+  if (productsError) throw new Error(`Could not load product display names: ${productsError.message}`);
 
   const value = data?.value ?? {};
   const productPaths = value.product_image_paths && typeof value.product_image_paths === "object" && !Array.isArray(value.product_image_paths)
     ? value.product_image_paths as Record<string, unknown>
     : {};
   const productImageUrls: Partial<Record<PlatformProductSlug, string>> = {};
+  const productNames = { ...PLATFORM_PRODUCT_LABELS };
+  for (const product of products ?? []) {
+    if (isPlatformProductSlug(product.slug) && product.name.trim()) {
+      productNames[product.slug] = product.name.trim();
+    }
+  }
   for (const slug of PRODUCT_SLUGS) {
     const url = getManagedAssetUrl(platform, productPaths[slug]);
     if (url) productImageUrls[slug] = url;
@@ -132,6 +148,7 @@ export async function getProductHubBranding(): Promise<ProductHubBranding> {
     heroArtworkUrl: getManagedAssetUrl(platform, value.hero_storage_path),
     aboutImageUrl: getManagedAssetUrl(platform, value.about_storage_path),
     productImageUrls,
+    productNames,
     darkThemeEnabled: value.dark_theme_enabled === true,
     darkSurfaceStyle: value.dark_surface_style === "transparent" ? "transparent" : "opaque",
   };

@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, GraduationCap, Plus, Search, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, GraduationCap, Search, Users } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canTabPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
+import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationStudent } from "../actions";
+import { EducationRecordModal } from "@/components/education/education-record-modal";
+import { EducationImportModal } from "@/components/education/education-import-modal";
 
 const PAGE_SIZE = 20;
 const STUDENT_STATUSES = ["active", "on_hold", "graduated", "transferred", "withdrawn", "archived"] as const;
@@ -31,7 +34,16 @@ export default async function EducationStudentsPage({
   const allowedBranchIds = campuses.map((campus) => campus.id);
   const selectedBranch = allowedBranchIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : allowedBranchIds;
-  const canCreate = await canTabPermission("education_students", "students", "list", "create");
+  const [canCreate, canImportCapability] = await Promise.all([
+    canTabPermission("education_students", "students", "list", "create"),
+    canPermission("education_students", "import"),
+  ]);
+  const canImport = canImportCapability && canCreate;
+  const canCreateAccount = isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  });
   const supabase = await createClient();
 
   let totalCount = 0;
@@ -106,9 +118,37 @@ export default async function EducationStudentsPage({
         <h1 className="mt-2 text-2xl font-bold text-slate-950">Student Management</h1>
         <p className="mt-1 text-sm text-slate-600">View and manage student records across your authorized campuses.</p>
       </div>
-      {canCreate && <a href="#add-student" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
-        <Plus className="h-4 w-4" /> Add student
-      </a>}
+      <div className="flex flex-wrap gap-2">
+        {canImport && campuses.length > 0 && <EducationImportModal entity="students" label="students" columns={[
+          { key: "campus", label: "Campus", required: true },
+          { key: "student_number", label: "Student Number", required: true },
+          { key: "first_name", label: "First Name", required: true },
+          { key: "last_name", label: "Last Name", required: true },
+          { key: "other_names", label: "Other Names" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+          { key: "date_of_birth", label: "Date of Birth" },
+        ]} />}
+        {canCreate && campuses.length > 0 && <EducationRecordModal
+          title="Add student"
+          description="Create an Education student record and optionally provision a linked login."
+          buttonLabel="Add student"
+          submitLabel="Save student"
+          action={createEducationStudent}
+          canCreateAccount={canCreateAccount}
+          accountRole="education_student"
+          fields={[
+            { name: "branch_id", label: "Campus", type: "select", required: true, options: campuses.map((campus) => ({ value: campus.id, label: campus.name })) },
+            { name: "student_number", label: "Student number", required: true, maxLength: 32, pattern: "[A-Za-z0-9._/-]+" },
+            { name: "first_name", label: "First name", required: true, maxLength: 100 },
+            { name: "last_name", label: "Last name", required: true, maxLength: 100 },
+            { name: "other_names", label: "Other names", maxLength: 100 },
+            { name: "email", label: "Email", type: "email", maxLength: 254 },
+            { name: "phone", label: "Phone", type: "tel", maxLength: 32 },
+            { name: "date_of_birth", label: "Date of birth", type: "date" },
+          ]}
+        />}
+      </div>
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Student record created.</p>}
@@ -178,40 +218,5 @@ export default async function EducationStudentsPage({
       </footer>}
     </section>
 
-    {canCreate && campuses.length > 0 && <section id="add-student" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Add student</h2>
-      <p className="mt-1 text-sm text-slate-500">Create a student record in one of your assigned campuses.</p>
-      <form action={createEducationStudent} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm font-medium text-slate-700">Campus
-          <select required name="branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Student number
-          <input required name="student_number" maxLength={32} pattern="[A-Za-z0-9._/-]+" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">First name
-          <input required name="first_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Last name
-          <input required name="last_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Other names
-          <input name="other_names" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Email
-          <input name="email" type="email" maxLength={254} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Phone
-          <input name="phone" type="tel" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Date of birth
-          <input name="date_of_birth" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-4">
-          <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Save student</button>
-        </div>
-      </form>
-    </section>}
   </main>;
 }

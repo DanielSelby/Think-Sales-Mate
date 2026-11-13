@@ -223,8 +223,8 @@ export function ProductHubAppearanceManager({
             key={product.slug}
             assetType="product"
             productSlug={product.slug}
-            label={`${product.name} logo or icon`}
-            description="Image used on this product's card in the Product Hub."
+            label={`${product.name} logo`}
+            description="Shown on this product's Product Hub card and in its application sidebar."
             imageUrl={branding.productImageUrls[product.slug] ?? null}
             canManage={canManage}
           />

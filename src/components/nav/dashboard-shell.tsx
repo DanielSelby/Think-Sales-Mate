@@ -21,6 +21,7 @@ import {
   getProductScopedHref,
   getVisibleNavigationChildren,
 } from "@/lib/product-navigation";
+import type { PlatformProductSlug } from "@/types/platform-database";
 
 interface Props {
   children: React.ReactNode;
@@ -33,6 +34,8 @@ interface Props {
   logoUrl?: string | null;
   systemLogoUrl?: string | null;
   systemName?: string;
+  productLogoUrls?: Partial<Record<PlatformProductSlug, string>>;
+  productNames?: Partial<Record<PlatformProductSlug, string>>;
   roleTheme?: ThemeKey | null;
   darkStyle?: DarkStyleKey;
   userName?: string | null;
@@ -46,7 +49,7 @@ interface Props {
   organizationUsage: OrganizationUsageSummary | null;
 }
 
-export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
@@ -136,6 +139,8 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
           enabledModules={enabledModules}
           systemLogoUrl={systemLogoUrl}
           systemName={systemName}
+          productLogoUrls={productLogoUrls}
+          productNames={productNames}
           mobileOpen={mobileSidebarOpen}
           onNavigate={() => setMobileSidebarOpen(false)}
         />

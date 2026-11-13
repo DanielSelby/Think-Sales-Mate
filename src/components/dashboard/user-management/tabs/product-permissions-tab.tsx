@@ -130,7 +130,7 @@ export function ProductPermissionsTab({
 
   const getRoleGroup = (roleKey: string): "administration" | "academic" | "finance" | "operations" => {
     if (["owner", "super_admin", "manager", "education_admin"].includes(roleKey)) return "administration";
-    if (["education_teacher", "education_registrar"].includes(roleKey)) return "academic";
+    if (["education_student", "education_teacher", "education_registrar"].includes(roleKey)) return "academic";
     if (["education_accountant"].includes(roleKey)) return "finance";
     return "operations";
   };

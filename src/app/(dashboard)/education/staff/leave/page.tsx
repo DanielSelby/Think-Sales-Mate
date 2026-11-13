@@ -130,6 +130,24 @@ export default async function EducationStaffLeavePage({
   if (actorsResult.error) throw new Error(`Could not resolve leave requestors: ${actorsResult.error.message}`);
   const actorNameById = new Map((actorsResult.data ?? []).map((profile) => [profile.id, profile.full_name]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const csvRows = [
+    ["Staff number", "Staff name", "Campus", "Leave type", "Start date", "End date", "Status", "Requested by", "Decision note"],
+    ...requests.map((request) => {
+      const staffMember = staffById.get(request.staff_id);
+      return [
+        staffMember?.staff_number ?? "",
+        staffMember ? `${staffMember.first_name} ${staffMember.last_name}` : "",
+        campusNameById.get(request.branch_id) ?? request.branch_id,
+        label(request.leave_type),
+        request.starts_on,
+        request.ends_on,
+        label(request.status),
+        actorNameById.get(request.requested_by) ?? request.requested_by,
+        request.decision_note ?? "",
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const pageHref = (nextPage: number) => {
     const query = new URLSearchParams({ page: String(nextPage) });
@@ -154,12 +172,15 @@ export default async function EducationStaffLeavePage({
               : null;
 
   return <main className="mx-auto max-w-[1400px] space-y-5 p-4 md:p-6">
-    <header>
-      <Link href={getProductAppPath("think-education", "/staff")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
-        <ArrowLeft className="h-4 w-4" /> Staff Management
-      </Link>
-      <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-950"><CalendarDays className="h-6 w-6 text-blue-700" /> Staff Leave Management</h1>
-      <p className="mt-1 text-sm text-slate-600">Submit, review, and audit leave requests for your assigned campuses.</p>
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <Link href={getProductAppPath("think-education", "/staff")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
+          <ArrowLeft className="h-4 w-4" /> Staff Management
+        </Link>
+        <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-950"><CalendarDays className="h-6 w-6 text-blue-700" /> Staff Leave Management</h1>
+        <p className="mt-1 text-sm text-slate-600">Submit, review, and audit leave requests for your assigned campuses.</p>
+      </div>
+      {requests.length > 0 && <a href={csvHref} download={`education-staff-leave-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </header>
 
     {getParam(params, "created") === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Leave request submitted.</p>}

@@ -71,6 +71,27 @@ export default async function EducationPromotionPage({
   const completedYearEnrollments = enrollments.filter((enrollment) =>
     academicYearById.get(enrollment.academic_year_id)?.status === "completed" && studentById.has(enrollment.student_id)
   );
+  const csvRows = [
+    ["Student number", "Student", "Campus", "Current class", "Completed year", "Recommended destination"],
+    ...completedYearEnrollments.map((enrollment) => {
+      const student = studentById.get(enrollment.student_id);
+      const sourceClass = classById.get(enrollment.class_id);
+      const destinationClasses = (classes ?? []).filter((classroom) =>
+        classroom.branch_id === enrollment.branch_id
+        && classroom.academic_year_id !== enrollment.academic_year_id
+        && ["planned", "active"].includes(academicYearById.get(classroom.academic_year_id)?.status ?? "")
+      );
+      return [
+        student?.student_number ?? "",
+        `${student?.first_name ?? ""} ${student?.last_name ?? ""}`.trim(),
+        campusNameById.get(enrollment.branch_id) ?? "",
+        sourceClass?.name ?? "",
+        academicYearById.get(enrollment.academic_year_id)?.name ?? "",
+        destinationClasses.map((classroom) => classroom.name).join(" | "),
+      ];
+    }),
+  ];
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const canProcess = canEdit && canApprove;
   const errorMessage = params.error === "stale"
     ? "That enrollment is no longer active or the destination is no longer available. Refresh and try again."
@@ -79,12 +100,15 @@ export default async function EducationPromotionPage({
       : params.error === "save" ? "Student progression could not be completed. Please try again." : null;
 
   return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
-    <header>
-      <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
-        <ArrowLeft className="h-4 w-4" /> Dashboard
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold text-slate-950">Promotion &amp; Graduation</h1>
-      <p className="mt-1 text-sm text-slate-600">Progress active students from completed academic years into the next class, or record graduation.</p>
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
+          <ArrowLeft className="h-4 w-4" /> Dashboard
+        </Link>
+        <h1 className="mt-2 text-2xl font-bold text-slate-950">Promotion &amp; Graduation</h1>
+        <p className="mt-1 text-sm text-slate-600">Progress active students from completed academic years into the next class, or record graduation.</p>
+      </div>
+      {completedYearEnrollments.length > 0 && <a href={csvHref} download={`education-promotion-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </header>
 
     {params.updated === "promote" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Student promoted and enrolled in the destination class.</p>}

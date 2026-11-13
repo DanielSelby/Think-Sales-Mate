@@ -5,6 +5,7 @@ import {
   getProductScopedHref,
   getVisibleNavigationChildren,
 } from "./product-navigation";
+import { NAV_ITEMS } from "@/components/nav/navigation";
 
 const navigation = [
   { label: "Dashboard" },
@@ -53,6 +54,22 @@ describe("product navigation", () => {
       .toEqual(["Restaurant"]);
     expect(getProductNavigationItems(navigation, "thinksales-erp").map((item) => item.label))
       .toEqual(["Dashboard", "Sales"]);
+  });
+
+  it("organizes Think Education links beneath one product heading", () => {
+    const education = NAV_ITEMS.find((item) => item.label === "Think Education");
+    const sections = Array.from(new Set(education?.children?.map((child) => child.section)));
+
+    expect(education?.children?.[0].label).toBe("Dashboard");
+    expect(sections).toEqual([
+      "Overview",
+      "Students & Admissions",
+      "Teaching & Academics",
+      "Campus Operations",
+      "Finance",
+      "Communication & Records",
+      "Administration",
+    ]);
   });
 
   it("keeps configured child permissions when preparing navigation entries", () => {

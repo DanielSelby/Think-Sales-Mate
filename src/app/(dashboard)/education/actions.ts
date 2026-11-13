@@ -3,16 +3,22 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canTabPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
+import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { getEducationRolePreset } from "@/lib/rbac/education-roles";
+import { createStaffAccount, setMemberProductRole } from "@/app/(dashboard)/settings/organization/actions";
 import { EDUCATION_COMMUNICATION_AUDIENCES } from "@/lib/education/communications";
 import {
   EDUCATION_EXPENSE_CATEGORIES,
   EDUCATION_EXPENSE_PAYMENT_METHODS,
   isValidEducationExpenseDate,
 } from "@/lib/education/expenses";
+
+export type EducationImportEntity = "students" | "staff" | "campuses";
 
 function isValidEducationStaffDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -127,11 +133,11 @@ export async function revokeEducationMemberBranchScope(formData: FormData) {
     throw new Error("You cannot revoke your own organization-wide Think Education access.");
   }
 
-  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const { campuses, hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (scopeType === "organization" && context.role !== "owner") {
     throw new Error("Only an organization owner can revoke organization-wide Think Education access.");
   }
-  if (scopeType === "branch" && !campuses.some((campus) => campus.id === branchId)) {
+  if (scopeType === "branch" && !hasOrganizationScope && !campuses.some((campus) => campus.id === branchId)) {
     throw new Error("You can only revoke campus access within your assigned Think Education campuses.");
   }
 
@@ -587,11 +593,109 @@ export async function archiveEducationFeeSchedule(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/finance")}?scheduleArchived=1`);
 }
 
+type CreatedEducationAccount = {
+  memberId: string;
+  userId: string;
+  username: string;
+  temporaryPassword: string;
+};
+
+async function removeCreatedEducationAccount(orgId: string, account: CreatedEducationAccount) {
+  const admin = createAdminClient();
+  const { error: memberError } = await admin.from("organization_members")
+    .delete().eq("org_id", orgId).eq("id", account.memberId);
+  const { error: userError } = await admin.auth.admin.deleteUser(account.userId);
+  const cleanupError = memberError ?? userError;
+  if (cleanupError) {
+    console.error("Could not roll back a Think Education account:", cleanupError.message);
+    return ` Account cleanup also failed: ${cleanupError.message}`;
+  }
+  return "";
+}
+
+async function createEducationAccountForRecord({
+  orgId,
+  branchId,
+  fullName,
+  email,
+  phone,
+  employeeId,
+  roleKey,
+  password,
+}: {
+  orgId: string;
+  branchId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  employeeId: string;
+  roleKey: string;
+  password: string;
+}): Promise<{ account?: CreatedEducationAccount; error?: string }> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8) {
+    return { error: "A valid email and an 8-character temporary password are required for a login account." };
+  }
+  if (!getEducationRolePreset(roleKey)) return { error: "Choose a valid Think Education role for the account." };
+
+  const accountForm = new FormData();
+  accountForm.set("full_name", fullName);
+  accountForm.set("username", email);
+  accountForm.set("password", password);
+  accountForm.set("email", email);
+  accountForm.set("phone", phone);
+  accountForm.set("employee_id", employeeId);
+  accountForm.set("department", "Think Education");
+  accountForm.set("role", "staff");
+  accountForm.set("location_id", branchId);
+  accountForm.set("branch_scope", "single");
+  accountForm.set("secondary_location_ids", "");
+
+  const created = await createStaffAccount(accountForm);
+  if (!("memberId" in created) || !created.memberId || !created.userId) {
+    return { error: "error" in created ? created.error : "The login account could not be created." };
+  }
+  const account: CreatedEducationAccount = {
+    memberId: created.memberId,
+    userId: created.userId,
+    username: created.username ?? email,
+    temporaryPassword: created.temporaryPassword ?? password,
+  };
+
+  const supabase = await createClient();
+  const { error: assignmentError } = await supabase.rpc("set_organization_product_assignments", {
+    p_org_id: orgId,
+    p_user_id: account.userId,
+    p_product_slugs: ["think-education"],
+  });
+  if (assignmentError) {
+    const cleanupMessage = await removeCreatedEducationAccount(orgId, account);
+    return { error: `Could not assign the account to Think Education: ${assignmentError.message}.${cleanupMessage}` };
+  }
+
+  const roleResult = await setMemberProductRole(account.userId, "think-education", roleKey);
+  if (roleResult.error) {
+    const cleanupMessage = await removeCreatedEducationAccount(orgId, account);
+    return { error: `${roleResult.error}.${cleanupMessage}` };
+  }
+
+  const { error: scopeError } = await supabase.from("education_member_branch_scopes").insert({
+    org_id: orgId,
+    user_id: account.userId,
+    scope_type: "branch",
+    branch_id: branchId,
+  });
+  if (scopeError) {
+    const cleanupMessage = await removeCreatedEducationAccount(orgId, account);
+    return { error: `Could not assign the account to its campus: ${scopeError.message}.${cleanupMessage}` };
+  }
+  return { account };
+}
+
 export async function createEducationStudent(formData: FormData) {
   const context = await getCurrentOrgContext();
-  if (!context) redirect("/login");
+  if (!context) return { error: "Session expired. Sign in again." };
   if (!await canTabPermission("education_students", "students", "list", "create")) {
-    throw new Error("You do not have permission to create Think Education student records.");
+    return { error: "You do not have permission to create Think Education student records." };
   }
 
   const branchId = String(formData.get("branch_id") ?? "");
@@ -599,27 +703,52 @@ export async function createEducationStudent(formData: FormData) {
   const firstName = String(formData.get("first_name") ?? "").trim();
   const lastName = String(formData.get("last_name") ?? "").trim();
   const otherNames = String(formData.get("other_names") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();
   const dateOfBirth = String(formData.get("date_of_birth") ?? "").trim();
+  const createAccount = formData.get("create_account") === "true";
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber) || !firstName || !lastName) {
-    redirect(`${getProductAppPath("think-education", "/students")}?error=invalid`);
+    return { error: "Check the student number, name, and campus fields." };
   }
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    redirect(`${getProductAppPath("think-education", "/students")}?error=invalid`);
-  }
-  if (dateOfBirth && Number.isNaN(Date.parse(dateOfBirth))) {
-    redirect(`${getProductAppPath("think-education", "/students")}?error=invalid`);
+  if (firstName.length > 100 || lastName.length > 100 || otherNames.length > 100
+    || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    || phone.length > 32 || (dateOfBirth && !isValidEducationStaffDate(dateOfBirth))) {
+    return { error: "Enter a valid email address and date of birth." };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!campuses.some((campus) => campus.id === branchId)) {
-    throw new Error("You cannot create a student record outside your assigned Think Education campuses.");
+    return { error: "You cannot create a student record outside your assigned Think Education campuses." };
   }
+
+  let account: CreatedEducationAccount | undefined;
+  if (createAccount) {
+    if (!isOrganizationSuperAdminMember({
+      role: context.role,
+      userId: context.userId,
+      accessPermissions: context.accessPermissions,
+    })) {
+      return { error: "Only an organization owner or super administrator can create linked login accounts." };
+    }
+    const accountResult = await createEducationAccountForRecord({
+      orgId: context.orgId,
+      branchId,
+      fullName: [firstName, otherNames, lastName].filter(Boolean).join(" "),
+      email,
+      phone,
+      employeeId: studentNumber,
+      roleKey: "education_student",
+      password: String(formData.get("account_password") ?? ""),
+    });
+    if (accountResult.error) return { error: accountResult.error };
+    account = accountResult.account;
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.from("education_students").insert({
     org_id: context.orgId,
     branch_id: branchId,
+    user_id: account?.userId ?? null,
     student_number: studentNumber,
     first_name: firstName,
     last_name: lastName,
@@ -630,22 +759,26 @@ export async function createEducationStudent(formData: FormData) {
     created_by: context.userId,
   });
   if (error) {
-    if (error.code === "23505") {
-      redirect(`${getProductAppPath("think-education", "/students")}?error=duplicate`);
-    }
+    const cleanupMessage = account ? await removeCreatedEducationAccount(context.orgId, account) : "";
+    if (error.code === "23505") return { error: `That student number or linked account is already in use.${cleanupMessage}` };
     console.error("Could not create Think Education student:", error.message);
-    redirect(`${getProductAppPath("think-education", "/students")}?error=save`);
+    return { error: `The student record could not be saved: ${error.message}.${cleanupMessage}` };
   }
 
   revalidatePath("/education/students");
-  redirect(`${getProductAppPath("think-education", "/students")}?created=1`);
+  revalidatePath("/education/settings/users");
+  return {
+    success: true,
+    username: account?.username,
+    temporaryPassword: account?.temporaryPassword,
+  };
 }
 
 export async function createEducationCampus(formData: FormData) {
   const context = await getCurrentOrgContext();
-  if (!context) redirect("/login");
+  if (!context) return { error: "Session expired. Sign in again." };
   if (!await canTabPermission("education_organization", "organization", "campuses", "create")) {
-    throw new Error("You do not have permission to create Think Education campuses.");
+    return { error: "You do not have permission to create Think Education campuses." };
   }
 
   const name = String(formData.get("name") ?? "").trim();
@@ -657,8 +790,10 @@ export async function createEducationCampus(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   if (!name || name.length > 120 || !/^[A-Za-z0-9-]{1,32}$/.test(code)
+    || address.length > 200 || city.length > 100 || region.length > 100 || country.length > 100
+    || phone.length > 32 || email.length > 254
     || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-    redirect(`${getProductAppPath("think-education", "/organization")}?error=invalid`);
+    return { error: "Enter a campus name, a unique code, and a valid email address." };
   }
 
   const supabase = await createClient();
@@ -674,21 +809,19 @@ export async function createEducationCampus(formData: FormData) {
     p_email: email || null,
   });
   if (error) {
-    if (error.code === "23505") {
-      redirect(`${getProductAppPath("think-education", "/organization")}?error=duplicate`);
-    }
+    if (error.code === "23505") return { error: `Campus code "${code}" is already in use.` };
     console.error("Could not create Think Education campus:", error.message);
-    redirect(`${getProductAppPath("think-education", "/organization")}?error=save`);
+    return { error: `The campus could not be saved: ${error.message}` };
   }
   revalidatePath("/education/organization");
-  redirect(`${getProductAppPath("think-education", "/organization")}?created=1`);
+  return { success: true };
 }
 
 export async function createEducationStaff(formData: FormData) {
   const context = await getCurrentOrgContext();
-  if (!context) redirect("/login");
+  if (!context) return { error: "Session expired. Sign in again." };
   if (!await canTabPermission("education_staff", "staff", "directory", "create")) {
-    throw new Error("You do not have permission to create Think Education staff records.");
+    return { error: "You do not have permission to create Think Education staff records." };
   }
 
   const branchId = String(formData.get("branch_id") ?? "");
@@ -697,25 +830,51 @@ export async function createEducationStaff(formData: FormData) {
   const lastName = String(formData.get("last_name") ?? "").trim();
   const category = String(formData.get("staff_category") ?? "");
   const jobTitle = String(formData.get("job_title") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();
+  const createAccount = formData.get("create_account") === "true";
+  const accountRole = String(formData.get("account_role") ?? "education_teacher");
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(staffNumber)
     || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
     || !["teaching", "non_teaching"].includes(category)
     || jobTitle.length > 120 || email.length > 254
-    || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-    redirect(`${getProductAppPath("think-education", "/staff")}?error=invalid`);
+    || phone.length > 32 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    return { error: "Check the staff number, name, category, and email fields." };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!campuses.some((campus) => campus.id === branchId)) {
-    throw new Error("You cannot create a staff record outside your assigned Think Education campuses.");
+    return { error: "You cannot create a staff record outside your assigned Think Education campuses." };
+  }
+
+  let account: CreatedEducationAccount | undefined;
+  if (createAccount) {
+    if (!isOrganizationSuperAdminMember({
+      role: context.role,
+      userId: context.userId,
+      accessPermissions: context.accessPermissions,
+    })) {
+      return { error: "Only an organization owner or super administrator can create linked login accounts." };
+    }
+    const accountResult = await createEducationAccountForRecord({
+      orgId: context.orgId,
+      branchId,
+      fullName: `${firstName} ${lastName}`,
+      email,
+      phone,
+      employeeId: staffNumber,
+      roleKey: accountRole,
+      password: String(formData.get("account_password") ?? ""),
+    });
+    if (accountResult.error) return { error: accountResult.error };
+    account = accountResult.account;
   }
 
   const supabase = await createClient();
   const { error } = await supabase.from("education_staff").insert({
     org_id: context.orgId,
     branch_id: branchId,
+    user_id: account?.userId ?? null,
     staff_number: staffNumber,
     first_name: firstName,
     last_name: lastName,
@@ -726,13 +885,146 @@ export async function createEducationStaff(formData: FormData) {
     created_by: context.userId,
   });
   if (error) {
-    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/staff")}?error=duplicate`);
+    const cleanupMessage = account ? await removeCreatedEducationAccount(context.orgId, account) : "";
+    if (error.code === "23505") return { error: `That staff number or linked account is already in use.${cleanupMessage}` };
     console.error("Could not create Think Education staff record:", error.message);
-    redirect(`${getProductAppPath("think-education", "/staff")}?error=save`);
+    return { error: `The staff record could not be saved: ${error.message}.${cleanupMessage}` };
   }
 
   revalidatePath("/education/staff");
-  redirect(`${getProductAppPath("think-education", "/staff")}?created=1`);
+  revalidatePath("/education/settings/users");
+  return {
+    success: true,
+    username: account?.username,
+    temporaryPassword: account?.temporaryPassword,
+  };
+}
+
+export async function importEducationRecords(
+  entity: EducationImportEntity,
+  rows: Array<Record<string, string>>,
+): Promise<{ created: number; skipped: Array<{ row: number; reason: string }> }> {
+  const context = await getCurrentOrgContext();
+  if (!context) throw new Error("Session expired. Sign in again.");
+  if (!Array.isArray(rows) || rows.length < 1 || rows.length > 500) {
+    throw new Error("Import between 1 and 500 records at a time.");
+  }
+
+  const isCampusImport = entity === "campuses";
+  if (!isCampusImport && entity !== "students" && entity !== "staff") {
+    throw new Error("This Think Education import type is not supported.");
+  }
+  const canImport = isCampusImport
+    ? await canTabPermission("education_organization", "organization", "campuses", "create")
+    : await canPermission(entity === "students" ? "education_students" : "education_staff", "import");
+  const canCreate = entity === "campuses"
+    ? canImport
+    : entity === "students"
+      ? await canTabPermission("education_students", "students", "list", "create")
+      : await canTabPermission("education_staff", "staff", "directory", "create");
+  if (!canImport || !canCreate) throw new Error("You do not have permission to import these Think Education records.");
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const campusesByLookup = new Map<string, string | null>();
+  for (const campus of campuses) {
+    for (const value of [campus.id, campus.name, campus.code]) {
+      if (value) {
+        const key = value.trim().toLowerCase();
+        const previous = campusesByLookup.get(key);
+        if (!campusesByLookup.has(key)) campusesByLookup.set(key, campus.id);
+        else if (previous !== campus.id) campusesByLookup.set(key, null);
+      }
+    }
+  }
+
+  const skipped: Array<{ row: number; reason: string }> = [];
+  let created = 0;
+  const getValue = (row: Record<string, string>, key: string) =>
+    typeof row?.[key] === "string" ? row[key].trim() : "";
+  const emailIsValid = (email: string) => !email || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+  const runRowAction = async <T extends { error?: string }>(row: number, action: () => Promise<T>) => {
+    try {
+      return { row, result: await action() };
+    } catch (error) {
+      return {
+        row,
+        error: error instanceof Error ? error.message : "The record could not be saved.",
+      };
+    }
+  };
+
+  for (let start = 0; start < rows.length; start += 10) {
+    const results = await Promise.all(rows.slice(start, start + 10).map(async (row, batchIndex) => {
+      const rowNumber = start + batchIndex + 2;
+      const formData = new FormData();
+      const values = Object.fromEntries(Object.entries(row ?? {}).map(([key, value]) => [
+        key,
+        typeof value === "string" ? value.trim() : "",
+      ]));
+      for (const [key, value] of Object.entries(values)) formData.set(key, value);
+
+      if (entity === "campuses") {
+        const name = getValue(values, "name");
+        const code = getValue(values, "code");
+        const email = getValue(values, "email");
+        if (!name || name.length > 120 || !/^[A-Za-z0-9-]{1,32}$/.test(code)
+          || !emailIsValid(email) || getValue(values, "address").length > 200
+          || getValue(values, "city").length > 100 || getValue(values, "region").length > 100
+          || getValue(values, "country").length > 100 || getValue(values, "phone").length > 32) {
+          return { row: rowNumber, error: "Check the campus name, code, and contact fields." };
+        }
+        return runRowAction(rowNumber, () => createEducationCampus(formData));
+      }
+
+      const campusValue = getValue(values, "campus");
+      const branchId = campusesByLookup.get(campusValue.toLowerCase());
+      if (!branchId) return { row: rowNumber, error: "Campus was not found in your assigned Think Education campuses." };
+      formData.set("branch_id", branchId);
+
+      if (entity === "students") {
+        const studentNumber = getValue(values, "student_number");
+        const firstName = getValue(values, "first_name");
+        const lastName = getValue(values, "last_name");
+        const otherNames = getValue(values, "other_names");
+        const email = getValue(values, "email");
+        const phone = getValue(values, "phone");
+        const dateOfBirth = getValue(values, "date_of_birth");
+        if (!/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber)
+          || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
+          || otherNames.length > 100 || !emailIsValid(email) || phone.length > 32
+          || (dateOfBirth && !isValidEducationStaffDate(dateOfBirth))) {
+          return { row: rowNumber, error: "Check the student number, name, date of birth, and contact fields." };
+        }
+        return runRowAction(rowNumber, () => createEducationStudent(formData));
+      }
+
+      const staffNumber = getValue(values, "staff_number");
+      const firstName = getValue(values, "first_name");
+      const lastName = getValue(values, "last_name");
+      const category = getValue(values, "staff_category");
+      const email = getValue(values, "email");
+      if (!/^[A-Za-z0-9._/-]{1,32}$/.test(staffNumber)
+        || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
+        || !["teaching", "non_teaching"].includes(category)
+        || getValue(values, "job_title").length > 120
+        || !emailIsValid(email) || getValue(values, "phone").length > 32) {
+        return { row: rowNumber, error: "Check the staff number, name, category, and contact fields." };
+      }
+      return runRowAction(rowNumber, () => createEducationStaff(formData));
+    }));
+
+    for (const outcome of results) {
+      if ("error" in outcome && outcome.error) {
+        skipped.push({ row: outcome.row, reason: outcome.error });
+      } else if ("result" in outcome && outcome.result.error) {
+        skipped.push({ row: outcome.row, reason: outcome.result.error });
+      } else {
+        created += 1;
+      }
+    }
+  }
+
+  return { created, skipped };
 }
 
 export async function updateEducationStaffProfile(formData: FormData) {

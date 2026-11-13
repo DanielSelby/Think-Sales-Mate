@@ -9,6 +9,12 @@ export interface EducationRolePreset {
 
 export const EDUCATION_ROLE_PRESETS: EducationRolePreset[] = [
   {
+    key: "education_student",
+    name: "Student",
+    description: "Student portal access only; no staff or campus administration permissions.",
+    permissions: {},
+  },
+  {
     key: "education_admin",
     name: "Education Administrator",
     description: "Manage education operations, workflows, settings, and campus access within assigned scope.",

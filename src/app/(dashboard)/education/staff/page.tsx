@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, Plus, Users } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, Users } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
-import { canTabPermission } from "@/lib/rbac/permissions";
+import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
+import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationStaff } from "../actions";
+import { EducationRecordModal } from "@/components/education/education-record-modal";
+import { EducationImportModal } from "@/components/education/education-import-modal";
 
 const STAFF_CATEGORIES = ["teaching", "non_teaching"] as const;
 type StaffCategory = (typeof STAFF_CATEGORIES)[number];
@@ -33,7 +36,16 @@ export default async function EducationStaffPage({
     ? (requestedCategory as StaffCategory)
     : "";
   const branchIds = selectedBranch ? [selectedBranch] : allowedBranchIds;
-  const canCreate = await canTabPermission("education_staff", "staff", "directory", "create");
+  const [canCreate, canImportCapability] = await Promise.all([
+    canTabPermission("education_staff", "staff", "directory", "create"),
+    canPermission("education_staff", "import"),
+  ]);
+  const canImport = canImportCapability && canCreate;
+  const canCreateAccount = isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  });
   const supabase = await createClient();
   let staff: Array<{
     id: string;
@@ -91,9 +103,45 @@ export default async function EducationStaffPage({
         <h1 className="mt-2 text-2xl font-bold text-slate-950">Staff Management</h1>
         <p className="mt-1 text-sm text-slate-600">Manage teaching and non-teaching staff within your assigned campuses.</p>
       </div>
-      {canCreate && <a href="#add-staff" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
-        <Plus className="h-4 w-4" /> Add staff member
-      </a>}
+      <div className="flex flex-wrap gap-2">
+        {canImport && campuses.length > 0 && <EducationImportModal entity="staff" label="staff" columns={[
+          { key: "campus", label: "Campus", required: true },
+          { key: "staff_number", label: "Staff Number", required: true },
+          { key: "first_name", label: "First Name", required: true },
+          { key: "last_name", label: "Last Name", required: true },
+          { key: "staff_category", label: "Category", required: true },
+          { key: "job_title", label: "Job Title" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+        ]} />}
+        {canCreate && campuses.length > 0 && <EducationRecordModal
+          title="Add staff member"
+          description="Create an Education staff record and optionally provision a linked login."
+          buttonLabel="Add staff member"
+          submitLabel="Save staff member"
+          action={createEducationStaff}
+          canCreateAccount={canCreateAccount}
+          accountRoles={[
+            { value: "education_teacher", label: "Teacher" },
+            { value: "education_registrar", label: "Registrar" },
+            { value: "education_accountant", label: "Education Accountant" },
+            { value: "education_librarian", label: "Librarian" },
+          ]}
+          fields={[
+            { name: "branch_id", label: "Campus", type: "select", required: true, options: campuses.map((campus) => ({ value: campus.id, label: campus.name })) },
+            { name: "staff_number", label: "Staff number", required: true, maxLength: 32, pattern: "[A-Za-z0-9._/-]+" },
+            { name: "first_name", label: "First name", required: true, maxLength: 100 },
+            { name: "last_name", label: "Last name", required: true, maxLength: 100 },
+            { name: "staff_category", label: "Category", type: "select", required: true, options: [
+              { value: "teaching", label: "Teaching" },
+              { value: "non_teaching", label: "Non-teaching" },
+            ] },
+            { name: "job_title", label: "Job title", maxLength: 120 },
+            { name: "email", label: "Email", type: "email", maxLength: 254 },
+            { name: "phone", label: "Phone", type: "tel", maxLength: 32 },
+          ]}
+        />}
+      </div>
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Staff record created.</p>}
@@ -156,42 +204,5 @@ export default async function EducationStaffPage({
       </div>}
     </section>
 
-    {canCreate && campuses.length > 0 && <section id="add-staff" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Add staff member</h2>
-      <p className="mt-1 text-sm text-slate-500">Create a staff record in one of your assigned campuses.</p>
-      <form action={createEducationStaff} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm font-medium text-slate-700">Campus
-          <select required name="branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Staff number
-          <input required name="staff_number" maxLength={32} pattern="[A-Za-z0-9._/-]+" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">First name
-          <input required name="first_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Last name
-          <input required name="last_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Category
-          <select required name="staff_category" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            <option value="teaching">Teaching</option><option value="non_teaching">Non-teaching</option>
-          </select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Job title
-          <input name="job_title" maxLength={120} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Email
-          <input name="email" type="email" maxLength={254} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Phone
-          <input name="phone" type="tel" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-4">
-          <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Save staff member</button>
-        </div>
-      </form>
-    </section>}
   </main>;
 }

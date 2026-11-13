@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
@@ -21,6 +22,7 @@ import {
   getProductScopedHref,
   getVisibleNavigationChildren,
 } from "@/lib/product-navigation";
+import { PLATFORM_PRODUCT_LABELS, type PlatformProductSlug } from "@/types/platform-database";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 import { NAV_ITEMS as SHARED_NAV_ITEMS, SETTINGS_CHILDREN as SHARED_SETTINGS_CHILDREN } from "./navigation";
@@ -41,6 +43,7 @@ export interface NavChild {
   href:  string;
   icon?: React.ComponentType<{ className?: string }>;
   restaurantIntegration?: boolean;
+  section?: string;
 }
 
 export interface NavItem {
@@ -219,17 +222,34 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
 
 // ── Reusable child list ───────────────────────────────────────
 
-function ChildLinks({ items, sidebar, onNavigate }: {
+function ChildLinks({ items, sidebar, onNavigate, indented = true, collapsed = false }: {
   items:   NavChild[];
   sidebar: { text: string; textMuted: string; borderColor: string };
   onNavigate?: () => void;
+  indented?: boolean;
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const groups = items.reduce<Array<{ section?: string; items: NavChild[] }>>((result, child) => {
+    const lastGroup = result[result.length - 1];
+    if (lastGroup && lastGroup.section === child.section) lastGroup.items.push(child);
+    else result.push({ section: child.section, items: [child] });
+    return result;
+  }, []);
   return (
-    <div className="ml-6 mt-0.5 mb-0.5 pl-3 space-y-0.5"
-      style={{ borderLeft: `1px solid ${sidebar.borderColor}` }}>
-      {items.map(child => {
+    <div
+      className={indented ? "ml-6 mt-0.5 mb-0.5 pl-3 space-y-0.5" : collapsed ? "space-y-1" : "space-y-3"}
+      style={indented ? { borderLeft: `1px solid ${sidebar.borderColor}` } : undefined}
+    >
+      {groups.map((group, groupIndex) => (
+        <div key={`${group.section ?? "navigation"}-${groupIndex}`} className="space-y-0.5">
+          {group.section && !collapsed && (
+            <p className="px-2 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: sidebar.textMuted }}>
+              {group.section}
+            </p>
+          )}
+          {group.items.map(child => {
         const Icon        = child.icon;
         const href = getProductScopedHref(pathname, child.href);
         if (!href) return null;
@@ -246,7 +266,11 @@ function ChildLinks({ items, sidebar, onNavigate }: {
             onClick={onNavigate}
             prefetch={PREFETCH_ROUTES.has(childUrl.pathname)}
             aria-current={childActive ? "page" : undefined}
-            className="flex items-center gap-2 rounded-lg py-1.5 px-2 text-[13px] transition-all duration-150"
+            title={collapsed ? child.label : undefined}
+            className={cn(
+              "flex items-center gap-2 rounded-lg py-1.5 px-2 text-[13px] transition-all duration-150",
+              collapsed && "justify-center px-1"
+            )}
             style={{
               color: childActive ? sidebar.text : sidebar.textMuted,
               fontWeight: childActive ? 700 : 400,
@@ -261,16 +285,36 @@ function ChildLinks({ items, sidebar, onNavigate }: {
               }
             }}
           >
-            {Icon && <Icon className="h-3 w-3 shrink-0 opacity-70" />}
-            {child.label}
+            {Icon && <Icon className={cn("shrink-0 opacity-70", collapsed ? "h-4 w-4" : "h-3 w-3")} />}
+            {!collapsed && <span className="truncate">{child.label}</span>}
           </Link>
         );
-      })}
+          })}
+        </div>
+      ))}
     </div>
   );
 }
 
-export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName = "ThinkSales ERP Pro", mobileOpen = false, onNavigate }: { collapsed: boolean; enabledModules?: string[]; systemLogoUrl?: string | null; systemName?: string; mobileOpen?: boolean; onNavigate?: () => void }) {
+export function Sidebar({
+  collapsed,
+  enabledModules,
+  systemLogoUrl,
+  systemName = "ThinkSales ERP Pro",
+  productLogoUrls,
+  productNames,
+  mobileOpen = false,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  enabledModules?: string[];
+  systemLogoUrl?: string | null;
+  systemName?: string;
+  productLogoUrls?: Partial<Record<PlatformProductSlug, string>>;
+  productNames?: Partial<Record<PlatformProductSlug, string>>;
+  mobileOpen?: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname  = usePathname();
   const router = useRouter();
   const productScope = getProductNavigationScope(pathname);
@@ -280,15 +324,7 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
   const educationBrand = productScope === "think-education";
   const [isSigningOut, startSignOut] = useTransition();
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  const sidebar   = educationBrand ? {
-    background: "#0b1f47",
-    text: "#FFFFFF",
-    textMuted: "#D4DEEF",
-    activeBackground: "#1765E8",
-    activeText: "#FFFFFF",
-    borderColor: "#263B62",
-    hoverBackground: "#183565",
-  } : {
+  const sidebar   = educationBrand ? theme.sidebar : {
     ...theme.sidebar,
     background: theme.colors.primaryPale,
     text: theme.colors.text,
@@ -298,6 +334,14 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
     borderColor: `${theme.colors.primary}22`,
     hoverBackground: `${theme.colors.primary}12`,
   };
+  const productDisplayName = productNames?.[productScope]
+    ?? (productScope === "thinksales-erp" ? systemName.replace(/\s+Pro$/i, "") : PLATFORM_PRODUCT_LABELS[productScope]);
+  const productLogoUrl = productLogoUrls?.[productScope] ?? (educationBrand ? null : systemLogoUrl);
+  const educationItem = educationBrand ? productNavItems.find((item) => item.label === "Think Education") : null;
+  const educationChildren = educationItem && (!enabledModules || enabledModules.includes(educationItem.label))
+    ? getVisibleNavigationChildren(educationItem.children, educationItem.label, enabledModules)
+      .filter((child) => getProductScopedHref(pathname, child.href) !== null)
+    : [];
 
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     if (pathname.startsWith("/settings")) return "settings";
@@ -364,15 +408,17 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
       {/* ── Logo ── */}
       <div className="flex h-16 items-center gap-3 px-4 shrink-0"
         style={{ borderBottom: `1px solid ${sidebar.borderColor}` }}>
-        {educationBrand
-          ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white" style={{ background: theme.colors.primary }}><GraduationCap className="h-6 w-6" /></span>
-          : <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={systemName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />}
+        {productLogoUrl
+          ? <Image src={productLogoUrl} alt={productDisplayName} width={40} height={40} unoptimized className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1.5 shadow-sm" />
+          : educationBrand
+            ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white" style={{ background: theme.colors.primary }}><GraduationCap className="h-6 w-6" /></span>
+            : <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={productDisplayName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />}
         {(!collapsed || mobileOpen) && (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="truncate text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>
-              {educationBrand ? "Think Education" : systemName.replace(/\s+Pro$/i, "")}
+              {productDisplayName}
             </span>
-            {!educationBrand && /Pro$/i.test(systemName) && (
+            {productScope === "thinksales-erp" && /Pro$/i.test(systemName) && (
               <span
                 className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wide"
                 style={{ background: theme.colors.primary, color: "#FFFFFF" }}
@@ -386,7 +432,15 @@ export function Sidebar({ collapsed, enabledModules, systemLogoUrl, systemName =
 
       {/* ── Nav ── */}
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {productNavItems.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
+        {educationBrand
+          ? <ChildLinks
+            items={educationChildren}
+            sidebar={sidebar}
+            onNavigate={onNavigate}
+            indented={false}
+            collapsed={collapsed && !mobileOpen}
+          />
+          : productNavItems.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
           const Icon     = item.icon;
           const isSoon   = item.status === "soon";
           const childItems = getVisibleNavigationChildren(item.children, item.label, enabledModules)

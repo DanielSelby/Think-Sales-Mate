@@ -212,7 +212,7 @@ export async function setMemberProductRole(
         : defaultPermissionMatrixForRole(normalizedRoleKey);
     }
     const productPermissions = filterPermissionMatrixForProduct(sourcePermissions ?? {}, productSlug);
-    if (!Object.keys(productPermissions).length) {
+    if (!Object.keys(productPermissions).length && normalizedRoleKey !== "education_student") {
       return { error: "This role has no permission template yet. Save its product permissions before assigning it." };
     }
     const { error: seedError } = await supabase.rpc("set_organization_product_role_permissions", {
@@ -248,7 +248,10 @@ export async function setMemberProductRole(
 }
 
 function requestedProductSlugIsValid(value: string): value is PlatformProductSlug {
-  return value === "thinksales-erp" || value === "restaurant" || value === "think-service-repairs";
+  return value === "thinksales-erp"
+    || value === "restaurant"
+    || value === "think-service-repairs"
+    || value === "think-education";
 }
 
 function submittedApprovalPermissions(formData: FormData): Record<string, boolean | number> | null | undefined {

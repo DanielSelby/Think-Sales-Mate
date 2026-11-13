@@ -323,6 +323,7 @@ describe("role permission inheritance", () => {
 
   it("provides product-only education role presets with scoped workflow permissions", () => {
     expect(EDUCATION_ROLE_PRESETS.map((preset) => preset.key)).toEqual([
+      "education_student",
       "education_admin",
       "education_teacher",
       "education_registrar",
@@ -330,9 +331,11 @@ describe("role permission inheritance", () => {
       "education_librarian",
     ]);
 
+    const student = getEducationRolePreset("education_student");
     const teacher = getEducationRolePreset("education_teacher");
     const librarian = getEducationRolePreset("education_librarian");
     const administrator = getEducationRolePreset("education_admin");
+    expect(student?.permissions).toEqual({});
     expect(teacher?.permissions.education_attendance).toEqual(["view", "create", "edit"]);
     expect(teacher?.permissions.education_examinations).toEqual(["view"]);
     expect(teacher?.permissions["education_reports.reports.outcomes"]).toEqual(["view"]);

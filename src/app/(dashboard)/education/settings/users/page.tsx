@@ -134,7 +134,7 @@ export default async function EducationUserAccessPage({
           return <div key={`${scope.user_id}:${scope.scope_type}:${scope.branch_id ?? "org"}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
             <div>
               <p className="font-medium text-slate-900">{member ? memberLabel(member) : "Organization member"}</p>
-              <p className="mt-1 text-sm text-slate-500">{scope.scope_type === "organization" ? "Organization-wide" : branchName ?? "Assigned campus"}</p>
+              <p className="mt-1 text-sm text-slate-500">{scope.scope_type === "organization" ? "Organization-wide" : branchName ?? "Inactive or unregistered campus"}</p>
             </div>
             {canRevoke && <form action={revokeEducationMemberBranchScope}>
               <input type="hidden" name="user_id" value={scope.user_id} />
