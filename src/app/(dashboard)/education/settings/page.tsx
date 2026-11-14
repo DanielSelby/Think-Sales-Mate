@@ -17,6 +17,7 @@ const INSTITUTION_TYPES = [
   ["university", "University"],
   ["technical_vocational", "Technical / vocational"],
   ["training", "Training institution"],
+  ["multi_level", "Multi-level institution (basic to university)"],
   ["other", "Other"],
 ] as const;
 

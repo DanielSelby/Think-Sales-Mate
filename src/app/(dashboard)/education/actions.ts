@@ -177,7 +177,7 @@ export async function saveEducationInstitutionSettings(formData: FormData) {
   ]));
   const allowedTypes = [
     "basic", "primary", "junior_high", "senior_high", "college", "university",
-    "technical_vocational", "training", "other",
+    "technical_vocational", "training", "multi_level", "other",
   ];
   if (!institutionName || institutionName.length > 160 || !/^[A-Z0-9._/-]{1,32}$/.test(institutionCode)
     || !allowedTypes.includes(institutionType)
@@ -201,7 +201,7 @@ export async function saveEducationInstitutionSettings(formData: FormData) {
     org_id: context.orgId,
     institution_name: institutionName,
     institution_code: institutionCode,
-    institution_type: institutionType as "basic" | "primary" | "junior_high" | "senior_high" | "college" | "university" | "technical_vocational" | "training" | "other",
+    institution_type: institutionType as "basic" | "primary" | "junior_high" | "senior_high" | "college" | "university" | "technical_vocational" | "training" | "multi_level" | "other",
     terminology,
     updated_by: context.userId,
     updated_at: new Date().toISOString(),

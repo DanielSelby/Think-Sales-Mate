@@ -117,6 +117,26 @@ export default async function ThinkEducationDashboardPage() {
     ?? pendingExpensesError ?? overdueLibraryError ?? pendingLeaveError ?? pendingTransferError;
   if (queryError) throw new Error(`Could not load Think Education dashboard: ${queryError.message}`);
 
+  const attendanceTrendDates = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(`${today}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() - (6 - index));
+    return date.toISOString().slice(0, 10);
+  });
+  const attendanceTrend = canReadAttendance && branchIds.length
+    ? await Promise.all(attendanceTrendDates.map(async (date) => {
+      const [totalResult, presentResult] = await Promise.all([
+        supabase.from("education_attendance").select("id", { count: "exact", head: true })
+          .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date),
+        supabase.from("education_attendance").select("id", { count: "exact", head: true })
+          .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date).eq("status", "present"),
+      ]);
+      if (totalResult.error) throw new Error(`Could not load attendance trend for ${date}: ${totalResult.error.message}`);
+      if (presentResult.error) throw new Error(`Could not load present attendance for ${date}: ${presentResult.error.message}`);
+      const total = totalResult.count ?? 0;
+      const present = presentResult.count ?? 0;
+      return { date, total, present, rate: total ? Math.round((present / total) * 100) : null };
+    }))
+    : [];
   const studentDistribution = canReadStudents
     ? await Promise.all(campuses.map(async (campus) => {
       const { count, error } = await supabase.from("education_students")
@@ -160,7 +180,7 @@ export default async function ThinkEducationDashboardPage() {
       </form>}
     </section>}
 
-    <section aria-label="Education overview metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Education overview metrics" data-education-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map(({ label, value, icon: Icon, tint }) => <article key={label} className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -172,6 +192,28 @@ export default async function ThinkEducationDashboardPage() {
           <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ backgroundColor: tint.includes("bg-blue") ? "rgba(59,130,246,0.10)" : tint.includes("bg-violet") ? "rgba(139,92,246,0.10)" : tint.includes("bg-emerald") ? "rgba(16,185,129,0.10)" : "rgba(245,158,11,0.12)", color: "var(--theme-primary, #2563eb)" }}><Icon className="h-5 w-5" /></span>
         </div>
       </article>)}
+    </section>
+
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-950">Attendance trend</h2>
+          <p className="mt-1 text-sm text-slate-500">Daily present rate across your assigned campuses for the last seven days.</p>
+        </div>
+        <Link href={getProductAppPath("think-education", "/attendance")} className="text-sm font-semibold text-blue-700">Open attendance</Link>
+      </div>
+      {!canReadAttendance ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include attendance reporting access.</p>
+        : branchIds.length === 0 ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see attendance trends.</p>
+          : attendanceTrend.every((day) => day.total === 0) ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">No attendance has been recorded in the last seven days.</p>
+            : <div className="mt-5 grid grid-cols-7 gap-2 sm:gap-4">
+              {attendanceTrend.map((day) => <div key={day.date} className="flex min-w-0 flex-col items-center gap-2">
+                <span className="text-xs font-semibold tabular-nums text-slate-700">{day.rate === null ? "—" : `${day.rate}%`}</span>
+                <div className="flex h-32 w-full items-end justify-center rounded-lg bg-slate-50 p-2" role="img" aria-label={`${day.date}: ${day.present} present out of ${day.total} marked`}>
+                  <span className="w-full rounded-t-md bg-blue-600" style={{ height: `${day.rate ?? 0}%`, minHeight: day.rate === null ? 0 : "0.375rem" }} />
+                </div>
+                <span className="text-center text-[11px] text-slate-500">{new Date(`${day.date}T12:00:00.000Z`).toLocaleDateString(undefined, { weekday: "short" })}</span>
+              </div>)}
+            </div>}
     </section>
 
     {(canReviewExpenses || canReadLibraryCirculation || canReviewLeave || canReviewTransfers) && <section className="space-y-3">

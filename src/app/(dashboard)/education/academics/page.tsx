@@ -85,13 +85,15 @@ export default async function EducationAcademicsPage({
             ? "The term cannot change status until its academic year and dates allow it."
             : params.error === "save" ? "Your academic changes could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
-    <header>
+  return <main className="mx-auto w-full max-w-[1680px] space-y-6 p-4 md:p-6 xl:p-8">
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div>
       <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
         <ArrowLeft className="h-4 w-4" /> Dashboard
       </Link>
-      <h1 className="mt-2 text-2xl font-bold text-slate-950">Academic Management</h1>
-      <p className="mt-1 text-sm text-slate-600">Manage academic years and campus classes within your authorized scope.</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Academic Management</h1>
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Manage academic years and campus classes within your authorized scope.</p>
+      </div>
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic record created.</p>}
@@ -100,7 +102,7 @@ export default async function EducationAcademicsPage({
     {params.termUpdated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic term status updated.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-4">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-4">
       {[
         { label: "Academic years", value: academicYears.length, icon: CalendarDays },
         { label: "Academic terms", value: academicTerms.length, icon: CalendarDays },
@@ -117,7 +119,7 @@ export default async function EducationAcademicsPage({
     </p>}
 
     <section className="grid gap-5 xl:grid-cols-2">
-      <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-4">
           <h2 className="font-bold text-slate-950">Academic years</h2>
           <p className="mt-1 text-sm text-slate-500">Organization-wide academic calendars.</p>
@@ -164,7 +166,7 @@ export default async function EducationAcademicsPage({
         </div>}
       </article>
 
-      <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-4">
           <h2 className="font-bold text-slate-950">Classes</h2>
           <p className="mt-1 text-sm text-slate-500">Class groups for your assigned campuses.</p>
@@ -175,8 +177,8 @@ export default async function EducationAcademicsPage({
           </div>
           <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Class</th><th className="px-4 py-3">Level / stream</th><th className="px-4 py-3">Academic year</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Capacity</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{classes.map((classroom) => <tr key={classroom.id}>
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Class</th><th className="px-4 py-3">Level / stream</th><th className="px-4 py-3">Academic year</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Capacity</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{classes.map((classroom) => <tr key={classroom.id} className="transition-colors hover:bg-slate-50/80">
               <td className="px-4 py-3 font-semibold text-slate-900">{classroom.name}</td>
               <td className="px-4 py-3 text-slate-600">{[classroom.level_name, classroom.stream_name].filter(Boolean).join(" · ") || "—"}</td>
               <td className="px-4 py-3 text-slate-600">{yearNameById.get(classroom.academic_year_id) ?? "—"}</td>

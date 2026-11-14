@@ -95,6 +95,13 @@ export default async function EducationTimetablesPage({
     (!selectedYear || entry.academic_year_id === selectedYear)
     && (!selectedWeekday || entry.weekday === selectedWeekday)
   );
+  const timetableDays = selectedWeekday
+    ? WEEKDAYS.filter((day) => day.value === selectedWeekday)
+    : WEEKDAYS;
+  const entriesByWeekday = new Map(timetableDays.map((day) => [
+    day.value,
+    visibleEntries.filter((entry) => entry.weekday === day.value),
+  ]));
   const classNameById = new Map(classes.map((classroom) => [classroom.id, classroom.name]));
   const yearNameById = new Map(academicYears.map((year) => [year.id, year.name]));
   const staffById = new Map(staff.map((member) => [member.id, `${member.first_name} ${member.last_name}`]));
@@ -125,13 +132,13 @@ export default async function EducationTimetablesPage({
       ? "Check the campus, class, academic year, subject, day, and time."
       : params.error === "save" ? "The timetable entry could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
+  return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-slate-950">Class Timetables</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Class Timetables</h1>
         <p className="mt-1 text-sm text-slate-600">View weekly lessons and schedule classes without overlapping their class, teacher, or room.</p>
       </div>
       {canCreate && selectedCampusClasses.length > 0 && <a href="#add-lesson" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
@@ -142,18 +149,23 @@ export default async function EducationTimetablesPage({
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Timetable entry added.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
         { label: "Lessons in this view", value: visibleEntries.length, icon: CalendarClock },
         { label: "Campuses in your access", value: campuses.length, icon: CalendarClock },
         { label: "Active classes", value: selectedCampusClasses.length, icon: CalendarClock },
-      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section aria-label="Timetable guidance" className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+      <h2 className="text-sm font-semibold text-slate-900">Weekly lesson overview</h2>
+      <p className="mt-1 text-sm text-slate-600">Lessons are grouped by day and shown in start-time order. Filter by campus, academic year, or day to focus the schedule.</p>
+    </section>
+
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <form method="get" action={getProductAppPath("think-education", "/timetables")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[1fr_1fr_1fr_auto_auto]">
         <label className="text-sm font-medium text-slate-700">Campus
           <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
@@ -182,23 +194,28 @@ export default async function EducationTimetablesPage({
         <CalendarClock className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No lessons scheduled</h2>
         <p className="mt-1 text-sm text-slate-500">Add a lesson to an active class in an available academic year.</p>
-      </div> : <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Day</th><th className="px-4 py-3">Time</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Class</th><th className="px-4 py-3">Teacher</th><th className="px-4 py-3">Campus / room</th><th className="px-4 py-3">Year</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{visibleEntries.map((entry) => <tr key={entry.id}>
-            <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">{WEEKDAYS.find((day) => day.value === entry.weekday)?.label}</td>
-            <td className="whitespace-nowrap px-4 py-3 text-slate-600">{entry.starts_at.slice(0, 5)}–{entry.ends_at.slice(0, 5)}</td>
-            <td className="px-4 py-3 font-medium text-slate-900">{entry.subject_name}</td>
-            <td className="px-4 py-3 text-slate-600">{classNameById.get(entry.class_id) ?? "Class"}</td>
-            <td className="px-4 py-3 text-slate-600">{entry.staff_id ? staffById.get(entry.staff_id) ?? "Staff" : "Unassigned"}</td>
-            <td className="px-4 py-3 text-slate-600">{campusNameById.get(entry.branch_id) ?? "Campus"}{entry.room ? ` · ${entry.room}` : ""}</td>
-            <td className="px-4 py-3 text-slate-600">{yearNameById.get(entry.academic_year_id) ?? "—"}</td>
-          </tr>)}</tbody>
-        </table>
+      </div> : <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 md:p-4">
+        {timetableDays.map((day) => {
+          const dayEntries = entriesByWeekday.get(day.value) ?? [];
+          return <section key={day.value} aria-label={`${day.label} lessons`} className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+              <h2 className="font-semibold text-slate-900">{day.label}</h2>
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium tabular-nums text-slate-600 ring-1 ring-slate-200">{dayEntries.length} {dayEntries.length === 1 ? "lesson" : "lessons"}</span>
+            </header>
+            {dayEntries.length === 0 ? <p className="px-4 py-5 text-sm text-slate-500">No lessons scheduled</p> : <ol className="divide-y divide-slate-100">
+              {dayEntries.map((entry) => <li key={entry.id} className="border-l-2 border-blue-500 px-4 py-3 transition-colors hover:bg-slate-50/70">
+                <p className="text-xs font-semibold tabular-nums text-blue-800">{entry.starts_at.slice(0, 5)}–{entry.ends_at.slice(0, 5)}</p>
+                <h3 className="mt-1 font-semibold text-slate-900">{entry.subject_name}</h3>
+                <p className="mt-1 text-sm text-slate-600">{classNameById.get(entry.class_id) ?? "Class"} · {entry.staff_id ? staffById.get(entry.staff_id) ?? "Staff" : "Unassigned"}</p>
+                <p className="mt-1 text-xs text-slate-500">{campusNameById.get(entry.branch_id) ?? "Campus"}{entry.room ? ` · ${entry.room}` : ""} · {yearNameById.get(entry.academic_year_id) ?? "—"}</p>
+              </li>)}
+            </ol>}
+          </section>;
+        })}
       </div>}
     </section>
 
-    {canCreate && selectedCampusClasses.length > 0 && <section id="add-lesson" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    {canCreate && selectedCampusClasses.length > 0 && <section id="add-lesson" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-slate-950">Add lesson to timetable</h2>
       <p className="mt-1 text-sm text-slate-500">The server checks for class, teacher, and room conflicts before saving.</p>
       <form action={createEducationTimetableEntry} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

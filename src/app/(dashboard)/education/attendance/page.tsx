@@ -109,19 +109,19 @@ export default async function EducationAttendancePage({
       ? "Check the attendance date, status, and note."
       : params.error === "save" ? "Attendance could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
+  return <main className="mx-auto w-full max-w-[1680px] space-y-6 p-4 md:p-6 xl:p-8">
     <header>
       <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
         <ArrowLeft className="h-4 w-4" /> Dashboard
       </Link>
-      <h1 className="mt-2 text-2xl font-bold text-slate-950">Student Attendance</h1>
-      <p className="mt-1 text-sm text-slate-600">Record or correct daily attendance for active students in your authorized campuses.</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Student Attendance</h1>
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Record or correct daily attendance for active students in your authorized campuses.</p>
     </header>
 
     {params.saved === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Attendance saved for {attendanceDate}.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
         { label: "Active students in filter", value: totalCount.toLocaleString(), icon: Users },
         { label: "Marked on this page", value: students.filter((student) => attendanceByStudent.has(student.id)).length.toLocaleString(), icon: CalendarCheck },
@@ -132,18 +132,18 @@ export default async function EducationAttendancePage({
       </article>)}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/attendance")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto]">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <form method="get" action={getProductAppPath("think-education", "/attendance")} className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto] md:p-5">
         <label className="text-sm font-medium text-slate-700">Search students
-          <input name="search" defaultValue={search} placeholder="Name or student number" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          <input name="search" defaultValue={search} placeholder="Name or student number" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal" />
         </label>
         <label className="text-sm font-medium text-slate-700">Campus
-          <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+          <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal">
             <option value="">All assigned campuses</option>{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-slate-700">Attendance date
-          <input type="date" name="date" defaultValue={attendanceDate} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          <input type="date" name="date" defaultValue={attendanceDate} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal" />
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
         {students.length > 0 && <a href={csvHref} download={`education-attendance-${attendanceDate}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
@@ -159,11 +159,11 @@ export default async function EducationAttendancePage({
         <p className="mt-1 text-sm text-slate-500">Try another search or campus, or add students first.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Attendance</th><th className="px-4 py-3">Note</th><th className="px-4 py-3">Save</th></tr></thead>
+          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Attendance</th><th className="px-4 py-3">Note</th><th className="px-4 py-3">Save</th></tr></thead>
           <tbody className="divide-y divide-slate-100">{students.map((student) => {
             const existing = attendanceByStudent.get(student.id);
             const canSave = existing ? canEdit : canCreate;
-            return <tr key={student.id}>
+            return <tr key={student.id} className="transition-colors hover:bg-slate-50/80">
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{student.student_number}</td>
               <td className="px-4 py-3 font-medium text-slate-900">{student.first_name} {student.last_name}</td>
               <td className="px-4 py-3 text-slate-600">{campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus"}</td>

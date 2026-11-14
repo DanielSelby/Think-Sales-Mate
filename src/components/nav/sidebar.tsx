@@ -324,7 +324,7 @@ export function Sidebar({
   const educationBrand = productScope === "think-education";
   const [isSigningOut, startSignOut] = useTransition();
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  const sidebar   = educationBrand ? theme.sidebar : {
+  const sidebar = {
     ...theme.sidebar,
     background: theme.colors.primaryPale,
     text: theme.colors.text,

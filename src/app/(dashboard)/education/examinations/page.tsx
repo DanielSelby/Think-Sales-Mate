@@ -113,13 +113,13 @@ export default async function EducationExaminationsPage({
       ? "Check the examination name, dates, campus, and academic year."
       : params.error === "save" ? "The examination could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
+  return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-slate-950">Examinations</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Examinations</h1>
         <p className="mt-1 text-sm text-slate-600">Schedule and track examinations across your authorized campuses.</p>
       </div>
       {canCreate && academicYears.length > 0 && campuses.length > 0 && <a href="#schedule-exam" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
@@ -131,18 +131,28 @@ export default async function EducationExaminationsPage({
     {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Examination status updated.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
         { label: "Examinations", value: filteredExaminations.length, icon: ClipboardCheck },
         { label: "Upcoming / scheduled", value: filteredExaminations.filter((exam) => exam.status === "scheduled").length, icon: CalendarDays },
         { label: "In progress", value: filteredExaminations.filter((exam) => exam.status === "in_progress").length, icon: ClipboardCheck },
-      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
-    <form method="get" className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
+    <section aria-label="Examination workflow" className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 md:flex md:items-center md:justify-between md:gap-6">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900">Examination workflow</h2>
+        <p className="mt-1 text-sm text-slate-600">Create a draft, schedule the sitting, then send completed examinations to results for review and publication.</p>
+      </div>
+      <p className="mt-3 shrink-0 text-sm font-medium text-blue-900 md:mt-0">
+        {filteredExaminations.filter((exam) => exam.status === "results_pending").length.toLocaleString()} awaiting results
+      </p>
+    </section>
+
+    <form method="get" className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
       <label className="text-sm font-medium text-slate-700">Search
         <input name="search" defaultValue={requestedSearch} placeholder="Name, type or term" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
       </label>
@@ -171,7 +181,7 @@ export default async function EducationExaminationsPage({
       </div>
     </form>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section aria-label="Examination records" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {campuses.length === 0 ? <div className="p-8 text-center">
         <ClipboardCheck className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No campus access assigned</h2>
@@ -183,7 +193,7 @@ export default async function EducationExaminationsPage({
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Examination</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Academic period</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Schedule</th><th className="px-4 py-3">Status / actions</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{filteredExaminations.map((exam) => <tr key={exam.id} className="align-top">
+          <tbody className="divide-y divide-slate-100">{filteredExaminations.map((exam) => <tr key={exam.id} className="align-top transition-colors hover:bg-slate-50/70">
             <td className="px-4 py-3 font-semibold text-slate-900">{exam.name}</td>
             <td className="px-4 py-3 capitalize text-slate-600">{exam.examination_type.replace("_", " ")}</td>
             <td className="px-4 py-3 text-slate-600">{yearNameById.get(exam.academic_year_id) ?? "Academic year"}{exam.term_id && termNameById.has(exam.term_id) ? ` · ${termNameById.get(exam.term_id)}` : ""}</td>
@@ -207,7 +217,7 @@ export default async function EducationExaminationsPage({
       </div>}
     </section>
 
-    {canCreate && academicYears.length > 0 && campuses.length > 0 && <section id="schedule-exam" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    {canCreate && academicYears.length > 0 && campuses.length > 0 && <section id="schedule-exam" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-slate-950">Create examination</h2>
       <p className="mt-1 text-sm text-slate-500">New examinations start in draft. Scheduling and later status changes require the appropriate permission.</p>
       <form action={createEducationExamination} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

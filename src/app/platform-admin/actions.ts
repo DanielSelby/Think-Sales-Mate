@@ -1053,10 +1053,10 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
   const slugValue = formData.get("productSlug");
   const slug = typeof slugValue === "string" ? slugValue : "";
   const file = formData.get("image");
-  if (assetType !== "hero" && assetType !== "about" && assetType !== "product") {
+  if (assetType !== "hero" && assetType !== "about" && assetType !== "product" && assetType !== "product-background") {
     return { ok: false, error: "Choose a valid Product Hub image type." };
   }
-  if (assetType === "product" && !isPlatformProductSlug(slug)) {
+  if ((assetType === "product" || assetType === "product-background") && !isPlatformProductSlug(slug)) {
     return { ok: false, error: "Choose a supported product for this image." };
   }
   if (!(file instanceof File) || file.size === 0) {
@@ -1088,12 +1088,18 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
   const currentProductPaths = isRecord(currentValue.product_image_paths)
     ? currentValue.product_image_paths
     : {};
+  const currentProductCardBackgroundPaths = isRecord(currentValue.product_card_background_paths)
+    ? currentValue.product_card_background_paths
+    : {};
   const previousPath = assetType === "hero"
     ? currentValue.hero_storage_path
     : assetType === "about"
       ? currentValue.about_storage_path
-      : currentProductPaths[slug];
-  const uploadedPath = `product-hub/${assetType}/${assetType === "product" ? slug : "page"}/${crypto.randomUUID()}.${image.extension}`;
+      : assetType === "product"
+        ? currentProductPaths[slug]
+        : currentProductCardBackgroundPaths[slug];
+  const productAssetSlug = assetType === "product" || assetType === "product-background" ? slug : "page";
+  const uploadedPath = `product-hub/${assetType}/${productAssetSlug}/${crypto.randomUUID()}.${image.extension}`;
   const { error: uploadError } = await supabase.storage.from("platform-assets").upload(uploadedPath, image.bytes, {
     contentType: image.contentType,
     cacheControl: "31536000",
@@ -1103,11 +1109,14 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
 
   const productImagePaths = { ...currentProductPaths };
   if (assetType === "product") productImagePaths[slug] = uploadedPath;
+  const productCardBackgroundPaths = { ...currentProductCardBackgroundPaths };
+  if (assetType === "product-background") productCardBackgroundPaths[slug] = uploadedPath;
   const nextValue: Record<string, unknown> = {
     ...currentValue,
     ...(assetType === "hero" ? { hero_storage_path: uploadedPath } : {}),
     ...(assetType === "about" ? { about_storage_path: uploadedPath } : {}),
     ...(assetType === "product" ? { product_image_paths: productImagePaths } : {}),
+    ...(assetType === "product-background" ? { product_card_background_paths: productCardBackgroundPaths } : {}),
   };
   const updatedAt = new Date().toISOString();
   const { error: saveError } = await supabase.from("platform_settings").upsert({
@@ -1131,7 +1140,11 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
     admin_id: admin.id,
     action: "product_hub_artwork_updated",
     module: "product_catalog",
-    metadata: { asset_type: assetType, product_slug: assetType === "product" ? slug : null, storage_path: uploadedPath },
+    metadata: {
+      asset_type: assetType,
+      product_slug: assetType === "product" || assetType === "product-background" ? slug : null,
+      storage_path: uploadedPath,
+    },
   });
   if (auditError) {
     const rollback = current
@@ -1162,6 +1175,80 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
   }
 
   return { ok: true, message: "Product Hub artwork was uploaded and saved." };
+}
+
+export async function saveProductHubCardBackground(formData: FormData): Promise<ProductHubAppearanceActionResult> {
+  const { admin, supabase } = await requirePlatformManagement("Feature Access");
+  const slugValue = formData.get("productSlug");
+  const enabledValue = formData.get("showBackground");
+  const slug = typeof slugValue === "string" ? slugValue : "";
+  if (!isPlatformProductSlug(slug)) return { ok: false, error: "Choose a supported product." };
+  if (enabledValue !== "true" && enabledValue !== "false") {
+    return { ok: false, error: "Choose whether to show the product card background." };
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("platform_settings")
+    .select("value, updated_at, updated_by")
+    .eq("key", "product_hub_branding")
+    .maybeSingle();
+  if (currentError) return { ok: false, error: `Could not load current Product Hub settings: ${currentError.message}` };
+
+  const currentValue = isRecord(current?.value) ? current.value : {};
+  const backgroundPaths = isRecord(currentValue.product_card_background_paths)
+    ? currentValue.product_card_background_paths
+    : {};
+  if (enabledValue === "true") {
+    const backgroundPath = backgroundPaths[slug];
+    if (typeof backgroundPath !== "string" || !backgroundPath.startsWith(`product-hub/product-background/${slug}/`)) {
+      return { ok: false, error: "Upload a product card background image before enabling it." };
+    }
+  }
+
+  const backgroundEnabledValues = isRecord(currentValue.product_card_background_enabled)
+    ? currentValue.product_card_background_enabled
+    : {};
+  const nextValue = {
+    ...currentValue,
+    product_card_background_enabled: {
+      ...backgroundEnabledValues,
+      [slug]: enabledValue === "true",
+    },
+  };
+  const { error: saveError } = await supabase.from("platform_settings").upsert({
+    key: "product_hub_branding",
+    value: nextValue,
+    updated_by: admin.id,
+    updated_at: new Date().toISOString(),
+  });
+  if (saveError) return { ok: false, error: `Could not save product card background setting: ${saveError.message}` };
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "product_hub_card_background_updated",
+    module: "product_catalog",
+    metadata: { product_slug: slug, show_background: enabledValue === "true" },
+  });
+  if (auditError) {
+    const rollback = current
+      ? await supabase.from("platform_settings").upsert({
+        key: "product_hub_branding",
+        value: current.value,
+        updated_at: current.updated_at,
+        updated_by: current.updated_by,
+      })
+      : await supabase.from("platform_settings").delete().eq("key", "product_hub_branding");
+    return {
+      ok: false,
+      error: rollback.error
+        ? `Audit logging failed (${auditError.message}); the setting rollback failed (${rollback.error.message}).`
+        : `The setting was rolled back because audit logging failed: ${auditError.message}`,
+    };
+  }
+
+  revalidatePath("/platform-admin/products");
+  revalidatePath("/product-hub");
+  return { ok: true, message: `Product card background ${enabledValue === "true" ? "enabled" : "disabled"}.` };
 }
 
 export async function saveProductHubTheme(formData: FormData): Promise<ProductHubAppearanceActionResult> {

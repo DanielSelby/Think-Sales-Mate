@@ -28,9 +28,6 @@ import { DateRangeFilter } from "@/components/charts/date-range-filter";
 import { DashboardFilters, type FilterOption } from "@/components/charts/dashboard-filters";
 import { formatMoney } from "@/lib/currency";
 import { DashboardMotionItem } from "@/components/charts/dashboard-motion-item";
-import { RestaurantFinancialSummary, type RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
-import { RestaurantSupplierInvoiceAlert } from "@/components/restaurant/restaurant-supplier-invoice-alert";
-import type { RestaurantSupplierInvoiceAgingRow } from "@/components/restaurant/restaurant-supplier-invoice-aging";
 
 interface Kpi {
   label: string;
@@ -51,8 +48,6 @@ export function DashboardContent({
   branches,
   categories,
   currentRange,
-  restaurantSummary,
-  restaurantSupplierInvoices = [],
 }: {
   summary: FinancialSummary;
   orgName: string;
@@ -62,8 +57,6 @@ export function DashboardContent({
   branches: FilterOption[];
   categories: FilterOption[];
   currentRange: DateRange;
-  restaurantSummary?: RestaurantFinancialSummaryData;
-  restaurantSupplierInvoices?: RestaurantSupplierInvoiceAgingRow[];
 }) {
   const insightLines = latestInsight
     ? latestInsight.content
@@ -176,18 +169,6 @@ export function DashboardContent({
           </DashboardMotionItem>
         ))}
       </div>
-
-      {restaurantSummary && <DashboardMotionItem delay={0.1}>
-        <RestaurantFinancialSummary
-          summary={restaurantSummary}
-          currency={currency}
-          periodLabel={`${currentRange.from} to ${currentRange.to}`}
-          href="/restaurant?view=reports"
-        />
-      </DashboardMotionItem>}
-      {restaurantSupplierInvoices.length > 0 && <DashboardMotionItem delay={0.14}>
-        <RestaurantSupplierInvoiceAlert invoices={restaurantSupplierInvoices} currency={currency} />
-      </DashboardMotionItem>}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <DashboardMotionItem className="h-full lg:col-span-1" delay={0.12} hover>

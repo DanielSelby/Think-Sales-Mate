@@ -118,12 +118,12 @@ export default async function EducationResultsPage({
         ? "Check the examination, student number, subject, score, and maximum score."
         : params.error === "save" ? "The result could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
+  return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header>
       <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
         <ArrowLeft className="h-4 w-4" /> Dashboard
       </Link>
-      <h1 className="mt-2 text-2xl font-bold text-slate-950">Results &amp; Report Cards</h1>
+      <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Results &amp; Report Cards</h1>
       <p className="mt-1 text-sm text-slate-600">Enter scores, submit grades for approval, and publish finalized results.</p>
     </header>
 
@@ -131,18 +131,33 @@ export default async function EducationResultsPage({
     {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Result status updated.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
         { label: "Results in selected exam", value: filteredResults.length, icon: FileText },
         { label: "Awaiting approval", value: filteredResults.filter((result) => result.status === "submitted").length, icon: Trophy },
         { label: "Published", value: filteredResults.filter((result) => result.status === "published").length, icon: Trophy },
-      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section aria-label="Results workflow" className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+      <h2 className="text-sm font-semibold text-slate-900">Gradebook workflow</h2>
+      <p className="mt-1 text-sm text-slate-600">Enter scores after an examination is completed, submit grades for approval, and publish approved results.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {[
+          ["Draft", "draft"],
+          ["Submitted", "submitted"],
+          ["Approved", "approved"],
+          ["Published", "published"],
+        ].map(([label, status]) => <span key={status} className="inline-flex items-center gap-2 rounded-full border border-white bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700">
+          {label}<span className="font-bold tabular-nums text-blue-800">{filteredResults.filter((result) => result.status === status).length.toLocaleString()}</span>
+        </span>)}
+      </div>
+    </section>
+
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <form method="get" action={getProductAppPath("think-education", "/results")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1.2fr)_220px_220px_auto]">
         <label className="text-sm font-medium text-slate-700">Examination
           <select name="examination" defaultValue={selectedExam?.id ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
@@ -185,7 +200,7 @@ export default async function EducationResultsPage({
             const canUpdate = result.status === "draft" ? canEdit
               : result.status === "submitted" ? canEdit && canApprove
                 : result.status === "approved" ? canEdit && canPublish : false;
-            return <tr key={result.id}>
+            return <tr key={result.id} className="transition-colors hover:bg-slate-50/70">
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{student?.number ?? "—"}</td>
               <td className="px-4 py-3 font-medium text-slate-900">{student?.name ?? "Student"}</td>
               <td className="px-4 py-3 text-slate-700">{result.subject_name}</td>
@@ -204,7 +219,7 @@ export default async function EducationResultsPage({
       </div>}
     </section>
 
-    {canEnterResults && selectedExam && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    {canEnterResults && selectedExam && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-slate-950">Enter result</h2>
       <p className="mt-1 text-sm text-slate-500">Add a score for a student in {selectedExam.name}. Student numbers are checked against this examination’s campus.</p>
       <form action={createEducationResult} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -228,7 +243,7 @@ export default async function EducationResultsPage({
       </form>
     </section>}
 
-    {selectedExam?.status === "results_pending" && canEdit && canPublish && <section className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+    {selectedExam?.status === "results_pending" && canEdit && canPublish && <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
       <h2 className="font-semibold text-blue-950">Publish examination</h2>
       <p className="mt-1 text-sm text-blue-900">The database will allow publication only after at least one result exists and every result is published.</p>
       <form action={updateEducationExaminationStatus} className="mt-3">

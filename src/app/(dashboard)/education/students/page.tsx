@@ -109,14 +109,14 @@ export default async function EducationStudentsPage({
       ? "Check the student number, name, and email fields and try again."
       : params.error === "save" ? "The student record could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
-    <header className="flex flex-wrap items-end justify-between gap-4">
+  return <main className="mx-auto w-full max-w-[1680px] space-y-6 p-4 md:p-6 xl:p-8">
+    <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-slate-950">Student Management</h1>
-        <p className="mt-1 text-sm text-slate-600">View and manage student records across your authorized campuses.</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Student Management</h1>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">View and manage student records across your authorized campuses.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {canImport && campuses.length > 0 && <EducationImportModal entity="students" label="students" columns={[
@@ -154,29 +154,29 @@ export default async function EducationStudentsPage({
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Student record created.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
         { label: "Students matching filters", value: totalCount.toLocaleString(), icon: Users },
         { label: "Campuses in your access", value: campuses.length.toLocaleString(), icon: GraduationCap },
-        { label: "Records per page", value: PAGE_SIZE.toString(), icon: Search },
+        { label: "Students on this page", value: students.length.toLocaleString(), icon: Search },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/students")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto]">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <form method="get" action={getProductAppPath("think-education", "/students")} className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto] md:p-5">
         <label className="relative block">
           <span className="sr-only">Search by student name or number</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input name="search" defaultValue={search} placeholder="Search name or student number" className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <input name="search" defaultValue={search} placeholder="Search name or student number" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </label>
-        <select name="branch" defaultValue={selectedBranch} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select name="branch" defaultValue={selectedBranch} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
           <option value="">All assigned campuses</option>
           {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
         </select>
-        <select name="status" defaultValue={status} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select name="status" defaultValue={status} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
           {STUDENT_STATUSES.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
         </select>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
@@ -193,11 +193,11 @@ export default async function EducationStudentsPage({
         <p className="mt-1 text-sm text-slate-500">Try changing the search or filters, or add a student if you have permission.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             <tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Full name</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Enrolled</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {students.map((student) => <tr key={student.id} className="hover:bg-slate-50/70">
+            {students.map((student) => <tr key={student.id} className="transition-colors hover:bg-slate-50/80">
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{student.student_number}</td>
               <td className="px-4 py-3 font-medium text-slate-900">{[student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ")}</td>
               <td className="px-4 py-3 text-slate-600">{branchNameById.get(student.branch_id) ?? "Campus"}</td>

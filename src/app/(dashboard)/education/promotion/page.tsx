@@ -99,13 +99,13 @@ export default async function EducationPromotionPage({
       ? "Select an eligible destination class or graduation action."
       : params.error === "save" ? "Student progression could not be completed. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
+  return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-slate-950">Promotion &amp; Graduation</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Promotion &amp; Graduation</h1>
         <p className="mt-1 text-sm text-slate-600">Progress active students from completed academic years into the next class, or record graduation.</p>
       </div>
       {completedYearEnrollments.length > 0 && <a href={csvHref} download={`education-promotion-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
@@ -115,18 +115,26 @@ export default async function EducationPromotionPage({
     {params.updated === "graduate" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Student marked as graduated and the active enrollment was completed.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
         { label: "Active enrollments", value: enrollments.length, icon: GraduationCap },
         { label: "Ready for progression", value: completedYearEnrollments.length, icon: TrendingUp },
         { label: "Campuses in your access", value: campuses.length, icon: GraduationCap },
-      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section aria-label="Progression workflow" className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 md:flex md:items-center md:justify-between md:gap-6">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900">Review each eligible enrollment</h2>
+        <p className="mt-1 text-sm text-slate-600">Choose a destination class in the same campus for promotion, or record graduation when the student has completed their studies.</p>
+      </div>
+      <p className="mt-3 shrink-0 text-sm font-medium text-blue-900 md:mt-0">{completedYearEnrollments.length.toLocaleString()} enrollments from completed years</p>
+    </section>
+
+    <section aria-label="Students ready for progression" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {campuses.length === 0 ? <div className="p-8 text-center">
         <GraduationCap className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No campus access assigned</h2>
@@ -146,7 +154,7 @@ export default async function EducationPromotionPage({
               && classroom.academic_year_id !== enrollment.academic_year_id
               && ["planned", "active"].includes(academicYearById.get(classroom.academic_year_id)?.status ?? "")
             );
-            return <tr key={enrollment.id} className="align-top">
+            return <tr key={enrollment.id} className="align-top transition-colors hover:bg-slate-50/70">
               <td className="px-4 py-3"><span className="block font-semibold text-slate-900">{student?.first_name} {student?.last_name}</span><span className="text-xs text-slate-500">{student?.student_number}</span></td>
               <td className="px-4 py-3 text-slate-600">{campusNameById.get(enrollment.branch_id) ?? "Campus"}</td>
               <td className="px-4 py-3 text-slate-600">{sourceClass?.name ?? "Class"}</td>

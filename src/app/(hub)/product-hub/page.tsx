@@ -18,6 +18,12 @@ import { OrganizationExpiredScreen } from "@/components/organization/organizatio
 import { ProductHubClient, type ProductHubItem } from "./product-hub-client";
 
 export const dynamic = "force-dynamic";
+const PRODUCT_TAGLINES: Record<string, string> = {
+  "thinksales-erp": "Sell. Grow. Succeed.",
+  restaurant: "Plan. Serve. Nourish.",
+  "think-service-repairs": "Maintain. Repair. Perform.",
+  "think-education": "Manage. Educate. Inspire.",
+};
 
 export default async function ProductHubPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -82,12 +88,19 @@ export default async function ProductHubPage() {
     const subscriptionStatus = entitlementBySlug.get(product.slug);
     if (!subscriptionStatus || (!isOrgAdmin && !assignedSlugs.has(product.slug))) continue;
     if (!shouldShowProductInHub(subscriptionStatus)) continue;
+    const cardBackgroundImageUrl = hubBranding.productCardBackgroundImageUrls[product.slug] ?? null;
+    const productPresentation = {
+      imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
+      cardBackgroundImageUrl,
+      showCardBackgroundImage: Boolean(cardBackgroundImageUrl && hubBranding.productCardBackgroundEnabled[product.slug]),
+      tagline: PRODUCT_TAGLINES[product.slug] ?? "",
+    };
 
     if (subscriptionStatus === "pending") {
       if (isOrgAdmin) {
         items.push({
           ...product,
-          imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
+          ...productPresentation,
           status: "Provisioning",
           launchPath: null,
           canOpen: false,
@@ -112,7 +125,7 @@ export default async function ProductHubPage() {
     if (hasReadAccess && launchPath) {
       items.push({
         ...product,
-        imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
+        ...productPresentation,
         status: subscriptionStatus === "grace" || subscriptionStatus === "expired" ? "Read-only" : "Active",
         launchPath,
         canOpen: true,
@@ -120,7 +133,7 @@ export default async function ProductHubPage() {
     } else if (isOrgAdmin) {
       items.push({
         ...product,
-        imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
+        ...productPresentation,
         status: "Unavailable",
         launchPath: null,
         canOpen: false,

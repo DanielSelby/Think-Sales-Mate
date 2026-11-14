@@ -48,6 +48,9 @@ export interface ProductHubItem {
   name: string;
   description: string;
   imageUrl: string | null;
+  cardBackgroundImageUrl: string | null;
+  showCardBackgroundImage: boolean;
+  tagline: string;
   status: "Active" | "Read-only" | "Provisioning" | "Unavailable";
   launchPath: string | null;
   canOpen: boolean;
@@ -111,6 +114,7 @@ const PRODUCT_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
   "thinksales-erp": { icon: BarChart3, color: "bg-blue-100 text-blue-700" },
   restaurant: { icon: Store, color: "bg-purple-100 text-purple-700" },
   "think-service-repairs": { icon: Wrench, color: "bg-emerald-100 text-emerald-700" },
+  "think-education": { icon: BookOpen, color: "bg-violet-100 text-violet-700" },
 };
 
 const sidebarLinks = [
@@ -625,18 +629,72 @@ export function ProductHubClient({
             )}
 
             {filteredProducts.length || isOrgAdmin ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {filteredProducts.map((product) => {
                   const presentation = PRODUCT_ICONS[product.slug] ?? { icon: LayoutGrid, color: "bg-slate-100 text-slate-700" };
                   const ProductIcon = presentation.icon;
+                  const hasCardBackground = product.showCardBackgroundImage && Boolean(product.cardBackgroundImageUrl);
                   return (
-                    <article data-hub-surface key={product.slug} className="group flex min-h-[320px] flex-col rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:p-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${product.status === "Active" ? "bg-emerald-50 text-emerald-700" : product.status === "Read-only" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${product.status === "Active" ? "bg-emerald-500" : product.status === "Read-only" ? "bg-amber-500" : "bg-slate-400"}`} />
-                          {product.status}
-                        </span>
-                        <div className="flex items-center gap-2">
+                    <article data-hub-surface key={product.slug} className="group relative isolate flex min-h-[205px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:min-h-[185px]">
+                      {hasCardBackground && product.cardBackgroundImageUrl && (
+                        <Image
+                          src={product.cardBackgroundImageUrl}
+                          alt=""
+                          fill
+                          unoptimized
+                          className="z-0 object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                        />
+                      )}
+                      <div aria-hidden="true" className={`absolute inset-0 z-[1] ${
+                        hasCardBackground
+                          ? "bg-gradient-to-r from-white via-white/95 to-white/25"
+                          : "bg-gradient-to-br from-white via-white to-blue-50/60"
+                      }`} />
+                      {product.canOpen && product.launchPath && (
+                        <Link
+                          href={product.launchPath}
+                          onClick={() => recordProductLaunch(product.slug)}
+                          aria-label={`Open ${product.name}`}
+                          className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+                        >
+                          <span className="sr-only">Open {product.name}</span>
+                        </Link>
+                      )}
+                      <div className={`relative z-20 flex min-w-0 flex-1 flex-col justify-between gap-4 p-4 sm:flex-row sm:items-end sm:p-5 ${
+                        product.canOpen && product.launchPath ? "pointer-events-none" : ""
+                      }`}>
+                        <div className="min-w-0 flex-1 sm:max-w-[74%]">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className={`relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${
+                              product.imageUrl ? "bg-white/90 shadow-sm" : presentation.color
+                            }`}>
+                              {product.imageUrl ? (
+                                <Image src={product.imageUrl} alt="" fill unoptimized className="object-contain p-1.5" />
+                              ) : (
+                                <ProductIcon aria-hidden="true" className="h-7 w-7" />
+                              )}
+                            </span>
+                            <span className="min-w-0">
+                              <h3 className="truncate text-base font-bold leading-tight text-[#152440] sm:text-lg">{product.name}</h3>
+                              {product.tagline && <span className="mt-1 block truncate text-xs font-medium text-blue-800">{product.tagline}</span>}
+                            </span>
+                          </div>
+                          <p className="mt-3 line-clamp-2 max-w-xl text-xs leading-5 text-slate-700 sm:text-sm">
+                            {product.description || "Open your organization's application."}
+                          </p>
+                          <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                            product.status === "Active" ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                              : product.status === "Read-only" ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                                : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                          }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${
+                              product.status === "Active" ? "bg-emerald-500"
+                                : product.status === "Read-only" ? "bg-amber-500" : "bg-slate-400"
+                            }`} />
+                            {product.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
                           {product.canOpen && (
                             <button
                               type="button"
@@ -644,55 +702,22 @@ export function ProductHubClient({
                               aria-pressed={hubPreferences.favorites.includes(product.slug)}
                               title={hubPreferences.favorites.includes(product.slug) ? "Remove from favorites" : "Add to favorites"}
                               onClick={() => toggleFavorite(product.slug)}
-                              className="rounded-md p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              className="pointer-events-auto relative z-30 rounded-md bg-white/80 p-1.5 text-slate-500 shadow-sm transition hover:bg-amber-50 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                             >
                               <Star className={`h-4 w-4 ${hubPreferences.favorites.includes(product.slug) ? "fill-amber-400 text-amber-500" : ""}`} />
                             </button>
                           )}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-1 items-center gap-4">
-                        <div className={`relative aspect-square h-32 w-32 shrink-0 overflow-hidden rounded-xl sm:h-36 sm:w-36 ${product.imageUrl ? "bg-slate-50" : presentation.color}`}>
-                          {product.imageUrl ? (
-                            <Image src={product.imageUrl} alt={`${product.name} product image`} fill unoptimized className="object-contain p-3" />
+                          {product.canOpen ? (
+                            <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm">
+                              Open Product
+                              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                            </span>
                           ) : (
-                            <span className="flex h-full w-full items-center justify-center">
-                              <ProductIcon className="h-16 w-16" strokeWidth={1.4} />
+                            <span className="rounded-lg bg-white/80 px-3.5 py-2 text-xs font-medium text-slate-600 shadow-sm">
+                              {product.status === "Provisioning" ? "Provisioning in progress" : "Temporarily unavailable"}
                             </span>
                           )}
                         </div>
-                        <div className="min-w-0 flex-1 text-center">
-                          <h3 className="text-base font-bold text-[#152440]">
-                          {product.canOpen && product.launchPath ? (
-                            <Link
-                              href={product.launchPath}
-                              onClick={() => recordProductLaunch(product.slug)}
-                              className="rounded-sm hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                            >
-                              {product.name}
-                            </Link>
-                          ) : product.name}
-                          </h3>
-                          <p className="mt-1.5 line-clamp-3 text-xs leading-5 text-slate-500">
-                            {product.description || "Open your organization's application."}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-4 border-t border-slate-100 pt-3">
-                        {product.canOpen && product.launchPath ? (
-                          <Link
-                            href={product.launchPath}
-                            onClick={() => recordProductLaunch(product.slug)}
-                            className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
-                          >
-                            Open Application
-                            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                          </Link>
-                        ) : (
-                          <span className="inline-flex h-9 items-center rounded-lg bg-slate-100 px-3.5 text-xs font-medium text-slate-500">
-                            {product.status === "Provisioning" ? "Provisioning in progress" : "Temporarily unavailable"}
-                          </span>
-                        )}
                       </div>
                     </article>
                   );

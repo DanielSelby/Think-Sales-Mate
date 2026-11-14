@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { ImagePlus, Moon, Sun } from "lucide-react";
 import {
+  saveProductHubCardBackground,
   saveProductHubTheme,
   uploadProductHubArtwork,
   type ProductHubAppearanceActionResult,
@@ -25,7 +26,7 @@ function ArtworkUploader({
   imageUrl,
   canManage,
 }: {
-  assetType: "hero" | "about" | "product";
+  assetType: "hero" | "about" | "product" | "product-background";
   productSlug?: PlatformProductSlug;
   label: string;
   description: string;
@@ -35,6 +36,7 @@ function ArtworkUploader({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ProductHubAppearanceActionResult | null>(null);
+  const imageFit = assetType === "product-background" ? "object-cover" : "object-contain p-2";
 
   function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,10 +63,10 @@ function ArtworkUploader({
   return (
     <article className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4">
       <div className={`relative mb-3 flex w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50 ${
-        assetType === "hero" ? "aspect-[16/5] max-h-40" : assetType === "about" ? "aspect-[4/3] max-h-40" : "aspect-square max-h-40"
+        assetType === "hero" ? "aspect-[16/5] max-h-40" : assetType === "about" ? "aspect-[4/3] max-h-40" : assetType === "product-background" ? "aspect-[16/7] max-h-40" : "aspect-square max-h-40"
       }`}>
         {imageUrl ? (
-          <Image src={imageUrl} alt="" fill unoptimized className="object-contain p-2" />
+          <Image src={imageUrl} alt="" fill unoptimized className={imageFit} />
         ) : (
           <div className="text-center text-slate-400">
             <ImagePlus aria-hidden="true" className="mx-auto h-7 w-7" />
@@ -102,6 +104,77 @@ function ArtworkUploader({
         </p>
       )}
     </article>
+  );
+}
+
+function ProductCardBackgroundToggle({
+  productSlug,
+  productName,
+  imageUrl,
+  initialEnabled,
+  canManage,
+}: {
+  productSlug: PlatformProductSlug;
+  productName: string;
+  imageUrl: string | null;
+  initialEnabled: boolean;
+  canManage: boolean;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [result, setResult] = useState<ProductHubAppearanceActionResult | null>(null);
+
+  function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResult(null);
+    const formData = new FormData(event.currentTarget);
+    formData.set("productSlug", productSlug);
+    formData.set("showBackground", String(formData.has("showBackground")));
+    startTransition(async () => {
+      try {
+        const actionResult = await saveProductHubCardBackground(formData);
+        setResult(actionResult);
+        if (actionResult.ok) router.refresh();
+      } catch (error) {
+        setResult({
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not save product card background settings.",
+        });
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={save} className="rounded-xl border border-slate-200 bg-white p-4">
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          name="showBackground"
+          value="true"
+          defaultChecked={initialEnabled}
+          disabled={!canManage || isPending || !imageUrl}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600 disabled:opacity-50"
+        />
+        <span>
+          <span className="block text-sm font-semibold text-slate-900">Show background on Product Hub card</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-500">
+            {imageUrl ? `Control whether ${productName} uses its uploaded card image.` : "Upload a card background image before enabling it."}
+          </span>
+        </span>
+      </label>
+      <button
+        type="submit"
+        disabled={!canManage || isPending || !imageUrl}
+        className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isPending ? "Saving…" : "Save background setting"}
+      </button>
+      {result && (
+        <p role={result.ok ? "status" : "alert"} className={`mt-2 text-xs ${result.ok ? "text-emerald-700" : "text-red-700"}`}>
+          {result.ok ? result.message : result.error}
+        </p>
+      )}
+    </form>
   );
 }
 
@@ -219,15 +292,32 @@ export function ProductHubAppearanceManager({
           canManage={canManage}
         />
         {products.map((product) => (
-          <ArtworkUploader
-            key={product.slug}
-            assetType="product"
-            productSlug={product.slug}
-            label={`${product.name} logo`}
-            description="Shown on this product's Product Hub card and in its application sidebar."
-            imageUrl={branding.productImageUrls[product.slug] ?? null}
-            canManage={canManage}
-          />
+          <div key={product.slug} className="space-y-3">
+            <ArtworkUploader
+              assetType="product"
+              productSlug={product.slug}
+              label={`${product.name} logo`}
+              description="Shown on this product's Product Hub card and in its application sidebar."
+              imageUrl={branding.productImageUrls[product.slug] ?? null}
+              canManage={canManage}
+            />
+            <ArtworkUploader
+              assetType="product-background"
+              productSlug={product.slug}
+              label={`${product.name} card background`}
+              description="Fills the full Product Hub card while its name, tagline, description, and status stay readable on top."
+              imageUrl={branding.productCardBackgroundImageUrls[product.slug] ?? null}
+              canManage={canManage}
+            />
+            <ProductCardBackgroundToggle
+              key={`${product.slug}-${branding.productCardBackgroundEnabled[product.slug] ?? false}`}
+              productSlug={product.slug}
+              productName={product.name}
+              imageUrl={branding.productCardBackgroundImageUrls[product.slug] ?? null}
+              initialEnabled={branding.productCardBackgroundEnabled[product.slug] ?? false}
+              canManage={canManage}
+            />
+          </div>
         ))}
       </div>
       <p className="text-xs text-slate-500">Images must be valid JPEG, PNG, SVG, or WebP files no larger than 2 MB.</p>

@@ -131,14 +131,14 @@ export default async function EducationAdmissionsPage({
                 ? "The application or class is no longer available."
                 : params.error === "save" ? "The application could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
-    <header className="flex flex-wrap items-end justify-between gap-4">
+  return <main className="mx-auto w-full max-w-[1680px] space-y-6 p-4 md:p-6 xl:p-8">
+    <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-slate-950">Admissions</h1>
-        <p className="mt-1 text-sm text-slate-600">Track applications and admission decisions across your assigned campuses.</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Admissions</h1>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Track applications and admission decisions across your assigned campuses.</p>
       </div>
       {canCreate && <a href="#new-application" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
         <Plus className="h-4 w-4" /> New application
@@ -150,29 +150,29 @@ export default async function EducationAdmissionsPage({
     {params.enrolled === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Applicant enrolled and added to the student directory.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
-        { label: "Applications", value: admissions.length, icon: ClipboardList },
-        { label: "Awaiting review", value: admissions.filter((item) => item.status === "pending" || item.status === "under_review").length, icon: UserPlus },
-        { label: "Admitted", value: admissions.filter((item) => item.status === "admitted" || item.status === "enrolled").length, icon: UserPlus },
+        { label: "Applications matching filters", value: admissions.length, icon: ClipboardList },
+        { label: "Awaiting review in results", value: admissions.filter((item) => item.status === "pending" || item.status === "under_review").length, icon: UserPlus },
+        { label: "Admitted in results", value: admissions.filter((item) => item.status === "admitted" || item.status === "enrolled").length, icon: UserPlus },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/admissions")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_220px_220px_auto_auto]">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <form method="get" action={getProductAppPath("think-education", "/admissions")} className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_220px_220px_auto_auto] md:p-5">
         <label className="relative block">
           <span className="sr-only">Search applications</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input name="search" defaultValue={requestedSearch} placeholder="Search applicant or application" className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <input name="search" defaultValue={requestedSearch} placeholder="Search applicant or application" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </label>
-        <select name="branch" defaultValue={selectedBranch} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select name="branch" defaultValue={selectedBranch} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
           <option value="">All campuses</option>
           {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
         </select>
-        <select name="status" defaultValue={selectedStatus} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select name="status" defaultValue={selectedStatus} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
           <option value="">All statuses</option>
           {ADMISSION_STATUSES.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}
         </select>
@@ -189,14 +189,14 @@ export default async function EducationAdmissionsPage({
         <p className="mt-1 text-sm text-slate-500">New applications will appear here when they match your current filters.</p>
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             <tr><th className="px-4 py-3">Application</th><th className="px-4 py-3">Applicant</th><th className="px-4 py-3">Campus / class</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Applied</th><th className="px-4 py-3">Status &amp; actions</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {admissions.map((application) => <tr key={application.id} className="align-top hover:bg-slate-50/70">
+            {admissions.map((application) => <tr key={application.id} className="align-top transition-colors hover:bg-slate-50/80">
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{application.application_number}</td>
               <td className="px-4 py-3 font-medium text-slate-900">{application.applicant_first_name} {application.applicant_last_name}</td>
-              <td className="px-4 py-3 text-slate-600">{campusNameById.get(application.branch_id) ?? "Campus"}<br />{application.requested_class_id ? classNameById.get(application.requested_class_id)?.split(" · ").slice(1).join(" · ") ?? "Class selected" : "No class selected"}</td>
+              <td className="px-4 py-3 leading-6 text-slate-600">{campusNameById.get(application.branch_id) ?? "Campus"}<br />{application.requested_class_id ? classNameById.get(application.requested_class_id)?.split(" · ").slice(1).join(" · ") ?? "Class selected" : "No class selected"}</td>
               <td className="px-4 py-3 text-slate-600">{application.applicant_email || application.applicant_phone || "—"}</td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(application.applied_at).toLocaleDateString()}</td>
               <td className="px-4 py-3">

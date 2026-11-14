@@ -109,13 +109,13 @@ export default async function EducationTransfersPage({
           ? "Check the student number, campuses, effective date, and transfer reason."
           : params.error === "save" ? "The transfer could not be saved. Please try again." : null;
 
-  return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
+  return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-slate-950">Student Transfers</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Student Transfers</h1>
         <p className="mt-1 text-sm text-slate-600">Request and process student moves between campuses you are authorized to access.</p>
       </div>
       {canCreate && campuses.length > 1 && <a href="#new-transfer" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
@@ -127,19 +127,29 @@ export default async function EducationTransfersPage({
     {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Transfer processed. Completion is audited and updates the student’s campus enrollment.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section className="grid gap-3 sm:grid-cols-4">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-4">
       {[
         { label: "Transfer requests", value: visibleTransfers.length, icon: ArrowRightLeft },
         { label: "Pending review", value: visibleTransfers.filter((item) => item.status === "pending").length, icon: Truck },
         { label: "Approved", value: visibleTransfers.filter((item) => item.status === "approved").length, icon: Check },
         { label: "Completed", value: visibleTransfers.filter((item) => item.status === "completed").length, icon: Check },
-      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
       </article>)}
     </section>
 
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section aria-label="Transfer workflow" className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 md:flex md:items-center md:justify-between md:gap-6">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900">Transfer workflow</h2>
+        <p className="mt-1 text-sm text-slate-600">Requests are reviewed before completion. Completing an approved transfer updates the student’s campus enrollment on its effective date.</p>
+      </div>
+      <p className="mt-3 shrink-0 text-sm font-medium text-blue-900 md:mt-0">
+        {visibleTransfers.filter((transfer) => transfer.status === "rejected").length.toLocaleString()} rejected
+      </p>
+    </section>
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <form method="get" className="grid gap-3 md:grid-cols-4 lg:flex-1">
           <label className="text-sm font-medium text-slate-700">Search student
@@ -170,7 +180,7 @@ export default async function EducationTransfersPage({
       {visibleTransfers.length > exportLimit && <p className="mt-3 text-xs text-amber-700">Showing the first {exportLimit.toLocaleString()} matching transfers in the CSV export. Narrow the filters to include the full set.</p>}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section aria-label="Transfer requests" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {visibleTransfers.length === 0 ? <div className="p-8 text-center">
         <Truck className="mx-auto h-10 w-10 text-slate-300" />
         <h2 className="mt-3 font-semibold text-slate-900">No transfer requests match these filters</h2>
@@ -182,7 +192,7 @@ export default async function EducationTransfersPage({
             const student = studentNameById.get(transfer.student_id);
             const hasBothCampuses = campuses.some((campus) => campus.id === transfer.source_branch_id)
               && campuses.some((campus) => campus.id === transfer.destination_branch_id);
-            return <tr key={transfer.id} className="align-top">
+            return <tr key={transfer.id} className="align-top transition-colors hover:bg-slate-50/70">
               <td className="px-4 py-3"><span className="block font-semibold text-slate-900">{student?.name ?? "Student"}</span><span className="text-xs text-slate-500">{student?.number ?? "—"}</span></td>
               <td className="px-4 py-3 text-slate-600">{campusNameById.get(transfer.source_branch_id) ?? "Campus"}</td>
               <td className="px-4 py-3 text-slate-600">{campusNameById.get(transfer.destination_branch_id) ?? "Campus"}</td>
@@ -211,7 +221,7 @@ export default async function EducationTransfersPage({
       </div>}
     </section>
 
-    {canCreate && campuses.length > 1 && <section id="new-transfer" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    {canCreate && campuses.length > 1 && <section id="new-transfer" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-slate-950">Request student transfer</h2>
       <p className="mt-1 text-sm text-slate-500">Both campuses must be assigned to your account. The student’s current enrollment changes only after approval and audited completion.</p>
       <form action={createEducationStudentTransfer} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

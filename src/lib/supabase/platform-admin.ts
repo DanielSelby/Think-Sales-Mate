@@ -87,6 +87,8 @@ export interface ProductHubBranding {
   heroArtworkUrl: string | null;
   aboutImageUrl: string | null;
   productImageUrls: Partial<Record<PlatformProductSlug, string>>;
+  productCardBackgroundImageUrls: Partial<Record<PlatformProductSlug, string>>;
+  productCardBackgroundEnabled: Partial<Record<PlatformProductSlug, boolean>>;
   productNames: Record<PlatformProductSlug, string>;
   darkThemeEnabled: boolean;
   darkSurfaceStyle: "opaque" | "transparent";
@@ -132,7 +134,19 @@ export async function getProductHubBranding(): Promise<ProductHubBranding> {
   const productPaths = value.product_image_paths && typeof value.product_image_paths === "object" && !Array.isArray(value.product_image_paths)
     ? value.product_image_paths as Record<string, unknown>
     : {};
+  const productCardBackgroundPaths = value.product_card_background_paths
+    && typeof value.product_card_background_paths === "object"
+    && !Array.isArray(value.product_card_background_paths)
+    ? value.product_card_background_paths as Record<string, unknown>
+    : {};
+  const productCardBackgroundEnabledValues = value.product_card_background_enabled
+    && typeof value.product_card_background_enabled === "object"
+    && !Array.isArray(value.product_card_background_enabled)
+    ? value.product_card_background_enabled as Record<string, unknown>
+    : {};
   const productImageUrls: Partial<Record<PlatformProductSlug, string>> = {};
+  const productCardBackgroundImageUrls: Partial<Record<PlatformProductSlug, string>> = {};
+  const productCardBackgroundEnabled: Partial<Record<PlatformProductSlug, boolean>> = {};
   const productNames = { ...PLATFORM_PRODUCT_LABELS };
   for (const product of products ?? []) {
     if (isPlatformProductSlug(product.slug) && product.name.trim()) {
@@ -142,12 +156,19 @@ export async function getProductHubBranding(): Promise<ProductHubBranding> {
   for (const slug of PRODUCT_SLUGS) {
     const url = getManagedAssetUrl(platform, productPaths[slug]);
     if (url) productImageUrls[slug] = url;
+    const backgroundUrl = getManagedAssetUrl(platform, productCardBackgroundPaths[slug]);
+    if (backgroundUrl) productCardBackgroundImageUrls[slug] = backgroundUrl;
+    productCardBackgroundEnabled[slug] = productCardBackgroundEnabledValues[slug] === false
+      ? false
+      : Boolean(backgroundUrl);
   }
 
   return {
     heroArtworkUrl: getManagedAssetUrl(platform, value.hero_storage_path),
     aboutImageUrl: getManagedAssetUrl(platform, value.about_storage_path),
     productImageUrls,
+    productCardBackgroundImageUrls,
+    productCardBackgroundEnabled,
     productNames,
     darkThemeEnabled: value.dark_theme_enabled === true,
     darkSurfaceStyle: value.dark_surface_style === "transparent" ? "transparent" : "opaque",
