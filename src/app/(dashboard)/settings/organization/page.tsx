@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import type { User as AuthUser } from "@supabase/supabase-js";
+import { Users2 } from "lucide-react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -346,7 +347,18 @@ export default async function OrganizationSettingsPage({
     ? "product_permissions"
     : undefined;
   return (
-    <div id="users" className="mx-auto max-w-[1680px] space-y-6">
+    <div id="users" className="workspace-organization-page mx-auto max-w-[1680px] space-y-6">
+      <header className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Organization workspace</p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">{context.orgName}</h1>
+          <p className="mt-1 text-sm text-slate-500">Manage people, roles, organization access, and product permissions.</p>
+        </div>
+        <div className="inline-flex items-center gap-2 self-start rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 sm:self-center">
+          <Users2 className="h-4 w-4" />
+          Organization administration
+        </div>
+      </header>
       <UserManagement
         users={users}
         branches={branches}

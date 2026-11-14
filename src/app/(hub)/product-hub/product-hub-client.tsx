@@ -119,7 +119,7 @@ const PRODUCT_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
 
 const sidebarLinks = [
   { label: "Home", href: "/product-hub", icon: LayoutGrid },
-  { label: "Organization", href: "/settings/organization", icon: Building2, adminOnly: true },
+  { label: "Organization", href: "/settings/company", icon: Building2, adminOnly: true },
   { label: "Users", href: "/settings/organization#users", icon: Users, adminOnly: true },
   { label: "Subscription", href: "/subscription-status", icon: CreditCard },
   { label: "Settings", href: "/settings", icon: Settings, adminOnly: true },
@@ -321,6 +321,7 @@ export function ProductHubClient({
         [data-product-hub-theme="dark"] {
           --hub-surface: #111d30;
           --hub-inset-surface: #18263a;
+          --hub-card-overlay: linear-gradient(90deg, rgb(8 19 34 / 96%), rgb(8 19 34 / 85%) 58%, rgb(8 19 34 / 25%));
           background-color: #0a1322 !important;
           color: #e2e8f0;
         }
@@ -335,6 +336,9 @@ export function ProductHubClient({
           background-color: var(--hub-surface) !important;
           border-color: #2a3b52 !important;
           background-image: none !important;
+        }
+        [data-product-hub-theme="dark"] [data-hub-card-overlay] {
+          background-image: var(--hub-card-overlay) !important;
         }
         .min-h-screen[data-product-hub-theme="dark"] main [data-hub-surface] {
           border-color: #2a3b52 !important;
@@ -477,8 +481,8 @@ export function ProductHubClient({
           </div>
         </header>
 
-        <main className="w-full space-y-6 px-4 py-4 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8">
-          <section className="sticky top-[68px] z-20 isolate min-h-[205px] overflow-hidden rounded-2xl bg-transparent px-5 py-5 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:px-8 sm:py-4">
+        <main className="workspace-hub-main relative isolate w-full space-y-6 px-4 py-4 sm:space-y-8 sm:px-6 sm:py-6 lg:px-8">
+          <section className="workspace-hub-hero sticky top-[68px] z-20 isolate min-h-[205px] overflow-hidden rounded-2xl bg-transparent px-5 py-5 text-white shadow-[0_18px_50px_rgba(9,65,139,0.2)] sm:px-8 sm:py-4">
             {hubBranding.heroArtworkUrl && (
               <>
                 <Image
@@ -635,7 +639,7 @@ export function ProductHubClient({
                   const ProductIcon = presentation.icon;
                   const hasCardBackground = product.showCardBackgroundImage && Boolean(product.cardBackgroundImageUrl);
                   return (
-                    <article data-hub-surface key={product.slug} className="group relative isolate flex min-h-[205px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:min-h-[185px]">
+                    <article data-hub-surface key={product.slug} className="hub-product-card group relative isolate flex min-h-[205px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:min-h-[185px]">
                       {hasCardBackground && product.cardBackgroundImageUrl && (
                         <Image
                           src={product.cardBackgroundImageUrl}
@@ -645,7 +649,7 @@ export function ProductHubClient({
                           className="z-0 object-cover transition-transform duration-500 group-hover:scale-[1.02]"
                         />
                       )}
-                      <div aria-hidden="true" className={`absolute inset-0 z-[1] ${
+                      <div data-hub-card-overlay aria-hidden="true" className={`absolute inset-0 z-[1] ${
                         hasCardBackground
                           ? "bg-gradient-to-r from-white via-white/95 to-white/25"
                           : "bg-gradient-to-br from-white via-white to-blue-50/60"
@@ -665,7 +669,7 @@ export function ProductHubClient({
                       }`}>
                         <div className="min-w-0 flex-1 sm:max-w-[74%]">
                           <div className="flex min-w-0 items-center gap-3">
-                            <span className={`relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${
+                            <span className={`hub-product-icon relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${
                               product.imageUrl ? "bg-white/90 shadow-sm" : presentation.color
                             }`}>
                               {product.imageUrl ? (

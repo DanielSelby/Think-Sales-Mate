@@ -38,7 +38,7 @@ interface NotificationItem {
   location_id: string | null;
 }
 
-export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, organizationUsage, organizationAccessExpiresAt, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; onOpenMobileSidebar: () => void }) {
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, workspaceHubAppearanceLocked = false, organizationUsage, organizationAccessExpiresAt, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; workspaceHubAppearanceLocked?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; onOpenMobileSidebar: () => void }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, darkStyle, setDarkStyle, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -462,8 +462,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         )}
       </div>
 
-      {/* Theme picker */}
-      <div className="relative">
+      {!workspaceHubAppearanceLocked && <div className="relative">
         <button
           onClick={() => { if (!canChangeTheme) return; setShowThemes(v => !v); setShowDarkStyles(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
           className="flex items-center gap-2 h-8 px-1.5 sm:px-3 rounded-xl text-xs font-semibold transition-all"
@@ -509,10 +508,9 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
             </div>
           </>
         )}
-      </div>
+      </div>}
 
-      {/* Dark mode */}
-      <button
+      {!workspaceHubAppearanceLocked && <button
         onClick={() => setDarkMode(!darkMode)}
         aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
         title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
@@ -522,10 +520,9 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
       >
         {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      </button>
+      </button>}
 
-      {/* Dark-mode style picker */}
-      <div className="relative">
+      {!workspaceHubAppearanceLocked && <div className="relative">
         <button
           type="button"
           onClick={() => {
@@ -590,7 +587,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       {/* Notifications Popover */}
       <div className="relative">

@@ -36,6 +36,8 @@ interface Props {
   systemName?: string;
   productLogoUrls?: Partial<Record<PlatformProductSlug, string>>;
   productNames?: Partial<Record<PlatformProductSlug, string>>;
+  workspaceHubDarkThemeEnabled?: boolean;
+  workspaceHubDarkSurfaceStyle?: "opaque" | "transparent";
   roleTheme?: ThemeKey | null;
   darkStyle?: DarkStyleKey;
   userName?: string | null;
@@ -49,10 +51,14 @@ interface Props {
   organizationUsage: OrganizationUsageSummary | null;
 }
 
-export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, workspaceHubDarkThemeEnabled, workspaceHubDarkSurfaceStyle = "opaque", roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+  const isWorkspaceHubPage = pathname === "/subscription-status"
+    || pathname.startsWith("/settings")
+    || pathname === "/support"
+    || pathname.startsWith("/support/");
   const useStandardLightSurfaces = pathname !== "/pos" &&
     !pathname.startsWith("/pos/");
   React.useEffect(() => {
@@ -123,11 +129,20 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
       <GlobalCallNotifications userId={userId} orgId={orgId} />
       <OrganizationExpiryWarning expiryDate={organizationAccessExpiresAt ?? null} />
       <div
-        className="flex h-screen overflow-hidden"
+        className={`flex h-screen overflow-hidden ${isWorkspaceHubPage && workspaceHubDarkThemeEnabled ? "dark" : ""}`}
+        data-workspace-hub-shell={isWorkspaceHubPage && workspaceHubDarkThemeEnabled !== undefined ? "true" : undefined}
+        data-workspace-hub-theme={isWorkspaceHubPage && workspaceHubDarkThemeEnabled !== undefined
+          ? workspaceHubDarkThemeEnabled ? "dark" : "light"
+          : undefined}
+        data-workspace-hub-surface-style={workspaceHubDarkSurfaceStyle}
         style={{
-          background: darkMode ? "#08111f" : "#f7f8fa",
+          background: isWorkspaceHubPage && workspaceHubDarkThemeEnabled !== undefined
+            ? "var(--workspace-hub-background)"
+            : darkMode ? "#08111f" : "#f7f8fa",
           "--theme-primary": theme.colors.primary,
           "--theme-primary-pale": theme.colors.primaryPale,
+          "--theme-text": theme.colors.text,
+          "--theme-text-muted": theme.colors.textMuted,
           "--theme-header-light": theme.colors.primaryPale,
           "--theme-header-dark": `color-mix(in srgb, ${theme.colors.primary} 18%, #08111f)`,
           "--theme-header-border-light": `color-mix(in srgb, ${theme.colors.primary} 24%, white)`,
@@ -167,6 +182,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             canViewAllBranches={canViewAllBranches}
             canChangeTheme={canChangeTheme}
             darkStyle={darkStyle}
+            workspaceHubAppearanceLocked={isWorkspaceHubPage && workspaceHubDarkThemeEnabled !== undefined}
             organizationUsage={organizationUsage}
             organizationAccessExpiresAt={organizationAccessExpiresAt ?? null}
             onOpenMobileSidebar={() => setMobileSidebarOpen(true)}

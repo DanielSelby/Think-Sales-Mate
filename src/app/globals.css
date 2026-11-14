@@ -3604,3 +3604,321 @@ html.dark[data-dark-style="think-service"] .page-canvas .pos-page .pos-product-g
   background: transparent !important;
   box-shadow: none !important;
 }
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] {
+  --workspace-hub-background: #f5f7fb;
+  --workspace-hub-surface: #ffffff;
+  --workspace-hub-inset-surface: #f8fafc;
+  --workspace-hub-border: var(--theme-header-border-light, #e2e8f0);
+  --workspace-hub-text-primary: var(--theme-text, #0f172a);
+  --workspace-hub-text-secondary: var(--theme-text-muted, #475569);
+  color-scheme: light;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] {
+  --workspace-hub-background: var(--theme-header-dark, #08111f);
+  --workspace-hub-surface: color-mix(in srgb, var(--workspace-hub-background) 82%, white);
+  --workspace-hub-inset-surface: color-mix(in srgb, var(--workspace-hub-background) 66%, white);
+  --workspace-hub-border: var(--theme-header-border-dark, #334155);
+  --workspace-hub-text-primary: #e2e8f0;
+  --workspace-hub-text-secondary: #a8b7cc;
+  color-scheme: dark;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"][data-workspace-hub-surface-style="transparent"] {
+  --workspace-hub-surface: color-mix(in srgb, var(--workspace-hub-background) 76%, transparent);
+  --workspace-hub-inset-surface: color-mix(in srgb, var(--workspace-hub-background) 58%, transparent);
+  background-image:
+    radial-gradient(circle at 85% 12%, color-mix(in srgb, var(--theme-primary) 18%, transparent), transparent 28rem),
+    radial-gradient(circle at 12% 65%, rgb(8 145 178 / 12%), transparent 26rem) !important;
+}
+
+[data-workspace-hub-shell="true"] .page-canvas {
+  background-color: var(--workspace-hub-background) !important;
+  background-image: none;
+  color: var(--workspace-hub-text-primary);
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"][data-workspace-hub-surface-style="transparent"] .page-canvas {
+  background-color: transparent !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] > aside,
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] header[class~="h-14"] {
+  background: var(--workspace-hub-surface) !important;
+  border-color: var(--workspace-hub-border) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] > aside {
+  color: var(--workspace-hub-text-primary);
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"][data-workspace-hub-surface-style="transparent"] :is(aside, header[class~="h-14"]) {
+  backdrop-filter: blur(16px);
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] header[class~="h-14"] [class~="bg-white"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] header[class~="h-14"] [class*="dark:bg-slate-900"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] nav.fixed.inset-x-0.bottom-0 {
+  background-color: var(--workspace-hub-surface) !important;
+  border-color: var(--workspace-hub-border) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] header[class~="h-14"] [class~="text-slate-800"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] header[class~="h-14"] [class~="text-slate-900"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] nav.fixed.inset-x-0.bottom-0 {
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] header[class~="h-14"] [class~="text-slate-500"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] header[class~="h-14"] [class~="text-slate-400"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] nav.fixed.inset-x-0.bottom-0 a {
+  color: var(--workspace-hub-text-secondary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] header[class~="h-14"] [class*="dark:bg-slate-900"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] nav.fixed.inset-x-0.bottom-0 {
+  background-color: var(--workspace-hub-surface) !important;
+  border-color: var(--workspace-hub-border) !important;
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] header[class~="h-14"] [class*="dark:text-slate-100"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] header[class~="h-14"] [class*="dark:text-slate-200"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] nav.fixed.inset-x-0.bottom-0 [class*="dark:text-slate-300"] {
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"] .page-canvas :is(article, section, form, header, a, button, [role="dialog"], div):is(
+  [class~="bg-white"],
+  [class~="bg-slate-50"],
+  [class~="bg-slate-50/50"],
+  [class~="bg-slate-50/70"],
+  [class~="bg-slate-100"],
+  [class~="bg-ledger-50"],
+  [class~="bg-ink-900"],
+  [class~="bg-slate-900"]
+) {
+  background-color: var(--workspace-hub-surface) !important;
+  border-color: var(--workspace-hub-border) !important;
+  color: var(--workspace-hub-text-primary);
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"][data-workspace-hub-surface-style="transparent"] .page-canvas :is(article, section, form, header, a, button, [role="dialog"], div):is(
+  [class~="bg-white"],
+  [class~="bg-slate-50"],
+  [class~="bg-slate-50/50"],
+  [class~="bg-slate-50/70"],
+  [class~="bg-slate-100"],
+  [class~="bg-ledger-50"],
+  [class~="bg-ink-900"],
+  [class~="bg-slate-900"]
+) {
+  backdrop-filter: blur(14px);
+}
+
+[data-workspace-hub-shell="true"] .page-canvas :is(input, select, textarea) {
+  background-color: var(--workspace-hub-inset-surface) !important;
+  border-color: var(--workspace-hub-border) !important;
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"] .page-canvas :is(input, textarea)::placeholder {
+  color: var(--workspace-hub-text-secondary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas :is(
+  [class~="text-slate-950"],
+  [class~="text-slate-900"],
+  [class~="text-slate-800"],
+  [class~="text-slate-700"],
+  [class~="text-ink-900"],
+  [class~="text-black"]
+) {
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas :is(
+  [class~="text-slate-600"],
+  [class~="text-slate-500"],
+  [class~="text-slate-400"],
+  [class~="text-ledger-500"],
+  [class~="text-ledger-400"]
+) {
+  color: var(--workspace-hub-text-secondary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas [class~="text-blue-700"] {
+  color: #93c5fd !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas [class~="text-blue-800"] {
+  color: #bfdbfe !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas :is(
+  [class~="bg-blue-50"],
+  [class~="bg-violet-50"]
+) {
+  background-color: color-mix(in srgb, var(--theme-primary) 14%, var(--workspace-hub-surface)) !important;
+  border-color: var(--workspace-hub-border) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas :is(
+  [class~="border-slate-100"],
+  [class~="border-slate-200"],
+  [class~="border-slate-300"],
+  [class~="border-ledger-100"],
+  [class~="border-ledger-700"]
+) {
+  border-color: var(--workspace-hub-border) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas table :is(th, td),
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas table,
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas table tr {
+  border-color: var(--workspace-hub-border) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .page-canvas table thead {
+  background-color: var(--workspace-hub-inset-surface) !important;
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] .page-canvas table thead {
+  background-color: var(--workspace-hub-inset-surface) !important;
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] .page-canvas :is(article, section, form, header, a, button, [role="dialog"], div):is(
+  [class*="dark:bg-ink-"],
+  [class*="dark:bg-slate-900"],
+  [class*="dark:bg-slate-800"]
+) {
+  background-color: var(--workspace-hub-surface) !important;
+  border-color: var(--workspace-hub-border) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] .page-canvas [class*="dark:text-white"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] .page-canvas [class*="dark:text-slate-100"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] .page-canvas [class*="dark:text-slate-200"] {
+  color: var(--workspace-hub-text-primary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] .page-canvas [class*="dark:text-slate-300"],
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="light"] .page-canvas [class*="dark:text-slate-400"] {
+  color: var(--workspace-hub-text-secondary) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero > div:nth-child(2) {
+  background-image: linear-gradient(90deg, rgb(8 17 31 / 96%), rgb(8 17 31 / 78%), transparent) !important;
+}
+
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero h1,
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero p,
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero span {
+  color: #f8fafc !important;
+}
+
+.hub-product-card {
+  transform-style: preserve-3d;
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.hub-product-card::after {
+  position: absolute;
+  z-index: 2;
+  inset: -35% auto -35% -65%;
+  width: 42%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 28%), transparent);
+  content: "";
+  pointer-events: none;
+  transform: skewX(-18deg);
+  transition: left 550ms ease;
+}
+
+.hub-product-card:hover::after,
+.hub-product-card:focus-within::after {
+  left: 125%;
+}
+
+.hub-product-card:hover {
+  transform: perspective(1000px) translateY(-4px) scale(1.01) rotateX(1deg);
+  border-color: rgb(96 165 250 / 65%);
+  box-shadow: 0 0 0 1px rgb(59 130 246 / 18%), 0 18px 42px rgb(15 60 130 / 18%);
+}
+
+.hub-product-card:focus-within {
+  border-color: rgb(96 165 250 / 75%);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 22%), 0 16px 36px rgb(15 60 130 / 14%);
+}
+
+.hub-product-icon {
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.hub-product-card:hover .hub-product-icon {
+  transform: scale(1.08) rotate(-2deg);
+  box-shadow: 0 8px 20px rgb(37 99 235 / 20%);
+}
+
+.workspace-hub-main::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 82% 18%, rgb(59 130 246 / 8%), transparent 32rem),
+    radial-gradient(ellipse at 14% 58%, rgb(6 182 212 / 6%), transparent 28rem);
+  content: "";
+  pointer-events: none;
+}
+
+[data-product-hub-theme="dark"] .workspace-hub-main::before {
+  background:
+    radial-gradient(ellipse at 82% 18%, rgb(37 99 235 / 16%), transparent 34rem),
+    radial-gradient(ellipse at 14% 58%, rgb(6 182 212 / 10%), transparent 30rem),
+    radial-gradient(ellipse at 70% 82%, rgb(139 92 246 / 7%), transparent 32rem);
+}
+
+.workspace-hub-hero {
+  background:
+    radial-gradient(ellipse at 86% 16%, rgb(56 189 248 / 24%), transparent 30%),
+    linear-gradient(125deg, #10264b, #174a87 55%, #0e7490);
+}
+
+@keyframes workspace-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspace-settings-page,
+.workspace-organization-overview,
+.workspace-organization-page,
+.workspace-subscription-page,
+.workspace-hub-support {
+  animation: workspace-page-enter 280ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-settings-page,
+  .workspace-organization-overview,
+  .workspace-organization-page,
+  .workspace-subscription-page,
+  .workspace-hub-support,
+  .hub-product-card,
+  .hub-product-card::after {
+    transition: none;
+    animation: none;
+  }
+
+  .hub-product-card:hover,
+  .hub-product-card:hover .hub-product-icon {
+    transform: none;
+  }
+}

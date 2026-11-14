@@ -89,6 +89,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       systemName={systemName}
       productLogoUrls={productBranding?.productImageUrls}
       productNames={productBranding?.productNames}
+      workspaceHubDarkThemeEnabled={productBranding?.darkThemeEnabled}
+      workspaceHubDarkSurfaceStyle={productBranding?.darkSurfaceStyle}
       watermark={watermark}
       organizationAccessExpiresAt={context.organizationAccessExpiresAt}
       organizationUsage={organizationUsage}
