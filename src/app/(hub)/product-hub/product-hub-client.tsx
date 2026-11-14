@@ -384,6 +384,20 @@ export function ProductHubClient({
           background-color: var(--hub-surface) !important;
           border-color: #2a3b52 !important;
         }
+        [data-product-hub-theme="dark"] header [data-hub-org-switcher] button {
+          background-color: var(--hub-inset-surface) !important;
+          border-color: #40516a !important;
+          color: #f8fafc !important;
+          filter: none !important;
+        }
+        [data-product-hub-theme="dark"] header [data-hub-org-switcher] button span {
+          color: #f8fafc !important;
+          opacity: 1 !important;
+          text-shadow: none !important;
+        }
+        [data-product-hub-theme="dark"] header [data-hub-org-switcher] button svg {
+          color: #cbd5e1 !important;
+        }
       `}</style>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[252px] md:block">{renderSidebar()}</aside>
 
@@ -415,15 +429,17 @@ export function ProductHubClient({
             </div>
             <div className="min-w-0">
               <p className="hidden text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:block">Organization</p>
-              <OrgSwitcher
-                activeOrgId={orgId}
-                activeOrgLogoUrl={orgLogoUrl}
-                options={organizations.map((organization) => ({
-                  orgId: organization.orgId,
-                  orgName: organization.orgName,
-                  role: organization.role,
-                }))}
-              />
+              <div data-hub-org-switcher>
+                <OrgSwitcher
+                  activeOrgId={orgId}
+                  activeOrgLogoUrl={orgLogoUrl}
+                  options={organizations.map((organization) => ({
+                    orgId: organization.orgId,
+                    orgName: organization.orgName,
+                    role: organization.role,
+                  }))}
+                />
+              </div>
             </div>
             <ChevronDown className="ml-[-8px] hidden h-4 w-4 text-slate-400 sm:block" aria-hidden="true" />
           </div>
@@ -633,25 +649,25 @@ export function ProductHubClient({
             )}
 
             {filteredProducts.length || isOrgAdmin ? (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredProducts.map((product) => {
                   const presentation = PRODUCT_ICONS[product.slug] ?? { icon: LayoutGrid, color: "bg-slate-100 text-slate-700" };
                   const ProductIcon = presentation.icon;
                   const hasCardBackground = product.showCardBackgroundImage && Boolean(product.cardBackgroundImageUrl);
                   return (
-                    <article data-hub-surface key={product.slug} className="hub-product-card group relative isolate flex min-h-[205px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] sm:min-h-[185px]">
+                    <article data-hub-surface key={product.slug} className="hub-product-card group relative isolate flex min-h-[215px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] xl:aspect-[1.84]">
                       {hasCardBackground && product.cardBackgroundImageUrl && (
                         <Image
                           src={product.cardBackgroundImageUrl}
                           alt=""
                           fill
                           unoptimized
-                          className="z-0 object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                          className="z-0 object-fill"
                         />
                       )}
                       <div data-hub-card-overlay aria-hidden="true" className={`absolute inset-0 z-[1] ${
                         hasCardBackground
-                          ? "bg-gradient-to-r from-white via-white/95 to-white/25"
+                          ? "bg-gradient-to-r from-white/90 via-white/65 to-transparent"
                           : "bg-gradient-to-br from-white via-white to-blue-50/60"
                       }`} />
                       {product.canOpen && product.launchPath && (
@@ -664,10 +680,10 @@ export function ProductHubClient({
                           <span className="sr-only">Open {product.name}</span>
                         </Link>
                       )}
-                      <div className={`relative z-20 flex min-w-0 flex-1 flex-col justify-between gap-4 p-4 sm:flex-row sm:items-end sm:p-5 ${
+                      <div className={`relative z-20 flex min-w-0 flex-1 flex-col justify-between gap-3 p-4 sm:p-5 ${
                         product.canOpen && product.launchPath ? "pointer-events-none" : ""
                       }`}>
-                        <div className="min-w-0 flex-1 sm:max-w-[74%]">
+                        <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-center gap-3">
                             <span className={`hub-product-icon relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${
                               product.imageUrl ? "bg-white/90 shadow-sm" : presentation.color
@@ -698,7 +714,7 @@ export function ProductHubClient({
                             {product.status}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                        <div className="flex items-center justify-between gap-3">
                           {product.canOpen && (
                             <button
                               type="button"
@@ -847,13 +863,24 @@ export function ProductHubClient({
                 ))}
               </div>
             </div>
-            <div data-hub-surface className="relative flex min-h-[270px] flex-col justify-end overflow-hidden rounded-2xl bg-gradient-to-br from-[#dbeafe] via-[#bfdbfe] to-[#93c5fd] p-6 sm:min-h-[320px]">
-              <div aria-hidden="true" className="absolute -right-10 -top-10 h-56 w-56 rounded-full border-[22px] border-white/30" />
-              <div aria-hidden="true" className="absolute right-8 top-14 grid h-28 w-28 place-items-center rounded-full bg-white/60 text-blue-700 shadow-inner"><TrendingUp className="h-14 w-14" /></div>
+            <div data-hub-surface className={`relative flex min-h-[270px] flex-col justify-end overflow-hidden rounded-2xl p-6 sm:min-h-[320px] ${
+              hubBranding.growthCardImageUrl ? "bg-slate-900" : "bg-gradient-to-br from-[#dbeafe] via-[#bfdbfe] to-[#93c5fd]"
+            }`}>
+              {hubBranding.growthCardImageUrl ? (
+                <>
+                  <Image src={hubBranding.growthCardImageUrl} alt="" fill unoptimized className="absolute inset-0 object-fill" />
+                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-900/55 to-slate-900/10" />
+                </>
+              ) : (
+                <>
+                  <div aria-hidden="true" className="absolute -right-10 -top-10 h-56 w-56 rounded-full border-[22px] border-white/30" />
+                  <div aria-hidden="true" className="absolute right-8 top-14 grid h-28 w-28 place-items-center rounded-full bg-white/60 text-blue-700 shadow-inner"><TrendingUp className="h-14 w-14" /></div>
+                </>
+              )}
               <div className="relative z-10 max-w-[280px]">
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-800">Built for what’s next</p>
-                <h2 className="mt-2 text-2xl font-bold leading-tight text-[#10234a]">Your Growth, Our Priority.</h2>
-                <p className="mt-2 text-sm leading-5 text-slate-600">Partner with us for innovative digital solutions.</p>
+                <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${hubBranding.growthCardImageUrl ? "text-cyan-200" : "text-blue-800"}`}>Built for what’s next</p>
+                <h2 className={`mt-2 text-2xl font-bold leading-tight ${hubBranding.growthCardImageUrl ? "text-white" : "text-[#10234a]"}`}>Your Growth, Our Priority.</h2>
+                <p className={`mt-2 text-sm leading-5 ${hubBranding.growthCardImageUrl ? "text-slate-100" : "text-slate-600"}`}>Partner with us for innovative digital solutions.</p>
                 <Link href="/support" className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg bg-blue-700 px-4 text-xs font-semibold text-white hover:bg-blue-800">Get Started <ArrowRight className="h-3.5 w-3.5" /></Link>
               </div>
             </div>

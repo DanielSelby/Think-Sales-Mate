@@ -1053,7 +1053,7 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
   const slugValue = formData.get("productSlug");
   const slug = typeof slugValue === "string" ? slugValue : "";
   const file = formData.get("image");
-  if (assetType !== "hero" && assetType !== "about" && assetType !== "product" && assetType !== "product-background") {
+  if (assetType !== "hero" && assetType !== "about" && assetType !== "growth-card" && assetType !== "product" && assetType !== "product-background") {
     return { ok: false, error: "Choose a valid Product Hub image type." };
   }
   if ((assetType === "product" || assetType === "product-background") && !isPlatformProductSlug(slug)) {
@@ -1095,6 +1095,8 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
     ? currentValue.hero_storage_path
     : assetType === "about"
       ? currentValue.about_storage_path
+      : assetType === "growth-card"
+        ? currentValue.growth_card_storage_path
       : assetType === "product"
         ? currentProductPaths[slug]
         : currentProductCardBackgroundPaths[slug];
@@ -1115,6 +1117,7 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
     ...currentValue,
     ...(assetType === "hero" ? { hero_storage_path: uploadedPath } : {}),
     ...(assetType === "about" ? { about_storage_path: uploadedPath } : {}),
+    ...(assetType === "growth-card" ? { growth_card_storage_path: uploadedPath } : {}),
     ...(assetType === "product" ? { product_image_paths: productImagePaths } : {}),
     ...(assetType === "product-background" ? { product_card_background_paths: productCardBackgroundPaths } : {}),
   };

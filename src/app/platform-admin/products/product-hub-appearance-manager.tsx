@@ -26,7 +26,7 @@ function ArtworkUploader({
   imageUrl,
   canManage,
 }: {
-  assetType: "hero" | "about" | "product" | "product-background";
+  assetType: "hero" | "about" | "growth-card" | "product" | "product-background";
   productSlug?: PlatformProductSlug;
   label: string;
   description: string;
@@ -36,7 +36,9 @@ function ArtworkUploader({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ProductHubAppearanceActionResult | null>(null);
-  const imageFit = assetType === "product-background" ? "object-cover" : "object-contain p-2";
+  const imageFit = assetType === "product-background" || assetType === "growth-card"
+    ? "object-fill"
+    : "object-contain p-2";
 
   function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,7 +65,7 @@ function ArtworkUploader({
   return (
     <article className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4">
       <div className={`relative mb-3 flex w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50 ${
-        assetType === "hero" ? "aspect-[16/5] max-h-40" : assetType === "about" ? "aspect-[4/3] max-h-40" : assetType === "product-background" ? "aspect-[16/7] max-h-40" : "aspect-square max-h-40"
+        assetType === "hero" ? "aspect-[16/5] max-h-40" : assetType === "about" ? "aspect-[4/3] max-h-40" : assetType === "product-background" || assetType === "growth-card" ? "aspect-[1.84] max-h-40" : "aspect-square max-h-40"
       }`}>
         {imageUrl ? (
           <Image src={imageUrl} alt="" fill unoptimized className={imageFit} />
@@ -289,6 +291,13 @@ export function ProductHubAppearanceManager({
           label="About section image"
           description="Image shown in the About Think Digital Solutions section."
           imageUrl={branding.aboutImageUrl}
+          canManage={canManage}
+        />
+        <ArtworkUploader
+          assetType="growth-card"
+          label="Growth card image"
+          description="Displayed edge-to-edge on the card with the “Your Growth, Our Priority” message."
+          imageUrl={branding.growthCardImageUrl}
           canManage={canManage}
         />
         {products.map((product) => (

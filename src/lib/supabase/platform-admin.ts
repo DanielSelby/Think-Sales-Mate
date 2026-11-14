@@ -86,6 +86,7 @@ export async function getPlatformWatermarkConfiguration() {
 export interface ProductHubBranding {
   heroArtworkUrl: string | null;
   aboutImageUrl: string | null;
+  growthCardImageUrl: string | null;
   productImageUrls: Partial<Record<PlatformProductSlug, string>>;
   productCardBackgroundImageUrls: Partial<Record<PlatformProductSlug, string>>;
   productCardBackgroundEnabled: Partial<Record<PlatformProductSlug, boolean>>;
@@ -166,6 +167,7 @@ export async function getProductHubBranding(): Promise<ProductHubBranding> {
   return {
     heroArtworkUrl: getManagedAssetUrl(platform, value.hero_storage_path),
     aboutImageUrl: getManagedAssetUrl(platform, value.about_storage_path),
+    growthCardImageUrl: getManagedAssetUrl(platform, value.growth_card_storage_path),
     productImageUrls,
     productCardBackgroundImageUrls,
     productCardBackgroundEnabled,
