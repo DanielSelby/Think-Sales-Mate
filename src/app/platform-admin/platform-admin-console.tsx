@@ -31,6 +31,7 @@ import { THEMES, useAppStore } from "@/store/useAppStore";
 import type { PlatformAdminPage } from "@/lib/platform-admin-pages";
 import { parsePlatformWatermark } from "@/lib/platform-watermark";
 import { WatermarkManager } from "./watermark-manager";
+import { SupportCenterHeroManager } from "./support-center-hero-manager";
 
 type Organization = {
   id: string;
@@ -197,6 +198,7 @@ function exportAuditLogs(logs: AuditLog[], format: "csv" | "excel" | "pdf") {
 
 export default function PlatformAdminConsole({
   logoUrl,
+  supportCenterHeroUrl,
   organizations,
   managedOrganizations,
   productSubscriptions,
@@ -222,6 +224,7 @@ export default function PlatformAdminConsole({
   accessiblePages,
 }: {
   logoUrl: string;
+  supportCenterHeroUrl: string;
   organizations: Organization[];
   managedOrganizations: ManagedOrganization[];
   productSubscriptions: ManagedProductSubscription[];
@@ -484,6 +487,7 @@ export default function PlatformAdminConsole({
           </nav>
           <h1 className="text-2xl font-bold text-slate-950">System Settings</h1>
           <WatermarkManager initialConfiguration={watermark} />
+          <SupportCenterHeroManager initialImageUrl={supportCenterHeroUrl} />
         </div>
       </main>
     );

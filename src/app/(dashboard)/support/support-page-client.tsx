@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, BookOpen, Clock3, Mail, MessageCircle, Phone, Plus, Send, ShieldCheck, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, ArrowUpRight, BookOpen, Clock3, Mail, MessageCircle, Phone, Plus, Send, ShieldCheck, X } from "lucide-react";
 import { submitSupportComplaint } from "./actions";
 import { SUPPORT_CATEGORIES, type SupportPriority } from "@/lib/support/constants";
 import type { PlatformDatabase } from "@/types/platform-database";
@@ -32,11 +33,17 @@ export default function SupportPageClient({
   tickets,
   contactDirectoryError,
   ticketHistoryError,
+  heroArtworkError,
+  heroImageUrl,
+  fromProductHub = false,
 }: {
   contacts: Contact[];
   tickets: SupportTicket[];
   contactDirectoryError: string | null;
   ticketHistoryError: string | null;
+  heroArtworkError: string | null;
+  heroImageUrl: string;
+  fromProductHub?: boolean;
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
@@ -68,8 +75,14 @@ export default function SupportPageClient({
 
   return (
     <div className="workspace-hub-support support-page mx-auto max-w-6xl space-y-6">
+      {fromProductHub && (
+        <Link href="/product-hub" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900">
+          <ArrowLeft className="h-4 w-4" /> Back to Product Hub
+        </Link>
+      )}
+      {heroArtworkError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{heroArtworkError}</p>}
       <section className="workspace-hub-support-hero relative min-h-[270px] overflow-hidden rounded-3xl border border-emerald-100 bg-[#eaf7ee] shadow-xl">
-        <img src="/support-center-artwork.jpeg" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover object-right" />
+        <img src={heroImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover object-right" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#effaf2]/95 via-[#effaf2]/75 to-transparent" />
         <div className="relative max-w-2xl px-6 py-10 sm:px-10">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-3.5 w-3.5" /> Official support center</div>

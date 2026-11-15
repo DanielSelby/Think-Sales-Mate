@@ -123,7 +123,7 @@ const sidebarLinks = [
   { label: "Users", href: "/settings/organization#users", icon: Users, adminOnly: true },
   { label: "Subscription", href: "/subscription-status", icon: CreditCard },
   { label: "Settings", href: "/settings", icon: Settings, adminOnly: true },
-  { label: "Support", href: "/support", icon: LifeBuoy },
+  { label: "Support", href: "/support/product-hub", icon: LifeBuoy },
 ];
 
 const SERVICES = [
@@ -445,6 +445,15 @@ export function ProductHubClient({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              aria-label="Refresh Product Hub"
+              title="Refresh Product Hub"
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            >
+              <RefreshCw className="h-5 w-5" />
+            </button>
             <Link
               href="/communication"
               aria-label={unreadCount ? `${unreadCount} unread notifications` : "Notifications"}
@@ -473,7 +482,7 @@ export function ProductHubClient({
                 />
                 <span className="hidden max-w-[150px] text-left sm:block">
                   <span className="block truncate text-xs font-semibold text-slate-800">{userName || userEmail}</span>
-                  <span className="block truncate text-[10px] text-slate-500">{orgName}</span>
+                  <span className="block truncate text-xs text-slate-500">{orgName}</span>
                 </span>
                 <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
               </button>
@@ -774,7 +783,7 @@ export function ProductHubClient({
                 <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
                   Applications assigned to your account will appear here. Contact your organization administrator or support for help.
                 </p>
-                <Link href="/support" className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white hover:bg-blue-700">
+                <Link href="/support/product-hub" className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white hover:bg-blue-700">
                   Visit Support Center <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
@@ -903,8 +912,8 @@ export function ProductHubClient({
                 <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Customer Support</p><h2 className="mt-1 text-lg font-bold text-[#172744]">Need Assistance?</h2><p className="mt-1 text-xs leading-5 text-slate-600">Our support team is here to help you get the most out of your applications.</p></div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link href="/support" className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white hover:bg-blue-700">Visit Support Center <ArrowRight className="h-3.5 w-3.5" /></Link>
-                <Link href="/support" className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"><BookOpen className="h-3.5 w-3.5" /> Help & Guides</Link>
+                <Link href="/support/product-hub" className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white hover:bg-blue-700">Visit Support Center <ArrowRight className="h-3.5 w-3.5" /></Link>
+                <Link href="/support/product-hub" className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"><BookOpen className="h-3.5 w-3.5" /> Help & Guides</Link>
               </div>
             </div>
             <div data-hub-surface className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
@@ -969,7 +978,7 @@ export function ProductHubClient({
             </Link>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-blue-100/80">
               <Link href="#support" className="hover:text-white">Contact Us</Link>
-              <Link href="/support" className="hover:text-white">Support Center</Link>
+              <Link href="/support/product-hub" className="hover:text-white">Support Center</Link>
               <span className="text-blue-200/50">© {new Date().getFullYear()} Think Digital Solutions</span>
             </div>
           </div>

@@ -40,7 +40,7 @@ export function OrgSwitcher({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-md border border-ledger-200 bg-white px-2.5 py-1.5 text-sm font-medium text-ledger-800 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-100 dark:hover:bg-white/[0.06]"
+        className="flex items-center gap-2 rounded-md border border-ledger-200 bg-white px-2.5 py-1.5 text-base font-medium text-ledger-800 hover:bg-ledger-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-ledger-100 dark:hover:bg-white/[0.06]"
       >
         {activeOrgLogoUrl ? (
           <Image

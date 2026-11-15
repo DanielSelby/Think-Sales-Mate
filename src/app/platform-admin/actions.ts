@@ -1180,6 +1180,95 @@ export async function uploadProductHubArtwork(formData: FormData): Promise<Produ
   return { ok: true, message: "Product Hub artwork was uploaded and saved." };
 }
 
+export async function uploadSupportCenterHeroImage(formData: FormData): Promise<ProductHubAppearanceActionResult> {
+  const { admin, supabase } = await requirePlatformManagement("System Settings");
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Choose an image to upload." };
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    return { ok: false, error: "Support Center images must be no larger than 2 MB." };
+  }
+
+  let image: ReturnType<typeof validateAndSanitizeWatermarkImage>;
+  try {
+    image = validateAndSanitizeWatermarkImage(file.name, file.type, Buffer.from(await file.arrayBuffer()));
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Choose a valid JPEG, PNG, SVG, or WebP image under 2 MB." };
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("platform_settings")
+    .select("value, updated_at, updated_by")
+    .eq("key", "support_center_branding")
+    .maybeSingle();
+  if (currentError) return { ok: false, error: `Could not load current Support Center settings: ${currentError.message}` };
+
+  const currentValue = isRecord(current?.value) ? current.value : {};
+  const previousPath = currentValue.hero_storage_path;
+  const uploadedPath = `support-center/hero/${crypto.randomUUID()}.${image.extension}`;
+  const { error: uploadError } = await supabase.storage.from("platform-assets").upload(uploadedPath, image.bytes, {
+    contentType: image.contentType,
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (uploadError) return { ok: false, error: `Could not upload Support Center artwork: ${uploadError.message}` };
+
+  const updatedAt = new Date().toISOString();
+  const { error: saveError } = await supabase.from("platform_settings").upsert({
+    key: "support_center_branding",
+    value: { ...currentValue, hero_storage_path: uploadedPath },
+    updated_by: admin.id,
+    updated_at: updatedAt,
+  });
+  const platform = createPlatformAdminClient();
+  if (saveError) {
+    const { error: cleanupError } = await platform.storage.from("platform-assets").remove([uploadedPath]);
+    return {
+      ok: false,
+      error: cleanupError
+        ? `Could not save Support Center settings (${saveError.message}); the uploaded image could not be removed (${cleanupError.message}).`
+        : `Could not save Support Center settings: ${saveError.message}`,
+    };
+  }
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "support_center_hero_updated",
+    module: "system_settings",
+    metadata: { storage_path: uploadedPath },
+  });
+  if (auditError) {
+    const rollback = current
+      ? await supabase.from("platform_settings").upsert({
+        key: "support_center_branding",
+        value: current.value,
+        updated_at: current.updated_at,
+        updated_by: current.updated_by,
+      })
+      : await supabase.from("platform_settings").delete().eq("key", "support_center_branding");
+    const { error: cleanupError } = await platform.storage.from("platform-assets").remove([uploadedPath]);
+    if (rollback.error || cleanupError) {
+      return {
+        ok: false,
+        error: `Audit logging failed (${auditError.message})${rollback.error ? `; settings rollback failed (${rollback.error.message})` : ""}${cleanupError ? `; uploaded image cleanup failed (${cleanupError.message})` : ""}.`,
+      };
+    }
+    return { ok: false, error: `Support Center artwork was not saved because audit logging failed: ${auditError.message}` };
+  }
+
+  revalidatePath("/platform-admin");
+  revalidatePath("/support");
+  revalidatePath("/support/product-hub");
+  if (typeof previousPath === "string" && /^support-center\/hero\/[a-f0-9-]{36}\.(?:jpg|png|svg|webp)$/.test(previousPath)) {
+    const { error: removeError } = await platform.storage.from("platform-assets").remove([previousPath]);
+    if (removeError) {
+      return { ok: true, message: `Artwork was saved, but the previous image could not be removed: ${removeError.message}` };
+    }
+  }
+  return { ok: true, message: "Support Center hero image was uploaded and saved." };
+}
+
 export async function saveProductHubCardBackground(formData: FormData): Promise<ProductHubAppearanceActionResult> {
   const { admin, supabase } = await requirePlatformManagement("Feature Access");
   const slugValue = formData.get("productSlug");
