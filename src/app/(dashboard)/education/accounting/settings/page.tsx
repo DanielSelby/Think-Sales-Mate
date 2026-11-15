@@ -49,7 +49,15 @@ function MappingForm({
   description: string;
   accountType: string;
   cashOnly?: boolean;
-  accounts: Array<{ id: string; branch_id: string | null; code: string; name: string; account_type: string; is_active: boolean }>;
+  accounts: Array<{
+    id: string;
+    branch_id: string | null;
+    code: string;
+    name: string;
+    account_type: string;
+    is_active: boolean;
+    is_cash_account: boolean;
+  }>;
   selectedAccountId?: string;
   canEdit: boolean;
 }) {

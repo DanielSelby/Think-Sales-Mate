@@ -188,7 +188,11 @@ export async function saveEducationAccountingAccount(formData: FormData) {
   const parentAccountId = value(formData, "parentAccountId") || null;
   const isCashAccount = formData.get("isCashAccount") === "on";
   const cashFlowActivityValue = value(formData, "cashFlowActivity");
-  if (cashFlowActivityValue && !isCashFlowActivity(cashFlowActivityValue)) accountError();
+  const cashFlowActivity = cashFlowActivityValue === ""
+    ? null
+    : isCashFlowActivity(cashFlowActivityValue)
+      ? cashFlowActivityValue
+      : accountError();
   if (isCashAccount && value(formData, "accountType") && value(formData, "accountType") !== "asset") accountError();
   const codePattern = /^[A-Z0-9][A-Z0-9._/-]{1,19}$/;
   if (!codePattern.test(code) || name.length < 1 || name.length > 120 || description.length > 500) {
@@ -205,7 +209,7 @@ export async function saveEducationAccountingAccount(formData: FormData) {
         description: description || null,
         parent_account_id: parentAccountId,
         is_cash_account: isCashAccount,
-        cash_flow_activity: cashFlowActivityValue || null,
+        cash_flow_activity: cashFlowActivity,
         updated_at: new Date().toISOString(),
       })
       .eq("org_id", context.orgId)
@@ -234,7 +238,7 @@ export async function saveEducationAccountingAccount(formData: FormData) {
       parent_account_id: parentAccountId,
       description: description || null,
       is_cash_account: isCashAccount,
-      cash_flow_activity: cashFlowActivityValue || null,
+      cash_flow_activity: cashFlowActivity,
     });
     if (error) accountError();
   }
