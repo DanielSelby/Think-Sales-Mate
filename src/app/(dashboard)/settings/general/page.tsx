@@ -5,7 +5,7 @@ import { can } from "@/lib/rbac";
 import { GeneralSettingsForm } from "@/components/settings/general-settings-form";
 import { getGeneralSettings } from "@/app/(dashboard)/settings/general/actions";
 
-export const metadata = { title: "General Settings · SalesMate ERP" };
+export const metadata = { title: "General Settings · Think Digital Solutions" };
 
 export default async function GeneralSettingsPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;

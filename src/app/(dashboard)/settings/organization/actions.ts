@@ -890,9 +890,9 @@ export async function resetMemberPassword(memberId: string, mode: "email" | "tem
   const delivery = await deliverMessage({
     channel: "Email",
     recipient: email,
-    subject: "Reset your ThinkSales password",
+    subject: "Reset your Think Digital Solutions password",
     content: [
-      "A password reset was requested for your ThinkSales account.",
+      "A password reset was requested for your Think Digital Solutions account.",
       "",
       "Use the secure link below to choose a new password. This link can only be used once and expires according to your authentication settings.",
       actionLink,

@@ -6,7 +6,7 @@ import PlatformAdminUsersView, { type PlatformAdminUserRow } from "./users-view"
 import PlatformAdminSignOutButton from "../sign-out-button";
 import { normalizePlatformAdminPages } from "@/lib/platform-admin-pages";
 
-export const metadata = { title: "Platform Admin Users · ThinkSales ERP" };
+export const metadata = { title: "Platform Admin Users · Think Digital Solutions" };
 
 export default async function PlatformAdminUsersPage() {
   const currentAdmin = await getPlatformAdmin();

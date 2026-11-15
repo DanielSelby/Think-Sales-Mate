@@ -5,7 +5,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { getPortalSettings } from "@/app/(dashboard)/settings/customer-ordering/actions";
 import { CustomerOrderingSettingsView } from "@/components/customer-portal/customer-ordering-settings-view";
 
-export const metadata = { title: "Customer Ordering Settings · SalesMate ERP" };
+export const metadata = { title: "Customer Ordering Settings · Think Digital Solutions" };
 
 function getLanAddress(): string | null {
   const interfaces = os.networkInterfaces();

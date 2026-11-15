@@ -498,7 +498,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">Hi, I&apos;m your AI Assistant</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600 dark:text-slate-300">
-                  Ask about your business. I can help with the ThinkSales Pro data you&apos;re authorized to view.
+                  Ask about your business. I can help with the Think Digital Solutions data you&apos;re authorized to view.
                 </p>
               </div>
             </div>
@@ -579,7 +579,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
                       : <p className="text-xs text-slate-500 dark:text-slate-400">{message.failed ? "I couldn’t prepare a reply. See the error details below." : "No response was received."}</p>}
                   {message.failed && message.content && <p className="mt-2 border-t border-slate-200 pt-2 text-xs text-amber-700 dark:border-slate-700 dark:text-amber-300">The response was interrupted and may be incomplete.</p>}
                 </div>
-                <p className="mt-1.5 text-[10px] text-slate-400">ThinkSales AI · Gemini</p>
+                <p className="mt-1.5 text-[10px] text-slate-400">Think Digital Solutions AI · Gemini</p>
               </div>
             </div>
           ))}

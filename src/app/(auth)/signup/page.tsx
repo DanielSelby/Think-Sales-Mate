@@ -356,7 +356,7 @@ export default function SignupPage() {
               <span className="font-medium text-[#30372d]">
                 {email}
               </span>
-              . Follow the link to finish setting up your Think-SalesMate ERP
+              . Follow the link to finish setting up Think Digital Solutions
               workspace.
             </p>
 
@@ -399,8 +399,7 @@ export default function SignupPage() {
 
               <div>
                 <div className="text-[26px] font-semibold tracking-tight text-white">
-                  ThinkSales{" "}
-                  <span className="text-[#76a950]">Pro</span>
+                  Think Digital Solutions
                 </div>
 
                 <p className="text-xs text-[#b9c2b4]">
@@ -421,7 +420,7 @@ export default function SignupPage() {
               </h1>
 
               <p className="mt-6 max-w-[460px] text-[15px] leading-7 text-[#b9c2b4]">
-                Think-SalesMate ERP helps you manage your sales, inventory,
+                Think Digital Solutions helps you manage your business operations,
                 customers and reports in one powerful platform.
               </p>
             </div>
@@ -676,7 +675,7 @@ export default function SignupPage() {
               </h2>
 
               <p className="mt-2 text-sm text-[#747a72]">
-                Join Think-SalesMate ERP and grow your business
+                Join Think Digital Solutions and grow your business
               </p>
             </div>
 

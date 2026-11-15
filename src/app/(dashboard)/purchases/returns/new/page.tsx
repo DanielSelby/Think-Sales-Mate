@@ -4,7 +4,7 @@ import {
   PurchaseReturnForm, type ReturnOverviewSlice, type TopSupplierByReturnValue, type RecentReturn,
 } from "@/components/purchase-returns/purchase-return-form";
 
-export const metadata = { title: "Purchase Return · SalesMate ERP" };
+export const metadata = { title: "Purchase Return · Think Digital Solutions" };
 
 export default async function NewPurchaseReturnPage() {
   const context = await getCurrentOrgContext();

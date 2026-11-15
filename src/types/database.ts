@@ -503,6 +503,119 @@ type EducationFeePayment = {
   recorded_by: string | null;
   created_at: string;
 };
+type EducationAccountingAccount = {
+  id: string;
+  org_id: string;
+  branch_id: string | null;
+  code: string;
+  name: string;
+  account_type: "asset" | "liability" | "equity" | "income" | "expense";
+  normal_balance: "debit" | "credit";
+  parent_account_id: string | null;
+  description: string | null;
+  is_active: boolean;
+  is_cash_account: boolean;
+  cash_flow_activity: "operating" | "investing" | "financing" | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAccountingFiscalYear = {
+  id: string;
+  org_id: string;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+  status: "open" | "closed";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAccountingPeriod = {
+  id: string;
+  org_id: string;
+  fiscal_year_id: string;
+  name: string;
+  sequence_number: number;
+  starts_on: string;
+  ends_on: string;
+  status: "open" | "closed";
+  closed_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAccountingJournal = {
+  id: string;
+  org_id: string;
+  journal_number: number;
+  branch_id: string | null;
+  fiscal_year_id: string;
+  period_id: string;
+  entry_date: string;
+  reference: string | null;
+  description: string;
+  source_module: "manual" | "fee_charge" | "fee_payment" | "fee_charge_void" | "expense_approved" | "expense_paid";
+  source_record_id: string | null;
+  status: "draft" | "posted";
+  total_debit: number;
+  total_credit: number;
+  created_by: string | null;
+  posted_by: string | null;
+  posted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAccountingJournalLine = {
+  id: string;
+  org_id: string;
+  journal_id: string;
+  line_number: number;
+  account_id: string;
+  description: string | null;
+  debit: number;
+  credit: number;
+  created_at: string;
+};
+type EducationAccountingSourceMapping = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  source_type: "fee_receivable" | "fee_income" | "expense_payable" | "payment_account" | "expense_category";
+  source_key: string;
+  account_id: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAccountingBankStatement = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  account_id: string;
+  period_starts_on: string;
+  period_ends_on: string;
+  opening_balance: number;
+  closing_balance: number;
+  status: "open" | "reconciled";
+  created_by: string | null;
+  reconciled_by: string | null;
+  reconciled_at: string | null;
+  created_at: string;
+};
+type EducationAccountingBankStatementLine = {
+  id: string;
+  org_id: string;
+  statement_id: string;
+  transaction_date: string;
+  reference: string | null;
+  description: string;
+  amount: number;
+  matched_journal_line_id: string | null;
+  matched_by: string | null;
+  matched_at: string | null;
+  created_at: string;
+};
 type EducationTimetableEntry = {
   id: string;
   org_id: string;
@@ -2079,6 +2192,38 @@ export interface Database {
       education_fee_payments: EducationDatabaseTable<
         EducationFeePayment,
         "org_id" | "charge_id" | "amount" | "payment_method"
+      >;
+      education_accounting_accounts: EducationDatabaseTable<
+        EducationAccountingAccount,
+        "org_id" | "code" | "name" | "account_type" | "normal_balance"
+      >;
+      education_accounting_fiscal_years: EducationDatabaseTable<
+        EducationAccountingFiscalYear,
+        "org_id" | "name" | "starts_on" | "ends_on"
+      >;
+      education_accounting_periods: EducationDatabaseTable<
+        EducationAccountingPeriod,
+        "org_id" | "fiscal_year_id" | "name" | "sequence_number" | "starts_on" | "ends_on"
+      >;
+      education_accounting_journals: EducationDatabaseTable<
+        EducationAccountingJournal,
+        "org_id" | "journal_number" | "fiscal_year_id" | "period_id" | "entry_date" | "description"
+      >;
+      education_accounting_journal_lines: EducationDatabaseTable<
+        EducationAccountingJournalLine,
+        "org_id" | "journal_id" | "line_number" | "account_id"
+      >;
+      education_accounting_source_mappings: EducationDatabaseTable<
+        EducationAccountingSourceMapping,
+        "org_id" | "branch_id" | "source_type" | "account_id"
+      >;
+      education_accounting_bank_statements: EducationDatabaseTable<
+        EducationAccountingBankStatement,
+        "org_id" | "branch_id" | "account_id" | "period_starts_on" | "period_ends_on"
+      >;
+      education_accounting_bank_statement_lines: EducationDatabaseTable<
+        EducationAccountingBankStatementLine,
+        "org_id" | "statement_id" | "transaction_date" | "description" | "amount"
       >;
       education_timetable_entries: EducationDatabaseTable<
         EducationTimetableEntry,
@@ -6960,6 +7105,86 @@ export interface Database {
           p_email?: string | null;
         };
         Returns: string;
+      };
+      education_create_accounting_fiscal_year: {
+        Args: {
+          p_org_id: string;
+          p_name: string;
+          p_starts_on: string;
+          p_ends_on: string;
+        };
+        Returns: string;
+      };
+      education_save_accounting_journal: {
+        Args: {
+          p_org_id: string;
+          p_journal_id: string | null;
+          p_branch_id: string | null;
+          p_fiscal_year_id: string;
+          p_period_id: string;
+          p_entry_date: string;
+          p_reference: string | null;
+          p_description: string;
+          p_lines: Json;
+        };
+        Returns: string;
+      };
+      education_post_accounting_journal: {
+        Args: { p_org_id: string; p_journal_id: string };
+        Returns: boolean;
+      };
+      education_save_accounting_source_mapping: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_source_type: string;
+          p_source_key: string;
+          p_account_id: string | null;
+        };
+        Returns: boolean;
+      };
+      education_backfill_accounting_source_journals: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_starts_on: string;
+          p_ends_on: string;
+        };
+        Returns: number;
+      };
+      education_set_accounting_period_status: {
+        Args: {
+          p_org_id: string;
+          p_period_id: string;
+          p_status: string;
+          p_reason: string;
+        };
+        Returns: boolean;
+      };
+      education_create_accounting_bank_statement: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_account_id: string;
+          p_period_starts_on: string;
+          p_period_ends_on: string;
+          p_opening_balance: number;
+          p_closing_balance: number;
+          p_lines: Json;
+        };
+        Returns: string;
+      };
+      education_match_accounting_bank_line: {
+        Args: {
+          p_org_id: string;
+          p_statement_line_id: string;
+          p_journal_line_id: string;
+        };
+        Returns: boolean;
+      };
+      education_reconcile_accounting_bank_statement: {
+        Args: { p_org_id: string; p_statement_id: string; p_reason: string };
+        Returns: boolean;
       };
       education_transition_student_transfer: {
         Args: {

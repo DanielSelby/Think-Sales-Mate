@@ -5,7 +5,7 @@ import { canPermission } from "@/lib/rbac/permissions";
 import { OpenRegisterForm } from "@/components/pos/open-register-form";
 import { getPosRegisterLocation } from "@/lib/organizations/location-access";
 
-export const metadata = { title: "Open Register · ThinkSales Pro" };
+export const metadata = { title: "Open Register · Think Digital Solutions" };
 
 export default async function OpenRegisterPage({ searchParams }: { searchParams: Promise<{ closed?: string; auditWarning?: string }> }) {
   const context = await getCurrentOrgContext();

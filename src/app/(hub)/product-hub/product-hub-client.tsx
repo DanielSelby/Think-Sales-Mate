@@ -508,7 +508,7 @@ export function ProductHubClient({
                   priority
                   unoptimized
                   sizes="100vw"
-                  className="absolute inset-0 z-0 object-cover"
+                  className="absolute inset-0 z-0 object-contain object-center sm:object-right"
                 />
                 <div
                   aria-hidden="true"
@@ -621,7 +621,7 @@ export function ProductHubClient({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Workspace</p>
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-[#14233e] sm:text-2xl">Your Applications</h2>
+                <h2 className="mt-1 text-xl font-bold tracking-tight text-[#14233e] sm:text-2xl">Your Application Workspace</h2>
                 <p className="mt-1 text-sm text-slate-500">Access your subscribed and authorized products.</p>
               </div>
               <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 sm:self-auto">
@@ -655,7 +655,9 @@ export function ProductHubClient({
                   const ProductIcon = presentation.icon;
                   const hasCardBackground = product.showCardBackgroundImage && Boolean(product.cardBackgroundImageUrl);
                   return (
-                    <article data-hub-surface key={product.slug} className="hub-product-card group relative isolate flex min-h-[215px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] xl:aspect-[1.84]">
+                    <article data-hub-surface key={product.slug} className={`hub-product-card group relative isolate flex min-h-[215px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] xl:aspect-[1.84] ${
+                      hasCardBackground ? "bg-slate-900" : "bg-gradient-to-br from-[#dbeafe] via-[#bfdbfe] to-[#93c5fd]"
+                    }`}>
                       {hasCardBackground && product.cardBackgroundImageUrl && (
                         <Image
                           src={product.cardBackgroundImageUrl}
@@ -667,8 +669,8 @@ export function ProductHubClient({
                       )}
                       <div data-hub-card-overlay aria-hidden="true" className={`absolute inset-0 z-[1] ${
                         hasCardBackground
-                          ? "bg-gradient-to-r from-white/90 via-white/65 to-transparent"
-                          : "bg-gradient-to-br from-white via-white to-blue-50/60"
+                          ? "bg-gradient-to-r from-slate-950/85 via-slate-900/55 to-slate-900/10"
+                          : "bg-gradient-to-br from-white/20 via-transparent to-blue-900/10"
                       }`} />
                       {product.canOpen && product.launchPath && (
                         <Link
@@ -684,22 +686,37 @@ export function ProductHubClient({
                         product.canOpen && product.launchPath ? "pointer-events-none" : ""
                       }`}>
                         <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span className={`hub-product-icon relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${
-                              product.imageUrl ? "bg-white/90 shadow-sm" : presentation.color
-                            }`}>
-                              {product.imageUrl ? (
-                                <Image src={product.imageUrl} alt="" fill unoptimized className="object-contain p-1.5" />
-                              ) : (
-                                <ProductIcon aria-hidden="true" className="h-7 w-7" />
-                              )}
-                            </span>
-                            <span className="min-w-0">
-                              <h3 className="truncate text-base font-bold leading-tight text-[#152440] sm:text-lg">{product.name}</h3>
-                              {product.tagline && <span className="mt-1 block truncate text-xs font-medium text-blue-800">{product.tagline}</span>}
-                            </span>
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className={`hub-product-icon relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl ${
+                                product.imageUrl ? "bg-white/90 shadow-sm" : presentation.color
+                              }`}>
+                                {product.imageUrl ? (
+                                  <Image src={product.imageUrl} alt="" fill unoptimized className="object-contain p-1.5" />
+                                ) : (
+                                  <ProductIcon aria-hidden="true" className="h-7 w-7" />
+                                )}
+                              </span>
+                              <h3 className={`min-w-0 truncate text-base font-bold leading-tight sm:text-lg ${hasCardBackground ? "text-white" : "text-[#152440]"}`}>
+                                {product.name}
+                              </h3>
+                            </div>
+                            {product.canOpen && (
+                              <button
+                                type="button"
+                                aria-label={hubPreferences.favorites.includes(product.slug) ? `Remove ${product.name} from favorites` : `Add ${product.name} to favorites`}
+                                aria-pressed={hubPreferences.favorites.includes(product.slug)}
+                                title={hubPreferences.favorites.includes(product.slug) ? "Remove from favorites" : "Add to favorites"}
+                                onClick={() => toggleFavorite(product.slug)}
+                                className={`pointer-events-auto relative z-30 shrink-0 rounded-md p-1.5 shadow-sm transition hover:bg-amber-50 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                                  hasCardBackground ? "bg-white/90 text-slate-600" : "bg-white/75 text-slate-500"
+                                }`}
+                              >
+                                <Star className={`h-4 w-4 ${hubPreferences.favorites.includes(product.slug) ? "fill-amber-400 text-amber-500" : ""}`} />
+                              </button>
+                            )}
                           </div>
-                          <p className="mt-3 line-clamp-2 max-w-xl text-xs leading-5 text-slate-700 sm:text-sm">
+                          <p className={`mt-3 line-clamp-2 max-w-xl text-xs leading-5 sm:text-sm ${hasCardBackground ? "text-slate-100" : "text-slate-700"}`}>
                             {product.description || "Open your organization's application."}
                           </p>
                           <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
@@ -714,26 +731,17 @@ export function ProductHubClient({
                             {product.status}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between gap-3">
-                          {product.canOpen && (
-                            <button
-                              type="button"
-                              aria-label={hubPreferences.favorites.includes(product.slug) ? `Remove ${product.name} from favorites` : `Add ${product.name} to favorites`}
-                              aria-pressed={hubPreferences.favorites.includes(product.slug)}
-                              title={hubPreferences.favorites.includes(product.slug) ? "Remove from favorites" : "Add to favorites"}
-                              onClick={() => toggleFavorite(product.slug)}
-                              className="pointer-events-auto relative z-30 rounded-md bg-white/80 p-1.5 text-slate-500 shadow-sm transition hover:bg-amber-50 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                            >
-                              <Star className={`h-4 w-4 ${hubPreferences.favorites.includes(product.slug) ? "fill-amber-400 text-amber-500" : ""}`} />
-                            </button>
-                          )}
+                        <div className="flex min-w-0 items-end justify-between gap-3">
+                          <p className={`min-w-0 flex-1 text-[11px] font-semibold leading-4 ${hasCardBackground ? "text-cyan-100" : "text-blue-800"}`}>
+                            {product.tagline || "Purpose-built applications for clearer, more efficient work."}
+                          </p>
                           {product.canOpen ? (
-                            <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm">
-                              Open Product
+                            <span className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm">
+                              Open Application
                               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                             </span>
                           ) : (
-                            <span className="rounded-lg bg-white/80 px-3.5 py-2 text-xs font-medium text-slate-600 shadow-sm">
+                            <span className="shrink-0 rounded-lg bg-white/80 px-3.5 py-2 text-xs font-medium text-slate-600 shadow-sm">
                               {product.status === "Provisioning" ? "Provisioning in progress" : "Temporarily unavailable"}
                             </span>
                           )}
@@ -751,7 +759,7 @@ export function ProductHubClient({
                         <p className="mt-1.5 text-xs leading-5 text-slate-500">Looking for another business solution? Contact us to request a product.</p>
                       </div>
                     </div>
-                    <Link href="/support" className="mt-4 inline-flex h-9 w-fit items-center gap-2 rounded-lg border border-blue-200 bg-white px-3.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">
+                    <Link href="#support" className="mt-4 inline-flex h-9 w-fit items-center gap-2 rounded-lg border border-blue-200 bg-white px-3.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">
                       Contact Us <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
                   </article>
@@ -834,13 +842,13 @@ export function ProductHubClient({
                 <h2 className="mt-1 text-xl font-bold tracking-tight text-[#14233e] sm:text-2xl">Our Services</h2>
                 <p className="mt-1 text-sm text-slate-500">Technology services to support your business.</p>
               </div>
-              <Link href="/support" className="hidden items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 sm:inline-flex">
+              <Link href="#support" className="hidden items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 sm:inline-flex">
                 Ask about our services <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {SERVICES.map(({ title, description, icon: Icon, color }) => (
-                <Link data-hub-surface key={title} href="/support" className="group rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:p-5">
+                <Link data-hub-surface key={title} href="#support" className="group rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:p-5">
                   <span className={`grid h-10 w-10 place-items-center rounded-xl ${color}`}><Icon className="h-5 w-5" /></span>
                   <h3 className="mt-4 text-sm font-bold text-[#172744]">{title}</h3>
                   <p className="mt-1.5 text-xs leading-5 text-slate-500">{description}</p>
@@ -881,7 +889,7 @@ export function ProductHubClient({
                 <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${hubBranding.growthCardImageUrl ? "text-cyan-200" : "text-blue-800"}`}>Built for what’s next</p>
                 <h2 className={`mt-2 text-2xl font-bold leading-tight ${hubBranding.growthCardImageUrl ? "text-white" : "text-[#10234a]"}`}>Your Growth, Our Priority.</h2>
                 <p className={`mt-2 text-sm leading-5 ${hubBranding.growthCardImageUrl ? "text-slate-100" : "text-slate-600"}`}>Partner with us for innovative digital solutions.</p>
-                <Link href="/support" className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg bg-blue-700 px-4 text-xs font-semibold text-white hover:bg-blue-800">Get Started <ArrowRight className="h-3.5 w-3.5" /></Link>
+                <Link href="#support" className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg bg-blue-700 px-4 text-xs font-semibold text-white hover:bg-blue-800">Get Started <ArrowRight className="h-3.5 w-3.5" /></Link>
               </div>
             </div>
           </section>
@@ -958,7 +966,7 @@ export function ProductHubClient({
               <span><span className="block text-xs font-bold">Think Digital Solutions</span><span className="mt-0.5 block text-[10px] text-blue-200">Technology for Business Growth</span></span>
             </Link>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-blue-100/80">
-              <Link href="/support" className="hover:text-white">Contact Us</Link>
+              <Link href="#support" className="hover:text-white">Contact Us</Link>
               <Link href="/support" className="hover:text-white">Support Center</Link>
               <span className="text-blue-200/50">© {new Date().getFullYear()} Think Digital Solutions</span>
             </div>

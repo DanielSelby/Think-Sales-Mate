@@ -34,12 +34,12 @@ export function LoginArtwork({ url, className, poster = "/login/modern-green-art
   }, []);
 
   if (!isVideo) {
-    return <img src={url} alt="ThinkSales Pro login artwork" className={className} style={style} />;
+    return <img src={url} alt="Think Digital Solutions login artwork" className={className} style={style} />;
   }
 
   return (
     <video
-      aria-label="ThinkSales Pro login artwork"
+      aria-label="Think Digital Solutions login artwork"
       className={className}
       style={style}
       autoPlay={!reducedMotion}
@@ -119,7 +119,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl, loginFormTr
         <div className="flex flex-col items-center text-center">
           <div className="modern-login-logo login-logo-enter login-neumorphic-logo flex h-[76px] w-[76px] items-center justify-center rounded-[24px] p-2">
             {systemLogoUrl ? (
-              <img src={systemLogoUrl} alt="ThinkSales system logo" className="h-full w-full rounded-xl object-contain" />
+              <img src={systemLogoUrl} alt="Think Digital Solutions system logo" className="h-full w-full rounded-xl object-contain" />
             ) : (
               <svg viewBox="0 0 42 42" className="h-8 w-8 text-emerald-700" fill="none" aria-hidden="true">
                 <rect x="7" y="19" width="7" height="15" rx="1.5" fill="currentColor" />
@@ -130,7 +130,7 @@ function ModernGreenForm({ organizationName, preview, systemLogoUrl, loginFormTr
           </div>
           <h1 className="modern-login-title mt-4 text-3xl font-bold tracking-tight text-slate-900">Welcome back!</h1>
           <p className="modern-login-subtitle mt-2 text-sm text-slate-500">
-            Sign in to your {organizationName ? `${organizationName} ` : ""}ThinkSales Pro account.
+            Sign in to your {organizationName ? `${organizationName} ` : ""}Think Digital Solutions account.
           </p>
         </div>
 
@@ -325,7 +325,7 @@ export function ModernGreenLogin({
               />
             </Suspense>
           </div>
-          <p className="modern-login-copyright relative z-10 pb-4 text-center text-[11px] text-slate-400">© {new Date().getFullYear()} ThinkSales Pro. All rights reserved.</p>
+          <p className="modern-login-copyright relative z-10 pb-4 text-center text-[11px] text-slate-400">© {new Date().getFullYear()} Think Digital Solutions. All rights reserved.</p>
         </section>
       </div>
     </main>

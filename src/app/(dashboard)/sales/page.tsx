@@ -6,7 +6,7 @@ import { SalesListView, type SaleListRow, type SalesKpis, type SalesDocumentKpis
 import { getDraftSales } from "@/app/(dashboard)/sales/actions";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 
-export const metadata = { title: "Sales · SalesMate ERP" };
+export const metadata = { title: "Sales · Think Digital Solutions" };
 
 export default async function SalesPage({ searchParams }: { searchParams?: { location?: string } }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -53,7 +53,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: { loc
   ]);
 
   const currency = context.currency;
-  const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
+  const systemName = await getPlatformSystemName().catch(() => "Think Digital Solutions");
   const rawSales = sales ?? [];
 
   const rawLocations = locations ?? [];

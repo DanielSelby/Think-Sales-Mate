@@ -18,7 +18,7 @@ export interface LoginExperience {
 const SYSTEM_DEFAULT: LoginExperience = {
   themeId: "default-thinksales-login",
   themeType: "existing",
-  themeName: "Default ThinkSales Login",
+  themeName: "Default Think Digital Solutions Login",
   artworkUrl: null,
   backgroundArtworkUrl: null,
   backgroundArtworkVisibility: 100,

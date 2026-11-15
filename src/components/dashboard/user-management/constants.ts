@@ -83,7 +83,18 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
     ["settings", "Institution Settings", [["institution", "Institution Details"], ["terminology", "Terminology"]]]
   ]),
   education_finance: pages([
-    ["finance", "Fees & Finance", [["charges", "Fee Charges"], ["payments", "Payments & Receipts"]]]
+    ["finance", "Fees & Finance", [
+      ["charges", "Fee Charges"],
+      ["payments", "Payments & Receipts"],
+      ["accounting_dashboard", "Accounting Dashboard"],
+      ["chart_of_accounts", "Chart of Accounts"],
+      ["fiscal_periods", "Fiscal Years & Periods"],
+      ["journal_entries", "Journal Entries"],
+      ["general_ledger", "General Ledger"],
+      ["accounting_settings", "Automated Posting Settings"],
+      ["financial_reports", "Financial Reports"],
+      ["bank_reconciliation", "Bank Reconciliation"],
+    ]]
   ]),
   education_expenses: pages([
     ["expenses", "Expenses Management", [["records", "Expense Records"]]]
@@ -311,7 +322,7 @@ const PERMISSION_MODULE_FEATURES: Record<string, string[]> = {
   assets: ["Assets"],
   projects: ["Projects"],
   route_sales: ["Route Sales"],
-  ai: ["ThinkSales Ai Agent"],
+  ai: ["AI Assistant"],
   communication: ["Communication"],
   audit: ["Audit Center"],
   fraud: ["Fraud & Anomaly Detection"],

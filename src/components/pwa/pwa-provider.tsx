@@ -139,8 +139,8 @@ export function PwaProvider() {
         <div className="fixed bottom-4 right-4 z-[80] flex max-w-sm items-center gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-2xl dark:border-blue-900 dark:bg-ink-900">
           <Download className="h-5 w-5 shrink-0 text-blue-600" />
           <div className="flex-1">
-            <p className="text-sm font-bold text-ink-900 dark:text-white">Install ThinkSales</p>
-            <p className="text-xs text-ledger-500">Use ThinkSales like a native app.</p>
+            <p className="text-sm font-bold text-ink-900 dark:text-white">Install Think Digital Solutions</p>
+            <p className="text-xs text-ledger-500">Use Think Digital Solutions like a native app.</p>
           </div>
           <button type="button" onClick={() => void install()} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Install</button>
           <button type="button" onClick={() => setShowInstall(false)} aria-label="Dismiss install prompt" className="text-ledger-400 hover:text-ink-900"><X className="h-4 w-4" /></button>

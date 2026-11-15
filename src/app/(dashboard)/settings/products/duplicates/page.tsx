@@ -5,7 +5,7 @@ import { can } from "@/lib/rbac";
 import { getDuplicateSettings } from "@/app/(dashboard)/inventory/duplicate-actions";
 import { DuplicateSettingsForm } from "@/components/inventory/duplicate-settings-form";
 
-export const metadata = { title: "Duplicate Product Control · ThinkSales" };
+export const metadata = { title: "Duplicate Product Control · Think Digital Solutions" };
 
 export default async function DuplicateProductSettingsPage() {
   const context = await getCurrentOrgContext((await cookies()).get("active_org_id")?.value);

@@ -3,7 +3,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { can } from "@/lib/rbac";
 import { OrdersListView, type OrderRow, type LocationOption, type StaffOption } from "@/components/orders/orders-list-view";
 
-export const metadata = { title: "Orders · ThinkSales Pro" };
+export const metadata = { title: "Orders · Think Digital Solutions" };
 
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const context = await getCurrentOrgContext();

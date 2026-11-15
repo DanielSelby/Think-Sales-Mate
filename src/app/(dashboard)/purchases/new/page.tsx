@@ -3,7 +3,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { AddPurchaseForm, type Recommendation } from "@/components/purchases/add-purchase-form";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
-export const metadata = { title: "Add Purchase · SalesMate ERP" };
+export const metadata = { title: "Add Purchase · Think Digital Solutions" };
 
 export default async function AddPurchasePage() {
   const context = await getCurrentOrgContext();

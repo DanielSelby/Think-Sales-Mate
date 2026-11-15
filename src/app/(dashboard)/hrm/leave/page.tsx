@@ -7,7 +7,7 @@ import {
 import { ensureLeaveTypes } from "@/app/(dashboard)/hrm/leave/actions";
 import { deriveBalanceBucket, type BalanceBucket } from "@/lib/hrm/leave";
 
-export const metadata = { title: "Leave Management · SalesMate ERP" };
+export const metadata = { title: "Leave Management · Think Digital Solutions" };
 
 export default async function LeaveManagementPage() {
   const context = await getCurrentOrgContext();

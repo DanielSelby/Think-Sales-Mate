@@ -5,7 +5,7 @@ import {
   type EmployeePreviewRow, type UpcomingPayment, type HrActivity,
 } from "@/components/hrm/hrm-dashboard-view";
 
-export const metadata = { title: "HRM & Payroll · SalesMate ERP" };
+export const metadata = { title: "HRM & Payroll · Think Digital Solutions" };
 
 const ACTIVITY_LABEL: Record<string, string> = {
   "employee.created": "New employee added",

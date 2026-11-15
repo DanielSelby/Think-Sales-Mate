@@ -104,7 +104,7 @@ export function PayslipDocument({ payslip }: { payslip: PayslipDocumentData }) {
       <div className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-3">
           {payslip.company.logo_url ? <img src={payslip.company.logo_url} alt="" className="h-14 w-14 object-contain" /> : <div className="h-14 w-14 rounded-xl bg-[#087ed1]" />}
-          <div><h1 className="text-xl font-bold tracking-tight">{payslip.company.company_name || "ThinkSales Pro"}</h1><p className="text-xs text-slate-500">Smarter Business. Greater Growth.</p></div>
+          <div><h1 className="text-xl font-bold tracking-tight">{payslip.company.company_name || "Think Digital Solutions"}</h1><p className="text-xs text-slate-500">Smarter Business. Greater Growth.</p></div>
         </div>
         <div className="space-y-1 text-right text-xs text-slate-500"><p><MapPin className="mr-1 inline h-3.5 w-3.5 text-[#087ed1]" />{payslip.company.address || "Company address"}</p><p><Phone className="mr-1 inline h-3.5 w-3.5 text-[#087ed1]" />{payslip.company.business_phone || "—"}</p><p>{payslip.company.business_email || "—"}</p></div>
       </div>

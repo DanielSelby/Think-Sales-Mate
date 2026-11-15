@@ -131,6 +131,10 @@ export default async function EducationExpensesPage({
     ? "Enter a valid campus, category, description, amount, and date."
     : params.error === "transition"
       ? "This expense has already been reviewed or paid, or the requested transition is not allowed."
+      : params.error === "accounting-mapping"
+        ? "Configure the required account mappings before approving this expense or recording its payment."
+        : params.error === "accounting-period"
+          ? "This expense date is outside an open accounting period. Reopen or create the applicable period before continuing."
       : params.error === "not-found"
         ? "The expense record could not be found."
         : params.error === "save"
@@ -150,7 +154,12 @@ export default async function EducationExpensesPage({
     {params.reviewed === "approved" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense approved.</p>}
     {params.reviewed === "rejected" && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Expense rejected with a recorded reason.</p>}
     {params.paid === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense payment recorded.</p>}
-    {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errorMessage}</p>}
+    {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {errorMessage}
+      {(params.error === "accounting-mapping" || params.error === "accounting-period") && (
+        <> <Link href={getProductAppPath("think-education", params.error === "accounting-mapping" ? "/accounting/settings" : "/accounting/periods")} className="font-semibold underline">Open accounting setup</Link></>
+      )}
+    </p>}
 
     {canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="font-semibold text-slate-950">Record an expense</h2>

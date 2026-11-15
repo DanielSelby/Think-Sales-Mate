@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { AddEmployeeForm } from "@/components/hrm/employees/add-employee-form";
 
-export const metadata = { title: "Add Employee · SalesMate ERP" };
+export const metadata = { title: "Add Employee · Think Digital Solutions" };
 
 export default async function AddEmployeePage() {
   const context = await getCurrentOrgContext();

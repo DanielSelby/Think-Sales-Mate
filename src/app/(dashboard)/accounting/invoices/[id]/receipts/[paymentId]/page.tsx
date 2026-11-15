@@ -7,7 +7,7 @@ import { formatCurrencyAmount } from "@/lib/currency";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { PrintInvoiceButton } from "../../../print-invoice-button";
 
-export const metadata = { title: "Payment receipt · ThinkSales Pro" };
+export const metadata = { title: "Payment receipt · Think Digital Solutions" };
 
 export default async function ServiceInvoiceReceiptPage({
   params,

@@ -5,7 +5,7 @@ import { AttendanceListView, type AttendanceRow, type AttendanceKpis, type LateA
 import { getCurrentEmployeeMatch } from "@/app/(dashboard)/hrm/attendance/actions";
 import { isLateCheckIn } from "@/lib/hrm/attendance";
 
-export const metadata = { title: "Attendance · SalesMate ERP" };
+export const metadata = { title: "Attendance · Think Digital Solutions" };
 
 const ACTIVITY_LABEL: Record<string, string> = {
   "attendance.corrected": "Attendance corrected",

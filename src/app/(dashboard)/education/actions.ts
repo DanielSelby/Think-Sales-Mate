@@ -276,10 +276,16 @@ export async function createEducationFeeCharge(formData: FormData) {
     due_on: dueOn || null,
   });
   if (error) {
+    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
     console.error("Could not create Think Education fee charge:", error.message);
     redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
   }
   revalidatePath("/education/finance");
+  revalidatePath("/education/accounting");
+  revalidatePath("/education/accounting/journal-entries");
+  revalidatePath("/education/accounting/general-ledger");
+  revalidatePath("/education/accounting/reports");
   redirect(`${getProductAppPath("think-education", "/finance")}?created=1`);
 }
 
@@ -310,6 +316,8 @@ export async function recordEducationFeePayment(formData: FormData) {
     p_reference: reference || null,
   });
   if (error) {
+    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
     if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=payment`);
     if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/finance")}?error=not-found`);
     if (error.code === "42501") throw new Error("You are not authorized to record a payment for this charge.");
@@ -317,6 +325,10 @@ export async function recordEducationFeePayment(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
   }
   revalidatePath("/education/finance");
+  revalidatePath("/education/accounting");
+  revalidatePath("/education/accounting/journal-entries");
+  revalidatePath("/education/accounting/general-ledger");
+  revalidatePath("/education/accounting/reports");
   redirect(`${getProductAppPath("think-education", "/finance")}?paid=1`);
 }
 
@@ -470,6 +482,7 @@ export async function voidEducationFeeCharge(formData: FormData) {
     p_reason: reason,
   });
   if (error) {
+    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
     if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=void-blocked`);
     if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/finance")}?error=not-found`);
     if (error.code === "42501") throw new Error("You are not authorized to void fee charges at this campus.");
@@ -530,6 +543,8 @@ export async function createEducationFeeSchedule(formData: FormData) {
     due_on: dueOn || null,
   });
   if (error) {
+    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
     if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=invalid`);
     console.error("Could not create Think Education fee schedule:", error.message);
     redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
@@ -553,6 +568,8 @@ export async function applyEducationFeeSchedule(formData: FormData) {
     p_schedule_id: scheduleId,
   });
   if (error) {
+    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
     if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=schedule`);
     if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/finance")}?error=not-found`);
     if (error.code === "42501") throw new Error("You are not authorized to apply that fee schedule.");
@@ -560,6 +577,10 @@ export async function applyEducationFeeSchedule(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
   }
   revalidatePath("/education/finance");
+  revalidatePath("/education/accounting");
+  revalidatePath("/education/accounting/journal-entries");
+  revalidatePath("/education/accounting/general-ledger");
+  revalidatePath("/education/accounting/reports");
   redirect(`${getProductAppPath("think-education", "/finance")}?applied=${data}`);
 }
 
@@ -2148,6 +2169,8 @@ export async function reviewEducationExpense(formData: FormData) {
     p_reason: reason || null,
   });
   if (error) {
+    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-period`);
     if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/expenses")}?error=transition`);
     if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/expenses")}?error=not-found`);
     if (error.code === "42501") throw new Error("You are not authorized to review this expense at its campus.");
@@ -2155,6 +2178,10 @@ export async function reviewEducationExpense(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/expenses")}?error=save`);
   }
   revalidatePath("/education/expenses");
+  revalidatePath("/education/accounting");
+  revalidatePath("/education/accounting/journal-entries");
+  revalidatePath("/education/accounting/general-ledger");
+  revalidatePath("/education/accounting/reports");
   redirect(`${getProductAppPath("think-education", "/expenses")}?reviewed=${decision}`);
 }
 
@@ -2182,6 +2209,8 @@ export async function markEducationExpensePaid(formData: FormData) {
     p_paid_on: paidOn,
   });
   if (error) {
+    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-period`);
     if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/expenses")}?error=transition`);
     if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/expenses")}?error=not-found`);
     if (error.code === "42501") throw new Error("You are not authorized to record expense payments at this campus.");
@@ -2189,6 +2218,10 @@ export async function markEducationExpensePaid(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/expenses")}?error=save`);
   }
   revalidatePath("/education/expenses");
+  revalidatePath("/education/accounting");
+  revalidatePath("/education/accounting/journal-entries");
+  revalidatePath("/education/accounting/general-ledger");
+  revalidatePath("/education/accounting/reports");
   redirect(`${getProductAppPath("think-education", "/expenses")}?paid=1`);
 }
 

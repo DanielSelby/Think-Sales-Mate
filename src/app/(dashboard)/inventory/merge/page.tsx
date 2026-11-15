@@ -5,7 +5,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { ProductMergeView } from "@/components/inventory/product-merge-view";
 import { getProductsForMerge } from "./actions";
 
-export const metadata = { title: "Merge Products · ThinkSales Pro" };
+export const metadata = { title: "Merge Products · Think Digital Solutions" };
 
 export default async function ProductMergePage({
   searchParams,

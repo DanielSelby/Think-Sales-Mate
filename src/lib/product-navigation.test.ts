@@ -59,8 +59,16 @@ describe("product navigation", () => {
   it("organizes Think Education links beneath one product heading", () => {
     const education = NAV_ITEMS.find((item) => item.label === "Think Education");
     const sections = Array.from(new Set(education?.children?.map((child) => child.section)));
+    const accounting = education?.children?.find((child) => child.label === "Accounting");
 
     expect(education?.children?.[0].label).toBe("Dashboard");
+    expect(accounting).toMatchObject({
+      href: "/education/accounting",
+      section: "Finance",
+      alwaysVisible: true,
+    });
+    expect(getProductScopedHref("/app/think-education/dashboard", accounting?.href ?? ""))
+      .toBe("/app/think-education/accounting");
     expect(sections).toEqual([
       "Overview",
       "Students & Admissions",

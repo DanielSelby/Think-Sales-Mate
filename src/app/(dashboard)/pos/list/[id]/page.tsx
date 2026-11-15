@@ -10,7 +10,7 @@ import { canPermission, requirePermission } from "@/lib/rbac/permissions";
 import { formatCurrency, formatDateTime, formatPosReceiptNumber } from "@/lib/sales/format";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata = { title: "POS Transaction · SalesMate ERP" };
+export const metadata = { title: "POS Transaction · Think Digital Solutions" };
 
 function displayStatus(status: string) {
   return status === "cancelled" ? "Voided" : status === "returned" ? "Returned" : "Completed";

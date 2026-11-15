@@ -185,7 +185,7 @@ export default async function EditSalePage({ params }: { params: Promise<{ id: s
     quantity: s.quantity,
   }));
 
-  const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
+  const systemName = await getPlatformSystemName().catch(() => "Think Digital Solutions");
   return (
     <SaleForm
       orgId={context.orgId}

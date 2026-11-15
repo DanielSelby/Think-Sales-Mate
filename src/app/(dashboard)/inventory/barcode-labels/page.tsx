@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { BarcodeLabelsPage, type BarcodeLabelLocation, type BarcodeLabelProduct } from "@/components/inventory/barcode-labels-page";
 
-export const metadata = { title: "Print Barcode Labels · ThinkSales Pro" };
+export const metadata = { title: "Print Barcode Labels · Think Digital Solutions" };
 
 export default async function BarcodeLabelsRoute() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;

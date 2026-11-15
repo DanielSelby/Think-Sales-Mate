@@ -184,7 +184,7 @@ export async function getInvoiceData(saleId: string): Promise<PosInvoiceData | n
     sale.customer_id
       ? supabase.from("customers").select("phone").eq("id", sale.customer_id).eq("org_id", context.orgId).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    getPlatformSystemName().catch(() => "ThinkSales ERP Pro"),
+    getPlatformSystemName().catch(() => "Think Digital Solutions"),
   ]);
   if (customerResult.error) throw new Error(`Could not load the customer's contact number: ${customerResult.error.message}`);
   const location = locationResult.data;

@@ -3,7 +3,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { ExpenseListView, type ExpenseKpis, type CategorySlice, type ExpenseActivity } from "@/components/expenses/expense-list-view";
 import { deriveDisplayStatus } from "@/lib/expenses/format";
 
-export const metadata = { title: "Expenses · SalesMate ERP" };
+export const metadata = { title: "Expenses · Think Digital Solutions" };
 
 const ACTIVITY_LABEL: Record<string, string> = {
   "expense.created": "New expense added",

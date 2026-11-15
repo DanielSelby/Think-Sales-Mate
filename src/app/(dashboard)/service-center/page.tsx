@@ -7,7 +7,7 @@ import { ServiceJobPartsPanel } from "@/components/service-center/service-job-pa
 import { ServiceStatusNotificationSettings } from "@/components/service-center/service-status-notification-settings";
 import { getServiceAssetWarrantyStatus } from "@/lib/service-center/warranty-validation";
 
-export const metadata = { title: "Think Service & Repairs · ThinkSales Pro" };
+export const metadata = { title: "Think Service & Repairs · Think Digital Solutions" };
 
 export default async function ServiceCenterPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AddExpenseForm } from "@/components/expenses/add-expense-form";
 import { getApprovers } from "@/app/(dashboard)/expenses/actions";
 
-export const metadata = { title: "Add Expense · SalesMate ERP" };
+export const metadata = { title: "Add Expense · Think Digital Solutions" };
 
 export default async function AddExpensePage() {
   const context = await getCurrentOrgContext();

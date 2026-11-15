@@ -54,6 +54,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Transport", href: "/education/transport", icon: Truck, section: "Campus Operations" },
       { label: "Inventory & Assets", href: "/education/inventory", icon: Package, section: "Campus Operations" },
       { label: "Fees & Finance", href: "/education/finance", icon: Wallet, section: "Finance" },
+      { label: "Accounting", href: "/education/accounting", icon: Landmark, section: "Finance", alwaysVisible: true },
       { label: "Expenses", href: "/education/expenses", icon: Tag, section: "Finance" },
       { label: "Communication", href: "/education/communication", icon: MessageSquare, section: "Communication & Records" },
       { label: "Documents", href: "/education/documents", icon: FileText, section: "Communication & Records" },
@@ -232,7 +233,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { label: "Audit Center", href: "/audit", icon: ShieldCheck, status: "live" },
   { label: "Fraud & Anomaly Detection", href: "/fraud", icon: ShieldAlert, status: "live" },
-  { label: "ThinkSales Ai Agent", href: "/ai", icon: Sparkles, status: "live" },
+  { label: "AI Assistant", href: "/ai", icon: Sparkles, status: "live" },
   {
     label: "Communication",
     href: "/customer-messaging",

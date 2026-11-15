@@ -7,7 +7,7 @@ import {
 } from "@/components/purchases/purchase-list-view";
 import type { PurchaseStatus } from "@/types/database";
 
-export const metadata = { title: "Purchases · SalesMate ERP" };
+export const metadata = { title: "Purchases · Think Digital Solutions" };
 
 const ACTIVITY_LABEL: Record<string, string> = {
   "purchase.created": "New purchase order",

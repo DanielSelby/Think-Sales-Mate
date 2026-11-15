@@ -104,7 +104,7 @@ export function AccountsReceivableTab({
   const handleOpenReminder = (item: AccountsReceivableItem) => {
     setReminderTarget(item);
     setReminderMessage(
-      `Dear ${item.customerName},\n\nThis is a friendly reminder that invoice ${item.invoiceNumber} with an outstanding balance of ${money(item.outstandingAmount)} was due on ${item.dueDate}. Please let us know if you have any questions.\n\nBest regards,\nThinkSales Pro Accounts Team`
+      `Dear ${item.customerName},\n\nThis is a friendly reminder that invoice ${item.invoiceNumber} with an outstanding balance of ${money(item.outstandingAmount)} was due on ${item.dueDate}. Please let us know if you have any questions.\n\nBest regards,\nThink Digital Solutions Accounts Team`
     );
   };
 

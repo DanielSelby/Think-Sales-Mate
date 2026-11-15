@@ -11,7 +11,7 @@ import { getProductsForMerge } from "@/app/(dashboard)/inventory/merge/actions";
 import { getDuplicateSettings } from "@/app/(dashboard)/inventory/duplicate-actions";
 import { DuplicateSettingsForm } from "@/components/inventory/duplicate-settings-form";
 
-export const metadata = { title: "Duplicate Review Center · ThinkSales" };
+export const metadata = { title: "Duplicate Review Center · Think Digital Solutions" };
 
 export default async function DuplicateReviewCenterPage({
   searchParams,

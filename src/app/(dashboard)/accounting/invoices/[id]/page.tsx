@@ -9,7 +9,7 @@ import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { ServiceInvoicePaymentForm } from "@/components/accounting/service-invoice-payment-form";
 import { PrintInvoiceButton } from "../print-invoice-button";
 
-export const metadata = { title: "Invoice · ThinkSales Pro" };
+export const metadata = { title: "Invoice · Think Digital Solutions" };
 
 export default async function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;

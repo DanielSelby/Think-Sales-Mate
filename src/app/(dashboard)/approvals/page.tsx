@@ -6,7 +6,7 @@ import { can } from "@/lib/rbac";
 import { canPermission } from "@/lib/rbac/permissions";
 import { ApprovalCenter, type ApprovalRow } from "@/components/approvals/approval-center";
 
-export const metadata = { title: "Approval Center · ThinkSales" };
+export const metadata = { title: "Approval Center · Think Digital Solutions" };
 
 export default async function ApprovalCenterPage() {
   const context = await getCurrentOrgContext((await cookies()).get("active_org_id")?.value);

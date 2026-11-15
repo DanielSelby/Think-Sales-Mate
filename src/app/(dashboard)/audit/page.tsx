@@ -4,7 +4,7 @@ import { AuditCenter, type AuditRecord } from "@/components/audit/audit-center";
 import { can } from "@/lib/rbac";
 import { redirect } from "next/navigation";
 
-export const metadata = { title: "Audit Center · SalesMate ERP" };
+export const metadata = { title: "Audit Center · Think Digital Solutions" };
 
 export default async function AuditPage() {
   const context = await getCurrentOrgContext();

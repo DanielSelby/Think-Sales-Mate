@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import RouteSalesWorkspace from "@/components/route-sales/route-sales-workspace";
 
-export const metadata = { title: "Route Sales · SalesMate ERP" };
+export const metadata = { title: "Route Sales · Think Digital Solutions" };
 
 export default async function RouteSalesPage() {
   const activeOrgId = await (await cookies()).get("active_org_id")?.value;

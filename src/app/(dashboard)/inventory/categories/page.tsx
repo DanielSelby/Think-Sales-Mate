@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canPermission } from "@/lib/rbac/permissions";
 import { ProductCategoriesManager, type ProductCategoryRow } from "@/components/inventory/product-categories-manager";
 
-export const metadata = { title: "Product Categories · ThinkSales Pro" };
+export const metadata = { title: "Product Categories · Think Digital Solutions" };
 
 export default async function ProductCategoriesPage() {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;

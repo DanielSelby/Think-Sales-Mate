@@ -4,7 +4,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { AddPurchaseForm, type Recommendation } from "@/components/purchases/add-purchase-form";
 import type { PurchaseEditInitialValues } from "@/components/purchases/add-purchase-form";
 
-export const metadata = { title: "Edit Purchase · SalesMate ERP" };
+export const metadata = { title: "Edit Purchase · Think Digital Solutions" };
 
 interface PageProps {
   params: Promise<{ id: string }>;

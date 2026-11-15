@@ -4,7 +4,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { AddExpenseForm, type ExpenseEditInitialValues } from "@/components/expenses/add-expense-form";
 import { getApprovers } from "@/app/(dashboard)/expenses/actions";
 
-export const metadata = { title: "Edit Expense · SalesMate ERP" };
+export const metadata = { title: "Edit Expense · Think Digital Solutions" };
 
 interface PageProps {
   params: Promise<{ id: string }>;

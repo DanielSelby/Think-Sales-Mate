@@ -2,7 +2,7 @@ import { createPlatformServiceClient } from "@/lib/supabase/platform-service";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import SupportPageClient, { type Contact, type SupportTicket } from "./support-page-client";
 
-export const metadata = { title: "Support Center · ThinkSales" };
+export const metadata = { title: "Support Center · Think Digital Solutions" };
 
 export default async function SupportPage() {
   const context = await getCurrentOrgContext();

@@ -11,7 +11,7 @@ create table if not exists public.login_themes (
 
 insert into public.login_themes (id, name, description, preview_image, theme_type)
 values
-  ('default-thinksales-login', 'Default ThinkSales Login', 'The original ThinkSales Pro login experience.', '/thinksales-logo.svg', 'existing'),
+  ('default-thinksales-login', 'Default Think Digital Solutions Login', 'The original Think Digital Solutions login experience.', '/thinksales-logo.svg', 'existing'),
   ('modern-green-login', 'Modern Green Login', 'A fresh login design using the uploaded ThinkSales artwork.', '/login/modern-green-artwork.jpeg', 'modern-green')
 on conflict (id) do update
 set name = excluded.name,

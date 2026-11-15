@@ -42,21 +42,27 @@ type LoginAudit = {
   admin_name: string;
 };
 
+function getLoginThemeName(theme: LoginTheme) {
+  return theme.id === "default-thinksales-login"
+    ? "Default Think Digital Solutions Login"
+    : theme.name;
+}
+
 function LegacyLoginPreview() {
   return (
     <div className="flex min-h-[520px] w-full items-center justify-center bg-[#f7f8f6] p-6">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl md:grid-cols-2">
         <div className="hidden bg-[#172517] p-8 text-white md:block">
-          <p className="text-xl font-semibold">ThinkSales <span className="text-emerald-300">Pro</span></p>
-          <p className="mt-1 text-xs text-white/60">Sales Management System</p>
-          <h3 className="mt-14 text-3xl font-semibold leading-tight">Smart Sales.<br />Stronger Business.<br />Better Growth.</h3>
-          <p className="mt-5 max-w-xs text-sm text-white/65">Manage sales, inventory, customers and reports in one powerful platform.</p>
+          <p className="text-xl font-semibold">Think Digital Solutions</p>
+          <p className="mt-1 text-xs text-white/60">Business Management Platform</p>
+          <h3 className="mt-14 text-3xl font-semibold leading-tight">One Platform.<br />Multiple Solutions.<br />Better Growth.</h3>
+          <p className="mt-5 max-w-xs text-sm text-white/65">Manage your business operations across products in one place.</p>
           <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-white/75">Dashboard · Sales · Inventory · Customers</div>
         </div>
         <div className="flex flex-col justify-center p-8">
           <div className="mx-auto h-11 w-11 rounded-xl bg-[#203822]" />
           <h3 className="mt-4 text-center text-2xl font-semibold text-slate-900">Welcome back!</h3>
-          <p className="mt-2 text-center text-sm text-slate-400">Sign in to continue to Think-SalesMate ERP</p>
+          <p className="mt-2 text-center text-sm text-slate-400">Sign in to continue to Think Digital Solutions</p>
           <div className="mt-7 space-y-4">
             <div><p className="mb-1 text-xs font-medium text-slate-600">Email or username</p><div className="h-10 rounded-lg border border-slate-200" /></div>
             <div><p className="mb-1 text-xs font-medium text-slate-600">Password</p><div className="h-10 rounded-lg border border-slate-200" /></div>
@@ -194,7 +200,7 @@ export function LoginExperienceManager({
 
   function openEditor(theme: LoginTheme) {
     setEditing(theme);
-    setForm({ name: theme.name, description: theme.description });
+    setForm({ name: getLoginThemeName(theme), description: theme.description });
   }
 
   function closeDialogs() {
@@ -252,7 +258,7 @@ export function LoginExperienceManager({
                       <LoginArtwork url={theme.preview_image ?? "/login/modern-green-artwork.jpeg"} className="h-full w-full object-cover object-left" />
                     ) : (
                       <div className="flex h-full">
-                        <div className="w-1/2 bg-[#172517] p-3 text-[8px] font-semibold text-white"><span>ThinkSales Pro</span><p className="mt-3 text-sm leading-tight">Smart Sales.<br />Stronger Business.</p><div className="mt-4 h-10 rounded bg-white/10" /></div>
+                        <div className="w-1/2 bg-[#172517] p-3 text-[8px] font-semibold text-white"><span>Think Digital Solutions</span><p className="mt-3 text-sm leading-tight">One Platform.<br />Multiple Solutions.</p><div className="mt-4 h-10 rounded bg-white/10" /></div>
                         <div className="flex w-1/2 flex-col items-center justify-center gap-2 bg-white p-2"><span className="h-5 w-5 rounded-md bg-[#203822]" /><span className="h-2 w-16 rounded bg-slate-200" /><span className="h-4 w-full rounded border border-slate-200" /><span className="h-4 w-full rounded border border-slate-200" /><span className="h-4 w-full rounded bg-[#203822]" /></div>
                       </div>
                     )}
@@ -365,7 +371,7 @@ export function LoginExperienceManager({
                   <div className="flex min-w-0 flex-col justify-between gap-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-semibold text-slate-900">{theme.name}</h4>
+                        <h4 className="font-semibold text-slate-900">{getLoginThemeName(theme)}</h4>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${theme.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{theme.is_active ? "Active" : "Inactive"}</span>
                         {isGlobal && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">Global</span>}
                       </div>
@@ -380,7 +386,7 @@ export function LoginExperienceManager({
                       <button type="button" disabled={!theme.is_active || isGlobal || busy} onClick={() => void run(() => setGlobalLoginTheme(theme.id), "Global login theme saved.")} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 disabled:opacity-40"><Globe2 className="h-3.5 w-3.5" /> Set as Global</button>
                       <button type="button" onClick={() => document.getElementById("organization-login-themes")?.scrollIntoView({ behavior: "smooth" })} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700"><Users className="h-3.5 w-3.5" /> Assign to Organizations</button>
                       <button type="button" onClick={() => openEditor(theme)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700"><Pencil className="h-3.5 w-3.5" /> Edit</button>
-                      <button type="button" disabled={busy} onClick={() => { setDuplicateSource(theme); setForm({ name: `${theme.name} Copy`, description: theme.description }); }} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700"><ChevronDown className="h-3.5 w-3.5" /> Duplicate</button>
+                      <button type="button" disabled={busy} onClick={() => { setDuplicateSource(theme); setForm({ name: `${getLoginThemeName(theme)} Copy`, description: theme.description }); }} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700"><ChevronDown className="h-3.5 w-3.5" /> Duplicate</button>
                       <button type="button" disabled={busy || theme.id === "default-thinksales-login"} onClick={() => void run(() => setLoginThemeActive(theme.id, !theme.is_active), theme.is_active ? "Theme deactivated." : "Theme activated.")} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 disabled:opacity-40">{theme.is_active ? "Deactivate" : "Activate"}</button>
                     </div>
                   </div>
@@ -429,9 +435,9 @@ export function LoginExperienceManager({
             <div className="flex items-start gap-2"><Globe2 className="mt-0.5 h-4 w-4 text-blue-600" /><div className="min-w-0 flex-1"><h4 className="text-sm font-semibold">Global Login Theme</h4><p className="mt-1 text-xs text-slate-500">Used by organizations that do not have a custom theme.</p></div></div>
             <div className="mt-3 flex gap-2">
               <select value={selectedGlobal} onChange={(event) => setSelectedGlobal(event.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm">
-                {activeThemes.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
+                {activeThemes.map((theme) => <option key={theme.id} value={theme.id}>{getLoginThemeName(theme)}</option>)}
               </select>
-              <button type="button" disabled={busy || selectedGlobal === globalThemeId} onClick={() => { const theme = activeThemes.find((item) => item.id === selectedGlobal); void run(() => setGlobalLoginTheme(selectedGlobal), `${theme?.name ?? "Global theme"} saved.`); }} className="inline-flex h-10 items-center gap-1 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-40"><Check className="h-3.5 w-3.5" /> Save</button>
+              <button type="button" disabled={busy || selectedGlobal === globalThemeId} onClick={() => { const theme = activeThemes.find((item) => item.id === selectedGlobal); void run(() => setGlobalLoginTheme(selectedGlobal), `${theme ? getLoginThemeName(theme) : "Global theme"} saved.`); }} className="inline-flex h-10 items-center gap-1 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-40"><Check className="h-3.5 w-3.5" /> Save</button>
             </div>
           </div>
           <div className="rounded-lg border border-slate-200 p-4">
@@ -448,7 +454,7 @@ export function LoginExperienceManager({
                     </div>
                     <select value={draft} onChange={(event) => setAssignments((state) => ({ ...state, [organization.organization_id]: event.target.value }))} className="h-9 min-w-0 rounded-md border border-slate-200 bg-white px-2 text-xs">
                       <option value="">Use Global Theme</option>
-                      {activeThemes.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
+                      {activeThemes.map((theme) => <option key={theme.id} value={theme.id}>{getLoginThemeName(theme)}</option>)}
                     </select>
                     <button type="button" disabled={busy || draft === current} onClick={() => void run(() => setOrganizationLoginTheme(organization.organization_id, draft || null), `${organization.name} login theme saved.`)} className="h-9 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 disabled:opacity-40">Save</button>
                   </div>

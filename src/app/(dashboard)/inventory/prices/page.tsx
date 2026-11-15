@@ -3,7 +3,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { createClient } from "@/lib/supabase/server";
 import { PriceManagementView, type PriceProduct } from "@/components/inventory/price-management-view";
 
-export const metadata = { title: "Product Price Management · ThinkSales Pro" };
+export const metadata = { title: "Product Price Management · Think Digital Solutions" };
 
 export default async function PriceManagementPage() {
   const context = await getCurrentOrgContext((await cookies()).get("active_org_id")?.value);

@@ -1882,7 +1882,7 @@ export function StockAdjustmentHistory({
       {/* ── Dedicated Print-Only Table Slip View ───────────────────────── */}
       <div className="hidden print:block print-only p-4 text-black bg-white">
         <div className="border-b-2 border-black pb-3 mb-4">
-          <h1 className="text-xl font-bold uppercase tracking-wide">THINKSALES PRO</h1>
+          <h1 className="text-xl font-bold uppercase tracking-wide">THINK DIGITAL SOLUTIONS</h1>
           <p className="text-sm font-semibold">STOCK ADJUSTMENT AUDIT TRAIL</p>
           <p className="text-xs text-gray-600">Generated on {new Date().toLocaleDateString()}</p>
         </div>

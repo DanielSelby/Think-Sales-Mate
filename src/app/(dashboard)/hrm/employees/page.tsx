@@ -6,7 +6,7 @@ import {
 import { deriveEmployeeStatus } from "@/lib/hrm/format";
 import type { EmploymentType } from "@/types/database";
 
-export const metadata = { title: "Employees · SalesMate ERP" };
+export const metadata = { title: "Employees · Think Digital Solutions" };
 
 export default async function EmployeesPage() {
   const context = await getCurrentOrgContext();

@@ -12,7 +12,7 @@ import {
 } from "@/lib/inventory/stock-ledger";
 
 export const metadata = {
-  title: "Product Details & Stock History · ThinkSales Pro",
+  title: "Product Details & Stock History · Think Digital Solutions",
 };
 
 interface PageProps {

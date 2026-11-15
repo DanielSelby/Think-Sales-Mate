@@ -4,7 +4,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { ExpenseDetailView, type ExpenseDetail, type ExpenseDetailItem } from "@/components/expenses/expense-detail-view";
 
-export const metadata = { title: "Expense Details · SalesMate ERP" };
+export const metadata = { title: "Expense Details · Think Digital Solutions" };
 
 interface PageProps {
   params: Promise<{ id: string }>;

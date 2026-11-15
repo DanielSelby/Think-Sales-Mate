@@ -85,7 +85,7 @@ export function AccountingSettingsTab({ initialSettings }: { initialSettings?: A
       {savedMsg && (
         <div className="rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
           <CheckCircle2 className="inline h-4 w-4 mr-1.5" />
-          Settings successfully updated across ThinkSales Pro Accounting System.
+          Settings successfully updated across Think Digital Solutions Accounting System.
         </div>
       )}
 
@@ -162,7 +162,7 @@ export function AccountingSettingsTab({ initialSettings }: { initialSettings?: A
           <h3>Automated General Ledger Posting Rules</h3>
         </div>
         <p className="text-xs text-slate-500">
-          When transactions occur in other ThinkSales ERP modules, automatically generate balanced journal entries:
+          When transactions occur in other modules, automatically generate balanced journal entries:
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">

@@ -18,7 +18,7 @@ import { formatCurrency, formatDateTime, formatPosReceiptNumber } from "@/lib/sa
 import { PosReceiptPrintButton } from "@/components/pos/pos-receipt-print-button";
 import type { SaleStatus } from "@/types/database";
 
-export const metadata = { title: "List POS Sales · SalesMate ERP" };
+export const metadata = { title: "List POS Sales · Think Digital Solutions" };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGE_SIZE_OPTIONS = [10, 50, 100] as const;

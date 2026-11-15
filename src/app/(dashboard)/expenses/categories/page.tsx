@@ -4,7 +4,7 @@ import { CategoryListView, type CategoryKpis, type CategoryActivity } from "@/co
 import type { CategoryIconKey, CategoryColorKey } from "@/lib/expenses/categories";
 import { ExpenseNavigation } from "@/components/expenses/expense-navigation";
 
-export const metadata = { title: "Expense Categories · SalesMate ERP" };
+export const metadata = { title: "Expense Categories · Think Digital Solutions" };
 
 const ACTIVITY_LABEL: Record<string, string> = {
   "expense_category.created": "New category added:",

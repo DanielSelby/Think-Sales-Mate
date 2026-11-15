@@ -612,7 +612,7 @@ export default function PlatformAdminConsole({
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
               <Image src={currentLogoUrl} alt="" width={36} height={36} unoptimized className="h-full w-full rounded-lg object-contain" />
             </span>
-            <span className="font-bold">ThinkSales <small className="text-blue-300">Pro</small></span>
+            <span className="font-bold">Think Digital Solutions</span>
           </div>
           <label className="mt-4 flex cursor-pointer items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-[11px] font-semibold text-blue-100 hover:bg-white/10">
             {uploadingLogo ? "Uploading..." : "Change system logo"}

@@ -441,7 +441,7 @@ export function AddUserModal({
                 <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold">ThinkSales Approval Workflow</p>
+                    <p className="font-semibold">Approval Workflow</p>
                     <p className="text-[11px] opacity-90">
                       Enable transaction approval authorities for this user across key business operations.
                     </p>

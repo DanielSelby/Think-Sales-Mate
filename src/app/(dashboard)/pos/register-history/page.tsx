@@ -6,7 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { requirePermission } from "@/lib/rbac/permissions";
 import { formatMoney } from "@/lib/currency";
 
-export const metadata = { title: "Register History · ThinkSales Pro" };
+export const metadata = { title: "Register History · Think Digital Solutions" };
 
 export default async function RegisterHistoryPage() {
   const context = await getCurrentOrgContext();

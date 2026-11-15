@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatMoney } from "@/lib/currency";
 import { canUseLocation } from "@/lib/organizations/location-access";
 
-export const metadata = { title: "Cash Drawer · ThinkSales Pro" };
+export const metadata = { title: "Cash Drawer · Think Digital Solutions" };
 
 export default async function CashDrawerPage({ searchParams }: { searchParams: Promise<{ location?: string }> }) {
   const context = await getCurrentOrgContext();

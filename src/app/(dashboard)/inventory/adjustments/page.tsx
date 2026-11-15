@@ -27,7 +27,7 @@ import {
 } from "@/components/inventory/stock-adjustment-form";
 
 export const metadata = {
-  title: "Stock Taking & Adjustment · ThinkSales Pro",
+  title: "Stock Taking & Adjustment · Think Digital Solutions",
 };
 
 export default async function StockAdjustmentPage({ searchParams }: { searchParams?: Promise<{ mode?: string }> }) {

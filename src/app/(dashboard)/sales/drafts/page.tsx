@@ -5,7 +5,7 @@ import { getDraftSales } from "@/app/(dashboard)/sales/actions";
 import { DraftsListView } from "@/components/sales/drafts-list-view";
 import { getPlatformSystemName } from "@/lib/supabase/platform-admin";
 
-export const metadata = { title: "Drafts & Quotations · SalesMate ERP" };
+export const metadata = { title: "Drafts & Quotations · Think Digital Solutions" };
 
 export default async function DraftsPage({ searchParams }: { searchParams?: { type?: string } }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
@@ -39,7 +39,7 @@ export default async function DraftsPage({ searchParams }: { searchParams?: { ty
     ? searchParams.type
     : "all";
 
-  const systemName = await getPlatformSystemName().catch(() => "ThinkSales ERP Pro");
+  const systemName = await getPlatformSystemName().catch(() => "Think Digital Solutions");
   return <DraftsListView userId={context.userId} initialType={initialType} drafts={draftsWithContacts} currency={context.currency} orgName={companyProfile?.company_name || context.orgName} systemName={systemName}
     logoUrl={companyProfile?.logo_url ?? null}
     showLogoOnInvoices={companyProfile?.show_logo_on_invoices ?? true}

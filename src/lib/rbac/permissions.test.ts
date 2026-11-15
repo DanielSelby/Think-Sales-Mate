@@ -301,7 +301,18 @@ describe("role permission inheritance", () => {
     expect(pages.education_timetables?.[0].tabs[0].key).toBe("schedule");
     expect(pages.education_user_management?.[0].tabs.map((tab) => tab.key)).toEqual(["directory", "branch_access"]);
     expect(pages.education_settings?.[0].tabs.map((tab) => tab.key)).toEqual(["institution", "terminology"]);
-    expect(pages.education_finance?.[0].tabs.map((tab) => tab.key)).toEqual(["charges", "payments"]);
+    expect(pages.education_finance?.[0].tabs.map((tab) => tab.key)).toEqual([
+      "charges",
+      "payments",
+      "accounting_dashboard",
+      "chart_of_accounts",
+      "fiscal_periods",
+      "journal_entries",
+      "general_ledger",
+      "accounting_settings",
+      "financial_reports",
+      "bank_reconciliation",
+    ]);
     expect(pages.education_expenses?.[0].tabs.map((tab) => tab.key)).toEqual(["records"]);
     expect(pages.education_staff).toBeUndefined();
   });
@@ -347,6 +358,26 @@ describe("role permission inheritance", () => {
     expect(administrator?.permissions["education_reports.reports.fees"]).toEqual(["view", "export"]);
     expect(getEducationRolePreset("education_accountant")?.permissions["education_reports.reports.fees"])
       .toEqual(["view", "export"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.chart_of_accounts"])
+      .toEqual(["view", "create", "edit", "export"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.fiscal_periods"])
+      .toEqual(["view", "create", "edit"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.journal_entries"])
+      .toEqual(["view", "create", "edit", "export"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.general_ledger"])
+      .toEqual(["view", "export"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.accounting_settings"])
+      .toEqual(["view", "edit"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.financial_reports"])
+      .toEqual(["view", "export"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.bank_reconciliation"])
+      .toEqual(["view", "create", "edit", "export"]);
+    expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.journal_entries"])
+      .not.toContain("approve");
+    expect(getEducationRolePreset("education_admin")?.permissions["education_finance.finance.journal_entries"])
+      .toContain("approve");
+    expect(getEducationRolePreset("education_admin")?.permissions["education_finance.finance.fiscal_periods"])
+      .toContain("approve");
     expect(filterPermissionMatrixForProduct(teacher?.permissions ?? {}, "think-education"))
       .toEqual(teacher?.permissions);
     expect(filterPermissionMatrixForProduct(

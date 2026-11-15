@@ -51,7 +51,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       getProductHubBranding(),
     ]).catch((error: unknown) => {
       console.error("Platform navigation settings could not be loaded:", error);
-      return [undefined, null, "ThinkSales ERP Pro", null, null] as const;
+      return [undefined, null, "Think Digital Solutions", null, null] as const;
     }),
     getOrganizationUsageSummary(context.orgId).catch((error: unknown) => {
       console.error("Organization capacity details could not be loaded:", error);

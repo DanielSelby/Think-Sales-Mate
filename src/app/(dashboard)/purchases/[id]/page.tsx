@@ -7,7 +7,7 @@ import {
   PurchaseDetailView, type PurchaseDetail, type PurchaseDetailItem,
 } from "@/components/purchases/purchase-detail-view";
 
-export const metadata = { title: "Purchase Details · SalesMate ERP" };
+export const metadata = { title: "Purchase Details · Think Digital Solutions" };
 
 interface PageProps {
   params: Promise<{ id: string }>;

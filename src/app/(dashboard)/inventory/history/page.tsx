@@ -7,7 +7,7 @@ import {
 } from "@/components/inventory/stock-adjustment-history";
 
 export const metadata = {
-  title: "Stock Adjustment History · ThinkSales Pro",
+  title: "Stock Adjustment History · Think Digital Solutions",
 };
 
 export default async function StockAdjustmentHistoryPage() {

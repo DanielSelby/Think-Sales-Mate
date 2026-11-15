@@ -1,7 +1,7 @@
 import StockAdjustmentPage from "../adjustments/page";
 
 export const metadata = {
-  title: "Stock Taking & Adjustment · ThinkSales Pro",
+  title: "Stock Taking & Adjustment · Think Digital Solutions",
 };
 
 export default function StockTakingPage() {

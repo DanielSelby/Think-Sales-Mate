@@ -355,9 +355,9 @@ export function BrowseView({
                 <p className="mt-1 text-xs font-semibold text-ink-900 dark:text-white">Think-Digital Solutions</p>
                 <div className="mt-3 flex items-center gap-2 border-t border-ledger-100 pt-3 dark:border-ledger-700">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white p-1 ring-1 ring-ledger-200">
-                    {systemLogoUrl ? <img src={systemLogoUrl} alt="ThinkSales ERP Pro logo" className="h-full w-full object-contain" /> : <span className="text-[8px] font-bold text-signal">TS</span>}
+                    {systemLogoUrl ? <img src={systemLogoUrl} alt="Think Digital Solutions logo" className="h-full w-full object-contain" /> : <span className="text-[8px] font-bold text-signal">TS</span>}
                   </div>
-                  <span className="text-[11px] font-semibold text-ledger-500">ThinkSales ERP Pro</span>
+                  <span className="text-[11px] font-semibold text-ledger-500">Think Digital Solutions</span>
                 </div>
               </div>
             </div>

@@ -25,7 +25,7 @@ export default function PlatformAdminLoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
       <form onSubmit={submit} className="w-full max-w-md rounded-2xl border border-slate-800 bg-white p-8 shadow-2xl">
-        <img src="/thinksales-logo.svg" alt="ThinkSales" className="h-14 w-14 rounded-xl" />
+        <img src="/thinksales-logo.svg" alt="Think Digital Solutions" className="h-14 w-14 rounded-xl" />
         <p className="mt-6 text-xs font-semibold uppercase tracking-widest text-blue-600">Restricted access</p>
         <h1 className="mt-2 text-2xl font-bold text-slate-950">System Administration Platform</h1>
         <p className="mt-2 text-sm text-slate-500">Sign in with your separate platform administrator account.</p>

@@ -76,9 +76,9 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
           <Sparkles className="h-5 w-5" />
           </span>
           <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">ThinkSales Ai Agent</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">AI Assistant</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Get instant answers, insights and help with your ThinkSales Pro data.
+            Get instant answers, insights and help with your Think Digital Solutions data.
           </p>
           </div>
         </div>

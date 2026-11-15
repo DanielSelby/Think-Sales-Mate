@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
- * SalesMate ERP has no pre-existing SKU auto-generation — the current
+ * Think Digital Solutions has no pre-existing SKU auto-generation — the current
  * "Add Product" form takes whatever SKU the user types. This is a new,
  * self-contained generator used only by the bulk import flow (the manual
  * Add Product form is intentionally left untouched).

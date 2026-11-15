@@ -19,10 +19,10 @@ import { ProductHubClient, type ProductHubItem } from "./product-hub-client";
 
 export const dynamic = "force-dynamic";
 const PRODUCT_TAGLINES: Record<string, string> = {
-  "thinksales-erp": "Sell. Grow. Succeed.",
-  restaurant: "Plan. Serve. Nourish.",
-  "think-service-repairs": "Maintain. Repair. Perform.",
-  "think-education": "Manage. Educate. Inspire.",
+  "thinksales-erp": "Manage sales, inventory, and customer relationships with confidence.",
+  restaurant: "Coordinate operations and deliver consistent dining experiences.",
+  "think-service-repairs": "Streamline service work and keep assets performing.",
+  "think-education": "Connect school administration, finance, and learning.",
 };
 
 export default async function ProductHubPage() {
@@ -88,12 +88,15 @@ export default async function ProductHubPage() {
     const subscriptionStatus = entitlementBySlug.get(product.slug);
     if (!subscriptionStatus || (!isOrgAdmin && !assignedSlugs.has(product.slug))) continue;
     if (!shouldShowProductInHub(subscriptionStatus)) continue;
-    const cardBackgroundImageUrl = hubBranding.productCardBackgroundImageUrls[product.slug] ?? null;
+    const productCardBackgroundImageUrl = hubBranding.productCardBackgroundEnabled[product.slug]
+      ? hubBranding.productCardBackgroundImageUrls[product.slug] ?? null
+      : null;
+    const cardBackgroundImageUrl = productCardBackgroundImageUrl ?? hubBranding.growthCardImageUrl;
     const productPresentation = {
       imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
       cardBackgroundImageUrl,
-      showCardBackgroundImage: Boolean(cardBackgroundImageUrl && hubBranding.productCardBackgroundEnabled[product.slug]),
-      tagline: PRODUCT_TAGLINES[product.slug] ?? "",
+      showCardBackgroundImage: Boolean(cardBackgroundImageUrl),
+      tagline: PRODUCT_TAGLINES[product.slug] ?? "Purpose-built applications for clearer, more efficient work.",
     };
 
     if (subscriptionStatus === "pending") {

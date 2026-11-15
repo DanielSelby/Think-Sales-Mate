@@ -6,7 +6,7 @@ import {
 } from "@/components/suppliers/supplier-list-view";
 import type { SupplierStatus } from "@/types/database";
 
-export const metadata = { title: "Suppliers · SalesMate ERP" };
+export const metadata = { title: "Suppliers · Think Digital Solutions" };
 
 const ACTIVITY_LABEL: Record<string, string> = {
   "supplier.created": "New supplier added:",

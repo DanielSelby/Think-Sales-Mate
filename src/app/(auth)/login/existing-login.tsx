@@ -68,7 +68,7 @@ function BrandMark({ size = "md", theme, logoUrl }: { size?: "sm" | "md" | "lg";
   if (logoUrl) {
     return (
       <span className={`login-logo-enter ${sz} flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)]`}>
-        <img src={logoUrl} alt="ThinkSales" className="h-full w-full rounded-lg object-contain" />
+        <img src={logoUrl} alt="Think Digital Solutions" className="h-full w-full rounded-lg object-contain" />
       </span>
     );
   }
@@ -216,10 +216,10 @@ function LoginForm() {
               <BrandMark size="md" theme={theme} logoUrl={systemLogoUrl} />
               <div>
                 <div className="text-[23px] font-semibold tracking-[-0.7px]">
-                  ThinkSales <span style={{ color: theme.panel.accent }}>Pro</span>
+                  Think Digital Solutions
                 </div>
                 <div className="mt-[-2px] text-[11px] tracking-wide" style={{ color: theme.panel.sub }}>
-                  Sales Management System
+                  Business Management Platform
                 </div>
               </div>
             </div>
@@ -233,7 +233,7 @@ function LoginForm() {
               <span style={{ color: theme.panel.accent }}>Growth.</span>
             </h1>
             <p className="mt-6 max-w-[450px] text-[15px] leading-6" style={{ color: theme.panel.sub }}>
-              Think-SalesMate ERP helps you manage your sales, inventory, customers and reports in one powerful platform.
+              Think Digital Solutions helps you manage your business operations across products in one platform.
             </p>
           </div>
 
@@ -335,9 +335,9 @@ function LoginForm() {
                 <BrandMark size="sm" theme={theme} logoUrl={systemLogoUrl} />
                 <div>
                   <div className="text-base font-semibold tracking-tight" style={{ color: theme.btn.bg }}>
-                    ThinkSales <span style={{ color: theme.link }}>Pro</span>
+                    Think Digital Solutions
                   </div>
-                  <p className="text-[8px] text-gray-400">Sales Management System</p>
+                  <p className="text-[8px] text-gray-400">Business Management Platform</p>
                 </div>
               </div>
             </div>
@@ -351,7 +351,7 @@ function LoginForm() {
                 <h2 className="text-[27px] font-semibold tracking-[-0.8px]" style={{ color: theme.btn.bg }}>
                   Welcome back!
                 </h2>
-                <p className="mt-2 text-[13px] text-slate-400">Sign in to continue to Think-SalesMate ERP</p>
+                <p className="mt-2 text-[13px] text-slate-400">Sign in to continue to Think Digital Solutions</p>
               </div>
 
               <form onSubmit={handleSubmit} className="login-fields-stagger mt-8" aria-busy={loading}>
@@ -462,7 +462,7 @@ function LoginForm() {
             </div>
 
             <p className="mt-5 text-center text-[10px] text-slate-400">
-              © {new Date().getFullYear()} Think-SalesMate ERP. All rights reserved.
+              © {new Date().getFullYear()} Think Digital Solutions. All rights reserved.
             </p>
           </div>
         </section>

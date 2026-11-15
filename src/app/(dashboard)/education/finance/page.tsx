@@ -196,6 +196,10 @@ export default async function EducationFinancePage({
     ? "Check the selected student or class, academic year, description, due date, and amount."
     : params.error === "payment"
       ? "The payment is invalid or greater than the outstanding balance."
+      : params.error === "accounting-mapping"
+        ? "Configure the required campus account mappings before recording this fee transaction."
+        : params.error === "accounting-period"
+          ? "This transaction date is outside an open accounting period. Reopen or create the applicable period before continuing."
       : params.error === "schedule"
         ? "That schedule is inactive, the academic year is no longer open, or the class has no active students."
       : params.error === "schedule-archive-invalid"
@@ -240,7 +244,12 @@ export default async function EducationFinancePage({
     {typeof params.applied === "string" && /^\d+$/.test(params.applied) && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{params.applied} student fee charge(s) posted. Applying the same schedule again will not create duplicates.</p>}
     {params.paid === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Payment recorded and receipt reference generated.</p>}
     {params.voided === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Unpaid fee charge voided and recorded in the audit log.</p>}
-    {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
+    {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+      {errorMessage}
+      {(params.error === "accounting-mapping" || params.error === "accounting-period") && (
+        <> <Link href={getProductAppPath("think-education", params.error === "accounting-mapping" ? "/accounting/settings" : "/accounting/periods")} className="font-semibold underline">Open accounting setup</Link></>
+      )}
+    </p>}
 
     <section className="grid gap-3 sm:grid-cols-3">
       {[

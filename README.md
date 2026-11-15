@@ -1,6 +1,6 @@
-# SalesMate ERP
+# Think Digital Solutions
 
-SalesMate ERP is a multi-tenant business application built with Next.js 16,
+Think Digital Solutions is a multi-tenant business application built with Next.js 16,
 React, TypeScript, Tailwind CSS, and Supabase. Organizations can manage sales,
 inventory, point of sale, purchasing, expenses, accounting, staff, and related
 business workflows from one application.

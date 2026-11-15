@@ -110,7 +110,7 @@ export async function notifyNewCustomerOrder(params: {
     await createNotification({
       orgId: params.orgId,
       title: `Order Received - ${params.orderNumber}`,
-      message: `Hi ${params.customerName}, thanks for your order ${params.orderNumber} with ThinkSales Pro. Status: Pending Review.`,
+      message: `Hi ${params.customerName}, thanks for your order ${params.orderNumber} with Think Digital Solutions. Status: Pending Review.`,
       type: "order_received",
       channel: "whatsapp",
       entityId: params.orderId,

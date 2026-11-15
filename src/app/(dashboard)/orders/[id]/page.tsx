@@ -3,7 +3,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canAccessLocation } from "@/lib/organizations/location-access";
 import { OrderDetailView, type OrderDetail, type OrderItemRow, type OrderTimelineRow } from "@/components/orders/order-detail-view";
 
-export const metadata = { title: "Order Details · ThinkSales Pro" };
+export const metadata = { title: "Order Details · Think Digital Solutions" };
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

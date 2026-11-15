@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ThinkSales Pro",
-    short_name: "ThinkSales",
+    name: "Think Digital Solutions",
+    short_name: "Think Digital Solutions",
     description: "Sales, inventory, accounting, and operations in one workspace.",
     start_url: "/dashboard",
     display: "standalone",

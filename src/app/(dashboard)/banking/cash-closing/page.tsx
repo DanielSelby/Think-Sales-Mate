@@ -21,7 +21,7 @@ import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { RestaurantFinancialSummary, type RestaurantFinancialSummaryData } from "@/components/restaurant/restaurant-financial-summary";
 
-export const metadata = { title: "Cash Closing · SalesMate ERP" };
+export const metadata = { title: "Cash Closing · Think Digital Solutions" };
 
 type CashClosingSearchParams = {
   error?: string;

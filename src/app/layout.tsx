@@ -4,7 +4,7 @@ import { PwaProvider } from "@/components/pwa/pwa-provider";
 import { AppAlertProvider } from "@/components/ui/app-alert-provider";
 
 export const metadata: Metadata = {
-  title: "ThinkSales Pro",
+  title: "Think Digital Solutions",
   description: "Run sales, inventory, accounting, and your team from one workspace.",
   icons: {
     icon: [

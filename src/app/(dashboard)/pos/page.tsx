@@ -6,7 +6,7 @@ import { PosView } from "@/components/pos/pos-view";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEnabledOrganizationModules } from "@/lib/supabase/platform-admin";
 
-export const metadata = { title: "POS · SalesMate ERP" };
+export const metadata = { title: "POS · Think Digital Solutions" };
 
 export default async function PosPage() {
   const context = await getCurrentOrgContext();

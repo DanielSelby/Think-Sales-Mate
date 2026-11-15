@@ -215,7 +215,7 @@ const LEGACY_NAV_ITEMS: NavItem[] = [
     ],
   },
   { label: "Fraud & Anomaly Detection", href: "/fraud", icon: ShieldAlert, status: "live" },
-  { label: "ThinkSales Ai Agent", href: "/ai", icon: Sparkles, status: "live" },
+  { label: "AI Assistant", href: "/ai", icon: Sparkles, status: "live" },
   { label: "Communication", href: "/communication", icon: MessageSquare, status: "live" },
   { label: "User Management", href: "/settings/organization", icon: Users2, status: "live" },
 ];
@@ -300,7 +300,7 @@ export function Sidebar({
   collapsed,
   enabledModules,
   systemLogoUrl,
-  systemName = "ThinkSales ERP Pro",
+  systemName = "Think Digital Solutions",
   productLogoUrls,
   productNames,
   mobileOpen = false,

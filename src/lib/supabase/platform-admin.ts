@@ -48,9 +48,13 @@ export async function getPlatformSystemName() {
     .maybeSingle();
   if (error) throw new Error(`Could not load platform system name: ${error.message}`);
   const value = data?.value;
-  return value && typeof value === "object" && "name" in value && typeof value.name === "string" && value.name.trim()
+  const configuredName = value && typeof value === "object" && "name" in value && typeof value.name === "string"
     ? value.name.trim()
-    : "ThinkSales ERP Pro";
+    : "";
+  if (!configuredName || /^(?:thinksales(?:\s+erp)?(?:\s+pro)?|salesmate\s+erp|think-salesmate\s+erp)$/i.test(configuredName)) {
+    return "Think Digital Solutions";
+  }
+  return configuredName;
 }
 
 export async function getPlatformWatermarkConfiguration() {
