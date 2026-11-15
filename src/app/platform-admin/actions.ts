@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { syncPendingProductEntitlements } from "@/lib/supabase/product-entitlements";
 import { parsePlatformWatermark, type WatermarkPosition } from "@/lib/platform-watermark";
 import { validateAndSanitizeWatermarkImage } from "@/lib/platform-watermark-upload";
+import { isPlatformThemeKey } from "@/lib/platform-theme";
 import { isValidOrganizationExpiryDate } from "@/lib/organization-access-expiry";
 import type {
   PlatformModule,
@@ -1396,6 +1397,58 @@ export async function saveProductHubTheme(formData: FormData): Promise<ProductHu
   revalidatePath("/platform-admin/products");
   revalidatePath("/product-hub");
   return { ok: true, message: "Product Hub theme settings were saved." };
+}
+
+export async function saveProductHubSystemTheme(formData: FormData): Promise<ProductHubAppearanceActionResult> {
+  const { admin, supabase } = await requirePlatformManagement("System Settings");
+  const themeKey = formData.get("themeKey");
+  if (!isPlatformThemeKey(themeKey)) {
+    return { ok: false, error: "Choose a valid system theme." };
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("platform_settings")
+    .select("value, updated_at, updated_by")
+    .eq("key", "product_hub_branding")
+    .maybeSingle();
+  if (currentError) return { ok: false, error: `Could not load current Product Hub settings: ${currentError.message}` };
+
+  const value = {
+    ...(isRecord(current?.value) ? current.value : {}),
+    theme_key: themeKey,
+  };
+  const { error } = await supabase.from("platform_settings").upsert({
+    key: "product_hub_branding",
+    value,
+    updated_by: admin.id,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: `Could not save Product Hub system theme: ${error.message}` };
+
+  const { error: auditError } = await supabase.from("platform_audit_logs").insert({
+    admin_id: admin.id,
+    action: "product_hub_system_theme_updated",
+    module: "system_settings",
+    metadata: { theme_key: themeKey },
+  });
+  if (auditError) {
+    const rollback = current
+      ? await supabase.from("platform_settings").upsert({
+        key: "product_hub_branding",
+        value: current.value,
+        updated_at: current.updated_at,
+        updated_by: current.updated_by,
+      })
+      : await supabase.from("platform_settings").delete().eq("key", "product_hub_branding");
+    if (rollback.error) {
+      return { ok: false, error: `Theme audit logging failed (${auditError.message}); the setting rollback failed (${rollback.error.message}).` };
+    }
+    return { ok: false, error: `The theme setting was rolled back because audit logging failed: ${auditError.message}` };
+  }
+
+  revalidatePath("/platform-admin");
+  revalidatePath("/product-hub");
+  return { ok: true, message: "Product Hub system theme was saved." };
 }
 
 export async function retryProductEntitlementEvent(formData: FormData): Promise<void> {

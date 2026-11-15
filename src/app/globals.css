@@ -3810,8 +3810,8 @@ html.dark[data-dark-style="think-service"] .page-canvas .pos-page .pos-product-g
   color: var(--workspace-hub-text-secondary) !important;
 }
 
-[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero > div:nth-child(2) {
-  background-image: linear-gradient(90deg, rgb(8 17 31 / 96%), rgb(8 17 31 / 78%), transparent) !important;
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero > div:first-child {
+  background-color: #08111f !important;
 }
 
 [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero h1,

@@ -32,6 +32,8 @@ import type { PlatformAdminPage } from "@/lib/platform-admin-pages";
 import { parsePlatformWatermark } from "@/lib/platform-watermark";
 import { WatermarkManager } from "./watermark-manager";
 import { SupportCenterHeroManager } from "./support-center-hero-manager";
+import { ProductHubThemeManager } from "./product-hub-theme-manager";
+import type { PlatformThemeKey } from "@/lib/platform-theme";
 
 type Organization = {
   id: string;
@@ -199,6 +201,8 @@ function exportAuditLogs(logs: AuditLog[], format: "csv" | "excel" | "pdf") {
 export default function PlatformAdminConsole({
   logoUrl,
   supportCenterHeroUrl,
+  productHubThemeKey,
+  canManagePlatform,
   organizations,
   managedOrganizations,
   productSubscriptions,
@@ -225,6 +229,8 @@ export default function PlatformAdminConsole({
 }: {
   logoUrl: string;
   supportCenterHeroUrl: string;
+  productHubThemeKey: PlatformThemeKey;
+  canManagePlatform: boolean;
   organizations: Organization[];
   managedOrganizations: ManagedOrganization[];
   productSubscriptions: ManagedProductSubscription[];
@@ -486,6 +492,7 @@ export default function PlatformAdminConsole({
             ))}
           </nav>
           <h1 className="text-2xl font-bold text-slate-950">System Settings</h1>
+          <ProductHubThemeManager initialTheme={productHubThemeKey} canManage={canManagePlatform} />
           <WatermarkManager initialConfiguration={watermark} />
           <SupportCenterHeroManager initialImageUrl={supportCenterHeroUrl} />
         </div>

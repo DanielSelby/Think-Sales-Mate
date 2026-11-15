@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
@@ -40,6 +40,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { OrgSwitcher } from "@/components/nav/org-switcher";
 import { createClient } from "@/lib/supabase/client";
+import { THEMES } from "@/store/useAppStore";
 import type { PlatformHubAnnouncement, ProductHubBranding } from "@/lib/supabase/platform-admin";
 import { PLATFORM_PRODUCT_LABELS, isPlatformProductSlug } from "@/types/platform-database";
 
@@ -176,6 +177,17 @@ function getAnnouncementHref(value: string | null): string | null {
   }
 }
 
+function getContrastingTextColor(hexColor: string): string {
+  const hex = hexColor.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return "#ffffff";
+  const channels = [0, 2, 4].map((offset) => {
+    const channel = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  return luminance > 0.179 ? "#111827" : "#ffffff";
+}
+
 export function ProductHubClient({
   orgId,
   orgName,
@@ -193,6 +205,22 @@ export function ProductHubClient({
 }: ProductHubClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const selectedTheme = THEMES[hubBranding.themeKey];
+  const themeStyle = {
+    "--hub-theme-primary": selectedTheme.colors.primary,
+    "--hub-theme-primary-mid": selectedTheme.colors.primaryMid,
+    "--hub-theme-primary-light": selectedTheme.colors.primaryLight,
+    "--hub-theme-primary-pale": selectedTheme.colors.primaryPale,
+    "--hub-theme-primary-text": getContrastingTextColor(selectedTheme.colors.primary),
+    "--hub-theme-sidebar-background": selectedTheme.sidebar.background,
+    "--hub-theme-sidebar-text": selectedTheme.sidebar.text,
+    "--hub-theme-sidebar-muted": selectedTheme.sidebar.textMuted,
+    "--hub-theme-sidebar-active-background": selectedTheme.sidebar.activeBackground,
+    "--hub-theme-sidebar-active-text": selectedTheme.sidebar.activeText,
+    "--hub-theme-sidebar-hover-background": selectedTheme.sidebar.hoverBackground,
+    "--hub-theme-background": selectedTheme.colors.background,
+    "--hub-theme-text": selectedTheme.colors.text,
+  } as CSSProperties;
   const [search, setSearch] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -316,6 +344,7 @@ export function ProductHubClient({
       data-product-hub-theme={hubBranding.darkThemeEnabled ? "dark" : "light"}
       data-product-hub-surface-style={hubBranding.darkSurfaceStyle}
       className="min-h-screen bg-[#f5f7fb] text-[#18243b]"
+      style={themeStyle}
     >
       <style jsx global>{`
         [data-product-hub-theme="dark"] {
@@ -371,6 +400,16 @@ export function ProductHubClient({
         [data-product-hub-theme="dark"] main [class~="text-blue-800"] {
           color: #a8d1ff !important;
         }
+        [data-product-hub-theme="dark"] [data-hub-hero-primary-button] {
+          background-color: #ffffff !important;
+          color: #1e3a8a !important;
+          opacity: 1 !important;
+          filter: none !important;
+          text-shadow: none !important;
+        }
+        [data-product-hub-theme="dark"] [data-hub-hero-primary-button]:hover {
+          background-color: #eff6ff !important;
+        }
         [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-slate-50"],
         [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-slate-50/80"],
         [data-product-hub-theme="dark"] [data-hub-surface] [class~="bg-white"] {
@@ -397,6 +436,57 @@ export function ProductHubClient({
         }
         [data-product-hub-theme="dark"] header [data-hub-org-switcher] button svg {
           color: #cbd5e1 !important;
+        }
+        [data-product-hub-theme="light"] {
+          background-color: var(--hub-theme-background) !important;
+          color: var(--hub-theme-text);
+        }
+        [data-product-hub-theme="light"] [data-hub-sidebar] {
+          background-color: var(--hub-theme-sidebar-background) !important;
+          color: var(--hub-theme-sidebar-text) !important;
+        }
+        [data-product-hub-theme="light"] [data-hub-sidebar] nav a {
+          color: var(--hub-theme-sidebar-text) !important;
+        }
+        [data-product-hub-theme] [data-hub-sidebar] nav a[aria-current="page"] {
+          background-color: var(--hub-theme-sidebar-active-background) !important;
+          color: var(--hub-theme-sidebar-active-text) !important;
+        }
+        [data-product-hub-theme] [data-hub-sidebar] nav a:hover {
+          background-color: var(--hub-theme-sidebar-hover-background) !important;
+        }
+        [data-product-hub-theme] [data-hub-brand-button] {
+          background-color: var(--hub-theme-primary) !important;
+          color: var(--hub-theme-primary-text) !important;
+          opacity: 1 !important;
+          filter: none !important;
+          text-shadow: none !important;
+        }
+        [data-product-hub-theme] [data-hub-brand-button]:hover {
+          background-color: var(--hub-theme-primary-mid) !important;
+        }
+        [data-product-hub-theme] main [class~="bg-blue-600"],
+        [data-product-hub-theme] main [class~="bg-blue-700"] {
+          background-color: var(--hub-theme-primary) !important;
+          color: var(--hub-theme-primary-text) !important;
+        }
+        [data-product-hub-theme] main [class~="hover:bg-blue-700"]:hover,
+        [data-product-hub-theme] main [class~="hover:bg-blue-800"]:hover {
+          background-color: var(--hub-theme-primary-mid) !important;
+        }
+        [data-product-hub-theme="light"] main [class~="text-blue-700"],
+        [data-product-hub-theme="light"] main [class~="text-blue-800"] {
+          color: var(--hub-theme-primary) !important;
+        }
+        [data-product-hub-theme="dark"] main [class~="text-blue-700"],
+        [data-product-hub-theme="dark"] main [class~="text-blue-800"] {
+          color: color-mix(in srgb, var(--hub-theme-primary-light) 45%, white) !important;
+        }
+        [data-product-hub-theme] main [class~="bg-blue-50"] {
+          background-color: color-mix(in srgb, var(--hub-theme-primary) 8%, white) !important;
+        }
+        [data-product-hub-theme] main [class*="border-blue-"] {
+          border-color: color-mix(in srgb, var(--hub-theme-primary) 24%, white) !important;
         }
       `}</style>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[252px] md:block">{renderSidebar()}</aside>
@@ -526,20 +616,20 @@ export function ProductHubClient({
               </>
             )}
             <div className="relative z-10 flex min-h-[165px] max-w-[700px] flex-col justify-center sm:min-h-[175px]">
-              <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 sm:text-xs">
+              <p className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-cyan-200 sm:text-sm">
                 <span className="h-px w-6 bg-cyan-300" /> Think Digital Solutions
               </p>
               <h1 className="max-w-[620px] text-[25px] font-bold leading-[1.08] tracking-tight sm:text-3xl lg:text-4xl">
                 One Platform. Multiple Solutions. Unlimited Possibilities.
               </h1>
-              <p className="mt-2 max-w-[550px] text-xs leading-5 text-blue-100 sm:text-sm sm:leading-6">
+              <p className="mt-2 max-w-[550px] text-sm leading-6 text-blue-100 sm:text-base sm:leading-7">
                 Discover, manage and access intelligent business applications designed to simplify operations and accelerate growth.
               </p>
               <div className="mt-4 flex flex-wrap gap-2.5">
-                <a href="#applications" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-xs font-bold text-blue-800 shadow-sm transition hover:bg-blue-50 sm:text-sm">
+                <a data-hub-brand-button href="#applications" className="inline-flex h-11 items-center gap-2 rounded-lg px-5 text-sm font-bold shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-900 sm:text-base">
                   <Rocket className="h-4 w-4" /> Explore Your Applications <ArrowRight className="h-4 w-4" />
                 </a>
-                <a href="#about" className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-4 text-xs font-semibold text-white transition hover:bg-white/20 sm:text-sm">
+                <a href="#about" className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/50 bg-slate-950/25 px-5 text-sm font-semibold text-white transition hover:bg-slate-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:text-base">
                   <CheckCircle2 className="h-4 w-4" /> Learn More
                 </a>
               </div>
@@ -579,7 +669,7 @@ export function ProductHubClient({
             {preferencesError && <p role="status" className="text-xs text-amber-700">{preferencesError}</p>}
             {preferencesReady && favoriteProducts.length > 0 && (
               <div className="space-y-2">
-                <h2 className="flex items-center gap-2 text-sm font-bold text-[#14233e]">
+                <h2 className="flex items-center gap-2 text-base font-bold text-[#14233e]">
                   <Star aria-hidden="true" className="h-4 w-4 fill-amber-400 text-amber-500" />
                   Favorites
                 </h2>
@@ -598,7 +688,7 @@ export function ProductHubClient({
                         <span className={`relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg ${presentation.color}`}>
                           {product.imageUrl ? <Image src={product.imageUrl} alt="" fill unoptimized className="object-contain p-1" /> : <ProductIcon className="h-5 w-5" />}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#152440]">{product.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-base font-semibold text-[#152440]">{product.name}</span>
                         <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-blue-600" />
                       </Link>
                     );
@@ -608,7 +698,7 @@ export function ProductHubClient({
             )}
             {preferencesReady && recentProducts.length > 0 && (
               <div className="space-y-2">
-                <h2 className="text-sm font-bold text-[#14233e]">Recently opened</h2>
+                <h2 className="text-base font-bold text-[#14233e]">Recently opened</h2>
                 <div className="flex flex-wrap gap-2">
                   {recentProducts.map((product) => (
                     <Link
@@ -616,7 +706,7 @@ export function ProductHubClient({
                       key={product.slug}
                       href={product.launchPath!}
                       onClick={() => recordProductLaunch(product.slug)}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
                     >
                       {product.name}<ArrowRight aria-hidden="true" className="h-3 w-3" />
                     </Link>
@@ -629,9 +719,9 @@ export function ProductHubClient({
           <section id="applications" className="scroll-mt-[290px] space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">Workspace</p>
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-[#14233e] sm:text-2xl">Your Application Workspace</h2>
-                <p className="mt-1 text-sm text-slate-500">Access your subscribed and authorized products.</p>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Workspace</p>
+                <h2 className="mt-1 text-2xl font-bold tracking-tight text-[#14233e] sm:text-3xl">Your Application Workspace</h2>
+                <p className="mt-1 text-base text-slate-500">Access your subscribed and authorized products.</p>
               </div>
               <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 sm:self-auto">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -646,13 +736,13 @@ export function ProductHubClient({
             )}
 
             {canSearch && (
-              <label data-hub-surface className="flex h-10 max-w-sm items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-400">
+              <label data-hub-surface className="flex h-11 max-w-sm items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-400">
                 <Search className="h-4 w-4" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search applications"
-                  className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                  className="w-full bg-transparent text-base text-slate-800 outline-none placeholder:text-slate-400"
                 />
               </label>
             )}
@@ -664,7 +754,14 @@ export function ProductHubClient({
                   const ProductIcon = presentation.icon;
                   const hasCardBackground = product.showCardBackgroundImage && Boolean(product.cardBackgroundImageUrl);
                   return (
-                    <article data-hub-surface key={product.slug} className={`hub-product-card group relative isolate flex min-h-[215px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] xl:aspect-[1.84] ${
+                    <article
+                      data-hub-surface
+                      data-hub-product-card
+                      key={product.slug}
+                      style={!hasCardBackground ? {
+                        backgroundImage: `linear-gradient(135deg, ${selectedTheme.colors.primaryPale}, color-mix(in srgb, ${selectedTheme.colors.primary} 18%, white), color-mix(in srgb, ${selectedTheme.colors.primary} 42%, white))`,
+                      } : undefined}
+                      className={`hub-product-card group relative isolate flex min-h-[235px] min-w-0 overflow-hidden rounded-xl border border-slate-200/90 shadow-[0_5px_22px_rgba(15,35,65,0.045)] transition duration-200 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,60,130,0.1)] xl:aspect-[1.84] ${
                       hasCardBackground ? "bg-slate-900" : "bg-gradient-to-br from-[#dbeafe] via-[#bfdbfe] to-[#93c5fd]"
                     }`}>
                       {hasCardBackground && product.cardBackgroundImageUrl && (
@@ -706,7 +803,7 @@ export function ProductHubClient({
                                   <ProductIcon aria-hidden="true" className="h-7 w-7" />
                                 )}
                               </span>
-                              <h3 className={`min-w-0 truncate text-base font-bold leading-tight sm:text-lg ${hasCardBackground ? "text-white" : "text-[#152440]"}`}>
+                              <h3 className={`min-w-0 truncate text-lg font-bold leading-tight sm:text-xl ${hasCardBackground ? "text-white" : "text-[#152440]"}`}>
                                 {product.name}
                               </h3>
                             </div>
@@ -725,7 +822,7 @@ export function ProductHubClient({
                               </button>
                             )}
                           </div>
-                          <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                          <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
                             product.status === "Active" ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                               : product.status === "Read-only" ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
                                 : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
@@ -739,15 +836,15 @@ export function ProductHubClient({
                         </div>
                         <div className="flex min-w-0 items-end justify-between gap-3">
                           <div className="min-w-0 flex-1 space-y-0.5">
-                            <p className={`line-clamp-2 text-[10px] leading-4 sm:text-[11px] ${hasCardBackground ? "text-slate-100" : "text-slate-700"}`}>
+                            <p className={`line-clamp-2 text-sm leading-5 sm:text-base ${hasCardBackground ? "text-slate-100" : "text-slate-700"}`}>
                               {product.description || "Open your organization's application."}
                             </p>
-                            <p className={`text-[11px] font-semibold leading-4 ${hasCardBackground ? "text-cyan-100" : "text-blue-800"}`}>
+                            <p className={`text-sm font-semibold leading-5 sm:text-base ${hasCardBackground ? "text-cyan-100" : "text-blue-800"}`}>
                               {product.tagline || "Purpose-built applications for clearer, more efficient work."}
                             </p>
                           </div>
                           {product.canOpen ? (
-                            <span className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm">
+                            <span className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm">
                               Open Application
                               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                             </span>

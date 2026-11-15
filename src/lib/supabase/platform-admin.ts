@@ -16,6 +16,7 @@ import {
   type PlatformProductSlug,
 } from "@/types/platform-database";
 import { parsePlatformWatermark } from "@/lib/platform-watermark";
+import { DEFAULT_PLATFORM_THEME_KEY, isPlatformThemeKey, type PlatformThemeKey } from "@/lib/platform-theme";
 
 const PRODUCT_SLUGS: readonly PlatformProductSlug[] = PLATFORM_PRODUCT_SLUGS;
 
@@ -95,6 +96,7 @@ export interface ProductHubBranding {
   productCardBackgroundImageUrls: Partial<Record<PlatformProductSlug, string>>;
   productCardBackgroundEnabled: Partial<Record<PlatformProductSlug, boolean>>;
   productNames: Record<PlatformProductSlug, string>;
+  themeKey: PlatformThemeKey;
   darkThemeEnabled: boolean;
   darkSurfaceStyle: "opaque" | "transparent";
 }
@@ -176,6 +178,7 @@ export async function getProductHubBranding(): Promise<ProductHubBranding> {
     productCardBackgroundImageUrls,
     productCardBackgroundEnabled,
     productNames,
+    themeKey: isPlatformThemeKey(value.theme_key) ? value.theme_key : DEFAULT_PLATFORM_THEME_KEY,
     darkThemeEnabled: value.dark_theme_enabled === true,
     darkSurfaceStyle: value.dark_surface_style === "transparent" ? "transparent" : "opaque",
   };

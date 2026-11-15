@@ -18,11 +18,23 @@ import { OrganizationExpiredScreen } from "@/components/organization/organizatio
 import { ProductHubClient, type ProductHubItem } from "./product-hub-client";
 
 export const dynamic = "force-dynamic";
+const PRODUCT_NAMES: Record<string, string> = {
+  "thinksales-erp": "ThinkSales ERP",
+  restaurant: "Think Restaurant",
+  "think-service-repairs": "Think Service & Repair",
+  "think-education": "Think Education",
+};
+const PRODUCT_DESCRIPTIONS: Record<string, string> = {
+  "thinksales-erp": "Manage sales, inventory, purchasing, and business finances from one workspace.",
+  restaurant: "Coordinate menus, orders, inventory, and day-to-day restaurant service.",
+  "think-service-repairs": "Track service requests, work orders, technicians, and repairs.",
+  "think-education": "Manage admissions, academics, school accounting, and family communication.",
+};
 const PRODUCT_TAGLINES: Record<string, string> = {
-  "thinksales-erp": "Manage sales, inventory, and customer relationships with confidence.",
-  restaurant: "Coordinate operations and deliver consistent dining experiences.",
-  "think-service-repairs": "Streamline service work and keep assets performing.",
-  "think-education": "Connect school administration, finance, and learning.",
+  "thinksales-erp": "Sales, inventory, purchasing, and accounting—connected for better control.",
+  restaurant: "Bring orders, menus, stock, and service together in one platform.",
+  "think-service-repairs": "Manage every service job from request to repair completion.",
+  "think-education": "Connect admissions, academics, school accounting, and family engagement.",
 };
 
 export default async function ProductHubPage() {
@@ -93,6 +105,8 @@ export default async function ProductHubPage() {
       : null;
     const cardBackgroundImageUrl = productCardBackgroundImageUrl ?? hubBranding.growthCardImageUrl;
     const productPresentation = {
+      name: PRODUCT_NAMES[product.slug] ?? product.name,
+      description: PRODUCT_DESCRIPTIONS[product.slug] ?? product.description,
       imageUrl: hubBranding.productImageUrls[product.slug] ?? null,
       cardBackgroundImageUrl,
       showCardBackgroundImage: Boolean(cardBackgroundImageUrl),
