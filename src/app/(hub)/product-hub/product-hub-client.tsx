@@ -508,7 +508,7 @@ export function ProductHubClient({
                   priority
                   unoptimized
                   sizes="100vw"
-                  className="absolute inset-0 z-0 object-contain object-center sm:object-right"
+                  className="absolute inset-0 z-0 object-fill"
                 />
                 <div
                   aria-hidden="true"
@@ -716,9 +716,6 @@ export function ProductHubClient({
                               </button>
                             )}
                           </div>
-                          <p className={`mt-3 line-clamp-2 max-w-xl text-xs leading-5 sm:text-sm ${hasCardBackground ? "text-slate-100" : "text-slate-700"}`}>
-                            {product.description || "Open your organization's application."}
-                          </p>
                           <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
                             product.status === "Active" ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                               : product.status === "Read-only" ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
@@ -732,9 +729,14 @@ export function ProductHubClient({
                           </span>
                         </div>
                         <div className="flex min-w-0 items-end justify-between gap-3">
-                          <p className={`min-w-0 flex-1 text-[11px] font-semibold leading-4 ${hasCardBackground ? "text-cyan-100" : "text-blue-800"}`}>
-                            {product.tagline || "Purpose-built applications for clearer, more efficient work."}
-                          </p>
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <p className={`line-clamp-2 text-[10px] leading-4 sm:text-[11px] ${hasCardBackground ? "text-slate-100" : "text-slate-700"}`}>
+                              {product.description || "Open your organization's application."}
+                            </p>
+                            <p className={`text-[11px] font-semibold leading-4 ${hasCardBackground ? "text-cyan-100" : "text-blue-800"}`}>
+                              {product.tagline || "Purpose-built applications for clearer, more efficient work."}
+                            </p>
+                          </div>
                           {product.canOpen ? (
                             <span className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm">
                               Open Application
