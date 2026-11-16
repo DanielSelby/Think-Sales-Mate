@@ -20,6 +20,11 @@ import {
 
 export type EducationImportEntity = "students" | "staff" | "campuses";
 
+function educationExpenseReturnPath(pettyCash: boolean, query?: string) {
+  const path = getProductAppPath("think-education", pettyCash ? "/accounting/petty-cash" : "/expenses");
+  return query ? `${path}?${query}` : path;
+}
+
 function isValidEducationStaffDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
@@ -328,6 +333,7 @@ export async function recordEducationFeePayment(formData: FormData) {
   revalidatePath("/education/accounting");
   revalidatePath("/education/accounting/journal-entries");
   revalidatePath("/education/accounting/general-ledger");
+  revalidatePath("/education/accounting/cashbook");
   revalidatePath("/education/accounting/reports");
   redirect(`${getProductAppPath("think-education", "/finance")}?paid=1`);
 }
@@ -2116,12 +2122,13 @@ export async function createEducationExpense(formData: FormData) {
   const amountText = String(formData.get("amount") ?? "").trim();
   const expenseDate = String(formData.get("expense_date") ?? "");
   const reference = String(formData.get("reference") ?? "").trim();
+  const pettyCash = category === "Petty Cash";
   const amount = Number(amountText);
   if (!branchId || !EDUCATION_EXPENSE_CATEGORIES.includes(category as typeof EDUCATION_EXPENSE_CATEGORIES[number])
     || vendor.length > 160 || !description || description.length > 500
     || !/^\d{1,10}(?:\.\d{1,2})?$/.test(amountText) || !Number.isFinite(amount) || amount <= 0
     || amount > 9_999_999_999.99 || !isValidEducationExpenseDate(expenseDate) || reference.length > 120) {
-    redirect(`${getProductAppPath("think-education", "/expenses")}?error=invalid`);
+    redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
   }
 
   const supabase = await createClient();
@@ -2136,13 +2143,13 @@ export async function createEducationExpense(formData: FormData) {
     p_reference: reference || null,
   });
   if (error) {
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/expenses")}?error=invalid`);
+    if (error.code === "22023") redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
     if (error.code === "42501") throw new Error("You are not authorized to create expenses at this campus.");
     console.error("Could not create Think Education expense:", error.message);
-    redirect(`${getProductAppPath("think-education", "/expenses")}?error=save`);
+    redirect(educationExpenseReturnPath(pettyCash, "error=save"));
   }
   revalidatePath("/education/expenses");
-  redirect(`${getProductAppPath("think-education", "/expenses")}?created=1`);
+  redirect(educationExpenseReturnPath(pettyCash, "created=1"));
 }
 
 export async function reviewEducationExpense(formData: FormData) {
@@ -2154,11 +2161,12 @@ export async function reviewEducationExpense(formData: FormData) {
 
   const expenseId = String(formData.get("expense_id") ?? "");
   const decision = String(formData.get("decision") ?? "");
+  const pettyCash = formData.get("return_to") === "petty_cash";
   const reason = String(formData.get("reason") ?? "").trim();
   if (!expenseId || !["approved", "rejected"].includes(decision)
     || (decision === "rejected" && (reason.length < 3 || reason.length > 500))
     || (decision === "approved" && reason.length > 500)) {
-    redirect(`${getProductAppPath("think-education", "/expenses")}?error=invalid`);
+    redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
   }
 
   const supabase = await createClient();
@@ -2169,20 +2177,20 @@ export async function reviewEducationExpense(formData: FormData) {
     p_reason: reason || null,
   });
   if (error) {
-    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-mapping`);
-    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-period`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/expenses")}?error=transition`);
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/expenses")}?error=not-found`);
+    if (error.code === "23514") redirect(educationExpenseReturnPath(pettyCash, "error=accounting-mapping"));
+    if (error.message.includes("open fiscal period")) redirect(educationExpenseReturnPath(pettyCash, "error=accounting-period"));
+    if (error.code === "22023") redirect(educationExpenseReturnPath(pettyCash, "error=transition"));
+    if (error.code === "P0002") redirect(educationExpenseReturnPath(pettyCash, "error=not-found"));
     if (error.code === "42501") throw new Error("You are not authorized to review this expense at its campus.");
     console.error("Could not review Think Education expense:", error.message);
-    redirect(`${getProductAppPath("think-education", "/expenses")}?error=save`);
+    redirect(educationExpenseReturnPath(pettyCash, "error=save"));
   }
   revalidatePath("/education/expenses");
   revalidatePath("/education/accounting");
   revalidatePath("/education/accounting/journal-entries");
   revalidatePath("/education/accounting/general-ledger");
   revalidatePath("/education/accounting/reports");
-  redirect(`${getProductAppPath("think-education", "/expenses")}?reviewed=${decision}`);
+  redirect(educationExpenseReturnPath(pettyCash, `reviewed=${decision}`));
 }
 
 export async function markEducationExpensePaid(formData: FormData) {
@@ -2194,11 +2202,12 @@ export async function markEducationExpensePaid(formData: FormData) {
 
   const expenseId = String(formData.get("expense_id") ?? "");
   const paymentMethod = String(formData.get("payment_method") ?? "");
+  const pettyCash = formData.get("return_to") === "petty_cash";
   const paidOn = String(formData.get("paid_on") ?? "");
   if (!expenseId
     || !EDUCATION_EXPENSE_PAYMENT_METHODS.some(([value]) => value === paymentMethod)
     || !isValidEducationExpenseDate(paidOn)) {
-    redirect(`${getProductAppPath("think-education", "/expenses")}?error=invalid`);
+    redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
   }
 
   const supabase = await createClient();
@@ -2209,20 +2218,21 @@ export async function markEducationExpensePaid(formData: FormData) {
     p_paid_on: paidOn,
   });
   if (error) {
-    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-mapping`);
-    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/expenses")}?error=accounting-period`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/expenses")}?error=transition`);
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/expenses")}?error=not-found`);
+    if (error.code === "23514") redirect(educationExpenseReturnPath(pettyCash, "error=accounting-mapping"));
+    if (error.message.includes("open fiscal period")) redirect(educationExpenseReturnPath(pettyCash, "error=accounting-period"));
+    if (error.code === "22023") redirect(educationExpenseReturnPath(pettyCash, "error=transition"));
+    if (error.code === "P0002") redirect(educationExpenseReturnPath(pettyCash, "error=not-found"));
     if (error.code === "42501") throw new Error("You are not authorized to record expense payments at this campus.");
     console.error("Could not record Think Education expense payment:", error.message);
-    redirect(`${getProductAppPath("think-education", "/expenses")}?error=save`);
+    redirect(educationExpenseReturnPath(pettyCash, "error=save"));
   }
   revalidatePath("/education/expenses");
   revalidatePath("/education/accounting");
   revalidatePath("/education/accounting/journal-entries");
   revalidatePath("/education/accounting/general-ledger");
+  revalidatePath("/education/accounting/cashbook");
   revalidatePath("/education/accounting/reports");
-  redirect(`${getProductAppPath("think-education", "/expenses")}?paid=1`);
+  redirect(educationExpenseReturnPath(pettyCash, "paid=1"));
 }
 
 export async function createEducationLibraryBook(formData: FormData) {

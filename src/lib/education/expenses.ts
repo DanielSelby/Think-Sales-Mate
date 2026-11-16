@@ -8,6 +8,7 @@ export const EDUCATION_EXPENSE_CATEGORIES = [
   "Technology",
   "Security",
   "Events",
+  "Petty Cash",
   "Other",
 ] as const;
 
@@ -17,8 +18,16 @@ export const EDUCATION_EXPENSE_PAYMENT_METHODS = [
   ["bank_transfer", "Bank transfer"],
   ["card", "Card"],
   ["cheque", "Cheque"],
+  ["petty_cash", "Petty cash"],
   ["other", "Other"],
 ] as const;
+
+export function getEducationExpensePaymentMethods(category: string) {
+  const isPettyCash = category.trim().toLowerCase() === "petty cash";
+  return EDUCATION_EXPENSE_PAYMENT_METHODS.filter(([value]) =>
+    isPettyCash ? value === "petty_cash" : value !== "petty_cash"
+  );
+}
 
 export type EducationExpenseStatus = "pending_approval" | "approved" | "rejected";
 export type EducationExpensePaymentStatus = "unpaid" | "paid";

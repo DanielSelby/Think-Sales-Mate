@@ -12,6 +12,7 @@ const chartPath = "/accounting/chart-of-accounts";
 const periodsPath = "/accounting/periods";
 const journalsPath = "/accounting/journal-entries";
 const ledgerPath = "/accounting/general-ledger";
+const cashbookPath = "/education/accounting/cashbook";
 const accountingSettingsPath = "/accounting/settings";
 const bankReconciliationPath = "/accounting/bank-reconciliation";
 const accountTypes = ["asset", "liability", "equity", "income", "expense"] as const;
@@ -168,6 +169,7 @@ export async function postEducationAccountingJournal(formData: FormData) {
 
   revalidatePath(journalsPath);
   revalidatePath(ledgerPath);
+  revalidatePath(cashbookPath);
   revalidatePath("/accounting");
   redirect(`${journalsPath}?posted=1`);
 }
@@ -244,6 +246,8 @@ export async function saveEducationAccountingAccount(formData: FormData) {
   }
 
   revalidatePath(chartPath);
+  revalidatePath("/education/accounting/bank-accounts");
+  revalidatePath(cashbookPath);
   revalidatePath("/accounting");
   redirect(chartPath);
 }
@@ -268,6 +272,8 @@ export async function deactivateEducationAccountingAccount(formData: FormData) {
   if (error) accountError();
 
   revalidatePath(chartPath);
+  revalidatePath("/education/accounting/bank-accounts");
+  revalidatePath(cashbookPath);
   redirect(chartPath);
 }
 
@@ -372,6 +378,7 @@ export async function backfillEducationAccountingJournals(formData: FormData) {
   if (error) redirect(`${accountingSettingsPath}?error=${error.code === "42501" ? "permission" : "backfill"}`);
   revalidatePath(journalsPath);
   revalidatePath(ledgerPath);
+  revalidatePath(cashbookPath);
   revalidatePath("/accounting/reports");
   redirect(`${accountingSettingsPath}?backfilled=${data ?? 0}`);
 }

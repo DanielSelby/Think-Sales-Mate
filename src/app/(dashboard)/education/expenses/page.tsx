@@ -4,7 +4,7 @@ import { ArrowLeft, Banknote, ClipboardCheck, Receipt, Wallet } from "lucide-rea
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import {
   EDUCATION_EXPENSE_CATEGORIES,
-  EDUCATION_EXPENSE_PAYMENT_METHODS,
+  getEducationExpensePaymentMethods,
   type EducationExpensePaymentStatus,
   type EducationExpenseStatus,
   isValidEducationExpenseDate,
@@ -64,6 +64,7 @@ export default async function EducationExpensesPage({
   const categoryFilter = EDUCATION_EXPENSE_CATEGORIES.includes(
     requestedCategory as typeof EDUCATION_EXPENSE_CATEGORIES[number]
   ) ? requestedCategory : "";
+  const isPettyCashMode = categoryFilter === "Petty Cash";
   const fromDate = isValidEducationExpenseDate(requestedFrom) ? requestedFrom : "";
   const toDate = isValidEducationExpenseDate(requestedTo) ? requestedTo : "";
   const searchFilter = requestedSearch.trim();
@@ -143,12 +144,25 @@ export default async function EducationExpensesPage({
 
   return <main className="mx-auto max-w-[1400px] space-y-5 p-4 md:p-6">
     <header>
-      <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
-        <ArrowLeft className="h-4 w-4" /> Dashboard
+      <Link href={getProductAppPath("think-education", isPettyCashMode ? "/accounting" : "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
+        <ArrowLeft className="h-4 w-4" /> {isPettyCashMode ? "Accounting" : "Dashboard"}
       </Link>
-      <h1 className="mt-2 text-2xl font-bold text-slate-950">Expenses</h1>
-      <p className="mt-1 text-sm text-slate-600">Record campus operating expenses, route them for approval, and track payment status.</p>
+      <h1 className="mt-2 text-2xl font-bold text-slate-950">{isPettyCashMode ? "Petty Cash" : "Expenses"}</h1>
+      <p className="mt-1 text-sm text-slate-600">
+        {isPettyCashMode
+          ? "Manage petty-cash vouchers through submission, approval, payment, and ledger posting."
+          : "Record campus operating expenses, route them for approval, and track payment status."}
+      </p>
     </header>
+
+    {isPettyCashMode && <section className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+      Map the Petty Cash expense category to an expense account and the Petty cash payment method to the fund’s active Cash/Bank account in Accounting Settings. Replenish the fund with a journal entry debiting petty cash and crediting the funding bank account.
+      <div className="mt-2 flex flex-wrap gap-4 font-semibold">
+        <Link href={getProductAppPath("think-education", "/accounting/settings")} className="underline">Accounting Settings</Link>
+        <Link href={getProductAppPath("think-education", "/accounting/journal-entries")} className="underline">Journal Entries</Link>
+        <Link href={getProductAppPath("think-education", "/accounting/cashbook")} className="underline">Cashbook</Link>
+      </div>
+    </section>}
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense recorded and submitted for approval.</p>}
     {params.reviewed === "approved" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense approved.</p>}
@@ -170,12 +184,16 @@ export default async function EducationExpensesPage({
             {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
           </select>
         </label>
-        <label className="text-sm font-medium text-slate-700">Category
-          <select required name="category" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            <option value="" disabled>Select category</option>
-            {EDUCATION_EXPENSE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
-          </select>
-        </label>
+        {isPettyCashMode ? (
+          <input type="hidden" name="category" value="Petty Cash" />
+        ) : (
+          <label className="text-sm font-medium text-slate-700">Category
+            <select required name="category" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+              <option value="" disabled>Select category</option>
+              {EDUCATION_EXPENSE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </label>
+        )}
         <label className="text-sm font-medium text-slate-700">Amount ({organization.currency})
           <input required name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputMode="decimal" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
@@ -261,11 +279,13 @@ export default async function EducationExpensesPage({
             <form action={reviewEducationExpense}>
               <input type="hidden" name="expense_id" value={expense.id} />
               <input type="hidden" name="decision" value="approved" />
+              {isPettyCashMode && <input type="hidden" name="return_to" value="petty_cash" />}
               <button type="submit" className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800"><ClipboardCheck className="h-4 w-4" /> Approve</button>
             </form>
             <form action={reviewEducationExpense} className="flex flex-1 flex-wrap items-end gap-2">
               <input type="hidden" name="expense_id" value={expense.id} />
               <input type="hidden" name="decision" value="rejected" />
+              {isPettyCashMode && <input type="hidden" name="return_to" value="petty_cash" />}
               <label className="min-w-60 flex-1 text-xs font-medium text-slate-600">Rejection reason
                 <input required name="reason" minLength={3} maxLength={500} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
               </label>
@@ -275,10 +295,11 @@ export default async function EducationExpensesPage({
 
           {expense.status === "approved" && expense.payment_status === "unpaid" && canEdit && <form action={markEducationExpensePaid} className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-3">
             <input type="hidden" name="expense_id" value={expense.id} />
+            {isPettyCashMode && <input type="hidden" name="return_to" value="petty_cash" />}
             <label className="text-sm font-medium text-slate-700">Payment method
               <select required name="payment_method" defaultValue="" className="mt-1 rounded-lg border border-slate-300 px-3 py-2 font-normal">
                 <option value="" disabled>Select method</option>
-                {EDUCATION_EXPENSE_PAYMENT_METHODS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                {getEducationExpensePaymentMethods(expense.category).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
             <label className="text-sm font-medium text-slate-700">Paid on

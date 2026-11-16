@@ -17,6 +17,7 @@ const paymentMethods = [
   ["bank_transfer", "Bank transfer"],
   ["card", "Card"],
   ["cheque", "Cheque"],
+  ["petty_cash", "Petty cash"],
   ["other", "Other"],
 ] as const;
 const fieldClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900";
@@ -138,9 +139,10 @@ export default async function EducationAccountingSettingsPage({
       .eq("branch_id", campus.id)
       .limit(5000);
     if (error) throw new Error(`Could not load expense categories for ${campus.name}: ${error.message}`);
-    expenseCategoriesByBranch.set(campus.id, new Set(
-      (data ?? []).map((row) => row.category.trim().toLowerCase()).filter(Boolean),
-    ));
+    expenseCategoriesByBranch.set(campus.id, new Set([
+      "petty cash",
+      ...(data ?? []).map((row) => row.category.trim().toLowerCase()).filter(Boolean),
+    ]));
   }
   const accounts = accountsResult.data ?? [];
   const mappings = (mappingsResult.data ?? []) as MappingRow[];
@@ -170,7 +172,7 @@ export default async function EducationAccountingSettingsPage({
         <h1 className="mt-1 flex items-center gap-2 text-3xl font-semibold tracking-tight text-slate-950">
           <Settings2 className="h-7 w-7 text-blue-700" /> Automated Posting Settings
         </h1>
-        <p className="mt-1 text-sm text-slate-600">Map finalized fee and expense events to active accounts at each campus.</p>
+        <p className="mt-1 text-sm text-slate-600">Map finalized fee and expense events to active accounts at each campus, including the dedicated petty-cash fund account.</p>
       </header>
 
       {params.saved === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Accounting mapping saved.</p>}
@@ -198,7 +200,7 @@ export default async function EducationAccountingSettingsPage({
               <MappingForm branchId={campus.id} sourceType="fee_income" title="Fee income" description="Credit when a fee charge is issued; reversed when an unpaid charge is voided." accountType="income" accounts={accounts} selectedAccountId={mappingByKey.get(`${campus.id}:fee_income:`)} canEdit={canEdit} />
               <MappingForm branchId={campus.id} sourceType="expense_payable" title="Expense payable" description="Credit when an expense is approved; debit when it is marked paid." accountType="liability" accounts={accounts} selectedAccountId={mappingByKey.get(`${campus.id}:expense_payable:`)} canEdit={canEdit} />
               {paymentMethods.map(([method, label]) => (
-                <MappingForm key={method} branchId={campus.id} sourceType="payment_account" sourceKey={method} title={`${label} clearing account`} description="Used for fee receipts and expense payments recorded using this method." accountType="asset" accounts={accounts} selectedAccountId={mappingByKey.get(`${campus.id}:payment_account:${method}`)} cashOnly canEdit={canEdit} />
+                <MappingForm key={method} branchId={campus.id} sourceType="payment_account" sourceKey={method} title={`${label} clearing account`} description={method === "petty_cash" ? "Used only for approved petty-cash vouchers paid from this fund." : "Used for fee receipts and expense payments recorded using this method."} accountType="asset" accounts={accounts} selectedAccountId={mappingByKey.get(`${campus.id}:payment_account:${method}`)} cashOnly canEdit={canEdit} />
               ))}
               {categories.map((category) => (
                 <MappingForm key={category} branchId={campus.id} sourceType="expense_category" sourceKey={category} title={`Expense: ${category}`} description="Debit account when an expense in this category is approved." accountType="expense" accounts={accounts} selectedAccountId={mappingByKey.get(`${campus.id}:expense_category:${category}`)} canEdit={canEdit} />

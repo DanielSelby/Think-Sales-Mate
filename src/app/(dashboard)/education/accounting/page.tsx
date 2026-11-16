@@ -5,13 +5,11 @@ import {
   Banknote,
   BookOpen,
   Building2,
-  CalendarClock,
   ChartNoAxesCombined,
   ClipboardList,
   FileText,
   Landmark,
   Receipt,
-  Scale,
   ShieldCheck,
   Wallet,
 } from "lucide-react";
@@ -24,11 +22,12 @@ import { getProductAppPath } from "@/lib/product-app-routes";
 
 type AccountingLink = {
   label: string;
-  href?: string;
+  href: string;
 };
 
 type AccountingGroup = {
   title: string;
+  description: string;
   icon: LucideIcon;
   links: AccountingLink[];
 };
@@ -45,93 +44,92 @@ function getGroups(access: {
   canViewSettings: boolean;
   canViewReports: boolean;
   canViewReconciliation: boolean;
+  canViewStudents: boolean;
+  canViewAcademicYears: boolean;
 }): AccountingGroup[] {
   return [
     {
       title: "Financial Overview",
+      description: "Start with the accounting dashboard and review your balances.",
       icon: ChartNoAxesCombined,
       links: [
         { label: "Dashboard", href: "/accounting" },
-        ...(access.canViewReports ? [{ label: "Financial Analytics", href: "/accounting/reports?type=trial-balance" }] : []),
+        ...(access.canViewReports ? [{ label: "Trial Balance", href: "/accounting/reports?type=trial-balance" }] : []),
       ],
     },
     {
-      title: "General Accounting",
+      title: "Ledger & Journals",
+      description: "Maintain accounts, record journal entries, and inspect posted balances.",
       icon: BookOpen,
       links: [
         ...(access.canViewAccounts ? [{ label: "Chart of Accounts", href: "/accounting/chart-of-accounts" }] : []),
         ...(access.canViewLedger ? [{ label: "General Ledger", href: "/accounting/general-ledger" }] : []),
         ...(access.canViewJournals ? [{ label: "Journal Entries", href: "/accounting/journal-entries" }] : []),
-        ...(access.canViewReports ? [{ label: "Trial Balance", href: "/accounting/reports?type=trial-balance" }] : []),
-        ...(access.canViewPeriods ? [{ label: "Period Closing", href: "/accounting/periods" }] : []),
+        ...(access.canViewPeriods ? [{ label: "Fiscal Years & Periods", href: "/accounting/periods" }] : []),
       ],
     },
     {
-      title: "Income & Receivables",
+      title: "Student Revenue",
+      description: "Manage student fee charges, collections, and outstanding balances.",
       icon: Receipt,
       links: [
         ...(access.canViewFees ? [{ label: "Student Fees", href: "/finance" }] : []),
-        { label: "Other Income" },
-        { label: "Invoices" },
-        { label: "Accounts Receivable" },
-        ...(access.canViewPayments ? [{ label: "Receipts", href: "/finance/collections" }] : []),
+        ...(access.canViewPayments && access.canViewStudents && access.canViewAcademicYears ? [
+          { label: "Receipts & Collections", href: "/finance/collections" },
+        ] : []),
+        ...(access.canViewFees && access.canViewPayments && access.canViewStudents && access.canViewAcademicYears
+          ? [{ label: "Aging Report", href: "/finance/aging" }]
+          : []),
       ],
     },
     {
-      title: "Expenses & Payables",
+      title: "Expenses",
+      description: "Submit, review, and track school operating expenses.",
       icon: Wallet,
       links: [
-        ...(access.canViewExpenses ? [{ label: "Expenses", href: "/expenses" }] : []),
-        { label: "Suppliers" },
-        { label: "Purchase Invoices" },
-        { label: "Accounts Payable" },
-        { label: "Payment Vouchers" },
+        ...(access.canViewExpenses ? [{ label: "Expense Management", href: "/expenses" }] : []),
       ],
     },
     {
       title: "Cash & Banking",
+      description: "Manage cash and bank accounts, review posted cash activity, and reconcile statements.",
       icon: Landmark,
       links: [
-        { label: "Cashbook" },
-        { label: "Bank Accounts" },
+        ...(access.canViewAccounts ? [{ label: "Bank Accounts", href: "/accounting/bank-accounts" }] : []),
+        ...(access.canViewLedger ? [{ label: "Cashbook", href: "/accounting/cashbook" }] : []),
         ...(access.canViewReconciliation ? [{ label: "Bank Reconciliation", href: "/accounting/bank-reconciliation" }] : []),
-        { label: "Petty Cash" },
       ],
     },
     {
-      title: "Budget & Assets",
-      icon: Building2,
+      title: "Petty Cash",
+      description: "Submit, approve, and account for petty-cash vouchers against a mapped cash fund.",
+      icon: Wallet,
       links: [
-        { label: "Budgets" },
-        { label: "Budget vs Actual" },
-        { label: "Fixed Assets" },
-        { label: "Depreciation" },
+        ...(access.canViewExpenses ? [{ label: "Manage Petty Cash", href: "/accounting/petty-cash" }] : []),
       ],
     },
     {
       title: "Financial Reports",
+      description: "Generate statements from posted journals for your authorized campus scope.",
       icon: FileText,
       links: [
         ...(access.canViewReports ? [
-          { label: "Profit & Loss", href: "/accounting/reports?type=income-statement" },
+          { label: "Income Statement", href: "/accounting/reports?type=income-statement" },
           { label: "Balance Sheet", href: "/accounting/reports?type=balance-sheet" },
-          { label: "Cash Flow", href: "/accounting/reports?type=cash-flow" },
+          { label: "Cash Flow Summary", href: "/accounting/reports?type=cash-flow" },
         ] : []),
-        { label: "Financial Ratios" },
-        { label: "Audit Reports" },
       ],
     },
     {
       title: "Controls & Settings",
+      description: "Review audit activity and manage automated accounting posting rules.",
       icon: ShieldCheck,
       links: [
-        ...(access.canViewExpenses ? [{ label: "Approvals", href: "/expenses" }] : []),
-        ...(access.canViewAudit ? [{ label: "Audit Trail", href: "/activity" }] : []),
-        ...(access.canViewPeriods ? [{ label: "Accounting Periods", href: "/accounting/periods" }] : []),
-        ...(access.canViewSettings ? [{ label: "Accounting Settings", href: "/accounting/settings" }] : []),
+        ...(access.canViewAudit ? [{ label: "Education Audit Trail", href: "/activity" }] : []),
+        ...(access.canViewSettings ? [{ label: "Automated Posting Settings", href: "/accounting/settings" }] : []),
       ],
     },
-  ];
+  ].filter((group) => group.links.length > 0);
 }
 
 export default async function EducationAccountingPage() {
@@ -141,7 +139,7 @@ export default async function EducationAccountingPage() {
   const canViewDashboard = await canTabPermission("education_finance", "finance", "accounting_dashboard", "view");
   if (!canViewDashboard) redirect("/dashboard?accessDenied=think-education.accounting");
 
-  const [canViewFees, canViewPayments, canViewExpenses, canViewAudit, canViewAccounts, canViewPeriods, canViewJournals, canViewLedger, canViewSettings, canViewReports, canViewReconciliation, campusAccess] = await Promise.all([
+  const [canViewFees, canViewPayments, canViewExpenses, canViewAudit, canViewAccounts, canViewPeriods, canViewJournals, canViewLedger, canViewSettings, canViewReports, canViewReconciliation, canViewStudents, canViewAcademicYears, campusAccess] = await Promise.all([
       canTabPermission("education_finance", "finance", "charges", "view"),
       canTabPermission("education_finance", "finance", "payments", "view"),
       canTabPermission("education_expenses", "expenses", "records", "view"),
@@ -153,6 +151,8 @@ export default async function EducationAccountingPage() {
       canTabPermission("education_finance", "finance", "accounting_settings", "view"),
       canTabPermission("education_finance", "finance", "financial_reports", "view"),
       canTabPermission("education_finance", "finance", "bank_reconciliation", "view"),
+      canTabPermission("education_students", "students", "list", "view"),
+      canTabPermission("education_academics", "academics", "calendar", "view"),
       getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
 
@@ -207,7 +207,7 @@ export default async function EducationAccountingPage() {
   const groups = getGroups({
     canViewFees, canViewPayments, canViewExpenses, canViewAudit,
     canViewAccounts, canViewPeriods, canViewJournals, canViewLedger,
-    canViewSettings, canViewReports, canViewReconciliation,
+    canViewSettings, canViewReports, canViewReconciliation, canViewStudents, canViewAcademicYears,
   });
   const metrics = [
     { label: "Fee charge records", value: canViewFees ? feeChargeCount : null, icon: Receipt },
@@ -293,7 +293,7 @@ export default async function EducationAccountingPage() {
       )}
 
       <section aria-label="Accounting navigation" className="grid gap-4 lg:grid-cols-2">
-        {groups.map(({ title, icon: Icon, links }) => (
+        {groups.map(({ title, description, icon: Icon, links }) => (
           <article key={title} className="rounded-2xl border p-4 shadow-sm md:p-5" style={{
             borderColor: "var(--theme-header-border-light, #e2e8f0)",
             backgroundColor: "var(--theme-surface, #fff)",
@@ -302,51 +302,28 @@ export default async function EducationAccountingPage() {
               <Icon className="h-5 w-5" style={{ color: "var(--theme-primary, #2563eb)" }} />
               {title}
             </h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {links.map(({ label, href }) => href ? (
+            <p className="mt-1 text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{description}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {links.map(({ label, href }) => (
                 <Link
                   key={label}
                   href={getProductAppPath("think-education", href)}
                   aria-current={label === "Dashboard" ? "page" : undefined}
-                  className="inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition hover:border-blue-400 hover:bg-blue-50"
+                  className="inline-flex min-h-10 items-center rounded-lg border px-3 py-2 text-sm font-semibold transition hover:shadow-sm"
                   style={{
                     borderColor: "var(--theme-header-border-light, #cbd5e1)",
                     color: "var(--theme-text, #1f2937)",
+                    backgroundColor: "var(--theme-surface, #fff)",
                   }}
                 >
                   {label}
                 </Link>
-              ) : (
-                <span
-                  key={label}
-                  aria-disabled="true"
-                  title="Planned for a later accounting phase"
-                  className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-dashed px-3 py-1.5 text-sm"
-                  style={{
-                    borderColor: "var(--theme-header-border-light, #cbd5e1)",
-                    color: "var(--theme-text-muted, #64748b)",
-                  }}
-                >
-                  {label}
-                  <span className="sr-only">, planned for a later phase</span>
-                </span>
               ))}
             </div>
           </article>
         ))}
       </section>
 
-      <section className="flex items-start gap-3 rounded-2xl border p-4" style={{
-        borderColor: "var(--theme-header-border-light, #e2e8f0)",
-        backgroundColor: "var(--theme-surface, #fff)",
-        color: "var(--theme-text-muted, #4b5563)",
-      }}>
-        <CalendarClock className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--theme-primary, #2563eb)" }} />
-        <p className="text-sm">
-          Academic years organize teaching and fee schedules. They are not accounting periods and will not be used as a substitute for fiscal-year setup.
-        </p>
-        <Scale className="mt-0.5 hidden h-5 w-5 shrink-0 sm:block" style={{ color: "var(--theme-primary, #2563eb)" }} />
-      </section>
     </main>
   );
 }
