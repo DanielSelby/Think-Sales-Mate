@@ -226,6 +226,9 @@ export default async function EducationFinancePage({
       <p className="mt-1 text-sm text-slate-600">Create student fee charges, record payments, and track outstanding balances.</p>
       </div>
       <div className="flex flex-wrap gap-2">
+        {canRecordPayment && <Link href={getProductAppPath("think-education", "/finance#fee-payments")} className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
+          Record fee payment
+        </Link>}
         {canViewCollectionsReport && <Link href={getProductAppPath("think-education", "/finance/collections")} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
           Payment collections
         </Link>}
@@ -262,7 +265,10 @@ export default async function EducationFinancePage({
       </article>)}
     </section>
 
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section id="fee-payments" className="scroll-mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      {canRecordPayment && <div className="border-b border-slate-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+        To add a fee payment, find the student’s outstanding charge below, enter the amount and payment method, then select <strong>Record payment</strong>.
+      </div>}
       <form method="get" action={getProductAppPath("think-education", "/finance")} className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[1fr_1fr_auto]">
         <label className="text-sm font-medium text-slate-700">Campus
           <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
@@ -320,7 +326,7 @@ export default async function EducationFinancePage({
               <label className="text-xs font-medium text-slate-600 sm:col-span-2">Reference
                 <input name="reference" maxLength={120} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal" />
               </label>
-              <div className="flex items-end"><button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><CreditCard className="h-4 w-4" /> Record</button></div>
+              <div className="flex items-end"><button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><CreditCard className="h-4 w-4" /> Record payment</button></div>
             </form>}
 
             {canEditCharges && charge.status === "open" && (paymentsByCharge.get(charge.id) ?? []).length === 0 && <details className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">

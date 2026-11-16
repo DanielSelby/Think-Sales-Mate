@@ -1870,6 +1870,48 @@ html.dark .support-page > section:first-child {
   border-color: #285b52;
 }
 
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page {
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page :is(.bg-white, .bg-slate-50) {
+  background-color: #0f1d2d !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page [class~="bg-blue-50"] {
+  background-color: #102d4a !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page [class~="bg-emerald-50"] {
+  background-color: #10352d !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page :is([class~="border-slate-200"], [class~="border-slate-100"], [class~="border-blue-100"], [class~="border-emerald-100"]) {
+  border-color: #334960 !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page :is([class~="text-slate-950"], [class~="text-slate-900"], [class~="text-slate-800"], [class~="text-slate-700"]) {
+  color: #f1f5f9 !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page :is([class~="text-slate-600"], [class~="text-slate-500"]) {
+  color: #b6c4d6 !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page [class~="text-slate-400"] {
+  color: #94a3b8 !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page [class~="text-blue-700"] {
+  color: #93c5fd !important;
+}
+
+:is(.dark, [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"]) .support-page :is(input, select, textarea) {
+  background-color: #0b1726 !important;
+  border-color: #455a70 !important;
+  color: #f1f5f9 !important;
+}
+
 .page-canvas .stock-transfer-catalogue-modal,
 .page-canvas .stock-transfer-confirm-surface {
   background-color: #fff !important;
@@ -3810,13 +3852,8 @@ html.dark[data-dark-style="think-service"] .page-canvas .pos-page .pos-product-g
   color: var(--workspace-hub-text-secondary) !important;
 }
 
-[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero > div:first-child {
-  background-color: #08111f !important;
-}
-
 [data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero h1,
-[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero p,
-[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero span {
+[data-workspace-hub-shell="true"][data-workspace-hub-theme="dark"] .workspace-hub-support-hero p {
   color: #f8fafc !important;
 }
 

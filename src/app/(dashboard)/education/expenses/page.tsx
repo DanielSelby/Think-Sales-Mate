@@ -49,10 +49,11 @@ export default async function EducationExpensesPage({
   const currentPage = Math.min(1_000_000, Math.max(1, Number.parseInt(
     typeof params.page === "string" ? params.page : "1", 10
   ) || 1));
-  const [canCreate, canApprove, canEdit, { campuses }] = await Promise.all([
+  const [canCreate, canApprove, canEdit, canExport, { campuses }] = await Promise.all([
     canTabPermission("education_expenses", "expenses", "records", "create"),
     canTabPermission("education_expenses", "expenses", "records", "approve"),
     canTabPermission("education_expenses", "expenses", "records", "edit"),
+    canTabPermission("education_expenses", "expenses", "records", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   const campusIds = campuses.map((campus) => campus.id);
@@ -246,7 +247,7 @@ export default async function EducationExpensesPage({
         </label>
         <div className="lg:col-span-6 flex flex-wrap items-end gap-3">
           <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-          {expenses.length > 0 && <a href={csvHref} download={`education-expenses-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+          {canExport && expenses.length > 0 && <a href={csvHref} download={`education-expenses-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
         </div>
       </form>
 

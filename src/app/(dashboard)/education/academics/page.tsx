@@ -94,6 +94,7 @@ export default async function EducationAcademicsPage({
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Academic Management</h1>
       <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Manage academic years and campus classes within your authorized scope.</p>
       </div>
+      <Link href={getProductAppPath("think-education", "/subjects")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">Organization subject catalog</Link>
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic record created.</p>}

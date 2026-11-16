@@ -52,7 +52,17 @@ export default async function EducationTimetablesPage({
   const requestedWeekday = Number(typeof params.weekday === "string" ? params.weekday : "");
   const selectedWeekday = WEEKDAYS.some((day) => day.value === requestedWeekday) ? requestedWeekday : 0;
   const canCreate = await canTabPermission("education_timetables", "timetables", "schedule", "create");
+  const canViewSubjectCatalog = await canTabPermission("education_academics", "academics", "calendar", "view");
   const supabase = await createClient();
+  let activeSubjects: Array<{ id: string; name: string }> = [];
+  if (canViewSubjectCatalog) {
+    const { data, error } = await supabase.from("education_subjects")
+      .select("id, name")
+      .eq("org_id", context.orgId).eq("status", "active")
+      .order("name");
+    if (error) throw new Error(`Could not load active Think Education subjects: ${error.message}`);
+    activeSubjects = data ?? [];
+  }
   const [{ data: years, error: yearsError }, classesResult, staffResult, entriesResult] = await Promise.all([
     supabase.from("education_academic_years")
       .select("id, name, status")
@@ -130,6 +140,8 @@ export default async function EducationTimetablesPage({
     ? "That time overlaps another lesson for the selected class, staff member, or room."
     : params.error === "invalid"
       ? "Check the campus, class, academic year, subject, day, and time."
+      : params.error === "subject"
+        ? "Select an active subject from your organization’s catalog. The selected subject may have been deactivated."
       : params.error === "save" ? "The timetable entry could not be saved. Please try again." : null;
 
   return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
@@ -140,6 +152,7 @@ export default async function EducationTimetablesPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Class Timetables</h1>
         <p className="mt-1 text-sm text-slate-600">View weekly lessons and schedule classes without overlapping their class, teacher, or room.</p>
+        <Link href={getProductAppPath("think-education", "/subjects")} className="mt-2 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Manage subject catalog</Link>
       </div>
       {canCreate && selectedCampusClasses.length > 0 && <a href="#add-lesson" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
         <Plus className="h-4 w-4" /> Add lesson
@@ -215,7 +228,11 @@ export default async function EducationTimetablesPage({
       </div>}
     </section>
 
-    {canCreate && selectedCampusClasses.length > 0 && <section id="add-lesson" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    {canCreate && selectedCampusClasses.length > 0 && activeSubjects.length === 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      No active subjects are available to schedule. Add or reactivate subjects in the <Link className="font-semibold underline" href={getProductAppPath("think-education", "/subjects")}>organization subject catalog</Link>.
+    </p>}
+
+    {canCreate && selectedCampusClasses.length > 0 && activeSubjects.length > 0 && <section id="add-lesson" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-slate-950">Add lesson to timetable</h2>
       <p className="mt-1 text-sm text-slate-500">The server checks for class, teacher, and room conflicts before saving.</p>
       <form action={createEducationTimetableEntry} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -241,7 +258,10 @@ export default async function EducationTimetablesPage({
           </select>
         </label>
         <label className="text-sm font-medium text-slate-700">Subject
-          <input required name="subject_name" maxLength={120} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          <select required name="subject_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="" disabled>Select a subject</option>
+            {activeSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          </select>
         </label>
         <label className="text-sm font-medium text-slate-700">Day
           <select required name="weekday" defaultValue={1} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">

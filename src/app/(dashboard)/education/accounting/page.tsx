@@ -35,6 +35,7 @@ type AccountingGroup = {
 function getGroups(access: {
   canViewFees: boolean;
   canViewPayments: boolean;
+  canCreateFeePayments: boolean;
   canViewExpenses: boolean;
   canViewAudit: boolean;
   canViewAccounts: boolean;
@@ -74,6 +75,9 @@ function getGroups(access: {
       icon: Receipt,
       links: [
         ...(access.canViewFees ? [{ label: "Student Fees", href: "/finance" }] : []),
+        ...(access.canViewFees && access.canCreateFeePayments
+          ? [{ label: "Record Fee Payment", href: "/finance#fee-payments" }]
+          : []),
         ...(access.canViewPayments && access.canViewStudents && access.canViewAcademicYears ? [
           { label: "Receipts & Collections", href: "/finance/collections" },
         ] : []),
@@ -139,9 +143,10 @@ export default async function EducationAccountingPage() {
   const canViewDashboard = await canTabPermission("education_finance", "finance", "accounting_dashboard", "view");
   if (!canViewDashboard) redirect("/dashboard?accessDenied=think-education.accounting");
 
-  const [canViewFees, canViewPayments, canViewExpenses, canViewAudit, canViewAccounts, canViewPeriods, canViewJournals, canViewLedger, canViewSettings, canViewReports, canViewReconciliation, canViewStudents, canViewAcademicYears, campusAccess] = await Promise.all([
+  const [canViewFees, canViewPayments, canCreateFeePayments, canViewExpenses, canViewAudit, canViewAccounts, canViewPeriods, canViewJournals, canViewLedger, canViewSettings, canViewReports, canViewReconciliation, canViewStudents, canViewAcademicYears, campusAccess] = await Promise.all([
       canTabPermission("education_finance", "finance", "charges", "view"),
       canTabPermission("education_finance", "finance", "payments", "view"),
+      canTabPermission("education_finance", "finance", "payments", "create"),
       canTabPermission("education_expenses", "expenses", "records", "view"),
       canTabPermission("education_audit", "activity", "records", "view_audit"),
       canTabPermission("education_finance", "finance", "chart_of_accounts", "view"),
@@ -205,7 +210,7 @@ export default async function EducationAccountingPage() {
   }
 
   const groups = getGroups({
-    canViewFees, canViewPayments, canViewExpenses, canViewAudit,
+    canViewFees, canViewPayments, canCreateFeePayments, canViewExpenses, canViewAudit,
     canViewAccounts, canViewPeriods, canViewJournals, canViewLedger,
     canViewSettings, canViewReports, canViewReconciliation, canViewStudents, canViewAcademicYears,
   });

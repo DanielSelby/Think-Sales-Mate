@@ -6,6 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { ResultScoreEditor } from "./result-score-editor";
 import {
   createEducationResult,
   updateEducationExaminationStatus,
@@ -19,6 +20,7 @@ type EducationResultRow = {
   score: number;
   maximum_score: number;
   grade: string | null;
+  grade_override: string | null;
   status: string;
 };
 
@@ -45,7 +47,17 @@ export default async function EducationResultsPage({
     canTabPermission("education_results", "results", "gradebook", "approve"),
     canTabPermission("education_results", "results", "gradebook", "publish"),
   ]);
+  const canViewSubjectCatalog = await canTabPermission("education_academics", "academics", "calendar", "view");
   const supabase = await createClient();
+  let activeSubjects: Array<{ id: string; name: string }> = [];
+  if (canViewSubjectCatalog) {
+    const { data, error } = await supabase.from("education_subjects")
+      .select("id, name")
+      .eq("org_id", context.orgId).eq("status", "active")
+      .order("name");
+    if (error) throw new Error(`Could not load active Think Education subjects: ${error.message}`);
+    activeSubjects = data ?? [];
+  }
   let exams: Array<{ id: string; branch_id: string; name: string; status: string }> = [];
   if (branchIds.length) {
     const { data, error } = await supabase.from("education_examinations")
@@ -62,7 +74,7 @@ export default async function EducationResultsPage({
   let results: EducationResultRow[] = [];
   if (selectedExam) {
     const { data, error } = await supabase.from("education_results")
-      .select("id, student_id, subject_name, score, maximum_score, grade, status")
+      .select("id, student_id, subject_name, score, maximum_score, grade, grade_override, status")
       .eq("org_id", context.orgId).eq("examination_id", selectedExam.id)
       .order("subject_name");
     if (error) throw new Error(`Could not load Think Education results: ${error.message}`);
@@ -116,6 +128,8 @@ export default async function EducationResultsPage({
       ? "No student with that number was found in the examination campus."
       : params.error === "invalid"
         ? "Check the examination, student number, subject, score, and maximum score."
+        : params.error === "subject"
+          ? "Select an active subject from your organization’s catalog. The selected subject may have been deactivated."
         : params.error === "save" ? "The result could not be saved. Please try again." : null;
 
   return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
@@ -125,6 +139,8 @@ export default async function EducationResultsPage({
       </Link>
       <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Results &amp; Report Cards</h1>
       <p className="mt-1 text-sm text-slate-600">Enter scores, submit grades for approval, and publish finalized results.</p>
+      <Link href={getProductAppPath("think-education", "/subjects")} className="mt-2 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Manage subject catalog</Link>
+      <Link href={getProductAppPath("think-education", "/grade-bands")} className="ml-4 mt-2 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Manage organization grade bands</Link>
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Result added.</p>}
@@ -208,6 +224,7 @@ export default async function EducationResultsPage({
               <td className="px-4 py-3 text-slate-700">{result.grade ?? "—"}</td>
               <td className="px-4 py-3">
                 <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{result.status}</span>
+                {result.status === "draft" && canEdit && <ResultScoreEditor resultId={result.id} score={result.score} maximumScore={result.maximum_score} gradeOverride={result.grade_override} />}
                 {nextStatus && canUpdate && <form action={updateEducationResultStatus} className="mt-2">
                   <input type="hidden" name="result_id" value={result.id} /><input type="hidden" name="status" value={nextStatus} />
                   <button className="rounded-md bg-blue-700 px-2.5 py-1 text-xs font-semibold capitalize text-white hover:bg-blue-800">{nextStatus === "submitted" ? "Submit" : nextStatus}</button>
@@ -219,7 +236,11 @@ export default async function EducationResultsPage({
       </div>}
     </section>
 
-    {canEnterResults && selectedExam && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    {canEnterResults && activeSubjects.length === 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      No active subjects are available to enter results. Add or reactivate subjects in the <Link className="font-semibold underline" href={getProductAppPath("think-education", "/subjects")}>organization subject catalog</Link>.
+    </p>}
+
+    {canEnterResults && selectedExam && activeSubjects.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-slate-950">Enter result</h2>
       <p className="mt-1 text-sm text-slate-500">Add a score for a student in {selectedExam.name}. Student numbers are checked against this examination’s campus.</p>
       <form action={createEducationResult} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -228,7 +249,10 @@ export default async function EducationResultsPage({
           <input required name="student_number" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <label className="text-sm font-medium text-slate-700">Subject
-          <input required name="subject_name" maxLength={120} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          <select required name="subject_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="" disabled>Select a subject</option>
+            {activeSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          </select>
         </label>
         <label className="text-sm font-medium text-slate-700">Score
           <input required name="score" type="number" min={0} step="0.01" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
@@ -237,7 +261,7 @@ export default async function EducationResultsPage({
           <input required name="maximum_score" type="number" min="0.01" step="0.01" defaultValue={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <label className="text-sm font-medium text-slate-700">Grade (optional)
-          <input name="grade" maxLength={10} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          <input name="grade_override" maxLength={10} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <div className="sm:col-span-2 lg:col-span-5"><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"><Plus className="h-4 w-4" /> Save result</button></div>
       </form>

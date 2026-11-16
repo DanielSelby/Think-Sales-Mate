@@ -17,6 +17,16 @@ import {
   EDUCATION_EXPENSE_PAYMENT_METHODS,
   isValidEducationExpenseDate,
 } from "@/lib/education/expenses";
+import { educationStudentProfileInputSchema } from "@/lib/education/student-profile";
+import { educationResultScoreInputSchema } from "@/lib/education/result-score";
+import {
+  educationGradeBandInputSchema,
+  getEducationResultGrade,
+} from "@/lib/education/grading";
+import {
+  getActiveEducationSubject,
+  isValidEducationSubjectName,
+} from "@/lib/education/subjects";
 
 export type EducationImportEntity = "students" | "staff" | "campuses";
 
@@ -801,6 +811,64 @@ export async function createEducationStudent(formData: FormData) {
   };
 }
 
+export async function updateEducationStudent(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) return { error: "Session expired. Sign in again." };
+  if (!await canTabPermission("education_students", "students", "list", "edit")) {
+    return { error: "You do not have permission to edit Think Education student records." };
+  }
+
+  const parsed = educationStudentProfileInputSchema.safeParse({
+    studentId: String(formData.get("student_id") ?? ""),
+    firstName: String(formData.get("first_name") ?? ""),
+    lastName: String(formData.get("last_name") ?? ""),
+    otherNames: String(formData.get("other_names") ?? ""),
+    email: String(formData.get("email") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    dateOfBirth: String(formData.get("date_of_birth") ?? ""),
+    gender: String(formData.get("gender") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: "Check the student name, email, phone, and date of birth." };
+  }
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const branchIds = campuses.map((campus) => campus.id);
+  if (!branchIds.length) {
+    return { error: "You do not have access to the campus containing this student." };
+  }
+
+  const supabase = await createClient();
+  const { data: updatedStudent, error } = await supabase.from("education_students")
+    .update({
+      first_name: parsed.data.firstName,
+      last_name: parsed.data.lastName,
+      other_names: parsed.data.otherNames || null,
+      email: parsed.data.email || null,
+      phone: parsed.data.phone || null,
+      date_of_birth: parsed.data.dateOfBirth || null,
+      gender: parsed.data.gender || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("org_id", context.orgId)
+    .eq("id", parsed.data.studentId)
+    .in("branch_id", branchIds)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not update Think Education student profile:", error.message);
+    return { error: `The student profile could not be saved: ${error.message}` };
+  }
+  if (!updatedStudent) {
+    return { error: "The student could not be found in your assigned Think Education campuses." };
+  }
+
+  revalidatePath("/education/students");
+  revalidatePath(`/education/students/${parsed.data.studentId}`);
+  return { success: true };
+}
+
 export async function createEducationCampus(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired. Sign in again." };
@@ -1278,6 +1346,199 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
   revalidatePath("/education/finance");
   revalidatePath("/education/admissions");
   redirect(`${getProductAppPath("think-education", "/admissions")}?updated=1${status === "enrolled" ? "&enrolled=1" : ""}`);
+}
+
+export async function createEducationSubject(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_academics", "academics", "calendar", "create")) {
+    throw new Error("You do not have permission to add Think Education subjects.");
+  }
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    throw new Error("Adding subjects requires explicit organization-wide Think Education access.");
+  }
+
+  const name = String(formData.get("name") ?? "");
+  const subjectsPath = getProductAppPath("think-education", "/subjects");
+  if (!isValidEducationSubjectName(name)) redirect(`${subjectsPath}?error=invalid`);
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("education_subjects").insert({
+    org_id: context.orgId,
+    name,
+  });
+  if (error) {
+    if (error.code === "23505") redirect(`${subjectsPath}?error=duplicate`);
+    if (error.code === "42501") throw new Error(`Subject creation was not authorized: ${error.message}`);
+    console.error("Could not create Think Education subject:", error.message);
+    redirect(`${subjectsPath}?error=save`);
+  }
+
+  revalidatePath("/education/subjects");
+  revalidatePath("/education/results");
+  revalidatePath("/education/timetables");
+  redirect(`${subjectsPath}?created=1`);
+}
+
+export async function setEducationSubjectStatus(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_academics", "academics", "calendar", "view")
+    || !await canTabPermission("education_academics", "academics", "calendar", "edit")) {
+    throw new Error("You need academic calendar view and edit access to change subject status.");
+  }
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    throw new Error("Managing subjects requires explicit organization-wide Think Education access.");
+  }
+
+  const subjectId = String(formData.get("subject_id") ?? "");
+  const requestedStatus = String(formData.get("status") ?? "");
+  const subjectsPath = getProductAppPath("think-education", "/subjects");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subjectId)
+    || !["active", "inactive"].includes(requestedStatus)) {
+    redirect(`${subjectsPath}?error=invalid`);
+  }
+  const status = requestedStatus as "active" | "inactive";
+
+  const supabase = await createClient();
+  const { data: current, error: loadError } = await supabase.from("education_subjects")
+    .select("id, name, status")
+    .eq("org_id", context.orgId).eq("id", subjectId)
+    .maybeSingle();
+  if (loadError) throw new Error(`Could not load Think Education subject: ${loadError.message}`);
+  if (!current) redirect(`${subjectsPath}?error=subject`);
+
+  const { data: updated, error } = await supabase.from("education_subjects")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("org_id", context.orgId).eq("id", current.id).eq("status", current.status)
+    .select("id").maybeSingle();
+  if (error) {
+    if (error.code === "42501") throw new Error(`Subject status change was not authorized: ${error.message}`);
+    console.error("Could not change Think Education subject status:", error.message);
+    redirect(`${subjectsPath}?error=save`);
+  }
+  if (!updated) redirect(`${subjectsPath}?error=conflict`);
+
+  revalidatePath("/education/subjects");
+  revalidatePath("/education/results");
+  revalidatePath("/education/timetables");
+  redirect(`${subjectsPath}?updated=1`);
+}
+
+export async function createEducationGradeBand(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_academics", "academics", "calendar", "create")) {
+    throw new Error("You do not have permission to add Think Education grade bands.");
+  }
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    throw new Error("Managing grade bands requires explicit organization-wide Think Education access.");
+  }
+
+  const parsed = educationGradeBandInputSchema.safeParse({
+    label: formData.get("label"),
+    minimumPercentage: formData.get("minimum_percentage"),
+  });
+  const gradeBandsPath = getProductAppPath("think-education", "/grade-bands");
+  if (!parsed.success) redirect(`${gradeBandsPath}?error=invalid`);
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("education_grade_bands").insert({
+    org_id: context.orgId,
+    label: parsed.data.label,
+    minimum_percentage: parsed.data.minimumPercentage,
+  });
+  if (error) {
+    if (error.code === "23505") redirect(`${gradeBandsPath}?error=duplicate`);
+    if (error.code === "42501") throw new Error(`Grade band creation was not authorized: ${error.message}`);
+    console.error("Could not create Think Education grade band:", error.message);
+    redirect(`${gradeBandsPath}?error=save`);
+  }
+
+  revalidatePath("/education/grade-bands");
+  revalidatePath("/education/results");
+  redirect(`${gradeBandsPath}?created=1`);
+}
+
+export async function updateEducationGradeBand(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_academics", "academics", "calendar", "edit")) {
+    throw new Error("You do not have permission to edit Think Education grade bands.");
+  }
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    throw new Error("Managing grade bands requires explicit organization-wide Think Education access.");
+  }
+
+  const id = String(formData.get("band_id") ?? "");
+  const parsed = educationGradeBandInputSchema.safeParse({
+    label: formData.get("label"),
+    minimumPercentage: formData.get("minimum_percentage"),
+  });
+  const gradeBandsPath = getProductAppPath("think-education", "/grade-bands");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+    || !parsed.success) {
+    redirect(`${gradeBandsPath}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: updated, error } = await supabase.from("education_grade_bands")
+    .update({
+      label: parsed.data.label,
+      minimum_percentage: parsed.data.minimumPercentage,
+      updated_by: context.userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("org_id", context.orgId).eq("id", id)
+    .select("id").maybeSingle();
+  if (error) {
+    if (error.code === "23505") redirect(`${gradeBandsPath}?error=duplicate`);
+    if (error.code === "42501") throw new Error(`Grade band update was not authorized: ${error.message}`);
+    console.error("Could not update Think Education grade band:", error.message);
+    redirect(`${gradeBandsPath}?error=save`);
+  }
+  if (!updated) redirect(`${gradeBandsPath}?error=not-found`);
+
+  revalidatePath("/education/grade-bands");
+  revalidatePath("/education/results");
+  redirect(`${gradeBandsPath}?updated=1`);
+}
+
+export async function deleteEducationGradeBand(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_academics", "academics", "calendar", "edit")) {
+    throw new Error("You do not have permission to remove Think Education grade bands.");
+  }
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    throw new Error("Managing grade bands requires explicit organization-wide Think Education access.");
+  }
+
+  const id = String(formData.get("band_id") ?? "");
+  const gradeBandsPath = getProductAppPath("think-education", "/grade-bands");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    redirect(`${gradeBandsPath}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: deleted, error } = await supabase.from("education_grade_bands")
+    .delete().eq("org_id", context.orgId).eq("id", id)
+    .select("id").maybeSingle();
+  if (error) {
+    if (error.code === "42501") throw new Error(`Grade band removal was not authorized: ${error.message}`);
+    console.error("Could not remove Think Education grade band:", error.message);
+    redirect(`${gradeBandsPath}?error=save`);
+  }
+  if (!deleted) redirect(`${gradeBandsPath}?error=not-found`);
+
+  revalidatePath("/education/grade-bands");
+  revalidatePath("/education/results");
+  redirect(`${gradeBandsPath}?updated=1`);
 }
 
 export async function createEducationAcademicYear(formData: FormData) {
@@ -1901,19 +2162,33 @@ export async function createEducationResult(formData: FormData) {
   if (!await canTabPermission("education_results", "results", "gradebook", "create")) {
     throw new Error("You do not have permission to enter Think Education results.");
   }
+  if (!await canTabPermission("education_academics", "academics", "calendar", "view")) {
+    throw new Error("Academic calendar view access is required to select an approved subject.");
+  }
 
   const examinationId = String(formData.get("examination_id") ?? "");
   const studentNumber = String(formData.get("student_number") ?? "").trim();
-  const subjectName = String(formData.get("subject_name") ?? "").trim();
+  const subjectId = String(formData.get("subject_id") ?? "");
   const score = Number(String(formData.get("score") ?? ""));
   const maximumScore = Number(String(formData.get("maximum_score") ?? ""));
-  const grade = String(formData.get("grade") ?? "").trim();
+  const gradeOverride = String(formData.get("grade_override") ?? "").trim();
   if (!examinationId || !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber)
-    || !subjectName || subjectName.length > 120 || !Number.isFinite(score) || score < 0
-    || !Number.isFinite(maximumScore) || maximumScore <= 0 || score > maximumScore || grade.length > 10) {
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subjectId)
+    || !Number.isFinite(score) || score < 0
+    || !Number.isFinite(maximumScore) || maximumScore <= 0 || score > maximumScore || gradeOverride.length > 10) {
     redirect(`${getProductAppPath("think-education", "/results")}?error=invalid`);
   }
   const supabase = await createClient();
+  const { data: subjectData, error: subjectError } = await supabase.from("education_subjects")
+    .select("id, name, status")
+    .eq("org_id", context.orgId).eq("id", subjectId).eq("status", "active")
+    .maybeSingle();
+  if (subjectError) throw new Error(`Could not validate the selected Think Education subject: ${subjectError.message}`);
+  const subject = subjectData
+    ? getActiveEducationSubject([subjectData], subjectId)
+    : null;
+  if (!subject) redirect(`${getProductAppPath("think-education", "/results")}?error=subject`);
+
   const { data: examination, error: examinationError } = await supabase.from("education_examinations")
     .select("id, branch_id, status")
     .eq("org_id", context.orgId).eq("id", examinationId)
@@ -1934,25 +2209,114 @@ export async function createEducationResult(formData: FormData) {
   if (studentError) throw new Error(`Could not find the student for result entry: ${studentError.message}`);
   if (!student) redirect(`${getProductAppPath("think-education", "/results")}?error=student`);
 
+  const { data: gradeBandRows, error: gradeBandError } = await supabase.from("education_grade_bands")
+    .select("label, minimum_percentage")
+    .eq("org_id", context.orgId)
+    .order("minimum_percentage");
+  if (gradeBandError) throw new Error(`Could not load Think Education grade bands: ${gradeBandError.message}`);
+  const grade = getEducationResultGrade(gradeOverride, score, maximumScore, (gradeBandRows ?? []).map((band) => ({
+    label: band.label,
+    minimumPercentage: Number(band.minimum_percentage),
+  })));
   const { error } = await supabase.from("education_results").insert({
     org_id: context.orgId,
     branch_id: examination.branch_id,
     examination_id: examination.id,
     student_id: student.id,
-    subject_name: subjectName,
+    subject_id: subject.id,
+    subject_name: subject.name,
     score,
     maximum_score: maximumScore,
-    grade: grade || null,
+    grade,
+    grade_override: gradeOverride || null,
     entered_by: context.userId,
   });
   if (error) {
     if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/results")}?error=duplicate`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/results")}?error=subject`);
     console.error("Could not save Think Education result:", error.message);
     redirect(`${getProductAppPath("think-education", "/results")}?error=save`);
   }
   revalidatePath("/education/results");
   revalidatePath("/education/examinations");
   redirect(`${getProductAppPath("think-education", "/results")}?examination=${encodeURIComponent(examination.id)}&created=1`);
+}
+
+export async function updateEducationDraftResult(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) return { error: "Session expired. Sign in again." };
+  if (!await canTabPermission("education_results", "results", "gradebook", "edit")) {
+    return { error: "You do not have permission to edit Think Education results." };
+  }
+
+  const parsed = educationResultScoreInputSchema.safeParse({
+    resultId: String(formData.get("result_id") ?? ""),
+    score: String(formData.get("score") ?? ""),
+    maximumScore: String(formData.get("maximum_score") ?? ""),
+    gradeOverride: String(formData.get("grade_override") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: "Enter a valid score, maximum score, and grade override." };
+  }
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const branchIds = campuses.map((campus) => campus.id);
+  if (!branchIds.length) {
+    return { error: "You do not have access to the campus containing this result." };
+  }
+
+  const supabase = await createClient();
+  const { data: result, error: resultError } = await supabase.from("education_results")
+    .select("id, branch_id, status")
+    .eq("org_id", context.orgId)
+    .eq("id", parsed.data.resultId)
+    .in("branch_id", branchIds)
+    .maybeSingle();
+  if (resultError) {
+    console.error("Could not load Think Education result for editing:", resultError.message);
+    return { error: `The result could not be loaded: ${resultError.message}` };
+  }
+  if (!result || result.status !== "draft") {
+    return { error: "Only draft results can be corrected." };
+  }
+
+  const { data: gradeBandRows, error: gradeBandError } = await supabase.from("education_grade_bands")
+    .select("label, minimum_percentage")
+    .eq("org_id", context.orgId)
+    .order("minimum_percentage");
+  if (gradeBandError) {
+    console.error("Could not load Think Education grade bands:", gradeBandError.message);
+    return { error: `The configured grade scale could not be loaded: ${gradeBandError.message}` };
+  }
+  const grade = getEducationResultGrade(parsed.data.gradeOverride, parsed.data.score, parsed.data.maximumScore, (gradeBandRows ?? []).map((band) => ({
+    label: band.label,
+    minimumPercentage: Number(band.minimum_percentage),
+  })));
+  const { data: updatedResult, error } = await supabase.from("education_results")
+    .update({
+      score: parsed.data.score,
+      maximum_score: parsed.data.maximumScore,
+      grade,
+      grade_override: parsed.data.gradeOverride || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("org_id", context.orgId)
+    .eq("id", parsed.data.resultId)
+    .eq("branch_id", result.branch_id)
+    .eq("status", "draft")
+    .in("branch_id", branchIds)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error("Could not update Think Education draft result:", error.message);
+    return { error: `The draft result could not be saved: ${error.message}` };
+  }
+  if (!updatedResult) {
+    return { error: "This result is no longer a draft or is outside your assigned campuses." };
+  }
+
+  revalidatePath("/education/results");
+  return { success: true };
 }
 
 export async function updateEducationResultStatus(formData: FormData) {
@@ -2990,17 +3354,21 @@ export async function createEducationTimetableEntry(formData: FormData) {
   if (!await canTabPermission("education_timetables", "timetables", "schedule", "create")) {
     throw new Error("You do not have permission to create Think Education timetable entries.");
   }
+  if (!await canTabPermission("education_academics", "academics", "calendar", "view")) {
+    throw new Error("Academic calendar view access is required to select an approved subject.");
+  }
 
   const branchId = String(formData.get("branch_id") ?? "");
   const classId = String(formData.get("class_id") ?? "");
   const staffId = String(formData.get("staff_id") ?? "").trim();
   const academicYearId = String(formData.get("academic_year_id") ?? "");
-  const subject = String(formData.get("subject_name") ?? "").trim();
+  const subjectId = String(formData.get("subject_id") ?? "");
   const weekday = Number(String(formData.get("weekday") ?? ""));
   const startsAt = String(formData.get("starts_at") ?? "");
   const endsAt = String(formData.get("ends_at") ?? "");
   const room = String(formData.get("room") ?? "").trim();
-  if (!branchId || !classId || !academicYearId || !subject || subject.length > 120
+  if (!branchId || !classId || !academicYearId
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subjectId)
     || !Number.isInteger(weekday) || weekday < 1 || weekday > 7
     || !/^\d{2}:\d{2}$/.test(startsAt) || !/^\d{2}:\d{2}$/.test(endsAt) || endsAt <= startsAt
     || room.length > 80) {
@@ -3012,13 +3380,23 @@ export async function createEducationTimetableEntry(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { data: subjectData, error: subjectError } = await supabase.from("education_subjects")
+    .select("id, name, status")
+    .eq("org_id", context.orgId).eq("id", subjectId).eq("status", "active")
+    .maybeSingle();
+  if (subjectError) throw new Error(`Could not validate the selected Think Education subject: ${subjectError.message}`);
+  const subject = subjectData
+    ? getActiveEducationSubject([subjectData], subjectId)
+    : null;
+  if (!subject) redirect(`${getProductAppPath("think-education", "/timetables")}?error=subject`);
+
   const { error } = await supabase.rpc("education_create_timetable_entry", {
     p_org_id: context.orgId,
     p_branch_id: branchId,
     p_class_id: classId,
     p_staff_id: staffId || null,
     p_academic_year_id: academicYearId,
-    p_subject_name: subject,
+    p_subject_name: subject.name,
     p_weekday: weekday,
     p_starts_at: startsAt,
     p_ends_at: endsAt,
@@ -3026,7 +3404,10 @@ export async function createEducationTimetableEntry(formData: FormData) {
   });
   if (error) {
     if (error.code === "23P01") redirect(`${getProductAppPath("think-education", "/timetables")}?error=conflict`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/timetables")}?error=invalid`);
+    if (error.code === "22023") {
+      const errorType = error.message.includes("selected subject") ? "subject" : "invalid";
+      redirect(`${getProductAppPath("think-education", "/timetables")}?error=${errorType}`);
+    }
     if (error.code === "42501") throw new Error(`Timetable entry was not authorized: ${error.message}`);
     console.error("Could not create Think Education timetable entry:", error.message);
     redirect(`${getProductAppPath("think-education", "/timetables")}?error=save`);

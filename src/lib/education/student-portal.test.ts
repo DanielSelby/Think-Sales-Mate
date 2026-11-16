@@ -6,6 +6,7 @@ describe("Think Education student portal data", () => {
     expect(educationStudentPortalSchema.safeParse([]).success).toBe(true);
     expect(educationStudentPortalSchema.safeParse([{
       id: "00000000-0000-4000-8000-000000000001",
+      organizationId: "00000000-0000-4000-8000-000000000002",
       organizationName: "Example School",
       currencyCode: "USD",
       campusName: "Main Campus",

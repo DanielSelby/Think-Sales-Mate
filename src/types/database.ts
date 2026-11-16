@@ -93,6 +93,25 @@ type EducationAcademicYear = {
   created_at: string;
   updated_at: string;
 };
+type EducationSubject = {
+  id: string;
+  org_id: string;
+  name: string;
+  status: "active" | "inactive";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationGradeBand = {
+  id: string;
+  org_id: string;
+  label: string;
+  minimum_percentage: number;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
 type EducationAcademicTerm = {
   id: string;
   org_id: string;
@@ -623,6 +642,7 @@ type EducationTimetableEntry = {
   class_id: string;
   staff_id: string | null;
   academic_year_id: string;
+  subject_id: string | null;
   subject_name: string;
   weekday: number;
   starts_at: string;
@@ -684,10 +704,12 @@ type EducationResult = {
   branch_id: string;
   examination_id: string;
   student_id: string;
+  subject_id: string | null;
   subject_name: string;
   score: number;
   maximum_score: number;
   grade: string | null;
+  grade_override: string | null;
   status: "draft" | "submitted" | "approved" | "published";
   entered_by: string | null;
   approved_by: string | null;
@@ -2079,6 +2101,11 @@ export interface Database {
       education_academic_years: EducationDatabaseTable<
         EducationAcademicYear,
         "org_id" | "name" | "starts_on" | "ends_on"
+      >;
+      education_subjects: EducationDatabaseTable<EducationSubject, "org_id" | "name">;
+      education_grade_bands: EducationDatabaseTable<
+        EducationGradeBand,
+        "org_id" | "label" | "minimum_percentage"
       >;
       education_academic_terms: EducationDatabaseTable<
         EducationAcademicTerm,

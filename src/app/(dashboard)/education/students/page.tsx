@@ -198,7 +198,7 @@ export default async function EducationStudentsPage({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {students.map((student) => <tr key={student.id} className="transition-colors hover:bg-slate-50/80">
-              <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{student.student_number}</td>
+              <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800"><Link href={getProductAppPath("think-education", `/students/${student.id}`)} className="hover:underline">{student.student_number}</Link></td>
               <td className="px-4 py-3 font-medium text-slate-900">{[student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ")}</td>
               <td className="px-4 py-3 text-slate-600">{branchNameById.get(student.branch_id) ?? "Campus"}</td>
               <td className="px-4 py-3"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-800">{student.status.replace("_", " ")}</span></td>

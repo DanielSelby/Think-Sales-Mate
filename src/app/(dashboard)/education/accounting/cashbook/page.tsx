@@ -40,10 +40,11 @@ export default async function EducationCashbookPage({
     redirect("/dashboard?accessDenied=think-education.accounting");
   }
 
-  const [params, supabase, { campuses }] = await Promise.all([
+  const [params, supabase, { campuses }, canExport] = await Promise.all([
     searchParams,
     createClient(),
     getAccessibleEducationCampuses(context.orgId, context.userId),
+    canTabPermission("education_finance", "finance", "general_ledger", "export"),
   ]);
   const { data: accounts, error: accountsError } = await supabase.from("education_accounting_accounts")
     .select("id, branch_id, code, name, normal_balance, is_active")
@@ -218,7 +219,7 @@ export default async function EducationCashbookPage({
               </div>
               <div className="flex items-center gap-3">
                 <p className="text-sm font-medium text-slate-700">Closing balance: {balance(closingBalance)}</p>
-                {visibleEntries.length > 0 && <a href={csvHref} download={`education-cashbook-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+                {canExport && visibleEntries.length > 0 && <a href={csvHref} download={`education-cashbook-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
               </div>
             </div>
             {visibleEntries.length === 0 ? (

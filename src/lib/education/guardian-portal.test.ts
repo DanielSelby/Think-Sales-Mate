@@ -5,6 +5,7 @@ describe("Think Education guardian portal data", () => {
   it("accepts an empty portal and a verified-child data shape", () => {
     expect(educationGuardianPortalSchema.safeParse([]).success).toBe(true);
     expect(educationGuardianPortalSchema.safeParse([{
+      organizationId: "00000000-0000-4000-8000-000000000002",
       organizationName: "Example School",
       currencyCode: "USD",
       guardianFirstName: "Alex",
