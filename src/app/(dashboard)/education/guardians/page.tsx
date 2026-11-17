@@ -5,6 +5,7 @@ import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeGuardianSearchValue } from "@/lib/education/guardian-search";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationGuardianLink, linkEducationGuardianToStudent, verifyEducationGuardianLink } from "../actions";
 
@@ -45,7 +46,7 @@ export default async function EducationGuardiansPage({
     typeof params.page === "string" ? params.page : "1", 10
   ) || 1));
   const studentSearch = typeof params.studentSearch === "string"
-    ? params.studentSearch.replace(/[^A-Za-z0-9\s_-]/g, "").trim().slice(0, 60)
+    ? normalizeGuardianSearchValue(params.studentSearch)
     : "";
   const supabase = await createClient();
 

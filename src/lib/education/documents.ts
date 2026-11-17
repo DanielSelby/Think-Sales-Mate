@@ -41,20 +41,23 @@ function normalizeEducationDocumentMimeType(value: string) {
   return EDUCATION_DOCUMENT_MIME_ALIASES[normalized] ?? normalized;
 }
 
+type EducationDocumentMimeType = typeof EDUCATION_DOCUMENT_MIME_TYPES[number];
+
 function inferEducationDocumentMimeType(file: File) {
-  const declaredType = normalizeEducationDocumentMimeType(file.type);
-  if (EDUCATION_DOCUMENT_MIME_TYPES.includes(declaredType as typeof EDUCATION_DOCUMENT_MIME_TYPES[number])) {
+  const rawType = file.type.trim().toLowerCase();
+  const declaredType = normalizeEducationDocumentMimeType(rawType);
+  if (EDUCATION_DOCUMENT_MIME_TYPES.includes(declaredType as EducationDocumentMimeType)) {
     return declaredType;
   }
   const lowerName = file.name.toLowerCase();
-  if (lowerName.endsWith(".pdf")) return "application/pdf";
-  if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) return "image/jpeg";
-  if (lowerName.endsWith(".png")) return "image/png";
-  if (lowerName.endsWith(".webp")) return "image/webp";
-  if (lowerName.endsWith(".doc")) return "application/msword";
-  if (lowerName.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  if (lowerName.endsWith(".txt")) return "text/plain";
-  if (declaredType === "application/octet-stream" || declaredType === "binary/octet-stream") return "";
+  if (lowerName.endsWith(".pdf")) return "application/pdf" as const;
+  if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) return "image/jpeg" as const;
+  if (lowerName.endsWith(".png")) return "image/png" as const;
+  if (lowerName.endsWith(".webp")) return "image/webp" as const;
+  if (lowerName.endsWith(".doc")) return "application/msword" as const;
+  if (lowerName.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document" as const;
+  if (lowerName.endsWith(".txt")) return "text/plain" as const;
+  if (rawType === "application/octet-stream" || rawType === "binary/octet-stream") return "";
   return declaredType;
 }
 
