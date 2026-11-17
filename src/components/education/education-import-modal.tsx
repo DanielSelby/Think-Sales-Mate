@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import { CheckCircle2, Download, FileSpreadsheet, Upload, X } from "lucide-react";
 import { importEducationRecords, type EducationImportEntity } from "@/app/(dashboard)/education/actions";
+import * as XLSX from "xlsx";
+import { readEducationImportRows } from "@/lib/education/import-file";
 
 export interface EducationImportColumn {
   key: string;
@@ -73,13 +74,11 @@ export function EducationImportModal({ entity, label, columns }: EducationImport
       return;
     }
     try {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      if (!firstSheet) {
+      const data = readEducationImportRows(await file.arrayBuffer());
+      if (!data) {
         setError("The selected file does not contain a worksheet.");
         return;
       }
-      const data = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "", raw: false });
       if (data.length < 2) {
         setError("The file must contain a header row and at least one record.");
         return;

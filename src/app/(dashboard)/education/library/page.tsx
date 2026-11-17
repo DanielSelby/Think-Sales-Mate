@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, BookOpen, RotateCcw, Undo2 } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { normalizeEducationLibrarySearch } from "@/lib/education/library-search";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -32,7 +33,7 @@ export default async function EducationLibraryPage({
   const params = await searchParams;
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 100) : "";
-  const search = requestedSearch.replace(/[^A-Za-z0-9\s_-]/g, "").trim();
+  const search = normalizeEducationLibrarySearch(requestedSearch);
   const requestedLoanFilter = typeof params.loan_status === "string" ? params.loan_status : "";
   const loanFilter: LoanFilter = isLoanFilter(requestedLoanFilter) ? requestedLoanFilter : "all";
   const [canViewCatalog, canCreate, canViewCirculation, canCreateLoan, canEdit, canExportCirculation, { campuses }] = await Promise.all([

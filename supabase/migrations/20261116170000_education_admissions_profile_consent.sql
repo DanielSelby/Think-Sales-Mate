@@ -16,8 +16,7 @@ alter table public.education_admissions
     check (guardian_first_name is null or char_length(btrim(guardian_first_name)) between 1 and 100),
   add column if not exists guardian_last_name text
     check (guardian_last_name is null or char_length(btrim(guardian_last_name)) between 1 and 100),
-  add column if not exists guardian_email text
-    check (guardian_email is null or char_length(guardian_email) <= 254),
+  add column if not exists guardian_email text,
   add column if not exists guardian_phone text
     check (guardian_phone is null or char_length(guardian_phone) <= 40),
   add column if not exists guardian_relationship text
@@ -30,7 +29,10 @@ alter table public.education_admissions
       and (guardian_email is not null or guardian_phone is not null))
   ),
   add constraint education_admissions_guardian_email_check check (
-    guardian_email is null or btrim(guardian_email) ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+    guardian_email is null or (
+      char_length(guardian_email) <= 254
+      and btrim(guardian_email) ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+    )
   ),
   add constraint education_admissions_birth_date_check check (
     applicant_date_of_birth is null or applicant_date_of_birth <= current_date

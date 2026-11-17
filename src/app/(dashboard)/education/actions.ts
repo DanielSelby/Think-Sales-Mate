@@ -1186,8 +1186,11 @@ export async function importEducationRecords(
         if (!/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber)
           || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
           || otherNames.length > 100 || !emailIsValid(email) || phone.length > 32
-          || (dateOfBirth && !isValidEducationStaffDate(dateOfBirth))) {
-          return { row: rowNumber, error: "Check the student number, name, date of birth, and contact fields." };
+        ) {
+          return { row: rowNumber, error: "Check the student number, name, and contact fields." };
+        }
+        if (dateOfBirth && !isValidEducationStaffDate(dateOfBirth)) {
+          return { row: rowNumber, error: "Date of birth must use YYYY-MM-DD and cannot be in the future." };
         }
         return runRowAction(rowNumber, () => createEducationStudent(formData));
       }
